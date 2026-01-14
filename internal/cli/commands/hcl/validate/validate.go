@@ -25,8 +25,8 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -297,21 +297,21 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		prepared, err := run.PrepareConfig(ctx, l, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig()); err != nil {
+		if err := prepare.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig()); err != nil {
 			errs = append(errs, err)
 			continue
 		}

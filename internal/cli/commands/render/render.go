@@ -15,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -32,7 +32,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return runAll(ctx, l, opts)
 	}
 
-	prepared, err := run.PrepareConfig(ctx, l, opts.TerragruntOptions)
+	prepared, err := prepare.PrepareConfig(ctx, l, opts.TerragruntOptions)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		prepared, err := run.PrepareConfig(ctx, l, unitOpts.TerragruntOptions)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts.TerragruntOptions)
 		if err != nil {
 			errs = append(errs, err)
 			continue

@@ -145,7 +145,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return processHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), terragruntOptionsClone, runCfg, nil, r)
+		return ProcessHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), terragruntOptionsClone, runCfg, nil, r)
 	}); err != nil {
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
@@ -186,7 +186,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 			"sourceUrl": sourceURL,
 		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
+			updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
 			return err
 		})
 		if err != nil {
@@ -309,7 +309,7 @@ func runTerragruntWithConfig(
 			return err
 		}
 	} else {
-		if err := prepareNonInitCommandRunCfg(ctx, l, originalOpts, opts, cfg, r); err != nil {
+		if err := PrepareNonInitCommand(ctx, l, originalOpts, opts, cfg, r); err != nil {
 			return err
 		}
 	}
@@ -453,7 +453,7 @@ func RunActionWithHooks(
 ) error {
 	var allErrors *errors.MultiError
 
-	beforeHookErrors := processHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
+	beforeHookErrors := ProcessHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
 	allErrors = allErrors.Append(beforeHookErrors)
 
 	var actionErrors error
@@ -464,7 +464,7 @@ func RunActionWithHooks(
 		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
-	postHookErrors := processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), opts, cfg, allErrors, r)
+	postHookErrors := ProcessHooks(ctx, l, cfg.Terraform.GetAfterHooks(), opts, cfg, allErrors, r)
 	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.GetErrorHooks(), opts, allErrors)
 	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
@@ -777,8 +777,8 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.T
 	return nil
 }
 
-// prepareNonInitCommandRunCfg prepares for non-init commands using runcfg types.
-func prepareNonInitCommandRunCfg(
+// PrepareNonInitCommand prepares for non-init commands using runcfg types.
+func PrepareNonInitCommand(
 	ctx context.Context,
 	l log.Logger,
 	originalOpts *options.TerragruntOptions,
