@@ -172,7 +172,11 @@ func TestDetailedExitCodeError(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 	assert.Equal(t, 1, exitCode.Get())
@@ -237,9 +241,41 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+filepath.Join(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode.Get())
+}
+
+func TestDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	var exitCode tf.DetailedExitCode
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
