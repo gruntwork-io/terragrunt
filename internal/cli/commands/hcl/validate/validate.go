@@ -304,19 +304,19 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 
 		// Download source
-		updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
+		updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := run.PrepareGenerate(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := runValidateInputs(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+		if err := runValidateInputs(l, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}

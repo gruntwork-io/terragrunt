@@ -40,20 +40,20 @@ func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	r := report.NewReport()
 
-	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
+	updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
-	if err := run.PrepareGenerate(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+	if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
 		return err
 	}
 
-	if err := run.PrepareInit(ctx, prepared.Logger, opts, updatedOpts, prepared.TerragruntConfig, r); err != nil {
+	if err := run.PrepareInit(ctx, l, opts, updatedOpts, prepared.Cfg, r); err != nil {
 		return err
 	}
 
-	return runAwsProviderPatch(prepared.Logger, updatedOpts)
+	return runAwsProviderPatch(l, updatedOpts)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {

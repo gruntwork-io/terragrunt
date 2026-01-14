@@ -37,7 +37,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return err
 	}
 
-	return runRender(ctx, prepared.Logger, opts, prepared.TerragruntConfig)
+	return runRender(ctx, l, opts, prepared.Cfg)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *Options) error {
@@ -69,7 +69,7 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 			continue
 		}
 
-		if err := runRender(ctx, prepared.Logger, unitOpts, prepared.TerragruntConfig); err != nil {
+		if err := runRender(ctx, l, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}

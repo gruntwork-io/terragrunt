@@ -23,31 +23,31 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 	r := report.NewReport()
 
 	// Download source
-	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
+	updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	// Generate config
-	if err := run.PrepareGenerate(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+	if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
 		return err
 	}
 
 	if cmdOpts.InDownloadDir {
 		// Run terraform init
-		if err := run.PrepareInit(ctx, prepared.Logger, opts, updatedOpts, prepared.TerragruntConfig, r); err != nil {
+		if err := run.PrepareInit(ctx, l, opts, updatedOpts, prepared.Cfg, r); err != nil {
 			return err
 		}
 	} else {
 		// Just set inputs as env vars, skip init
 		updatedOpts.AutoInit = false
 
-		if err := run.PrepareInputsAsEnvVars(prepared.Logger, updatedOpts, prepared.TerragruntConfig); err != nil {
+		if err := run.PrepareInputsAsEnvVars(l, updatedOpts, prepared.Cfg); err != nil {
 			return err
 		}
 	}
 
-	return runTargetCommand(ctx, prepared.Logger, updatedOpts, prepared.TerragruntConfig, r, cmdOpts, args)
+	return runTargetCommand(ctx, l, updatedOpts, prepared.Cfg, r, cmdOpts, args)
 }
 
 func runTargetCommand(
