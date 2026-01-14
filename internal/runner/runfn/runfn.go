@@ -6,8 +6,8 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Func is the function signature for running terragrunt commands.
