@@ -278,6 +278,31 @@ func TestDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
 	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
+func TestDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	exitCode := tf.NewDetailedExitCodeMap()
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" --all -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
+}
+
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	t.Parallel()
 

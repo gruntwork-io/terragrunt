@@ -106,11 +106,3 @@ func (m *DetailedExitCodeMap) GetFinalExitCode() int {
 
 	return maxCode
 }
-
-// ResetSuccess clears all exit codes from the map.
-func (m *DetailedExitCodeMap) ResetSuccess() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.codes = make(map[string]int)
-}
