@@ -81,7 +81,7 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) clihelper.Com
 func Action(l log.Logger, opts *options.TerragruntOptions) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
 		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = opts.DestroyDependenciesCheck
+			opts.CheckDependentUnits = opts.DestroyDependenciesCheck
 		}
 
 		r := report.NewReport().WithWorkingDir(opts.WorkingDir)

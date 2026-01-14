@@ -757,7 +757,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx context.Context, pctx *Parsin
 
 	targetOptions.ForwardTFStdout = false
 	// just read outputs, so no need to check for dependent modules
-	targetOptions.CheckDependentModules = false
+	targetOptions.CheckDependentUnits = false
 	targetOptions.TerraformCommand = "output"
 	targetOptions.TerraformCliArgs = []string{"output", "-json"}
 

@@ -238,8 +238,8 @@ type TerragruntOptions struct {
 	JSONDisableDependentModules bool
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
-	// True if is required to show dependent modules and confirm action
-	CheckDependentModules bool
+	// True if is required to show dependent units and confirm action
+	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
 	DestroyDependenciesCheck bool
 	// Include fields metadata in render-json

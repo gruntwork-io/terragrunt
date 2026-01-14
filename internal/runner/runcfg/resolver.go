@@ -28,9 +28,9 @@ type DependentModule interface {
 	Path() string
 }
 
-// DependentModulesFinder finds modules that depend on a given working directory.
+// DependentUnitsFinder finds modules that depend on a given working directory.
 // This interface is implemented by the runner package to break cyclic imports.
-type DependentModulesFinder interface {
+type DependentUnitsFinder interface {
 	// FindDependentModules returns a list of modules that have the given working directory as a dependency.
 	FindDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *RunConfig) []DependentModule
 }

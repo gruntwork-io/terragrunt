@@ -227,8 +227,8 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
 
-	if opts.CheckDependentModules {
-		allowDestroy := confirmActionWithDependentModules(ctx, l, opts, terragruntConfig)
+	if opts.CheckDependentUnits {
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, terragruntConfig)
 		if !allowDestroy {
 			return nil
 		}
@@ -375,10 +375,10 @@ func runTerragruntWithConfig(
 	})
 }
 
-// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
-func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
+// confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy
+func confirmActionWithDependentUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
 	// Get the DependentModulesFinder from context
-	finder := GetDependentModulesFinder(ctx)
+	finder := GetDependentUnitsFinder(ctx)
 	if finder == nil {
 		// If no finder is available, skip the check but allow the action to proceed
 		l.Debugf("No DependentModulesFinder available in context, skipping dependent modules check")
@@ -611,8 +611,6 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 
 	return true, nil
 }
-
-// runAll runs the provided terraform command against all the modules that are found in the directory tree.
 
 // FilterTerraformExtraArgs extracts terraform extra arguments using runcfg types.
 func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) []string {

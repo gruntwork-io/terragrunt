@@ -11,7 +11,7 @@ type configKey byte
 
 const (
 	versionCacheContextKey configKey = iota
-	dependentModulesFinderContextKey
+	dependentUnitsFinderContextKey
 	versionCacheName = "versionCache"
 )
 
@@ -27,13 +27,16 @@ func GetRunVersionCache(ctx context.Context) *cache.Cache[string] {
 }
 
 // WithDependentModulesFinder adds a DependentModulesFinder to the context.
-func WithDependentModulesFinder(ctx context.Context, finder runcfg.DependentModulesFinder) context.Context {
-	return context.WithValue(ctx, dependentModulesFinderContextKey, finder)
+func WithDependentModulesFinder(ctx context.Context, finder runcfg.DependentUnitsFinder) context.Context {
+	return context.WithValue(ctx, dependentUnitsFinderContextKey, finder)
 }
 
-// GetDependentModulesFinder retrieves the DependentModulesFinder from the context.
-func GetDependentModulesFinder(ctx context.Context) runcfg.DependentModulesFinder {
-	if finder, ok := ctx.Value(dependentModulesFinderContextKey).(runcfg.DependentModulesFinder); ok {
+// GetDependentUnitsFinder retrieves the DependentModulesFinder from the context.
+//
+// We store this finder in context purely to bypass a circular dependency import between the `config` package and
+// the `run` package.
+func GetDependentUnitsFinder(ctx context.Context) runcfg.DependentUnitsFinder {
+	if finder, ok := ctx.Value(dependentUnitsFinderContextKey).(runcfg.DependentUnitsFinder); ok {
 		return finder
 	}
 
