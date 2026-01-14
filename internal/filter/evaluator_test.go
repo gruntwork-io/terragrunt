@@ -696,10 +696,10 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 	// Create a component graph: vpc -> db -> app
 
 	tests := []struct {
-		name     string
 		expr     *filter.GraphExpression
-		expected []string
 		setup    func() []component.Component
+		name     string
+		expected []string
 	}{
 		{
 			name: "dependency traversal - app...",
@@ -840,10 +840,12 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 			components := tt.setup()
 
 			expected := make([]component.Component, 0, len(tt.expected))
+
 			expectedMap := make(map[string]bool)
 			for _, path := range tt.expected {
 				expectedMap[path] = true
 			}
+
 			for _, c := range components {
 				if expectedMap[c.Path()] {
 					expected = append(expected, c)
