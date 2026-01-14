@@ -69,7 +69,6 @@ func PrepareSource(
 
 	opts.Errors = errConfig
 
-	// Translate config to runcfg for internal functions
 	runCfg := cfg.ToRunConfig()
 
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
