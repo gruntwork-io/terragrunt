@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // RunGenerate runs the stack command.

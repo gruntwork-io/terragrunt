@@ -6,8 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Run is the main entry point for the catalog command.

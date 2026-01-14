@@ -29,7 +29,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 

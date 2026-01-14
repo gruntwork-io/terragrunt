@@ -15,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and

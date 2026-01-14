@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {

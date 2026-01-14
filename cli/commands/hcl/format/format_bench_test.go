@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	logformat "github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 func BenchmarkFormat(b *testing.B) {

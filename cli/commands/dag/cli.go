@@ -5,8 +5,8 @@ package dag
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/dag/graph"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (

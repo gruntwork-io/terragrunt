@@ -9,8 +9,8 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
