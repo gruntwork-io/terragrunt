@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func runVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func RunVersionCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if !opts.TFPathExplicitlySet {
 		if tfPath, err := getTfPathFromConfig(ctx, l, opts); err != nil {
 			return err

@@ -95,7 +95,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *target) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
-		return runVersionCommand(ctx, l, opts)
+		return RunVersionCommand(ctx, l, opts)
 	}
 
 	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
