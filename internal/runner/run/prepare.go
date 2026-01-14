@@ -17,7 +17,7 @@ import (
 type PreparedConfig struct {
 	TerragruntConfig *config.TerragruntConfig
 	Logger           log.Logger
-	UpdatedOpts      *options.TerragruntOptions
+	Opts             *options.TerragruntOptions
 }
 
 // PrepareConfig reads and parses the terragrunt configuration, fetches credentials,
@@ -43,7 +43,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	return &PreparedConfig{
 		TerragruntConfig: terragruntConfig,
 		Logger:           l,
-		UpdatedOpts:      opts,
+		Opts:             opts,
 	}, nil
 }
 

@@ -277,6 +277,8 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
+	r := report.NewReport()
+
 	var errs []error
 
 	for _, c := range components {
@@ -302,7 +304,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 
 		// Download source
-		updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, report.NewReport())
+		updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue

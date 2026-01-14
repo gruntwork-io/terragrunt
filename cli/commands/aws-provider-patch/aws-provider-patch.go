@@ -40,7 +40,7 @@ func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	r := report.NewReport()
 
-	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.UpdatedOpts, prepared.TerragruntConfig, r)
+	updatedOpts, err := run.PrepareSource(ctx, prepared.Logger, prepared.Opts, prepared.TerragruntConfig, r)
 	if err != nil {
 		return err
 	}
