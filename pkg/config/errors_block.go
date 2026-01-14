@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/zclconf/go-cty/cty"
 )
 

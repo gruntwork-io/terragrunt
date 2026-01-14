@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -19,7 +19,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/zclconf/go-cty/cty"

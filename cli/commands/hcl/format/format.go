@@ -28,9 +28,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 var excludePaths = []string{
