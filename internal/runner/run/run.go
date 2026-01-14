@@ -909,7 +909,15 @@ func shouldCopyLockFileRunCfg(args clihelper.Args, terraformConfig *runcfg.Terra
 }
 
 // runActionWithHooks runs action with hooks using runcfg types.
-func runActionWithHooks(ctx context.Context, l log.Logger, description string, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, r *report.Report, action func(ctx context.Context) error) error {
+func runActionWithHooks(
+	ctx context.Context,
+	l log.Logger,
+	description string,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+	action func(ctx context.Context) error,
+) error {
 	var allErrors *errors.MultiError
 
 	beforeHookErrors := processHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
