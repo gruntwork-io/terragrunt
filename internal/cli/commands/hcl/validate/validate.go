@@ -311,7 +311,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 
 		// Generate config
-		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
+		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig()); err != nil {
 			errs = append(errs, err)
 			continue
 		}

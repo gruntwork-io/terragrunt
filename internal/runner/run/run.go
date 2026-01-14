@@ -111,16 +111,11 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
 	if err != nil {
-		// Translate config to RunConfig for error callback (may be nil)
-		var runCfg *runcfg.RunConfig
-		if terragruntConfig != nil {
-			runCfg = terragruntConfig.ToRunConfig()
-		}
+		runCfg := terragruntConfig.ToRunConfig()
 
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
 
-	// Translate config to RunConfig for use throughout the rest of this function
 	runCfg := terragruntConfig.ToRunConfig()
 
 	if target.isPoint(targetPointParseConfig) {
@@ -207,7 +202,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = generateConfig(l, updatedTerragruntOptions, runCfg); err != nil {
+	if err = GenerateConfig(l, updatedTerragruntOptions, runCfg); err != nil {
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
 
@@ -244,12 +239,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 }
 
 // GenerateConfig handles code generation using config types (for backwards compatibility).
-func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	return generateConfig(l, opts, cfg.ToRunConfig())
-}
-
-// generateConfig handles code generation using runcfg types (internal use).
-func generateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
@@ -348,9 +338,9 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	return runActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(ctx context.Context) error {
+	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(ctx, l, opts, opts.TerraformCliArgs...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs...)
 
 		var lockFileError error
 		if shouldCopyLockFileRunCfg(opts.TerraformCliArgs, cfg.Terraform) {
@@ -452,16 +442,39 @@ func ShouldCopyLockFile(args clihelper.Args, terraformConfig *config.TerraformCo
 
 // RunActionWithHooks runs the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
-func RunActionWithHooks(ctx context.Context, l log.Logger, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, r *report.Report, action func(ctx context.Context) error) error {
-	// Translate config to runcfg for internal use
-	runCfg := terragruntConfig.ToRunConfig()
-	return runActionWithHooks(ctx, l, description, terragruntOptions, runCfg, r, action)
+func RunActionWithHooks(
+	ctx context.Context,
+	l log.Logger,
+	description string,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+	action func(ctx context.Context) error,
+) error {
+	var allErrors *errors.MultiError
+
+	beforeHookErrors := processHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
+	allErrors = allErrors.Append(beforeHookErrors)
+
+	var actionErrors error
+	if beforeHookErrors == nil {
+		actionErrors = action(ctx)
+		allErrors = allErrors.Append(actionErrors)
+	} else {
+		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
+	}
+
+	postHookErrors := processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), opts, cfg, allErrors, r)
+	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.GetErrorHooks(), opts, allErrors)
+	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
+
+	return allErrors.ErrorOrNil()
 }
 
 // SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
 // OpenTofu/Terraform.
-func SetTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := ToTerraformEnvVars(l, opts, terragruntConfig.Inputs)
+func SetTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+	asEnvVars, err := ToTerraformEnvVars(l, opts, cfg.Inputs)
 	if err != nil {
 		return err
 	}
@@ -906,34 +919,4 @@ func shouldCopyLockFileRunCfg(args clihelper.Args, terraformConfig *runcfg.Terra
 	}
 
 	return false
-}
-
-// runActionWithHooks runs action with hooks using runcfg types.
-func runActionWithHooks(
-	ctx context.Context,
-	l log.Logger,
-	description string,
-	opts *options.TerragruntOptions,
-	cfg *runcfg.RunConfig,
-	r *report.Report,
-	action func(ctx context.Context) error,
-) error {
-	var allErrors *errors.MultiError
-
-	beforeHookErrors := processHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
-	allErrors = allErrors.Append(beforeHookErrors)
-
-	var actionErrors error
-	if beforeHookErrors == nil {
-		actionErrors = action(ctx)
-		allErrors = allErrors.Append(actionErrors)
-	} else {
-		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
-	}
-
-	postHookErrors := processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), opts, cfg, allErrors, r)
-	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.GetErrorHooks(), opts, allErrors, r)
-	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
-
-	return allErrors.ErrorOrNil()
 }

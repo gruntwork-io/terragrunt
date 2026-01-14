@@ -75,7 +75,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 			cfg := &config.TerragruntConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg.ToRunConfig()))
 
 			assert.Equal(t, tc.expected, opts.Env)
 		})
