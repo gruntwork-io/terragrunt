@@ -47,8 +47,13 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 // PrepareSource downloads terraform source if specified in the configuration.
 // It requires PrepareConfig to have been called first.
-func PrepareSource(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) (*options.TerragruntOptions, error) {
-	// fetch engine options from the config
+func PrepareSource(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+	r *report.Report,
+) (*options.TerragruntOptions, error) {
 	engine, err := cfg.EngineOptions()
 	if err != nil {
 		return nil, err
@@ -63,15 +68,15 @@ func PrepareSource(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 
 	opts.Errors = errConfig
 
-	l, terragruntOptionsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
+	optsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), terragruntOptionsClone, cfg, nil, r)
+	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
+		return processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), optsClone, cfg, nil, r)
 	}); err != nil {
 		return nil, err
 	}
@@ -91,7 +96,6 @@ func PrepareSource(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	// get the default download dir
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
