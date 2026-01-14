@@ -3,7 +3,7 @@ package run
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -20,9 +20,9 @@ const (
 
 type targetPointType byte
 
-type targetCallbackType func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type targetCallbackType func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *runcfg.RunConfig) error
 
-type targetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
+type targetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions, config *runcfg.RunConfig, e error) error
 
 // target is an internal flow control mechanism used by run() to manage
 // the terraform preparation pipeline stages.
@@ -40,18 +40,18 @@ func (t *target) isPoint(point targetPointType) bool {
 	return t.point == point
 }
 
-func (t *target) runCallback(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+func (t *target) runCallback(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	if t == nil || t.callbackFunc == nil {
 		return nil
 	}
 
-	return t.callbackFunc(ctx, l, opts, config)
+	return t.callbackFunc(ctx, l, opts, cfg)
 }
 
-func (t *target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+func (t *target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, e error) error {
 	if t == nil || t.errorCallbackFunc == nil {
 		return e
 	}
 
-	return t.errorCallbackFunc(l, opts, config, e)
+	return t.errorCallbackFunc(l, opts, cfg, e)
 }

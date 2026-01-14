@@ -36,7 +36,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -402,8 +401,6 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.OriginalTerragruntConfigPath = opts.TerragruntConfigPath
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
-
-	runfn.Run = run.Run
 
 	exec.PrepareConsole(l)
 

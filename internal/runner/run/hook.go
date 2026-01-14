@@ -9,11 +9,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-multierror"
@@ -25,7 +25,7 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError, _ *report.Report) error {
+func processErrorHooks(ctx context.Context, l log.Logger, hooks []runcfg.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError, _ *report.Report) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
 		return nil
 	}
@@ -107,9 +107,9 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 func processHooks(
 	ctx context.Context,
 	l log.Logger,
-	hooks []config.Hook,
+	hooks []runcfg.Hook,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	previousExecErrors *errors.MultiError,
 	_ *report.Report,
 ) error {
@@ -144,7 +144,7 @@ func processHooks(
 	return errorsOccured.ErrorOrNil()
 }
 
-func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError) bool {
+func shouldRunHook(hook runcfg.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError) bool {
 	// if there's no previous error, execute command
 	// OR if a previous error DID happen AND we want to run anyways
 	// then execute.
@@ -157,7 +157,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
 }
 
-func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
+func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig, curHook runcfg.Hook) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
 	workingDir := ""
@@ -175,7 +175,7 @@ func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.Terra
 	terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
 
 	if actionToExecute == "tflint" {
-		if err := executeTFLint(ctx, l, terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
+		if err := executeTFLint(ctx, l, terragruntOptions, cfg, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
@@ -197,7 +197,7 @@ func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.Terra
 	return nil
 }
 
-func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, curHook runcfg.Hook, workingDir string) error {
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)

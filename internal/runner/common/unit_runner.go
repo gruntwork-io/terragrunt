@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -82,7 +82,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := runfn.Run(ctx, runner.Unit.Execution.Logger, opts, r)
+	runErr := run.Run(ctx, runner.Unit.Execution.Logger, opts, r)
 
 	// Store the unit exit code in the global map using the unit path as key
 	// Get the exit code from the unit-scoped map (stored with empty string key in run_cmd.go)
@@ -157,7 +157,7 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := runfn.Run(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := run.Run(ctx, l, jsonOptions, adhocReport); err != nil {
 			return err
 		}
 

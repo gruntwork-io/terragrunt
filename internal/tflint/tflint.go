@@ -10,12 +10,12 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/collections"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/terraform-linters/tflint/cmd"
 )
@@ -29,7 +29,7 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook runcfg.Hook) error {
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
@@ -44,12 +44,12 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Using .tflint.hcl file in %s", configFile)
 
-	variables, err := InputsToTflintVar(config.Inputs)
+	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(l, hook, config.Terraform)
+	tfVariables, err := tfArgumentsToTflintVar(l, hook, cfg.Terraform)
 	if err != nil {
 		return err
 	}
@@ -169,11 +169,11 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
-	config *config.TerraformConfig) ([]string, error) {
+func tfArgumentsToTflintVar(l log.Logger, hook runcfg.Hook,
+	tfCfg *runcfg.TerraformConfig) ([]string, error) {
 	var variables []string
 
-	for _, arg := range config.ExtraArgs {
+	for _, arg := range tfCfg.ExtraArgs {
 		// use extra args which will be used on same command as hook
 		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
 			continue
