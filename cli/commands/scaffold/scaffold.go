@@ -11,7 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/cli/flags/shared"
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 
@@ -23,7 +23,7 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/go-getter/v2"
 )

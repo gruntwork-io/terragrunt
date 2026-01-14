@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -128,7 +128,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
 
 	l := logger.CreateLogger()
 
@@ -145,7 +145,7 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
 	l := logger.CreateLogger()
 
@@ -166,7 +166,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
 	l := logger.CreateLogger()
 

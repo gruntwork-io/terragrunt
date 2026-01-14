@@ -12,8 +12,8 @@ import (
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -32,11 +32,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 	versioncmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/hashicorp/go-version"

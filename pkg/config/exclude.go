@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
 )

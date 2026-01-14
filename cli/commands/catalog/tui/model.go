@@ -9,8 +9,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // sessionState keeps track of the view we are currently on.

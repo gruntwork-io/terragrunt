@@ -3,8 +3,8 @@ package config
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
 type configKey byte

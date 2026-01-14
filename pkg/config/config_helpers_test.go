@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -272,56 +272,56 @@ func TestFindInParentFolders(t *testing.T) {
 		{
 			name:              "simple-lookup",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 		},
 		{
 			name:              "nested-lookup",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 		},
 		{
 			name:              "lookup-with-max-folders",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
+			terragruntOptions: terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			expectedErr:       config.ParentFileNotFoundError{},
 		},
 		{
 			name:              "multiple-terragrunt-in-parents",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
 		},
 		{
 			name:              "multiple-terragrunt-in-parents-under-child",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
 		},
 		{
 			name:              "multiple-terragrunt-in-parents-under-sub-child",
 			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
 		},
 		{
 			name:              "parent-file-that-isnt-terragrunt",
 			params:            []string{"foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/other-file-names/foo.txt"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/other-file-names/foo.txt"),
 		},
 		{
 			name:              "parent-file-that-isnt-terragrunt-in-another-subfolder",
 			params:            []string{"common/foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
 		},
 		{
 			name:              "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
 			params:            []string{"tfwork"},
-			terragruntOptions: terragruntOptionsForTest(t, "../test/fixtures/parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../test/fixtures/parent-folders/with-params/tfwork"),
+			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
+			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
 		},
 		{
 			name:              "not-found",
@@ -432,21 +432,21 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		{
 			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
-			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 			"",
 		},
 		{
 			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
+			terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
 			"",
 			"ParentFileNotFoundError",
 		},
 		{
 			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
+			terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			"",
 			"ParentFileNotFoundError",
 		},
@@ -876,7 +876,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 
-			terragruntOptions := terragruntOptionsForTest(t, "../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+			terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
 			ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
@@ -969,7 +969,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/inputs/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/inputs/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1007,7 +1007,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/terragrunt/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/terragrunt/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1041,7 +1041,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1085,7 +1085,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/locals/canonical/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/locals/canonical/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -1315,7 +1315,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)

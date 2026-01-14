@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
