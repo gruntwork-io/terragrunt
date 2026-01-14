@@ -15,7 +15,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 
-	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/terragrunt/util"
 

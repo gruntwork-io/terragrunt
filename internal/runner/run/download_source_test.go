@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
