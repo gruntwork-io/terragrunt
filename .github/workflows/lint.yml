@@ -34,17 +34,17 @@ jobs:
         echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
         if [ "$RUNNER_OS" == "Windows" ]; then
-          echo "golanci-lint-cache=$LOCALAPPDATA/golangci-lint" >> "$GITHUB_OUTPUT"
+          echo "golangci-lint-cache=$LOCALAPPDATA/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
         if [ "$RUNNER_OS" == "macOS" ]; then
-          echo "golanci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
+          echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
         if [ "$RUNNER_OS" == "Linux" ]; then
-          echo "golanci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
+          echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -63,7 +63,7 @@ jobs:
     - name: golangci-lint Cache
       uses: actions/cache@v5
       with:
-        path: ${{ steps.go-cache-paths.outputs.golanci-lint-cache }}
+        path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
 
     - name: Lint
