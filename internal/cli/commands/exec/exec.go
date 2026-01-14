@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/urfave/cli"
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, args clihelper.Args) error {
@@ -57,7 +56,7 @@ func runTargetCommand(
 	cfg *config.TerragruntConfig,
 	r *report.Report,
 	cmdOpts *Options,
-	args cli.Args,
+	args clihelper.Args,
 ) error {
 	var (
 		command = args.CommandName()
