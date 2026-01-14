@@ -266,11 +266,18 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
 
-	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalURL, downloadDir, false)
+	terraformSource, opts, cfg, err := createConfig(t, canonicalURL, downloadDir, false)
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig.ToRunConfig(), report.NewReport())
+	err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		terraformSource,
+		opts,
+		cfg.ToRunConfig(),
+		report.NewReport(),
+	)
 	require.Error(t, err)
 
 	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
@@ -350,24 +357,48 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 		name      string
 		sourceURL string
 	}{
-		{name: "test-stale-file-exists", sourceURL: "../../../test/fixtures/manifest/version-1", comp: func() bool {
-			return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-		}},
-		{name: "test-stale-file-doesnt-exist-after-source-update", sourceURL: "../../../test/fixtures/manifest/version-2", comp: func() bool {
-			return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
-		}},
-		{name: "test-tffile-exists-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-3-subfolder", comp: func() bool {
-			return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-		}},
-		{name: "test-tffile-doesnt-exist-in-subfolder", sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty", comp: func() bool {
-			return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
-		}},
-		{name: "test-empty-folder-gets-copied", sourceURL: testDir, comp: func() bool {
-			return util.FileExists(filepath.Join(downloadDir, "sub2"))
-		}},
-		{name: "test-empty-folder-gets-populated", sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder", comp: func() bool {
-			return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
-		}},
+		{
+			name:      "test-stale-file-exists",
+			sourceURL: "../../../test/fixtures/manifest/version-1",
+			comp: func() bool {
+				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+			},
+		},
+		{
+			name:      "test-stale-file-doesnt-exist-after-source-update",
+			sourceURL: "../../../test/fixtures/manifest/version-2",
+			comp: func() bool {
+				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
+			},
+		},
+		{
+			name:      "test-tffile-exists-in-subfolder",
+			sourceURL: "../../../test/fixtures/manifest/version-3-subfolder",
+			comp: func() bool {
+				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+			},
+		},
+		{
+			name:      "test-tffile-doesnt-exist-in-subfolder",
+			sourceURL: "../../../test/fixtures/manifest/version-4-subfolder-empty",
+			comp: func() bool {
+				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
+			},
+		},
+		{
+			name:      "test-empty-folder-gets-copied",
+			sourceURL: testDir,
+			comp: func() bool {
+				return util.FileExists(filepath.Join(downloadDir, "sub2"))
+			},
+		},
+		{
+			name:      "test-empty-folder-gets-populated",
+			sourceURL: "../../../test/fixtures/manifest/version-5-not-empty-subfolder",
+			comp: func() bool {
+				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
+			},
+		},
 	}
 
 	// The test cases are run sequentially because they depend on each other.
@@ -381,14 +412,33 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	}
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
+func testDownloadTerraformSourceIfNecessary(
+	t *testing.T,
+	canonicalURL string,
+	downloadDir string,
+	sourceUpdate bool,
+	expectedFileContents string,
+	requireInitFile bool,
+) {
 	t.Helper()
 
-	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalURL, downloadDir, sourceUpdate)
+	terraformSource, opts, cfg, err := createConfig(
+		t,
+		canonicalURL,
+		downloadDir,
+		sourceUpdate,
+	)
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig.ToRunConfig(), report.NewReport())
+	err = run.DownloadTerraformSourceIfNecessary(
+		t.Context(),
+		logger.CreateLogger(),
+		terraformSource,
+		opts,
+		cfg.ToRunConfig(),
+		report.NewReport(),
+	)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := filepath.Join(downloadDir, "main.tf")
@@ -403,7 +453,12 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 	}
 }
 
-func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+func createConfig(
+	t *testing.T,
+	canonicalURL string,
+	downloadDir string,
+	sourceUpdate bool,
+) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
 	logger := logger.CreateLogger()
@@ -503,10 +558,17 @@ func readFile(t *testing.T, path string) string {
 func copyFolder(t *testing.T, src string, dest string) {
 	t.Helper()
 
-	logger := logger.CreateLogger()
-	logger.SetOptions(log.WithOutput(io.Discard))
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
 
-	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)
+	err := util.CopyFolderContents(
+		l,
+		filepath.FromSlash(src),
+		filepath.FromSlash(dest),
+		".terragrunt-test",
+		nil,
+		nil,
+	)
 	require.NoError(t, err)
 }
 
@@ -655,10 +717,13 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	src := &tf.Source{
-		CanonicalSourceURL: parseURL(t, "github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world"),
-		DownloadDir:        tmpDir,
-		WorkingDir:         tmpDir,
-		VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+		CanonicalSourceURL: parseURL(
+			t,
+			"github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world",
+		),
+		DownloadDir: tmpDir,
+		WorkingDir:  tmpDir,
+		VersionFile: filepath.Join(tmpDir, "version-file.txt"),
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")

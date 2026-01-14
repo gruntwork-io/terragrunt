@@ -134,13 +134,13 @@ func PrepareSource(
 
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
-func PrepareGenerate(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func PrepareGenerate(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	return GenerateConfig(l, opts, cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
-func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	// Check for terraform code
 	if err := CheckFolderContainsTerraformCode(opts); err != nil {
 		return err
@@ -151,7 +151,13 @@ func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
 // It requires PrepareInputsAsEnvVars to have been called first.
-func PrepareInit(ctx context.Context, l log.Logger, originalOpts, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
+func PrepareInit(
+	ctx context.Context,
+	l log.Logger,
+	originalOpts, opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+) error {
 	// Check for terraform code
 	if err := CheckFolderContainsTerraformCode(opts); err != nil {
 		return err
@@ -161,9 +167,6 @@ func PrepareInit(ctx context.Context, l log.Logger, originalOpts, opts *options.
 		return err
 	}
 
-	// Translate config to runcfg for internal functions
-	runCfg := cfg.ToRunConfig()
-
 	// Run terraform init via the non-init command preparation path
-	return prepareNonInitCommandRunCfg(ctx, l, originalOpts, opts, runCfg, r)
+	return prepareNonInitCommandRunCfg(ctx, l, originalOpts, opts, cfg, r)
 }

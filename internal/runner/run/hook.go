@@ -25,7 +25,13 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-func processErrorHooks(ctx context.Context, l log.Logger, hooks []runcfg.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError, _ *report.Report) error {
+func processErrorHooks(
+	ctx context.Context,
+	l log.Logger,
+	hooks []runcfg.ErrorHook,
+	opts *options.TerragruntOptions,
+	previousExecErrors *errors.MultiError,
+) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
 		return nil
 	}
@@ -58,7 +64,7 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []runcfg.ErrorHo
 	errorMessage := customMultierror.Error()
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, terragruntOptions.TerraformCommand) {
+		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
@@ -77,12 +83,12 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []runcfg.ErrorHo
 
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
-				terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
+				opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
 					l,
-					terragruntOptions,
+					opts,
 					workingDir,
 					suppressStdout,
 					false,
@@ -144,7 +150,11 @@ func processHooks(
 	return errorsOccured.ErrorOrNil()
 }
 
-func shouldRunHook(hook runcfg.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError) bool {
+func shouldRunHook(
+	hook runcfg.Hook,
+	opts *options.TerragruntOptions,
+	previousExecErrors *errors.MultiError,
+) bool {
 	// if there's no previous error, execute command
 	// OR if a previous error DID happen AND we want to run anyways
 	// then execute.
@@ -152,12 +162,18 @@ func shouldRunHook(hook runcfg.Hook, terragruntOptions *options.TerragruntOption
 	//
 	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
-	isCommandInHook := slices.Contains(hook.Commands, terragruntOptions.TerraformCommand)
+	isCommandInHook := slices.Contains(hook.Commands, opts.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
 }
 
-func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig, curHook runcfg.Hook) error {
+func runHook(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	curHook runcfg.Hook,
+) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
 	workingDir := ""
@@ -172,17 +188,17 @@ func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.Terra
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
-	terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
+	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
-		if err := executeTFLint(ctx, l, terragruntOptions, cfg, curHook, workingDir); err != nil {
+		if err := executeTFLint(ctx, l, opts, cfg, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
 		_, possibleError := shell.RunCommandWithOutput(
 			ctx,
 			l,
-			terragruntOptions,
+			opts,
 			workingDir,
 			suppressStdout,
 			false,
@@ -197,7 +213,14 @@ func runHook(ctx context.Context, l log.Logger, terragruntOptions *options.Terra
 	return nil
 }
 
-func executeTFLint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, curHook runcfg.Hook, workingDir string) error {
+func executeTFLint(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	curHook runcfg.Hook,
+	workingDir string,
+) error {
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)

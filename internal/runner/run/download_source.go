@@ -151,9 +151,17 @@ func DownloadTerraformSourceIfNecessary(
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 
-	downloadErr := runActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(childCtx context.Context) error {
-		return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
-	})
+	downloadErr := RunActionWithHooks(
+		ctx,
+		l,
+		"download source",
+		terragruntOptionsForDownload,
+		cfg,
+		r,
+		func(childCtx context.Context) error {
+			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+		},
+	)
 	if downloadErr != nil {
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
@@ -298,7 +306,14 @@ func preserveSymlinksOption() getter.ClientOption {
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, r *report.Report) error {
+func downloadSource(
+	ctx context.Context,
+	l log.Logger,
+	src *tf.Source,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,

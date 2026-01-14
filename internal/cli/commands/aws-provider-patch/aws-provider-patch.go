@@ -45,11 +45,13 @@ func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return err
 	}
 
-	if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
+	runCfg := prepared.Cfg.ToRunConfig()
+
+	if err := run.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
-	if err := run.PrepareInit(ctx, l, opts, updatedOpts, prepared.Cfg, r); err != nil {
+	if err := run.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
 		return err
 	}
 
