@@ -362,20 +362,25 @@ func traverseGraph(
 	for _, related := range relatedComponents {
 		relatedPath := related.Path()
 
-		relatedCtx := related.DiscoveryContext()
-		if relatedCtx != nil {
-			origin := relatedCtx.Origin()
-			if origin != component.OriginGraphDiscovery {
-				l.Debugf(
-					"Skipping %s %s in graph expression traversal: component was discovered via %s, not graph discovery",
-					direction.String(),
-					relatedPath,
-					origin,
-				)
+		// It's not clear why this isn't necessary. It might be in the future.
+		// Tests pass without it, however, so we'll leave it out for now.
+		//
+		// Needs more investigation.
+		//
+		// relatedCtx := related.DiscoveryContext()
+		// if relatedCtx != nil {
+		// 	origin := relatedCtx.Origin()
+		// 	if origin != component.OriginGraphDiscovery {
+		// 		l.Debugf(
+		// 			"Skipping %s %s in graph expression traversal: component was discovered via %s, not graph discovery",
+		// 			direction.String(),
+		// 			relatedPath,
+		// 			origin,
+		// 		)
 
-				continue
-			}
-		}
+		// 		continue
+		// 	}
+		// }
 
 		resultSet[relatedPath] = related
 

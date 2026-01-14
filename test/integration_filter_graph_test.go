@@ -711,7 +711,7 @@ dependency "vpc" {
 			description:   "Should run cache and its dependent service",
 		},
 		{
-			name:          "both directions - issue #5307 - run",
+			name:          "both directions - run",
 			filterQuery:   "...[HEAD~1...HEAD]...",
 			expectedUnits: []string{"vpc", "cache", "service"},
 			description:   "Should run vpc (dep), cache (target), service (dependent)",
