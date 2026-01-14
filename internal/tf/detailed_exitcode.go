@@ -7,46 +7,110 @@ import (
 const (
 	DetailedExitCodeSuccess = 0
 	DetailedExitCodeError   = 1
+	DetailedExitCodeChanges = 2
 )
 
-// DetailedExitCode is the TF detailed exit code. https://opentofu.org/docs/cli/commands/plan/
-type DetailedExitCode struct {
-	Code int
-	mu   sync.RWMutex
+// DetailedExitCodeMap stores exit codes per unit path. https://opentofu.org/docs/cli/commands/plan/
+type DetailedExitCodeMap struct {
+	codes map[string]int
+	mu    sync.RWMutex
 }
 
-// Get return exit code.
-func (coder *DetailedExitCode) Get() int {
-	coder.mu.RLock()
-	defer coder.mu.RUnlock()
-
-	return coder.Code
+// NewDetailedExitCodeMap creates a new DetailedExitCodeMap.
+func NewDetailedExitCodeMap() *DetailedExitCodeMap {
+	return &DetailedExitCodeMap{
+		codes: make(map[string]int),
+	}
 }
 
-// ResetSuccess resets the exit code to success (0).
-func (coder *DetailedExitCode) ResetSuccess() {
-	coder.mu.Lock()
-	defer coder.mu.Unlock()
+// Set stores the exit code for the given path. Always updates the map without conditional logic.
+func (m *DetailedExitCodeMap) Set(path string, code int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	coder.Code = DetailedExitCodeSuccess
+	if m.codes == nil {
+		m.codes = make(map[string]int)
+	}
+
+	m.codes[path] = code
 }
 
-// Set updates the exit code following OpenTofu's exit code convention:
+// Get returns the exit code for the given path, or 0 if not found.
+func (m *DetailedExitCodeMap) Get(path string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.codes == nil {
+		return 0
+	}
+
+	return m.codes[path]
+}
+
+// GetFinalDetailedExitCode computes the final exit code following OpenTofu's exit code convention:
 // - 0 = Success
 // - 1 = Error
 // - 2 = Success with changes pending
-// The method only updates if:
-// - The current code is not 1 (error state)
-// - The new code is greater than current OR equals 1
-func (coder *DetailedExitCode) Set(newCode int) {
-	coder.mu.Lock()
-	defer coder.mu.Unlock()
+// Aggregation rules for run --all:
+// - If any exit code is 1 (or > 2), return the max exit code
+// - If all exit codes are 0 or 2, return 2
+// - If all exit codes are 0, return 0
+func (m *DetailedExitCodeMap) GetFinalDetailedExitCode() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-	if coder.Code == DetailedExitCodeError {
-		return
+	if len(m.codes) == 0 {
+		return 0
 	}
 
-	if coder.Code < newCode || newCode == DetailedExitCodeError {
-		coder.Code = newCode
+	hasError := false
+	hasChanges := false
+	maxCode := 0
+
+	for _, code := range m.codes {
+		if code == DetailedExitCodeError || code > DetailedExitCodeChanges {
+			hasError = true
+
+			maxCode = max(maxCode, code)
+
+			continue
+		}
+
+		if code == DetailedExitCodeChanges {
+			hasChanges = true
+		}
 	}
+
+	if hasError {
+		return maxCode
+	}
+
+	if hasChanges {
+		return DetailedExitCodeChanges
+	}
+
+	return DetailedExitCodeSuccess
+}
+
+// GetFinalExitCode computes the final exit code assuming the user hasn't supplied the -detailed-exitcode flag.
+//
+// In this case, we only care about any non-zero exit codes, so we'll return the highest exit code we can find.
+func (m *DetailedExitCodeMap) GetFinalExitCode() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	maxCode := 0
+	for _, code := range m.codes {
+		maxCode = max(maxCode, code)
+	}
+
+	return maxCode
+}
+
+// ResetSuccess clears all exit codes from the map.
+func (m *DetailedExitCodeMap) ResetSuccess() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.codes = make(map[string]int)
 }

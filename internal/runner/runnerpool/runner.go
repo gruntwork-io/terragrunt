@@ -13,8 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -630,12 +628,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 		// Execution errors without fail-fast: log but don't fail
 		l.Errorf("Run failed: %v", err)
-
-		// Set detailed exit code if context has one
-		exitCode := tf.DetailedExitCodeFromContext(ctx)
-		if exitCode != nil {
-			exitCode.Set(int(clihelper.ExitCodeGeneralError))
-		}
 
 		// Return nil to indicate success (no --fail-fast) but errors were logged
 		return nil

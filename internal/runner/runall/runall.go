@@ -193,16 +193,6 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 			// after the error summary.
 			l.Errorf("Run failed: %v", err)
 
-			// Update the exit code in ctx
-			exitCode := tf.DetailedExitCodeFromContext(ctx)
-			if exitCode == nil {
-				exitCode = &tf.DetailedExitCode{
-					Code: 1,
-				}
-			}
-
-			exitCode.Set(int(clihelper.ExitCodeGeneralError))
-
 			// Save error to potentially return after telemetry completes
 			runErr = err
 
