@@ -34,7 +34,10 @@ func WithDependentModulesFinder(ctx context.Context, finder runcfg.DependentUnit
 // GetDependentUnitsFinder retrieves the DependentModulesFinder from the context.
 //
 // We store this finder in context purely to bypass a circular dependency import between the `config` package and
-// the `run` package.
+// the `run` package. This isn't ideal, but it's the best we can do for now without further major refactoring.
+//
+// We can probably move the destroy check higher up such that we don't need to be performing this lookup right before
+// performing a run.
 func GetDependentUnitsFinder(ctx context.Context) runcfg.DependentUnitsFinder {
 	if finder, ok := ctx.Value(dependentUnitsFinderContextKey).(runcfg.DependentUnitsFinder); ok {
 		return finder
