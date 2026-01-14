@@ -1660,7 +1660,25 @@ func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
 	c.AddDependency(d)
 	d.AddDependency(e)
 
-	c.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+	aDiscoveryCtx := &component.DiscoveryContext{}
+	aDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	a.SetDiscoveryContext(aDiscoveryCtx)
+
+	bDiscoveryCtx := &component.DiscoveryContext{}
+	bDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b.SetDiscoveryContext(bDiscoveryCtx)
+
+	cDiscoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+	cDiscoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+	c.SetDiscoveryContext(cDiscoveryCtx)
+
+	dDiscoveryCtx := &component.DiscoveryContext{}
+	dDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	d.SetDiscoveryContext(dDiscoveryCtx)
+
+	eDiscoveryCtx := &component.DiscoveryContext{}
+	eDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	e.SetDiscoveryContext(eDiscoveryCtx)
 
 	components := []component.Component{a, b, c, d, e}
 
