@@ -1,9 +1,21 @@
-package run
+// Package prepare provides functionality to prepare downloaded OpenTofu/Terraform source code
+// for use with Terragrunt. This includes reading and parsing Terragrunt configuration, fetching
+// credentials, downloading source code, generating configuration files, and initializing the
+// OpenTofu/Terraform working directory.
+//
+// The preparation process follows a sequence of stages:
+//  1. PrepareConfig - Reads configuration and fetches credentials
+//  2. PrepareSource - Downloads terraform source if specified
+//  3. PrepareGenerate - Generates configuration files (generate blocks and remote_state)
+//  4. PrepareInputsAsEnvVars - Sets inputs as environment variables
+//  5. PrepareInit - Runs terraform init if needed
+package prepare
 
 import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
@@ -14,15 +26,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// PreparedConfig holds the result of preparing a terragrunt configuration.
-type PreparedConfig struct {
+// Config holds the result of preparing a terragrunt configuration.
+type Config struct {
 	Cfg  *config.TerragruntConfig
 	Opts *options.TerragruntOptions
 }
 
 // PrepareConfig reads and parses the terragrunt configuration, fetches credentials,
 // and performs version constraint checks. This is the first stage of preparation.
-func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*PreparedConfig, error) {
+func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*Config, error) {
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
@@ -30,7 +42,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	l, err := CheckVersionConstraints(ctx, l, opts)
+	l, err := run.CheckVersionConstraints(ctx, l, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +52,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	return &PreparedConfig{
+	return &Config{
 		Cfg:  terragruntConfig,
 		Opts: opts,
 	}, nil
@@ -76,10 +88,10 @@ func PrepareSource(
 		return nil, err
 	}
 
-	optsClone.TerraformCommand = CommandNameTerragruntReadConfig
+	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return processHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), optsClone, runCfg, nil, r)
+		return run.ProcessHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), optsClone, runCfg, nil, r)
 	}); err != nil {
 		return nil, err
 	}
@@ -121,7 +133,7 @@ func PrepareSource(
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 			"sourceUrl": sourceURL,
 		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
+			updatedTerragruntOptions, err = run.DownloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
 			return err
 		})
 		if err != nil {
@@ -135,18 +147,18 @@ func PrepareSource(
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
 func PrepareGenerate(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	return GenerateConfig(l, opts, cfg)
+	return run.GenerateConfig(l, opts, cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
 func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	// Check for terraform code
-	if err := CheckFolderContainsTerraformCode(opts); err != nil {
+	if err := run.CheckFolderContainsTerraformCode(opts); err != nil {
 		return err
 	}
 
-	return SetTerragruntInputsAsEnvVars(l, opts, cfg)
+	return run.SetTerragruntInputsAsEnvVars(l, opts, cfg)
 }
 
 // PrepareInit runs terraform init if needed. This is the final preparation stage.
@@ -159,14 +171,14 @@ func PrepareInit(
 	r *report.Report,
 ) error {
 	// Check for terraform code
-	if err := CheckFolderContainsTerraformCode(opts); err != nil {
+	if err := run.CheckFolderContainsTerraformCode(opts); err != nil {
 		return err
 	}
 
-	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
+	if err := run.SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
 		return err
 	}
 
 	// Run terraform init via the non-init command preparation path
-	return prepareNonInitCommandRunCfg(ctx, l, originalOpts, opts, cfg, r)
+	return run.PrepareNonInitCommand(ctx, l, originalOpts, opts, cfg, r)
 }

@@ -110,7 +110,8 @@ func processErrorHooks(
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(
+// ProcessHooks processes a list of hooks, executing each one that matches the current command.
+func ProcessHooks(
 	ctx context.Context,
 	l log.Logger,
 	hooks []runcfg.Hook,

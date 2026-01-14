@@ -14,8 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -33,25 +33,25 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	prepared, err := run.PrepareConfig(ctx, l, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
 	r := report.NewReport()
 
-	updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 	if err != nil {
 		return err
 	}
 
 	runCfg := prepared.Cfg.ToRunConfig()
 
-	if err := run.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
+	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
 		return err
 	}
 
-	if err := run.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
+	if err := prepare.PrepareInit(ctx, l, opts, updatedOpts, runCfg, r); err != nil {
 		return err
 	}
 
