@@ -9,6 +9,7 @@ import (
 
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -376,8 +377,10 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 
 			discoveryContext := &component.DiscoveryContext{
 				WorkingDir: testDir,
-				Cmd:        tt.cmd,
-				Args:       tt.args,
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  tt.cmd,
+					Args: tt.args,
+				},
 			}
 
 			w, err := worktrees.NewWorktrees(t.Context(), l, testDir, gitExpressions)
@@ -440,7 +443,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 				if unitPath == expectedUnitToBeRemoved {
 					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Removed units should have -destroy flag added
-						assert.Contains(t, ctx.Args, "-destroy",
+						assert.Contains(t, ctx.CommandWithArgs.Args, "-destroy",
 							"Removed unit discovered in 'from' worktree should have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
@@ -449,7 +452,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 				if unitPath == expectedUnitToBeCreated {
 					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Added units should NOT have -destroy flag
-						assert.NotContains(t, ctx.Args, "-destroy",
+						assert.NotContains(t, ctx.CommandWithArgs.Args, "-destroy",
 							"Added unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
@@ -458,7 +461,7 @@ func TestWorktreeDiscoveryContextCommandArgsUpdate(t *testing.T) {
 				if unitPath == expectedUnitToBeModified {
 					if tt.cmd == "plan" || tt.cmd == "apply" {
 						// Modified units should NOT have -destroy flag
-						assert.NotContains(t, ctx.Args, "-destroy",
+						assert.NotContains(t, ctx.CommandWithArgs.Args, "-destroy",
 							"Modified unit discovered in 'to' worktree should NOT have '-destroy' flag for %s command", tt.cmd)
 					}
 				}
@@ -842,7 +845,9 @@ unit "unit_to_be_untouched" {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			Cmd:        "plan",
+			CommandWithArgs: &cli.TofuCommand{
+				Cmd: "plan",
+			},
 		}).
 		WithWorktrees(w)
 
@@ -885,22 +890,28 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		component.NewStack(filepath.Join(fromWorktree, stackToBeRemovedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  "plan",
+					Args: []string{"-destroy"},
+				},
 			},
 		),
 		// Units from stack-to-be-added (HEAD) - worktree paths
@@ -908,21 +919,27 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		component.NewUnit(filepath.Join(toWorktree, stackToBeAddedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		// Units from stack-to-be-modified (HEAD) - worktree paths
@@ -932,7 +949,9 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		// unit_to_be_modified: in both but changed (legacy -> modern), so we use HEAD version
@@ -940,7 +959,9 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
 				Ref:        "HEAD",
-				Cmd:        "plan",
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd: "plan",
+				},
 			},
 		),
 		// Units from stack-to-be-modified (HEAD~1) - fromWorktree paths
@@ -949,8 +970,10 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  "plan",
+					Args: []string{"-destroy"},
+				},
 			},
 		),
 		// Units from stack-to-be-removed (HEAD~1) - fromWorktree paths
@@ -958,24 +981,30 @@ unit "unit_to_be_untouched" {
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  "plan",
+					Args: []string{"-destroy"},
+				},
 			},
 		),
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_removed")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  "plan",
+					Args: []string{"-destroy"},
+				},
 			},
 		),
 		component.NewUnit(filepath.Join(fromWorktree, stackToBeRemovedRel, ".terragrunt-stack", "unit_to_be_untouched")).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: fromWorktree,
 				Ref:        "HEAD~1",
-				Cmd:        "plan",
-				Args:       []string{"-destroy"},
+				CommandWithArgs: &cli.TofuCommand{
+					Cmd:  "plan",
+					Args: []string{"-destroy"},
+				},
 			},
 		),
 	}
@@ -1087,7 +1116,9 @@ func TestWorktreeDiscoveryDetectsFileRename(t *testing.T) {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			Cmd:        "plan",
+			CommandWithArgs: &cli.TofuCommand{
+				Cmd: "plan",
+			},
 		}).
 		WithWorktrees(w)
 
@@ -1208,7 +1239,9 @@ func TestWorktreeDiscoveryDetectsFileMove(t *testing.T) {
 	originalDiscovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
-			Cmd:        "plan",
+			CommandWithArgs: &cli.TofuCommand{
+				Cmd: "plan",
+			},
 		}).
 		WithWorktrees(w)
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -101,8 +102,10 @@ func newBaseDiscovery(
 		WithRelationships().
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: workingDir,
-			Cmd:        tgOpts.TerraformCliArgs.First(),
-			Args:       tgOpts.TerraformCliArgs.Tail(),
+			CommandWithArgs: &cli.TofuCommand{
+				Cmd:  tgOpts.TerraformCliArgs.First(),
+				Args: tgOpts.TerraformCliArgs.Tail(),
+			},
 		})
 
 	return d

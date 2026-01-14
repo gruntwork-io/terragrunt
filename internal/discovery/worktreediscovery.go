@@ -198,10 +198,10 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	discoveryContext.WorkingDir = wt.Path
 
 	// Deep copy Args slice to avoid race conditions across goroutines
-	if discoveryContext.Args != nil {
-		argsCopy := make([]string, len(discoveryContext.Args))
-		copy(argsCopy, discoveryContext.Args)
-		discoveryContext.Args = argsCopy
+	if discoveryContext.CommandWithArgs.Args != nil {
+		argsCopy := make([]string, len(discoveryContext.CommandWithArgs.Args))
+		copy(argsCopy, discoveryContext.CommandWithArgs.Args)
+		discoveryContext.CommandWithArgs.Args = argsCopy
 	}
 
 	discoveryContext, err := translateDiscoveryContextArgsForWorktree(discoveryContext, kind)
@@ -522,33 +522,35 @@ func translateDiscoveryContextArgsForWorktree(
 	switch worktreeKind {
 	case fromWorktreeKind:
 		switch {
-		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
-			discoveryContext.Args = append(discoveryContext.Args, "-destroy")
-		case (discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0):
+		case (discoveryContext.CommandWithArgs.Cmd == "plan" || discoveryContext.CommandWithArgs.Cmd == "apply") &&
+			!slices.Contains(discoveryContext.CommandWithArgs.Args, "-destroy"):
+			discoveryContext.CommandWithArgs.Args = append(discoveryContext.CommandWithArgs.Args, "-destroy")
+		case (discoveryContext.CommandWithArgs.Cmd == "" && len(discoveryContext.CommandWithArgs.Args) == 0):
 			// This is the case when using a discovery command like find or list.
 			// It's fine for these commands to not have any command or arguments.
 		default:
-			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+			return discoveryContext, NewGitFilterCommandError(
+				discoveryContext.CommandWithArgs,
+			)
 		}
 
 		return discoveryContext, nil
 	case toWorktreeKind:
 		// This branch is just for validation.
 		switch {
-		case (discoveryContext.Cmd == "plan" || discoveryContext.Cmd == "apply") &&
-			!slices.Contains(discoveryContext.Args, "-destroy"):
+		case (discoveryContext.CommandWithArgs.Cmd == "plan" || discoveryContext.CommandWithArgs.Cmd == "apply") &&
+			!slices.Contains(discoveryContext.CommandWithArgs.Args, "-destroy"):
 			// We don't need to add the -destroy flag for to worktrees, as we're not destroying anything.
-		case (discoveryContext.Cmd == "" && len(discoveryContext.Args) == 0):
+		case (discoveryContext.CommandWithArgs.Cmd == "" && len(discoveryContext.CommandWithArgs.Args) == 0):
 			// This is the case when using a discovery command like find or list.
 			// It's fine for these commands to not have any command or arguments.
 		default:
-			return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+			return discoveryContext, NewGitFilterCommandError(discoveryContext.CommandWithArgs)
 		}
 
 		return discoveryContext, nil
 	default:
-		return discoveryContext, NewGitFilterCommandError(discoveryContext.Cmd, discoveryContext.Args)
+		return discoveryContext, NewGitFilterCommandError(discoveryContext.CommandWithArgs)
 	}
 }
 

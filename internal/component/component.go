@@ -71,8 +71,7 @@ type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
 
-	Cmd  string
-	Args []string
+	CommandWithArgs *cli.TofuCommand
 }
 
 // IsDestroyCommand returns true if this discovery context represents a destroy operation.
@@ -82,7 +81,7 @@ func (dc *DiscoveryContext) IsDestroyCommand() bool {
 		return false
 	}
 
-	return dc.Cmd == "destroy" || slices.Contains(dc.Args, "-destroy")
+	return dc.CommandWithArgs.Cmd == "destroy" || dc.CommandWithArgs.HasArg("-destroy")
 }
 
 // HasArg checks if the discovery context's args contain the specified argument.
@@ -91,7 +90,7 @@ func (dc *DiscoveryContext) HasArg(arg string) bool {
 		return false
 	}
 
-	return slices.Contains(dc.Args, arg)
+	return dc.CommandWithArgs.HasArg(arg)
 }
 
 // InsertArg inserts an argument at the specified position.
@@ -101,7 +100,7 @@ func (dc *DiscoveryContext) InsertArg(arg string, position int) {
 		return
 	}
 
-	dc.Args = slices.Insert(dc.Args, position, arg)
+	dc.CommandWithArgs.InsertArg(arg, position)
 }
 
 // AppendArg appends an argument to the end of the args list.
@@ -111,7 +110,7 @@ func (dc *DiscoveryContext) AppendArg(arg string) {
 		return
 	}
 
-	dc.Args = append(dc.Args, arg)
+	dc.CommandWithArgs.AppendArg(arg)
 }
 
 // TofuCLIArgs returns the full CLI args (command + args) ready for tofu.
@@ -121,20 +120,7 @@ func (dc *DiscoveryContext) TofuCLIArgs() []string {
 		return nil
 	}
 
-	return append([]string{dc.Cmd}, dc.Args...)
-}
-
-// ToCommandWithArgs creates a CommandWithArgs from this DiscoveryContext.
-// Returns nil if dc is nil. The Args slice is cloned to avoid shared mutation.
-func (dc *DiscoveryContext) ToCommandWithArgs() *cli.CommandWithArgs {
-	if dc == nil {
-		return nil
-	}
-
-	return &cli.CommandWithArgs{
-		Cmd:  dc.Cmd,
-		Args: slices.Clone(dc.Args),
-	}
+	return dc.CommandWithArgs.ProcessArgs()
 }
 
 // Components is a list of discovered Terragrunt components.

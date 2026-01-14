@@ -209,17 +209,17 @@ func resolveUnitsFromDiscovery(
 
 		// Transfer discovery context command and args to unit options if available
 		if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
-			if discoveryCtx.Cmd != "" {
-				unitOpts.TerraformCommand = discoveryCtx.Cmd
+			if discoveryCtx.CommandWithArgs.Cmd != "" {
+				unitOpts.TerraformCommand = discoveryCtx.CommandWithArgs.Cmd
 			}
 
-			if len(discoveryCtx.Args) > 0 {
-				terraformCliArgs := make([]string, 0, 1+len(discoveryCtx.Args))
-				if discoveryCtx.Cmd != "" {
-					terraformCliArgs = append(terraformCliArgs, discoveryCtx.Cmd)
+			if len(discoveryCtx.CommandWithArgs.Args) > 0 {
+				terraformCliArgs := make([]string, 0, 1+len(discoveryCtx.CommandWithArgs.Args))
+				if discoveryCtx.CommandWithArgs.Cmd != "" {
+					terraformCliArgs = append(terraformCliArgs, discoveryCtx.CommandWithArgs.Cmd)
 				}
 
-				terraformCliArgs = append(terraformCliArgs, discoveryCtx.Args...)
+				terraformCliArgs = append(terraformCliArgs, discoveryCtx.CommandWithArgs.Args...)
 				unitOpts.TerraformCliArgs = terraformCliArgs
 			}
 		}
@@ -522,7 +522,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		)
 
 		if dc != nil {
-			tfCmd = dc.Cmd
+			tfCmd = dc.CommandWithArgs.Cmd
 			tfArgs = dc.TofuCLIArgs()
 		}
 
@@ -766,7 +766,7 @@ func (r *Runner) prepareUnitArgs(l log.Logger, opts *options.TerragruntOptions) 
 			continue
 		}
 
-		unitCmd := dc.Cmd
+		unitCmd := dc.CommandWithArgs.Cmd
 
 		// Merge stack-level args (excluding command) that aren't already present
 		for i, stackArg := range opts.TerraformCliArgs {

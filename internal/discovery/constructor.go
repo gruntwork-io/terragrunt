@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -88,8 +89,10 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 		d = d.WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: opts.WorkingDir,
-			Cmd:        cmd,
-			Args:       args,
+			CommandWithArgs: &cli.TofuCommand{
+				Cmd:  cmd,
+				Args: args,
+			},
 		})
 	}
 

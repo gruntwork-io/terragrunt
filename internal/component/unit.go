@@ -166,7 +166,7 @@ func (u *Unit) Command() string {
 		return ""
 	}
 
-	return u.discoveryContext.Cmd
+	return u.discoveryContext.CommandWithArgs.Cmd
 }
 
 // Args returns the arguments this unit will use.
@@ -176,7 +176,7 @@ func (u *Unit) Args() []string {
 		return nil
 	}
 
-	return u.discoveryContext.Args
+	return u.discoveryContext.CommandWithArgs.Args
 }
 
 // IsDestroyCommand returns true if this unit will execute a destroy operation.
