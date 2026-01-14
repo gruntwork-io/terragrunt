@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -68,6 +69,9 @@ func PrepareSource(
 
 	opts.Errors = errConfig
 
+	// Translate config to runcfg for internal functions
+	runCfg := cfg.ToRunConfig()
+
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
@@ -76,7 +80,7 @@ func PrepareSource(
 	optsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return processHooks(ctx, l, cfg.Terraform.GetAfterHooks(), optsClone, cfg, nil, r)
+		return processHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), optsClone, runCfg, nil, r)
 	}); err != nil {
 		return nil, err
 	}
@@ -89,7 +93,6 @@ func PrepareSource(
 	)
 
 	credsGetter := creds.NewGetter()
-
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
 	}); err != nil {
@@ -103,13 +106,13 @@ func PrepareSource(
 
 	// if the download dir hasn't been changed from default, and is set in the config,
 	// then use it
-	if opts.DownloadDir == defaultDownloadDir && cfg.DownloadDir != "" {
-		opts.DownloadDir = cfg.DownloadDir
+	if opts.DownloadDir == defaultDownloadDir && runCfg.DownloadDir != "" {
+		opts.DownloadDir = runCfg.DownloadDir
 	}
 
 	updatedTerragruntOptions := opts
 
-	sourceURL, err := config.GetTerraformSourceURL(opts, cfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(opts, runCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +121,7 @@ func PrepareSource(
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 			"sourceUrl": sourceURL,
 		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
 			return err
 		})
 		if err != nil {
@@ -158,6 +161,9 @@ func PrepareInit(ctx context.Context, l log.Logger, originalOpts, opts *options.
 		return err
 	}
 
+	// Translate config to runcfg for internal functions
+	runCfg := cfg.ToRunConfig()
+
 	// Run terraform init via the non-init command preparation path
-	return prepareNonInitCommand(ctx, l, originalOpts, opts, cfg, r)
+	return prepareNonInitCommandRunCfg(ctx, l, originalOpts, opts, runCfg, r)
 }
