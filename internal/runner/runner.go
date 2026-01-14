@@ -3,6 +3,7 @@ package runner
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -27,21 +28,28 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 // 2. Iterate over includes from opts if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
 func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []*component.Unit {
-	matchedModulesMap := make(map[string]*component.Unit)
+	matchedUnitsMap := make(map[string]*component.Unit)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
 
 	for _, dir := range pathsToCheck {
-		for k, v := range findMatchingUnitsInPath(ctx, l, dir, opts, terragruntConfig) {
-			matchedModulesMap[k] = v
-		}
+		maps.Copy(
+			matchedUnitsMap,
+			findMatchingUnitsInPath(
+				ctx,
+				l,
+				dir,
+				opts,
+				terragruntConfig,
+			),
+		)
 	}
 
-	matchedModules := make([]*component.Unit, 0, len(matchedModulesMap))
-	for _, module := range matchedModulesMap {
-		matchedModules = append(matchedModules, module)
+	matchedUnits := make([]*component.Unit, 0, len(matchedUnitsMap))
+	for _, module := range matchedUnitsMap {
+		matchedUnits = append(matchedUnits, module)
 	}
 
-	return matchedModules
+	return matchedUnits
 }
 
 // discoverPathsToCheck finds root git top level directory and builds list of modules, or iterates over includes if git detection fails.
