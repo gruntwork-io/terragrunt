@@ -296,7 +296,7 @@ func (dd *DependentDiscovery) discoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(target.DiscoveryContext().WorkingDir, c.Path())
+				isExternal := isExternal(candidate.DiscoveryContext().WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
