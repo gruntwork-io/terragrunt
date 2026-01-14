@@ -357,7 +357,11 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	// Pre-apply the drift unit so it has a file, then delete it to ensure drift exists
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app_drift"))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --log-level trace --non-interactive --working-dir "+
+			filepath.Join(rootPath, "app_drift"),
+	)
 	require.NoError(t, err)
 	err = os.Remove(filepath.Join(rootPath, "app_drift", "example.txt"))
 	require.NoError(t, err)
@@ -367,7 +371,12 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 	ctx := t.Context()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
+		t, ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+
+			rootPath+
+			" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
