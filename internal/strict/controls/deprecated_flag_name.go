@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -20,8 +20,8 @@ var _ = strict.Control(new(DeprecatedFlagName))
 
 // DeprecatedFlagName is strict control for deprecated flag names.
 type DeprecatedFlagName struct {
-	deprecatedFlag cli.Flag
-	newFlag        cli.Flag
+	deprecatedFlag clihelper.Flag
+	newFlag        clihelper.Flag
 	*Control
 	ErrorFmt   string
 	WarningFmt string
@@ -30,7 +30,7 @@ type DeprecatedFlagName struct {
 // NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.
 // Since we don't know which names can be used at the time of definition,
 // we take the first name from the list `Names()` for the name and description to display it in `info strict`.
-func NewDeprecatedFlagName(deprecatedFlag, newFlag cli.Flag, newValue string) *DeprecatedFlagName {
+func NewDeprecatedFlagName(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedFlagName {
 	var (
 		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.Names()))
 		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))

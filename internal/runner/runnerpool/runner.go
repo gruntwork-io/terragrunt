@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
@@ -634,7 +634,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		// Set detailed exit code if context has one
 		exitCode := tf.DetailedExitCodeFromContext(ctx)
 		if exitCode != nil {
-			exitCode.Set(int(cli.ExitCodeGeneralError))
+			exitCode.Set(int(clihelper.ExitCodeGeneralError))
 		}
 
 		// Return nil to indicate success (no --fail-fast) but errors were logged

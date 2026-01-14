@@ -1,0 +1,50 @@
+package exec
+
+import (
+	"context"
+
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, args clihelper.Args) error {
+	targetConfigPoint := run.TargetPointInitCommand
+
+	if !cmdOpts.InDownloadDir {
+		targetConfigPoint = run.TargetPointSetInputsAsEnvVars
+		opts.AutoInit = false
+	}
+
+	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
+
+	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+}
+
+func runTargetCommand(cmdOpts *Options, args clihelper.Args) run.TargetCallbackType {
+	return func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+		var (
+			command = args.CommandName()
+			args    = args.Tail()
+			dir     = opts.WorkingDir
+		)
+
+		if !cmdOpts.InDownloadDir {
+			dir = opts.RootWorkingDir
+		}
+
+		return run.RunActionWithHooks(ctx, l, command, opts, cfg, report.NewReport(), func(ctx context.Context) error {
+			_, err := shell.RunCommandWithOutput(ctx, l, opts, dir, false, false, command, args...)
+			if err != nil {
+				return errors.Errorf("failed to run command in directory %s: %w", dir, err)
+			}
+
+			return nil
+		})
+	}
+}

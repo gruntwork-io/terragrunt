@@ -1,253 +1,193 @@
-// Package cli provides functionality for the Terragrunt CLI.
+// Package cli configures the Terragrunt CLI app and its commands.
 package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
+
+	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/urfave/cli/v2"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// App is a wrapper for `urfave`'s `cli.App` struct. It should be created with the cli.NewApp() function.
-// The main purpose of this wrapper is to parse commands and flags in the way we need, namely,
-// if during parsing we find undefined commands or flags, instead of returning an error, we consider them as arguments,
-// regardless of their position among the others registered commands and flags.
-//
-// For example, CLI command:
-// `terragrunt run --all apply --log-level trace --auto-approve --non-interactive`
-// The `App` will runs the registered command `run --all`, define the registered flags `--log-level`,
-// `--non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
-// ctx.Args().Slice()
+const (
+	AppName = "terragrunt"
+)
+
+func init() {
+	clihelper.AppVersionTemplate = AppVersionTemplate
+	clihelper.AppHelpTemplate = AppHelpTemplate
+	clihelper.CommandHelpTemplate = CommandHelpTemplate
+}
+
 type App struct {
-	// AutocompleteInstaller supports autocompletion via the github.com/posener/complete
-	// library. This library supports bash, zsh and fish. To add support
-	// for other shells, please see that library.
-	AutocompleteInstaller AutocompleteInstaller
-
-	// FlagErrHandler processes any error encountered while parsing flags.
-	FlagErrHandler FlagErrHandlerFunc
-
-	// ExitErrHandler processes any error encountered while running an App before
-	// it is returned to the caller. If no function is provided, HandleExitCoder
-	// is used as the default behavior.
-	ExitErrHandler ExitErrHandlerFunc
-
-	*cli.App
-
-	// Before is an action to execute before any subcommands are run, but after the context is ready.
-	Before ActionFunc
-
-	// After is an action to execute after
-	// any subcommands are run, but after the subcommand has finished.
-	After ActionFunc
-
-	// Complete is the function to call when checking for command completions.
-	Complete CompleteFunc
-
-	// Action is the action to execute when no subcommands are specified.
-	Action ActionFunc
-
-	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
-	OsExiter func(code int)
-
-	// Author is the author of the app.
-	Author string
-
-	// CustomAppVersionTemplate is a text template for app version topic.
-	CustomAppVersionTemplate string
-
-	// AutocompleteInstallFlag is the global flag name for installing the autocompletion handlers for the user's shell.
-	AutocompleteInstallFlag string
-
-	// AutocompleteUninstallFlag is the global flag name for uninstalling the autocompletion handlers for the user's shell.
-	AutocompleteUninstallFlag string
-
-	// Commands is a list of commands to execute.
-	Commands Commands
-
-	// Flags is a list of flags to parse.
-	Flags Flags
-
-	// Examples is a list of examples of using the App in the help.
-	Examples []string
-
-	// Autocomplete enables or disables subcommand auto-completion support.
-	Autocomplete bool
-
-	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
-	DisabledErrorOnUndefinedFlag bool
-
-	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
-	DisabledErrorOnMultipleSetFlag bool
+	*clihelper.App
+	opts *options.TerragruntOptions
+	l    log.Logger
 }
 
-// NewApp returns app new App instance.
-func NewApp() *App {
-	cliApp := cli.NewApp()
-	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
-	cliApp.HideHelp = true
-	cliApp.HideHelpCommand = true
+// NewApp creates the Terragrunt CLI App.
+func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
+	terragruntCommands := commands.New(l, opts)
 
-	return &App{
-		App:          cliApp,
-		OsExiter:     os.Exit,
-		Autocomplete: true,
+	app := clihelper.NewApp()
+	app.Name = AppName
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
+	app.Author = "Gruntwork <www.gruntwork.io>"
+	app.Version = version.GetVersion()
+	app.Writer = opts.Writer
+	app.ErrWriter = opts.ErrWriter
+	app.Flags = global.NewFlags(l, opts, nil)
+	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
+	app.Before = beforeAction(opts)
+	app.OsExiter = OSExiter
+	app.ExitErrHandler = ExitErrHandler
+	app.FlagErrHandler = flags.ErrorHandler(terragruntCommands)
+	app.Action = clihelper.ShowAppHelp
+
+	return &App{app, opts, l}
+}
+
+func (app *App) Run(args []string) error {
+	return app.RunContext(context.Background(), args)
+}
+
+func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
+	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+		// Carriage return helps prevent "^C" from being printed
+		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
+		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+
+		cancel(signal.NewContextCanceledError(sig))
+	}, signal.InterruptSignals...)
+
+	return ctx
+}
+
+func (app *App) RunContext(ctx context.Context, args []string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ctx = app.registerGracefullyShutdown(ctx)
+
+	if err := global.NewTelemetryFlags(app.opts, nil).Parse(os.Args); err != nil {
+		return err
 	}
-}
 
-// AddFlags adds new flags.
-func (app *App) AddFlags(flags ...Flag) {
-	app.Flags = append(app.Flags, flags...)
-}
-
-// AddCommands adds new commands.
-func (app *App) AddCommands(cmds ...*Command) {
-	app.Commands = append(app.Commands, cmds...)
-}
-
-// Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
-func (app *App) Run(arguments []string) error {
-	return app.RunContext(context.Background(), arguments)
-}
-
-// RunContext is like Run except it takes a Context that will be
-// passed to its commands and sub-commands. Through this, you can
-// propagate timeouts and cancellation requests
-func (app *App) RunContext(ctx context.Context, arguments []string) (err error) {
-	// remove empty args
-	filteredArguments := []string{}
-
-	for _, arg := range arguments {
-		if trimmedArg := strings.TrimSpace(arg); len(trimmedArg) > 0 {
-			filteredArguments = append(filteredArguments, trimmedArg)
+	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
+	if err != nil {
+		return err
+	}
+	defer func(ctx context.Context) {
+		if err := telemeter.Shutdown(ctx); err != nil {
+			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
-	}
+	}(ctx)
 
-	arguments = filteredArguments
+	ctx = telemetry.ContextWithTelemeter(ctx, telemeter)
 
-	app.SkipFlagParsing = true
-	app.Authors = []*cli.Author{{Name: app.Author}}
-	app.App.Action = func(parentCtx *cli.Context) error {
-		cmd := app.NewRootCommand()
+	ctx = config.WithConfigValues(ctx)
+	// configure engine context
+	ctx = engine.WithEngineValues(ctx)
 
-		args := Args(parentCtx.Args().Slice())
-		cliCtx := NewAppContext(app, args)
+	ctx = run.WithRunVersionCache(ctx)
 
-		if app.Autocomplete {
-			if err := app.setupAutocomplete(args); err != nil {
-				return app.handleExitCoder(cliCtx, err)
-			}
-
-			if compLine := os.Getenv(envCompleteLine); compLine != "" {
-				args = strings.Fields(compLine)
-				if args[0] == app.Name {
-					args = args[1:]
-				}
-
-				cliCtx.shellComplete = true
-			}
+	defer func(ctx context.Context) {
+		if err := engine.Shutdown(ctx, app.l, app.opts); err != nil {
+			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
+	}(ctx)
 
-		return cmd.Run(parentCtx.Context, cliCtx, args)
-	}
+	args = removeNoColorFlagDuplicates(args)
 
-	return app.App.RunContext(ctx, arguments)
-}
-
-// VisibleFlags returns a slice of the Flags used for help.
-func (app *App) VisibleFlags() Flags {
-	return app.Flags.VisibleFlags()
-}
-
-// VisibleCommands returns a slice of the Commands used for help.
-func (app *App) VisibleCommands() Commands {
-	if app.Commands == nil {
-		return nil
-	}
-
-	return app.Commands.Sort().VisibleCommands()
-}
-
-func (app *App) NewRootCommand() *Command {
-	return &Command{
-		Name:                           app.Name,
-		Before:                         app.Before,
-		After:                          app.After,
-		Action:                         app.Action,
-		Usage:                          app.Usage,
-		UsageText:                      app.UsageText,
-		Description:                    app.Description,
-		Examples:                       app.Examples,
-		Flags:                          app.Flags,
-		Subcommands:                    app.Commands,
-		Complete:                       app.Complete,
-		IsRoot:                         true,
-		DisabledErrorOnUndefinedFlag:   app.DisabledErrorOnUndefinedFlag,
-		DisabledErrorOnMultipleSetFlag: app.DisabledErrorOnMultipleSetFlag,
-	}
-}
-
-func (app *App) setupAutocomplete(arguments []string) error {
-	var (
-		isAutocompleteInstall   bool
-		isAutocompleteUninstall bool
-	)
-
-	if app.AutocompleteInstallFlag == "" {
-		app.AutocompleteInstallFlag = defaultAutocompleteInstallFlag
-	}
-
-	if app.AutocompleteUninstallFlag == "" {
-		app.AutocompleteUninstallFlag = defaultAutocompleteUninstallFlag
-	}
-
-	if app.AutocompleteInstaller == nil {
-		app.AutocompleteInstaller = &autocompleteInstaller{}
-	}
-
-	for _, arg := range arguments {
-		switch arg {
-		case "-" + app.AutocompleteInstallFlag, "--" + app.AutocompleteInstallFlag:
-			isAutocompleteInstall = true
-		case "-" + app.AutocompleteUninstallFlag, "--" + app.AutocompleteUninstallFlag:
-			isAutocompleteUninstall = true
-		}
-	}
-
-	// Autocomplete requires the "Name" to be set so that we know what command to setup the autocomplete on.
-	if app.Name == "" {
-		return errors.Errorf("internal error: App.Name must be specified for autocomplete to work")
-	}
-
-	// If both install and uninstall flags are specified, then error
-	if isAutocompleteInstall && isAutocompleteUninstall {
-		return errors.Errorf("either the autocomplete install or uninstall flag may be specified, but not both")
-	}
-
-	// If the install flag is specified, perform the install or uninstall and exit
-	if isAutocompleteInstall {
-		err := app.AutocompleteInstaller.Install(app.Name)
-		return NewExitError(err, 0)
-	}
-
-	if isAutocompleteUninstall {
-		err := app.AutocompleteInstaller.Uninstall(app.Name)
-		return NewExitError(err, 0)
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
+		return err
 	}
 
 	return nil
 }
 
-func (app *App) handleExitCoder(ctx *Context, err error) error {
-	if err == nil || err.Error() == "" {
+// removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
+// We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
+// therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
+func removeNoColorFlagDuplicates(args []string) []string {
+	var (
+		foundNoColor bool
+		filteredArgs = make([]string, 0, len(args))
+	)
+
+	for _, arg := range args {
+		if strings.HasSuffix(arg, "-"+global.NoColorFlagName) {
+			if foundNoColor {
+				continue
+			}
+
+			foundNoColor = true
+		}
+
+		filteredArgs = append(filteredArgs, arg)
+	}
+
+	return filteredArgs
+}
+
+func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
+	return func(ctx context.Context, cliCtx *clihelper.Context) error {
+		// setting current context to the options
+		// show help if the args are not specified.
+		if !cliCtx.Args().Present() {
+			err := clihelper.ShowAppHelp(ctx, cliCtx)
+			// exit the app
+			return clihelper.NewExitError(err, 0)
+		}
+
+		// If args are present but the first non-flag token is not a known
+		// top-level command, fail fast with guidance to use `run --`.
+		// This removes the legacy behavior of implicitly forwarding unknown
+		// commands to OpenTofu/Terraform.
+		cmdName := cliCtx.Args().CommandName()
+		if cmdName != "" {
+			if cliCtx.Command == nil || cliCtx.Command.Subcommand(cmdName) == nil {
+				// Show a clear error pointing users to the explicit run form.
+				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
+				return clihelper.NewExitError(
+					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://terragrunt.gruntwork.io/docs/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					clihelper.ExitCodeGeneralError,
+				)
+			}
+		}
+
 		return nil
 	}
+}
 
-	if app.ExitErrHandler != nil {
-		return app.ExitErrHandler(ctx, err)
-	}
+// OSExiter is an empty function that overrides the default behavior.
+func OSExiter(exitCode int) {
+	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
+	// kills the app (or any automated test) dead in its tracks.
+}
 
-	return handleExitCoder(ctx, err, app.OsExiter)
+// ExitErrHandler is an empty function that overrides the default behavior.
+func ExitErrHandler(_ *clihelper.Context, err error) error {
+	return err
 }

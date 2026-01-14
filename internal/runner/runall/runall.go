@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -201,7 +201,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 				}
 			}
 
-			exitCode.Set(int(cli.ExitCodeGeneralError))
+			exitCode.Set(int(clihelper.ExitCodeGeneralError))
 
 			// Save error to potentially return after telemetry completes
 			runErr = err
@@ -233,7 +233,7 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	}
 
 	// Skip summary when JSON output is requested via -json flag
-	if opts.TerraformCliArgs.Normalize(cli.SingleDashFlag).Contains(tf.FlagNameJSON) {
+	if opts.TerraformCliArgs.Normalize(clihelper.SingleDashFlag).Contains(tf.FlagNameJSON) {
 		return true
 	}
 
