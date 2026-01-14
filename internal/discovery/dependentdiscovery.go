@@ -311,8 +311,9 @@ func (dd *DependentDiscovery) discoverDependents(
 			}
 
 			if dependsOnTarget {
-				dCtx := target.DiscoveryContext()
-				if dCtx != nil {
+				c, created := dd.ensureComponent(candidate)
+				if created {
+					dCtx := target.DiscoveryContext()
 					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
 					// To be conservative, we're going to assume that users _never_ want to
@@ -337,10 +338,8 @@ func (dd *DependentDiscovery) discoverDependents(
 						copiedCtx.Args = updatedArgs
 					}
 
-					candidate.SetDiscoveryContext(copiedCtx)
+					c.SetDiscoveryContext(copiedCtx)
 				}
-
-				dd.ensureComponent(candidate)
 
 				select {
 				case <-walkCtx.Done():
@@ -484,8 +483,8 @@ func (dd *DependentDiscovery) isChecked(component component.Component) bool {
 }
 
 // ensureComponent adds a component to the components list if it's not already present.
-func (dd *DependentDiscovery) ensureComponent(component component.Component) {
-	dd.components.EnsureComponent(component)
+func (dd *DependentDiscovery) ensureComponent(component component.Component) (component.Component, bool) {
+	return dd.components.EnsureComponent(component)
 }
 
 // copyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps

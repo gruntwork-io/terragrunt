@@ -240,30 +240,6 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		return nil, NewMissingWorkingDirectoryError(dComponent.Path())
 	}
 
-	copiedDiscoveryCtx := dDiscoveryCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-	// To be conservative, we're going to assume that users _never_ want to
-	// destroy components discovered as a consequence of graph discovery on top of
-	// Git discovery.
-	//
-	// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
-	//
-	// We're going to assume that the user's intent is to only destroy component(s) that were
-	// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
-	// simply plan/apply the components discovered as a consequence of graph discovery
-	// from the removed component(s).
-	//
-	// The dependency/dependents haven't been removed between the Git references, so what the user
-	// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
-	// from the removed component(s).
-	if copiedDiscoveryCtx.Ref != "" {
-		updatedArgs := slices.DeleteFunc(copiedDiscoveryCtx.Args, func(arg string) bool {
-			return arg == "-destroy"
-		})
-
-		copiedDiscoveryCtx.Args = updatedArgs
-	}
-
 	if dd.isSeen(depPath) {
 		c := dd.components.FindByPath(depPath)
 		if c != nil {
@@ -273,11 +249,10 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 		return nil, nil
 	}
 
+	dd.markSeen(depPath)
+
 	c := dd.components.FindByPath(depPath)
 	if c != nil {
-		c.SetDiscoveryContext(copiedDiscoveryCtx)
-
-		dd.markSeen(depPath)
 		dComponent.AddDependency(c)
 
 		return c, nil
@@ -289,17 +264,40 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	depComponent := component.NewUnit(depPath)
 
 	// Always use the parent component's discovery context
-	if isExternal(copiedDiscoveryCtx.WorkingDir, depPath) {
+	if isExternal(dDiscoveryCtx.WorkingDir, depPath) {
 		depComponent.SetExternal()
 	}
 
-	depComponent.SetDiscoveryContext(copiedDiscoveryCtx)
-
 	dComponent.AddDependency(depComponent)
 
-	dependencyToDiscover, _ := dd.components.EnsureComponent(depComponent)
+	dependencyToDiscover, created := dd.components.EnsureComponent(depComponent)
+	if created {
+		copiedDiscoveryCtx := dDiscoveryCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-	dd.markSeen(depPath)
+		// To be conservative, we're going to assume that users _never_ want to
+		// destroy components discovered as a consequence of graph discovery on top of
+		// Git discovery.
+		//
+		// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
+		//
+		// We're going to assume that the user's intent is to only destroy component(s) that were
+		// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
+		// simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		//
+		// The dependency/dependents haven't been removed between the Git references, so what the user
+		// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		if copiedDiscoveryCtx.Ref != "" {
+			updatedArgs := slices.DeleteFunc(copiedDiscoveryCtx.Args, func(arg string) bool {
+				return arg == "-destroy"
+			})
+
+			copiedDiscoveryCtx.Args = updatedArgs
+		}
+
+		depComponent.SetDiscoveryContext(copiedDiscoveryCtx)
+	}
 
 	return dependencyToDiscover, nil
 }
