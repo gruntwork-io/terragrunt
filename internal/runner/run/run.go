@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,28 +16,23 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-
-	"github.com/gruntwork-io/terragrunt/internal/tf"
-
-	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/hashicorp/go-multierror"
-
-	"maps"
-
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -517,12 +513,12 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
 	terraformCommand := terragruntOptions.TerraformCliArgs.First()
 
-	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
+	if !slices.Contains(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
 		initOptions.Writer = io.Discard
 	}
 
-	if l.Formatter().DisabledColors() || collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
+	if l.Formatter().DisabledColors() || slices.Contains(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
 		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
 	}
 
