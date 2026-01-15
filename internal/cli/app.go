@@ -71,20 +71,6 @@ func (app *App) Run(args []string) error {
 	return app.RunContext(context.Background(), args)
 }
 
-func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
-	ctx, cancel := context.WithCancelCause(ctx)
-
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
-		// Carriage return helps prevent "^C" from being printed
-		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
-		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
-
-		cancel(signal.NewContextCanceledError(sig))
-	}, signal.InterruptSignals...)
-
-	return ctx
-}
-
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -126,6 +112,20 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}
 
 	return nil
+}
+
+func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
+	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+		// Carriage return helps prevent "^C" from being printed
+		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
+		app.l.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+
+		cancel(signal.NewContextCanceledError(sig))
+	}, signal.InterruptSignals...)
+
+	return ctx
 }
 
 // removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.

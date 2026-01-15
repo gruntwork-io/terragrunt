@@ -90,11 +90,6 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 	return tfrGetter.client.Ctx
 }
 
-// registryDomain returns the default registry domain to use for the getter.
-func (tfrGetter *RegistryGetter) registryDomain() string {
-	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
-}
-
 // GetDefaultRegistryDomain returns the appropriate registry domain based on the terraform implementation and environment variables.
 // This is the canonical function for determining which registry to use throughout Terragrunt.
 func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
@@ -187,6 +182,11 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 	return errors.New(errors.New("GetFile is not implemented for the Terraform Registry Getter"))
+}
+
+// registryDomain returns the default registry domain to use for the getter.
+func (tfrGetter *RegistryGetter) registryDomain() string {
+	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.

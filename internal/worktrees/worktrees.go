@@ -44,6 +44,164 @@ type Worktree struct {
 	Path string
 }
 
+// NewWorktrees creates a new Worktrees for a given set of Git filters.
+//
+// Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
+func NewWorktrees(
+	ctx context.Context,
+	l log.Logger,
+	workingDir string,
+	gitExpressions filter.GitExpressions,
+) (*Worktrees, error) {
+	if len(gitExpressions) == 0 {
+		return &Worktrees{
+			WorktreePairs:      make(map[string]WorktreePair),
+			OriginalWorkingDir: workingDir,
+		}, nil
+	}
+
+	gitRefs := gitExpressions.UniqueGitRefs()
+
+	var (
+		worktrees *Worktrees
+		outerErr  error
+	)
+
+	gitRunner, err := git.NewGitRunner()
+	if err != nil {
+		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
+	}
+
+	gitRunner = gitRunner.WithWorkDir(workingDir)
+
+	// Get repo info for telemetry
+	repoRemote := gitRunner.GetRemoteURL(ctx)
+	repoBranch := gitRunner.GetCurrentBranch(ctx)
+	repoCommit := gitRunner.GetHeadCommit(ctx)
+
+	// Wrap entire worktree creation process with telemetry
+	traceErr := filter.TraceGitWorktreesCreate(ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
+		var (
+			errs []error
+			mu   sync.Mutex
+		)
+
+		expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
+
+		gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
+		gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
+
+		refsToPaths := make(map[string]string, len(gitRefs))
+
+		if len(gitRefs) > 0 {
+			gitCmdGroup.Go(func() error {
+				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
+				if err != nil {
+					mu.Lock()
+
+					errs = append(errs, err)
+
+					mu.Unlock()
+
+					return err
+				}
+
+				mu.Lock()
+
+				maps.Copy(refsToPaths, paths)
+
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		for _, gitExpression := range gitExpressions {
+			gitCmdGroup.Go(func() error {
+				// Wrap git diff with telemetry
+				var diffs *git.Diffs
+
+				diffErr := filter.TraceGitDiff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote, func(ctx context.Context) error {
+					var err error
+
+					diffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
+
+					return err
+				})
+				if diffErr != nil {
+					mu.Lock()
+
+					errs = append(errs, diffErr)
+
+					mu.Unlock()
+
+					return nil
+				}
+
+				mu.Lock()
+
+				expressionsToDiffs[gitExpression] = diffs
+
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		if err := gitCmdGroup.Wait(); err != nil {
+			worktrees = &Worktrees{
+				WorktreePairs:      make(map[string]WorktreePair),
+				OriginalWorkingDir: workingDir,
+				gitRunner:          gitRunner,
+			}
+			outerErr = err
+
+			return err
+		}
+
+		worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
+		for _, gitExpression := range gitExpressions {
+			worktreePairs[gitExpression.String()] = WorktreePair{
+				GitExpression: gitExpression,
+				Diffs:         expressionsToDiffs[gitExpression],
+				FromWorktree:  Worktree{Ref: gitExpression.FromRef, Path: refsToPaths[gitExpression.FromRef]},
+				ToWorktree:    Worktree{Ref: gitExpression.ToRef, Path: refsToPaths[gitExpression.ToRef]},
+			}
+
+			// Record telemetry for diff results
+			if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
+				recordDiffTelemetry(ctx, diffs)
+			}
+		}
+
+		worktrees = &Worktrees{
+			WorktreePairs:      worktreePairs,
+			OriginalWorkingDir: workingDir,
+			gitRunner:          gitRunner,
+		}
+
+		if len(errs) > 0 {
+			outerErr = errors.Join(errs...)
+			return outerErr
+		}
+
+		return nil
+	})
+
+	if traceErr != nil && outerErr == nil {
+		l.Warnf("telemetry trace error during worktree creation: %v", traceErr)
+	}
+
+	// cleanup worktrees
+	if outerErr != nil && worktrees != nil {
+		if cleanupErr := worktrees.Cleanup(ctx, l); cleanupErr != nil {
+			l.Warnf("failed to cleanup worktrees: %v", cleanupErr)
+		}
+	}
+
+	return worktrees, outerErr
+}
+
 // WorkingDir returns the path within a worktree that corresponds to the user's
 // original working directory. This is used for display purposes after discovery completes.
 func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
@@ -324,164 +482,6 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 	}
 
 	return fromFilters, toFilters
-}
-
-// NewWorktrees creates a new Worktrees for a given set of Git filters.
-//
-// Note that it is the responsibility of the caller to call Cleanup on the Worktrees object when it is no longer needed.
-func NewWorktrees(
-	ctx context.Context,
-	l log.Logger,
-	workingDir string,
-	gitExpressions filter.GitExpressions,
-) (*Worktrees, error) {
-	if len(gitExpressions) == 0 {
-		return &Worktrees{
-			WorktreePairs:      make(map[string]WorktreePair),
-			OriginalWorkingDir: workingDir,
-		}, nil
-	}
-
-	gitRefs := gitExpressions.UniqueGitRefs()
-
-	var (
-		worktrees *Worktrees
-		outerErr  error
-	)
-
-	gitRunner, err := git.NewGitRunner()
-	if err != nil {
-		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
-	}
-
-	gitRunner = gitRunner.WithWorkDir(workingDir)
-
-	// Get repo info for telemetry
-	repoRemote := gitRunner.GetRemoteURL(ctx)
-	repoBranch := gitRunner.GetCurrentBranch(ctx)
-	repoCommit := gitRunner.GetHeadCommit(ctx)
-
-	// Wrap entire worktree creation process with telemetry
-	traceErr := filter.TraceGitWorktreesCreate(ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-		var (
-			errs []error
-			mu   sync.Mutex
-		)
-
-		expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
-
-		gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-		gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
-
-		refsToPaths := make(map[string]string, len(gitRefs))
-
-		if len(gitRefs) > 0 {
-			gitCmdGroup.Go(func() error {
-				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
-				if err != nil {
-					mu.Lock()
-
-					errs = append(errs, err)
-
-					mu.Unlock()
-
-					return err
-				}
-
-				mu.Lock()
-
-				maps.Copy(refsToPaths, paths)
-
-				mu.Unlock()
-
-				return nil
-			})
-		}
-
-		for _, gitExpression := range gitExpressions {
-			gitCmdGroup.Go(func() error {
-				// Wrap git diff with telemetry
-				var diffs *git.Diffs
-
-				diffErr := filter.TraceGitDiff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote, func(ctx context.Context) error {
-					var err error
-
-					diffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
-
-					return err
-				})
-				if diffErr != nil {
-					mu.Lock()
-
-					errs = append(errs, diffErr)
-
-					mu.Unlock()
-
-					return nil
-				}
-
-				mu.Lock()
-
-				expressionsToDiffs[gitExpression] = diffs
-
-				mu.Unlock()
-
-				return nil
-			})
-		}
-
-		if err := gitCmdGroup.Wait(); err != nil {
-			worktrees = &Worktrees{
-				WorktreePairs:      make(map[string]WorktreePair),
-				OriginalWorkingDir: workingDir,
-				gitRunner:          gitRunner,
-			}
-			outerErr = err
-
-			return err
-		}
-
-		worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
-		for _, gitExpression := range gitExpressions {
-			worktreePairs[gitExpression.String()] = WorktreePair{
-				GitExpression: gitExpression,
-				Diffs:         expressionsToDiffs[gitExpression],
-				FromWorktree:  Worktree{Ref: gitExpression.FromRef, Path: refsToPaths[gitExpression.FromRef]},
-				ToWorktree:    Worktree{Ref: gitExpression.ToRef, Path: refsToPaths[gitExpression.ToRef]},
-			}
-
-			// Record telemetry for diff results
-			if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
-				recordDiffTelemetry(ctx, diffs)
-			}
-		}
-
-		worktrees = &Worktrees{
-			WorktreePairs:      worktreePairs,
-			OriginalWorkingDir: workingDir,
-			gitRunner:          gitRunner,
-		}
-
-		if len(errs) > 0 {
-			outerErr = errors.Join(errs...)
-			return outerErr
-		}
-
-		return nil
-	})
-
-	if traceErr != nil && outerErr == nil {
-		l.Warnf("telemetry trace error during worktree creation: %v", traceErr)
-	}
-
-	// cleanup worktrees
-	if outerErr != nil && worktrees != nil {
-		if cleanupErr := worktrees.Cleanup(ctx, l); cleanupErr != nil {
-			l.Warnf("failed to cleanup worktrees: %v", cleanupErr)
-		}
-	}
-
-	return worktrees, outerErr
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.

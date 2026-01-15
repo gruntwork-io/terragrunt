@@ -17,20 +17,6 @@ func NewKeyLocks() *KeyLocks {
 	}
 }
 
-// getOrCreateLock retrieves the lock for the given key, creating it if it doesn't exist.
-func (kl *KeyLocks) getOrCreateLock(key string) *sync.Mutex {
-	kl.masterLock.Lock()
-	defer kl.masterLock.Unlock()
-
-	lock, ok := kl.locks[key]
-	if !ok {
-		lock = &sync.Mutex{}
-		kl.locks[key] = lock
-	}
-
-	return lock
-}
-
 // Lock acquires the lock for the given key.
 func (kl *KeyLocks) Lock(key string) {
 	lock := kl.getOrCreateLock(key)
@@ -45,4 +31,18 @@ func (kl *KeyLocks) Unlock(key string) {
 	if lock, ok := kl.locks[key]; ok {
 		lock.Unlock()
 	}
+}
+
+// getOrCreateLock retrieves the lock for the given key, creating it if it doesn't exist.
+func (kl *KeyLocks) getOrCreateLock(key string) *sync.Mutex {
+	kl.masterLock.Lock()
+	defer kl.masterLock.Unlock()
+
+	lock, ok := kl.locks[key]
+	if !ok {
+		lock = &sync.Mutex{}
+		kl.locks[key] = lock
+	}
+
+	return lock
 }

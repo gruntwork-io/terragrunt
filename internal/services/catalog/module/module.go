@@ -64,6 +64,14 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	return module, nil
 }
 
+// NewModuleForTest creates a Module for testing purposes.
+func NewModuleForTest(cloneURL, moduleDir string) *Module {
+	return &Module{
+		cloneURL:  cloneURL,
+		moduleDir: moduleDir,
+	}
+}
+
 func (module *Module) Logger() log.Logger {
 	return module.logger
 }
@@ -113,6 +121,10 @@ func (module *Module) TerraformSourcePath() string {
 	return result
 }
 
+func (module *Module) ModuleDir() string {
+	return module.moduleDir
+}
+
 func (module *Module) isValid() (bool, error) {
 	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
@@ -135,16 +147,4 @@ func (module *Module) isValid() (bool, error) {
 	}
 
 	return false, nil
-}
-
-func (module *Module) ModuleDir() string {
-	return module.moduleDir
-}
-
-// NewModuleForTest creates a Module for testing purposes.
-func NewModuleForTest(cloneURL, moduleDir string) *Module {
-	return &Module{
-		cloneURL:  cloneURL,
-		moduleDir: moduleDir,
-	}
 }

@@ -52,11 +52,11 @@ func (p *PathExpression) CompileGlob() (glob.Glob, error) {
 	return p.compiledGlob, p.compileErr
 }
 
-func (p *PathExpression) expressionNode()                       {}
 func (p *PathExpression) String() string                        { return p.Value }
 func (p *PathExpression) RequiresDiscovery() (Expression, bool) { return p, false }
 func (p *PathExpression) RequiresParse() (Expression, bool)     { return p, false }
 func (p *PathExpression) IsRestrictedToStacks() bool            { return false }
+func (p *PathExpression) expressionNode()                       {}
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
@@ -94,12 +94,6 @@ func (a *AttributeExpression) CompileGlob() (glob.Glob, error) {
 	return a.compiledGlob, a.compileErr
 }
 
-// supportsGlob returns true if the attribute filter supports glob patterns.
-func (a *AttributeExpression) supportsGlob() bool {
-	return a.Key == AttributeReading || a.Key == AttributeName || a.Key == AttributeSource
-}
-
-func (a *AttributeExpression) expressionNode()                       {}
 func (a *AttributeExpression) String() string                        { return a.Key + "=" + a.Value }
 func (a *AttributeExpression) RequiresDiscovery() (Expression, bool) { return a, true }
 func (a *AttributeExpression) RequiresParse() (Expression, bool) {
@@ -116,9 +110,17 @@ func (a *AttributeExpression) RequiresParse() (Expression, bool) {
 		return nil, true
 	}
 }
+
 func (a *AttributeExpression) IsRestrictedToStacks() bool {
 	return a.Key == "type" && a.Value == "stack"
 }
+
+// supportsGlob returns true if the attribute filter supports glob patterns.
+func (a *AttributeExpression) supportsGlob() bool {
+	return a.Key == AttributeReading || a.Key == AttributeName || a.Key == AttributeSource
+}
+
+func (a *AttributeExpression) expressionNode() {}
 
 // PrefixExpression represents a prefix operator expression (e.g., "!name=foo").
 type PrefixExpression struct {
@@ -131,8 +133,7 @@ func NewPrefixExpression(operator string, right Expression) *PrefixExpression {
 	return &PrefixExpression{Operator: operator, Right: right}
 }
 
-func (p *PrefixExpression) expressionNode() {}
-func (p *PrefixExpression) String() string  { return p.Operator + p.Right.String() }
+func (p *PrefixExpression) String() string { return p.Operator + p.Right.String() }
 func (p *PrefixExpression) RequiresDiscovery() (Expression, bool) {
 	return p.Right.RequiresDiscovery()
 }
@@ -158,6 +159,8 @@ func (p *PrefixExpression) IsRestrictedToStacks() bool {
 	}
 }
 
+func (p *PrefixExpression) expressionNode() {}
+
 // InfixExpression represents an infix operator expression (e.g., "./apps/* | name=bar").
 type InfixExpression struct {
 	Left     Expression
@@ -170,7 +173,6 @@ func NewInfixExpression(left Expression, operator string, right Expression) *Inf
 	return &InfixExpression{Left: left, Operator: operator, Right: right}
 }
 
-func (i *InfixExpression) expressionNode() {}
 func (i *InfixExpression) String() string {
 	return i.Left.String() + " " + i.Operator + " " + i.Right.String()
 }
@@ -205,6 +207,8 @@ func (i *InfixExpression) IsRestrictedToStacks() bool {
 	}
 }
 
+func (i *InfixExpression) expressionNode() {}
+
 // GraphExpression represents a graph traversal expression (e.g., "...foo", "foo...", "...foo...", "^foo").
 type GraphExpression struct {
 	Target              Expression
@@ -228,7 +232,6 @@ func NewGraphExpression(
 	}
 }
 
-func (g *GraphExpression) expressionNode() {}
 func (g *GraphExpression) String() string {
 	result := ""
 	if g.IncludeDependents {
@@ -256,6 +259,8 @@ func (g *GraphExpression) RequiresParse() (Expression, bool) {
 }
 func (g *GraphExpression) IsRestrictedToStacks() bool { return false }
 
+func (g *GraphExpression) expressionNode() {}
+
 // GitExpression represents a Git-based filter expression (e.g., "[main...HEAD]" or "[main]").
 // It filters components based on changes between Git references.
 type GitExpression struct {
@@ -267,7 +272,6 @@ func NewGitExpression(fromRef, toRef string) *GitExpression {
 	return &GitExpression{FromRef: fromRef, ToRef: toRef}
 }
 
-func (g *GitExpression) expressionNode() {}
 func (g *GitExpression) String() string {
 	return "[" + g.FromRef + "..." + g.ToRef + "]"
 }
@@ -302,3 +306,5 @@ func (e GitExpressions) UniqueGitRefs() []string {
 
 	return result
 }
+
+func (g *GitExpression) expressionNode() {}

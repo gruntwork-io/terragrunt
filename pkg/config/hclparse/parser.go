@@ -32,14 +32,6 @@ func NewParser(opts ...Option) *Parser {
 	}).withOptions(opts...)
 }
 
-func (parser *Parser) withOptions(opts ...Option) *Parser {
-	for _, opt := range opts {
-		parser = opt(parser)
-	}
-
-	return parser
-}
-
 func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
@@ -102,6 +94,14 @@ func (parser *Parser) GetDiagnosticsWriter(writer io.Writer, disableColor bool) 
 	}
 
 	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(termWidth), termColor)
+}
+
+func (parser *Parser) withOptions(opts ...Option) *Parser {
+	for _, opt := range opts {
+		parser = opt(parser)
+	}
+
+	return parser
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {

@@ -16,18 +16,19 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - contextcheck
     - containedctx
+    - contextcheck
     - dogsled
     - dupl
-    # - dupword # Disabled due to false positives
     - durationcheck
     - embeddedstructfieldcheck
     - errchkjson
     - errorlint
     - exhaustive
     - fatcontext
+    - funcorder
     - gocheckcompilerdirectives
+    # - gochecknoglobals
     - gochecksumtype
     - goconst
     - gocritic
@@ -62,6 +63,7 @@ linters:
     - wastedassign
     - wsl_v5
     - zerologlint
+    # - dupword # Disabled due to false positives
   settings:
     dupl:
       threshold: 120

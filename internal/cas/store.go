@@ -32,13 +32,6 @@ func (s *Store) NeedsWrite(hash string) bool {
 	return !s.hasContent(path)
 }
 
-// HasContent checks if a given hash exists in the store
-func (s *Store) hasContent(path string) bool {
-	_, err := os.Stat(path)
-
-	return err == nil
-}
-
 // AcquireLock acquires a filesystem lock for the given hash
 // Returns the flock instance that should be unlocked when done
 func (s *Store) AcquireLock(hash string) (*flock.Flock, error) {
@@ -139,4 +132,11 @@ func (s *Store) EnsureWithWait(hash string) (needsWrite bool, lock *flock.Flock,
 
 	// Content still doesn't exist, caller should write it
 	return true, waitLock, nil
+}
+
+// HasContent checks if a given hash exists in the store
+func (s *Store) hasContent(path string) bool {
+	_, err := os.Stat(path)
+
+	return err == nil
 }

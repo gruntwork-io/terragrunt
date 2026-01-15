@@ -93,43 +93,6 @@ func (wp *Pool) Start() {
 	go wp.collectResults()
 }
 
-// collectResults collects the errors from the result channel
-func (wp *Pool) collectResults() {
-	for {
-		select {
-		case err, ok := <-wp.resultChan:
-			if !ok {
-				return
-			}
-
-			if err != nil {
-				// Add to allErrors safely
-				wp.allErrorsMu.Lock()
-				wp.allErrors = wp.allErrors.Append(err)
-				wp.allErrorsMu.Unlock()
-
-				// Also keep the slice for backward compatibility
-				wp.resultMu.Lock()
-				wp.errorsSlice = append(wp.errorsSlice, err)
-				wp.resultMu.Unlock()
-			}
-		case <-wp.doneChan:
-			return
-		}
-	}
-}
-
-// appendError safely appends an error to allErrors
-func (wp *Pool) appendError(err error) {
-	if err == nil {
-		return
-	}
-
-	wp.allErrorsMu.Lock()
-	wp.allErrors = wp.allErrors.Append(err)
-	wp.allErrorsMu.Unlock()
-}
-
 // Submit adds a new task and starts a goroutine to execute it when a worker is available
 func (wp *Pool) Submit(task Task) {
 	wp.mu.RLock()
@@ -251,4 +214,41 @@ func (wp *Pool) IsRunning() bool {
 // IsStopping returns whether the pool is in the process of stopping
 func (wp *Pool) IsStopping() bool {
 	return wp.isStopping.Load()
+}
+
+// collectResults collects the errors from the result channel
+func (wp *Pool) collectResults() {
+	for {
+		select {
+		case err, ok := <-wp.resultChan:
+			if !ok {
+				return
+			}
+
+			if err != nil {
+				// Add to allErrors safely
+				wp.allErrorsMu.Lock()
+				wp.allErrors = wp.allErrors.Append(err)
+				wp.allErrorsMu.Unlock()
+
+				// Also keep the slice for backward compatibility
+				wp.resultMu.Lock()
+				wp.errorsSlice = append(wp.errorsSlice, err)
+				wp.resultMu.Unlock()
+			}
+		case <-wp.doneChan:
+			return
+		}
+	}
+}
+
+// appendError safely appends an error to allErrors
+func (wp *Pool) appendError(err error) {
+	if err == nil {
+		return
+	}
+
+	wp.allErrorsMu.Lock()
+	wp.allErrors = wp.allErrors.Append(err)
+	wp.allErrorsMu.Unlock()
 }

@@ -120,14 +120,6 @@ type FakeProvider struct {
 	PlatformArch string
 }
 
-func (provider *FakeProvider) archiveName() string {
-	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
-}
-
-func (provider *FakeProvider) filename() string {
-	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
-}
-
 func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	t.Helper()
 
@@ -139,6 +131,14 @@ func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	provider.createIndexJSON(t, providerDir)
 	provider.createVersionJSON(t, providerDir)
 	provider.createZipArchive(t, providerDir)
+}
+
+func (provider *FakeProvider) archiveName() string {
+	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
+}
+
+func (provider *FakeProvider) filename() string {
+	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
 }
 
 func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string) {
