@@ -90,15 +90,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return errors.New(MissingCommand{})
 	}
 
-	return run(ctx, l, opts, r)
-}
-
-func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
 		return RunVersionCommand(ctx, l, opts)
 	}
 
-	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	// We need to get the credentials from auth-provider-cmd at the very beginning,
+	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
 		return err
