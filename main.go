@@ -17,7 +17,7 @@ import (
 
 // The main entrypoint for Terragrunt
 func main() {
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	opts := options.NewTerragruntOptions()
 
@@ -33,14 +33,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer errors.Recover(checkForErrorsAndExit(l, exitCode.Get()))
+	defer func() {
+		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
+			errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode()))
+			return
+		}
+
+		errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalExitCode()))
+	}()
 
 	app := cli.NewApp(l, opts)
 
-	ctx := setupContext(l, &exitCode)
+	ctx := setupContext(l, exitCode)
 	err := app.RunContext(ctx, os.Args)
 
-	checkForErrorsAndExit(l, exitCode.Get())(err)
+	if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
+		checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode())(err)
+
+		return
+	}
+
+	checkForErrorsAndExit(l, exitCode.GetFinalExitCode())(err)
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
@@ -72,7 +85,7 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 	}
 }
 
-func setupContext(l log.Logger, exitCode *tf.DetailedExitCode) context.Context {
+func setupContext(l log.Logger, exitCode *tf.DetailedExitCodeMap) context.Context {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 

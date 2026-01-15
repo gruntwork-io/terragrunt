@@ -43,7 +43,11 @@ func NewUnitRunnerFromComponent(unit *component.Unit) *UnitRunner {
 	return NewUnitRunner(unit)
 }
 
-func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) runTerragrunt(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+) error {
 	if runner.Unit.Execution == nil || runner.Unit.Execution.Logger == nil {
 		return nil
 	}
@@ -74,16 +78,18 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	// Use a unit-scoped detailed exit code so retries in this unit don't clobber global state
 	globalExitCode := tf.DetailedExitCodeFromContext(ctx)
 
-	var unitExitCode tf.DetailedExitCode
+	unitExitCode := tf.NewDetailedExitCodeMap()
 
-	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
 	runErr := runfn.Run(ctx, runner.Unit.Execution.Logger, opts, r)
 
-	// Only merge the final unit exit code when the unit run completed without error
-	// and the exit code isn't stuck at 1 from a prior retry attempt.
-	if runErr == nil && globalExitCode != nil && unitExitCode.Get() != tf.DetailedExitCodeError {
-		globalExitCode.Set(unitExitCode.Get())
+	// Store the unit exit code in the global map using the unit path as key
+	// Get the exit code from the unit-scoped map (stored with empty string key in run_cmd.go)
+	if globalExitCode != nil {
+		unitPath := filepath.Clean(runner.Unit.AbsolutePath())
+		code := unitExitCode.Get(opts.WorkingDir)
+		globalExitCode.Set(unitPath, code)
 	}
 
 	// End the run with appropriate result (only if report is not nil)
