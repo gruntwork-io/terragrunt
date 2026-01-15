@@ -270,6 +270,10 @@ func checkUnitVersionConstraints(
 		unit.Execution.TerragruntOptions.TFPath = unitConfig.TerraformBinary
 	}
 
+	if unit.Execution != nil && unit.Execution.Logger != nil {
+		l = unit.Execution.Logger
+	}
+
 	_, err := run.PopulateTFVersion(ctx, l, unit.Execution.TerragruntOptions)
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
