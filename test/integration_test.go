@@ -3999,8 +3999,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
-	require.NoError(t, err)
+	testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
 
 	// verify that was generated json files with plan data
 	list, err := findFilesWithExtension(tmpDir, ".json")
@@ -4175,8 +4174,9 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
 			tmpDir := helpers.TmpDirWOSymlinks(t)
-			_, _, _, err := testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
-			require.NoError(t, err)
+
+			testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
+
 			list, err := findFilesWithExtension(tmpDir, ".json")
 			require.NoError(t, err)
 			assert.Len(t, list, 2)
