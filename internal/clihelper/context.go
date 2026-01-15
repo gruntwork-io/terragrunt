@@ -3,6 +3,7 @@ package clihelper
 // Context can be used to retrieve context-specific args and parsed command-line options.
 type Context struct {
 	*App
+
 	Command       *Command
 	parent        *Context
 	args          Args

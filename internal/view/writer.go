@@ -20,6 +20,7 @@ type Render interface {
 // Writer is the base layer for command views, encapsulating a set of I/O streams, a colorize implementation, and implementing a human friendly view for diagnostics.
 type Writer struct {
 	io.Writer
+
 	render Render
 }
 

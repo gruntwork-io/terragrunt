@@ -20,9 +20,10 @@ const (
 )
 
 type ProviderController struct {
-	Logger               log.Logger
-	DownloaderController router.Controller
 	*router.Router
+
+	Logger                      log.Logger
+	DownloaderController        router.Controller
 	AuthMiddleware              echo.MiddlewareFunc
 	ProxyProviderHandler        *handlers.ProxyProviderHandler
 	ProviderService             *services.ProviderService

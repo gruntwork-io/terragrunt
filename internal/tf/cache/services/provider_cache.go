@@ -78,9 +78,10 @@ func (caches ProviderCaches) removeArchive() error {
 }
 
 type ProviderCache struct {
-	err error
 	*models.Provider
 	*ProviderService
+
+	err                error
 	started            chan struct{}
 	userProviderDir    string
 	packageDir         string

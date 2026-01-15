@@ -134,6 +134,7 @@ var _ = FlagVariable[bool](new(boolVar))
 // -- bool Type
 type boolVar struct {
 	*genericVar[bool]
+
 	negative bool
 }
 

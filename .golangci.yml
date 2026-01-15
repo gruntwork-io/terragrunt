@@ -22,6 +22,7 @@ linters:
     - dupl
     # - dupword # Disabled due to false positives
     - durationcheck
+    - embeddedstructfieldcheck
     - errchkjson
     - errorlint
     - exhaustive

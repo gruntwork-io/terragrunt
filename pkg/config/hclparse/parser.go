@@ -18,6 +18,7 @@ import (
 
 type Parser struct {
 	*hclparse.Parser
+
 	diagsWriterFunc       func(hcl.Diagnostics) error
 	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
 	fileUpdateHandlerFunc func(*File) error

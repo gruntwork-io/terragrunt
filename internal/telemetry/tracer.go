@@ -34,6 +34,7 @@ type traceExporterType string
 
 type Tracer struct {
 	trace.Tracer
+
 	provider         *sdktrace.TracerProvider
 	spanExporter     sdktrace.SpanExporter
 	parentTraceID    *trace.TraceID

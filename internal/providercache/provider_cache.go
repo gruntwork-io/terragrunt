@@ -61,6 +61,7 @@ var (
 
 type ProviderCache struct {
 	*cache.Server
+
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
 }

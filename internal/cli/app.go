@@ -40,6 +40,7 @@ func init() {
 
 type App struct {
 	*clihelper.App
+
 	opts *options.TerragruntOptions
 	l    log.Logger
 }

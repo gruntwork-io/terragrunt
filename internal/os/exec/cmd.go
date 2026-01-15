@@ -18,9 +18,10 @@ import (
 
 // Cmd is a command type.
 type Cmd struct {
-	logger          log.Logger
-	interruptSignal os.Signal
 	*exec.Cmd
+
+	logger             log.Logger
+	interruptSignal    os.Signal
 	filename           string
 	forwardSignalDelay time.Duration
 	usePTY             bool

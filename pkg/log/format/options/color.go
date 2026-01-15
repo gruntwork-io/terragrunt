@@ -146,6 +146,7 @@ type compiledColorScheme map[ColorValue]ColorFunc
 
 type ColorOption struct {
 	*CommonOption[ColorValue]
+
 	compiledColors compiledColorScheme
 	gradientColor  *gradientColor
 }

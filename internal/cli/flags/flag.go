@@ -20,6 +20,7 @@ type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Conte
 // Flag is a wrapper for `clihelper.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	clihelper.Flag
+
 	evaluateWrapper EvaluateWrapperFunc
 	deprecatedFlags DeprecatedFlags
 }

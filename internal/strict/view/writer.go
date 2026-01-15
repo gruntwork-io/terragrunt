@@ -11,6 +11,7 @@ import (
 // Writer is the base layer for command views, encapsulating a set of I/O streams and implementing a human friendly view for strict controls.
 type Writer struct {
 	io.Writer
+
 	render Render
 }
 

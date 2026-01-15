@@ -23,6 +23,7 @@ var backends = backend.Backends{
 // RemoteState is the configuration for Terraform remote state.
 type RemoteState struct {
 	*Config `mapstructure:",squash"`
+
 	backend backend.Backend
 }
 

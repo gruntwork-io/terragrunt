@@ -39,6 +39,7 @@ type metricsExporterType string
 
 type Meter struct {
 	otelmetric.Meter
+
 	provider *metric.MeterProvider
 	exporter metric.Exporter
 }
