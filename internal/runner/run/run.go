@@ -19,7 +19,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -85,43 +84,22 @@ var sourceChangeLocks = sync.Map{}
 
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
-	if opts.TerraformCommand == "" {
-		return errors.New(MissingCommand{})
-	}
-
-	if opts.TerraformCommand == tf.CommandNameVersion {
-		return RunVersionCommand(ctx, l, opts)
-	}
-
-	// We need to get the credentials from auth-provider-cmd at the very beginning,
-	// since the locals block may contain `get_aws_account_id()` func.
-	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
-		return err
-	}
-
-	l, err := CheckVersionConstraints(ctx, l, opts)
-	if err != nil {
-		return err
-	}
-
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
-	if err != nil {
-		return err
-	}
-
-	runCfg := terragruntConfig.ToRunConfig()
-
-	// fetch engine options from the config
-	engine, err := runCfg.EngineOptions()
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+	cfg *runcfg.RunConfig,
+	credsGetter *creds.Getter,
+) error {
+	engine, err := cfg.EngineOptions()
 	if err != nil {
 		return err
 	}
 
 	opts.Engine = engine
 
-	errConfig, err := runCfg.ErrorsConfig()
+	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
 		return err
 	}
@@ -136,7 +114,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return ProcessHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), terragruntOptionsClone, runCfg, nil, r)
+		return ProcessHooks(ctx, l, cfg.Terraform.GetAfterHooks(), terragruntOptionsClone, cfg, nil, r)
 	}); err != nil {
 		return err
 	}
@@ -144,7 +122,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
 	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
-		runCfg.GetIAMRoleOptions(),
+		cfg.GetIAMRoleOptions(),
 		opts.OriginalIAMRoleOptions,
 	)
 
@@ -162,13 +140,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// if the download dir hasn't been changed from default, and is set in the config,
 	// then use it
-	if opts.DownloadDir == defaultDownloadDir && runCfg.DownloadDir != "" {
-		opts.DownloadDir = runCfg.DownloadDir
+	if opts.DownloadDir == defaultDownloadDir && cfg.DownloadDir != "" {
+		opts.DownloadDir = cfg.DownloadDir
 	}
 
 	updatedTerragruntOptions := opts
 
-	sourceURL, err := runcfg.GetTerraformSourceURL(opts, runCfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(opts, cfg)
 	if err != nil {
 		return err
 	}
@@ -177,7 +155,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
 			"sourceUrl": sourceURL,
 		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
+			updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
 			return err
 		})
 		if err != nil {
@@ -187,14 +165,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
-	if err = GenerateConfig(l, updatedTerragruntOptions, runCfg); err != nil {
+	if err = GenerateConfig(l, updatedTerragruntOptions, cfg); err != nil {
 		return err
 	}
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
-		if err := WriteTerragruntDebugFile(l, updatedTerragruntOptions, runCfg); err != nil {
+		if err := WriteTerragruntDebugFile(l, updatedTerragruntOptions, cfg); err != nil {
 			return err
 		}
 	}
@@ -204,14 +182,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, runCfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
 		if !allowDestroy {
 			return nil
 		}
 	}
 
 	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return runTerragruntWithConfig(ctx, l, opts, updatedTerragruntOptions, runCfg, r)
+		return runTerragruntWithConfig(ctx, l, opts, updatedTerragruntOptions, cfg, r)
 	}); err != nil {
 		return err
 	}

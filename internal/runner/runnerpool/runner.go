@@ -22,6 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -530,7 +532,35 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			u.Execution.TerragruntOptions.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
-			err := unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
+			cfg, err := config.ReadTerragruntConfig(
+				childCtx,
+				l,
+				u.Execution.TerragruntOptions,
+				config.DefaultParserOptions(l, u.Execution.TerragruntOptions),
+			)
+			if err != nil {
+				return err
+			}
+
+			runCfg := cfg.ToRunConfig()
+
+			credsGetter := creds.NewGetter()
+			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+				ctx,
+				l,
+				opts,
+				externalcmd.NewProvider(l, opts),
+			); err != nil {
+				return err
+			}
+
+			err = unitRunner.Run(
+				childCtx,
+				u.Execution.TerragruntOptions,
+				r.Stack.Execution.Report,
+				runCfg,
+				credsGetter,
+			)
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
