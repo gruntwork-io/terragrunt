@@ -753,7 +753,10 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 		}
 
 		if d.discoveryContext != nil {
-			c.SetDiscoveryContext(d.discoveryContext)
+			discoveryCtx := d.discoveryContext.Copy()
+			discoveryCtx.SuggestOrigin(component.OriginPathDiscovery)
+
+			c.SetDiscoveryContext(discoveryCtx)
 		}
 
 		return c
@@ -958,10 +961,6 @@ func (d *Discovery) Discover(
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
 
-					if d.discoveryContext != nil {
-						dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
-
 					if d.suppressParseErrors {
 						dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 					}
@@ -1003,10 +1002,6 @@ func (d *Discovery) Discover(
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
-
-					if d.discoveryContext != nil {
-						dependentDiscovery = dependentDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
 
 					if d.suppressParseErrors {
 						dependentDiscovery = dependentDiscovery.WithSuppressParseErrors()
@@ -1234,7 +1229,7 @@ func propagateTransitiveDependents(dependentUnits map[string][]string) {
 
 	maxIterations := len(nodes)
 
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		updated := false
 
 		for unit, dependents := range dependentUnits {

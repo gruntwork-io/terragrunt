@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -16,7 +17,6 @@ import (
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
-	discoveryContext    *component.DiscoveryContext
 	components          *component.ThreadSafeComponents
 	report              *report.Report
 	mu                  *sync.RWMutex
@@ -58,12 +58,6 @@ func (dd *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
 // WithParserOptions sets custom HCL parser options for dependency discovery.
 func (dd *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *DependencyDiscovery {
 	dd.parserOptions = options
-	return dd
-}
-
-func (dd *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependencyDiscovery {
-	dd.discoveryContext = discoveryContext
-
 	return dd
 }
 
@@ -189,12 +183,22 @@ func (dd *DependencyDiscovery) discoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
-			depComponent := dd.dependencyToDiscover(dComponent, depPath)
+			depComponent, err := dd.dependencyToDiscover(dComponent, depPath)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+
+				mu.Unlock()
+
+				return nil
+			}
+
 			if depComponent == nil {
 				return nil
 			}
 
-			err := dd.discoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
+			err = dd.discoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -226,22 +230,32 @@ func (dd *DependencyDiscovery) discoverDependencies(
 func (dd *DependencyDiscovery) dependencyToDiscover(
 	dComponent component.Component,
 	depPath string,
-) component.Component {
+) (component.Component, error) {
+	dDiscoveryCtx := dComponent.DiscoveryContext()
+	if dDiscoveryCtx == nil {
+		return nil, NewMissingDiscoveryContextError(dComponent.Path())
+	}
+
+	if dDiscoveryCtx.WorkingDir == "" {
+		return nil, NewMissingWorkingDirectoryError(dComponent.Path())
+	}
+
 	if dd.isSeen(depPath) {
 		c := dd.components.FindByPath(depPath)
 		if c != nil {
 			dComponent.AddDependency(c)
 		}
 
-		return nil
+		return nil, nil
 	}
+
+	dd.markSeen(depPath)
 
 	c := dd.components.FindByPath(depPath)
 	if c != nil {
-		dd.markSeen(depPath)
 		dComponent.AddDependency(c)
 
-		return c
+		return c, nil
 	}
 
 	// Create new component for further discovery
@@ -249,19 +263,41 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	// TODO: This will need to change in the future to handle stacks.
 	depComponent := component.NewUnit(depPath)
 
-	if isExternal(dd.discoveryContext.WorkingDir, depPath) {
+	// Always use the parent component's discovery context
+	if isExternal(dDiscoveryCtx.WorkingDir, depPath) {
 		depComponent.SetExternal()
-	}
-
-	if dd.discoveryContext != nil {
-		depComponent.SetDiscoveryContext(dd.discoveryContext)
 	}
 
 	dComponent.AddDependency(depComponent)
 
-	dependencyToDiscover, _ := dd.components.EnsureComponent(depComponent)
+	dependencyToDiscover, created := dd.components.EnsureComponent(depComponent)
+	if created {
+		copiedDiscoveryCtx := dDiscoveryCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-	dd.markSeen(depPath)
+		// To be conservative, we're going to assume that users _never_ want to
+		// destroy components discovered as a consequence of graph discovery on top of
+		// Git discovery.
+		//
+		// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
+		//
+		// We're going to assume that the user's intent is to only destroy component(s) that were
+		// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
+		// simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		//
+		// The dependency/dependents haven't been removed between the Git references, so what the user
+		// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		if copiedDiscoveryCtx.Ref != "" {
+			updatedArgs := slices.DeleteFunc(copiedDiscoveryCtx.Args, func(arg string) bool {
+				return arg == "-destroy"
+			})
 
-	return dependencyToDiscover
+			copiedDiscoveryCtx.Args = updatedArgs
+		}
+
+		depComponent.SetDiscoveryContext(copiedDiscoveryCtx)
+	}
+
+	return dependencyToDiscover, nil
 }

@@ -16,17 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
-// resolvePath resolves symlinks in a path for consistent comparison across platforms.
-// On macOS, /var is a symlink to /private/var, so paths must be resolved.
-func resolvePath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
-}
-
 // Kind is the type of Terragrunt component.
 type Kind string
 
@@ -58,6 +47,19 @@ type Component interface {
 	ensureDependent(Component)
 }
 
+// Origin determines the discovery origin of a component.
+// This is important if there are multiple different reasons that a component might have been discovered.
+//
+// e.g. A component might be discovered in a Git worktree due to graph discovery from the results of a Git-based filter.
+type Origin string
+
+const (
+	OriginWorktreeDiscovery     Origin = "worktree-discovery"
+	OriginGraphDiscovery        Origin = "graph-discovery"
+	OriginPathDiscovery         Origin = "path-discovery"
+	OriginRelationshipDiscovery Origin = "relationship-discovery"
+)
+
 // DiscoveryContext is the context in which
 // a Component was discovered.
 //
@@ -68,8 +70,47 @@ type DiscoveryContext struct {
 	WorkingDir string
 	Ref        string
 
+	origin Origin
+
 	Cmd  string
 	Args []string
+}
+
+// Copy returns a copy of the DiscoveryContext.
+func (dc *DiscoveryContext) Copy() *DiscoveryContext {
+	c := *dc
+
+	return &c
+}
+
+// CopyWithNewOrigin returns a copy of the DiscoveryContext with the origin set to the given origin.
+//
+// Discovered components should never have their origin overridden by subsequent phases of discovery. Only use this
+// method if you are discovering a new component that was originally discovered by a different discovery phase.
+//
+// e.g. A component discovered as a dependency/dependent of a component discovered via Git discovery should be
+// considered discovered via graph discovery, not Git discovery.
+func (dc *DiscoveryContext) CopyWithNewOrigin(origin Origin) *DiscoveryContext {
+	c := dc.Copy()
+	c.origin = origin
+
+	return c
+}
+
+// Origin returns the origin of the DiscoveryContext.
+func (dc *DiscoveryContext) Origin() Origin {
+	return dc.origin
+}
+
+// SuggestOrigin suggests an origin for the DiscoveryContext.
+//
+// Only actually updates the origin if it is empty. This is to ensure that the origin of a component is always
+// considered the first origin discovered for that component, and that it can't be overridden by subsequent phases
+// of discovery that might re-discover the same component.
+func (dc *DiscoveryContext) SuggestOrigin(origin Origin) {
+	if dc.origin == "" {
+		dc.origin = origin
+	}
 }
 
 // Components is a list of discovered Terragrunt components.
@@ -317,4 +358,15 @@ func (tsc *ThreadSafeComponents) Len() int {
 	defer tsc.mu.RUnlock()
 
 	return len(tsc.components)
+}
+
+// resolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+func resolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }

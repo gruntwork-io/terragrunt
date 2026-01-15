@@ -721,3 +721,157 @@ func TestFilters_RequiresGitReferences(t *testing.T) {
 		assert.ElementsMatch(t, refs, []string{"main", "HEAD"})
 	})
 }
+
+// TestFilters_GitExpressionAsGraphTarget tests that Filters correctly extracts
+// GitExpression targets from GraphExpressions for dependency/dependent discovery.
+func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DependencyGraphExpressions extracts GitExpression target - dependencies only", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main...HEAD]..."})
+		require.NoError(t, err)
+
+		targets := filters.DependencyGraphExpressions()
+		require.Len(t, targets, 1, "Should have one dependency target expression")
+
+		gitExpr, ok := targets[0].(*filter.GitExpression)
+		require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
+		assert.Equal(t, "main", gitExpr.FromRef)
+		assert.Equal(t, "HEAD", gitExpr.ToRef)
+	})
+
+	t.Run("DependentGraphExpressions extracts GitExpression target - dependents only", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]"})
+		require.NoError(t, err)
+
+		targets := filters.DependentGraphExpressions()
+		require.Len(t, targets, 1, "Should have one dependent target expression")
+
+		gitExpr, ok := targets[0].(*filter.GitExpression)
+		require.True(t, ok, "Target should be a GitExpression, got %T", targets[0])
+		assert.Equal(t, "main", gitExpr.FromRef)
+		assert.Equal(t, "HEAD", gitExpr.ToRef)
+	})
+
+	t.Run("Both graph expressions extract GitExpression target - issue #5307 pattern", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		require.NoError(t, err)
+
+		depTargets := filters.DependencyGraphExpressions()
+		require.Len(t, depTargets, 1, "Should have one dependency target expression")
+
+		depGitExpr, ok := depTargets[0].(*filter.GitExpression)
+		require.True(t, ok, "Dependency target should be a GitExpression")
+		assert.Equal(t, "main", depGitExpr.FromRef)
+		assert.Equal(t, "HEAD", depGitExpr.ToRef)
+
+		depentTargets := filters.DependentGraphExpressions()
+		require.Len(t, depentTargets, 1, "Should have one dependent target expression")
+
+		depentGitExpr, ok := depentTargets[0].(*filter.GitExpression)
+		require.True(t, ok, "Dependent target should be a GitExpression")
+		assert.Equal(t, "main", depentGitExpr.FromRef)
+		assert.Equal(t, "HEAD", depentGitExpr.ToRef)
+	})
+
+	t.Run("UniqueGitFilters extracts GitExpression from all graph positions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		require.NoError(t, err)
+
+		gitFilters := filters.UniqueGitFilters()
+		require.Len(t, gitFilters, 1, "Should have one unique git filter")
+		assert.Equal(t, "main", gitFilters[0].FromRef)
+		assert.Equal(t, "HEAD", gitFilters[0].ToRef)
+	})
+
+	t.Run("Multiple git expressions in graph - unique extraction", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{
+			"[main...HEAD]...",
+			"...[feature...develop]",
+		})
+		require.NoError(t, err)
+
+		depTargets := filters.DependencyGraphExpressions()
+		require.Len(t, depTargets, 1, "First filter has dependencies")
+
+		depentTargets := filters.DependentGraphExpressions()
+		require.Len(t, depentTargets, 1, "Second filter has dependents")
+
+		gitFilters := filters.UniqueGitFilters()
+		require.Len(t, gitFilters, 2, "Should have two unique git filters")
+	})
+
+	t.Run("Exclude target with GitExpression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"^[main...HEAD]..."})
+		require.NoError(t, err)
+
+		targets := filters.DependencyGraphExpressions()
+		require.Len(t, targets, 1)
+
+		gitExpr, ok := targets[0].(*filter.GitExpression)
+		require.True(t, ok)
+		assert.Equal(t, "main", gitExpr.FromRef)
+	})
+
+	t.Run("Single git ref with graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"[main]..."})
+		require.NoError(t, err)
+
+		targets := filters.DependencyGraphExpressions()
+		require.Len(t, targets, 1)
+
+		gitExpr, ok := targets[0].(*filter.GitExpression)
+		require.True(t, ok)
+		assert.Equal(t, "main", gitExpr.FromRef)
+		assert.Equal(t, "HEAD", gitExpr.ToRef)
+	})
+
+	t.Run("Git expression with commit SHA in graph", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[abc123...def456]..."})
+		require.NoError(t, err)
+
+		depTargets := filters.DependencyGraphExpressions()
+		require.Len(t, depTargets, 1)
+
+		gitExpr, ok := depTargets[0].(*filter.GitExpression)
+		require.True(t, ok)
+		assert.Equal(t, "abc123", gitExpr.FromRef)
+		assert.Equal(t, "def456", gitExpr.ToRef)
+	})
+
+	t.Run("RequiresParse returns true for git-graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		require.NoError(t, err)
+
+		expr, requires := filters.RequiresParse()
+		assert.True(t, requires, "Git-graph expression should require parsing")
+		assert.NotNil(t, expr)
+	})
+
+	t.Run("HasPositiveFilter returns true for git-graph expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		require.NoError(t, err)
+
+		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")
+	})
+}

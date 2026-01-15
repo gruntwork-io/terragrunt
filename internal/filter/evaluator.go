@@ -237,6 +237,15 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		return nil, err
 	}
 
+	// We want to avoid including target matches in the initial set if they were discovered via graph discovery.
+	// They should pop out of graph traversal if they were relevant.
+	//
+	// This is to ensure that we don't accidentally include matches when they would only be included by their
+	// relationship in the dependency/dependent graph of a specific target.
+	targetMatches = slices.DeleteFunc(targetMatches, func(c component.Component) bool {
+		return c.DiscoveryContext().Origin() == component.OriginGraphDiscovery
+	})
+
 	if len(targetMatches) == 0 {
 		return component.Components{}, nil
 	}
@@ -253,7 +262,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 
 	if expr.IncludeDependencies {
 		for _, target := range targetMatches {
-			traverseDependencies(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, MaxTraversalDepth)
 		}
 	}
 
@@ -261,7 +270,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 
 	if expr.IncludeDependents {
 		for _, target := range targetMatches {
-			traverseDependents(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, MaxTraversalDepth)
 		}
 	}
 
@@ -292,55 +301,44 @@ func evaluateGitFilter(filter *GitExpression, components component.Components) (
 	return results, nil
 }
 
-// traverseDependencies recursively traverses the dependency graph downward (from a component to its dependencies).
-func traverseDependencies(
-	l log.Logger,
-	c component.Component,
-	resultSet map[string]component.Component,
-	visited map[string]bool,
-	maxDepth int,
-) {
-	if maxDepth <= 0 {
-		if l != nil {
-			l.Warnf(
-				"Maximum dependency traversal depth (%d) reached for component %s during filtering. Some dependencies may have been excluded from results.",
-				MaxTraversalDepth,
-				c.Path(),
-			)
-		}
+// graphDirection represents the direction of graph traversal.
+type graphDirection int
 
-		return
+const (
+	graphDirectionDependencies graphDirection = iota
+	graphDirectionDependents
+)
+
+func (d graphDirection) String() string {
+	switch d {
+	case graphDirectionDependencies:
+		return "dependency"
+	case graphDirectionDependents:
+		return "dependent"
 	}
 
-	path := c.Path()
-	if visited[path] {
-		return
-	}
-
-	visited[path] = true
-
-	for _, dep := range c.Dependencies() {
-		depPath := dep.Path()
-		resultSet[depPath] = dep
-
-		traverseDependencies(l, dep, resultSet, visited, maxDepth-1)
-	}
+	return "unknown"
 }
 
-// traverseDependents recursively traverses the dependent graph upward (from a component to its dependents).
-func traverseDependents(
+// traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
+func traverseGraph(
 	l log.Logger,
 	c component.Component,
 	resultSet map[string]component.Component,
 	visited map[string]bool,
+	direction graphDirection,
 	maxDepth int,
 ) {
 	if maxDepth <= 0 {
 		if l != nil {
+			directionName := direction.String()
+
 			l.Warnf(
-				"Maximum dependent traversal depth (%d) reached for component %s during filtering. Some dependents may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %ss may have been excluded from results.",
+				directionName,
 				MaxTraversalDepth,
 				c.Path(),
+				directionName,
 			)
 		}
 
@@ -354,11 +352,39 @@ func traverseDependents(
 
 	visited[path] = true
 
-	for _, dependent := range c.Dependents() {
-		depPath := dependent.Path()
-		resultSet[depPath] = dependent
+	var relatedComponents []component.Component
+	if direction == graphDirectionDependencies {
+		relatedComponents = c.Dependencies()
+	} else {
+		relatedComponents = c.Dependents()
+	}
 
-		traverseDependents(l, dependent, resultSet, visited, maxDepth-1)
+	for _, related := range relatedComponents {
+		relatedPath := related.Path()
+
+		// It's not clear why this isn't necessary. It might be in the future.
+		// Tests pass without it, however, so we'll leave it out for now.
+		//
+		// Needs more investigation.
+		//
+		// relatedCtx := related.DiscoveryContext()
+		// if relatedCtx != nil {
+		// 	origin := relatedCtx.Origin()
+		// 	if origin != component.OriginGraphDiscovery {
+		// 		l.Debugf(
+		// 			"Skipping %s %s in graph expression traversal: component was discovered via %s, not graph discovery",
+		// 			direction.String(),
+		// 			relatedPath,
+		// 			origin,
+		// 		)
+
+		// 		continue
+		// 	}
+		// }
+
+		resultSet[relatedPath] = related
+
+		traverseGraph(l, related, resultSet, visited, direction, maxDepth-1)
 	}
 }
 

@@ -1005,3 +1005,194 @@ func TestParser_GitFilterErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestParser_GitFilterAsGraphExpressionTarget tests parsing of combined git + graph expressions
+// where a GitExpression is used as the target of a GraphExpression.
+func TestParser_GitFilterAsGraphExpressionTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		expected filter.Expression
+		name     string
+		input    string
+	}{
+		{
+			name:  "dependencies of git changes - postfix ellipsis",
+			input: "[main...HEAD]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   false,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "dependents of git changes - prefix ellipsis",
+			input: "...[main...HEAD]",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: false,
+				IncludeDependents:   true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "both directions of git changes - issue #5307 pattern",
+			input: "...[main...HEAD]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "exclude target with dependencies of git changes",
+			input: "^[main...HEAD]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   false,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "exclude target with dependents of git changes",
+			input: "...^[main...HEAD]",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: false,
+				IncludeDependents:   true,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "exclude target with both directions of git changes",
+			input: "...^[main...HEAD]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   true,
+				ExcludeTarget:       true,
+			},
+		},
+		{
+			name:  "single git ref with dependencies",
+			input: "[main]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   false,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "single git ref with dependents",
+			input: "...[main]",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("main", "HEAD"),
+				IncludeDependencies: false,
+				IncludeDependents:   true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "git ref with commit SHA and both directions",
+			input: "...[abc123...def456]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("abc123", "def456"),
+				IncludeDependencies: true,
+				IncludeDependents:   true,
+				ExcludeTarget:       false,
+			},
+		},
+		{
+			name:  "git ref with relative ref (HEAD~1) and dependencies",
+			input: "[HEAD~1...HEAD]...",
+			expected: &filter.GraphExpression{
+				Target:              filter.NewGitExpression("HEAD~1", "HEAD"),
+				IncludeDependencies: true,
+				IncludeDependents:   false,
+				ExcludeTarget:       false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer)
+			expr, err := parser.ParseExpression()
+
+			require.NoError(t, err)
+
+			graphExpr, ok := expr.(*filter.GraphExpression)
+			require.True(t, ok, "Expected GraphExpression, got %T", expr)
+
+			expectedGraph := tt.expected.(*filter.GraphExpression)
+			assert.Equal(t, expectedGraph.IncludeDependents, graphExpr.IncludeDependents, "IncludeDependents mismatch")
+			assert.Equal(t, expectedGraph.IncludeDependencies, graphExpr.IncludeDependencies, "IncludeDependencies mismatch")
+			assert.Equal(t, expectedGraph.ExcludeTarget, graphExpr.ExcludeTarget, "ExcludeTarget mismatch")
+
+			gitExpr, ok := graphExpr.Target.(*filter.GitExpression)
+			require.True(t, ok, "Expected GitExpression as target, got %T", graphExpr.Target)
+
+			expectedGit := expectedGraph.Target.(*filter.GitExpression)
+			assert.Equal(t, expectedGit.FromRef, gitExpr.FromRef, "FromRef mismatch")
+			assert.Equal(t, expectedGit.ToRef, gitExpr.ToRef, "ToRef mismatch")
+		})
+	}
+}
+
+// TestParser_GitFilterAsGraphExpressionTarget_StringRepresentation tests that
+// combined git + graph expressions produce correct string representations.
+func TestParser_GitFilterAsGraphExpressionTarget_StringRepresentation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "dependencies of git changes",
+			input:    "[main...HEAD]...",
+			expected: "[main...HEAD]...",
+		},
+		{
+			name:     "dependents of git changes",
+			input:    "...[main...HEAD]",
+			expected: "...[main...HEAD]",
+		},
+		{
+			name:     "both directions of git changes",
+			input:    "...[main...HEAD]...",
+			expected: "...[main...HEAD]...",
+		},
+		{
+			name:     "exclude target with both directions",
+			input:    "...^[main...HEAD]...",
+			expected: "...^[main...HEAD]...",
+		},
+		{
+			name:     "single ref defaults to HEAD",
+			input:    "[main]...",
+			expected: "[main...HEAD]...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			lexer := filter.NewLexer(tt.input)
+			parser := filter.NewParser(lexer)
+			expr, err := parser.ParseExpression()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, expr.String())
+		})
+	}
+}

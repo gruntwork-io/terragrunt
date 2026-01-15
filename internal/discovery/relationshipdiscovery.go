@@ -243,10 +243,17 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 
 	dep, created := rd.interTransientComponents.EnsureComponent(newUnit)
 
-	dep.SetDiscoveryContext(rd.discoveryContext)
+	if rd.discoveryContext != nil {
+		discoveryCtx := rd.discoveryContext.Copy()
+		// Set origin for components discovered via relationship discovery
+		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
+		dep.SetDiscoveryContext(discoveryCtx)
 
-	if isExternal(rd.discoveryContext.WorkingDir, path) {
-		dep.SetExternal()
+		if isExternal(discoveryCtx.WorkingDir, path) {
+			dep.SetExternal()
+		}
+	} else {
+		dep.SetDiscoveryContext(rd.discoveryContext)
 	}
 
 	c.AddDependency(dep)

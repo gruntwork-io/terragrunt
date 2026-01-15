@@ -193,9 +193,10 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 	kind worktreeKind,
 ) (component.Components, error) {
 	discovery := *wd.originalDiscovery
-	discoveryContext := *discovery.discoveryContext
+	discoveryContext := discovery.discoveryContext.Copy()
 	discoveryContext.Ref = wt.Ref
 	discoveryContext.WorkingDir = wt.Path
+	discoveryContext.SuggestOrigin(component.OriginWorktreeDiscovery)
 
 	// Deep copy Args slice to avoid race conditions across goroutines
 	if discoveryContext.Args != nil {
@@ -211,7 +212,7 @@ func (wd *WorktreeDiscovery) discoverInWorktree(
 
 	components, err := discovery.
 		WithFilters(filters).
-		WithDiscoveryContext(&discoveryContext).
+		WithDiscoveryContext(discoveryContext).
 		Discover(ctx, l, opts)
 	if err != nil {
 		return components, err
@@ -326,7 +327,7 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 ) (component.Components, error) {
 	fromDiscovery := *originalDiscovery
 
-	fromDiscoveryContext := *fromDiscovery.discoveryContext
+	fromDiscoveryContext := fromDiscovery.discoveryContext.Copy()
 
 	fromDiscoveryContext.WorkingDir = fromStack.Path()
 	fromDiscoveryContext.Ref = fromStack.DiscoveryContext().Ref
@@ -341,7 +342,7 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 
 	toDiscovery := *originalDiscovery
 
-	toDiscoveryContext := *toDiscovery.discoveryContext
+	toDiscoveryContext := toDiscovery.discoveryContext.Copy()
 
 	toDiscoveryContext.WorkingDir = toStack.Path()
 	toDiscoveryContext.Ref = toStack.DiscoveryContext().Ref
@@ -368,7 +369,7 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 		var fromDiscoveryErr error
 
 		fromComponents, fromDiscoveryErr = fromDiscovery.
-			WithDiscoveryContext(&fromDiscoveryContext).
+			WithDiscoveryContext(fromDiscoveryContext).
 			WithFilters(
 				filter.Filters{},
 			).
@@ -383,11 +384,12 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 			return nil
 		}
 
-		// Reset the discovery context working directory to the original directory.
-		for _, component := range fromComponents {
-			discoveryContext := *component.DiscoveryContext()
+		// Reset the discovery context working directory to the original directory
+		// and set origin to worktree-discovery since these are discovered via worktree discovery.
+		for _, c := range fromComponents {
+			discoveryContext := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
 			discoveryContext.WorkingDir = fromStack.DiscoveryContext().WorkingDir
-			component.SetDiscoveryContext(&discoveryContext)
+			c.SetDiscoveryContext(discoveryContext)
 		}
 
 		return nil
@@ -397,7 +399,7 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 		var toDiscoveryErr error
 
 		toComponents, toDiscoveryErr = toDiscovery.
-			WithDiscoveryContext(&toDiscoveryContext).
+			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(
 				filter.Filters{},
 			).
@@ -412,11 +414,12 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 			return nil
 		}
 
-		// Reset the discovery context working directory to the original directory.
-		for _, component := range toComponents {
-			discoveryContext := *component.DiscoveryContext()
+		// Reset the discovery context working directory to the original directory
+		// and set origin to worktree-discovery since these are discovered via worktree discovery.
+		for _, c := range toComponents {
+			discoveryContext := c.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
 			discoveryContext.WorkingDir = toStack.DiscoveryContext().WorkingDir
-			component.SetDiscoveryContext(&discoveryContext)
+			c.SetDiscoveryContext(discoveryContext)
 		}
 
 		return nil
@@ -500,6 +503,9 @@ func (wd *WorktreeDiscovery) walkChangedStackInternal(
 		}
 
 		if fromSHA != toSHA {
+			// Ensure the component has the correct origin (it should already be set, but ensure it)
+			discoveryContext := componentPair.ToComponent.DiscoveryContext().CopyWithNewOrigin(component.OriginWorktreeDiscovery)
+			componentPair.ToComponent.SetDiscoveryContext(discoveryContext)
 			finalComponents = append(finalComponents, componentPair.ToComponent)
 		}
 	}
@@ -516,9 +522,9 @@ const (
 
 // translateDiscoveryContextArgsForWorktree translates the discovery context arguments for a worktree.
 func translateDiscoveryContextArgsForWorktree(
-	discoveryContext component.DiscoveryContext,
+	discoveryContext *component.DiscoveryContext,
 	worktreeKind worktreeKind,
-) (component.DiscoveryContext, error) {
+) (*component.DiscoveryContext, error) {
 	switch worktreeKind {
 	case fromWorktreeKind:
 		switch {

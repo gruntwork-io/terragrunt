@@ -26,7 +26,6 @@ import (
 type DependentDiscovery struct {
 	visitedDirs         map[string]struct{}
 	knownComponentPaths map[string]struct{}
-	discoveryContext    *component.DiscoveryContext
 	opts                *options.TerragruntOptions
 	mu                  *sync.RWMutex
 	components          *component.ThreadSafeComponents
@@ -65,12 +64,6 @@ func (dd *DependentDiscovery) WithSuppressParseErrors() *DependentDiscovery {
 // WithParserOptions sets custom HCL parser options for dependent discovery.
 func (dd *DependentDiscovery) WithParserOptions(options []hclparse.Option) *DependentDiscovery {
 	dd.parserOptions = options
-	return dd
-}
-
-// WithDiscoveryContext sets the discovery context for dependent discovery.
-func (dd *DependentDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependentDiscovery {
-	dd.discoveryContext = discoveryContext
 	return dd
 }
 
@@ -247,10 +240,6 @@ func (dd *DependentDiscovery) discoverDependents(
 		resolvedTargetPath := resolvePath(target.Path())
 
 		for candidate := range candidates {
-			if dd.discoveryContext != nil {
-				candidate.SetDiscoveryContext(dd.discoveryContext)
-			}
-
 			if dd.isChecked(candidate) {
 				continue
 			}
@@ -259,6 +248,11 @@ func (dd *DependentDiscovery) discoverDependents(
 
 			// Skip stacks for dependent discovery for now.
 			if _, ok := candidate.(*component.Stack); ok {
+				continue
+			}
+
+			// Components can't be dependents of themselves.
+			if candidate.Path() == target.Path() {
 				continue
 			}
 
@@ -302,7 +296,7 @@ func (dd *DependentDiscovery) discoverDependents(
 					continue
 				}
 
-				isExternal := isExternal(dd.discoveryContext.WorkingDir, c.Path())
+				isExternal := isExternal(candidate.DiscoveryContext().WorkingDir, c.Path())
 
 				if isExternal {
 					c.SetExternal()
@@ -317,7 +311,35 @@ func (dd *DependentDiscovery) discoverDependents(
 			}
 
 			if dependsOnTarget {
-				dd.ensureComponent(candidate)
+				c, created := dd.ensureComponent(candidate)
+				if created {
+					dCtx := target.DiscoveryContext()
+					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+					// To be conservative, we're going to assume that users _never_ want to
+					// destroy components discovered as a consequence of graph discovery on top of
+					// Git discovery.
+					//
+					// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
+					//
+					// We're going to assume that the user's intent is to only destroy component(s) that were
+					// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
+					// simply plan/apply the components discovered as a consequence of graph discovery
+					// from the removed component(s).
+					//
+					// The dependency/dependents haven't been removed between the Git references, so what the user
+					// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
+					// from the removed component(s).
+					if copiedCtx.Ref != "" {
+						updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+							return arg == "-destroy"
+						})
+
+						copiedCtx.Args = updatedArgs
+					}
+
+					c.SetDiscoveryContext(copiedCtx)
+				}
 
 				select {
 				case <-walkCtx.Done():
@@ -461,8 +483,8 @@ func (dd *DependentDiscovery) isChecked(component component.Component) bool {
 }
 
 // ensureComponent adds a component to the components list if it's not already present.
-func (dd *DependentDiscovery) ensureComponent(component component.Component) {
-	dd.components.EnsureComponent(component)
+func (dd *DependentDiscovery) ensureComponent(component component.Component) (component.Component, bool) {
+	return dd.components.EnsureComponent(component)
 }
 
 // copyForDiscoveredDependent creates a copy of the DependentDiscovery with fresh state maps
