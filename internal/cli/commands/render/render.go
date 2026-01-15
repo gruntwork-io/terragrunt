@@ -130,11 +130,11 @@ func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.Terra
 }
 
 func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
-	if !opts.DisableDependentModules {
-		dependentModules := runner.FindWhereWorkingDirIsIncluded(ctx, l, opts.TerragruntOptions, cfg)
+	if !opts.DisableDependentUnits {
+		dependentUnits := runner.FindDependentUnits(ctx, l, opts.TerragruntOptions, cfg)
 
-		dependentModulesPath := make([]*string, 0, len(dependentModules))
-		for _, module := range dependentModules {
+		dependentModulesPath := make([]*string, 0, len(dependentUnits))
+		for _, module := range dependentUnits {
 			path := module.Path()
 			dependentModulesPath = append(dependentModulesPath, &path)
 		}

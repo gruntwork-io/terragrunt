@@ -24,16 +24,9 @@ type ConfigReader interface {
 	ReadConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*RunConfig, error)
 }
 
-// DependentModule represents a module that depends on the current working directory.
-type DependentModule interface {
+// DependentUnit represents a unit that depends on a given unit.
+type DependentUnit interface {
 	Path() string
-}
-
-// DependentUnitsFinder finds modules that depend on a given working directory.
-// This interface is implemented by the runner package to break cyclic imports.
-type DependentUnitsFinder interface {
-	// FindDependentModules returns a list of modules that have the given working directory as a dependency.
-	FindDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *RunConfig) []DependentModule
 }
 
 // Report is a minimal interface for execution reporting.
