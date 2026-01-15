@@ -42,11 +42,6 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	l, err := run.CheckVersionConstraints(ctx, l, opts)
-	if err != nil {
-		return nil, err
-	}
-
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
 	if err != nil {
 		return nil, err

@@ -653,7 +653,9 @@ func useLegacyNullValues() bool {
 func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
 	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
-		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
+		config.TerragruntVersionConstraints,
+		config.FeatureFlagsBlock,
+	)
 
 	return config.PartialParseConfigFile(
 		ctx,
