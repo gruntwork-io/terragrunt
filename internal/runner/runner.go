@@ -23,13 +23,18 @@ func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions 
 	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
-// FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
-// 1. Find root git top level directory and build list of modules
+// FindDependentUnits - find dependent units for a given unit.
+// 1. Find root git top level directory and build list of units
 // 2. Iterate over includes from opts if git top level directory detection failed
-// 3. Filter found module only items which has in dependencies working directory
-func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []*component.Unit {
+// 3. Filter found units for those that have dependencies on the unit in the working directory
+func FindDependentUnits(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
-	pathsToCheck := discoverPathsToCheck(ctx, l, opts, terragruntConfig)
+	pathsToCheck := discoverPathsToCheck(ctx, l, opts, cfg)
 
 	for _, dir := range pathsToCheck {
 		maps.Copy(
@@ -39,14 +44,14 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, l log.Logger, opts *opti
 				l,
 				dir,
 				opts,
-				terragruntConfig,
+				cfg,
 			),
 		)
 	}
 
 	matchedUnits := make([]*component.Unit, 0, len(matchedUnitsMap))
-	for _, module := range matchedUnitsMap {
-		matchedUnits = append(matchedUnits, module)
+	for _, unit := range matchedUnitsMap {
+		matchedUnits = append(matchedUnits, unit)
 	}
 
 	return matchedUnits
@@ -124,22 +129,6 @@ func NewDependentModulesFinder() *DependentModulesFinder {
 	return &DependentModulesFinder{}
 }
 
-// FindDependentModules implements runcfg.DependentModulesFinder.
-func (f *DependentModulesFinder) FindDependentModules(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) []runcfg.DependentModule {
-	// Convert RunConfig back to TerragruntConfig for the existing function
-	// Note: This is a temporary shim until the underlying function can be refactored
-	terragruntConfig := convertRunConfigToTerragruntConfig(cfg)
-
-	units := FindWhereWorkingDirIsIncluded(ctx, l, opts, terragruntConfig)
-
-	modules := make([]runcfg.DependentModule, len(units))
-	for i, unit := range units {
-		modules[i] = unit
-	}
-
-	return modules
-}
-
 // convertRunConfigToTerragruntConfig creates a minimal TerragruntConfig from RunConfig
 // containing only the fields needed by FindWhereWorkingDirIsIncluded.
 func convertRunConfigToTerragruntConfig(cfg *runcfg.RunConfig) *config.TerragruntConfig {
@@ -162,6 +151,3 @@ func convertRunConfigToTerragruntConfig(cfg *runcfg.RunConfig) *config.Terragrun
 		ProcessedIncludes: processedIncludes,
 	}
 }
-
-// Ensure DependentModulesFinder implements the interface
-var _ runcfg.DependentUnitsFinder = (*DependentModulesFinder)(nil)

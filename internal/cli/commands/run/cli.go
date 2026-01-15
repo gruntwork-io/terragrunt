@@ -9,11 +9,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -132,6 +135,13 @@ func Action(l log.Logger, opts *options.TerragruntOptions) clihelper.ActionFunc 
 			return err
 		}
 
+		if opts.CheckDependentUnits {
+			allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
+			if !allowDestroy {
+				return nil
+			}
+		}
+
 		runCfg := cfg.ToRunConfig()
 
 		return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
@@ -243,4 +253,56 @@ func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.Terrag
 		opts.TerragruntConfigPath,
 		nil,
 	)
+}
+
+// confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy
+func confirmActionWithDependentUnits(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+) bool {
+	units := findDependentUnits(ctx, l, opts, cfg)
+	if len(units) != 0 {
+		if _, err := opts.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
+			l.Error(err)
+			return false
+		}
+
+		for _, unit := range units {
+			if _, err := opts.ErrWriter.Write([]byte(unit.Path() + "\n")); err != nil {
+				l.Error(err)
+				return false
+			}
+		}
+
+		prompt := "WARNING: Are you sure you want to continue?"
+
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+		if err != nil {
+			l.Error(err)
+			return false
+		}
+
+		return shouldRun
+	}
+
+	return true
+}
+
+// findDependentUnits finds dependent units for the given unit.
+func findDependentUnits(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *config.TerragruntConfig,
+) []runcfg.DependentUnit {
+	units := runner.FindDependentUnits(ctx, l, opts, cfg)
+
+	modules := make([]runcfg.DependentUnit, len(units))
+	for i, unit := range units {
+		modules[i] = unit
+	}
+
+	return modules
 }

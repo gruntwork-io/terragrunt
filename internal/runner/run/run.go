@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -176,13 +175,6 @@ func Run(
 		return err
 	}
 
-	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
-		if !allowDestroy {
-			return nil
-		}
-	}
-
 	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return runTerragruntWithConfig(ctx, l, opts, updatedTerragruntOptions, cfg, r)
 	}); err != nil {
@@ -308,49 +300,6 @@ func runTerragruntWithConfig(
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
 	})
-}
-
-// confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy
-func confirmActionWithDependentUnits(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	cfg *runcfg.RunConfig,
-) bool {
-	// Get the DependentModulesFinder from context
-	finder := GetDependentUnitsFinder(ctx)
-	if finder == nil {
-		// If no finder is available, skip the check but allow the action to proceed
-		l.Debugf("No DependentModulesFinder available in context, skipping dependent modules check")
-		return true
-	}
-
-	modules := finder.FindDependentModules(ctx, l, opts, cfg)
-	if len(modules) != 0 {
-		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
-			l.Error(err)
-			return false
-		}
-
-		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path() + "\n")); err != nil {
-				l.Error(err)
-				return false
-			}
-		}
-
-		prompt := "WARNING: Are you sure you want to continue?"
-
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
-		if err != nil {
-			l.Error(err)
-			return false
-		}
-
-		return shouldRun
-	}
-	// request user to confirm action in any case
-	return true
 }
 
 // ShouldCopyLockFile verifies if the lock file should be copied to the user's working directory
