@@ -90,10 +90,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return errors.New(MissingCommand{})
 	}
 
-	return run(ctx, l, opts, r, new(target))
+	return run(ctx, l, opts, r)
 }
 
-func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *target) error {
+func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
 		return RunVersionCommand(ctx, l, opts)
 	}
@@ -106,33 +106,27 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	l, err := CheckVersionConstraints(ctx, l, opts)
 	if err != nil {
-		return target.runErrorCallback(l, opts, nil, err)
+		return err
 	}
 
 	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
 	if err != nil {
-		runCfg := terragruntConfig.ToRunConfig()
-
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	runCfg := terragruntConfig.ToRunConfig()
 
-	if target.isPoint(targetPointParseConfig) {
-		return target.runCallback(ctx, l, opts, runCfg)
-	}
-
 	// fetch engine options from the config
 	engine, err := runCfg.EngineOptions()
 	if err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	opts.Engine = engine
 
 	errConfig, err := runCfg.ErrorsConfig()
 	if err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	opts.Errors = errConfig
@@ -147,7 +141,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
 		return ProcessHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), terragruntOptionsClone, runCfg, nil, r)
 	}); err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
@@ -166,7 +160,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	// get the default download dir
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 	if err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	// if the download dir hasn't been changed from default, and is set in the config,
@@ -179,7 +173,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	sourceURL, err := runcfg.GetTerraformSourceURL(opts, runCfg)
 	if err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	if sourceURL != "" {
@@ -190,34 +184,26 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 			return err
 		})
 		if err != nil {
-			return target.runErrorCallback(l, opts, runCfg, err)
+			return err
 		}
-	}
-
-	if target.isPoint(targetPointDownloadSource) {
-		return target.runCallback(ctx, l, updatedTerragruntOptions, runCfg)
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	if err = GenerateConfig(l, updatedTerragruntOptions, runCfg); err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
-	}
-
-	if target.isPoint(targetPointGenerateConfig) {
-		return target.runCallback(ctx, l, updatedTerragruntOptions, runCfg)
+		return err
 	}
 
 	// We do the debug file generation here, after all the terragrunt generated terraform files are created so that we
 	// can ensure the tfvars json file only includes the vars that are defined in the module.
 	if updatedTerragruntOptions.Debug {
 		if err := WriteTerragruntDebugFile(l, updatedTerragruntOptions, runCfg); err != nil {
-			return target.runErrorCallback(l, opts, runCfg, err)
+			return err
 		}
 	}
 
 	if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	if opts.CheckDependentUnits {
@@ -228,9 +214,9 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	}
 
 	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return runTerragruntWithConfig(ctx, l, opts, updatedTerragruntOptions, runCfg, r, target)
+		return runTerragruntWithConfig(ctx, l, opts, updatedTerragruntOptions, runCfg, r)
 	}); err != nil {
-		return target.runErrorCallback(l, opts, runCfg, err)
+		return err
 	}
 
 	return nil
@@ -278,7 +264,6 @@ func runTerragruntWithConfig(
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
-	t *target,
 ) error {
 	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
@@ -296,10 +281,6 @@ func runTerragruntWithConfig(
 
 	if err := setTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
 		return err
-	}
-
-	if t.isPoint(targetPointSetInputsAsEnvVars) {
-		return t.runCallback(ctx, l, opts, cfg)
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
@@ -328,10 +309,6 @@ func runTerragruntWithConfig(
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if t.isPoint(targetPointInitCommand) {
-		return t.runCallback(ctx, l, opts, cfg)
-	}
-
 	if err := checkProtectedModuleRunCfg(opts, cfg); err != nil {
 		return err
 	}
@@ -842,7 +819,7 @@ func runTerraformInitRunCfg(
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, originalOpts, initOptions, cfg, r, nil); err != nil {
+	if err := runTerragruntWithConfig(ctx, l, originalOpts, initOptions, cfg, r); err != nil {
 		return err
 	}
 
