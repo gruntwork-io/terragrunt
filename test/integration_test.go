@@ -167,15 +167,19 @@ func TestDetailedExitCodeError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
-	assert.Equal(t, 1, exitCode.Get())
+	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -187,14 +191,14 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
-	assert.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestDetailedExitCodeChangesUnit(t *testing.T) {
@@ -215,13 +219,13 @@ func TestDetailedExitCodeChangesUnit(t *testing.T) {
 	require.NoError(t, err)
 
 	// check that the exit code is 2 when there are changes in one unit
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
-	assert.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
@@ -232,14 +236,71 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+filepath.Join(tmpEnvPath, testFixturePath)+" -- plan -detailed-exitcode")
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
-	assert.Equal(t, 0, exitCode.Get())
+	assert.Equal(t, 0, exitCode.GetFinalDetailedExitCode())
+}
+
+func TestDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	exitCode := tf.NewDetailedExitCodeMap()
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
+}
+
+func TestDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+
+	exitCode := tf.NewDetailedExitCodeMap()
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --working-dir "+filepath.Join(
+			tmpEnvPath,
+			testFixturePath,
+		)+" --all -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
@@ -251,17 +312,17 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app1"))
 	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
-	assert.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestDetailedExitCodeNoChanges(t *testing.T) {
@@ -273,17 +334,17 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
 	require.NoError(t, err)
-	assert.Equal(t, 0, exitCode.Get())
+	assert.Equal(t, 0, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
@@ -296,19 +357,28 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
 	// Pre-apply the drift unit so it has a file, then delete it to ensure drift exists
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+filepath.Join(rootPath, "app_drift"))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --log-level trace --non-interactive --working-dir "+
+			filepath.Join(rootPath, "app_drift"),
+	)
 	require.NoError(t, err)
 	err = os.Remove(filepath.Join(rootPath, "app_drift", "example.txt"))
 	require.NoError(t, err)
 
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	ctx := t.Context()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode")
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(
+		t, ctx,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+
+			rootPath+
+			" -- plan -detailed-exitcode",
+	)
 	require.NoError(t, err)
-	assert.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
 }
 
 func TestLogCustomFormatOutput(t *testing.T) {

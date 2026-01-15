@@ -65,10 +65,16 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 
 	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TFPath, args...)
 
-	if err != nil && slices.Contains(args, FlagNameDetailedExitCode) {
-		code, _ := util.GetExitCode(err)
+	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
+	if hasDetailedExitCode {
+		code := 0
+
+		if err != nil {
+			code, _ = util.GetExitCode(err)
+		}
+
 		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
-			exitCode.Set(code)
+			exitCode.Set(opts.WorkingDir, code)
 		}
 
 		if code != 1 {
