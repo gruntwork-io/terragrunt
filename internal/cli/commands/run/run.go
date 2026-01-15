@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -204,7 +203,7 @@ func confirmActionWithDependentUnits(
 		}
 
 		for _, unit := range units {
-			if _, err := opts.ErrWriter.Write([]byte(unit.Path() + "\n")); err != nil {
+			if _, err := opts.ErrWriter.Write([]byte(unit + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -224,19 +223,19 @@ func confirmActionWithDependentUnits(
 	return true
 }
 
-// findDependentUnits finds dependent units for the given unit.
+// findDependentUnits finds dependent units for the given unit, and returns their paths.
 func findDependentUnits(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
-) []runcfg.DependentUnit {
+) []string {
 	units := runner.FindDependentUnits(ctx, l, opts, cfg)
 
-	modules := make([]runcfg.DependentUnit, len(units))
+	paths := make([]string, len(units))
 	for i, unit := range units {
-		modules[i] = unit
+		paths[i] = unit.Path()
 	}
 
-	return modules
+	return paths
 }
