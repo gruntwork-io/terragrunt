@@ -1,6 +1,9 @@
 // Package runcfg provides configuration types for running terragrunt commands.
 // This package exists to break import cycles between config and run packages.
-// Runner packages should only import runcfg, never pkg/config.
+// The `run` package should only import `runcfg`, never `pkg/config`.
+//
+// Breaking up the imports this way also allows us to ensure that we never do any config parsing in the `run` package,
+// which is slow and needs to be handled carefully.
 package runcfg
 
 import (
