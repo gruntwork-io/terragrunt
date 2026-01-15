@@ -162,6 +162,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 	// open the file and write some data
 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_WRONLY, 0600)
 	require.NoError(t, err)
+
 	nonExecutableData := []byte{0x00}
 	if _, err := file.Write(nonExecutableData); err != nil {
 		require.NoError(t, err)
@@ -186,12 +187,14 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		if strings.HasSuffix(filepath.Base(path), "_SHA256SUMS") {
 			// clean checksum list
 			if err := os.Truncate(path, 0); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	})
 	require.NoError(t, err)
@@ -291,14 +294,14 @@ func TestNoEngineFlagDisablesEngine(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
 	// First, verify engine is used when experiment is enabled
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Tofu Initialization started")
 	assert.Contains(t, stderr, "Tofu Initialization completed")
 	assert.Contains(t, stderr, "Tofu Shutdown completed")
 
 	// Then, verify engine is NOT used when --no-engine flag is set
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --no-engine --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --no-engine --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "Tofu Initialization started")
 	assert.NotContains(t, stderr, "Tofu Initialization completed")
@@ -313,14 +316,14 @@ func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
 	// Verify engine is used when --experiment iac-engine is set
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Tofu Initialization started")
 	assert.Contains(t, stderr, "Tofu Initialization completed")
 	assert.Contains(t, stderr, "Tofu Shutdown completed")
 
 	// Verify engine is NOT used when both --experiment iac-engine and --no-engine are set
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --no-engine --working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --experiment iac-engine --no-engine --working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "Tofu Initialization started")
 	assert.NotContains(t, stderr, "Tofu Initialization completed")
@@ -337,14 +340,14 @@ func TestNoEngineFlagWithRunAll(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
 
 	// Verify engine is used in run --all when experiment is enabled
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- plan -no-color", rootPath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- plan -no-color", rootPath))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Tofu Initialization started")
 	assert.Contains(t, stderr, "Tofu Initialization completed")
 	assert.Contains(t, stderr, "Tofu Shutdown completed")
 
 	// Verify engine is NOT used in run --all when --no-engine is set
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --no-engine --working-dir %s -- plan -no-color", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --tf-forward-stdout --no-engine --working-dir %s -- plan -no-color", rootPath))
 	require.NoError(t, err)
 	assert.NotContains(t, stderr, "Tofu Initialization started")
 	assert.NotContains(t, stderr, "Tofu Initialization completed")
@@ -362,6 +365,7 @@ func setupEngineCache(t *testing.T) (string, string) {
 	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
+
 	return cacheDir, rootPath
 }
 
@@ -379,12 +383,14 @@ func setupLocalEngine(t *testing.T) string {
 	if err := os.MkdirAll(engineDir, 0755); err != nil {
 		require.NoError(t, err)
 	}
+
 	_, err := getter.GetAny(t.Context(), engineDir, downloadURL)
 	require.NoError(t, err)
 
 	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(testFixtureLocalEngine, "terragrunt.hcl"), filepath.Join(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__engine_source__": filepath.Join(engineDir, engineAssetName),
 	})
+
 	return rootPath
 }
 
@@ -394,5 +400,6 @@ func testEngineVersion() string {
 	if !found {
 		return "v0.0.16"
 	}
+
 	return value
 }

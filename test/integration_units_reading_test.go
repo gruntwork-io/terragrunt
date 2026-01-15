@@ -11,7 +11,6 @@
 package test_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -173,6 +172,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			require.NoError(t, err)
 
 			includedUnits := []string{}
+
 			for _, line := range strings.Split(stderr, "\n") {
 				if includedLogEntryRegex.MatchString(line) {
 					includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
@@ -314,7 +314,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
 
 			for _, f := range tc.unitsReading {
-				cmd = cmd + fmt.Sprintf(" --filter reading=%s", filepath.Join(rootPath, f))
+				cmd = cmd + " --filter reading=" + filepath.Join(rootPath, f)
 			}
 
 			for _, unit := range tc.unitsIncluding {
@@ -329,6 +329,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			require.NoError(t, err)
 
 			includedUnits := []string{}
+
 			for _, line := range strings.Split(stderr, "\n") {
 				if includedLogEntryRegex.MatchString(line) {
 					includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
@@ -363,6 +364,7 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 
 	includedLogEntryRegex := regexp.MustCompile(`=> Unit ([^ ]+) \(excluded: false`)
 	includedUnits := []string{}
+
 	for _, line := range strings.Split(stderr, "\n") {
 		if includedLogEntryRegex.MatchString(line) {
 			includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])

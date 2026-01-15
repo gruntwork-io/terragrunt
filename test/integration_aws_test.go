@@ -294,6 +294,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	// Add skip_bucket_versioning to disable_versioning feature
 	contents, err := util.ReadFileAsString(dualLockingConfigPath)
 	require.NoError(t, err)
+
 	anchorText := "    enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value"
 	require.Contains(t, contents, anchorText, "Expected anchor text not found in %s", dualLockingConfigPath)
 	newContents := strings.ReplaceAll(contents, anchorText, anchorText+"\n    skip_bucket_versioning         = true")
@@ -315,6 +316,7 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	// Add skip_bucket_versioning for disable_versioning feature
 	contents, err = util.ReadFileAsString(useLockfileConfigPath)
 	require.NoError(t, err)
+
 	anchorText = "    use_lockfile = true"
 	require.Contains(t, contents, anchorText, "Expected anchor text not found in %s", useLockfileConfigPath)
 	newContents = strings.ReplaceAll(contents, anchorText, anchorText+"\n    skip_bucket_versioning = true")

@@ -5,14 +5,18 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    name: Lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows doesn't get to be linted continuously because it annoyingly requires
+        # that all files use \r\n line endings.
+        # os: [ubuntu, macos, windows]
+        os: [ubuntu, macos]
 
     steps:
     - uses: actions/checkout@v6
-
-    - id: go-version
-      run: |
-        go version
 
     - name: Set up mise
       uses: jdx/mise-action@v2
@@ -24,12 +28,25 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - id: go-cache-paths
+      shell: bash
       run: |
         echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
-        # TODO: Make this less brittle.
-        echo "golanci-lint-cache=/home/runner/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
+        if [ "$RUNNER_OS" == "Windows" ]; then
+          echo "golangci-lint-cache=$LOCALAPPDATA/golangci-lint" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [ "$RUNNER_OS" == "macOS" ]; then
+          echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
 
     - name: Go Build Cache
       uses: actions/cache@v5
@@ -46,7 +63,7 @@ jobs:
     - name: golangci-lint Cache
       uses: actions/cache@v5
       with:
-        path: ${{ steps.go-cache-paths.outputs.golanci-lint-cache }}
+        path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
 
     - name: Lint

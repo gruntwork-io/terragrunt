@@ -3,7 +3,6 @@
 package test_test
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,9 +23,9 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 	registryToken := os.Getenv("PRIVATE_REGISTRY_TOKEN")
 
 	// the private registry test is recommended to be a clone of gruntwork-io/terraform-null-terragrunt-registry-test
-	registryUrl := os.Getenv("PRIVATE_REGISTRY_URL")
+	registryURL := os.Getenv("PRIVATE_REGISTRY_URL")
 
-	if registryToken == "" || registryUrl == "" {
+	if registryToken == "" || registryURL == "" {
 		t.Skip("Skipping test because it requires a valid Terraform registry token and url")
 	}
 
@@ -34,7 +33,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 	tmpEnvPath := helpers.CopyEnvironment(t, privateRegistryFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, privateRegistryFixturePath)
 
-	URL, err := url.Parse("tfr://" + registryUrl)
+	URL, err := url.Parse("tfr://" + registryURL)
 	if err != nil {
 		t.Fatalf("REGISTRY_URL is invalid: %v", err)
 	}
@@ -44,7 +43,7 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 	}
 
 	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(privateRegistryFixturePath, "terragrunt.hcl"), filepath.Join(rootPath, "terragrunt.hcl"), map[string]string{
-		"__registry_url__": registryUrl,
+		"__registry_url__": registryURL,
 	})
 
 	return rootPath, URL.Hostname(), registryToken
@@ -73,7 +72,7 @@ func TestPrivateRegistryWithEnvToken(t *testing.T) {
 	// This is based on the tf/cliconfig/credentials.go collectCredentialsFromEnv
 	host = strings.ReplaceAll(strings.ReplaceAll(host, ".", "_"), "-", "__")
 
-	t.Setenv(fmt.Sprintf("TF_TOKEN_%s", host), token)
+	t.Setenv("TF_TOKEN_"+host, token)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --log-level=trace --working-dir="+rootPath)
 

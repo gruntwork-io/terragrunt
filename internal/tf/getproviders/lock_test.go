@@ -37,6 +37,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 		hasher := sha256.New()
 		_, err := hasher.Write([]byte(packageName))
 		require.NoError(t, err)
+
 		sha := hex.EncodeToString(hasher.Sum(nil))
 		document += fmt.Sprintf("%s %s\n", sha, packageName)
 	}
