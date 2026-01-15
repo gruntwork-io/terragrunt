@@ -243,7 +243,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	// This is to ensure that we don't accidentally include matches when they would only be included by their
 	// relationship in the dependency/dependent graph of a specific target.
 	targetMatches = slices.DeleteFunc(targetMatches, func(c component.Component) bool {
-		return c.DiscoveryContext().Origin() == component.OriginGraphDiscovery
+		return c.Origin() == component.OriginGraphDiscovery
 	})
 
 	if len(targetMatches) == 0 {
@@ -312,9 +312,9 @@ const (
 func (d graphDirection) String() string {
 	switch d {
 	case graphDirectionDependencies:
-		return "dependency"
+		return "dependencies"
 	case graphDirectionDependents:
-		return "dependent"
+		return "dependents"
 	}
 
 	return "unknown"
@@ -334,7 +334,7 @@ func traverseGraph(
 			directionName := direction.String()
 
 			l.Warnf(
-				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %ss may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
 				directionName,
 				MaxTraversalDepth,
 				c.Path(),

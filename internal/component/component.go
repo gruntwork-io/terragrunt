@@ -33,6 +33,7 @@ type Component interface {
 	Sources() []string
 	DiscoveryContext() *DiscoveryContext
 	SetDiscoveryContext(*DiscoveryContext)
+	Origin() Origin
 	AddDependency(Component)
 	AddDependent(Component)
 	Dependencies() Components
