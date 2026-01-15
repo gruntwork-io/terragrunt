@@ -215,25 +215,14 @@ func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	discovered component.Components,
+	units []*component.Unit,
 ) error {
-	units := discovered.Filter(component.UnitKind)
-
-	if len(units) == 0 {
-		return nil
-	}
-
 	g, checkCtx := errgroup.WithContext(ctx)
 
 	maxWorkers := min(runtime.NumCPU(), opts.Parallelism)
 	g.SetLimit(maxWorkers)
 
 	for _, unit := range units {
-		unit, ok := unit.(*component.Unit)
-		if !ok {
-			continue
-		}
-
 		g.Go(func() error {
 			return checkUnitVersionConstraints(
 				checkCtx,

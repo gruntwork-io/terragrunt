@@ -224,12 +224,8 @@ func resolveUnitsFromDiscovery(
 			}
 		}
 
-		// Initialize execution context
-		unit.Execution = &component.UnitExecution{
-			TerragruntOptions:    unitOpts,
-			Logger:               unitLogger,
-			FlagExcluded:         unit.Excluded(),
-			AssumeAlreadyApplied: false,
+		if unit.Execution == nil {
+			unit.Execution = component.NewUnitExecution(unitLogger, unitOpts, unit.Excluded())
 		}
 
 		// Store config from discovery context if available

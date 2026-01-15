@@ -20,9 +20,16 @@ func Build(
 		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, terragruntOptions, discovered); err != nil {
+	runner, err := createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	if err != nil {
 		return nil, err
 	}
 
-	return createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	units := runner.GetStack().Units
+
+	if err := checkVersionConstraints(ctx, l, terragruntOptions, units); err != nil {
+		return nil, err
+	}
+
+	return runner, nil
 }
