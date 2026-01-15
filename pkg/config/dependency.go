@@ -884,7 +884,24 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx.TerragruntOptions.Engine = engineOpts
 
 	if isInit {
-		return getTerragruntOutputJSONFromInitFolder(ctx, pctx, l, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
+		credsGetter := creds.NewGetter()
+		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+			ctx,
+			l,
+			pctx.TerragruntOptions,
+			externalcmd.NewProvider(l, pctx.TerragruntOptions),
+		); err != nil {
+			return nil, err
+		}
+
+		return getTerragruntOutputJSONFromInitFolder(
+			ctx,
+			pctx,
+			l,
+			workingDir,
+			remoteStateTGConfig.GetIAMRoleOptions(),
+			credsGetter,
+		)
 	}
 
 	return getTerragruntOutputJSONFromRemoteState(
@@ -947,10 +964,25 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, opts *options.Terr
 
 // getTerragruntOutputJSONFromInitFolder will retrieve the outputs directly from the module's working directory without
 // running init.
-func getTerragruntOutputJSONFromInitFolder(ctx context.Context, pctx *ParsingContext, l log.Logger, terraformWorkingDir string, iamRoleOpts options.IAMRoleOptions) ([]byte, error) {
+func getTerragruntOutputJSONFromInitFolder(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	terraformWorkingDir string,
+	iamRoleOpts options.IAMRoleOptions,
+	credsGetter *creds.Getter,
+) ([]byte, error) {
 	targetConfigPath := pctx.TerragruntOptions.TerragruntConfigPath
 
-	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, pctx, l, terraformWorkingDir, targetConfigPath, iamRoleOpts)
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(
+		ctx,
+		pctx,
+		l,
+		terraformWorkingDir,
+		targetConfigPath,
+		iamRoleOpts,
+		credsGetter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1010,7 +1042,25 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	l.Debugf("Setting dependency working directory to %s", tempWorkDir)
 
-	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, pctx, l, tempWorkDir, targetConfigPath, iamRoleOpts)
+	credsGetter := creds.NewGetter()
+	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		pctx.TerragruntOptions,
+		externalcmd.NewProvider(l, pctx.TerragruntOptions),
+	); err != nil {
+		return nil, err
+	}
+
+	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(
+		ctx,
+		pctx,
+		l,
+		tempWorkDir,
+		targetConfigPath,
+		iamRoleOpts,
+		credsGetter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1134,7 +1184,15 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform
 // without going through the full RunTerragrunt operation.
-func setupTerragruntOptionsForBareTerraform(ctx context.Context, pctx *ParsingContext, l log.Logger, workingDir string, configPath string, iamRoleOpts options.IAMRoleOptions) (*options.TerragruntOptions, error) {
+func setupTerragruntOptionsForBareTerraform(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	workingDir string,
+	configPath string,
+	iamRoleOpts options.IAMRoleOptions,
+	credsGetter *creds.Getter,
+) (*options.TerragruntOptions, error) {
 	// Here we clone the terragrunt options again since we need to make further modifications to it to allow running
 	// terraform directly.
 	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
@@ -1153,7 +1211,7 @@ func setupTerragruntOptionsForBareTerraform(ctx context.Context, pctx *ParsingCo
 	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
 
 	// Make sure to assume any roles set by TG_IAM_ROLE
-	if err := creds.NewGetter().ObtainAndUpdateEnvIfNecessary(ctx, l, targetTGOptions,
+	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, targetTGOptions,
 		externalcmd.NewProvider(l, targetTGOptions),
 		amazonsts.NewProvider(l, targetTGOptions),
 	); err != nil {
@@ -1184,7 +1242,14 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	newOpts.Writer = stdoutBufferWriter
 	pctx = pctx.WithTerragruntOptions(&newOpts)
 
-	err := runner.Run(ctx, l, pctx.TerragruntOptions, report.NewReport())
+	cfg, err := ReadTerragruntConfig(ctx, l, pctx.TerragruntOptions, DefaultParserOptions(l, pctx.TerragruntOptions))
+	if err != nil {
+		return nil, err
+	}
+
+	runCfg := cfg.ToRunConfig()
+
+	err = runner.Run(ctx, l, pctx.TerragruntOptions, report.NewReport(), runCfg, creds.NewGetter())
 	if err != nil {
 		return nil, errors.New(err)
 	}

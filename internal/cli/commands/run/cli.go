@@ -7,11 +7,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -96,7 +100,40 @@ func Action(l log.Logger, opts *options.TerragruntOptions) clihelper.ActionFunc 
 			return graph.Run(ctx, l, tgOpts)
 		}
 
-		return run.Run(ctx, l, tgOpts, r)
+		if opts.TerraformCommand == "" {
+			return errors.New(run.MissingCommand{})
+		}
+
+		// Early exit for version command to avoid expensive setup
+		if opts.TerraformCommand == tf.CommandNameVersion {
+			return run.RunVersionCommand(ctx, l, opts)
+		}
+
+		// We need to get the credentials from auth-provider-cmd at the very beginning,
+		// since the locals block may contain `get_aws_account_id()` func.
+		credsGetter := creds.NewGetter()
+		if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
+			ctx,
+			l,
+			opts,
+			externalcmd.NewProvider(l, opts),
+		); err != nil {
+			return err
+		}
+
+		l, err := run.CheckVersionConstraints(ctx, l, opts)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+		if err != nil {
+			return err
+		}
+
+		runCfg := cfg.ToRunConfig()
+
+		return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
 	}
 }
 
