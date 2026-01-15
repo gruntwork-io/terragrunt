@@ -20,6 +20,7 @@ linters:
     - containedctx
     - dogsled
     - dupl
+    # - dupword # Disabled due to false positives
     - durationcheck
     - errchkjson
     - errorlint
