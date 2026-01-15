@@ -31,62 +31,6 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
-// CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
-// following settings on terragruntOptions:
-// - TerraformPath
-// - TerraformVersion
-// - FeatureFlags
-// TODO: Look into a way to refactor this function to avoid the side effect.
-func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, terragruntOptions)
-	if err != nil {
-		return l, err
-	}
-
-	// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
-	if !terragruntOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TFPath = partialTerragruntConfig.TerraformBinary
-	}
-
-	l, err = PopulateTFVersion(ctx, l, terragruntOptions)
-	if err != nil {
-		return l, err
-	}
-
-	terraformVersionConstraint := DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-
-	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return l, err
-	}
-
-	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
-			return l, err
-		}
-	}
-
-	if partialTerragruntConfig.FeatureFlags != nil {
-		// update feature flags for evaluation
-		for _, flag := range partialTerragruntConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return l, err
-			}
-
-			if _, exists := terragruntOptions.FeatureFlags.Load(flagName); !exists {
-				terragruntOptions.FeatureFlags.Store(flagName, defaultValue)
-			}
-		}
-	}
-
-	return l, nil
-}
-
 // PopulateTFVersion populates the currently installed version of OpenTofuTerraform into the given terragruntOptions.
 //
 // The caller also gets a copy of the logger with the config path set.
