@@ -205,12 +205,15 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 		return nil
 	}
 
-	var err error
-
-	l, terraformVersion, tfImplementation, err := run.GetTFVersion(ctx, l, opts)
-	if err != nil {
-		return err
+	if opts.TerraformVersion == nil {
+		_, err := run.PopulateTFVersion(ctx, l, opts)
+		if err != nil {
+			return err
+		}
 	}
+
+	terraformVersion := opts.TerraformVersion
+	tfImplementation := opts.TofuImplementation
 
 	// Check if OpenTofu is being used
 	if tfImplementation != options.OpenTofuImpl {
