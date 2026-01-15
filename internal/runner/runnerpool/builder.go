@@ -15,9 +15,12 @@ func Build(
 	terragruntOptions *options.TerragruntOptions,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	// Run discovery (with automatic retry if needed)
 	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := checkVersionConstraints(ctx, l, terragruntOptions, discovered); err != nil {
 		return nil, err
 	}
 

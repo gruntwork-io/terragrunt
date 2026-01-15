@@ -36,7 +36,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -648,22 +647,6 @@ func ToTerraformEnvVars(l log.Logger, opts *options.TerragruntOptions, vars map[
 
 func useLegacyNullValues() bool {
 	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
-}
-
-func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
-	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
-	configCtx = configCtx.WithDecodeList(
-		config.TerragruntVersionConstraints,
-		config.FeatureFlagsBlock,
-	)
-
-	return config.PartialParseConfigFile(
-		ctx,
-		configCtx,
-		l,
-		opts.TerragruntConfigPath,
-		nil,
-	)
 }
 
 // filterTerraformEnvVarsFromExtraArgsRunCfg extracts terraform env vars from extra args using runcfg types.

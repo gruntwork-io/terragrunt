@@ -56,7 +56,6 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 		return l, err
 	}
 
-	// Save output to cache using minimal format
 	cacheData := formatVersionForCache(tfImplementation, terraformVersion)
 	versionCache.Put(ctx, cacheKey, cacheData)
 
