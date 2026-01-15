@@ -4,6 +4,8 @@
 package runcfg
 
 import (
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -28,6 +30,10 @@ type RunConfig struct {
 	Dependencies *ModuleDependencies
 	// Terraform contains terraform-specific settings
 	Terraform *TerraformConfig
+	// Engine contains engine-specific settings
+	Engine *EngineConfig
+	// Errors contains error handling configuration
+	Errors *ErrorsConfig
 	// ProcessedIncludes contains processed include configurations
 	ProcessedIncludes map[string]IncludeConfig
 	// DownloadDir is the custom download directory for terraform source
@@ -234,4 +240,48 @@ type IncludeConfig struct {
 type ModuleDependencies struct {
 	// Paths are the paths to dependent modules
 	Paths []string
+}
+
+// EngineConfig represents engine-specific configuration.
+type EngineConfig struct {
+	// Version is the engine version
+	Version *string
+	// Type is the engine type
+	Type *string
+	// Meta contains engine metadata
+	Meta *cty.Value
+	// Source is the engine source URL
+	Source string
+}
+
+// ErrorsConfig represents the top-level errors configuration.
+type ErrorsConfig struct {
+	// Retry contains retry block configurations
+	Retry []*RetryBlock
+	// Ignore contains ignore block configurations
+	Ignore []*IgnoreBlock
+}
+
+// RetryBlock represents a labeled retry block.
+type RetryBlock struct {
+	// Label is the name of the retry block
+	Label string
+	// RetryableErrors are error patterns that trigger retry
+	RetryableErrors []string
+	// MaxAttempts is the maximum number of retry attempts
+	MaxAttempts int
+	// SleepIntervalSec is the sleep interval between retries in seconds
+	SleepIntervalSec int
+}
+
+// IgnoreBlock represents a labeled ignore block.
+type IgnoreBlock struct {
+	// Signals contains signal mappings
+	Signals map[string]cty.Value
+	// Label is the name of the ignore block
+	Label string
+	// Message is an optional message for ignored errors
+	Message string
+	// IgnorableErrors are error patterns that should be ignored
+	IgnorableErrors []string
 }

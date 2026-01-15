@@ -2,8 +2,13 @@ package runcfg
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,6 +18,9 @@ import (
 
 // DefaultTerragruntConfigPath is the default name of the terragrunt configuration file.
 const DefaultTerragruntConfigPath = "terragrunt.hcl"
+
+// DefaultEngineType is the default engine type.
+const DefaultEngineType = "rpc"
 
 // TerraformCommandsNeedInput lists terraform commands that require input handling.
 var TerraformCommandsNeedInput = []string{"apply", "destroy", "refresh", "import"}
@@ -93,4 +101,165 @@ func ShouldCopyLockFile(cfg *TerraformConfig) bool {
 	}
 
 	return true // Default to copying
+}
+
+// EngineOptions fetches engine options from the RunConfig.
+func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
+	if cfg.Engine == nil {
+		return nil, nil
+	}
+	// in case of Meta is null, set empty meta
+	meta := map[string]any{}
+
+	if cfg.Engine.Meta != nil {
+		parsedMeta, err := ctyhelper.ParseCtyValueToMap(*cfg.Engine.Meta)
+		if err != nil {
+			return nil, err
+		}
+
+		meta = parsedMeta
+	}
+
+	var version, engineType string
+	if cfg.Engine.Version != nil {
+		version = *cfg.Engine.Version
+	}
+
+	if cfg.Engine.Type != nil {
+		engineType = *cfg.Engine.Type
+	}
+	// if type is null or empty, set to "rpc"
+	if len(engineType) == 0 {
+		engineType = DefaultEngineType
+	}
+
+	return &options.EngineOptions{
+		Source:  cfg.Engine.Source,
+		Version: version,
+		Type:    engineType,
+		Meta:    meta,
+	}, nil
+}
+
+// GetIAMRoleOptions returns the IAM role options from the RunConfig.
+func (cfg *RunConfig) GetIAMRoleOptions() options.IAMRoleOptions {
+	return cfg.IAMRole
+}
+
+// ErrorsConfig fetches errors configuration from the RunConfig.
+func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
+	if cfg.Errors == nil {
+		return nil, nil
+	}
+
+	result := &options.ErrorsConfig{
+		Retry:  make(map[string]*options.RetryConfig),
+		Ignore: make(map[string]*options.IgnoreConfig),
+	}
+
+	for _, retryBlock := range cfg.Errors.Retry {
+		if retryBlock == nil {
+			continue
+		}
+
+		// Validate retry settings
+		if retryBlock.MaxAttempts < 1 {
+			return nil, errors.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+		}
+
+		if retryBlock.SleepIntervalSec < 0 {
+			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+		}
+
+		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
+
+		for _, pattern := range retryBlock.RetryableErrors {
+			value, err := errorsPattern(pattern)
+			if err != nil {
+				return nil, errors.Errorf("invalid retry pattern %q in block %q: %w",
+					pattern, retryBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, value)
+		}
+
+		result.Retry[retryBlock.Label] = &options.RetryConfig{
+			Name:             retryBlock.Label,
+			RetryableErrors:  compiledPatterns,
+			MaxAttempts:      retryBlock.MaxAttempts,
+			SleepIntervalSec: retryBlock.SleepIntervalSec,
+		}
+	}
+
+	for _, ignoreBlock := range cfg.Errors.Ignore {
+		if ignoreBlock == nil {
+			continue
+		}
+
+		var signals map[string]any
+
+		if ignoreBlock.Signals != nil {
+			value := convertValuesMapToCtyVal(ignoreBlock.Signals)
+
+			var err error
+
+			signals, err = ctyhelper.ParseCtyValueToMap(value)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
+
+		for _, pattern := range ignoreBlock.IgnorableErrors {
+			value, err := errorsPattern(pattern)
+			if err != nil {
+				return nil, errors.Errorf("invalid ignore pattern %q in block %q: %w",
+					pattern, ignoreBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, value)
+		}
+
+		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+			Name:            ignoreBlock.Label,
+			IgnorableErrors: compiledPatterns,
+			Message:         ignoreBlock.Message,
+			Signals:         signals,
+		}
+	}
+
+	return result, nil
+}
+
+// errorsPattern builds an ErrorsPattern from a string pattern.
+func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+	isNegative := false
+	p := pattern
+
+	if len(p) > 0 && p[0] == '!' {
+		isNegative = true
+		p = p[1:]
+	}
+
+	compiled, err := regexp.Compile(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &options.ErrorsPattern{
+		Pattern:  compiled,
+		Negative: isNegative,
+	}, nil
+}
+
+// convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
+func convertValuesMapToCtyVal(valMap map[string]cty.Value) cty.Value {
+	if len(valMap) == 0 {
+		// Return an empty object instead of NilVal for empty maps.
+		return cty.EmptyObjectVal
+	}
+
+	// Use cty.ObjectVal directly instead of gocty.ToCtyValue to preserve marks (like sensitive())
+	return cty.ObjectVal(valMap)
 }
