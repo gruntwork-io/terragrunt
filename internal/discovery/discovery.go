@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -1206,9 +1207,7 @@ func buildDependentsIndex(components component.Components) map[string][]string {
 
 		for _, dep := range c.Dependencies() {
 			depPath := resolvePath(dep.Path())
-			dependentUnits[depPath] = util.RemoveDuplicatesFromList(
-				append(dependentUnits[depPath], cPath),
-			)
+			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
 		}
 	}
 
@@ -1235,10 +1234,8 @@ func propagateTransitiveDependents(dependentUnits map[string][]string) {
 		for unit, dependents := range dependentUnits {
 			for _, dep := range dependents {
 				old := dependentUnits[unit]
-				newList := util.RemoveDuplicatesFromList(
-					append(old, dependentUnits[dep]...),
-				)
-				newList = util.RemoveElementFromList(newList, unit)
+				newList := util.RemoveDuplicates(append(old, dependentUnits[dep]...))
+				newList = slices.DeleteFunc(newList, func(path string) bool { return path == unit })
 
 				if len(newList) != len(old) {
 					dependentUnits[unit] = newList

@@ -3,6 +3,7 @@ package cliconfig
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -134,7 +135,7 @@ func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
 		method.Include = &[]string{}
 	}
 
-	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
+	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
 func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
@@ -146,7 +147,7 @@ func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
 		method.Exclude = &[]string{}
 	}
 
-	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+	*method.Exclude = util.RemoveDuplicates(append(*method.Exclude, addrs...))
 }
 
 func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
@@ -154,7 +155,7 @@ func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 		return
 	}
 
-	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -166,7 +167,7 @@ func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 		return
 	}
 
-	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Include) == 0 {
 		method.Include = nil
@@ -247,7 +248,7 @@ func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string
 		method.Include = &[]string{}
 	}
 
-	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
+	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
 func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string) {
@@ -259,7 +260,7 @@ func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string
 		method.Exclude = &[]string{}
 	}
 
-	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+	*method.Exclude = util.RemoveDuplicates(append(*method.Exclude, addrs...))
 }
 
 func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string) {
@@ -267,7 +268,7 @@ func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string
 		return
 	}
 
-	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -279,7 +280,7 @@ func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string
 		return
 	}
 
-	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Include) == 0 {
 		method.Include = nil
@@ -360,7 +361,7 @@ func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
 		method.Include = &[]string{}
 	}
 
-	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
+	*method.Include = util.RemoveDuplicates(append(*method.Include, addrs...))
 }
 
 func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
@@ -372,7 +373,7 @@ func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
 		method.Exclude = &[]string{}
 	}
 
-	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+	*method.Exclude = util.RemoveDuplicatesKeepLast(append(*method.Exclude, addrs...))
 }
 
 func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
@@ -380,7 +381,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 		return
 	}
 
-	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+	*method.Exclude = slices.DeleteFunc(*method.Exclude, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
@@ -392,7 +393,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 		return
 	}
 
-	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+	*method.Include = slices.DeleteFunc(*method.Include, func(item string) bool { return slices.Contains(addrs, item) })
 
 	if len(*method.Include) == 0 {
 		method.Include = nil

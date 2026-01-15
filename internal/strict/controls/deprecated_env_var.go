@@ -33,8 +33,8 @@ type DeprecatedEnvVar struct {
 // we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
 func NewDeprecatedEnvVar(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedEnvVar {
 	var (
-		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.GetEnvVars()))
-		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
+		deprecatedName = util.FirstNonEmpty(deprecatedFlag.GetEnvVars())
+		newName        = util.FirstNonEmpty(newFlag.GetEnvVars())
 	)
 
 	if newValue != "" {

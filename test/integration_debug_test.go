@@ -201,7 +201,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// clean jsonBytes to remove any trailing newlines
-	cleanString := util.CleanString(string(jsonBytes))
+	cleanString := strings.TrimSpace(string(jsonBytes))
 
 	var rendered map[string]any
 	require.NoError(t, json.Unmarshal([]byte(cleanString), &rendered))
