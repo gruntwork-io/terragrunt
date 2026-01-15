@@ -10,7 +10,7 @@ output:
       print-linter-name: true
       print-issued-lines: true
 linters:
-  default: all
+  # default: all
   enable:
     - asasalint
     - asciicheck
@@ -109,7 +109,6 @@ linters:
           - lll
           - mnd
           - unparam
-          - wsl
         path: _test\.go
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:
