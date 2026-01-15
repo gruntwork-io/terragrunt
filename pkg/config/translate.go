@@ -23,7 +23,6 @@ func (cfg *TerragruntConfig) ToRunConfig() *runcfg.RunConfig {
 		TerraformVersionConstraint:  cfg.TerraformVersionConstraint,
 		TerragruntVersionConstraint: cfg.TerragruntVersionConstraint,
 		PreventDestroy:              cfg.PreventDestroy,
-		FeatureFlags:                translateFeatureFlags(cfg.FeatureFlags),
 		ProcessedIncludes:           translateIncludeConfigs(cfg.ProcessedIncludes),
 		Dependencies:                translateModuleDependencies(cfg.Dependencies),
 		Engine:                      translateEngineConfig(cfg.Engine),
@@ -125,30 +124,6 @@ func translateExcludeConfig(exclude *ExcludeConfig) *runcfg.ExcludeConfig {
 		ExcludeDependencies: exclude.ExcludeDependencies,
 		NoRun:               exclude.NoRun,
 	}
-}
-
-// translateFeatureFlags converts FeatureFlags to []runcfg.FeatureFlag.
-func translateFeatureFlags(flags FeatureFlags) []runcfg.FeatureFlag {
-	if flags == nil {
-		return nil
-	}
-
-	result := make([]runcfg.FeatureFlag, 0, len(flags))
-	for _, flag := range flags {
-		var defaultVal any
-		if flag.Default != nil {
-			// Convert cty.Value to any - this is a simplified conversion
-			// In practice, feature flags are typically simple types
-			defaultVal = flag.Default.GoString()
-		}
-
-		result = append(result, runcfg.FeatureFlag{
-			Name:    flag.Name,
-			Default: defaultVal,
-		})
-	}
-
-	return result
 }
 
 // translateIncludeConfigs converts IncludeConfigsMap to map[string]runcfg.IncludeConfig.
