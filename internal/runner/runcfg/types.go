@@ -7,6 +7,8 @@
 package runcfg
 
 import (
+	"slices"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -49,8 +51,6 @@ type RunConfig struct {
 	TerraformBinary string
 	// IAMRole contains IAM role options for AWS authentication
 	IAMRole options.IAMRoleOptions
-	// FeatureFlags contains enabled feature flags
-	FeatureFlags []FeatureFlag
 }
 
 // TerraformConfig contains terraform-specific settings.
@@ -204,27 +204,11 @@ func (e *ExcludeConfig) ShouldPreventRun(command string) bool {
 		return false
 	}
 
-	// If NoRun is set, check it
 	if e.NoRun != nil && *e.NoRun {
 		return true
 	}
 
-	// Check if command is in actions
-	for _, action := range e.Actions {
-		if action == command {
-			return true
-		}
-	}
-
-	return false
-}
-
-// FeatureFlag represents a feature flag.
-type FeatureFlag struct {
-	// Default is the default value
-	Default any
-	// Name is the feature flag name
-	Name string
+	return slices.Contains(e.Actions, command)
 }
 
 // IncludeConfig represents an included configuration.
