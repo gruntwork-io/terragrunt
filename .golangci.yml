@@ -10,6 +10,7 @@ output:
       print-linter-name: true
       print-issued-lines: true
 linters:
+  default: all
   enable:
     - asasalint
     - asciicheck
@@ -51,19 +52,12 @@ linters:
     - tparallel
     - unconvert
     - unparam
+    - unused
+    - usestdlibvars
     - usetesting
     - wastedassign
     - wsl_v5
     - zerologlint
-  disable:
-    - depguard
-    - exhaustruct
-    - gocyclo
-    - gosec
-    - nolintlint
-    - recvcheck
-    - varnamelen
-    - wrapcheck
   settings:
     dupl:
       threshold: 120
