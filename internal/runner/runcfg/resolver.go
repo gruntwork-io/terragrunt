@@ -3,7 +3,6 @@ package runcfg
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
@@ -32,11 +31,3 @@ type DependentUnit interface {
 // Report is a minimal interface for execution reporting.
 // This breaks the import cycle between runcfg and the report package.
 type Report any
-
-// TerragruntRunner runs terragrunt commands.
-// This interface is implemented by the run package to break cyclic imports
-// between config and runner packages.
-type TerragruntRunner interface {
-	// Run executes terragrunt with the given options.
-	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r Report, cfg *RunConfig, credsGetter *creds.Getter) error
-}
