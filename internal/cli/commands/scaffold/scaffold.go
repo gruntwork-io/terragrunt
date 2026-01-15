@@ -133,7 +133,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	applyCatalogConfigToScaffold(ctx, l, opts)
 
 	// download remote repo to local
-	var dirsToClean []string
+	dirsToClean := make([]string, 0, 1)
 	// clean all temp dirs
 	defer func() {
 		for _, dir := range dirsToClean {

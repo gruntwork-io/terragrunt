@@ -65,7 +65,7 @@ func TestFindModules(t *testing.T) {
 			modules, err := repo.FindModules(ctx)
 			assert.Equal(t, tc.expectedErr, err)
 
-			var realData []moduleData
+			realData := make([]moduleData, 0, len(modules))
 
 			for _, module := range modules {
 				realData = append(realData, moduleData{

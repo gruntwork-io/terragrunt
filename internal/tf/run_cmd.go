@@ -193,10 +193,11 @@ func buildOutWriter(opts *options.TerragruntOptions, logger log.Logger, outWrite
 		outWriter = errWriter
 	}
 
-	options := []writer.Option{
+	options := make([]writer.Option, 0, 2+len(writerOptions)) //nolint:mnd
+	options = append(options,
 		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
 		writer.WithDefaultLevel(logLevel),
-	}
+	)
 	options = append(options, writerOptions...)
 
 	return writer.New(options...)
@@ -216,10 +217,11 @@ func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWrite
 		logLevel = log.ErrorLevel
 	}
 
-	options := []writer.Option{
+	options := make([]writer.Option, 0, 2+len(writerOptions)) //nolint:mnd
+	options = append(options,
 		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 		writer.WithDefaultLevel(logLevel),
-	}
+	)
 	options = append(options, writerOptions...)
 
 	return writer.New(options...)

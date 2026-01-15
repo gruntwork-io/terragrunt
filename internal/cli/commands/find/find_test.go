@@ -84,13 +84,13 @@ func TestRun(t *testing.T) {
 				assert.Len(t, lines, len(expectedPaths))
 
 				// Convert expected paths to use OS-specific path separators
-				var osExpectedPaths []string
+				osExpectedPaths := make([]string, 0, len(expectedPaths))
 				for _, path := range expectedPaths {
 					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
 				}
 
 				// Convert actual paths to use OS-specific path separators
-				var osPaths []string
+				osPaths := make([]string, 0, len(lines))
 				for _, line := range lines {
 					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
 				}
@@ -150,13 +150,13 @@ func TestRun(t *testing.T) {
 				assert.Len(t, configs, len(expectedPaths))
 
 				// Convert expected paths to use OS-specific path separators
-				var osExpectedPaths []string
+				osExpectedPaths := make([]string, 0, len(expectedPaths))
 				for _, path := range expectedPaths {
 					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
 				}
 
 				// Extract paths and convert to OS-specific separators
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, filepath.FromSlash(config.Path))
 				}
@@ -224,13 +224,13 @@ func TestRun(t *testing.T) {
 				assert.Len(t, lines, len(expectedPaths))
 
 				// Convert expected paths to use OS-specific path separators
-				var osExpectedPaths []string
+				osExpectedPaths := make([]string, 0, len(expectedPaths))
 				for _, path := range expectedPaths {
 					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
 				}
 
 				// Convert actual paths to use OS-specific path separators
-				var osPaths []string
+				osPaths := make([]string, 0, len(lines))
 				for _, line := range lines {
 					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
 				}
@@ -295,13 +295,13 @@ dependency "unit2" {
 				assert.Len(t, lines, len(expectedPaths))
 
 				// Convert paths to use OS-specific separators
-				var osPaths []string
+				osPaths := make([]string, 0, len(lines))
 				for _, line := range lines {
 					osPaths = append(osPaths, filepath.FromSlash(strings.TrimSpace(line)))
 				}
 
 				// Convert expected paths to use OS-specific separators
-				var osExpectedPaths []string
+				osExpectedPaths := make([]string, 0, len(expectedPaths))
 				for _, path := range expectedPaths {
 					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
 				}
@@ -365,13 +365,13 @@ dependency "B" {
 				assert.Len(t, configs, len(expectedPaths))
 
 				// Extract paths and verify order
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, filepath.FromSlash(config.Path))
 				}
 
 				// Convert expected paths to use OS-specific separators
-				var osExpectedPaths []string
+				osExpectedPaths := make([]string, 0, len(expectedPaths))
 				for _, path := range expectedPaths {
 					osExpectedPaths = append(osExpectedPaths, filepath.FromSlash(path))
 				}

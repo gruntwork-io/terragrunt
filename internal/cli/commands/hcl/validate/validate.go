@@ -489,7 +489,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 // getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs block in the
 // terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
-	out := []string{}
+	out := make([]string, 0, len(terragruntConfig.Inputs))
 	for inputName := range terragruntConfig.Inputs {
 		out = append(out, inputName)
 	}

@@ -85,11 +85,12 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	}
 
 	// tflint execution
-	args := []string{
+	args := make([]string, 0, 6+len(variables)+len(tflintArgs))
+	args = append(args,
 		"tflint",
 		"--config", configFile,
 		"--chdir", opts.WorkingDir,
-	}
+	)
 	args = append(args, variables...)
 	args = append(args, tflintArgs...)
 

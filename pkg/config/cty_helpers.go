@@ -158,7 +158,7 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-			outVals := []cty.Value{}
+			outVals := make([]cty.Value, 0, len(out))
 			for _, val := range out {
 				outVals = append(outVals, cty.StringVal(val))
 			}
