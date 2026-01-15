@@ -123,14 +123,14 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	}
 
 	// fetch engine options from the config
-	engine, err := terragruntConfig.EngineOptions()
+	engine, err := runCfg.EngineOptions()
 	if err != nil {
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
 
 	opts.Engine = engine
 
-	errConfig, err := terragruntConfig.ErrorsConfig()
+	errConfig, err := runCfg.ErrorsConfig()
 	if err != nil {
 		return target.runErrorCallback(l, opts, runCfg, err)
 	}
@@ -153,11 +153,11 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
 	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
-		terragruntConfig.GetIAMRoleOptions(),
+		runCfg.GetIAMRoleOptions(),
 		opts.OriginalIAMRoleOptions,
 	)
 
-	if err := opts.RunWithErrorHandling(ctx, l, r, func() error {
+	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
 		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
 	}); err != nil {
 		return err
@@ -194,8 +194,6 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		}
 	}
 
-	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
-
 	if target.isPoint(targetPointDownloadSource) {
 		return target.runCallback(ctx, l, updatedTerragruntOptions, runCfg)
 	}
@@ -223,7 +221,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, terragruntConfig)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, runCfg)
 		if !allowDestroy {
 			return nil
 		}
@@ -366,7 +364,12 @@ func runTerragruntWithConfig(
 }
 
 // confirmActionWithDependentUnits - Show warning with list of dependent modules from current module before destroy
-func confirmActionWithDependentUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) bool {
+func confirmActionWithDependentUnits(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+) bool {
 	// Get the DependentModulesFinder from context
 	finder := GetDependentUnitsFinder(ctx)
 	if finder == nil {
@@ -375,9 +378,7 @@ func confirmActionWithDependentUnits(ctx context.Context, l log.Logger, opts *op
 		return true
 	}
 
-	runCfg := cfg.ToRunConfig()
-
-	modules := finder.FindDependentModules(ctx, l, opts, runCfg)
+	modules := finder.FindDependentModules(ctx, l, opts, cfg)
 	if len(modules) != 0 {
 		if _, err := opts.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			l.Error(err)

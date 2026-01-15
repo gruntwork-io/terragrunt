@@ -26,6 +26,8 @@ func (cfg *TerragruntConfig) ToRunConfig() *runcfg.RunConfig {
 		FeatureFlags:                translateFeatureFlags(cfg.FeatureFlags),
 		ProcessedIncludes:           translateIncludeConfigs(cfg.ProcessedIncludes),
 		Dependencies:                translateModuleDependencies(cfg.Dependencies),
+		Engine:                      translateEngineConfig(cfg.Engine),
+		Errors:                      translateErrorsConfig(cfg.Errors),
 	}
 }
 
@@ -177,4 +179,76 @@ func translateModuleDependencies(deps *ModuleDependencies) *runcfg.ModuleDepende
 	return &runcfg.ModuleDependencies{
 		Paths: deps.Paths,
 	}
+}
+
+// translateEngineConfig converts *EngineConfig to *runcfg.EngineConfig.
+func translateEngineConfig(engine *EngineConfig) *runcfg.EngineConfig {
+	if engine == nil {
+		return nil
+	}
+
+	return &runcfg.EngineConfig{
+		Source:  engine.Source,
+		Version: engine.Version,
+		Type:    engine.Type,
+		Meta:    engine.Meta,
+	}
+}
+
+// translateErrorsConfig converts *ErrorsConfig to *runcfg.ErrorsConfig.
+func translateErrorsConfig(errors *ErrorsConfig) *runcfg.ErrorsConfig {
+	if errors == nil {
+		return nil
+	}
+
+	return &runcfg.ErrorsConfig{
+		Retry:  translateRetryBlocks(errors.Retry),
+		Ignore: translateIgnoreBlocks(errors.Ignore),
+	}
+}
+
+// translateRetryBlocks converts []*RetryBlock to []*runcfg.RetryBlock.
+func translateRetryBlocks(blocks []*RetryBlock) []*runcfg.RetryBlock {
+	if blocks == nil {
+		return nil
+	}
+
+	result := make([]*runcfg.RetryBlock, len(blocks))
+	for i, block := range blocks {
+		if block == nil {
+			continue
+		}
+
+		result[i] = &runcfg.RetryBlock{
+			Label:            block.Label,
+			RetryableErrors:  block.RetryableErrors,
+			MaxAttempts:      block.MaxAttempts,
+			SleepIntervalSec: block.SleepIntervalSec,
+		}
+	}
+
+	return result
+}
+
+// translateIgnoreBlocks converts []*IgnoreBlock to []*runcfg.IgnoreBlock.
+func translateIgnoreBlocks(blocks []*IgnoreBlock) []*runcfg.IgnoreBlock {
+	if blocks == nil {
+		return nil
+	}
+
+	result := make([]*runcfg.IgnoreBlock, len(blocks))
+	for i, block := range blocks {
+		if block == nil {
+			continue
+		}
+
+		result[i] = &runcfg.IgnoreBlock{
+			Label:           block.Label,
+			IgnorableErrors: block.IgnorableErrors,
+			Message:         block.Message,
+			Signals:         block.Signals,
+		}
+	}
+
+	return result
 }
