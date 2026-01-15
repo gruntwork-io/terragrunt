@@ -16,17 +16,17 @@ import (
 	"maps"
 
 	"github.com/google/uuid"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/tf/cache"
-	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
-	"github.com/gruntwork-io/terragrunt/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/tf/getproviders"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -134,7 +134,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	args cli.Args,
+	args clihelper.Args,
 ) (*util.CmdOutput, error) {
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
@@ -183,7 +183,7 @@ func (cache *ProviderCache) warmUpCache(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cliConfigFilename string,
-	args cli.Args,
+	args clihelper.Args,
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	var (
@@ -255,7 +255,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cliConfigFilename string,
-	args cli.Args,
+	args clihelper.Args,
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir

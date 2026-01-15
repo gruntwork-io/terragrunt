@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -237,9 +237,11 @@ func TestParseFindListAllComponentsWithDAGAndExternal(t *testing.T) {
 			if aDepLine >= 0 && bDepLine >= 0 {
 				assert.Greater(t, aDepLine, bDepLine, "a-dependent should come after b-dependency")
 			}
+
 			if dDepsLine >= 0 && bDepLine >= 0 {
 				assert.Greater(t, dDepsLine, bDepLine, "d-dependencies-only should come after b-dependency")
 			}
+
 			if cMixedLine >= 0 && aDepLine >= 0 && dDepsLine >= 0 {
 				assert.Greater(t, cMixedLine, aDepLine, "c-mixed-deps should come after a-dependent")
 				assert.Greater(t, cMixedLine, dDepsLine, "c-mixed-deps should come after d-dependencies-only")

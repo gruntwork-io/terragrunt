@@ -4,7 +4,7 @@ package filter
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 )
 
 // Telemetry operation names for git worktree and filter operations.

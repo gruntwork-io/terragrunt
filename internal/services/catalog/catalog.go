@@ -13,14 +13,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
@@ -110,7 +110,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	}
 
 	// Remove duplicates
-	repoURLs = util.RemoveDuplicatesFromList(repoURLs)
+	repoURLs = util.RemoveDuplicates(repoURLs)
 	if len(repoURLs) == 0 || (len(repoURLs) == 1 && repoURLs[0] == "") {
 		return errors.Errorf("no valid repository URLs specified after configuration and flag processing")
 	}

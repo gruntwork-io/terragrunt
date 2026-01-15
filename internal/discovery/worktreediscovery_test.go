@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -888,6 +888,7 @@ unit "unit_to_be_untouched" {
 				Cmd:        "plan",
 			},
 		),
+		// stack-to-be-modified is discovered via walkChangedStack which uses original discovery (path-discovery origin)
 		component.NewStack(filepath.Join(toWorktree, stackToBeModifiedRel)).WithDiscoveryContext(
 			&component.DiscoveryContext{
 				WorkingDir: toWorktree,
@@ -927,6 +928,7 @@ unit "unit_to_be_untouched" {
 		),
 		// Units from stack-to-be-modified (HEAD) - worktree paths
 		// For changed stacks, we only discover units that are added, removed, or changed (different SHA)
+		// These are discovered via walkChangedStack which uses original discovery (path-discovery origin)
 		// unit_to_be_added: only in HEAD (added)
 		component.NewUnit(filepath.Join(toWorktree, stackToBeModifiedRel, ".terragrunt-stack", "unit_to_be_added")).WithDiscoveryContext(
 			&component.DiscoveryContext{
@@ -990,6 +992,14 @@ unit "unit_to_be_untouched" {
 		case *component.Stack:
 			v.StoreConfig(nil)
 			v.SetReading()
+		}
+	}
+
+	// Normalize expected components to match actual origins
+	for _, c := range expected {
+		dc := c.DiscoveryContext()
+		if dc != nil {
+			dc.SuggestOrigin(component.OriginWorktreeDiscovery)
 		}
 	}
 

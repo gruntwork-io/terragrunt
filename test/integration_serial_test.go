@@ -26,9 +26,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
@@ -690,7 +690,10 @@ func TestParseTFLog(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {

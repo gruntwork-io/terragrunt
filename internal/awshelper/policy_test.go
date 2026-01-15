@@ -84,6 +84,7 @@ func TestAwsUnmarshalStringActionResource(t *testing.T) {
 
 func TestAwsUnmarshalActionResourceList(t *testing.T) {
 	t.Parallel()
+
 	bucketPolicy, err := awshelper.UnmarshalPolicy(arraysPolicy)
 	require.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)

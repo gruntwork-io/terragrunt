@@ -1,1 +1,3 @@
-# Intentionally empty
+terraform {
+    source = "."
+}

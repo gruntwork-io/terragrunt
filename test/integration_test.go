@@ -13,22 +13,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/common"
-	"github.com/gruntwork-io/terragrunt/cli/commands/common/runall"
-	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
-	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
@@ -626,7 +626,10 @@ func TestHclvalidateValidConfig(t *testing.T) {
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"))
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
+			t,
+			"terragrunt hcl validate --all --strict --inputs --working-dir "+filepath.Join(rootPath, "valid"),
+		)
 		require.NoError(t, err)
 	})
 
@@ -3310,7 +3313,12 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all --non-interactive --working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+appPath,
+		&stdout,
+		&stderr,
+	)
 	require.Error(t, err)
 
 	var missingCommandError runall.MissingCommand
@@ -3862,7 +3870,7 @@ func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 	t.Parallel()
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --graph --all")
-	expectedErr := new(common.AllGraphFlagsError)
+	expectedErr := new(shared.AllGraphFlagsError)
 	require.ErrorAs(t, err, &expectedErr)
 }
 

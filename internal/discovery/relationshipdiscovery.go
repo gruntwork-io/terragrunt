@@ -6,11 +6,11 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -243,10 +243,17 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 
 	dep, created := rd.interTransientComponents.EnsureComponent(newUnit)
 
-	dep.SetDiscoveryContext(rd.discoveryContext)
+	if rd.discoveryContext != nil {
+		discoveryCtx := rd.discoveryContext.Copy()
+		// Set origin for components discovered via relationship discovery
+		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
+		dep.SetDiscoveryContext(discoveryCtx)
 
-	if isExternal(rd.discoveryContext.WorkingDir, path) {
-		dep.SetExternal()
+		if isExternal(discoveryCtx.WorkingDir, path) {
+			dep.SetExternal()
+		}
+	} else {
+		dep.SetDiscoveryContext(rd.discoveryContext)
 	}
 
 	c.AddDependency(dep)

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -201,7 +201,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// clean jsonBytes to remove any trailing newlines
-	cleanString := util.CleanString(string(jsonBytes))
+	cleanString := strings.TrimSpace(string(jsonBytes))
 
 	var rendered map[string]any
 	require.NoError(t, json.Unmarshal([]byte(cleanString), &rendered))

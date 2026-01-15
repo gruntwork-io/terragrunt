@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 const (
@@ -138,6 +138,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
+
 	output := stdout + stderr
 
 	// verify that bucket encryption message is not printed
@@ -146,6 +147,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	tmpTerragruntConfigPath = helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
+
 	output = stdout + stderr
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
@@ -180,6 +182,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
+
 	output := stdout + stderr
 	// check that warning is printed
 	assert.Contains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
@@ -196,6 +199,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	// check that second warning is not printed
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
+
 	output = stdout + stderr
 	assert.NotContains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 }

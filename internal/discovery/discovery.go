@@ -8,25 +8,26 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
-	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
@@ -753,7 +754,10 @@ func (d *Discovery) createComponentFromPath(path string, filenames []string) com
 		}
 
 		if d.discoveryContext != nil {
-			c.SetDiscoveryContext(d.discoveryContext)
+			discoveryCtx := d.discoveryContext.Copy()
+			discoveryCtx.SuggestOrigin(component.OriginPathDiscovery)
+
+			c.SetDiscoveryContext(discoveryCtx)
 		}
 
 		return c
@@ -958,10 +962,6 @@ func (d *Discovery) Discover(
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
 
-					if d.discoveryContext != nil {
-						dependencyDiscovery = dependencyDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
-
 					if d.suppressParseErrors {
 						dependencyDiscovery = dependencyDiscovery.WithSuppressParseErrors()
 					}
@@ -1003,10 +1003,6 @@ func (d *Discovery) Discover(
 					dependentDiscovery := NewDependentDiscovery(threadSafeComponents).
 						WithMaxDepth(d.maxDependencyDepth).
 						WithNumWorkers(d.numWorkers)
-
-					if d.discoveryContext != nil {
-						dependentDiscovery = dependentDiscovery.WithDiscoveryContext(d.discoveryContext)
-					}
 
 					if d.suppressParseErrors {
 						dependentDiscovery = dependentDiscovery.WithSuppressParseErrors()
@@ -1211,9 +1207,7 @@ func buildDependentsIndex(components component.Components) map[string][]string {
 
 		for _, dep := range c.Dependencies() {
 			depPath := resolvePath(dep.Path())
-			dependentUnits[depPath] = util.RemoveDuplicatesFromList(
-				append(dependentUnits[depPath], cPath),
-			)
+			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
 		}
 	}
 
@@ -1234,16 +1228,14 @@ func propagateTransitiveDependents(dependentUnits map[string][]string) {
 
 	maxIterations := len(nodes)
 
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		updated := false
 
 		for unit, dependents := range dependentUnits {
 			for _, dep := range dependents {
 				old := dependentUnits[unit]
-				newList := util.RemoveDuplicatesFromList(
-					append(old, dependentUnits[dep]...),
-				)
-				newList = util.RemoveElementFromList(newList, unit)
+				newList := util.RemoveDuplicates(append(old, dependentUnits[dep]...))
+				newList = slices.DeleteFunc(newList, func(path string) bool { return path == unit })
 
 				if len(newList) != len(old) {
 					dependentUnits[unit] = newList

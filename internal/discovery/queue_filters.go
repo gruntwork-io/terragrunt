@@ -2,7 +2,7 @@ package discovery
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // applyQueueFilters marks discovered units as excluded or included based on queue-related CLI flags and config.

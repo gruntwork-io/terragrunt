@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,6 +95,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	modulePath := filepath.Join(rootPath, testFixtureParallelRun)
 	runPath := filepath.Join(rootPath, testFixtureParallelRun, "dev")
 	appTemplate := filepath.Join(rootPath, testFixtureParallelRun, "dev", "app")
@@ -104,6 +105,7 @@ func TestTflintInitSameModule(t *testing.T) {
 		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{}, []string{})
 		require.NoError(t, err)
 	}
+
 	helpers.RunTerragrunt(t, "terragrunt run --all init --log-level trace --non-interactive --working-dir "+runPath)
 }
 
@@ -117,6 +119,7 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	modulePath := filepath.Join(rootPath, testFixtureTflintNoIssuesFound)
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s --download-dir %s", modulePath, downloadDir), out, errOut)
 	require.NoError(t, err)
@@ -140,6 +143,7 @@ func TestTflintExternalTflint(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	runPath := filepath.Join(rootPath, testFixtureTflintExternalTflint)
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
@@ -156,6 +160,7 @@ func TestTflintTfvarsArePassedToTflint(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	runPath := filepath.Join(rootPath, testFixtureTflintTfvarPassing)
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
@@ -172,6 +177,7 @@ func TestTflintArgumentsPassedIn(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	runPath := filepath.Join(rootPath, testFixtureTflintArgs)
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
@@ -188,6 +194,7 @@ func TestTflintCustomConfig(t *testing.T) {
 	t.Cleanup(func() {
 		helpers.RemoveFolder(t, rootPath)
 	})
+
 	runPath := filepath.Join(rootPath, testFixtureTflintCustomConfig)
 	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --working-dir "+runPath, out, errOut)
 	require.NoError(t, err)

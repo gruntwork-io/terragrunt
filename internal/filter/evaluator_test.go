@@ -3,9 +3,9 @@ package filter_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -694,20 +694,12 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 	t.Parallel()
 
 	// Create a component graph: vpc -> db -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	app := component.NewUnit("./app")
-
-	// Set up dependencies: app depends on db, db depends on vpc
-	app.AddDependency(db)
-	db.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, app}
 
 	tests := []struct {
-		name     string
 		expr     *filter.GraphExpression
-		expected []component.Component
+		setup    func() []component.Component
+		name     string
+		expected []string
 	}{
 		{
 			name: "dependency traversal - app...",
@@ -717,7 +709,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{app, db, vpc},
+			expected: []string{"./app", "./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "dependent traversal - ...vpc",
@@ -727,7 +735,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{vpc, db, app},
+			expected: []string{"./vpc", "./db", "./app"},
+			setup: func() []component.Component {
+				vpc := component.NewUnit("./vpc")
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "both directions - ...db...",
@@ -737,7 +761,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{db, vpc, app},
+			expected: []string{"./db", "./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target - ^app...",
@@ -747,7 +787,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{db, vpc},
+			expected: []string{"./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target with dependents - ...^db...",
@@ -757,7 +813,23 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{vpc, app},
+			expected: []string{"./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 	}
 
@@ -765,10 +837,25 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			components := tt.setup()
+
+			expected := make([]component.Component, 0, len(tt.expected))
+
+			expectedMap := make(map[string]bool)
+			for _, path := range tt.expected {
+				expectedMap[path] = true
+			}
+
+			for _, c := range components {
+				if expectedMap[c.Path()] {
+					expected = append(expected, c)
+				}
+			}
+
 			l := log.New()
 			result, err := filter.Evaluate(l, tt.expr, components)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, result)
+			assert.ElementsMatch(t, expected, result)
 		})
 	}
 }
@@ -778,20 +865,30 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 
 	// Create a more complex graph:
 	// vpc -> [db, cache] -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	cache := component.NewUnit("./cache")
-	app := component.NewUnit("./app")
-
-	app.AddDependency(db)
-	app.AddDependency(cache)
-	db.AddDependency(vpc)
-	cache.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, cache, app}
 
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
+
+		vpcCtx := &component.DiscoveryContext{}
+		vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
 			Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
@@ -808,6 +905,27 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		appCtx := &component.DiscoveryContext{}
+		appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
 			Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
@@ -896,7 +1014,10 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 	// Create a circular dependency: a -> b -> a
 	// The traversal should not infinite loop
 	a := component.NewUnit("./a")
-	b := component.NewUnit("./b")
+
+	bCtx := &component.DiscoveryContext{}
+	bCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b := component.NewUnit("./b").WithDiscoveryContext(bCtx)
 
 	a.AddDependency(b)
 	b.AddDependency(a)
@@ -943,12 +1064,18 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	t.Parallel()
 
-	vpc := component.NewUnit("./vpc").WithDiscoveryContext(&component.DiscoveryContext{
+	vpcCtx := &component.DiscoveryContext{
 		WorkingDir: ".",
-	})
-	db := component.NewUnit("./db").WithDiscoveryContext(&component.DiscoveryContext{
+	}
+	vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+	dbCtx := &component.DiscoveryContext{
 		WorkingDir: ".",
-	})
+	}
+	dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
 	app := component.NewUnit("./app").WithDiscoveryContext(&component.DiscoveryContext{
 		WorkingDir: ".",
 	})
@@ -1185,4 +1312,449 @@ func TestGitFilter_RequiresParse(t *testing.T) {
 	expr, requires := gitFilter.RequiresParse()
 	assert.False(t, requires)
 	assert.Nil(t, expr)
+}
+
+// TestEvaluate_GraphExpressionWithGitExpressionTarget tests evaluating GraphExpressions
+// where the target is a GitExpression.
+//
+// e.g.
+// `... [main...commit] ...`
+func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dependencies of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./vpc"},
+			resultPaths,
+			"Should include db (git-matched) and vpc (its dependency)",
+		)
+	})
+
+	t.Run("dependents of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched) and app (its dependent)",
+		)
+	})
+
+	t.Run("both directions of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched), vpc (dependency), and app (dependent)",
+		)
+	})
+
+	t.Run("no components match git filter - returns empty", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		assert.Empty(t, result, "Should return empty when no components match git filter")
+	})
+
+	t.Run("multiple git-changed components with shared dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		cache := component.NewUnit("./cache")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		discoveryCtx = &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		cache.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, cache, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./cache", "./app"},
+			resultPaths,
+			"Should include all components connected to git-changed components",
+		)
+	})
+
+	t.Run("exclude target with git expression", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       true,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc"},
+			resultPaths,
+			"Should include only vpc (dependency), excluding db (target)",
+		)
+	})
+
+	t.Run("git-changed component with Ref matching FromRef", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "main"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include components when Ref matches FromRef",
+		)
+	})
+}
+
+// TestEvaluate_GraphExpressionWithGitTarget_DependencyChain tests that dependency
+// traversal works correctly through a chain when the starting component is git-matched.
+func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
+	t.Parallel()
+
+	// Create a longer chain: a -> b -> c -> d -> e
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+	e := component.NewUnit("./e")
+
+	a.AddDependency(b)
+	b.AddDependency(c)
+	c.AddDependency(d)
+	d.AddDependency(e)
+
+	aDiscoveryCtx := &component.DiscoveryContext{}
+	aDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	a.SetDiscoveryContext(aDiscoveryCtx)
+
+	bDiscoveryCtx := &component.DiscoveryContext{}
+	bDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b.SetDiscoveryContext(bDiscoveryCtx)
+
+	cDiscoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+	cDiscoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+	c.SetDiscoveryContext(cDiscoveryCtx)
+
+	dDiscoveryCtx := &component.DiscoveryContext{}
+	dDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	d.SetDiscoveryContext(dDiscoveryCtx)
+
+	eDiscoveryCtx := &component.DiscoveryContext{}
+	eDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	e.SetDiscoveryContext(eDiscoveryCtx)
+
+	components := []component.Component{a, b, c, d, e}
+
+	t.Run("dependencies traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		assert.ElementsMatch(t, []string{"./c", "./d", "./e"}, resultPaths)
+	})
+
+	t.Run("dependents traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(t, []string{"./a", "./b", "./c"}, resultPaths)
+	})
+
+	t.Run("both directions traverse the full graph", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./a", "./b", "./c", "./d", "./e"},
+			resultPaths,
+		)
+	})
 }

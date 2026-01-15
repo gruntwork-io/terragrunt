@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,8 +11,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -2107,6 +2109,48 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	})
 }
 
+func TestFilterFlagAutoEnablesAll(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		cmd           string
+		expectedUnits []string
+	}{
+		{
+			name:          "filter flag without --all processes multiple units",
+			cmd:           "terragrunt run --no-color --filter './**' --report-file " + helpers.ReportFile + " plan",
+			expectedUnits: []string{"a-dependent", "b-dependency", "c-mixed-deps", "d-dependencies-only"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureFilterDAG)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterDAG)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureFilterDAG)
+
+			cmd := tc.cmd + " --working-dir " + rootPath
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			// Verify the report file exists
+			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath)
+
+			r, err := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, err)
+
+			runs := r.Names()
+
+			// Verify expected units are in the report
+			assert.ElementsMatch(t, tc.expectedUnits, runs)
+		})
+	}
+}
+
 // getUnitNames extracts unit names from records map for error messages
 func getUnitNames(recordsByUnit map[string]map[string]string) []string {
 	names := make([]string, 0, len(recordsByUnit))
@@ -2236,4 +2280,110 @@ resource "null_resource" "test" {}
 		assert.True(t, strings.HasPrefix(file, outDir),
 			"Plan file %s should be in outDir %s", file, outDir)
 	}
+}
+
+func TestDestroyWithOutDirGitFilter(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	outDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	// create unit to destroy
+	unitDir := filepath.Join(tmpDir, "unit-to-destroy")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# Unit to destroy`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(`
+resource "null_resource" "test" {}
+`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// do initial apply
+	cmd := "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
+		" -- apply"
+	helpers.RunTerragrunt(t, cmd)
+
+	// remove unit to trigger destruction
+	err = os.RemoveAll(unitDir)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Unit removal", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	cmd = "terragrunt run --all --no-color --experiment-mode --non-interactive --working-dir " + tmpDir +
+		" --out-dir " + outDir + " --filter-allow-destroy --filter '[HEAD~1...HEAD]' -- plan"
+
+	helpers.RunTerragrunt(t, cmd)
+
+	// check creation of plan files
+	var planFiles []string
+
+	err = filepath.Walk(outDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if strings.HasSuffix(path, ".tfplan") {
+			planFiles = append(planFiles, path)
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, planFiles)
+
+	// Bug regression test
+
+	cmd = "terragrunt run --all --no-color --non-interactive --working-dir " + tmpDir +
+		" --out-dir " + outDir + " --filter-allow-destroy --filter '[HEAD~1...HEAD]' -- apply"
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	output := stdout + stderr
+	require.NotContains(t, output, "Too many command line arguments")
+	require.NotContains(t, output, "Expected at most one positional argument")
 }

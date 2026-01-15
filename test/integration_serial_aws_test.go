@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func TestTerragruntParallelism(t *testing.T) {
@@ -37,7 +37,6 @@ func TestTerragruntParallelism(t *testing.T) {
 		{parallelism: 5, numberOfModules: 10, timeToDeployEachModule: 5 * time.Second, expectedTimings: []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
-
 		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
 			t.Parallel()
 
@@ -89,6 +88,7 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
 	t.Setenv("AWS_ACCESS_KEY_ID", "")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
@@ -127,9 +127,11 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	for _, match := range matches {
 		parsedTime, err := time.Parse(time.RFC3339, match[1])
 		require.NoError(t, err)
+
 		deploymentTime := int(parsedTime.Unix()) - testStart
 		deploymentTimes = append(deploymentTimes, deploymentTime)
 	}
+
 	sort.Ints(deploymentTimes)
 
 	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
@@ -142,6 +144,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 			scalingFactor = factor
 		}
 	}
+
 	scaledTimes := make([]float64, len(deploymentTimes))
 	for i, deploymentTime := range deploymentTimes {
 		scaledTimes[i] = float64(deploymentTime) / scalingFactor
@@ -149,6 +152,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 
 	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v deploymentTimes=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, deploymentTimes, scaledTimes, scalingFactor)
 	maxDiffInSeconds := 5.0 * scalingFactor
+
 	for i, scaledTime := range scaledTimes {
 		difference := math.Abs(scaledTime - float64(expectedTimings[i]))
 		assert.LessOrEqual(t, difference, maxDiffInSeconds, "Expected timing %d but got %f", expectedTimings[i], scaledTime)
@@ -167,6 +171,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		if err != nil {
 			return "", 0, err
 		}
+
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
 			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
