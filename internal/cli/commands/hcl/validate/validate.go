@@ -277,6 +277,8 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
+	r := report.NewReport()
+
 	var errs []error
 
 	for _, c := range components {
@@ -295,9 +297,26 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
+		prepared, err := run.PrepareConfig(ctx, l, unitOpts)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 
-		if err := run.RunWithTarget(ctx, l, unitOpts, report.NewReport(), target); err != nil {
+		// Download source
+		updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		// Generate config
+		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if err := runValidateInputs(l, updatedOpts, prepared.Cfg); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -309,7 +328,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	return nil
 }
 
-func runValidateInputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err

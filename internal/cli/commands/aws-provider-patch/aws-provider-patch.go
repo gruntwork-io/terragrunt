@@ -33,9 +33,27 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
+	prepared, err := run.PrepareConfig(ctx, l, opts)
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts, report.NewReport(), target)
+	r := report.NewReport()
+
+	updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+	if err != nil {
+		return err
+	}
+
+	if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
+		return err
+	}
+
+	if err := run.PrepareInit(ctx, l, opts, updatedOpts, prepared.Cfg, r); err != nil {
+		return err
+	}
+
+	return runAwsProviderPatch(l, updatedOpts)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -79,7 +97,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 	return nil
 }
 
-func runAwsProviderPatch(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runAwsProviderPatch(l log.Logger, opts *options.TerragruntOptions) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
 	}

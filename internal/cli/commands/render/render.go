@@ -15,12 +15,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
@@ -34,9 +32,12 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return runAll(ctx, l, opts)
 	}
 
-	target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(opts))
+	prepared, err := run.PrepareConfig(ctx, l, opts.TerragruntOptions)
+	if err != nil {
+		return err
+	}
 
-	return run.RunWithTarget(ctx, l, opts.TerragruntOptions, report.NewReport(), target)
+	return runRender(ctx, l, opts, prepared.Cfg)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *Options) error {
@@ -62,9 +63,13 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
 
-		target := run.NewTarget(run.TargetPointParseConfig, newRunRenderFunc(unitOpts))
+		prepared, err := run.PrepareConfig(ctx, l, unitOpts.TerragruntOptions)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 
-		if err := run.RunWithTarget(ctx, l, unitOpts.TerragruntOptions, report.NewReport(), target); err != nil {
+		if err := runRender(ctx, l, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -87,20 +92,18 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 	return nil
 }
 
-func newRunRenderFunc(opts *Options) func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	return func(ctx context.Context, l log.Logger, terragruntOpts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-		if cfg == nil {
-			return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
-		}
+func runRender(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+	if cfg == nil {
+		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+	}
 
-		switch opts.Format {
-		case FormatJSON:
-			return renderJSON(ctx, l, opts, cfg)
-		case FormatHCL:
-			return renderHCL(ctx, l, opts, cfg)
-		default:
-			return fmt.Errorf("unsupported render format: %s", opts.Format)
-		}
+	switch opts.Format {
+	case FormatJSON:
+		return renderJSON(ctx, l, opts, cfg)
+	case FormatHCL:
+		return renderHCL(ctx, l, opts, cfg)
+	default:
+		return fmt.Errorf("unsupported render format: %s", opts.Format)
 	}
 }
 
@@ -209,7 +212,7 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	}
 
 	var ctyJSONOutput ctyhelper.CtyJSONOutput
-	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
+	if err = json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
 		return nil, errors.New(err)
 	}
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -77,7 +78,7 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
 
-	runErr := opts.RunTerragrunt(ctx, runner.Unit.Execution.Logger, opts, r)
+	runErr := runfn.Run(ctx, runner.Unit.Execution.Logger, opts, r)
 
 	// Only merge the final unit exit code when the unit run completed without error
 	// and the exit code isn't stuck at 1 from a prior retry attempt.
@@ -150,7 +151,7 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := runfn.Run(ctx, l, jsonOptions, adhocReport); err != nil {
 			return err
 		}
 

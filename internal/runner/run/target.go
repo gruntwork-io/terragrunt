@@ -8,88 +8,50 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// targetPointType represents stages in the OpenTofu/Terraform preparation pipeline.
+// These are used internally by the run() function for flow control.
 const (
-	TargetPointParseConfig TargetPointType = iota + 1
-	TargetPointDownloadSource
-	TargetPointGenerateConfig
-	TargetPointSetInputsAsEnvVars
-	TargetPointInitCommand
+	targetPointParseConfig targetPointType = iota + 1
+	targetPointDownloadSource
+	targetPointGenerateConfig
+	targetPointSetInputsAsEnvVars
+	targetPointInitCommand
 )
 
-type TargetPointType byte
+type targetPointType byte
 
-type TargetCallbackType func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type targetCallbackType func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
 
-type TargetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
+type targetErrorCallbackType func(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
-// Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration`
-// which is already coded in `terraform.runTerraform` and complicated to extract
-// into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
-// Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
-// For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action. To do this it:
-/*
-   package info
-   ... code omitted
-
-   // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded `target` will call the `runTerragruntInfo` callback func.
-   target := run.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
-   run.RunWithTarget(opts, target)
-
-   ... code omitted
-
-   func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-
-   ... code omitted
-*/
-/*
-   package run
-   ... code omitted
-
-   func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) error {
-   ... code omitted
-
-       // At this point, the terraform source is downloaded to the terragrunt working directory
-       if target.isPoint(TargetPointDownloadSource) {
-	       return target.runCallback(updatedTerragruntOptions, terragruntConfig)
-       }
-
-   ... code omitted
-   }
-*/
-
-type Target struct {
-	callbackFunc      TargetCallbackType
-	errorCallbackFunc TargetErrorCallbackType
-	point             TargetPointType
+// target is an internal flow control mechanism used by run() to manage
+// the terraform preparation pipeline stages.
+type target struct {
+	callbackFunc      targetCallbackType
+	errorCallbackFunc targetErrorCallbackType
+	point             targetPointType
 }
 
-func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
-	return &Target{
-		point:        point,
-		callbackFunc: callbackFunc,
+func (t *target) isPoint(point targetPointType) bool {
+	if t == nil {
+		return false
 	}
+
+	return t.point == point
 }
 
-func NewTargetWithErrorHandler(point TargetPointType, callbackFunc TargetCallbackType, errorCallbackFunc TargetErrorCallbackType) *Target {
-	return &Target{
-		point:             point,
-		callbackFunc:      callbackFunc,
-		errorCallbackFunc: errorCallbackFunc,
+func (t *target) runCallback(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+	if t == nil || t.callbackFunc == nil {
+		return nil
 	}
+
+	return t.callbackFunc(ctx, l, opts, config)
 }
 
-func (target *Target) isPoint(point TargetPointType) bool {
-	return target.point == point
-}
-
-func (target *Target) runCallback(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return target.callbackFunc(ctx, l, opts, config)
-}
-
-func (target *Target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
-	if target.errorCallbackFunc == nil {
+func (t *target) runErrorCallback(l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+	if t == nil || t.errorCallbackFunc == nil {
 		return e
 	}
 
-	return target.errorCallbackFunc(l, opts, config, e)
+	return t.errorCallbackFunc(l, opts, config, e)
 }
