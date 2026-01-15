@@ -35,10 +35,12 @@ func wrapStringSliceToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
+
 			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
+
 			return cty.StringVal(out), nil
 		},
 	})
@@ -58,10 +60,12 @@ func wrapStringSliceToNumberAsFuncImpl(
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
+
 			out, err := toWrap(ctx, pctx, l, params)
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
+
 			return cty.NumberIntVal(out), nil
 		},
 	})
@@ -80,10 +84,12 @@ func wrapStringSliceToBoolAsFuncImpl(
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
+
 			out, err := toWrap(ctx, pctx, params)
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
+
 			return cty.BoolVal(out), nil
 		},
 	})
@@ -104,6 +110,7 @@ func wrapVoidToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
+
 			return cty.StringVal(out), nil
 		},
 	})
@@ -134,10 +141,12 @@ func wrapVoidToStringSliceAsFuncImpl(
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
 			}
+
 			outCtyVals := []cty.Value{}
 			for _, val := range outVals {
 				outCtyVals = append(outCtyVals, cty.StringVal(val))
 			}
+
 			return cty.ListVal(outCtyVals), nil
 		},
 	})
@@ -153,6 +162,7 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 			for _, val := range out {
 				outVals = append(outVals, cty.StringVal(val))
 			}
+
 			return cty.ListVal(outVals), nil
 		},
 	})

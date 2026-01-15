@@ -671,14 +671,18 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
 		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
 
+	var outStrSb674 strings.Builder
+
 	for _, unit := range entries {
 		unitPath := unit.Component.DisplayPath()
 		if showAbsPaths {
 			unitPath = unit.Component.Path()
 		}
 
-		outStr += fmt.Sprintf("- Unit %s\n", unitPath)
+		outStrSb674.WriteString(fmt.Sprintf("- Unit %s\n", unitPath))
 	}
+
+	outStr += outStrSb674.String()
 
 	l.Info(outStr)
 

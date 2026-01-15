@@ -60,6 +60,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second)
+
 	start := time.Now()
 
 	cmd.Process.Signal(os.Interrupt)

@@ -138,6 +138,7 @@ func TestEnsureRun(t *testing.T) {
 				run := newRun(t, filepath.Join(tmp, "existing-run"))
 				err := r.AddRun(l, run)
 				require.NoError(t, err)
+
 				return run
 			},
 		},

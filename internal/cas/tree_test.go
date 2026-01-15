@@ -215,6 +215,7 @@ func TestLinkTree(t *testing.T) {
 
 				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
+
 				return store, ""
 			},
 			treeData: []byte(""),
@@ -232,6 +233,7 @@ func TestLinkTree(t *testing.T) {
 
 				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
+
 				return store, ""
 			},
 			treeData: []byte(`100644 blob missing123 README.md`),

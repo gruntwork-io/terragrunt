@@ -58,6 +58,7 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 					if val := cliCtx.Args().Get(0); val != "" {
 						index = val
 					}
+
 					return RunOutput(ctx, l, opts.OptionsFromContext(ctx), index)
 				},
 				Flags: outputFlags(l, opts, nil),

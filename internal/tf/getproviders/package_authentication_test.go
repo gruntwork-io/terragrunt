@@ -97,6 +97,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				if runtime.GOOS == "windows" {
 					return errors.New("archive has incorrect checksum zh:e8ad9768267f71ad74397f18c12fc073da9855d822817c5c4c2c25642e142e68 (expected zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de)")
 				}
+
 				return errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)")
 			}(),
 		},
@@ -112,6 +113,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				if runtime.GOOS == "windows" {
 					return errors.New("archive has incorrect checksum zh:a0d5c70cb817a8c20052731d4ca348e1f2ad955dd3b133729634b278aa6103de (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
 				}
+
 				return errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)")
 			}(),
 		},
