@@ -373,7 +373,7 @@ func confirmActionWithDependentUnits(
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func ShouldCopyLockFile(args clihelper.Args, terraformConfig *config.TerraformConfig) bool {
+func ShouldCopyLockFile(args clihelper.Args, terraformConfig *runcfg.TerraformConfig) bool {
 	// If the user has explicitly set CopyTerraformLockFile to false, then we should not copy the lock file on any command
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	// if the user has not set CopyTerraformLockFile or if they have explicitly defined it to true,
