@@ -411,7 +411,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt run --all --bootstrap-backend --non-interactive --working-dir "+tmpEnvPath+" -- apply -auto-approve",
+		"terragrunt run --all --backend-bootstrap --non-interactive --working-dir "+tmpEnvPath+" -- apply",
 	)
 }
 
