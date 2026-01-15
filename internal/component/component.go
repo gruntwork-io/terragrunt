@@ -33,6 +33,7 @@ type Component interface {
 	Sources() []string
 	DiscoveryContext() *DiscoveryContext
 	SetDiscoveryContext(*DiscoveryContext)
+	Origin() Origin
 	AddDependency(Component)
 	AddDependent(Component)
 	Dependencies() Components
@@ -54,6 +55,7 @@ type Component interface {
 type Origin string
 
 const (
+	OriginUnknown               Origin = "unknown"
 	OriginWorktreeDiscovery     Origin = "worktree-discovery"
 	OriginGraphDiscovery        Origin = "graph-discovery"
 	OriginPathDiscovery         Origin = "path-discovery"
@@ -99,6 +101,10 @@ func (dc *DiscoveryContext) CopyWithNewOrigin(origin Origin) *DiscoveryContext {
 
 // Origin returns the origin of the DiscoveryContext.
 func (dc *DiscoveryContext) Origin() Origin {
+	if dc.origin == "" {
+		return OriginUnknown
+	}
+
 	return dc.origin
 }
 
