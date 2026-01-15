@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -118,36 +117,4 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 	}
 
 	return matchedModulesMap
-}
-
-// DependentModulesFinder implements the runcfg.DependentModulesFinder interface.
-// It wraps the FindWhereWorkingDirIsIncluded function to provide dependency information.
-type DependentModulesFinder struct{}
-
-// NewDependentModulesFinder creates a new DependentModulesFinder.
-func NewDependentModulesFinder() *DependentModulesFinder {
-	return &DependentModulesFinder{}
-}
-
-// convertRunConfigToTerragruntConfig creates a minimal TerragruntConfig from RunConfig
-// containing only the fields needed by FindWhereWorkingDirIsIncluded.
-func convertRunConfigToTerragruntConfig(cfg *runcfg.RunConfig) *config.TerragruntConfig {
-	if cfg == nil {
-		return &config.TerragruntConfig{}
-	}
-
-	// Convert ProcessedIncludes from runcfg to config format
-	processedIncludes := make(map[string]config.IncludeConfig)
-	for name, include := range cfg.ProcessedIncludes {
-		processedIncludes[name] = config.IncludeConfig{
-			Name:          include.Name,
-			Path:          include.Path,
-			Expose:        include.Expose,
-			MergeStrategy: include.MergeStrategy,
-		}
-	}
-
-	return &config.TerragruntConfig{
-		ProcessedIncludes: processedIncludes,
-	}
 }
