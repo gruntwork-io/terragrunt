@@ -46,6 +46,3 @@ func (r *Runner) Run(
 
 	return Run(ctx, l, opts, execReport, cfg, credsGetter)
 }
-
-// Ensure Runner implements the interface
-var _ runcfg.TerragruntRunner = (*Runner)(nil)

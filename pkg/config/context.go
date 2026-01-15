@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -31,18 +30,4 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
 
 	return ctx
-}
-
-// WithTerragruntRunner adds a TerragruntRunner to the context.
-func WithTerragruntRunner(ctx context.Context, runner runcfg.TerragruntRunner) context.Context {
-	return context.WithValue(ctx, TerragruntRunnerContextKey, runner)
-}
-
-// GetTerragruntRunner retrieves the TerragruntRunner from the context.
-func GetTerragruntRunner(ctx context.Context) runcfg.TerragruntRunner {
-	if runner, ok := ctx.Value(TerragruntRunnerContextKey).(runcfg.TerragruntRunner); ok {
-		return runner
-	}
-
-	return nil
 }
