@@ -17,6 +17,7 @@ linters:
     - bidichk
     - bodyclose
     - contextcheck
+    - containedctx
     - dupl
     - durationcheck
     - errchkjson
