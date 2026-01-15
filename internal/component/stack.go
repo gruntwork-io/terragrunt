@@ -1,45 +1,58 @@
 package component
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
 	StackKind Kind = "stack"
 )
 
+// StackExecution holds execution-specific fields for running a stack.
+// This is nil during discovery phase and populated when preparing for execution.
+type StackExecution struct {
+	Report            *report.Report
+	TerragruntOptions *options.TerragruntOptions
+}
+
 // Stack represents a discovered Terragrunt stack configuration.
 type Stack struct {
 	cfg              *config.StackConfig
+	discoveryContext *DiscoveryContext
+	Execution        *StackExecution
 	path             string
 	reading          []string
-	discoveryContext *DiscoveryContext
 	dependencies     Components
 	dependents       Components
-	external         bool
+	Units            []*Unit
 	mu               sync.RWMutex
+	external         bool
 }
 
 // NewStack creates a new Stack component with the given path.
 func NewStack(path string) *Stack {
 	return &Stack{
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
+		path:             path,
+		discoveryContext: &DiscoveryContext{},
+		dependencies:     make(Components, 0),
+		dependents:       make(Components, 0),
 	}
 }
 
-// NewStackWithConfig creates a new Stack component with the given path and config.
-func NewStackWithConfig(path string, cfg *config.StackConfig) *Stack {
-	return &Stack{
-		cfg:          cfg,
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
-	}
+// WithDiscoveryContext sets the discovery context for this stack.
+func (s *Stack) WithDiscoveryContext(ctx *DiscoveryContext) *Stack {
+	s.discoveryContext = ctx
+
+	return s
 }
 
 // Config returns the parsed Stack configuration for this stack.
@@ -65,6 +78,20 @@ func (s *Stack) Path() string {
 // SetPath sets the path to the component.
 func (s *Stack) SetPath(path string) {
 	s.path = path
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
+func (s *Stack) DisplayPath() string {
+	if s.discoveryContext == nil || s.discoveryContext.WorkingDir == "" {
+		return s.path
+	}
+
+	if rel, err := filepath.Rel(s.discoveryContext.WorkingDir, s.path); err == nil {
+		return rel
+	}
+
+	return s.path
 }
 
 // External returns whether the component is external.
@@ -102,6 +129,15 @@ func (s *Stack) DiscoveryContext() *DiscoveryContext {
 // SetDiscoveryContext sets the discovery context for this component.
 func (s *Stack) SetDiscoveryContext(ctx *DiscoveryContext) {
 	s.discoveryContext = ctx
+}
+
+// Origin returns the origin of the discovery context for this component.
+func (s *Stack) Origin() Origin {
+	if s.discoveryContext == nil {
+		return OriginUnknown
+	}
+
+	return s.discoveryContext.Origin()
 }
 
 // lock locks the Stack.
@@ -180,4 +216,38 @@ func (s *Stack) Dependents() Components {
 	defer s.rUnlock()
 
 	return s.dependents
+}
+
+// String renders this stack as a human-readable string.
+//
+// Example output:
+//
+//	Stack at /path/to/stack:
+//	  => Unit /path/to/unit1 (excluded: false, assume applied: false, dependencies: [/dep1])
+//	  => Unit /path/to/unit2 (excluded: true, assume applied: false, dependencies: [])
+func (s *Stack) String() string {
+	units := make([]string, 0, len(s.Units))
+	for _, unit := range s.Units {
+		units = append(units, "  => "+unit.String())
+	}
+
+	sort.Strings(units)
+
+	workingDir := s.path
+	if s.Execution != nil && s.Execution.TerragruntOptions != nil {
+		workingDir = s.Execution.TerragruntOptions.WorkingDir
+	}
+
+	return fmt.Sprintf("Stack at %s:\n%s", workingDir, strings.Join(units, "\n"))
+}
+
+// FindUnitByPath finds a unit in the stack by its path.
+func (s *Stack) FindUnitByPath(path string) *Unit {
+	for _, unit := range s.Units {
+		if unit.Path() == path {
+			return unit
+		}
+	}
+
+	return nil
 }

@@ -6,11 +6,11 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -18,11 +18,18 @@ import (
 //
 // It's used to discover any potential relationships between components.
 type RelationshipDiscovery struct {
-	components               *component.Components           // all components that have been discovered (not just the ones that require relationship discovery)
-	interTransientComponents *component.ThreadSafeComponents // components that are discovered while trying to work out relationships between components, but are not officially discovered
-	parserOptions            []hclparse.Option               // the parser options to use when parsing configurations
-	maxDepth                 int                             // the maximum depth to discover relationships at
-	numWorkers               int                             // the number of workers to use to discover relationships
+	// components is all components that have been discovered (not just the ones that require relationship discovery)
+	components *component.Components
+	// interTransientComponents are components that are discovered while trying to work out relationships between components, but are not officially discovered
+	interTransientComponents *component.ThreadSafeComponents
+	// discoveryContext is the discovery context of the main Discover() call
+	discoveryContext *component.DiscoveryContext
+	// parserOptions are the parser options to use when parsing configurations
+	parserOptions []hclparse.Option
+	// maxDepth is the maximum depth to discover relationships at
+	maxDepth int
+	// numWorkers is the number of workers to use to discover relationships
+	numWorkers int
 }
 
 // NewRelationshipDiscovery creates a new RelationshipDiscovery with the given configuration.
@@ -52,8 +59,14 @@ func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Opti
 	return rd
 }
 
-// DiscoverAllRelationships discovers any potential relationships between all components.
-func (rd *RelationshipDiscovery) DiscoverAllRelationships(
+// WithDiscoveryContext sets the discovery context for the relationship discovery.
+func (rd *RelationshipDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *RelationshipDiscovery {
+	rd.discoveryContext = discoveryContext
+	return rd
+}
+
+// Discover discovers any potential relationships between all components.
+func (rd *RelationshipDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -75,7 +88,7 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 			// For that reason, the list is all components that are not the component undergoing relationship discovery.
 			terminalComponents := slices.Collect(func(yield func(component.Component) bool) {
 				for _, rc := range *rd.components {
-					if rc != c {
+					if rc != nil && rc != c {
 						if !yield(rc) {
 							return
 						}
@@ -83,7 +96,7 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 				}
 			})
 
-			err := rd.DiscoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
+			err := rd.discoverRelationships(ctx, l, opts, c, terminalComponents, rd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -107,8 +120,8 @@ func (rd *RelationshipDiscovery) DiscoverAllRelationships(
 	return nil
 }
 
-// DiscoverRelationships discovers any potential relationships between a single component and all other components.
-func (rd *RelationshipDiscovery) DiscoverRelationships(
+// discoverRelationships discovers any potential relationships between a single component and all other components.
+func (rd *RelationshipDiscovery) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -154,8 +167,8 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 		dep, created := rd.dependencyToDiscover(c, path)
 
 		// Delete the entry from terminal components if it's found.
-		terminalComponents = slices.DeleteFunc(terminalComponents, func(c component.Component) bool {
-			return c.Path() == dep.Path()
+		terminalComponents = slices.DeleteFunc(terminalComponents, func(tc component.Component) bool {
+			return tc != nil && tc.Path() == dep.Path()
 		})
 
 		// We only want to recursively discover dependencies if we ended up creating a new component.
@@ -189,7 +202,7 @@ func (rd *RelationshipDiscovery) DiscoverRelationships(
 
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
-			err := rd.DiscoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
+			err := rd.discoverRelationships(ctx, l, opts, dep, terminalComponents, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -229,6 +242,19 @@ func (rd *RelationshipDiscovery) dependencyToDiscover(c component.Component, pat
 	newUnit := component.NewUnit(path)
 
 	dep, created := rd.interTransientComponents.EnsureComponent(newUnit)
+
+	if rd.discoveryContext != nil {
+		discoveryCtx := rd.discoveryContext.Copy()
+		// Set origin for components discovered via relationship discovery
+		discoveryCtx.SuggestOrigin(component.OriginRelationshipDiscovery)
+		dep.SetDiscoveryContext(discoveryCtx)
+
+		if isExternal(discoveryCtx.WorkingDir, path) {
+			dep.SetExternal()
+		}
+	} else {
+		dep.SetDiscoveryContext(rd.discoveryContext)
+	}
 
 	c.AddDependency(dep)
 

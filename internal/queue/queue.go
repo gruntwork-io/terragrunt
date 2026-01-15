@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
@@ -140,8 +141,14 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	Entries  Entries
-	mu       sync.RWMutex
+	// unitsMap is a map of unit paths to Unit objects, used to check if dependencies not in the queue
+	// are assumed already applied or have existing state.
+	unitsMap map[string]*component.Unit
+	// Entries is a list of entries in the queue.
+	Entries Entries
+	// mu is a mutex used to synchronize access to the queue.
+	mu sync.RWMutex
+	// FailFast, if set to true, causes the queue to fail fast if any entry fails.
 	FailFast bool
 	// IgnoreDependencyOrder, if set to true, causes the queue to ignore dependencies when fetching ready entries.
 	// When enabled, GetReadyWithDependencies will return all entries with StatusReady, regardless of dependency status.
@@ -291,7 +298,7 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 }
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
-func (q *Queue) GetReadyWithDependencies() []*Entry {
+func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
@@ -315,7 +322,7 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 		}
 
 		if e.IsUp() {
-			if q.areDependenciesReadyUnsafe(e) {
+			if q.areDependenciesReadyUnsafe(l, e) {
 				out = append(out, e)
 			}
 
@@ -332,12 +339,29 @@ func (q *Queue) GetReadyWithDependencies() []*Entry {
 
 // areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
 // For up commands, all dependencies must be in a succeeded state (or terminal if ignoring errors).
+// If a dependency is not in the queue, it is assumed to have existing state.
 // Should only be called when the caller already holds a read lock.
-func (q *Queue) areDependenciesReadyUnsafe(e *Entry) bool {
+func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 	for _, dep := range e.Component.Dependencies() {
 		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
-			return false
+			// Dependency not in queue - check if assumed already applied
+			if q.unitsMap != nil {
+				if unit, ok := q.unitsMap[dep.Path()]; ok {
+					if unit.Execution != nil && unit.Execution.AssumeAlreadyApplied {
+						l.Debugf(
+							"Dependency %s is not in queue, and is assumed to be already applied, considering it ready",
+							dep.Path(),
+						)
+
+						continue
+					}
+				}
+			}
+
+			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
+
+			continue
 		}
 
 		// When ignoring dependency errors, allow scheduling if dependencies are in a terminal state
@@ -527,4 +551,13 @@ func isTerminal(status Status) bool {
 // isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
 	return status == StatusRunning || isTerminal(status)
+}
+
+// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
+// not in the queue are assumed already applied or have existing state.
+func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.unitsMap = unitsMap
 }

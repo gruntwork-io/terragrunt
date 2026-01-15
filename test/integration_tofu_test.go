@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +23,8 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "basic", "unit")
+	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
+	unitPath := filepath.Join(testPath, "basic", "unit")
 
 	cmd := "terragrunt init --log-level debug --non-interactive --working-dir " + unitPath
 
@@ -42,12 +41,12 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "basic", "unit")
+	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
+	unitPath := filepath.Join(testPath, "basic", "unit")
 
 	// clone the unit dir 9 times
 	for i := range 9 {
-		helpers.CopyDir(t, unitPath, util.JoinPath(testPath, "unit-"+strconv.Itoa(i)))
+		helpers.CopyDir(t, unitPath, filepath.Join(testPath, "unit-"+strconv.Itoa(i)))
 	}
 
 	cmd := "terragrunt run --all init --log-level debug --non-interactive --working-dir " + testPath
@@ -65,8 +64,8 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAutoProviderCacheDir)
-	unitPath := util.JoinPath(testPath, "basic", "unit")
+	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
+	unitPath := filepath.Join(testPath, "basic", "unit")
 
 	cmd := "terragrunt init --log-level debug --no-auto-provider-cache-dir --non-interactive --working-dir " + unitPath
 
@@ -82,7 +81,7 @@ func TestTfPathRespectedForDependencies(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureTfPathDependency)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathDependency)
-	testPath := util.JoinPath(rootPath, testFixtureTfPathDependency)
+	testPath := filepath.Join(rootPath, testFixtureTfPathDependency)
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
@@ -90,7 +89,7 @@ func TestTfPathRespectedForDependencies(t *testing.T) {
 		t,
 		fmt.Sprintf(
 			"terragrunt run --all --non-interactive --tf-path %s --working-dir %s -- apply",
-			util.JoinPath(testPath, "custom-tf.sh"),
+			filepath.Join(testPath, "custom-tf.sh"),
 			testPath,
 		),
 	)

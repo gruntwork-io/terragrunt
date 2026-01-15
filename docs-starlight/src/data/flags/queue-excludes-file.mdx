@@ -7,11 +7,33 @@ env:
   - TG_QUEUE_EXCLUDES_FILE
 ---
 
-Units in these directories will be excluded during execution of the commands. If a relative path is specified, it should be relative from
-[--working-dir](/docs/reference/cli/global-flags#working-directory). This will only exclude the module, not its dependencies.
+import { Aside } from '@astrojs/starlight/components';
 
-This flag has been designed to integrate nicely with the `hcl validate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
+<Aside type="tip" title="Alias for --filters-file">
+
+This flag leverages the same underlying functionality as the [`--filters-file` flag](/docs/reference/cli/commands/run#filters-file).
+
+When using this flag, the `.terragrunt-excludes` file will be parsed, and converted to the equivalent filter expressions.
+
+e.g.
+
+```text
+# excludes-file.txt
+prod
+```
 
 ```bash
-terragrunt run --all plan --queue-excludes-file <(terragrunt hcl validate --show-config-path || true)
+terragrunt run --all --queue-excludes-file ./excludes-file.txt -- plan
 ```
+
+is equivalent to:
+
+```text
+# filters-file.txt
+!{./prod}
+```
+
+```bash
+terragrunt run --all --filters-file ./filters-file.txt -- plan
+```
+</Aside>

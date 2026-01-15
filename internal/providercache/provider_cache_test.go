@@ -13,12 +13,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/tf/cache"
-	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
-	"github.com/gruntwork-io/terragrunt/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -46,8 +47,8 @@ func TestProviderCache(t *testing.T) {
 
 	token := fmt.Sprintf("%s:%s", providercache.APIKeyAuth, uuid.New().String())
 
-	providerCacheDir := t.TempDir()
-	pluginCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
+	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode)}
 
@@ -279,7 +280,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 	}
 
 	t.Run("Homeless", func(t *testing.T) { //nolint:paralleltest
-		cacheDir := t.TempDir()
+		cacheDir := helpers.TmpDirWOSymlinks(t)
 
 		unsetEnv(t, "HOME")
 		unsetEnv(t, "XDG_CACHE_HOME")
@@ -291,8 +292,8 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 	})
 
 	t.Run("NoNewDirectoriesAtHOME", func(t *testing.T) {
-		home := t.TempDir()
-		cacheDir := t.TempDir()
+		home := helpers.TmpDirWOSymlinks(t)
+		cacheDir := helpers.TmpDirWOSymlinks(t)
 
 		t.Setenv("HOME", home)
 

@@ -6,34 +6,24 @@ env:
   - TG_UNITS_THAT_INCLUDE
 ---
 
-import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-When specified, Terragrunt will only run commands against units that include the specified configuration file. This is useful for targeting specific configurations that share common included files.
+<Aside type="tip" title="Alias for --filter">
 
-For example, with the following directory structure:
+This flag is an alias for the [`--filter` flag](/docs/reference/cli/commands/run#filter).
 
-<FileTree>
-- dev
-  - app
-    - terragrunt.hcl
-  - db
-    - terragrunt.hcl
-- prod
-  - app
-    - terragrunt.hcl
-  - db
-    - terragrunt.hcl
-- _envcommon
-  - app.hcl
-  - db.hcl
-</FileTree>
+When using this flag, the equivalent filter expression is used instead.
 
-If both `dev/app/terragrunt.hcl` and `prod/app/terragrunt.hcl` include files from `_envcommon`, you can target all units that include the `app.hcl` file:
+e.g.
 
 ```bash
-terragrunt run --all --units-that-include=./_envcommon/app.hcl plan
+terragrunt run --all --units-that-include shared.hcl -- plan
 ```
 
-This will only run the command against units that include the `app.hcl` file.
+is equivalent to:
 
-Note: This flag is functionally covered by the `--queue-include-units-reading` flag, but is more explicitly focused on the `include` configuration block.
+```bash
+terragrunt run --all --filter 'reading=shared.hcl' -- plan
+```
+
+</Aside>

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,13 +22,13 @@ func TestRunStacksGenerate(t *testing.T) {
 	// Set up test environment
 	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
 	// Run terragrunt with --all flag to trigger stack generation
 	helpers.RunTerragrunt(t, "terragrunt run apply --all --non-interactive --working-dir "+rootPath)
 
 	// Verify stack directory exists and validate its contents
-	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
 	// Collect all test.txt files in the stack directory to verify correct generation
@@ -102,7 +101,7 @@ func TestRunNoStacksGenerate(t *testing.T) {
 
 			// Set up test environment
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
-			path := util.JoinPath(tmpEnvPath, testFixtureStacksBasic, tt.subfolder)
+			path := filepath.Join(tmpEnvPath, testFixtureStacksBasic, tt.subfolder)
 			cmd := tt.cmd + " --working-dir " + path + " -- -auto-approve"
 
 			// Execute terragrunt command and verify no output
@@ -122,7 +121,7 @@ func TestRunNoStacksGenerate(t *testing.T) {
 			}
 
 			// Verify that stack directory was not created
-			genPath := util.JoinPath(path, ".terragrunt-stack")
+			genPath := filepath.Join(path, ".terragrunt-stack")
 			assert.NoDirExists(t, genPath)
 		})
 	}
@@ -158,7 +157,7 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionFilesCacheKey, tt.versionFiles...)
-			path := util.JoinPath(tmpEnvPath, testFixtureVersionFilesCacheKey)
+			path := filepath.Join(tmpEnvPath, testFixtureVersionFilesCacheKey)
 			flags := []string{
 				"-non-interactive",
 				"--log-level debug",

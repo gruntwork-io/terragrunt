@@ -16,8 +16,8 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // runCommandWithPTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running

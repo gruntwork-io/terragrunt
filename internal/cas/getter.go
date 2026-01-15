@@ -91,6 +91,13 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		return true, nil
 	}
 
+	if after, ok := strings.CutPrefix(req.Src, "git::"); ok {
+		req.Src = after
+		req.Forced = "git"
+
+		return true, nil
+	}
+
 	for _, detector := range g.Detectors {
 		src, ok, err := detector.Detect(req.Src, req.Pwd)
 		if err != nil {

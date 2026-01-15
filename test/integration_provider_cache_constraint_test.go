@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
@@ -29,10 +29,10 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheWeakConstraint)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
 	appPath := filepath.Join(rootPath, "app")
 
-	providerCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	t.Run("initial_setup_preserves_module_constraints", func(t *testing.T) {
 		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))

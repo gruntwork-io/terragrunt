@@ -10,15 +10,15 @@ import (
 	"github.com/hashicorp/go-getter"
 	getterv2 "github.com/hashicorp/go-getter/v2"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
@@ -123,7 +123,7 @@ func DownloadTerraformSourceIfNecessary(
 				return err
 			}
 
-			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TerraformImplementation, terraformSource.WorkingDir)
+			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TofuImplementation, terraformSource.WorkingDir)
 
 			return nil
 		}
@@ -172,7 +172,7 @@ func DownloadTerraformSourceIfNecessary(
 	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
 		l.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
 
-		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
+		initFile := filepath.Join(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
 		f, createErr := os.Create(initFile)
 		if createErr != nil {

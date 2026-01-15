@@ -14,9 +14,9 @@ import (
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,8 +73,10 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	// the goroutines report an error.
 	for i := 0; i < 20; i++ {
 		waitGroup.Add(1)
+
 		go func() {
 			defer waitGroup.Done()
+
 			err := client.CreateLockTableIfNecessary(t.Context(), l, tableName, nil)
 			assert.NoError(t, err, "Unexpected error: %v", err)
 		}()
@@ -142,7 +144,6 @@ func assertTags(t *testing.T, expectedTags map[string]string, tableName string, 
 	dynamoClient := client.GetDynamoDBClient()
 
 	var description, err = dynamoClient.DescribeTable(t.Context(), &dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-
 	if err != nil {
 		require.NoError(t, err, "Unexpected error: %v", err)
 	}
@@ -183,6 +184,7 @@ func listTagsOfResourceWithRetry(t *testing.T, client *s3backend.Client, resourc
 	}
 
 	require.Failf(t, "Could not list tags of resource after %s retries.", strconv.Itoa(retries))
+
 	return nil
 }
 
@@ -221,6 +223,7 @@ func WithLockTable(t *testing.T, client *s3backend.Client, action func(tableName
 
 func WithLockTableTagged(t *testing.T, tags map[string]string, client *s3backend.Client, action func(tableName string, client *s3backend.Client)) {
 	t.Helper()
+
 	tableName := UniqueTableNameForTest()
 	defer CleanupTableForTest(t, tableName, client)
 

@@ -13,11 +13,14 @@ mkdir -p "$LOCK_DIR"
 # This works on Linux, macOS, and BSD without requiring nanosecond precision
 INVOCATION_ID="auth-$$-$(date +%s)-$RANDOM"
 
-# Log to stderr so it shows up in terragrunt output
-echo "Auth start ${INVOCATION_ID}" >&2
-
 # Create a lock file to indicate we've started
+# This acts as a synchronization point - by the time the file is created,
+# the parent process should be ready to capture our stderr output.
 touch "${LOCK_DIR}/start-${INVOCATION_ID}"
+
+# Log to stderr so it shows up in terragrunt output
+# Note: Output after lock file creation to avoid macOS stderr buffering race condition
+echo "Auth start ${INVOCATION_ID}" >&2
 
 # Wait for other auth commands to also start (up to 500ms)
 # This ensures we test the parallel execution scenario

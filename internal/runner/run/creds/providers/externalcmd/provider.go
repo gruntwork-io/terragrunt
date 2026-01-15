@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-shellwords"
 )
 
@@ -42,7 +43,8 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 
 	parser := shellwords.NewParser()
 
-	parts, err := parser.Parse(provider.terragruntOptions.AuthProviderCmd)
+	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
+	parts, err := parser.Parse(filepath.ToSlash(provider.terragruntOptions.AuthProviderCmd))
 	if err != nil {
 		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
 	}

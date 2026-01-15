@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -19,25 +20,25 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 
-	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/hashicorp/go-multierror"
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -89,14 +90,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return errors.New(MissingCommand{})
 	}
 
-	return run(ctx, l, opts, r, new(Target))
+	return run(ctx, l, opts, r, new(target))
 }
 
-func RunWithTarget(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *Target) error {
-	return run(ctx, l, opts, r, target)
-}
-
-func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *Target) error {
+func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report, target *target) error {
 	if opts.TerraformCommand == tf.CommandNameVersion {
 		return runVersionCommand(ctx, l, opts)
 	}
@@ -117,7 +114,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
 
-	if target.isPoint(TargetPointParseConfig) {
+	if target.isPoint(targetPointParseConfig) {
 		return target.runCallback(ctx, l, opts, terragruntConfig)
 	}
 
@@ -195,7 +192,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 
 	// NOTE: At this point, the terraform source is downloaded to the terragrunt working directory
 
-	if target.isPoint(TargetPointDownloadSource) {
+	if target.isPoint(targetPointDownloadSource) {
 		return target.runCallback(ctx, l, updatedTerragruntOptions, terragruntConfig)
 	}
 
@@ -205,7 +202,7 @@ func run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *
 		return target.runErrorCallback(l, opts, terragruntConfig, err)
 	}
 
-	if target.isPoint(TargetPointGenerateConfig) {
+	if target.isPoint(targetPointGenerateConfig) {
 		return target.runCallback(ctx, l, updatedTerragruntOptions, terragruntConfig)
 	}
 
@@ -278,7 +275,7 @@ func runTerragruntWithConfig(
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
 	r *report.Report,
-	target *Target,
+	t *target,
 ) error {
 	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
@@ -298,8 +295,8 @@ func runTerragruntWithConfig(
 		return err
 	}
 
-	if target.isPoint(TargetPointSetInputsAsEnvVars) {
-		return target.runCallback(ctx, l, opts, cfg)
+	if t.isPoint(targetPointSetInputsAsEnvVars) {
+		return t.runCallback(ctx, l, opts, cfg)
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
@@ -328,8 +325,8 @@ func runTerragruntWithConfig(
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
-	if target.isPoint(TargetPointInitCommand) {
-		return target.runCallback(ctx, l, opts, cfg)
+	if t.isPoint(targetPointInitCommand) {
+		return t.runCallback(ctx, l, opts, cfg)
 	}
 
 	if err := checkProtectedModule(opts, cfg); err != nil {
@@ -355,7 +352,7 @@ func runTerragruntWithConfig(
 		// If command failed, log a helpful message
 		if runTerraformError != nil {
 			if out == nil {
-				l.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
+				l.Errorf("%s invocation failed in %s", opts.TofuImplementation, opts.WorkingDir)
 			}
 		}
 
@@ -373,7 +370,7 @@ func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *
 		}
 
 		for _, module := range modules {
-			if _, err := opts.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
+			if _, err := opts.ErrWriter.Write([]byte(module.Path() + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -408,7 +405,7 @@ func confirmActionWithDependentModules(ctx context.Context, l log.Logger, opts *
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) bool {
+func ShouldCopyLockFile(args clihelper.Args, terraformConfig *config.TerraformConfig) bool {
 	// If the user has explicitly set CopyTerraformLockFile to false, then we should not copy the lock file on any command
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	// if the user has not set CopyTerraformLockFile or if they have explicitly defined it to true,
@@ -580,7 +577,7 @@ func prepareNonInitCommand(
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
+	if slices.Contains(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -602,9 +599,9 @@ func needsInit(ctx context.Context, l log.Logger, terragruntOptions *options.Ter
 
 // Returns true if we need to run `terraform init` to download providers
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
-	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
-	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
-	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
+	pluginsPath := filepath.Join(terragruntOptions.DataDir(), "plugins")
+	providersPath := filepath.Join(terragruntOptions.DataDir(), "providers")
+	terraformLockPath := filepath.Join(terragruntOptions.WorkingDir, tf.TerraformLockFile)
 
 	return (!util.FileExists(pluginsPath) && !util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -641,11 +638,11 @@ func runTerraformInit(
 		return err
 	}
 
-	if err := runTerragruntWithConfig(ctx, l, originalTerragruntOptions, initOptions, cfg, r, new(Target)); err != nil {
+	if err := runTerragruntWithConfig(ctx, l, originalTerragruntOptions, initOptions, cfg, r, nil); err != nil {
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(opts.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(opts.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -673,7 +670,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		initOptions.Writer = io.Discard
 	}
 
-	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
+	if l.Formatter().DisabledColors() || collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
 		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
 	}
 
@@ -685,12 +682,12 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
+	modulesPath := filepath.Join(terragruntOptions.DataDir(), "modules")
 	if util.FileExists(modulesPath) {
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
+	moduleNeedInit := filepath.Join(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}
@@ -717,7 +714,7 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState == nil || !util.ListContainsElement(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+	if remoteState == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -737,7 +734,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 		destroyFlag = true
 	}
 
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
+	if slices.Contains(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
 		destroyFlag = true
 	}
 
@@ -878,11 +875,12 @@ func useLegacyNullValues() bool {
 }
 
 func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
-	configCtx := config.NewParsingContext(ctx, l, opts).WithDecodeList(
+	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
+	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
-	// TODO: See if we should be ignore this lint error
-	return config.PartialParseConfigFile( //nolint: contextcheck
+	return config.PartialParseConfigFile(
+		ctx,
 		configCtx,
 		l,
 		opts.TerragruntConfigPath,

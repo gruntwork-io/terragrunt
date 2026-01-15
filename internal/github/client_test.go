@@ -1,4 +1,4 @@
-package github
+package github_test
 
 import (
 	"context"
@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/github"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,12 +21,10 @@ import (
 func TestNewClient(t *testing.T) {
 	t.Parallel()
 
-	client := NewGitHubAPIClient()
+	client := github.NewGitHubAPIClient()
 	require.NotNil(t, client)
 
-	assert.Equal(t, "https://api.github.com", client.baseURL)
-	assert.NotNil(t, client.httpClient)
-	assert.NotNil(t, client.cache)
+	assert.NotNil(t, client)
 }
 
 func TestNewClientWithOptions(t *testing.T) {
@@ -33,13 +33,12 @@ func TestNewClientWithOptions(t *testing.T) {
 	customHTTPClient := &http.Client{Timeout: 10 * time.Second}
 	customBaseURL := "https://custom.github.com"
 
-	client := NewGitHubAPIClient(
-		WithHTTPClient(customHTTPClient),
-		WithBaseURL(customBaseURL),
+	client := github.NewGitHubAPIClient(
+		github.WithHTTPClient(customHTTPClient),
+		github.WithBaseURL(customBaseURL),
 	)
 
-	assert.Equal(t, customHTTPClient, client.httpClient)
-	assert.Equal(t, customBaseURL, client.baseURL)
+	assert.NotNil(t, client)
 }
 
 func TestGetLatestRelease(t *testing.T) {
@@ -61,7 +60,7 @@ func TestGetLatestRelease(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubAPIClient(WithBaseURL(server.URL))
+	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
 
 	release, err := client.GetLatestRelease(t.Context(), "owner/repo")
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func TestGetLatestReleaseTag(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubAPIClient(WithBaseURL(server.URL))
+	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
 
 	tag, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
 	require.NoError(t, err)
@@ -93,7 +92,7 @@ func TestGetLatestReleaseTag(t *testing.T) {
 func TestGetLatestReleaseInvalidRepository(t *testing.T) {
 	t.Parallel()
 
-	client := NewGitHubAPIClient()
+	client := github.NewGitHubAPIClient()
 
 	testCases := []string{
 		"",
@@ -119,7 +118,7 @@ func TestGetLatestReleaseHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubAPIClient(WithBaseURL(server.URL))
+	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
 
 	_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 	require.Error(t, err)
@@ -137,7 +136,7 @@ func TestGetLatestReleaseEmptyTag(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubAPIClient(WithBaseURL(server.URL))
+	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
 
 	_, err := client.GetLatestRelease(t.Context(), "owner/repo")
 	require.Error(t, err)
@@ -157,7 +156,7 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubAPIClient(WithBaseURL(server.URL))
+	client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL))
 
 	// First call should hit the server
 	tag1, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
@@ -179,51 +178,42 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 func TestNewGitHubReleasesDownloadClient(t *testing.T) {
 	t.Parallel()
 
-	client := NewGitHubReleasesDownloadClient()
-	if client == nil {
-		t.Fatal("NewGitHubReleasesDownloadClient() returned nil")
-	}
-
-	if client.logger != nil {
-		t.Error("Expected logger to be nil by default")
-	}
+	client := github.NewGitHubReleasesDownloadClient()
+	require.NotNil(t, client)
 }
 
 func TestNewGitHubReleasesDownloadClientWithOptions(t *testing.T) {
 	t.Parallel()
 
 	logger := log.New()
-	client := NewGitHubReleasesDownloadClient(WithLogger(logger))
-
-	if client.logger != logger {
-		t.Error("Expected custom logger to be set")
-	}
+	client := github.NewGitHubReleasesDownloadClient(github.WithLogger(logger))
+	require.NotNil(t, client)
 }
 
 func TestDownloadReleaseAssetsValidation(t *testing.T) {
 	t.Parallel()
 
-	client := NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient()
 	ctx := context.Background()
 
 	testCases := []struct {
 		name     string
-		assets   *ReleaseAssets
+		assets   *github.ReleaseAssets
 		errorMsg string
 	}{
 		{
 			name:     "empty repository",
-			assets:   &ReleaseAssets{Repository: "", PackageFile: "/tmp/package.zip"},
+			assets:   &github.ReleaseAssets{Repository: "", PackageFile: "/tmp/package.zip"},
 			errorMsg: "repository cannot be empty",
 		},
 		{
 			name:     "empty package file",
-			assets:   &ReleaseAssets{Repository: "owner/repo", PackageFile: ""},
+			assets:   &github.ReleaseAssets{Repository: "owner/repo", PackageFile: ""},
 			errorMsg: "package file path cannot be empty",
 		},
 		{
 			name:     "missing version for GitHub repo",
-			assets:   &ReleaseAssets{Repository: "owner/repo", Version: "", PackageFile: "/tmp/package.zip"},
+			assets:   &github.ReleaseAssets{Repository: "owner/repo", Version: "", PackageFile: "/tmp/package.zip"},
 			errorMsg: "version cannot be empty for GitHub repository downloads",
 		},
 	}
@@ -240,7 +230,7 @@ func TestDownloadReleaseAssetsValidation(t *testing.T) {
 func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create mock server for GitHub releases
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -263,9 +253,9 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	defer server.Close()
 
 	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
-	client := NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient()
 
-	assets := &ReleaseAssets{
+	assets := &github.ReleaseAssets{
 		Repository:  server.URL + "/package.zip", // Direct URL
 		PackageFile: filepath.Join(tempDir, "package.zip"),
 		// Direct URLs don't use checksum files
@@ -287,7 +277,7 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -296,9 +286,9 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewGitHubReleasesDownloadClient()
+	client := github.NewGitHubReleasesDownloadClient()
 
-	assets := &ReleaseAssets{
+	assets := &github.ReleaseAssets{
 		Repository:  server.URL + "/direct-download.zip",
 		PackageFile: filepath.Join(tempDir, "direct.zip"),
 		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs

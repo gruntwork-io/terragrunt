@@ -13,19 +13,20 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-getter"
 )
 
@@ -390,14 +391,14 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 	err = run.DownloadTerraformSourceIfNecessary(t.Context(), logger.CreateLogger(), terraformSource, terragruntOptions, terragruntConfig, report.NewReport())
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
-	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
+	expectedFilePath := filepath.Join(downloadDir, "main.tf")
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
 		actualFileContents := readFile(t, expectedFilePath)
 		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
+		existsInitFile := util.FileExists(filepath.Join(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
 		require.True(t, existsInitFile)
 	}
 }
@@ -412,7 +413,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
-		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		VersionFile:        filepath.Join(downloadDir, "version-file.txt"),
 	}
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -444,7 +445,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
-		VersionFile:        util.JoinPath(downloadDir, "version-file.txt"),
+		VersionFile:        filepath.Join(downloadDir, "version-file.txt"),
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
@@ -458,7 +459,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 func tmpDir(t *testing.T) string {
 	t.Helper()
 
-	dir := t.TempDir()
+	dir := helpers.TmpDirWOSymlinks(t)
 
 	return filepath.FromSlash(dir)
 }
@@ -567,7 +568,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -609,7 +610,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -651,7 +652,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	src := &tf.Source{
 		CanonicalSourceURL: parseURL(t, "github.com/gruntwork-io/terragrunt//test/fixtures/download/hello-world"),
@@ -692,7 +693,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
 	src := &tf.Source{
@@ -776,7 +777,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 
 			src := &tf.Source{
 				CanonicalSourceURL: parseURL(t, tc.sourceURL),

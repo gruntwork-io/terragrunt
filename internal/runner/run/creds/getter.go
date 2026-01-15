@@ -6,8 +6,8 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 type Getter struct {

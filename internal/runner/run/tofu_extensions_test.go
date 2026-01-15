@@ -10,8 +10,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +100,7 @@ terraform {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
@@ -199,7 +200,7 @@ resource "aws_instance" "example" {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
@@ -311,7 +312,7 @@ resource "aws_vpc" "main" {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))
@@ -405,7 +406,7 @@ resource "aws_vpc" "main" {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			tmpDir := t.TempDir()
+			tmpDir := helpers.TmpDirWOSymlinks(t)
 			for filename, content := range tc.files {
 				filePath := filepath.Join(tmpDir, filename)
 				require.NoError(t, os.WriteFile(filePath, []byte(content), 0644))

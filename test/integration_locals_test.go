@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -115,7 +114,7 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRunMultiple)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalRunMultiple)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalRunMultiple)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalRunMultiple)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --working-dir "+rootPath)
 	require.Error(t, err)

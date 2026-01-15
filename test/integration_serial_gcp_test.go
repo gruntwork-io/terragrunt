@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
@@ -20,7 +20,8 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	// to unset the CI credentials during this test.
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
 	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds) //nolint:usetesting
-	os.Unsetenv("GCLOUD_SERVICE_KEY")                   //nolint:usetesting
+
+	os.Unsetenv("GCLOUD_SERVICE_KEY") //nolint:usetesting
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
 	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
@@ -45,10 +46,13 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	if impersonatorKey == "" {
 		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	}
+
 	tmpImpersonatorCreds := helpers.CreateTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
+
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 	defer helpers.RemoveFile(t, tmpImpersonatorCreds)
+
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -66,11 +70,13 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 	attrs := gcsObjectAttrs(t, gcsBucketName, "terraform.tfstate/default.tfstate")
 	ownerEmail := false
+
 	for _, a := range attrs.ACL {
 		if (a.Role == "OWNER") && (a.Email == email) {
 			ownerEmail = true
 			break
 		}
 	}
+
 	assert.True(t, ownerEmail, "Identity email should match the impersonated account")
 }

@@ -3,18 +3,19 @@ package run
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tflint"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/tflint"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -57,7 +58,7 @@ func processErrorHooks(ctx context.Context, l log.Logger, hooks []config.ErrorHo
 	errorMessage := customMultierror.Error()
 
 	for _, curHook := range hooks {
-		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
+		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, terragruntOptions.TerraformCommand) {
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
@@ -151,7 +152,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	//
 	// resolves: https://github.com/gruntwork-io/terragrunt/issues/459
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
-	isCommandInHook := util.ListContainsElement(hook.Commands, terragruntOptions.TerraformCommand)
+	isCommandInHook := slices.Contains(hook.Commands, terragruntOptions.TerraformCommand)
 
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
 }

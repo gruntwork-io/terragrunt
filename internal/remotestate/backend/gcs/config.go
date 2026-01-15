@@ -12,7 +12,7 @@ import (
 
 	"maps"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 type Config map[string]any

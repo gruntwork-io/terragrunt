@@ -6,7 +6,9 @@ env:
   - TG_EXPERIMENTAL_ENGINE
 ---
 
-Enables usage of [Terragrunt IaC engines](/docs/features/engine).
+Enables the `iac-engine` experiment to use [Terragrunt IaC engines](/docs/features/engine).
+
+This flag is equivalent to using `--experiment iac-engine`. You can also enable this experiment using the environment variable `TG_EXPERIMENT=iac-engine`.
 
 IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
 

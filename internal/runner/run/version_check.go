@@ -10,10 +10,10 @@ import (
 	"encoding/hex"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-version"
 )
 
@@ -102,7 +102,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 
 		opts.TerraformVersion = terraformVersion
-		opts.TerraformImplementation = tfImplementation
+		opts.TofuImplementation = tfImplementation
 
 		return l, nil
 	}
@@ -117,7 +117,7 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 	versionCache.Put(ctx, cacheKey, cacheData)
 
 	opts.TerraformVersion = terraformVersion
-	opts.TerraformImplementation = tfImplementation
+	opts.TofuImplementation = tfImplementation
 
 	return l, nil
 }
