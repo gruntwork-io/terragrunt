@@ -815,3 +815,18 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 }
+
+func TestTerragruntTelemetryTraces(t *testing.T) {
+	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
+
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hcl format --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// check that produced output has span traces
+	assert.Contains(t, output, "\"SpanKind\":1")
+	assert.Contains(t, output, "\"Parent\"")
+}

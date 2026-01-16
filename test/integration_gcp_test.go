@@ -5,6 +5,7 @@ package test_test
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -263,8 +264,22 @@ func TestGcpWorksWithBackend(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		testFixtureGcsPath,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		config.DefaultTerragruntConfigPath,
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s",
+			tmpTerragruntGCSConfigPath,
+			testFixtureGcsPath,
+		),
+	)
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -287,8 +302,22 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 	location := terraformRemoteStateGcpRegion
 	createGCSBucket(t, project, location, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsByoBucketPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsByoBucketPath))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		testFixtureGcsByoBucketPath,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		config.DefaultTerragruntConfigPath,
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s",
+			tmpTerragruntGCSConfigPath,
+			testFixtureGcsByoBucketPath,
+		),
+	)
 
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
@@ -302,9 +331,24 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoBucket, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		testFixtureGcsNoBucket,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		config.DefaultTerragruntConfigPath,
+	)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
+			tmpTerragruntGCSConfigPath,
+			testFixtureGcsNoBucket,
+		),
+	)
 	require.Error(t, err)
+
 	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
 
@@ -320,7 +364,14 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoPrefix, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoPrefix))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
+			tmpTerragruntGCSConfigPath,
+			testFixtureGcsNoPrefix,
+		),
+	)
 	require.NoError(t, err)
 }
 
@@ -332,23 +383,36 @@ func TestGcpParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
+
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
-			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)),
+		)
+
 		require.NoError(t, err)
 	}
 
 	tmpTerragruntConfigFile := filepath.Join(tmpEnvPath, "root.hcl")
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsParallelStateInit, project, terraformRemoteStateGcpRegion, gcsBucketName, "root.hcl")
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
+		t,
+		testFixtureGcsParallelStateInit,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+		"root.hcl",
+	)
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+tmpEnvPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all --backend-bootstrap --non-interactive --working-dir "+tmpEnvPath+" -- apply",
+	)
 }
 
 func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
@@ -490,9 +554,7 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 
 	var actualLabels = make(map[string]string)
 
-	for key, value := range attrs.Labels {
-		actualLabels[key] = value
-	}
+	maps.Copy(actualLabels, attrs.Labels)
 
 	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
 }
