@@ -6,19 +6,7 @@ type: string
 
 import { Aside } from '@astrojs/starlight/components';
 
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the `--filters-file` flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt find --experiment filter-flag --filters-file custom-filters.txt
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-</Aside>
-
-The `--filters-file` flag allows you to specify a custom file path containing filter queries. By default, Terragrunt automatically reads filter queries from `.terragrunt-filters` in the working directory when the `filter-flag` experiment is enabled. Use this flag to specify a different file path.
+The `--filters-file` flag allows you to specify a custom file path containing filter queries. By default, Terragrunt automatically reads filter queries from any `.terragrunt-filters` file in the current working directory. Use this flag to specify a different file path.
 
 ## Usage
 
@@ -31,18 +19,6 @@ terragrunt find --filters-file /path/to/filters.txt
 
 # Use with run --all
 terragrunt run --all --filters-file prod-filters.txt -- plan
-```
-
-## Default Behavior
-
-When the `filter-flag` experiment is enabled, Terragrunt automatically reads filter queries from `.terragrunt-filters` in the working directory. You only need to use `--filters-file` if you want to use a different file path.
-
-```bash
-# Automatically reads .terragrunt-filters (no flag needed)
-terragrunt find --experiment filter-flag
-
-# Explicitly specify the default file (same as above)
-terragrunt find --experiment filter-flag --filters-file .terragrunt-filters
 ```
 
 ## File Format

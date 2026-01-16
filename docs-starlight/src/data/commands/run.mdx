@@ -94,16 +94,6 @@ The `run` command also supports the following flags that can be used to drive ru
 
 ## Filtering Units
 
-<Aside type="tip" title="Experimental Feature">
-This feature requires the `filter-flag` experiment to be enabled. Use `--experiment filter-flag` to enable it:
-
-```bash
-terragrunt run --all --experiment filter-flag --filter 'prod/**' -- plan
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-</Aside>
-
 The `run` command supports the `--filter` flag to target specific units using a flexible query language. This is particularly useful when running commands across multiple units with `--all`.
 
 ### Running Affected Components
