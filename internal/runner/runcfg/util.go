@@ -53,8 +53,8 @@ func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (str
 	switch {
 	case opts.Source != "":
 		return opts.Source, nil
-	case cfg != nil && cfg.Terraform != nil && cfg.Terraform.Source != nil:
-		return AdjustSourceWithMap(opts.SourceMap, *cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
+	case cfg != nil && cfg.Terraform.Source != "":
+		return AdjustSourceWithMap(opts.SourceMap, cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
 	default:
 		return "", nil
 	}
@@ -175,18 +175,11 @@ func ShouldCopyLockFile(cfg *TerraformConfig) bool {
 		return true // Default to copying
 	}
 
-	if cfg.CopyTerraformLockFile != nil {
-		return *cfg.CopyTerraformLockFile
-	}
-
-	return true // Default to copying
+	return cfg.CopyTerraformLockFile
 }
 
 // EngineOptions fetches engine options from the RunConfig.
 func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
-	if cfg.Engine == nil {
-		return nil, nil
-	}
 	// in case of Meta is null, set empty meta
 	meta := map[string]any{}
 
@@ -199,14 +192,8 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 		meta = parsedMeta
 	}
 
-	var version, engineType string
-	if cfg.Engine.Version != nil {
-		version = *cfg.Engine.Version
-	}
-
-	if cfg.Engine.Type != nil {
-		engineType = *cfg.Engine.Type
-	}
+	version := cfg.Engine.Version
+	engineType := cfg.Engine.Type
 	// if type is null or empty, set to "rpc"
 	if len(engineType) == 0 {
 		engineType = DefaultEngineType
@@ -227,10 +214,6 @@ func (cfg *RunConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 
 // ErrorsConfig fetches errors configuration from the RunConfig.
 func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
-	if cfg.Errors == nil {
-		return nil, nil
-	}
-
 	result := &options.ErrorsConfig{
 		Retry:  make(map[string]*options.RetryConfig),
 		Ignore: make(map[string]*options.IgnoreConfig),

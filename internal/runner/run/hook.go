@@ -71,16 +71,6 @@ func processErrorHooks(
 			}, func(ctx context.Context) error {
 				l.Infof("Executing hook: %s", curHook.Name)
 
-				workingDir := ""
-				if curHook.WorkingDir != nil {
-					workingDir = *curHook.WorkingDir
-				}
-
-				var suppressStdout bool
-				if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
-					suppressStdout = true
-				}
-
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
 				opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
@@ -89,8 +79,8 @@ func processErrorHooks(
 					ctx,
 					l,
 					opts,
-					workingDir,
-					suppressStdout,
+					curHook.WorkingDir,
+					curHook.SuppressStdout,
 					false,
 					actionToExecute, actionParams...,
 				)
@@ -129,7 +119,7 @@ func ProcessHooks(
 	l.Debugf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
-		if curHook.If != nil && !*curHook.If {
+		if !curHook.If {
 			l.Debugf("Skipping hook: %s", curHook.Name)
 			continue
 		}
@@ -165,7 +155,7 @@ func shouldRunHook(
 	hasErrors := previousExecErrors.ErrorOrNil() != nil
 	isCommandInHook := slices.Contains(hook.Commands, opts.TerraformCommand)
 
-	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
+	return isCommandInHook && (!hasErrors || hook.RunOnError)
 }
 
 func runHook(
@@ -177,15 +167,8 @@ func runHook(
 ) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
-	workingDir := ""
-	if curHook.WorkingDir != nil {
-		workingDir = *curHook.WorkingDir
-	}
-
-	var suppressStdout bool
-	if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
-		suppressStdout = true
-	}
+	workingDir := curHook.WorkingDir
+	suppressStdout := curHook.SuppressStdout
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]

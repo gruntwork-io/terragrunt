@@ -345,7 +345,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		config := runcfg.RunConfig{
-			Terraform: &runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
+			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
 		}
 		l := logger.CreateLogger()
 		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
@@ -398,21 +398,12 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 		}
 	}
 
-	var requiredVarFilesPtr, optionalVarFilesPtr *[]string
-	if len(requiredVarFiles) > 0 {
-		requiredVarFilesPtr = &requiredVarFiles
-	}
-
-	if len(optionalVarFiles) > 0 {
-		optionalVarFilesPtr = &optionalVarFiles
-	}
-
 	a := runcfg.TerraformExtraArguments{
 		Name:             "test",
-		Arguments:        &arguments,
+		Arguments:        arguments,
 		Commands:         commands,
-		RequiredVarFiles: requiredVarFilesPtr,
-		OptionalVarFiles: optionalVarFilesPtr,
+		RequiredVarFiles: requiredVarFiles,
+		OptionalVarFiles: optionalVarFiles,
 		VarFiles:         varFiles,
 	}
 
@@ -502,7 +493,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 			args: args{
 				args: []string{"init"},
 				terraformConfig: &runcfg.TerraformConfig{
-					CopyTerraformLockFile: &[]bool{true}[0],
+					CopyTerraformLockFile: []bool{true}[0],
 				},
 			},
 			want: true,
@@ -512,7 +503,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 			args: args{
 				args: []string{"init"},
 				terraformConfig: &runcfg.TerraformConfig{
-					CopyTerraformLockFile: &[]bool{false}[0],
+					CopyTerraformLockFile: []bool{false}[0],
 				},
 			},
 			want: false,

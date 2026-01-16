@@ -258,7 +258,7 @@ func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
 			continue
 		}
 
-		if unitConfig.RemoteState == nil || unitConfig.RemoteState.BackendName == "local" {
+		if unitConfig.RemoteState == nil || (unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
 			l.Warnf(
 				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
 			)
@@ -910,7 +910,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 			unit := r.Stack.Units[i]
 			if len(unit.Dependencies()) > 0 {
 				cfg := unit.Config()
-				if cfg != nil && cfg.Dependencies != nil {
+				if cfg != nil && len(cfg.Dependencies.Paths) > 0 {
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", cfg.Dependencies.Paths)
 				} else {
 					dependenciesMsg = " contains dependencies and"
