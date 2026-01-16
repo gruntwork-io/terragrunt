@@ -298,9 +298,17 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		// Cache miss - parse and cache
-		l, depOpts, err := cloneTerragruntOptionsForDependency(pctx, l, depPath)
+
+		// Avoid using this cloned logger to preserve the logging context of the dependent unit
+		//
+		// e.g. [dependent] Reading Terragrunt config file at /path/to/dependency
+		_, depOpts, err := cloneTerragruntOptionsForDependency(pctx, l, depPath)
 		if err != nil {
 			return nil, err
+		}
+
+		if !pctx.SkipOutputsResolution {
+			l.Debugf("Reading Terragrunt config file at %s", depPath)
 		}
 
 		depCtx := pctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithDiagnosticsSuppressed(l)

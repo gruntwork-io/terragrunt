@@ -528,11 +528,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			u.Execution.TerragruntOptions.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
+			// Use the unit's logger if populated, which has the proper context for logging.
+			unitLogger := u.Execution.Logger
+			if unitLogger == nil {
+				unitLogger = l
+			}
+
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
-				l,
+				unitLogger,
 				u.Execution.TerragruntOptions,
-				config.DefaultParserOptions(l, u.Execution.TerragruntOptions),
+				config.DefaultParserOptions(unitLogger, u.Execution.TerragruntOptions),
 			)
 			if err != nil {
 				return err
