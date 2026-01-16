@@ -550,8 +550,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 				ctx,
 				l,
-				opts,
-				externalcmd.NewProvider(l, opts),
+				u.Execution.TerragruntOptions,
+				externalcmd.NewProvider(l, u.Execution.TerragruntOptions),
 			); err != nil {
 				return err
 			}
@@ -586,7 +586,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	err := controller.Run(ctx, l)
 
-	// Emit report entries for early exit units after controller completes
+	// Emit report entries for early exit and failed units after controller completes
 	if r.Stack.Execution != nil && r.Stack.Execution.Report != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
@@ -595,10 +595,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 
 		for _, entry := range r.queue.Entries {
-			if entry.Status == queue.StatusEarlyExit {
+			// Handle both early exit and failed units to ensure they're in the report
+			if entry.Status == queue.StatusEarlyExit || entry.Status == queue.StatusFailed {
 				unit := r.Stack.FindUnitByPath(entry.Component.Path())
 				if unit == nil {
-					l.Warnf("Could not find unit for early exit entry: %s", entry.Component.Path())
+					l.Warnf("Could not find unit for entry: %s", entry.Component.Path())
 					continue
 				}
 
@@ -613,7 +614,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
-					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, reportErr)
 					continue
 				}
 
@@ -634,16 +635,38 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 				}
 
-				endOpts := []report.EndOption{
-					report.WithResult(report.ResultEarlyExit),
-					report.WithReason(report.ReasonAncestorError),
-				}
-				if failedAncestor != "" {
-					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
-				}
+				switch entry.Status {
+				case queue.StatusEarlyExit:
+					endOpts := []report.EndOption{
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonAncestorError),
+					}
+					if failedAncestor != "" {
+						endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
+					}
 
-				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
-					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+					if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
+						l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+					}
+				case queue.StatusFailed:
+					// For failed units, check if they failed due to dependency errors
+					// If so, mark them as early exit; otherwise mark as failed
+					endOpts := []report.EndOption{
+						report.WithResult(report.ResultFailed),
+						report.WithReason(report.ReasonRunError),
+					}
+					if failedAncestor != "" {
+						// If a dependency failed, treat this as early exit due to ancestor error
+						endOpts = []report.EndOption{
+							report.WithResult(report.ResultEarlyExit),
+							report.WithReason(report.ReasonAncestorError),
+							report.WithCauseAncestorExit(failedAncestor),
+						}
+					}
+
+					if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
+						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
+					}
 				}
 			}
 		}

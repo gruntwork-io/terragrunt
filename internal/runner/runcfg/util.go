@@ -1,6 +1,8 @@
 package runcfg
 
 import (
+	"fmt"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -51,17 +53,30 @@ func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (str
 	case opts.Source != "":
 		return opts.Source, nil
 	case cfg != nil && cfg.Terraform != nil && cfg.Terraform.Source != nil:
-		return adjustSourceWithMap(opts.SourceMap, *cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
+		return AdjustSourceWithMap(opts.SourceMap, *cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
 	default:
 		return "", nil
 	}
 }
 
-// adjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
+// AdjustSourceWithMap implements the --terragrunt-source-map feature. This function will check if the URL portion of a
 // terraform source matches any entry in the provided source map and if it does, replace it with the configured source
 // in the map. Note that this only performs literal matches with the URL portion.
-func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
-	// Skip source map processing if no source map was provided
+//
+// Example:
+// Suppose terragrunt is called with:
+//
+//	--terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=/path/to/local-modules
+//
+// and the terraform source is:
+//
+//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixtures/source-map/modules/app?ref=master
+//
+// This function will take that source and transform it to:
+//
+//	/path/to/local-modules//fixtures/source-map/modules/app
+func AdjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
+	// Skip logic if source map is not configured
 	if len(sourceMap) == 0 {
 		return source, nil
 	}
@@ -69,25 +84,88 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
 	moduleURL, moduleSubdir := getter.SourceDirSubdir(source)
 
-	// Check if there is an entry to replace the URL portion of the source
-	mappedURL, hasMappedURL := sourceMap[moduleURL]
-	if !hasMappedURL {
+	// if both URL and subdir are missing, something went terribly wrong
+	if moduleURL == "" && moduleSubdir == "" {
+		return "", errors.New(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
+	}
+
+	// If module URL is missing, return the source as is as it will not match anything in the map.
+	if moduleURL == "" {
 		return source, nil
 	}
 
-	// Since there is a source mapping, replace the module URL portion with the entry
-	moduleSubdir = filepath.Join(mappedURL, moduleSubdir)
-
-	if strings.HasPrefix(moduleSubdir, filepath.VolumeName(moduleSubdir)) {
-		return moduleSubdir, nil
+	// Before looking up in sourceMap, make sure to drop any query parameters.
+	moduleURLParsed, err := url.Parse(moduleURL)
+	if err != nil {
+		return source, err
 	}
 
-	// Check for relative path and if relative, assume it is relative to the terragrunt config path
-	if !filepath.IsAbs(moduleSubdir) {
-		moduleSubdir = filepath.Join(filepath.Dir(modulePath), moduleSubdir)
+	moduleURLParsed.RawQuery = ""
+	moduleURLQuery := moduleURLParsed.String()
+
+	// Check if there is an entry to replace the URL portion in the map. Return the source as is if there is no entry in
+	// the map.
+	sourcePath, hasKey := sourceMap[moduleURLQuery]
+	if !hasKey {
+		return source, nil
 	}
 
-	return moduleSubdir, nil
+	// Since there is a source mapping, replace the module URL portion with the entry in the map, and join with the
+	// subdir.
+	// If subdir is missing, check if we can obtain a valid module name from the URL portion.
+	if moduleSubdir == "" {
+		moduleSubdirFromURL, err := GetModulePathFromSourceURL(moduleURL)
+		if err != nil {
+			return moduleSubdirFromURL, err
+		}
+
+		moduleSubdir = moduleSubdirFromURL
+	}
+
+	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
+}
+
+// InvalidSourceURLWithMapError is an error type for invalid source URLs when using source map.
+type InvalidSourceURLWithMapError struct {
+	ModulePath      string
+	ModuleSourceURL string
+}
+
+func (err InvalidSourceURLWithMapError) Error() string {
+	return fmt.Sprintf("The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
+}
+
+// ParsingModulePathError is an error type for when module path cannot be parsed from source URL.
+type ParsingModulePathError struct {
+	ModuleSourceURL string
+}
+
+func (err ParsingModulePathError) Error() string {
+	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceURL)
+}
+
+// Regexp for module name extraction. It assumes that the query string has already been stripped off.
+// Then we simply capture anything after the last slash, and before `.` or end of string.
+var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
+
+// GetModulePathFromSourceURL parses sourceUrl not containing '//', and attempt to obtain a module path.
+// Example:
+//
+// sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
+// will return "module-name".
+func GetModulePathFromSourceURL(sourceURL string) (string, error) {
+	// strip off the query string if present
+	sourceURL = strings.Split(sourceURL, "?")[0]
+
+	matches := moduleNameRegexp.FindStringSubmatch(sourceURL)
+
+	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	const matchedPats = 2
+	if len(matches) != matchedPats {
+		return "", errors.New(ParsingModulePathError{ModuleSourceURL: sourceURL})
+	}
+
+	return matches[1], nil
 }
 
 // ShouldCopyLockFile determines if the terraform lock file should be copied.
