@@ -62,18 +62,8 @@ func DownloadTerraformSource(
 
 	l.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
 
-	var includeInCopy, excludeFromCopy []string
-
-	if cfg.Terraform != nil && cfg.Terraform.IncludeInCopy != nil {
-		includeInCopy = *cfg.Terraform.IncludeInCopy
-	}
-
-	if cfg.Terraform != nil && cfg.Terraform.ExcludeFromCopy != nil {
-		excludeFromCopy = *cfg.Terraform.ExcludeFromCopy
-	}
-
 	// Always include the .tflint.hcl file, if it exists
-	includeInCopy = append(includeInCopy, tfLintConfig)
+	includeInCopy := append(cfg.Terraform.IncludeInCopy, tfLintConfig)
 
 	err = util.CopyFolderContents(
 		l,
@@ -81,7 +71,7 @@ func DownloadTerraformSource(
 		terraformSource.WorkingDir,
 		ModuleManifestName,
 		includeInCopy,
-		excludeFromCopy,
+		cfg.Terraform.ExcludeFromCopy,
 	)
 	if err != nil {
 		return nil, err
@@ -256,23 +246,15 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.Run
 
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
-				var includeInCopy, excludeFromCopy []string
-
-				if cfg.Terraform != nil && cfg.Terraform.IncludeInCopy != nil {
-					includeInCopy = *cfg.Terraform.IncludeInCopy
-				}
-
-				if cfg.Terraform != nil && cfg.Terraform.ExcludeFromCopy != nil {
-					excludeFromCopy = *cfg.Terraform.ExcludeFromCopy
-				}
-
 				client.Getters[getterName] = &FileCopyGetter{
-					IncludeInCopy:   includeInCopy,
-					ExcludeFromCopy: excludeFromCopy,
+					IncludeInCopy:   cfg.Terraform.IncludeInCopy,
+					ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
 				}
-			} else {
-				client.Getters[getterName] = getterValue
+
+				continue
 			}
+
+			client.Getters[getterName] = getterValue
 		}
 
 		// Load in custom getters that are only supported in Terragrunt

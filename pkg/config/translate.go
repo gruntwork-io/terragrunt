@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,36 +15,59 @@ func (cfg *TerragruntConfig) ToRunConfig(l log.Logger) *runcfg.RunConfig {
 		return nil
 	}
 
-	return &runcfg.RunConfig{
+	runCfg := &runcfg.RunConfig{
 		Terraform:                   translateTerraformConfig(cfg.Terraform, l),
-		RemoteState:                 cfg.RemoteState,
+		RemoteState:                 translateRemoteState(cfg.RemoteState),
 		Exclude:                     translateExcludeConfig(cfg.Exclude),
-		GenerateConfigs:             cfg.GenerateConfigs,
-		Inputs:                      cfg.Inputs,
+		GenerateConfigs:             translateGenerateConfigs(cfg.GenerateConfigs),
+		Inputs:                      translateInputs(cfg.Inputs),
 		IAMRole:                     cfg.GetIAMRoleOptions(),
 		DownloadDir:                 cfg.DownloadDir,
 		TerraformBinary:             cfg.TerraformBinary,
 		TerraformVersionConstraint:  cfg.TerraformVersionConstraint,
 		TerragruntVersionConstraint: cfg.TerragruntVersionConstraint,
-		PreventDestroy:              cfg.PreventDestroy,
-		ProcessedIncludes:           translateIncludeConfigs(cfg.ProcessedIncludes),
+		PreventDestroy:              translatePreventDestroy(cfg.PreventDestroy),
+		ProcessedIncludes:           translateProcessedIncludes(cfg.ProcessedIncludes),
 		Dependencies:                translateModuleDependencies(cfg.Dependencies),
 		Engine:                      translateEngineConfig(cfg.Engine),
 		Errors:                      translateErrorsConfig(cfg.Errors),
 	}
+
+	return runCfg
 }
 
 // translateTerraformConfig converts config.TerraformConfig to runcfg.TerraformConfig.
-func translateTerraformConfig(tf *TerraformConfig, l log.Logger) *runcfg.TerraformConfig {
+func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.TerraformConfig {
 	if tf == nil {
-		return nil
+		return runcfg.TerraformConfig{}
 	}
 
-	return &runcfg.TerraformConfig{
-		Source:                tf.Source,
-		IncludeInCopy:         tf.IncludeInCopy,
-		ExcludeFromCopy:       tf.ExcludeFromCopy,
-		CopyTerraformLockFile: tf.CopyTerraformLockFile,
+	var source string
+	if tf.Source != nil {
+		source = *tf.Source
+	}
+
+	var includeInCopy []string
+	if tf.IncludeInCopy != nil {
+		includeInCopy = *tf.IncludeInCopy
+	}
+
+	var excludeFromCopy []string
+	if tf.ExcludeFromCopy != nil {
+		excludeFromCopy = *tf.ExcludeFromCopy
+	}
+
+	// Default to true (copy) when not set, as per original behavior
+	copyTerraformLockFile := true
+	if tf.CopyTerraformLockFile != nil {
+		copyTerraformLockFile = *tf.CopyTerraformLockFile
+	}
+
+	return runcfg.TerraformConfig{
+		Source:                source,
+		IncludeInCopy:         includeInCopy,
+		ExcludeFromCopy:       excludeFromCopy,
+		CopyTerraformLockFile: copyTerraformLockFile,
 		ExtraArgs:             translateExtraArgs(tf.ExtraArgs, l),
 		BeforeHooks:           translateHooks(tf.BeforeHooks),
 		AfterHooks:            translateHooks(tf.AfterHooks),
@@ -59,14 +84,35 @@ func translateExtraArgs(args []TerraformExtraArguments, l log.Logger) []runcfg.T
 	result := make([]runcfg.TerraformExtraArguments, len(args))
 	for i, arg := range args {
 		varFiles := computeVarFiles(arg.RequiredVarFiles, arg.OptionalVarFiles, l)
+
+		var arguments []string
+		if arg.Arguments != nil {
+			arguments = *arg.Arguments
+		}
+
+		var requiredVarFiles []string
+		if arg.RequiredVarFiles != nil {
+			requiredVarFiles = *arg.RequiredVarFiles
+		}
+
+		var optionalVarFiles []string
+		if arg.OptionalVarFiles != nil {
+			optionalVarFiles = *arg.OptionalVarFiles
+		}
+
+		var envVars map[string]string
+		if arg.EnvVars != nil {
+			envVars = *arg.EnvVars
+		}
+
 		result[i] = runcfg.TerraformExtraArguments{
 			Name:             arg.Name,
 			Commands:         arg.Commands,
-			Arguments:        arg.Arguments,
-			RequiredVarFiles: arg.RequiredVarFiles,
-			OptionalVarFiles: arg.OptionalVarFiles,
+			Arguments:        arguments,
+			RequiredVarFiles: requiredVarFiles,
+			OptionalVarFiles: optionalVarFiles,
 			VarFiles:         varFiles,
-			EnvVars:          arg.EnvVars,
+			EnvVars:          envVars,
 		}
 	}
 
@@ -106,14 +152,34 @@ func translateHooks(hooks []Hook) []runcfg.Hook {
 
 	result := make([]runcfg.Hook, len(hooks))
 	for i, hook := range hooks {
+		var workingDir string
+		if hook.WorkingDir != nil {
+			workingDir = *hook.WorkingDir
+		}
+
+		var runOnError bool
+		if hook.RunOnError != nil {
+			runOnError = *hook.RunOnError
+		}
+
+		var ifCondition bool
+		if hook.If != nil {
+			ifCondition = *hook.If
+		}
+
+		var suppressStdout bool
+		if hook.SuppressStdout != nil {
+			suppressStdout = *hook.SuppressStdout
+		}
+
 		result[i] = runcfg.Hook{
 			Name:           hook.Name,
 			Commands:       hook.Commands,
 			Execute:        hook.Execute,
-			WorkingDir:     hook.WorkingDir,
-			RunOnError:     hook.RunOnError,
-			If:             hook.If,
-			SuppressStdout: hook.SuppressStdout,
+			WorkingDir:     workingDir,
+			RunOnError:     runOnError,
+			If:             ifCondition,
+			SuppressStdout: suppressStdout,
 		}
 	}
 
@@ -128,30 +194,88 @@ func translateErrorHooks(hooks []ErrorHook) []runcfg.ErrorHook {
 
 	result := make([]runcfg.ErrorHook, len(hooks))
 	for i, hook := range hooks {
+		var workingDir string
+		if hook.WorkingDir != nil {
+			workingDir = *hook.WorkingDir
+		}
+
+		var suppressStdout bool
+		if hook.SuppressStdout != nil {
+			suppressStdout = *hook.SuppressStdout
+		}
+
 		result[i] = runcfg.ErrorHook{
 			Name:           hook.Name,
 			Commands:       hook.Commands,
 			Execute:        hook.Execute,
 			OnErrors:       hook.OnErrors,
-			WorkingDir:     hook.WorkingDir,
-			SuppressStdout: hook.SuppressStdout,
+			WorkingDir:     workingDir,
+			SuppressStdout: suppressStdout,
 		}
 	}
 
 	return result
 }
 
-// translateExcludeConfig converts *ExcludeConfig to *runcfg.ExcludeConfig.
-func translateExcludeConfig(exclude *ExcludeConfig) *runcfg.ExcludeConfig {
-	if exclude == nil {
-		return nil
+// translateGenerateConfigs converts map[string]codegen.GenerateConfig to map[string]codegen.GenerateConfig.
+// Returns an empty map if the input is nil.
+func translateGenerateConfigs(generateConfigs map[string]codegen.GenerateConfig) map[string]codegen.GenerateConfig {
+	if generateConfigs == nil {
+		return make(map[string]codegen.GenerateConfig)
 	}
 
-	return &runcfg.ExcludeConfig{
+	return generateConfigs
+}
+
+// translateInputs converts map[string]any to map[string]any.
+// Returns an empty map if the input is nil.
+func translateInputs(inputs map[string]any) map[string]any {
+	if inputs == nil {
+		return make(map[string]any)
+	}
+
+	return inputs
+}
+
+// translatePreventDestroy converts *bool to bool.
+func translatePreventDestroy(preventDestroy *bool) bool {
+	if preventDestroy == nil {
+		return false
+	}
+
+	return *preventDestroy
+}
+
+// translateRemoteState converts *remotestate.RemoteState to remotestate.RemoteState.
+func translateRemoteState(remoteState *remotestate.RemoteState) remotestate.RemoteState {
+	if remoteState == nil {
+		return remotestate.RemoteState{}
+	}
+
+	return *remoteState
+}
+
+// translateExcludeConfig converts *ExcludeConfig to runcfg.ExcludeConfig.
+func translateExcludeConfig(exclude *ExcludeConfig) runcfg.ExcludeConfig {
+	if exclude == nil {
+		return runcfg.ExcludeConfig{}
+	}
+
+	var excludeDependencies bool
+	if exclude.ExcludeDependencies != nil {
+		excludeDependencies = *exclude.ExcludeDependencies
+	}
+
+	var noRun bool
+	if exclude.NoRun != nil {
+		noRun = *exclude.NoRun
+	}
+
+	return runcfg.ExcludeConfig{
 		If:                  exclude.If,
 		Actions:             exclude.Actions,
-		ExcludeDependencies: exclude.ExcludeDependencies,
-		NoRun:               exclude.NoRun,
+		ExcludeDependencies: excludeDependencies,
+		NoRun:               noRun,
 	}
 }
 
@@ -163,49 +287,80 @@ func translateIncludeConfigs(includes IncludeConfigsMap) map[string]runcfg.Inclu
 
 	result := make(map[string]runcfg.IncludeConfig, len(includes))
 	for name, inc := range includes {
+		var expose bool
+		if inc.Expose != nil {
+			expose = *inc.Expose
+		}
+
+		var mergeStrategy string
+		if inc.MergeStrategy != nil {
+			mergeStrategy = *inc.MergeStrategy
+		}
+
 		result[name] = runcfg.IncludeConfig{
 			Name:          inc.Name,
 			Path:          inc.Path,
-			Expose:        inc.Expose,
-			MergeStrategy: inc.MergeStrategy,
+			Expose:        expose,
+			MergeStrategy: mergeStrategy,
 		}
 	}
 
 	return result
 }
 
-// translateModuleDependencies converts *ModuleDependencies to *runcfg.ModuleDependencies.
-func translateModuleDependencies(deps *ModuleDependencies) *runcfg.ModuleDependencies {
-	if deps == nil {
-		return nil
+// translateProcessedIncludes converts IncludeConfigsMap to map[string]runcfg.IncludeConfig.
+// Returns an empty map if the input is nil.
+func translateProcessedIncludes(includes IncludeConfigsMap) map[string]runcfg.IncludeConfig {
+	result := translateIncludeConfigs(includes)
+	if result == nil {
+		return make(map[string]runcfg.IncludeConfig)
 	}
 
-	return &runcfg.ModuleDependencies{
+	return result
+}
+
+// translateModuleDependencies converts *ModuleDependencies to runcfg.ModuleDependencies.
+func translateModuleDependencies(deps *ModuleDependencies) runcfg.ModuleDependencies {
+	if deps == nil {
+		return runcfg.ModuleDependencies{}
+	}
+
+	return runcfg.ModuleDependencies{
 		Paths: deps.Paths,
 	}
 }
 
-// translateEngineConfig converts *EngineConfig to *runcfg.EngineConfig.
-func translateEngineConfig(engine *EngineConfig) *runcfg.EngineConfig {
+// translateEngineConfig converts *EngineConfig to runcfg.EngineConfig.
+func translateEngineConfig(engine *EngineConfig) runcfg.EngineConfig {
 	if engine == nil {
-		return nil
+		return runcfg.EngineConfig{}
 	}
 
-	return &runcfg.EngineConfig{
+	var version string
+	if engine.Version != nil {
+		version = *engine.Version
+	}
+
+	var engineType string
+	if engine.Type != nil {
+		engineType = *engine.Type
+	}
+
+	return runcfg.EngineConfig{
 		Source:  engine.Source,
-		Version: engine.Version,
-		Type:    engine.Type,
+		Version: version,
+		Type:    engineType,
 		Meta:    engine.Meta,
 	}
 }
 
-// translateErrorsConfig converts *ErrorsConfig to *runcfg.ErrorsConfig.
-func translateErrorsConfig(errors *ErrorsConfig) *runcfg.ErrorsConfig {
+// translateErrorsConfig converts *ErrorsConfig to runcfg.ErrorsConfig.
+func translateErrorsConfig(errors *ErrorsConfig) runcfg.ErrorsConfig {
 	if errors == nil {
-		return nil
+		return runcfg.ErrorsConfig{}
 	}
 
-	return &runcfg.ErrorsConfig{
+	return runcfg.ErrorsConfig{
 		Retry:  translateRetryBlocks(errors.Retry),
 		Ignore: translateIgnoreBlocks(errors.Ignore),
 	}

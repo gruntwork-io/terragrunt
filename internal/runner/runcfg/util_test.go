@@ -249,8 +249,8 @@ func TestGetTerraformSourceURL(t *testing.T) {
 				SourceMap: map[string]string{},
 			},
 			cfg: &runcfg.RunConfig{
-				Terraform: &runcfg.TerraformConfig{
-					Source: stringPtr("git::ssh://git@github.com/org/other-repo.git"),
+				Terraform: runcfg.TerraformConfig{
+					Source: "git::ssh://git@github.com/org/other-repo.git",
 				},
 			},
 			expectedResult: "git::ssh://git@github.com/org/repo.git",
@@ -266,8 +266,8 @@ func TestGetTerraformSourceURL(t *testing.T) {
 				OriginalTerragruntConfigPath: "/path/to/config.hcl",
 			},
 			cfg: &runcfg.RunConfig{
-				Terraform: &runcfg.TerraformConfig{
-					Source: stringPtr("git::ssh://git@github.com/org/repo.git//module?ref=master"),
+				Terraform: runcfg.TerraformConfig{
+					Source: "git::ssh://git@github.com/org/repo.git//module?ref=master",
 				},
 			},
 			expectedResult: "/local/path//module",
@@ -279,9 +279,7 @@ func TestGetTerraformSourceURL(t *testing.T) {
 				Source:    "",
 				SourceMap: map[string]string{},
 			},
-			cfg: &runcfg.RunConfig{
-				Terraform: nil,
-			},
+			cfg:            &runcfg.RunConfig{},
 			expectedResult: "",
 			expectedError:  "",
 		},
@@ -291,21 +289,7 @@ func TestGetTerraformSourceURL(t *testing.T) {
 				Source:    "",
 				SourceMap: map[string]string{},
 			},
-			cfg:            &runcfg.RunConfig{Terraform: nil},
-			expectedResult: "",
-			expectedError:  "",
-		},
-		{
-			name: "nil source in terraform config returns empty string",
-			opts: &options.TerragruntOptions{
-				Source:    "",
-				SourceMap: map[string]string{},
-			},
-			cfg: &runcfg.RunConfig{
-				Terraform: &runcfg.TerraformConfig{
-					Source: nil,
-				},
-			},
+			cfg:            &runcfg.RunConfig{},
 			expectedResult: "",
 			expectedError:  "",
 		},
@@ -353,9 +337,4 @@ func TestParsingModulePathError(t *testing.T) {
 	errorMsg := err.Error()
 	assert.Contains(t, errorMsg, "git::invalid-url")
 	assert.Contains(t, errorMsg, "Unable to obtain the module path")
-}
-
-// Helper function to create string pointer
-func stringPtr(s string) *string {
-	return &s
 }

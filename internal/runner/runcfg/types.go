@@ -17,26 +17,16 @@ import (
 // RunConfig contains all configuration data needed to execute terragrunt commands.
 // This is the primary configuration struct passed to runner packages.
 type RunConfig struct {
-	// PreventDestroy prevents terraform destroy from running
-	PreventDestroy *bool
 	// RemoteState contains remote state backend configuration
-	RemoteState *remotestate.RemoteState
-	// Exclude contains exclusion rules
-	Exclude *ExcludeConfig
+	RemoteState remotestate.RemoteState
+	// ProcessedIncludes contains processed include configurations
+	ProcessedIncludes map[string]IncludeConfig
 	// GenerateConfigs contains code generation configurations
 	GenerateConfigs map[string]codegen.GenerateConfig
 	// Inputs contains input variables to pass to terraform
 	Inputs map[string]any
-	// Dependencies contains paths to dependent modules
-	Dependencies *ModuleDependencies
-	// Terraform contains terraform-specific settings
-	Terraform *TerraformConfig
 	// Engine contains engine-specific settings
-	Engine *EngineConfig
-	// Errors contains error handling configuration
-	Errors *ErrorsConfig
-	// ProcessedIncludes contains processed include configurations
-	ProcessedIncludes map[string]IncludeConfig
+	Engine EngineConfig
 	// DownloadDir is the custom download directory for terraform source
 	DownloadDir string
 	// TerragruntVersionConstraint specifies version constraints for terragrunt
@@ -47,21 +37,28 @@ type RunConfig struct {
 	TerraformBinary string
 	// IAMRole contains IAM role options for AWS authentication
 	IAMRole options.IAMRoleOptions
+	// Errors contains error handling configuration
+	Errors ErrorsConfig
+	// Dependencies contains paths to dependent modules
+	Dependencies ModuleDependencies
+	// Terraform contains terraform-specific settings
+	Terraform TerraformConfig
+	// Exclude contains exclusion rules
+	Exclude ExcludeConfig
+	// PreventDestroy prevents terraform destroy from running
+	PreventDestroy bool
 }
 
 // TerraformConfig contains terraform-specific settings.
 type TerraformConfig struct {
 	// Source is the terraform source URL
-	Source *string
+	Source string
 
 	// IncludeInCopy lists files to include when copying source
-	IncludeInCopy *[]string
+	IncludeInCopy []string
 
 	// ExcludeFromCopy lists files to exclude when copying source
-	ExcludeFromCopy *[]string
-
-	// CopyTerraformLockFile specifies whether to copy the lock file
-	CopyTerraformLockFile *bool
+	ExcludeFromCopy []string
 
 	// ExtraArgs contains extra terraform CLI arguments
 	ExtraArgs []TerraformExtraArguments
@@ -74,32 +71,33 @@ type TerraformConfig struct {
 
 	// ErrorHooks are hooks to run on terraform errors
 	ErrorHooks []ErrorHook
+
+	// CopyTerraformLockFile specifies whether to copy the lock file
+	CopyTerraformLockFile bool
 }
 
 // Hook represents a lifecycle hook (before/after).
 type Hook struct {
 	// WorkingDir is the directory to run the hook in
-	WorkingDir *string
-	// RunOnError specifies whether to run on error
-	RunOnError *bool
-	// If is a condition for running the hook
-	If *bool
-	// SuppressStdout suppresses stdout output
-	SuppressStdout *bool
+	WorkingDir string
 	// Name is the hook identifier
 	Name string
 	// Commands are terraform commands that trigger this hook
 	Commands []string
 	// Execute is the command to execute
 	Execute []string
+	// RunOnError specifies whether to run on error
+	RunOnError bool
+	// If is a condition for running the hook
+	If bool
+	// SuppressStdout suppresses stdout output
+	SuppressStdout bool
 }
 
 // ErrorHook represents an error handling hook.
 type ErrorHook struct {
 	// WorkingDir is the directory to run the hook in
-	WorkingDir *string
-	// SuppressStdout suppresses stdout output
-	SuppressStdout *bool
+	WorkingDir string
 	// Name is the hook identifier
 	Name string
 	// Commands are terraform commands that trigger this hook
@@ -108,18 +106,20 @@ type ErrorHook struct {
 	Execute []string
 	// OnErrors are error patterns that trigger this hook
 	OnErrors []string
+	// SuppressStdout suppresses stdout output
+	SuppressStdout bool
 }
 
 // TerraformExtraArguments represents extra CLI arguments for terraform.
 type TerraformExtraArguments struct {
 	// Arguments are the extra CLI arguments
-	Arguments *[]string
+	Arguments []string
 	// RequiredVarFiles are required variable files
-	RequiredVarFiles *[]string
+	RequiredVarFiles []string
 	// OptionalVarFiles are optional variable files
-	OptionalVarFiles *[]string
+	OptionalVarFiles []string
 	// EnvVars are environment variables to set
-	EnvVars *map[string]string
+	EnvVars map[string]string
 	// Name is the identifier for this set of arguments
 	Name string
 	// VarFiles contains the computed list of variable files (required + existing optional files)
@@ -131,44 +131,36 @@ type TerraformExtraArguments struct {
 
 // ExcludeConfig contains exclusion rules.
 type ExcludeConfig struct {
-	// ExcludeDependencies specifies whether to exclude dependencies
-	ExcludeDependencies *bool
-	// NoRun specifies whether to skip running
-	NoRun *bool
 	// Actions are the actions to exclude
 	Actions []string
 	// If is the condition for exclusion
 	If bool
+	// NoRun specifies whether to skip running
+	NoRun bool
+	// ExcludeDependencies specifies whether to exclude dependencies
+	ExcludeDependencies bool
 }
 
 // IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
-	if e == nil {
-		return false
-	}
-
 	return IsActionListedInExclude(e.Actions, action)
 }
 
 // ShouldPreventRun returns true if execution should be prevented.
 func (e *ExcludeConfig) ShouldPreventRun(command string) bool {
-	if e == nil {
-		return false
-	}
-
-	return ShouldPreventRunBasedOnExclude(e.Actions, e.NoRun, e.If, command)
+	return ShouldPreventRunBasedOnExclude(e.Actions, &e.NoRun, e.If, command)
 }
 
 // IncludeConfig represents an included configuration.
 type IncludeConfig struct {
-	// Expose specifies whether to expose the include
-	Expose *bool
 	// MergeStrategy specifies how to merge the include
-	MergeStrategy *string
+	MergeStrategy string
 	// Name is the include name/label
 	Name string
 	// Path is the path to the included config
 	Path string
+	// Expose specifies whether to expose the include
+	Expose bool
 }
 
 // ModuleDependencies represents paths to dependent modules.
@@ -180,9 +172,9 @@ type ModuleDependencies struct {
 // EngineConfig represents engine-specific configuration.
 type EngineConfig struct {
 	// Version is the engine version
-	Version *string
+	Version string
 	// Type is the engine type
-	Type *string
+	Type string
 	// Meta contains engine metadata
 	Meta *cty.Value
 	// Source is the engine source URL

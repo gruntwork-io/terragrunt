@@ -199,11 +199,11 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 		}
 	}
 
-	if cfg.RemoteState != nil && cfg.RemoteState.Generate != nil {
+	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
 		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts); err != nil {
 			return err
 		}
-	} else if cfg.RemoteState != nil {
+	} else if cfg.RemoteState.Config != nil {
 		// We use else if here because we don't need to check the backend configuration is defined when the remote state
 		// block has a `generate` attribute configured.
 		if err := checkTerraformCodeDefinesBackend(opts, cfg.RemoteState.BackendName); err != nil {
@@ -227,13 +227,13 @@ func runTerragruntWithConfig(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	if cfg.Exclude != nil && cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+	if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
 		l.Infof("Early exit in terragrunt unit %s due to exclude block with no_run = true", opts.WorkingDir)
 
 		return nil
 	}
 
-	if cfg.Terraform != nil && cfg.Terraform.ExtraArgs != nil && len(cfg.Terraform.ExtraArgs) > 0 {
+	if len(cfg.Terraform.ExtraArgs) > 0 {
 		args := FilterTerraformExtraArgs(l, opts, cfg)
 
 		opts.InsertTerraformCliArgs(args...)
@@ -280,7 +280,7 @@ func runTerragruntWithConfig(
 		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs...)
 
 		var lockFileError error
-		if shouldCopyLockFileRunCfg(opts.TerraformCliArgs, cfg.Terraform) {
+		if shouldCopyLockFileRunCfg(opts.TerraformCliArgs, &cfg.Terraform) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -322,7 +322,7 @@ func ShouldCopyLockFile(args clihelper.Args, terraformConfig *runcfg.TerraformCo
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	// if the user has not set CopyTerraformLockFile or if they have explicitly defined it to true,
 	// then we should copy the lock file on init and providers lock as defined above and not do and early return here
-	if terraformConfig != nil && terraformConfig.CopyTerraformLockFile != nil && !*terraformConfig.CopyTerraformLockFile {
+	if terraformConfig != nil && !terraformConfig.CopyTerraformLockFile {
 		return false
 	}
 
@@ -511,7 +511,7 @@ func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remote
 	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+	if remoteState == nil || remoteState.Config == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -533,15 +533,15 @@ func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg
 				lastArg := opts.TerraformCliArgs.Last()
 				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) && util.IsFile(lastArg)
 
-				if arg.Arguments != nil {
+				if len(arg.Arguments) > 0 {
 					if skipVars {
-						for _, a := range *arg.Arguments {
+						for _, a := range arg.Arguments {
 							if !strings.HasPrefix(a, "-var") {
 								out = append(out, a)
 							}
 						}
 					} else {
-						out = append(out, *arg.Arguments...)
+						out = append(out, arg.Arguments...)
 					}
 				}
 
@@ -599,13 +599,13 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *options.TerragruntOptions, 
 	cmd := opts.TerraformCliArgs.First()
 
 	for _, arg := range cfg.Terraform.ExtraArgs {
-		if arg.EnvVars == nil {
+		if len(arg.EnvVars) == 0 {
 			continue
 		}
 
 		for _, argcmd := range arg.Commands {
 			if cmd == argcmd {
-				maps.Copy(out, *arg.EnvVars)
+				maps.Copy(out, arg.EnvVars)
 			}
 		}
 	}
@@ -635,13 +635,13 @@ func setTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions,
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
 func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	if cfg.RemoteState != nil {
+	if cfg.RemoteState.Config != nil {
 		if opts.BackendBootstrap {
 			if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
 				return err
 			}
 		} else {
-			remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, cfg.RemoteState, opts)
+			remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
 			if err != nil {
 				return err
 			}
@@ -701,7 +701,11 @@ func needsInitRunCfg(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		return true, nil
 	}
 
-	return remoteStateNeedsInit(ctx, l, cfg.RemoteState, opts)
+	if cfg.RemoteState.Config == nil {
+		return false, nil
+	}
+
+	return remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
 }
 
 // runTerraformInitRunCfg runs terraform init using runcfg types.
@@ -779,7 +783,7 @@ func checkProtectedModuleRunCfg(opts *options.TerragruntOptions, cfg *runcfg.Run
 		return nil
 	}
 
-	if cfg.PreventDestroy != nil && *cfg.PreventDestroy {
+	if cfg.PreventDestroy {
 		return errors.New(ModuleIsProtected{Opts: opts})
 	}
 
@@ -788,7 +792,7 @@ func checkProtectedModuleRunCfg(opts *options.TerragruntOptions, cfg *runcfg.Run
 
 // shouldCopyLockFileRunCfg checks if lock file should be copied using runcfg types.
 func shouldCopyLockFileRunCfg(args clihelper.Args, terraformConfig *runcfg.TerraformConfig) bool {
-	if terraformConfig != nil && terraformConfig.CopyTerraformLockFile != nil && !*terraformConfig.CopyTerraformLockFile {
+	if terraformConfig != nil && !terraformConfig.CopyTerraformLockFile {
 		return false
 	}
 

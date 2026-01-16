@@ -478,9 +478,8 @@ func createConfig(
 	opts.Env = env.Parse(os.Environ())
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
@@ -584,8 +583,8 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 		{
 			name: "Nil ExcludeFromCopy",
 			cfg: &runcfg.RunConfig{
-				Terraform: &runcfg.TerraformConfig{
-					ExcludeFromCopy: nil,
+				Terraform: runcfg.TerraformConfig{
+					ExcludeFromCopy: []string{},
 				},
 			},
 			expectedExcludeFiles: nil,
@@ -593,8 +592,8 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 		{
 			name: "Non-Nil ExcludeFromCopy",
 			cfg: &runcfg.RunConfig{
-				Terraform: &runcfg.TerraformConfig{
-					ExcludeFromCopy: &[]string{"*.tfstate", "excluded_dir/"},
+				Terraform: runcfg.TerraformConfig{
+					ExcludeFromCopy: []string{"*.tfstate", "excluded_dir/"},
 				},
 			},
 			expectedExcludeFiles: []string{"*.tfstate", "excluded_dir/"},
@@ -647,9 +646,8 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	opts.Experiments = experiment.NewExperiments()
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
@@ -692,9 +690,8 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
@@ -735,9 +732,8 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
@@ -777,9 +773,8 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
@@ -810,9 +805,8 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := &runcfg.RunConfig{
-		Terraform: &runcfg.TerraformConfig{
+		Terraform: runcfg.TerraformConfig{
 			ExtraArgs: []runcfg.TerraformExtraArguments{},
-			Source:    nil,
 		},
 	}
 
