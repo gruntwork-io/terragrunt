@@ -587,7 +587,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 					ExcludeFromCopy: []string{},
 				},
 			},
-			expectedExcludeFiles: nil,
+			expectedExcludeFiles: []string{},
 		},
 		{
 			name: "Non-Nil ExcludeFromCopy",
@@ -619,8 +619,12 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			require.True(t, ok, "File getter should be of type FileCopyGetter")
 
 			// Verify ExcludeFromCopy
-			assert.Equal(t, tc.expectedExcludeFiles, fileGetter.ExcludeFromCopy,
-				"ExcludeFromCopy should match expected value")
+			assert.Equal(
+				t,
+				tc.expectedExcludeFiles,
+				fileGetter.ExcludeFromCopy,
+				"ExcludeFromCopy should match expected value",
+			)
 		})
 	}
 }
