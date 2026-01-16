@@ -72,8 +72,9 @@ type TerraformConfig struct {
 	// ErrorHooks are hooks to run on terraform errors
 	ErrorHooks []ErrorHook
 
-	// CopyTerraformLockFile specifies whether to copy the lock file
-	CopyTerraformLockFile bool
+	// NoCopyTerraformLockFile specifies whether to skip copying the lock file
+	// Defaults to false (copy the lock file) when not set
+	NoCopyTerraformLockFile bool
 }
 
 // Hook represents a lifecycle hook (before/after).

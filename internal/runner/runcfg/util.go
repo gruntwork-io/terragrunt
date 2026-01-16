@@ -175,7 +175,7 @@ func ShouldCopyLockFile(cfg *TerraformConfig) bool {
 		return true // Default to copying
 	}
 
-	return cfg.CopyTerraformLockFile
+	return !cfg.NoCopyTerraformLockFile
 }
 
 // EngineOptions fetches engine options from the RunConfig.
