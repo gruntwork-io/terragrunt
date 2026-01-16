@@ -162,7 +162,7 @@ func translateHooks(hooks []Hook) []runcfg.Hook {
 			runOnError = *hook.RunOnError
 		}
 
-		var ifCondition bool
+		ifCondition := true
 		if hook.If != nil {
 			ifCondition = *hook.If
 		}
