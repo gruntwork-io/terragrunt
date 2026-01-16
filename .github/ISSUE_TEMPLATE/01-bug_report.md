@@ -20,7 +20,7 @@ Without this information, it is much less likely that maintainers will invest ti
 The exceptions to requiring steps to reproduce are:
 
 1. You are reporting a bug that you don't know how to reproduce, but you are reporting it so that others in the community are aware of it.
-2. You are willing to fix the bug yourself, and you accept the reponsibility of ensuring that the bug is valid, and that the fix is well tested.
+2. You are willing to fix the bug yourself, and you accept the responsibility of ensuring that the bug is valid, and that the fix is well tested.
 
 How to provide steps for reproduction:
 

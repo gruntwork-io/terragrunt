@@ -286,19 +286,44 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 		return nil, err
 	}
 
-	// Phase 2: Apply negative filters to remove components
-	for _, filter := range negativeFilters {
-		var result component.Components
+	if len(negativeFilters) == 0 {
+		return combined, nil
+	}
 
-		result, err = filter.Evaluate(l, combined)
+	// Phase 2: Apply negative filters to find components to remove
+	toRemove := make(component.Components, 0, len(combined))
+
+	for _, filter := range negativeFilters {
+		removed, err := filter.Negated().Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}
 
-		combined = result
+		for _, c := range removed {
+			if !slices.Contains(toRemove, c) {
+				toRemove = append(toRemove, c)
+			}
+		}
 	}
 
-	return combined, nil
+	if len(toRemove) == 0 {
+		return combined, nil
+	}
+
+	// Phase 3: Remove components from the initial set
+
+	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
+	// zeroed.
+	results := make(component.Components, 0, len(combined)-len(toRemove))
+	for _, c := range combined {
+		if slices.Contains(toRemove, c) {
+			continue
+		}
+
+		results = append(results, c)
+	}
+
+	return results, nil
 }
 
 // EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.
@@ -336,12 +361,7 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		var (
-			result component.Components
-			err    error
-		)
-
-		result, err = filter.Evaluate(l, components)
+		result, err := filter.Evaluate(l, components)
 		if err != nil {
 			return nil, err
 		}
@@ -376,9 +396,12 @@ func (f Filters) String() string {
 
 // startsWithNegation checks if an expression starts with a negation operator.
 func startsWithNegation(expr Expression) bool {
-	if prefixExpr, ok := expr.(*PrefixExpression); ok {
-		return prefixExpr.Operator == "!"
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return node.Operator == "!"
+	case *InfixExpression:
+		return startsWithNegation(node.Left)
+	default:
+		return false
 	}
-
-	return false
 }
