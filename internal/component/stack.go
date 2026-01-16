@@ -131,6 +131,15 @@ func (s *Stack) SetDiscoveryContext(ctx *DiscoveryContext) {
 	s.discoveryContext = ctx
 }
 
+// Origin returns the origin of the discovery context for this component.
+func (s *Stack) Origin() Origin {
+	if s.discoveryContext == nil {
+		return OriginUnknown
+	}
+
+	return s.discoveryContext.Origin()
+}
+
 // lock locks the Stack.
 func (s *Stack) lock() {
 	s.mu.Lock()

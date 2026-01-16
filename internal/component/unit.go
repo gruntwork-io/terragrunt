@@ -159,6 +159,15 @@ func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.discoveryContext = ctx
 }
 
+// Origin returns the origin of the discovery context for this component.
+func (u *Unit) Origin() Origin {
+	if u.discoveryContext == nil {
+		return OriginUnknown
+	}
+
+	return u.discoveryContext.Origin()
+}
+
 // lock locks the Unit.
 func (u *Unit) lock() {
 	u.mu.Lock()
