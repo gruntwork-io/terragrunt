@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -156,7 +157,7 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, reading := range c.Reading() {
 				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
 				if err != nil {
-					return nil, NewEvaluationErrorWithCause("failed to get relative path: "+reading, err)
+					return nil, NewEvaluationErrorWithCause(fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading), err)
 				}
 
 				relReading = append(relReading, filepath.ToSlash(rel))
@@ -411,7 +412,7 @@ func doesComponentValueMatchGlob(c component.Component, val, globVal string, glo
 		discoveryCtx.WorkingDir != "" {
 		relPath, err := filepath.Rel(discoveryCtx.WorkingDir, val)
 		if err != nil {
-			return false, NewEvaluationErrorWithCause("failed to get relative path: "+val, err)
+			return false, NewEvaluationErrorWithCause("failed to get relative path for component value: "+val, err)
 		}
 
 		relPath = filepath.ToSlash(relPath)
