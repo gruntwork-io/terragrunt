@@ -140,26 +140,6 @@ func (s *Stack) Origin() Origin {
 	return s.discoveryContext.Origin()
 }
 
-// lock locks the Stack.
-func (s *Stack) lock() {
-	s.mu.Lock()
-}
-
-// unlock unlocks the Stack.
-func (s *Stack) unlock() {
-	s.mu.Unlock()
-}
-
-// rLock locks the Stack for reading.
-func (s *Stack) rLock() {
-	s.mu.RLock()
-}
-
-// rUnlock unlocks the Stack for reading.
-func (s *Stack) rUnlock() {
-	s.mu.RUnlock()
-}
-
 // AddDependency adds a dependency to the Stack and vice versa.
 //
 // Using this method ensure that the dependency graph is properly maintained,
@@ -169,26 +149,6 @@ func (s *Stack) AddDependency(dependency Component) {
 	s.ensureDependency(dependency)
 
 	dependency.ensureDependent(s)
-}
-
-// ensureDependency adds a dependency to a stack if it's not already present.
-func (s *Stack) ensureDependency(dependency Component) {
-	s.lock()
-	defer s.unlock()
-
-	if !slices.Contains(s.dependencies, dependency) {
-		s.dependencies = append(s.dependencies, dependency)
-	}
-}
-
-// ensureDependent adds a dependent to a stack if it's not already present.
-func (s *Stack) ensureDependent(dependent Component) {
-	s.lock()
-	defer s.unlock()
-
-	if !slices.Contains(s.dependents, dependent) {
-		s.dependents = append(s.dependents, dependent)
-	}
 }
 
 // AddDependent adds a dependent to the Stack and vice versa.
@@ -250,4 +210,44 @@ func (s *Stack) FindUnitByPath(path string) *Unit {
 	}
 
 	return nil
+}
+
+// lock locks the Stack.
+func (s *Stack) lock() {
+	s.mu.Lock()
+}
+
+// unlock unlocks the Stack.
+func (s *Stack) unlock() {
+	s.mu.Unlock()
+}
+
+// rLock locks the Stack for reading.
+func (s *Stack) rLock() {
+	s.mu.RLock()
+}
+
+// rUnlock unlocks the Stack for reading.
+func (s *Stack) rUnlock() {
+	s.mu.RUnlock()
+}
+
+// ensureDependency adds a dependency to a stack if it's not already present.
+func (s *Stack) ensureDependency(dependency Component) {
+	s.lock()
+	defer s.unlock()
+
+	if !slices.Contains(s.dependencies, dependency) {
+		s.dependencies = append(s.dependencies, dependency)
+	}
+}
+
+// ensureDependent adds a dependent to a stack if it's not already present.
+func (s *Stack) ensureDependent(dependent Component) {
+	s.lock()
+	defer s.unlock()
+
+	if !slices.Contains(s.dependents, dependent) {
+		s.dependents = append(s.dependents, dependent)
+	}
 }

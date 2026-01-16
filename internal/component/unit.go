@@ -168,26 +168,6 @@ func (u *Unit) Origin() Origin {
 	return u.discoveryContext.Origin()
 }
 
-// lock locks the Unit.
-func (u *Unit) lock() {
-	u.mu.Lock()
-}
-
-// unlock unlocks the Unit.
-func (u *Unit) unlock() {
-	u.mu.Unlock()
-}
-
-// rLock locks the Unit for reading.
-func (u *Unit) rLock() {
-	u.mu.RLock()
-}
-
-// rUnlock unlocks the Unit for reading.
-func (u *Unit) rUnlock() {
-	u.mu.RUnlock()
-}
-
 // AddDependency adds a dependency to the Unit and vice versa.
 //
 // Using this method ensure that the dependency graph is properly maintained,
@@ -197,26 +177,6 @@ func (u *Unit) AddDependency(dependency Component) {
 	u.ensureDependency(dependency)
 
 	dependency.ensureDependent(u)
-}
-
-// ensureDependency adds a dependency to a unit if it's not already present.
-func (u *Unit) ensureDependency(dependency Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependencies, dependency) {
-		u.dependencies = append(u.dependencies, dependency)
-	}
-}
-
-// ensureDependent adds a dependent to a unit if it's not already present.
-func (u *Unit) ensureDependent(dependent Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependents, dependent) {
-		u.dependents = append(u.dependents, dependent)
-	}
 }
 
 // AddDependent adds a dependent to the Unit and vice versa.
@@ -349,6 +309,46 @@ func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
 // OutputJSONFile returns plan JSON file location if JSON output folder is set.
 func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
 	return u.planFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// lock locks the Unit.
+func (u *Unit) lock() {
+	u.mu.Lock()
+}
+
+// unlock unlocks the Unit.
+func (u *Unit) unlock() {
+	u.mu.Unlock()
+}
+
+// rLock locks the Unit for reading.
+func (u *Unit) rLock() {
+	u.mu.RLock()
+}
+
+// rUnlock unlocks the Unit for reading.
+func (u *Unit) rUnlock() {
+	u.mu.RUnlock()
+}
+
+// ensureDependency adds a dependency to a unit if it's not already present.
+func (u *Unit) ensureDependency(dependency Component) {
+	u.lock()
+	defer u.unlock()
+
+	if !slices.Contains(u.dependencies, dependency) {
+		u.dependencies = append(u.dependencies, dependency)
+	}
+}
+
+// ensureDependent adds a dependent to a unit if it's not already present.
+func (u *Unit) ensureDependent(dependent Component) {
+	u.lock()
+	defer u.unlock()
+
+	if !slices.Contains(u.dependents, dependent) {
+		u.dependents = append(u.dependents, dependent)
+	}
 }
 
 // planFilePath computes the path for plan output files.

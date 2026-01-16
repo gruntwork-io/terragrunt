@@ -122,6 +122,7 @@ type Logger interface {
 
 type logger struct {
 	*logrus.Entry
+
 	formatter Formatter
 }
 

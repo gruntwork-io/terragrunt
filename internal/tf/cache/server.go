@@ -19,6 +19,7 @@ import (
 type Server struct {
 	*router.Router
 	*Config
+
 	ProviderController *controllers.ProviderController
 	services           []services.Service
 }

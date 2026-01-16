@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -138,10 +137,8 @@ func TestPreventDestroyNotSet(t *testing.T) {
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr))
 	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr)
 
-	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, run.ModuleIsProtected{}, underlying)
-	}
+	var moduleIsProtected run.ModuleIsProtected
+	assert.ErrorAs(t, err, &moduleIsProtected)
 }
 
 func TestDestroyDependentModule(t *testing.T) {

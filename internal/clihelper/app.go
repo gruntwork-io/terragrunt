@@ -21,6 +21,8 @@ import (
 // `--non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
 // ctx.Args().Slice()
 type App struct {
+	*cli.App
+
 	// AutocompleteInstaller supports autocompletion via the github.com/posener/complete
 	// library. This library supports bash, zsh and fish. To add support
 	// for other shells, please see that library.
@@ -33,8 +35,6 @@ type App struct {
 	// it is returned to the caller. If no function is provided, HandleExitCoder
 	// is used as the default behavior.
 	ExitErrHandler ExitErrHandlerFunc
-
-	*cli.App
 
 	// Before is an action to execute before any subcommands are run, but after the context is ready.
 	Before ActionFunc

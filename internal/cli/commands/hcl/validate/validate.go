@@ -489,7 +489,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 // getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs block in the
 // terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
-	out := []string{}
+	out := make([]string, 0, len(terragruntConfig.Inputs))
 	for inputName := range terragruntConfig.Inputs {
 		out = append(out, inputName)
 	}
@@ -642,7 +642,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 		shlexedArg := strings.Join(shlexedArgSlice, " ")
 
 		if strings.HasPrefix(shlexedArg, "-var=") {
-			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
+			// -var is passed in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(shlexedArg, "=")
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf("unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s", arg)

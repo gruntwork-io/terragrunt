@@ -176,6 +176,27 @@ func (cmd *Command) Run(ctx context.Context, cliCtx *Context, args Args) (err er
 	return nil
 }
 
+// DisableErrorOnMultipleSetFlag returns cloned commands with disabled the check for multiple values set for the same flag.
+func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
+	newCmd := *cmd
+	newCmd.DisabledErrorOnMultipleSetFlag = true
+	newCmd.Subcommands = newCmd.Subcommands.DisableErrorOnMultipleSetFlag()
+
+	return &newCmd
+}
+
+func (cmd *Command) WrapAction(fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error) *Command {
+	clone := *cmd
+
+	action := clone.Action
+	clone.Action = func(ctx context.Context, cliCtx *Context) error {
+		return fn(ctx, cliCtx, action)
+	}
+	clone.Subcommands = clone.Subcommands.WrapAction(fn)
+
+	return &clone
+}
+
 func (cmd *Command) parseFlags(ctx *Context, args Args) ([]string, error) {
 	var undefArgs Args
 
@@ -297,25 +318,4 @@ func (cmd *Command) flagSetParse(ctx *Context, flagSet *libflag.FlagSet, args Ar
 	undefArgs = append(undefArgs, flagSet.Args()...)
 
 	return undefArgs, err
-}
-
-func (cmd *Command) WrapAction(fn func(ctx context.Context, cliCtx *Context, action ActionFunc) error) *Command {
-	clone := *cmd
-
-	action := clone.Action
-	clone.Action = func(ctx context.Context, cliCtx *Context) error {
-		return fn(ctx, cliCtx, action)
-	}
-	clone.Subcommands = clone.Subcommands.WrapAction(fn)
-
-	return &clone
-}
-
-// DisableErrorOnMultipleSetFlag returns cloned commands with disabled the check for multiple values set for the same flag.
-func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
-	newCmd := *cmd
-	newCmd.DisabledErrorOnMultipleSetFlag = true
-	newCmd.Subcommands = newCmd.Subcommands.DisableErrorOnMultipleSetFlag()
-
-	return &newCmd
 }

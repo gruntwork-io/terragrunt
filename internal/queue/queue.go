@@ -23,7 +23,7 @@
 package queue
 
 import (
-	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"sync"
@@ -171,36 +171,6 @@ func (e Entries) Entry(cfg component.Component) *Entry {
 	return nil
 }
 
-// Components returns the queue components.
-func (q *Queue) Components() component.Components {
-	result := make(component.Components, 0, len(q.Entries))
-	for _, entry := range q.Entries {
-		result = append(result, entry.Component)
-	}
-
-	return result
-}
-
-// EntryByPath returns the entry with the given config path, or nil if not found.
-func (q *Queue) EntryByPath(path string) *Entry {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-
-	return q.entryByPathUnsafe(path)
-}
-
-// entryByPathUnsafe returns the entry with the given config path without locking.
-// Should only be called when the caller already holds a lock.
-func (q *Queue) entryByPathUnsafe(path string) *Entry {
-	for _, entry := range q.Entries {
-		if entry.Component.Path() == path {
-			return entry
-		}
-	}
-
-	return nil
-}
-
 // NewQueue creates a new queue from a list of discovered configurations.
 // The queue is populated with the correct Terragrunt run order.
 //
@@ -277,24 +247,45 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 		return -1
 	}
 
-	// We need to iterate through the entries until all entries are ready.
-	// We can use the length of the entries as a safe upper bound for the number of iterations,
-	// because a cycle-free graph has a maximum depth of N, where N is the number of discovered configs.
-	maxIterations := len(entries)
+	// Build the queue by repeatedly finding ready entries and marking them as ready.
+	// This continues until all entries are ready or we've iterated more times than
+	// there are entries (which indicates a cycle).
+	for i := 0; i < len(discovered); i++ {
+		readyIdx := readyPending(q.Entries)
+		if readyIdx == -1 {
+			break
+		}
 
-	// We keep track of the index of the first pending entry
-	// to save us from iterating through the entire list of entries
-	// on each iteration.
-	firstPending := 0
+		q.Entries[readyIdx].Status = StatusReady
+	}
 
-	for range maxIterations {
-		firstPending = readyPending(entries[firstPending:])
-		if firstPending == -1 {
-			return q, nil
+	// Check if we have any entries that are still pending.
+	// If so, we have a cycle.
+	for _, entry := range q.Entries {
+		if entry.Status == StatusPending {
+			return nil, fmt.Errorf("cycle detected in dependency graph at %s", entry.Component.Path())
 		}
 	}
 
-	return q, errors.New("cycle detected during queue construction")
+	return q, nil
+}
+
+// Components returns the queue components.
+func (q *Queue) Components() component.Components {
+	result := make(component.Components, 0, len(q.Entries))
+	for _, entry := range q.Entries {
+		result = append(result, entry.Component)
+	}
+
+	return result
+}
+
+// EntryByPath returns the entry with the given config path, or nil if not found.
+func (q *Queue) EntryByPath(path string) *Entry {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	return q.entryByPathUnsafe(path)
 }
 
 // GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
@@ -335,6 +326,150 @@ func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	}
 
 	return out
+}
+
+// SetEntryStatus safely sets the status of an entry with proper synchronization.
+func (q *Queue) SetEntryStatus(e *Entry, status Status) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	e.Status = status
+}
+
+// FailEntry marks the entry as failed and updates related entries if needed.
+// For up commands, this marks entries that come after this one as early exit.
+// For destroy/down commands, this marks entries that come before this one as early exit.
+// Use only for failure transitions. For other status changes, set Status directly.
+func (q *Queue) FailEntry(e *Entry) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	e.Status = StatusFailed
+
+	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
+	if q.FailFast {
+		for _, n := range q.Entries {
+			if isTerminalOrRunning(n.Status) {
+				continue
+			}
+
+			n.Status = StatusEarlyExit
+		}
+
+		return
+	}
+
+	// If ignoring dependency errors, do not propagate early exit to other entries.
+	if q.IgnoreDependencyErrors {
+		return
+	}
+
+	if e.IsUp() {
+		q.earlyExitDependents(e)
+		return
+	}
+
+	q.earlyExitDependencies(e)
+}
+
+// Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
+func (q *Queue) Finished() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	for _, e := range q.Entries {
+		if !isTerminal(e.Status) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RemainingDeps Helper to calculate remaining dependencies for an entry.
+func (q *Queue) RemainingDeps(e *Entry) int {
+	if e.Component == nil || len(e.Component.Dependencies()) == 0 {
+		return 0
+	}
+
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	count := 0
+
+	for _, dep := range e.Component.Dependencies() {
+		depEntry := q.entryByPathUnsafe(dep.Path())
+		if depEntry == nil || depEntry.Status != StatusSucceeded {
+			count++
+		}
+	}
+
+	return count
+}
+
+// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
+// not in the queue are assumed already applied or have existing state.
+func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.unitsMap = unitsMap
+}
+
+// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
+func (q *Queue) earlyExitDependents(e *Entry) {
+	for _, entry := range q.Entries {
+		if len(entry.Component.Dependencies()) == 0 {
+			continue
+		}
+
+		for _, dep := range entry.Component.Dependencies() {
+			if dep.Path() == e.Component.Path() {
+				if isTerminalOrRunning(entry.Status) {
+					continue
+				}
+
+				entry.Status = StatusEarlyExit
+
+				q.earlyExitDependents(entry)
+
+				break
+			}
+		}
+	}
+}
+
+// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
+func (q *Queue) earlyExitDependencies(e *Entry) {
+	if len(e.Component.Dependencies()) == 0 {
+		return
+	}
+
+	for _, dep := range e.Component.Dependencies() {
+		depEntry := q.entryByPathUnsafe(dep.Path())
+		if depEntry == nil {
+			continue
+		}
+
+		if isTerminalOrRunning(depEntry.Status) {
+			continue
+		}
+
+		depEntry.Status = StatusEarlyExit
+		q.earlyExitDependencies(depEntry)
+	}
+}
+
+// entryByPathUnsafe returns the entry with the given config path without locking.
+// Should only be called when the caller already holds a lock.
+func (q *Queue) entryByPathUnsafe(path string) *Entry {
+	for _, entry := range q.Entries {
+		if entry.Component.Path() == path {
+			return entry
+		}
+	}
+
+	return nil
 }
 
 // areDependenciesReadyUnsafe checks if all dependencies of an entry are ready for "up" commands.
@@ -413,129 +548,6 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 	return true
 }
 
-// SetEntryStatus safely sets the status of an entry with proper synchronization.
-func (q *Queue) SetEntryStatus(e *Entry, status Status) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	e.Status = status
-}
-
-// FailEntry marks the entry as failed and updates related entries if needed.
-// For up commands, this marks entries that come after this one as early exit.
-// For destroy/down commands, this marks entries that come before this one as early exit.
-// Use only for failure transitions. For other status changes, set Status directly.
-func (q *Queue) FailEntry(e *Entry) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	e.Status = StatusFailed
-
-	// If this entry failed and has dependents/dependencies, we need to propagate the failure.
-	if q.FailFast {
-		for _, n := range q.Entries {
-			if isTerminalOrRunning(n.Status) {
-				continue
-			}
-
-			n.Status = StatusEarlyExit
-		}
-
-		return
-	}
-
-	// If ignoring dependency errors, do not propagate early exit to other entries.
-	if q.IgnoreDependencyErrors {
-		return
-	}
-
-	if e.IsUp() {
-		q.earlyExitDependents(e)
-		return
-	}
-
-	q.earlyExitDependencies(e)
-}
-
-// earlyExitDependents - Recursively mark all entries that are dependent on this one as early exit.
-func (q *Queue) earlyExitDependents(e *Entry) {
-	for _, entry := range q.Entries {
-		if len(entry.Component.Dependencies()) == 0 {
-			continue
-		}
-
-		for _, dep := range entry.Component.Dependencies() {
-			if dep.Path() == e.Component.Path() {
-				if isTerminalOrRunning(entry.Status) {
-					continue
-				}
-
-				entry.Status = StatusEarlyExit
-
-				q.earlyExitDependents(entry)
-
-				break
-			}
-		}
-	}
-}
-
-// earlyExitDependencies - Recursively mark all entries that are dependencies on this one as early exit.
-func (q *Queue) earlyExitDependencies(e *Entry) {
-	if len(e.Component.Dependencies()) == 0 {
-		return
-	}
-
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil {
-			continue
-		}
-
-		if isTerminalOrRunning(depEntry.Status) {
-			continue
-		}
-
-		depEntry.Status = StatusEarlyExit
-		q.earlyExitDependencies(depEntry)
-	}
-}
-
-// Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
-func (q *Queue) Finished() bool {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-
-	for _, e := range q.Entries {
-		if !isTerminal(e.Status) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// RemainingDeps Helper to calculate remaining dependencies for an entry.
-func (q *Queue) RemainingDeps(e *Entry) int {
-	if e.Component == nil || len(e.Component.Dependencies()) == 0 {
-		return 0
-	}
-
-	q.mu.RLock()
-	defer q.mu.RUnlock()
-
-	count := 0
-
-	for _, dep := range e.Component.Dependencies() {
-		depEntry := q.entryByPathUnsafe(dep.Path())
-		if depEntry == nil || depEntry.Status != StatusSucceeded {
-			count++
-		}
-	}
-
-	return count
-}
-
 // isTerminal returns true if the status is terminal.
 func isTerminal(status Status) bool {
 	switch status {
@@ -551,13 +563,4 @@ func isTerminal(status Status) bool {
 // isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
 	return status == StatusRunning || isTerminal(status)
-}
-
-// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
-// not in the queue are assumed already applied or have existing state.
-func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	q.unitsMap = unitsMap
 }

@@ -174,7 +174,6 @@ func (repo *Repo) ModuleURL(moduleDir string) string {
 }
 
 type CloneOptions struct {
-	Context    context.Context
 	Logger     log.Logger
 	SourceURL  string
 	TargetPath string
@@ -195,7 +194,6 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	opts := CloneOptions{
 		SourceURL:  cloneURL,
 		TargetPath: repo.path,
-		Context:    ctx,
 		Logger:     repo.logger,
 	}
 

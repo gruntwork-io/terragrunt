@@ -39,6 +39,7 @@ type Formatter interface {
 // Entry is the final logging entry.
 type Entry struct {
 	*logrus.Entry
+
 	Fields Fields
 	Level  Level
 }

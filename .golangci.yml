@@ -10,19 +10,25 @@ output:
       print-linter-name: true
       print-issued-lines: true
 linters:
+  # default: all
   enable:
     - asasalint
     - asciicheck
     - bidichk
     - bodyclose
+    - containedctx
     - contextcheck
+    - dogsled
     - dupl
     - durationcheck
+    - embeddedstructfieldcheck
     - errchkjson
     - errorlint
     - exhaustive
     - fatcontext
+    - funcorder
     - gocheckcompilerdirectives
+    # - gochecknoglobals
     - gochecksumtype
     - goconst
     - gocritic
@@ -51,19 +57,13 @@ linters:
     - tparallel
     - unconvert
     - unparam
+    - unused
+    - usestdlibvars
     - usetesting
     - wastedassign
     - wsl_v5
     - zerologlint
-  disable:
-    - depguard
-    - exhaustruct
-    - gocyclo
-    - gosec
-    - nolintlint
-    - recvcheck
-    - varnamelen
-    - wrapcheck
+    # - dupword # Disabled due to false positives
   settings:
     dupl:
       threshold: 120
@@ -115,7 +115,6 @@ linters:
           - lll
           - mnd
           - unparam
-          - wsl
         path: _test\.go
       # We end up with duplicated content in this package to save us from duplicating code in other packages.
       - linters:

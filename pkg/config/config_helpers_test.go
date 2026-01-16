@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -238,9 +238,8 @@ func TestRunCommand(t *testing.T) {
 
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
-				}
+				require.Error(t, actualErr)
+				require.IsType(t, tc.expectedErr, errors.Unwrap(actualErr)) //nolint:testifylint
 			} else {
 				require.NoError(t, actualErr)
 				assert.Equal(t, tc.expectedOutput, actualOutput)
@@ -350,9 +349,8 @@ func TestFindInParentFolders(t *testing.T) {
 
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
-				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
-				}
+				require.Error(t, actualErr)
+				require.IsType(t, tc.expectedErr, errors.Unwrap(actualErr)) //nolint:testifylint
 			} else {
 				require.NoError(t, actualErr)
 				assert.Equal(t, tc.expectedPath, actualPath)
@@ -1071,6 +1069,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 		[]any{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
 		afterHooksMap["after_hook_2"].(map[string]any)["execute"].([]any),
 	)
+
 	errorHooksMap := terraformMap["error_hook"].(map[string]any)
 	assert.Equal(
 		t,

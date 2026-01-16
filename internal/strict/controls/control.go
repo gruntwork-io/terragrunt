@@ -105,11 +105,6 @@ func (ctrl *Control) SuppressWarning() {
 	atomic.StoreInt32(&ctrl.suppress, 1)
 }
 
-// isSuppressed returns true if warning is suppressed.
-func (ctrl *Control) isSuppressed() bool {
-	return atomic.LoadInt32(&ctrl.suppress) == 1
-}
-
 // Evaluate implements `strict.Control` interface.
 func (ctrl *Control) Evaluate(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
@@ -139,4 +134,9 @@ func (ctrl *Control) Evaluate(ctx context.Context) error {
 	}
 
 	return ctrl.Subcontrols.Evaluate(ctx)
+}
+
+// isSuppressed returns true if warning is suppressed.
+func (ctrl *Control) isSuppressed() bool {
+	return atomic.LoadInt32(&ctrl.suppress) == 1
 }

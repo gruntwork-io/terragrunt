@@ -51,7 +51,7 @@ func createLogger() log.Logger {
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
 
-func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string, string, error) {
+func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) {
 	t.Helper()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
@@ -59,9 +59,9 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
 
-	return tmpEnvPath, stdout, stderr, err
+	require.NoError(t, err)
 }
 
 func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir, token string) *url.URL {
@@ -120,14 +120,6 @@ type FakeProvider struct {
 	PlatformArch string
 }
 
-func (provider *FakeProvider) archiveName() string {
-	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
-}
-
-func (provider *FakeProvider) filename() string {
-	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
-}
-
 func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	t.Helper()
 
@@ -139,6 +131,14 @@ func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 	provider.createIndexJSON(t, providerDir)
 	provider.createVersionJSON(t, providerDir)
 	provider.createZipArchive(t, providerDir)
+}
+
+func (provider *FakeProvider) archiveName() string {
+	return fmt.Sprintf("terraform-provider-%s_%s_%s_%s.zip", provider.Name, provider.Version, provider.PlatformOS, provider.PlatformArch)
+}
+
+func (provider *FakeProvider) filename() string {
+	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
 }
 
 func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string) {

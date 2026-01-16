@@ -1617,6 +1617,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent3Path, &stdout, &stderr),
 	)
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
@@ -1635,6 +1636,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent3Path, &stdout, &stderr),
 	)
+
 	outputs = map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
@@ -1666,6 +1668,7 @@ func TestDependencyMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent1Path, &stdout, &stderr),
 	)
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
@@ -1688,6 +1691,7 @@ func TestDependencyMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent1Path, &stdout, &stderr),
 	)
+
 	outputs = map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 42", outputs["truth"].Value)
@@ -1938,6 +1942,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -1971,6 +1976,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2024,6 +2030,7 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2059,6 +2066,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2658,6 +2666,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	localstgOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
 	assert.Equal(t, map[string]any{"the_answer": float64(42)}, localstgOut)
+
 	inputsOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
 	assert.Equal(t, map[string]any{"doc": "Emmett Brown"}, inputsOut)
@@ -2694,6 +2703,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		},
 		generateOut,
 	)
+
 	remoteStateOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
@@ -2708,6 +2718,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		},
 		remoteStateOut,
 	)
+
 	terraformOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
@@ -3988,8 +3999,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-	_, _, _, err := testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
-	require.NoError(t, err)
+	testRunAllPlan(t, "--json-out-dir "+tmpDir, "")
 
 	// verify that was generated json files with plan data
 	list, err := findFilesWithExtension(tmpDir, ".json")
@@ -4164,8 +4174,9 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 		t.Run("terragrunt with "+tc.tgArgs+" -- plan "+tc.tfArgs, func(t *testing.T) {
 			t.Parallel()
 			tmpDir := helpers.TmpDirWOSymlinks(t)
-			_, _, _, err := testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
-			require.NoError(t, err)
+
+			testRunAllPlan(t, tc.tgArgs+" --json-out-dir "+tmpDir, tc.tfArgs)
+
 			list, err := findFilesWithExtension(tmpDir, ".json")
 			require.NoError(t, err)
 			assert.Len(t, list, 2)

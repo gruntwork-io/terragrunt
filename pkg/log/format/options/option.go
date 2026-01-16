@@ -43,6 +43,7 @@ type Option interface {
 // Data is a log entry data.
 type Data struct {
 	*log.Entry
+
 	RelativePather *RelativePather
 	PresetColorFn  func() ColorValue
 	BaseDir        string

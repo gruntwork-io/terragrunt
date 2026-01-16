@@ -11,8 +11,9 @@ import (
 const IntervalPlaceholderName = "interval"
 
 type intervalPlaceholder struct {
-	baseTime time.Time
 	*CommonPlaceholder
+
+	baseTime time.Time
 }
 
 // Format implements `Placeholder` interface.

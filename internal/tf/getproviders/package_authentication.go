@@ -246,6 +246,10 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	return NewPackageAuthenticationResult(CommunityProvider), nil
 }
 
+func (auth signatureAuthentication) AcceptableHashes() []Hash {
+	return DocumentHashes(auth.Document)
+}
+
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
 	entity, err := openpgp.CheckDetachedSignature(keyring, signed, signature, config)
 
@@ -258,10 +262,6 @@ func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRi
 	}
 
 	return err
-}
-
-func (auth signatureAuthentication) AcceptableHashes() []Hash {
-	return DocumentHashes(auth.Document)
 }
 
 // findSigningKey attempts to verify the signature using each of the keys returned by the registry. If a valid signature is found, it returns the signing key.

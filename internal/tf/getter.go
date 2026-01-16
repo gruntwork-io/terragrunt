@@ -90,11 +90,6 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 	return tfrGetter.client.Ctx
 }
 
-// registryDomain returns the default registry domain to use for the getter.
-func (tfrGetter *RegistryGetter) registryDomain() string {
-	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
-}
-
 // GetDefaultRegistryDomain returns the appropriate registry domain based on the terraform implementation and environment variables.
 // This is the canonical function for determining which registry to use throughout Terragrunt.
 func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
@@ -187,6 +182,11 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 	return errors.New(errors.New("GetFile is not implemented for the Terraform Registry Getter"))
+}
+
+// registryDomain returns the default registry domain to use for the getter.
+func (tfrGetter *RegistryGetter) registryDomain() string {
+	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
@@ -356,7 +356,7 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
 func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getURL.String(), nil)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}

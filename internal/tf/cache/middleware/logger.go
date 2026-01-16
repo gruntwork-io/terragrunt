@@ -22,6 +22,7 @@ func Logger(logger log.Logger) echo.MiddlewareFunc {
 			} else {
 				logger.Tracef("Cache server received request")
 			}
+
 			return nil
 		},
 	})

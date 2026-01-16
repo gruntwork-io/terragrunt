@@ -108,6 +108,7 @@ type FlagValueGetter interface {
 
 type flagValueGetter struct {
 	*flagValue
+
 	valueName string
 }
 
@@ -225,6 +226,7 @@ func (flag *flagValue) Getter(name string) FlagValueGetter {
 // flag is a common flag related to parsing flags in cli.
 type flag struct {
 	FlagValue
+
 	LookupEnvFunc LookupEnvFuncType
 }
 

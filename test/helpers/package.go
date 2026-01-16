@@ -397,12 +397,13 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	}
+	)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -448,12 +449,13 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	}
+	)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
@@ -588,6 +590,19 @@ type FakeProvider struct {
 	PlatformArch string
 }
 
+func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
+	t.Helper()
+
+	providerDir := filepath.Join(rootDir, provider.RegistryName, provider.Namespace, provider.Name)
+
+	err := os.MkdirAll(providerDir, os.ModePerm)
+	require.NoError(t, err)
+
+	provider.createIndexJSON(t, providerDir)
+	provider.createVersionJSON(t, providerDir)
+	provider.createZipArchive(t, providerDir)
+}
+
 func (provider *FakeProvider) archiveName() string {
 	return fmt.Sprintf(
 		"terraform-provider-%s_%s_%s_%s.zip",
@@ -600,19 +615,6 @@ func (provider *FakeProvider) archiveName() string {
 
 func (provider *FakeProvider) filename() string {
 	return fmt.Sprintf("terraform-provider-%s_v%s_x5", provider.Name, provider.Version)
-}
-
-func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
-	t.Helper()
-
-	providerDir := filepath.Join(rootDir, provider.RegistryName, provider.Namespace, provider.Name)
-
-	err := os.MkdirAll(providerDir, os.ModePerm)
-	require.NoError(t, err)
-
-	provider.createIndexJSON(t, providerDir)
-	provider.createVersionJSON(t, providerDir)
-	provider.createZipArchive(t, providerDir)
 }
 
 func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string) {

@@ -476,7 +476,9 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				if err := os.MkdirAll(unitDir, 0755); err != nil {
 					return err
 				}
+
 				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+
 				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
 			},
 			diffs: &git.Diffs{
@@ -512,7 +514,9 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				if err := os.MkdirAll(unitDir, 0755); err != nil {
 					return err
 				}
+
 				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+
 				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
 			},
 			diffs: &git.Diffs{
@@ -548,7 +552,9 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				if err := os.MkdirAll(unitDir, 0755); err != nil {
 					return err
 				}
+
 				terragruntFile := filepath.Join(unitDir, "terragrunt.hcl")
+
 				return os.WriteFile(terragruntFile, []byte("# terragrunt config"), 0644)
 			},
 			diffs: &git.Diffs{
@@ -584,6 +590,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				if err := os.MkdirAll(unit1Dir, 0755); err != nil {
 					return err
 				}
+
 				terragruntFile1 := filepath.Join(unit1Dir, "terragrunt.hcl")
 				if err := os.WriteFile(terragruntFile1, []byte("# terragrunt config"), 0644); err != nil {
 					return err
@@ -594,6 +601,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				if err := os.MkdirAll(unit2Dir, 0755); err != nil {
 					return err
 				}
+
 				terragruntFile2 := filepath.Join(unit2Dir, "terragrunt.hcl")
 				if err := os.WriteFile(terragruntFile2, []byte("# terragrunt config"), 0644); err != nil {
 					return err
@@ -601,6 +609,7 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 
 				// Create non-unit directory
 				nonUnitDir := filepath.Join(tmpDir, "non-unit")
+
 				return os.MkdirAll(nonUnitDir, 0755)
 			},
 			diffs: &git.Diffs{

@@ -38,6 +38,25 @@ func (writer *UnitWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// Flush flushes all buffered data to the output writer.
+func (writer *UnitWriter) Flush() error {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+
+	if writer.out != nil {
+		if _, err := writer.buffer.WriteTo(writer.out); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ParentWriter returns the underlying output writer that this UnitWriter wraps.
+func (writer *UnitWriter) ParentWriter() io.Writer {
+	return writer.out
+}
+
 // flushCompleteLines flushes any complete lines (ending with newline) from the buffer.
 // Partial lines (without trailing newline) remain in the buffer.
 func (writer *UnitWriter) flushCompleteLines() error {
@@ -59,23 +78,4 @@ func (writer *UnitWriter) flushCompleteLines() error {
 	}
 
 	return nil
-}
-
-// Flush flushes all buffered data to the output writer.
-func (writer *UnitWriter) Flush() error {
-	writer.mu.Lock()
-	defer writer.mu.Unlock()
-
-	if writer.out != nil {
-		if _, err := writer.buffer.WriteTo(writer.out); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ParentWriter returns the underlying output writer that this UnitWriter wraps.
-func (writer *UnitWriter) ParentWriter() io.Writer {
-	return writer.out
 }

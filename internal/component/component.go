@@ -257,17 +257,6 @@ func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
 	return tsc
 }
 
-// resolvedPathFor returns the cached resolved path for a component path if present,
-// otherwise resolves the path on the fly without mutating the cache.
-// Caller must hold at least a read lock.
-func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
-	if resolved, ok := tsc.resolvedPaths[path]; ok {
-		return resolved
-	}
-
-	return resolvePath(path)
-}
-
 // EnsureComponent adds a component to the components list if it's not already present.
 // This method is TOCTOU-safe (Time-Of-Check-Time-Of-Use) by using a double-check pattern.
 // Path comparison uses resolved symlink paths for consistency.
@@ -280,6 +269,55 @@ func (tsc *ThreadSafeComponents) EnsureComponent(c Component) (Component, bool) 
 	}
 
 	return found, false
+}
+
+// FindByPath searches for a component by its path and returns it if found, otherwise returns nil.
+// Paths are resolved to handle symlinks consistently across platforms (e.g., macOS /var -> /private/var).
+// Uses cached resolved paths to avoid repeated syscalls.
+func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
+	tsc.mu.RLock()
+	defer tsc.mu.RUnlock()
+
+	resolvedSearchPath := resolvePath(path)
+
+	for _, c := range tsc.components {
+		if tsc.resolvedPathFor(c.Path()) == resolvedSearchPath {
+			return c
+		}
+	}
+
+	return nil
+}
+
+// ToComponents returns a copy of the components slice.
+func (tsc *ThreadSafeComponents) ToComponents() Components {
+	tsc.mu.RLock()
+	defer tsc.mu.RUnlock()
+
+	// Return a copy to prevent external modification
+	result := make(Components, len(tsc.components))
+	copy(result, tsc.components)
+
+	return result
+}
+
+// Len returns the number of components in the components slice.
+func (tsc *ThreadSafeComponents) Len() int {
+	tsc.mu.RLock()
+	defer tsc.mu.RUnlock()
+
+	return len(tsc.components)
+}
+
+// resolvedPathFor returns the cached resolved path for a component path if present,
+// otherwise resolves the path on the fly without mutating the cache.
+// Caller must hold at least a read lock.
+func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
+	if resolved, ok := tsc.resolvedPaths[path]; ok {
+		return resolved
+	}
+
+	return resolvePath(path)
 }
 
 // findComponent checks if a component is in the components slice using resolved paths.
@@ -326,44 +364,6 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 	tsc.components = append(tsc.components, c)
 
 	return c, true
-}
-
-// FindByPath searches for a component by its path and returns it if found, otherwise returns nil.
-// Paths are resolved to handle symlinks consistently across platforms (e.g., macOS /var -> /private/var).
-// Uses cached resolved paths to avoid repeated syscalls.
-func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
-	tsc.mu.RLock()
-	defer tsc.mu.RUnlock()
-
-	resolvedSearchPath := resolvePath(path)
-
-	for _, c := range tsc.components {
-		if tsc.resolvedPathFor(c.Path()) == resolvedSearchPath {
-			return c
-		}
-	}
-
-	return nil
-}
-
-// ToComponents returns a copy of the components slice.
-func (tsc *ThreadSafeComponents) ToComponents() Components {
-	tsc.mu.RLock()
-	defer tsc.mu.RUnlock()
-
-	// Return a copy to prevent external modification
-	result := make(Components, len(tsc.components))
-	copy(result, tsc.components)
-
-	return result
-}
-
-// Len returns the number of components in the components slice.
-func (tsc *ThreadSafeComponents) Len() int {
-	tsc.mu.RLock()
-	defer tsc.mu.RUnlock()
-
-	return len(tsc.components)
 }
 
 // resolvePath resolves symlinks in a path for consistent comparison across platforms.

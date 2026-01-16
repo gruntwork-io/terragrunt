@@ -7,6 +7,7 @@ import (
 
 type writerNotifier struct {
 	io.Writer
+
 	notifyFn func(p []byte)
 	once     sync.Once
 }

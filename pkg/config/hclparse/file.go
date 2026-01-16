@@ -17,6 +17,7 @@ const (
 type File struct {
 	*Parser
 	*hcl.File
+
 	ConfigPath string
 }
 

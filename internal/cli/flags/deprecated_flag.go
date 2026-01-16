@@ -17,6 +17,7 @@ type DeprecatedFlags []*DeprecatedFlag
 // DeprecatedFlag represents a deprecated flag that is not shown in the CLI help, but its names, envVars, are registered.
 type DeprecatedFlag struct {
 	clihelper.Flag
+
 	newValueFn             NewValueFunc
 	controls               strict.Controls
 	names                  []string

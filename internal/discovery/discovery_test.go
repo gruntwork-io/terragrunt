@@ -170,10 +170,12 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				db := component.NewUnit(dbDir)
 				externalApp := component.NewUnit(externalAppDir)
 				externalApp.SetExternal()
+
 				vpc := component.NewUnit(vpcDir)
 				db.AddDependency(vpc)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
+
 				return component.Components{app, db, vpc}
 			},
 		},
@@ -184,11 +186,14 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				vpc := component.NewUnit(vpcDir)
 				db := component.NewUnit(dbDir)
 				db.AddDependency(vpc)
+
 				externalApp := component.NewUnit(externalAppDir)
 				externalApp.SetExternal()
+
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
+
 				return component.Components{app, db, vpc, externalApp}
 			},
 		},

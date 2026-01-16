@@ -20,11 +20,12 @@ var _ = strict.Control(new(DeprecatedFlagName))
 
 // DeprecatedFlagName is strict control for deprecated flag names.
 type DeprecatedFlagName struct {
+	*Control
+
 	deprecatedFlag clihelper.Flag
 	newFlag        clihelper.Flag
-	*Control
-	ErrorFmt   string
-	WarningFmt string
+	ErrorFmt       string
+	WarningFmt     string
 }
 
 // NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.

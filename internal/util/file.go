@@ -703,6 +703,10 @@ type fileManifest struct {
 	ManifestFile   string
 }
 
+func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+}
+
 // fileManifestEntry represents an entry in the fileManifest.
 // It uses a struct with IsDir flag so that we won't have to call Stat on every
 // file to determine if it's a directory or a file
@@ -714,6 +718,36 @@ type fileManifestEntry struct {
 // Clean will recursively remove all files specified in the manifest
 func (manifest *fileManifest) Clean() error {
 	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+}
+
+// Create will create the manifest file
+func (manifest *fileManifest) Create() error {
+	const ownerWriteGlobalReadPerms = 0644
+
+	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
+	if err != nil {
+		return err
+	}
+
+	manifest.fileHandle = fileHandle
+	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
+
+	return nil
+}
+
+// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddFile(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
+}
+
+// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
+func (manifest *fileManifest) AddDirectory(path string) error {
+	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
+}
+
+// Close closes the manifest file handle
+func (manifest *fileManifest) Close() error {
+	return manifest.fileHandle.Close()
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
@@ -766,40 +800,6 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	}
 
 	return nil
-}
-
-// Create will create the manifest file
-func (manifest *fileManifest) Create() error {
-	const ownerWriteGlobalReadPerms = 0644
-
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
-	if err != nil {
-		return err
-	}
-
-	manifest.fileHandle = fileHandle
-	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
-
-	return nil
-}
-
-// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
-func (manifest *fileManifest) AddFile(path string) error {
-	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
-}
-
-// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
-func (manifest *fileManifest) AddDirectory(path string) error {
-	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
-}
-
-// Close closes the manifest file handle
-func (manifest *fileManifest) Close() error {
-	return manifest.fileHandle.Close()
-}
-
-func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors
