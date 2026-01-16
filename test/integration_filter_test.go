@@ -29,6 +29,7 @@ const (
 	testFixtureFilterSource           = "fixtures/filter-source"
 	testFixtureMinimizeParsing        = "fixtures/filter/minimize-parsing"
 	testFixtureMinimizeParsingDestroy = "fixtures/filter/minimize-parsing-destroy"
+	testFixtureExcludeByDefault       = "fixtures/exclude-by-default"
 )
 
 // createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
@@ -2386,4 +2387,19 @@ resource "null_resource" "test" {}
 	output := stdout + stderr
 	require.NotContains(t, output, "Too many command line arguments")
 	require.NotContains(t, output, "Expected at most one positional argument")
+}
+
+func TestFilterExcludeByDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludeByDefault)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExcludeByDefault)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	cmd := "terragrunt run --all --no-color --working-dir " + rootPath + " --filter '!_stacks | type=stack' -- plan"
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "No units discovered", "Filter should discover units, not result in empty discovery")
 }
