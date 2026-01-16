@@ -245,12 +245,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 func TestFilterTerraformExtraArgs(t *testing.T) {
 	t.Parallel()
 
-	workingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	workingDir = filepath.ToSlash(workingDir)
+	workingDir := filepath.ToSlash(helpers.TmpDirWOSymlinks(t))
 
 	temporaryFile := createTempFile(t)
 
