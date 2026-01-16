@@ -195,20 +195,9 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 		return nil, err
 	}
 
-	excludeSet := make(map[string]struct{}, len(toExclude))
-	for _, c := range toExclude {
-		excludeSet[c.Path()] = struct{}{}
-	}
-
-	var result component.Components
-
-	for _, c := range components {
-		if _, ok := excludeSet[c.Path()]; !ok {
-			result = append(result, c)
-		}
-	}
-
-	return result, nil
+	return slices.DeleteFunc(components, func(c component.Component) bool {
+		return slices.Contains(toExclude, c)
+	}), nil
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
