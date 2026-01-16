@@ -563,25 +563,36 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx context.Context, pctx
 	if dependencyConfig.shouldGetOutputs(pctx) {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, pctx, l, dependencyConfig)
 		if err != nil {
-			return nil, err
-		}
+			// If getTerragruntOutput fails but mock outputs are allowed, fall back to mock outputs
+			if dependencyConfig.shouldReturnMockOutputs(pctx) {
+				targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), pctx.TerragruntOptions.TerragruntConfigPath)
+				l.Warnf("Failed to read outputs from %s referenced in %s as %s, using mock outputs. Error: %v", targetConfig, pctx.TerragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
 
-		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) && dependencyConfig.MockOutputs != nil {
-			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
-
-			// TODO: Make this exhaustive
-			switch mockMergeStrategy { // nolint:exhaustive
-			case NoMerge:
-				return outputVal, nil
-			case ShallowMerge:
-				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
-			case DeepMergeMapOnly:
-				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
-			default:
-				return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
+				return dependencyConfig.MockOutputs, nil
 			}
-		} else if !isEmpty {
-			return outputVal, err
+
+			if !isEmpty {
+				return nil, err
+			}
+		} else {
+			if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) && dependencyConfig.MockOutputs != nil {
+				mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
+
+				// TODO: Make this exhaustive
+				switch mockMergeStrategy { // nolint:exhaustive
+				case NoMerge:
+					return outputVal, nil
+				case ShallowMerge:
+					return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
+				case DeepMergeMapOnly:
+					return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
+				default:
+					return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
+				}
+			} else if !isEmpty {
+				return outputVal, err
+			}
+			// If isEmpty is true and no error, fall through to empty-output check logic below
 		}
 	}
 
@@ -1252,7 +1263,17 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	runCfg := cfg.ToRunConfig()
 
-	err = run.Run(ctx, l, pctx.TerragruntOptions, report.NewReport(), runCfg, creds.NewGetter())
+	credsGetter := creds.NewGetter()
+	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		pctx.TerragruntOptions,
+		externalcmd.NewProvider(l, pctx.TerragruntOptions),
+	); err != nil {
+		return nil, err
+	}
+
+	err = run.Run(ctx, l, pctx.TerragruntOptions, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, errors.New(err)
 	}

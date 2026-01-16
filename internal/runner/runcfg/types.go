@@ -8,6 +8,7 @@ package runcfg
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -194,6 +195,37 @@ type ExcludeConfig struct {
 	If bool
 }
 
+// IsActionListed checks if the action is listed in the exclude block.
+func (e *ExcludeConfig) IsActionListed(action string) bool {
+	if e == nil || len(e.Actions) == 0 {
+		return false
+	}
+
+	const (
+		allActions              = "all"
+		allExcludeOutputActions = "all_except_output"
+		tgOutput                = "output"
+	)
+
+	actionLower := strings.ToLower(action)
+
+	for _, checkAction := range e.Actions {
+		if checkAction == allActions {
+			return true
+		}
+
+		if checkAction == allExcludeOutputActions && actionLower != tgOutput {
+			return true
+		}
+
+		if strings.ToLower(checkAction) == actionLower {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ShouldPreventRun returns true if execution should be prevented.
 func (e *ExcludeConfig) ShouldPreventRun(command string) bool {
 	if e == nil {
@@ -205,7 +237,7 @@ func (e *ExcludeConfig) ShouldPreventRun(command string) bool {
 	}
 
 	if e.NoRun != nil && *e.NoRun {
-		return true
+		return e.IsActionListed(command)
 	}
 
 	return slices.Contains(e.Actions, command)
