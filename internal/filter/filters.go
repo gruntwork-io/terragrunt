@@ -286,23 +286,44 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 		return nil, err
 	}
 
-	// Phase 2: Apply negative filters to remove components
+	if len(negativeFilters) == 0 {
+		return combined, nil
+	}
+
+	// Phase 2: Apply negative filters to find components to remove
+	toRemove := make(component.Components, 0, len(combined))
+
 	for _, filter := range negativeFilters {
-		toRemove, err := filter.Negated().Evaluate(l, combined)
+		removed, err := filter.Negated().Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(toRemove) == 0 {
+		for _, c := range removed {
+			if !slices.Contains(toRemove, c) {
+				toRemove = append(toRemove, c)
+			}
+		}
+	}
+
+	if len(toRemove) == 0 {
+		return combined, nil
+	}
+
+	// Phase 3: Remove components from the initial set
+
+	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
+	// zeroed.
+	results := make(component.Components, 0, len(combined)-len(toRemove))
+	for _, c := range combined {
+		if slices.Contains(toRemove, c) {
 			continue
 		}
 
-		combined = slices.DeleteFunc(combined, func(c component.Component) bool {
-			return slices.Contains(toRemove, c)
-		})
+		results = append(results, c)
 	}
 
-	return combined, nil
+	return results, nil
 }
 
 // EvaluateOnFiles evaluates the filters on a list of files and returns the filtered result.

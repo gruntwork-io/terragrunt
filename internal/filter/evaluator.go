@@ -195,9 +195,23 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 		return nil, err
 	}
 
-	return slices.DeleteFunc(components, func(c component.Component) bool {
-		return slices.Contains(toExclude, c)
-	}), nil
+	if len(toExclude) == 0 {
+		return components, nil
+	}
+
+	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
+	// zeroed.
+	results := make(component.Components, 0, len(components)-len(toExclude))
+
+	for _, c := range components {
+		if slices.Contains(toExclude, c) {
+			continue
+		}
+
+		results = append(results, c)
+	}
+
+	return results, nil
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
