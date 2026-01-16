@@ -544,7 +544,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				return err
 			}
 
-			runCfg := cfg.ToRunConfig()
+			runCfg := cfg.ToRunConfig(unitLogger)
 
 			credsGetter := creds.NewGetter()
 			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
@@ -635,7 +635,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 				}
 
-				switch entry.Status {
+				switch entry.Status { //nolint:exhaustive
 				case queue.StatusEarlyExit:
 					endOpts := []report.EndOption{
 						report.WithResult(report.ResultEarlyExit),

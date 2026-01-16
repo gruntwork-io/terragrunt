@@ -76,7 +76,7 @@ func PrepareSource(
 
 	opts.Errors = errConfig
 
-	runCfg := cfg.ToRunConfig()
+	runCfg := cfg.ToRunConfig(l)
 
 	l, optsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
@@ -86,7 +86,7 @@ func PrepareSource(
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return run.ProcessHooks(ctx, l, runCfg.Terraform.GetAfterHooks(), optsClone, runCfg, nil, r)
+		return run.ProcessHooks(ctx, l, runCfg.Terraform.AfterHooks, optsClone, runCfg, nil, r)
 	}); err != nil {
 		return nil, err
 	}

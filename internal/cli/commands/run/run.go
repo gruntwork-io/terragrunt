@@ -76,7 +76,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	runCfg := cfg.ToRunConfig()
+	runCfg := cfg.ToRunConfig(l)
 
 	return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
 }

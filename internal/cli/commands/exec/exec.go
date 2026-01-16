@@ -28,7 +28,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmd
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig()
+	runCfg := prepared.Cfg.ToRunConfig(l)
 
 	// Generate config
 	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {

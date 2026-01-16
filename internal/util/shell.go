@@ -82,7 +82,6 @@ type ProcessExecutionError struct {
 }
 
 func (err ProcessExecutionError) Error() string {
-
 	commandStr := strings.TrimSpace(
 		strings.Join(append([]string{err.Command}, err.Args...), " "),
 	)

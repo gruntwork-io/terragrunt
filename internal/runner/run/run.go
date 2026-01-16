@@ -108,7 +108,7 @@ func Run(
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return ProcessHooks(ctx, l, cfg.Terraform.GetAfterHooks(), terragruntOptionsClone, cfg, nil, r)
+		return ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, terragruntOptionsClone, cfg, nil, r)
 	}); err != nil {
 		return err
 	}
@@ -350,7 +350,7 @@ func RunActionWithHooks(
 ) error {
 	var allErrors *errors.MultiError
 
-	beforeHookErrors := ProcessHooks(ctx, l, cfg.Terraform.GetBeforeHooks(), opts, cfg, allErrors, r)
+	beforeHookErrors := ProcessHooks(ctx, l, cfg.Terraform.BeforeHooks, opts, cfg, allErrors, r)
 	allErrors = allErrors.Append(beforeHookErrors)
 
 	var actionErrors error
@@ -361,8 +361,8 @@ func RunActionWithHooks(
 		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
-	postHookErrors := ProcessHooks(ctx, l, cfg.Terraform.GetAfterHooks(), opts, cfg, allErrors, r)
-	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.GetErrorHooks(), opts, allErrors)
+	postHookErrors := ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, opts, cfg, allErrors, r)
+	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.ErrorHooks, opts, allErrors)
 	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
@@ -546,8 +546,7 @@ func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg
 				}
 
 				if !skipVars {
-					varFiles := arg.GetVarFiles(l)
-					for _, file := range varFiles {
+					for _, file := range arg.VarFiles {
 						out = append(out, "-var-file="+file)
 					}
 				}
