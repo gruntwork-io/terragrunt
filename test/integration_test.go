@@ -108,6 +108,7 @@ const (
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
+	testFixtureSymlinkInclude                 = "fixtures/symlink-include"
 	testFixtureLogStreaming                   = "fixtures/streaming"
 	testFixtureCLIFlagHints                   = "fixtures/cli-flag-hints"
 	testFixtureEphemeralInputs                = "fixtures/ephemeral-inputs"
@@ -1185,6 +1186,44 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
+}
+
+// TestSymlinksWithInclude tests that include blocks work correctly when running
+// terragrunt from a symlinked directory with the symlinks experiment enabled.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5314
+func TestSymlinksWithInclude(t *testing.T) {
+	t.Parallel()
+
+	// Copy the fixture and create symlink manually (CopyEnvironment resolves symlinks)
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureSymlinkInclude))
+	require.NoError(t, err)
+
+	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureSymlinkInclude)
+
+	// Create symlink: fixtureRoot/symlink -> fixtureRoot/actual
+	symlinkPath := filepath.Join(fixtureRoot, "symlink")
+	actualPath := filepath.Join(fixtureRoot, "actual")
+	require.NoError(t, os.Symlink(actualPath, symlinkPath))
+
+	// The working directory is the symlinked child directory
+	symlinkChildPath := filepath.Join(symlinkPath, "child")
+
+	helpers.CleanupTerraformFolder(t, fixtureRoot)
+
+	// Run terragrunt with symlinks experiment from the symlinked directory
+	// This should find root.hcl via the symlink path, not the physical path
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all validate --experiment symlinks --non-interactive --working-dir "+symlinkChildPath,
+	)
+
+	// Before the fix, this would fail with:
+	// "The include configuration in .../actual/child/terragrunt.hcl must specify a 'path' parameter"
+	require.NoError(t, err, "Expected no error when running with symlinks experiment from symlinked directory, got: %s", stderr)
+
+	// Verify the path uses the symlink path (relative "."), not the physical path (which would be "../../actual/child")
+	assert.Contains(t, stderr, "Unit .")
+	assert.NotContains(t, stderr, "actual/child", "Path should use symlink path, not physical path")
 }
 
 func TestInvalidSource(t *testing.T) {

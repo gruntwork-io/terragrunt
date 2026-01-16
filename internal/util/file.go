@@ -1148,10 +1148,15 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
-	// Start the walk from the root directory
+	// Start the walk from the root directory.
+	// Use the original `root` path (not `realRoot`) for the logical path.
+	// This preserves symlink paths in the output, which is important when:
+	// - find_in_parent_folders() needs to search the symlink's parent chain
+	// - The symlinked directory has different parents than the physical directory
+	// Fix for https://github.com/gruntwork-io/terragrunt/issues/5314
 	return walkFn(pathPair{
 		physical: realRoot,
-		logical:  realRoot,
+		logical:  root,
 	})
 }
 
