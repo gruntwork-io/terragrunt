@@ -548,10 +548,10 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 			credsGetter := creds.NewGetter()
 			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
-				ctx,
-				l,
+				childCtx,
+				unitLogger,
 				u.Execution.TerragruntOptions,
-				externalcmd.NewProvider(l, u.Execution.TerragruntOptions),
+				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
 			); err != nil {
 				return err
 			}
