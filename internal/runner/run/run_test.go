@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -377,12 +378,42 @@ func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) 
 }
 
 func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []string) runcfg.TerraformExtraArguments {
+	// Compute VarFiles from RequiredVarFiles and OptionalVarFiles, matching what happens
+	// during config translation in pkg/config/translate.go
+	var varFiles []string
+
+	// Include all specified RequiredVarFiles
+	if len(requiredVarFiles) > 0 {
+		varFiles = append(varFiles, util.RemoveDuplicatesKeepLast(requiredVarFiles)...)
+	}
+
+	// Include OptionalVarFiles only if they exist
+	if len(optionalVarFiles) > 0 {
+		for _, file := range util.RemoveDuplicatesKeepLast(optionalVarFiles) {
+			if !util.FileExists(file) {
+				continue
+			}
+
+			varFiles = append(varFiles, file)
+		}
+	}
+
+	var requiredVarFilesPtr, optionalVarFilesPtr *[]string
+	if len(requiredVarFiles) > 0 {
+		requiredVarFilesPtr = &requiredVarFiles
+	}
+
+	if len(optionalVarFiles) > 0 {
+		optionalVarFilesPtr = &optionalVarFiles
+	}
+
 	a := runcfg.TerraformExtraArguments{
 		Name:             "test",
 		Arguments:        &arguments,
 		Commands:         commands,
-		RequiredVarFiles: &requiredVarFiles,
-		OptionalVarFiles: &optionalVarFiles,
+		RequiredVarFiles: requiredVarFilesPtr,
+		OptionalVarFiles: optionalVarFilesPtr,
+		VarFiles:         varFiles,
 	}
 
 	return a
