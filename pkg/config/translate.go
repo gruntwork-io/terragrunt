@@ -57,21 +57,20 @@ func translateTerraformConfig(tf *TerraformConfig, l log.Logger) runcfg.Terrafor
 		excludeFromCopy = *tf.ExcludeFromCopy
 	}
 
-	// Default to true (copy) when not set, as per original behavior
-	copyTerraformLockFile := true
+	noCopyTerraformLockFile := false
 	if tf.CopyTerraformLockFile != nil {
-		copyTerraformLockFile = *tf.CopyTerraformLockFile
+		noCopyTerraformLockFile = !*tf.CopyTerraformLockFile
 	}
 
 	return runcfg.TerraformConfig{
-		Source:                source,
-		IncludeInCopy:         includeInCopy,
-		ExcludeFromCopy:       excludeFromCopy,
-		CopyTerraformLockFile: copyTerraformLockFile,
-		ExtraArgs:             translateExtraArgs(tf.ExtraArgs, l),
-		BeforeHooks:           translateHooks(tf.BeforeHooks),
-		AfterHooks:            translateHooks(tf.AfterHooks),
-		ErrorHooks:            translateErrorHooks(tf.ErrorHooks),
+		Source:                  source,
+		IncludeInCopy:           includeInCopy,
+		ExcludeFromCopy:         excludeFromCopy,
+		NoCopyTerraformLockFile: noCopyTerraformLockFile,
+		ExtraArgs:               translateExtraArgs(tf.ExtraArgs, l),
+		BeforeHooks:             translateHooks(tf.BeforeHooks),
+		AfterHooks:              translateHooks(tf.AfterHooks),
+		ErrorHooks:              translateErrorHooks(tf.ErrorHooks),
 	}
 }
 
