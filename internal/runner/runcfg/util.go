@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -340,4 +341,60 @@ func convertValuesMapToCtyVal(valMap map[string]cty.Value) cty.Value {
 
 	// Use cty.ObjectVal directly instead of gocty.ToCtyValue to preserve marks (like sensitive())
 	return cty.ObjectVal(valMap)
+}
+
+// Exclude action constants
+const (
+	AllActions              = "all"
+	AllExcludeOutputActions = "all_except_output"
+	TgOutput                = "output"
+)
+
+// IsActionListedInExclude checks if the action is listed in the exclude block actions.
+// This is a shared utility function that provides a single source of truth for exclude action matching logic.
+// It handles special action values:
+//   - "all": matches any action
+//   - "all_except_output": matches any action except "output"
+//   - Case-insensitive matching for regular actions
+func IsActionListedInExclude(actions []string, action string) bool {
+	if len(actions) == 0 {
+		return false
+	}
+
+	actionLower := strings.ToLower(action)
+
+	for _, checkAction := range actions {
+		if checkAction == AllActions {
+			return true
+		}
+
+		if checkAction == AllExcludeOutputActions && actionLower != TgOutput {
+			return true
+		}
+
+		if strings.ToLower(checkAction) == actionLower {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ShouldPreventRunBasedOnExclude determines if execution should be prevented based on exclude configuration.
+// This is a shared utility function that provides a single source of truth for exclude run prevention logic.
+// Parameters:
+//   - actions: list of actions in the exclude block
+//   - noRun: pointer to no_run flag (nil means not set)
+//   - ifCondition: the if condition value
+//   - command: the command/action to check
+func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition bool, command string) bool {
+	if !ifCondition {
+		return false
+	}
+
+	if noRun != nil && *noRun {
+		return IsActionListedInExclude(actions, command)
+	}
+
+	return slices.Contains(actions, command)
 }

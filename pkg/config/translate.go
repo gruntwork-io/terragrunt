@@ -2,17 +2,19 @@ package config
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // ToRunConfig translates a TerragruntConfig to a runcfg.RunConfig.
 // This is the primary method for converting config types to runner types.
-func (cfg *TerragruntConfig) ToRunConfig() *runcfg.RunConfig {
+func (cfg *TerragruntConfig) ToRunConfig(l log.Logger) *runcfg.RunConfig {
 	if cfg == nil {
 		return nil
 	}
 
 	return &runcfg.RunConfig{
-		Terraform:                   translateTerraformConfig(cfg.Terraform),
+		Terraform:                   translateTerraformConfig(cfg.Terraform, l),
 		RemoteState:                 cfg.RemoteState,
 		Exclude:                     translateExcludeConfig(cfg.Exclude),
 		GenerateConfigs:             cfg.GenerateConfigs,
@@ -31,7 +33,7 @@ func (cfg *TerragruntConfig) ToRunConfig() *runcfg.RunConfig {
 }
 
 // translateTerraformConfig converts config.TerraformConfig to runcfg.TerraformConfig.
-func translateTerraformConfig(tf *TerraformConfig) *runcfg.TerraformConfig {
+func translateTerraformConfig(tf *TerraformConfig, l log.Logger) *runcfg.TerraformConfig {
 	if tf == nil {
 		return nil
 	}
@@ -41,7 +43,7 @@ func translateTerraformConfig(tf *TerraformConfig) *runcfg.TerraformConfig {
 		IncludeInCopy:         tf.IncludeInCopy,
 		ExcludeFromCopy:       tf.ExcludeFromCopy,
 		CopyTerraformLockFile: tf.CopyTerraformLockFile,
-		ExtraArgs:             translateExtraArgs(tf.ExtraArgs),
+		ExtraArgs:             translateExtraArgs(tf.ExtraArgs, l),
 		BeforeHooks:           translateHooks(tf.BeforeHooks),
 		AfterHooks:            translateHooks(tf.AfterHooks),
 		ErrorHooks:            translateErrorHooks(tf.ErrorHooks),
@@ -49,24 +51,51 @@ func translateTerraformConfig(tf *TerraformConfig) *runcfg.TerraformConfig {
 }
 
 // translateExtraArgs converts []TerraformExtraArguments to []runcfg.TerraformExtraArguments.
-func translateExtraArgs(args []TerraformExtraArguments) []runcfg.TerraformExtraArguments {
+func translateExtraArgs(args []TerraformExtraArguments, l log.Logger) []runcfg.TerraformExtraArguments {
 	if args == nil {
 		return nil
 	}
 
 	result := make([]runcfg.TerraformExtraArguments, len(args))
 	for i, arg := range args {
+		varFiles := computeVarFiles(arg.RequiredVarFiles, arg.OptionalVarFiles, l)
 		result[i] = runcfg.TerraformExtraArguments{
 			Name:             arg.Name,
 			Commands:         arg.Commands,
 			Arguments:        arg.Arguments,
 			RequiredVarFiles: arg.RequiredVarFiles,
 			OptionalVarFiles: arg.OptionalVarFiles,
+			VarFiles:         varFiles,
 			EnvVars:          arg.EnvVars,
 		}
 	}
 
 	return result
+}
+
+// computeVarFiles returns a list of variable files, including required and optional files.
+func computeVarFiles(requiredVarFiles *[]string, optionalVarFiles *[]string, l log.Logger) []string {
+	var varFiles []string
+
+	// Include all specified RequiredVarFiles.
+	if requiredVarFiles != nil {
+		varFiles = append(varFiles, util.RemoveDuplicatesKeepLast(*requiredVarFiles)...)
+	}
+
+	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
+	// files list. Note that it is possible that many files resolve to the same path, so we remove
+	// duplicates.
+	if optionalVarFiles != nil {
+		for _, file := range util.RemoveDuplicatesKeepLast(*optionalVarFiles) {
+			if util.FileExists(file) {
+				varFiles = append(varFiles, file)
+			} else {
+				l.Debugf("Skipping var-file %s as it does not exist", file)
+			}
+		}
+	}
+
+	return varFiles
 }
 
 // translateHooks converts []Hook to []runcfg.Hook.

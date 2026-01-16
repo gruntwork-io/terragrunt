@@ -45,7 +45,7 @@ func runSingle(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return err
 	}
 
-	runCfg := prepared.Cfg.ToRunConfig()
+	runCfg := prepared.Cfg.ToRunConfig(l)
 
 	if err := prepare.PrepareGenerate(l, updatedOpts, runCfg); err != nil {
 		return err

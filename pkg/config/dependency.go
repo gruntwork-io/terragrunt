@@ -1261,7 +1261,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	runCfg := cfg.ToRunConfig()
+	runCfg := cfg.ToRunConfig(l)
 
 	credsGetter := creds.NewGetter()
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(

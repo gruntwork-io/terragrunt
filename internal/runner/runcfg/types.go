@@ -7,15 +7,10 @@
 package runcfg
 
 import (
-	"slices"
-	"strings"
-
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -81,33 +76,6 @@ type TerraformConfig struct {
 	ErrorHooks []ErrorHook
 }
 
-// GetBeforeHooks returns the before hooks, or nil if TerraformConfig is nil.
-func (cfg *TerraformConfig) GetBeforeHooks() []Hook {
-	if cfg == nil {
-		return nil
-	}
-
-	return cfg.BeforeHooks
-}
-
-// GetAfterHooks returns the after hooks, or nil if TerraformConfig is nil.
-func (cfg *TerraformConfig) GetAfterHooks() []Hook {
-	if cfg == nil {
-		return nil
-	}
-
-	return cfg.AfterHooks
-}
-
-// GetErrorHooks returns the error hooks, or nil if TerraformConfig is nil.
-func (cfg *TerraformConfig) GetErrorHooks() []ErrorHook {
-	if cfg == nil {
-		return nil
-	}
-
-	return cfg.ErrorHooks
-}
-
 // Hook represents a lifecycle hook (before/after).
 type Hook struct {
 	// WorkingDir is the directory to run the hook in
@@ -154,33 +122,11 @@ type TerraformExtraArguments struct {
 	EnvVars *map[string]string
 	// Name is the identifier for this set of arguments
 	Name string
+	// VarFiles contains the computed list of variable files (required + existing optional files)
+	// This is computed during config translation.
+	VarFiles []string
 	// Commands are terraform commands these arguments apply to
 	Commands []string
-}
-
-// GetVarFiles returns a list of variable files, including required and optional files.
-func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
-	var varFiles []string
-
-	// Include all specified RequiredVarFiles.
-	if args.RequiredVarFiles != nil {
-		varFiles = append(varFiles, util.RemoveDuplicatesKeepLast(*args.RequiredVarFiles)...)
-	}
-
-	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
-	// files list. Note that it is possible that many files resolve to the same path, so we remove
-	// duplicates.
-	if args.OptionalVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesKeepLast(*args.OptionalVarFiles) {
-			if util.FileExists(file) {
-				varFiles = append(varFiles, file)
-			} else {
-				l.Debugf("Skipping var-file %s as it does not exist", file)
-			}
-		}
-	}
-
-	return varFiles
 }
 
 // ExcludeConfig contains exclusion rules.
@@ -197,33 +143,11 @@ type ExcludeConfig struct {
 
 // IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
-	if e == nil || len(e.Actions) == 0 {
+	if e == nil {
 		return false
 	}
 
-	const (
-		allActions              = "all"
-		allExcludeOutputActions = "all_except_output"
-		tgOutput                = "output"
-	)
-
-	actionLower := strings.ToLower(action)
-
-	for _, checkAction := range e.Actions {
-		if checkAction == allActions {
-			return true
-		}
-
-		if checkAction == allExcludeOutputActions && actionLower != tgOutput {
-			return true
-		}
-
-		if strings.ToLower(checkAction) == actionLower {
-			return true
-		}
-	}
-
-	return false
+	return IsActionListedInExclude(e.Actions, action)
 }
 
 // ShouldPreventRun returns true if execution should be prevented.
@@ -232,15 +156,7 @@ func (e *ExcludeConfig) ShouldPreventRun(command string) bool {
 		return false
 	}
 
-	if !e.If {
-		return false
-	}
-
-	if e.NoRun != nil && *e.NoRun {
-		return e.IsActionListed(command)
-	}
-
-	return slices.Contains(e.Actions, command)
+	return ShouldPreventRunBasedOnExclude(e.Actions, e.NoRun, e.If, command)
 }
 
 // IncludeConfig represents an included configuration.
