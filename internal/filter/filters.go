@@ -288,14 +288,18 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 
 	// Phase 2: Apply negative filters to remove components
 	for _, filter := range negativeFilters {
-		var result component.Components
-
-		result, err = filter.Evaluate(l, combined)
+		toRemove, err := filter.Evaluate(l, combined)
 		if err != nil {
 			return nil, err
 		}
 
-		combined = result
+		if len(toRemove) == 0 {
+			continue
+		}
+
+		combined = slices.DeleteFunc(combined, func(c component.Component) bool {
+			return slices.Contains(toRemove, c)
+		})
 	}
 
 	return combined, nil
@@ -336,12 +340,7 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	seen := make(map[string]component.Component, len(components))
 
 	for _, filter := range positiveFilters {
-		var (
-			result component.Components
-			err    error
-		)
-
-		result, err = filter.Evaluate(l, components)
+		result, err := filter.Evaluate(l, components)
 		if err != nil {
 			return nil, err
 		}
@@ -376,9 +375,12 @@ func (f Filters) String() string {
 
 // startsWithNegation checks if an expression starts with a negation operator.
 func startsWithNegation(expr Expression) bool {
-	if prefixExpr, ok := expr.(*PrefixExpression); ok {
-		return prefixExpr.Operator == "!"
+	switch node := expr.(type) {
+	case *PrefixExpression:
+		return node.Operator == "!"
+	case *InfixExpression:
+		return startsWithNegation(node.Left)
+	default:
+		return false
 	}
-
-	return false
 }
