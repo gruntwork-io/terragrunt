@@ -554,7 +554,12 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 //   - If the dependency block indicates a mock_outputs attribute, this will return that.
 //     If the dependency block indicates a mock_outputs_merge_strategy_with_state attribute, mock_outputs and state outputs will be merged following the merge strategy
 //   - If the dependency block does NOT indicate a mock_outputs attribute, this will return an error.
-func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx context.Context, pctx *ParsingContext, l log.Logger, dependencyConfig Dependency) (*cty.Value, error) {
+func getTerragruntOutputIfAppliedElseConfiguredDefault(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	dependencyConfig Dependency,
+) (*cty.Value, error) {
 	if dependencyConfig.isDisabled() {
 		l.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
 		return dependencyConfig.MockOutputs, nil
@@ -563,36 +568,24 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx context.Context, pctx
 	if dependencyConfig.shouldGetOutputs(pctx) {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, pctx, l, dependencyConfig)
 		if err != nil {
-			// If getTerragruntOutput fails but mock outputs are allowed, fall back to mock outputs
-			if dependencyConfig.shouldReturnMockOutputs(pctx) {
-				targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), pctx.TerragruntOptions.TerragruntConfigPath)
-				l.Warnf("Failed to read outputs from %s referenced in %s as %s, using mock outputs. Error: %v", targetConfig, pctx.TerragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
+			return nil, err
+		}
 
-				return dependencyConfig.MockOutputs, nil
-			}
+		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) && dependencyConfig.MockOutputs != nil {
+			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
-			if !isEmpty {
-				return nil, err
+			switch mockMergeStrategy { // nolint:exhaustive
+			case NoMerge:
+				return outputVal, nil
+			case ShallowMerge:
+				return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
+			case DeepMergeMapOnly:
+				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
+			default:
+				return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
 			}
-		} else {
-			if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(pctx) && dependencyConfig.MockOutputs != nil {
-				mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
-
-				// TODO: Make this exhaustive
-				switch mockMergeStrategy { // nolint:exhaustive
-				case NoMerge:
-					return outputVal, nil
-				case ShallowMerge:
-					return shallowMergeCtyMaps(*outputVal, *dependencyConfig.MockOutputs)
-				case DeepMergeMapOnly:
-					return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
-				default:
-					return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
-				}
-			} else if !isEmpty {
-				return outputVal, err
-			}
-			// If isEmpty is true and no error, fall through to empty-output check logic below
+		} else if !isEmpty {
+			return outputVal, err
 		}
 	}
 
@@ -643,9 +636,17 @@ func (dep Dependency) shouldReturnMockOutputs(pctx *ParsingContext) bool {
 // Return the output from the state of another module, managed by terragrunt. This function will parse the provided
 // terragrunt config and extract the desired output from the remote state. Note that this will error if the targeted
 // module hasn't been applied yet.
-func getTerragruntOutput(ctx context.Context, pctx *ParsingContext, l log.Logger, dependencyConfig Dependency) (*cty.Value, bool, error) {
+func getTerragruntOutput(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	dependencyConfig Dependency,
+) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
-	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), pctx.TerragruntOptions.TerragruntConfigPath)
+	targetConfigPath := getCleanedTargetConfigPath(
+		dependencyConfig.ConfigPath.AsString(),
+		pctx.TerragruntOptions.TerragruntConfigPath,
+	)
 
 	if !util.FileExists(targetConfigPath) {
 		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
@@ -657,7 +658,13 @@ func getTerragruntOutput(ctx context.Context, pctx *ParsingContext, l log.Logger
 			return nil, true, err
 		}
 
-		l.Warnf("Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v", targetConfigPath, pctx.TerragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
+		l.Warnf(
+			"Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v",
+			targetConfigPath,
+			pctx.TerragruntOptions.TerragruntConfigPath,
+			dependencyConfig.Name,
+			err,
+		)
 
 		jsonBytes, err = json.Marshal(dependencyConfig.MockOutputs)
 		if err != nil {
