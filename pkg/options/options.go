@@ -654,9 +654,14 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		}
 
 		// Process the error through our error handling configuration
-		action, processErr := opts.Errors.ProcessError(l, err, currentAttempt)
-		if processErr != nil {
-			return fmt.Errorf("error processing error handling rules: %w", processErr)
+		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
+		if recoveryErr != nil {
+			var maxAttemptsReachedError *MaxAttemptsReachedError
+			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+				return maxAttemptsReachedError
+			}
+
+			return fmt.Errorf("encountered error while attempting error recovery: %w", recoveryErr)
 		}
 
 		if action == nil {
@@ -771,8 +776,17 @@ type ErrorAction struct {
 	ShouldRetry     bool
 }
 
-// ProcessError evaluates an error against the configuration and returns the appropriate action
-func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
+type MaxAttemptsReachedError struct {
+	Err        error
+	MaxRetries int
+}
+
+func (e *MaxAttemptsReachedError) Error() string {
+	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
+}
+
+// AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
+func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
 	if err == nil {
 		return nil, nil
 	}
@@ -780,43 +794,51 @@ func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int)
 	errStr := extractErrorMessage(err)
 	action := &ErrorAction{}
 
-	l.Debugf("Processing error message: %s", errStr)
+	l.Debugf("Attempting error recovery for error: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
 		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
-		if isIgnorable {
-			action.IgnoreBlockName = ignoreBlock.Name
-			action.ShouldIgnore = true
-			action.IgnoreMessage = ignoreBlock.Message
-			action.IgnoreSignals = make(map[string]any)
-
-			// Convert cty.Value map to regular map
-			maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
-
-			return action, nil
+		if !isIgnorable {
+			continue
 		}
+
+		action.IgnoreBlockName = ignoreBlock.Name
+		action.ShouldIgnore = true
+		action.IgnoreMessage = ignoreBlock.Message
+		action.IgnoreSignals = make(map[string]any)
+
+		// Convert cty.Value map to regular map
+		maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
+
+		return action, nil
 	}
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
 		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
-		if isRetryable {
-			if currentAttempt >= retryBlock.MaxAttempts {
-				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
-					retryBlock.MaxAttempts, err))
-			}
-
-			action.RetryMessage = retryBlock.Name
-			action.ShouldRetry = true
-			action.RetryAttempts = retryBlock.MaxAttempts
-			action.RetrySleepSecs = retryBlock.SleepIntervalSec
-
-			return action, nil
+		if !isRetryable {
+			continue
 		}
+
+		if currentAttempt >= retryBlock.MaxAttempts {
+			return nil, &MaxAttemptsReachedError{
+				MaxRetries: retryBlock.MaxAttempts,
+				Err:        err,
+			}
+		}
+
+		action.RetryMessage = retryBlock.Name
+		action.ShouldRetry = true
+		action.RetryAttempts = retryBlock.MaxAttempts
+		action.RetrySleepSecs = retryBlock.SleepIntervalSec
+
+		return action, nil
 	}
 
-	return nil, err
+	// We encountered no error while attempting error recovery, even though the underlying error
+	// is still present. Recovery did not error, the original error will be handled externally.
+	return nil, nil
 }
 
 func extractErrorMessage(err error) string {
