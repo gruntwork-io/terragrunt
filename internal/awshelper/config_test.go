@@ -149,3 +149,64 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 	// Verify that the config uses the region from awsCfg, not from environment variables
 	assert.Equal(t, "us-east-1", cfg.Region)
 }
+
+// TestAwsConfigRoleArnTakesPrecedenceOverEnvCredentials validates bug #4979 fix:
+// When RoleARN is specified in config, it must take precedence over env credentials
+func TestAwsConfigRoleArnTakesPrecedenceOverEnvCredentials(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx := context.Background()
+
+	// Env credentials present
+	opts := &options.TerragruntOptions{
+		Env: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "test-access-key",
+			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		},
+		IAMRoleOptions: options.IAMRoleOptions{
+			RoleARN: "arn:aws:iam::123456789012:role/test-role",
+		},
+	}
+
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	require.NoError(t, err)
+
+	// Verify credentials provider is set (role assumption configured)
+	assert.NotNil(t, cfg.Credentials)
+
+	// The key assertion: when RoleARN is set, credentials should be configured
+	// for role assumption, not using the env credentials directly
+	_, err = cfg.Credentials.Retrieve(ctx)
+	// We expect an error here since the role doesn't exist, but the important
+	// part is that it attempted role assumption rather than using env creds
+	assert.Error(t, err)
+}
+
+// TestAwsConfigUsesEnvCredentialsWhenNoRoleArn validates that env credentials
+// are used when no RoleARN is specified
+func TestAwsConfigUsesEnvCredentialsWhenNoRoleArn(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	ctx := context.Background()
+
+	opts := &options.TerragruntOptions{
+		Env: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "test-access-key",
+			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		},
+	}
+
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	require.NoError(t, err)
+
+	assert.NotNil(t, cfg.Credentials)
+
+	creds, err := cfg.Credentials.Retrieve(ctx)
+	require.NoError(t, err)
+
+	// Should use env credentials directly
+	assert.Equal(t, "test-access-key", creds.AccessKeyID)
+	assert.Equal(t, "test-secret-key", creds.SecretAccessKey)
+}
