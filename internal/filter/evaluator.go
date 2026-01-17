@@ -264,16 +264,26 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	visited := make(map[string]bool)
 
 	if expr.IncludeDependencies {
+		maxDepth := MaxTraversalDepth
+		if expr.DependencyDepth > 0 {
+			maxDepth = expr.DependencyDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, maxDepth, maxDepth)
 		}
 	}
 
 	visited = make(map[string]bool)
 
 	if expr.IncludeDependents {
+		maxDepth := MaxTraversalDepth
+		if expr.DependentDepth > 0 {
+			maxDepth = expr.DependentDepth
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, maxDepth, maxDepth)
 		}
 	}
 
@@ -331,9 +341,10 @@ func traverseGraph(
 	visited map[string]bool,
 	direction graphDirection,
 	maxDepth int,
+	originalDepth int,
 ) {
 	if maxDepth <= 0 {
-		if l != nil {
+		if l != nil && originalDepth == MaxTraversalDepth {
 			directionName := direction.String()
 
 			l.Warnf(
@@ -387,7 +398,7 @@ func traverseGraph(
 
 		resultSet[relatedPath] = related
 
-		traverseGraph(l, related, resultSet, visited, direction, maxDepth-1)
+		traverseGraph(l, related, resultSet, visited, direction, maxDepth-1, originalDepth)
 	}
 }
 

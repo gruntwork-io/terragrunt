@@ -127,6 +127,103 @@ func TestLexer_SingleTokens(t *testing.T) {
 				{Type: filter.EOF, Literal: "", Position: 13},
 			},
 		},
+		{
+			name:  "ellipsis",
+			input: "...",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 3},
+			},
+		},
+		{
+			name:  "double dots with digit is identifier",
+			input: "..1",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "..1", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 3},
+			},
+		},
+		{
+			name:  "double dots with multi digit is identifier",
+			input: "..25",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "..25", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 4},
+			},
+		},
+		{
+			name:  "parent directory path not confused with depth",
+			input: "../foo",
+			expected: []filter.Token{
+				{Type: filter.PATH, Literal: "../foo", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "identifier with double dots followed by letter",
+			input: "foo..bar",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "foo..bar", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 8},
+			},
+		},
+		{
+			name:  "identifier with double dots and digit",
+			input: "foo..1",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "foo..1", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "double dots digit and identifier",
+			input: "..2foo",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "..2foo", Position: 0},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "ellipsis with identifier",
+			input: "...foo",
+			expected: []filter.Token{
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 0},
+				{Type: filter.IDENT, Literal: "foo", Position: 3},
+				{Type: filter.EOF, Literal: "", Position: 6},
+			},
+		},
+		{
+			name:  "number ellipsis identifier (dependent depth syntax)",
+			input: "1...foo",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "1", Position: 0},
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 1},
+				{Type: filter.IDENT, Literal: "foo", Position: 4},
+				{Type: filter.EOF, Literal: "", Position: 7},
+			},
+		},
+		{
+			name:  "identifier ellipsis number (dependency depth syntax)",
+			input: "foo...1",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "foo", Position: 0},
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 3},
+				{Type: filter.IDENT, Literal: "1", Position: 6},
+				{Type: filter.EOF, Literal: "", Position: 7},
+			},
+		},
+		{
+			name:  "full depth syntax both directions",
+			input: "1...foo...2",
+			expected: []filter.Token{
+				{Type: filter.IDENT, Literal: "1", Position: 0},
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 1},
+				{Type: filter.IDENT, Literal: "foo", Position: 4},
+				{Type: filter.ELLIPSIS, Literal: "...", Position: 7},
+				{Type: filter.IDENT, Literal: "2", Position: 10},
+				{Type: filter.EOF, Literal: "", Position: 11},
+			},
+		},
 	}
 
 	for _, tt := range tests {
