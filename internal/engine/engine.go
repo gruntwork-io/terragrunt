@@ -695,7 +695,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 // processStream handles the character buffering and line printing for a given stream
 func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	for _, ch := range data {
-		lineBuf.WriteByte(byte(ch))
+		lineBuf.WriteRune(ch)
 
 		if ch == '\n' {
 			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
