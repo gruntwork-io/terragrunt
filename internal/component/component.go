@@ -133,6 +133,10 @@ func (c Components) Sort() Components {
 
 // Filter filters the Components by config type.
 func (c Components) Filter(kind Kind) Components {
+	if len(c) == 0 {
+		return c
+	}
+
 	filtered := make(Components, 0, len(c))
 
 	for _, component := range c {

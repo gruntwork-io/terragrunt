@@ -2,12 +2,12 @@ package run
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
-
-	"encoding/hex"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -30,62 +30,6 @@ const DefaultTerraformVersionConstraint = ">= v0.12.0"
 var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
-
-// CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
-// following settings on terragruntOptions:
-// - TerraformPath
-// - TerraformVersion
-// - FeatureFlags
-// TODO: Look into a way to refactor this function to avoid the side effect.
-func CheckVersionConstraints(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (log.Logger, error) {
-	partialTerragruntConfig, err := getTerragruntConfig(ctx, l, terragruntOptions)
-	if err != nil {
-		return l, err
-	}
-
-	// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
-	if !terragruntOptions.TFPathExplicitlySet && partialTerragruntConfig.TerraformBinary != "" {
-		terragruntOptions.TFPath = partialTerragruntConfig.TerraformBinary
-	}
-
-	l, err = PopulateTFVersion(ctx, l, terragruntOptions)
-	if err != nil {
-		return l, err
-	}
-
-	terraformVersionConstraint := DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-
-	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return l, err
-	}
-
-	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, terragruntOptions); err != nil {
-			return l, err
-		}
-	}
-
-	if partialTerragruntConfig.FeatureFlags != nil {
-		// update feature flags for evaluation
-		for _, flag := range partialTerragruntConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return l, err
-			}
-
-			if _, exists := terragruntOptions.FeatureFlags.Load(flagName); !exists {
-				terragruntOptions.FeatureFlags.Store(flagName, defaultValue)
-			}
-		}
-	}
-
-	return l, nil
-}
 
 // PopulateTFVersion populates the currently installed version of OpenTofuTerraform into the given terragruntOptions.
 //
@@ -112,7 +56,6 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 		return l, err
 	}
 
-	// Save output to cache using minimal format
 	cacheData := formatVersionForCache(tfImplementation, terraformVersion)
 	versionCache.Put(ctx, cacheKey, cacheData)
 
@@ -173,7 +116,7 @@ func parseVersionFromCache(cachedData string) (options.TerraformImplementationTy
 // This function can be used independently when you need to check the version without
 // populating or using the version cache.
 func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, *version.Version, options.TerraformImplementationType, error) {
-	l, optsCopy, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	_, optsCopy, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
 		return l, nil, options.UnknownImpl, err
 	}
@@ -299,19 +242,20 @@ func computeVersionFilesCacheKey(workingDir string, versionFiles []string) strin
 	var hashes []string
 
 	for _, file := range versionFiles {
-		path, err := util.SanitizePath(workingDir, file)
-		if err != nil {
+		path := filepath.Join(workingDir, file)
+
+		if !util.FileExists(path) {
 			continue
 		}
 
-		if util.FileExists(path) {
-			hash, err := util.FileSHA256(path)
-			if err == nil {
-				// We use `file` as part of the cache key because the `path` becomes an absolute path after sanitization.
-				// Without implementing a full "mock filesystem", this would be difficult to test currently.
-				// Note: This approach may potentially create duplicate cache files in some edge cases.
-				hashes = append(hashes, file+":"+hex.EncodeToString(hash))
-			}
+		sanitizedPath, err := util.SanitizePath(workingDir, file)
+		if err != nil {
+			sanitizedPath = path
+		}
+
+		hash, err := util.FileSHA256(sanitizedPath)
+		if err == nil {
+			hashes = append(hashes, file+":"+hex.EncodeToString(hash))
 		}
 	}
 

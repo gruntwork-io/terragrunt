@@ -24,7 +24,7 @@ func TestRenderJSON_Basic(t *testing.T) {
 
 	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
-	opts.DisableDependentModules = true
+	opts.DisableDependentUnits = true
 	opts.RenderMetadata = false
 	opts.Write = false
 
@@ -49,7 +49,7 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 
 	opts.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
-	opts.DisableDependentModules = true
+	opts.DisableDependentUnits = true
 	opts.RenderMetadata = true
 	opts.Write = false
 
@@ -71,7 +71,7 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts, _ := setupTest(t)
 	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
 	opts.Format = render.FormatJSON
-	opts.DisableDependentModules = true
+	opts.DisableDependentUnits = true
 	opts.RenderMetadata = false
 	opts.Write = true
 	opts.OutputPath = outputPath

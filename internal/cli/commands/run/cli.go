@@ -3,13 +3,10 @@ package run
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -80,28 +77,6 @@ func NewSubcommands(l log.Logger, opts *options.TerragruntOptions) clihelper.Com
 
 func Action(l log.Logger, opts *options.TerragruntOptions) clihelper.ActionFunc {
 	return func(ctx context.Context, _ *clihelper.Context) error {
-		if opts.TerraformCommand == tf.CommandNameDestroy {
-			opts.CheckDependentModules = opts.DestroyDependenciesCheck
-		}
-
-		r := report.NewReport().WithWorkingDir(opts.WorkingDir)
-
-		tgOpts := opts.OptionsFromContext(ctx)
-
-		if tgOpts.RunAll {
-			return runall.Run(ctx, l, tgOpts)
-		}
-
-		if tgOpts.Graph {
-			return graph.Run(ctx, l, tgOpts)
-		}
-
-		return run.Run(ctx, l, tgOpts, r)
+		return Run(ctx, l, opts)
 	}
-}
-
-// isTerraformPath returns true if the TFPath ends with the default Terraform path.
-// This is used by help.go to determine whether to show "Terraform" or "OpenTofu" in help text.
-func isTerraformPath(opts *options.TerragruntOptions) bool {
-	return strings.HasSuffix(opts.TFPath, options.TerraformDefaultPath)
 }

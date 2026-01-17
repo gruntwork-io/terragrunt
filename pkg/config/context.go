@@ -14,6 +14,7 @@ const (
 	TerragruntConfigCacheContextKey configKey = iota
 	RunCmdCacheContextKey           configKey = iota
 	DependencyOutputCacheContextKey configKey = iota
+	TerragruntRunnerContextKey      configKey = iota
 
 	hclCacheName              = "hclCache"
 	configCacheName           = "configCache"

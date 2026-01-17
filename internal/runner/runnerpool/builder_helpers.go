@@ -3,7 +3,10 @@ package runnerpool
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"slices"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -11,8 +14,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -202,4 +207,110 @@ func createRunner(
 	}
 
 	return runner, nil
+}
+
+// checkVersionConstraints performs version constraint checks on all discovered units concurrently.
+// It uses errgroup to coordinate concurrent checks and returns the first error encountered.
+func checkVersionConstraints(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	units []*component.Unit,
+) error {
+	g, checkCtx := errgroup.WithContext(ctx)
+
+	maxWorkers := min(runtime.NumCPU(), opts.Parallelism)
+	g.SetLimit(maxWorkers)
+
+	for _, unit := range units {
+		g.Go(func() error {
+			return checkUnitVersionConstraints(
+				checkCtx,
+				l,
+				unit,
+			)
+		})
+	}
+
+	return g.Wait()
+}
+
+// checkUnitVersionConstraints checks version constraints for a single unit.
+// It handles config parsing if needed and performs version constraint validation.
+func checkUnitVersionConstraints(
+	ctx context.Context,
+	l log.Logger,
+	unit *component.Unit,
+) error {
+	unitConfig := unit.Config()
+
+	// This is almost definitely already parsed, but we'll check just in case.
+	if unitConfig == nil {
+		configCtx, pctx := config.NewParsingContext(ctx, l, unit.Execution.TerragruntOptions)
+		pctx = pctx.WithDecodeList(
+			config.TerragruntVersionConstraints,
+			config.FeatureFlagsBlock,
+		)
+
+		var err error
+
+		unitConfig, err = config.PartialParseConfigFile(
+			configCtx,
+			pctx,
+			l,
+			unit.ConfigFile(),
+			nil,
+		)
+		if err != nil {
+			return errors.Errorf("failed to parse config for unit %s: %w", unit.DisplayPath(), err)
+		}
+	}
+
+	if !unit.Execution.TerragruntOptions.TFPathExplicitlySet && unitConfig.TerraformBinary != "" {
+		unit.Execution.TerragruntOptions.TFPath = unitConfig.TerraformBinary
+	}
+
+	if unit.Execution != nil && unit.Execution.Logger != nil {
+		l = unit.Execution.Logger
+	}
+
+	_, err := run.PopulateTFVersion(ctx, l, unit.Execution.TerragruntOptions)
+	if err != nil {
+		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
+	}
+
+	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
+	if unitConfig.TerraformVersionConstraint != "" {
+		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
+	}
+
+	if err := run.CheckTerraformVersion(terraformVersionConstraint, unit.Execution.TerragruntOptions); err != nil {
+		return errors.Errorf("Terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
+	}
+
+	if unitConfig.TerragruntVersionConstraint != "" {
+		if err := run.CheckTerragruntVersion(
+			unitConfig.TerragruntVersionConstraint,
+			unit.Execution.TerragruntOptions,
+		); err != nil {
+			return errors.Errorf("Terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
+		}
+	}
+
+	if unitConfig.FeatureFlags != nil {
+		for _, flag := range unitConfig.FeatureFlags {
+			flagName := flag.Name
+
+			defaultValue, err := flag.DefaultAsString()
+			if err != nil {
+				return errors.Errorf("failed to get default value for feature flag %s in unit %s: %w", flagName, unit.DisplayPath(), err)
+			}
+
+			if _, exists := unit.Execution.TerragruntOptions.FeatureFlags.Load(flagName); !exists {
+				unit.Execution.TerragruntOptions.FeatureFlags.Store(flagName, defaultValue)
+			}
+		}
+	}
+
+	return nil
 }

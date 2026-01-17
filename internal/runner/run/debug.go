@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -21,7 +21,7 @@ const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the tofu/terraform module in the same way
 // that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
@@ -74,7 +74,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 func terragruntDebugFileContents(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	moduleVariables []string,
 ) ([]byte, error) {
 	envVars := map[string]string{}

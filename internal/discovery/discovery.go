@@ -416,6 +416,7 @@ func Parse(
 		config.FeatureFlagsBlock,
 		config.ExcludeBlock,
 		config.ErrorsBlock,
+		config.TerragruntVersionConstraints,
 	).WithSkipOutputsResolution()
 
 	// Apply custom parser options if provided via discovery

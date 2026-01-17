@@ -104,7 +104,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
 			EnvVars:     tgPrefix.EnvVars(DisableDependentModulesFlagName),
-			Destination: &opts.DisableDependentModules,
+			Destination: &opts.DisableDependentUnits,
 			Usage:       "Disable identification of dependent modules when rendering config.",
 		},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), terragruntPrefixControl),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`

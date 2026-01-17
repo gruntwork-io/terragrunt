@@ -53,6 +53,15 @@ func NewUnit(path string) *Unit {
 	}
 }
 
+// NewUnitExecution creates a new UnitExecution with the given options.
+func NewUnitExecution(l log.Logger, opts *options.TerragruntOptions, excluded bool) *UnitExecution {
+	return &UnitExecution{
+		TerragruntOptions: opts,
+		Logger:            l,
+		FlagExcluded:      excluded,
+	}
+}
+
 // WithReading appends a file to the list of files being read by this component.
 // Useful for constructing components with all files read at once.
 func (u *Unit) WithReading(files ...string) *Unit {
