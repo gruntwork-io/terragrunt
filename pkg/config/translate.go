@@ -346,6 +346,7 @@ func translateEngineConfig(engine *EngineConfig) runcfg.EngineConfig {
 	}
 
 	return runcfg.EngineConfig{
+		Enable:  true,
 		Source:  engine.Source,
 		Version: version,
 		Type:    engineType,

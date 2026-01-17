@@ -180,6 +180,9 @@ type EngineConfig struct {
 	Meta *cty.Value
 	// Source is the engine source URL
 	Source string
+	// Enable indicates whether the engine block was specified,
+	// meaning that we should be using the engine.
+	Enable bool
 }
 
 // ErrorsConfig represents the top-level errors configuration.

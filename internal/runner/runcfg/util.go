@@ -180,6 +180,10 @@ func ShouldCopyLockFile(cfg *TerraformConfig) bool {
 
 // EngineOptions fetches engine options from the RunConfig.
 func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
+	if !cfg.Engine.Enable {
+		return nil, nil
+	}
+
 	// in case of Meta is null, set empty meta
 	meta := map[string]any{}
 
