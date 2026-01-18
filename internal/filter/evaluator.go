@@ -264,26 +264,32 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	visited := make(map[string]bool)
 
 	if expr.IncludeDependencies {
-		maxDepth := MaxTraversalDepth
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
 		if expr.DependencyDepth > 0 {
-			maxDepth = expr.DependencyDepth
+			depth = expr.DependencyDepth
+			warnOnLimit = false
 		}
 
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, maxDepth, maxDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, depth, warnOnLimit)
 		}
 	}
 
 	visited = make(map[string]bool)
 
 	if expr.IncludeDependents {
-		maxDepth := MaxTraversalDepth
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
 		if expr.DependentDepth > 0 {
-			maxDepth = expr.DependentDepth
+			depth = expr.DependentDepth
+			warnOnLimit = false
 		}
 
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, maxDepth, maxDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, depth, warnOnLimit)
 		}
 	}
 
@@ -334,17 +340,18 @@ func (d graphDirection) String() string {
 }
 
 // traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
+// The warnOnLimit flag controls whether to log a warning when depth is exhausted (used for safety limits only).
 func traverseGraph(
 	l log.Logger,
 	c component.Component,
 	resultSet map[string]component.Component,
 	visited map[string]bool,
 	direction graphDirection,
-	maxDepth int,
-	originalDepth int,
+	remainingDepth int,
+	warnOnLimit bool,
 ) {
-	if maxDepth <= 0 {
-		if l != nil && originalDepth == MaxTraversalDepth {
+	if remainingDepth <= 0 {
+		if l != nil && warnOnLimit {
 			directionName := direction.String()
 
 			l.Warnf(
@@ -398,7 +405,7 @@ func traverseGraph(
 
 		resultSet[relatedPath] = related
 
-		traverseGraph(l, related, resultSet, visited, direction, maxDepth-1, originalDepth)
+		traverseGraph(l, related, resultSet, visited, direction, remainingDepth-1, warnOnLimit)
 	}
 }
 
