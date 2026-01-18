@@ -1204,6 +1204,58 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 	})
 }
 
+func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
+	t.Parallel()
+
+	// Graph structure:
+	//   targetA (2 hops from shared) --> intermediate --> shared --> deep1 --> deep2
+	//   targetB (1 hop from shared) --> shared
+	//
+	// With depth=2:
+	//   - From targetA: can reach intermediate, shared (2 hops)
+	//   - From targetB: can reach shared, deep1 (2 hops)
+	//   - Result should include deep1 even though targetA reaches shared first with less remaining depth
+
+	ctx := &component.DiscoveryContext{WorkingDir: "."}
+
+	targetA := component.NewUnit("./targetA").WithDiscoveryContext(ctx)
+	targetB := component.NewUnit("./targetB").WithDiscoveryContext(ctx)
+	intermediate := component.NewUnit("./intermediate").WithDiscoveryContext(ctx)
+	shared := component.NewUnit("./shared").WithDiscoveryContext(ctx)
+	deep1 := component.NewUnit("./deep1").WithDiscoveryContext(ctx)
+	deep2 := component.NewUnit("./deep2").WithDiscoveryContext(ctx)
+
+	// Set up dependencies
+	targetA.AddDependency(intermediate)
+	intermediate.AddDependency(shared)
+	targetB.AddDependency(shared)
+	shared.AddDependency(deep1)
+	deep1.AddDependency(deep2)
+
+	components := []component.Component{targetA, targetB, intermediate, shared, deep1, deep2}
+
+	t.Run("multiple targets with shared dependency at different distances", func(t *testing.T) {
+		t.Parallel()
+
+		// Match both targetA and targetB using glob
+		expr := &filter.GraphExpression{
+			Target:              &filter.PathExpression{Value: "./target*"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		// Should include: targetA, targetB, intermediate (1 hop from A), shared (2 hops from A, 1 from B), deep1 (2 hops from B)
+		// Should NOT include: deep2 (3 hops from B, too deep)
+		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
+	})
+}
+
 func TestEvaluate_GitFilter(t *testing.T) {
 	t.Parallel()
 

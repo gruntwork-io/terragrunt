@@ -261,7 +261,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 	}
 
-	visited := make(map[string]bool)
+	visited := make(map[string]int)
 
 	if expr.IncludeDependencies {
 		depth := MaxTraversalDepth
@@ -277,7 +277,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 	}
 
-	visited = make(map[string]bool)
+	visited = make(map[string]int)
 
 	if expr.IncludeDependents {
 		depth := MaxTraversalDepth
@@ -340,12 +340,14 @@ func (d graphDirection) String() string {
 }
 
 // traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
+// The visited map tracks the maximum remaining depth at which each node was visited, allowing re-traversal
+// when a node is reached with more remaining depth (e.g., from a closer target).
 // The warnOnLimit flag controls whether to log a warning when depth is exhausted (used for safety limits only).
 func traverseGraph(
 	l log.Logger,
 	c component.Component,
 	resultSet map[string]component.Component,
-	visited map[string]bool,
+	visited map[string]int,
 	direction graphDirection,
 	remainingDepth int,
 	warnOnLimit bool,
@@ -367,11 +369,12 @@ func traverseGraph(
 	}
 
 	path := c.Path()
-	if visited[path] {
+
+	if prevDepth, seen := visited[path]; seen && prevDepth >= remainingDepth {
 		return
 	}
 
-	visited[path] = true
+	visited[path] = remainingDepth
 
 	var relatedComponents []component.Component
 	if direction == graphDirectionDependencies {
