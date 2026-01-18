@@ -502,14 +502,22 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 //   - Remote state configuration is provided
 //   - The Terraform command uses state (e.g., plan, apply, destroy, output, etc.)
 //   - The remote state backend needs bootstrapping
-func remoteStateNeedsInit(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState, opts *options.TerragruntOptions) (bool, error) {
+func remoteStateNeedsInit(
+	ctx context.Context,
+	l log.Logger,
+	remoteState *remotestate.RemoteState,
+	opts *options.TerragruntOptions,
+) (bool, error) {
 	// If backend bootstrap is disabled, we don't need to initialize remote state
 	if !opts.BackendBootstrap {
 		return false, nil
 	}
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState == nil || remoteState.Config == nil || !slices.Contains(TerraformCommandsThatUseState, opts.TerraformCliArgs.First()) {
+	if remoteState == nil || remoteState.Config == nil || !slices.Contains(
+		TerraformCommandsThatUseState,
+		opts.TerraformCliArgs.First(),
+	) {
 		return false, nil
 	}
 
@@ -633,25 +641,18 @@ func setTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions,
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
 func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	if cfg.RemoteState.Config != nil {
-		if opts.BackendBootstrap {
-			if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
-				return err
-			}
-		} else {
-			remoteStateNeedsInit, err := remoteStateNeedsInit(ctx, l, &cfg.RemoteState, opts)
-			if err != nil {
-				return err
-			}
+	if cfg.RemoteState.Config == nil {
+		return nil
+	}
 
-			if remoteStateNeedsInit {
-				if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
-					return err
-				}
-			}
-		}
+	opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
 
-		opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
+	if !opts.BackendBootstrap {
+		return nil
+	}
+
+	if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
+		return err
 	}
 
 	return nil

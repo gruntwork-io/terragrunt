@@ -910,7 +910,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 			unit := r.Stack.Units[i]
 			if len(unit.Dependencies()) > 0 {
 				cfg := unit.Config()
-				if cfg != nil && len(cfg.Dependencies.Paths) > 0 {
+				if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", cfg.Dependencies.Paths)
 				} else {
 					dependenciesMsg = " contains dependencies and"
