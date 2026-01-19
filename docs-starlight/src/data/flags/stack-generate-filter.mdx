@@ -6,18 +6,6 @@ type: list(string)
 
 import {Aside} from '@astrojs/starlight/components';
 
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt stack generate --experiment filter-flag --filter 'foo | type=stack'
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-</Aside>
-
 <Aside type="note" title="Filter Behavior for Stack Generate">
 The `--filter` flag works differently for `stack generate` compared to other commands. It requires that you explicitly target stacks using the `type=stack` attribute.
 
