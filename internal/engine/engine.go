@@ -536,7 +536,6 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 	}
 }
 
-
 // createEngine create engine for working directory
 func createEngine(
 	ctx context.Context,
