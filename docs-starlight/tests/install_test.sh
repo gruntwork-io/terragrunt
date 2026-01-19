@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Tests for Terragrunt install.sh script
 #
 # Usage:
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_SCRIPT="${SCRIPT_DIR}/install.sh"
+INSTALL_SCRIPT="${SCRIPT_DIR}/../public/install.sh"
 
 # Test counters
 TESTS_RUN=0

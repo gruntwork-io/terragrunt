@@ -12,6 +12,67 @@ export const response = await fetch('https://api.github.com/repos/gruntwork-io/t
 export const data = await response.json();
 export const version = data.tag_name || 'v0.72.5';
 
+## Quick Install
+
+The quickest way to install Terragrunt on Linux or macOS:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+```
+
+This will:
+1. Detect your operating system and architecture
+2. Download the latest Terragrunt binary
+3. Verify the SHA256 checksum
+4. Install to `/usr/local/bin`
+
+### Script Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-v, --version VERSION` | Install specific version | Latest |
+| `-d, --dir PATH` | Installation directory | `/usr/local/bin` |
+| `-f, --force` | Overwrite existing installation | Off |
+| `--verify-gpg` | Also verify GPG signature | Off |
+| `--no-verify` | Skip checksum verification | On |
+| `-h, --help` | Show help message | - |
+
+### Examples
+
+Install a specific version:
+
+<Code
+  lang="bash"
+  code={`curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v ${version}`}
+  frame="terminal"
+/>
+
+Install to a custom directory:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+```
+
+Install with GPG signature verification:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-gpg
+```
+
+### Download and Review First
+
+If you prefer to review the script before running:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install.sh -o install.sh
+less install.sh
+bash install.sh
+```
+
+:::note[Windows Users]
+This script is for Unix-like systems (Linux/macOS). Windows users should use the PowerShell snippet in the Convenience Scripts section below, or install via [Chocolatey](https://chocolatey.org/).
+:::
+
 ## Download from releases page
 
 1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
@@ -56,67 +117,6 @@ cosign verify-blob SHA256SUMS \
 
 <InstallTabs version={version} />
 
-## Quick Install Script
-
-The quickest way to install Terragrunt on Linux or macOS is using the install script:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash
-```
-
-This will:
-1. Detect your operating system and architecture
-2. Download the latest Terragrunt binary
-3. Verify the SHA256 checksum
-4. Install to `/usr/local/bin`
-
-### Script Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-v, --version VERSION` | Install specific version | Latest |
-| `-d, --dir PATH` | Installation directory | `/usr/local/bin` |
-| `-f, --force` | Overwrite existing installation | Off |
-| `--verify-gpg` | Also verify GPG signature | Off |
-| `--no-verify` | Skip checksum verification | On |
-| `-h, --help` | Show help message | - |
-
-### Examples
-
-Install a specific version:
-
-<Code
-  lang="bash"
-  code={`curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -v ${version}`}
-  frame="terminal"
-/>
-
-Install to a custom directory:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -d ~/bin
-```
-
-Install with GPG signature verification:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- --verify-gpg
-```
-
-### Download and Review First
-
-If you prefer to review the script before running:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/scripts/install.sh -o install.sh
-less install.sh
-bash install.sh
-```
-
-:::note[Windows Users]
-This script is for Unix-like systems (Linux/macOS). Windows users should use the PowerShell snippet in the Convenience Scripts section above, or install via [Chocolatey](https://chocolatey.org/).
-:::
-
 ## Install via a package manager
 
 Note that all the different package managers are third party. The third party Terragrunt packages may not be updated with the latest version, but are often close. Please check your version against the latest available on the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
@@ -151,7 +151,7 @@ If you  want the latest version, the recommended installation option is to [down
   emerge -a app-admin/terragrunt-bin
   ```
 
-* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): 
+* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)):
 
   ```bash
   pkg install terragrunt

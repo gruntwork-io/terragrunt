@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Terragrunt Installer
 #
 # Supported platforms: Linux, macOS (Darwin)
@@ -6,9 +6,9 @@
 # Requirements: bash 3.2+, curl, sha256sum or shasum
 #
 # Usage:
-#   curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash
-#   curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -v v0.72.5
-#   curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -d ~/bin
+#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
+#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
 #
 # Options:
 #   -v, --version VERSION    Install specific version (default: latest)
@@ -69,8 +69,8 @@ usage() {
 Terragrunt Installer
 
 Usage:
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- [OPTIONS]
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- [OPTIONS]
 
 Options:
   -v, --version VERSION    Install specific version (default: latest)
@@ -82,16 +82,16 @@ Options:
 
 Examples:
   # Install latest version
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
 
   # Install specific version
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -v v0.72.5
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
 
   # Install to custom directory
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- -d ~/bin
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
 
   # Install with GPG verification
-  curl -sL https://terragrunt.gruntwork.io/scripts/install.sh | bash -s -- --verify-gpg
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-gpg
 EOF
 }
 
