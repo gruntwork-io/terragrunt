@@ -35,7 +35,7 @@ func CreateGCSClient(
 	config *GCPSessionConfig,
 	opts *options.TerragruntOptions,
 ) (*storage.Client, error) {
-	clientOpts, err := CreateGCPConfig(ctx, l, config, opts)
+	clientOpts, err := CreateGCPConfig(ctx, config, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,6 @@ func CreateGCSClient(
 // CreateGCPConfig returns GCP client options for the given GCPSessionConfig and TerragruntOptions.
 func CreateGCPConfig(
 	ctx context.Context,
-	l log.Logger,
 	gcpCfg *GCPSessionConfig,
 	opts *options.TerragruntOptions,
 ) ([]option.ClientOption, error) {
@@ -138,7 +137,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *opt
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
+		return nil, errors.Errorf("Error parsing GCP credentials.")
 	}
 
 	conf := jwt.Config{

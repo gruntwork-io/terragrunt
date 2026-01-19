@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,6 @@ import (
 func TestCreateGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	// Create a temporary credentials file
@@ -33,7 +31,7 @@ func TestCreateGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 		},
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, nil, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, nil, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -41,7 +39,6 @@ func TestCreateGcpConfigWithApplicationCredentialsEnv(t *testing.T) {
 func TestCreateGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	opts := &options.TerragruntOptions{
@@ -50,7 +47,7 @@ func TestCreateGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 		},
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, nil, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, nil, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -58,7 +55,6 @@ func TestCreateGcpConfigWithOAuthAccessTokenEnv(t *testing.T) {
 func TestCreateGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	// Test with JSON content directly (not a file path)
@@ -79,7 +75,7 @@ func TestCreateGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 		},
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, nil, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, nil, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -87,7 +83,6 @@ func TestCreateGcpConfigWithGoogleCredentialsEnv(t *testing.T) {
 func TestCreateGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	// Create a temporary credentials file
@@ -104,7 +99,7 @@ func TestCreateGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 		Credentials: credsFile,
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, gcpCfg, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, gcpCfg, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -112,7 +107,6 @@ func TestCreateGcpConfigWithCredentialsFileFromConfig(t *testing.T) {
 func TestCreateGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	opts := &options.TerragruntOptions{
@@ -123,7 +117,7 @@ func TestCreateGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 		AccessToken: "test-access-token",
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, gcpCfg, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, gcpCfg, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
@@ -131,7 +125,6 @@ func TestCreateGcpConfigWithAccessTokenFromConfig(t *testing.T) {
 func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	// Create temporary credentials files
@@ -157,7 +150,7 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 		Credentials: configCredsFile, // This should be ignored in favor of env var
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, gcpCfg, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, gcpCfg, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 
@@ -168,7 +161,6 @@ func TestGcpConfigEnvVarsTakePrecedenceOverConfig(t *testing.T) {
 func TestCreateGcpConfigWithImpersonation(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	opts := &options.TerragruntOptions{
@@ -182,7 +174,7 @@ func TestCreateGcpConfigWithImpersonation(t *testing.T) {
 
 	// This will fail because we don't have real credentials, but we can verify
 	// that the impersonation configuration is attempted
-	_, err := gcphelper.CreateGCPConfig(ctx, l, gcpCfg, opts)
+	_, err := gcphelper.CreateGCPConfig(ctx, gcpCfg, opts)
 	// We expect an error because impersonation requires valid base credentials
 	// The error should be about impersonation, not about missing credentials
 	require.Error(t, err)
@@ -192,7 +184,6 @@ func TestCreateGcpConfigWithImpersonation(t *testing.T) {
 func TestCreateGcpConfigWithNoCredentials(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	opts := &options.TerragruntOptions{
@@ -200,7 +191,7 @@ func TestCreateGcpConfigWithNoCredentials(t *testing.T) {
 	}
 
 	// No credentials provided - should return empty options (will use default credentials)
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, nil, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, nil, opts)
 	require.NoError(t, err)
 	// Should return empty options when no credentials are provided
 	// (default credentials will be used by GCP client)
@@ -210,7 +201,6 @@ func TestCreateGcpConfigWithNoCredentials(t *testing.T) {
 func TestCreateGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
 	ctx := context.Background()
 
 	// Create a temporary credentials file
@@ -234,7 +224,7 @@ func TestCreateGcpConfigWithGoogleCredentialsFile(t *testing.T) {
 		},
 	}
 
-	clientOpts, err := gcphelper.CreateGCPConfig(ctx, l, nil, opts)
+	clientOpts, err := gcphelper.CreateGCPConfig(ctx, nil, opts)
 	require.NoError(t, err)
 	assert.NotEmpty(t, clientOpts)
 }
