@@ -680,6 +680,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		case *proto.RunResponse_Log:
 			if resp.Log != nil {
 				logContent := resp.Log.GetContent()
+
 				logLevel := resp.Log.GetLevel()
 				if logContent != "" {
 					switch logLevel {
@@ -805,6 +806,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 		case *proto.InitResponse_Log:
 			if resp.Log != nil {
 				logContent := resp.Log.GetContent()
+
 				logLevel := resp.Log.GetLevel()
 				if logContent != "" {
 					switch logLevel {
@@ -882,6 +884,7 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 		case *proto.ShutdownResponse_Log:
 			if resp.Log != nil {
 				logContent := resp.Log.GetContent()
+
 				logLevel := resp.Log.GetLevel()
 				if logContent != "" {
 					switch logLevel {
