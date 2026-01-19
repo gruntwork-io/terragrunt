@@ -22,7 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.10.1
 	github.com/gruntwork-io/go-commons v0.17.2
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.17-0.20251222154339-00ed8fdb886f
+	github.com/gruntwork-io/terragrunt-engine-go v0.1.0
 	github.com/gruntwork-io/terratest v0.51.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.8.4
