@@ -443,7 +443,10 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 	return result, nil
 }
 
-const gracefulExitTimeout = 5 * time.Second
+const (
+	gracefulExitTimeout    = 5 * time.Second
+	pluginExitPollInterval = 50 * time.Millisecond
+)
 
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -495,7 +498,7 @@ func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
 	go func() {
 		// Client.Exited() returns true when the plugin process has exited
 		for !client.Exited() {
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(pluginExitPollInterval)
 		}
 
 		close(done)
@@ -506,6 +509,23 @@ func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
 		return true
 	case <-time.After(timeout):
 		return false
+	}
+}
+
+// logEngineMessage logs a message from the engine at the appropriate log level.
+func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
+	switch logLevel {
+	case proto.LogLevel_LOG_LEVEL_DEBUG:
+		l.Debug(content)
+	case proto.LogLevel_LOG_LEVEL_INFO:
+		l.Info(content)
+	case proto.LogLevel_LOG_LEVEL_WARN:
+		l.Warn(content)
+	case proto.LogLevel_LOG_LEVEL_ERROR:
+		l.Error(content)
+	case proto.LogLevel_LOG_LEVEL_UNSPECIFIED:
+		// Treat unspecified as debug level
+		l.Debug(content)
 	}
 }
 
@@ -679,20 +699,8 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			}
 		case *proto.RunResponse_Log:
 			if resp.Log != nil {
-				logContent := resp.Log.GetContent()
-
-				logLevel := resp.Log.GetLevel()
-				if logContent != "" {
-					switch logLevel {
-					case proto.LogLevel_LOG_LEVEL_DEBUG:
-						l.Debug(logContent)
-					case proto.LogLevel_LOG_LEVEL_INFO:
-						l.Info(logContent)
-					case proto.LogLevel_LOG_LEVEL_WARN:
-						l.Warn(logContent)
-					case proto.LogLevel_LOG_LEVEL_ERROR:
-						l.Error(logContent)
-					}
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
 				}
 			}
 		}
@@ -786,6 +794,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 
 		outputLine := &OutputLine{}
 
+		//nolint:dupl // Similar structure to shutdown response handling, but different protobuf types
 		switch resp := output.GetResponse().(type) {
 		case *proto.InitResponse_Stdout:
 			if resp.Stdout != nil {
@@ -805,20 +814,8 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			}
 		case *proto.InitResponse_Log:
 			if resp.Log != nil {
-				logContent := resp.Log.GetContent()
-
-				logLevel := resp.Log.GetLevel()
-				if logContent != "" {
-					switch logLevel {
-					case proto.LogLevel_LOG_LEVEL_DEBUG:
-						l.Debug(logContent)
-					case proto.LogLevel_LOG_LEVEL_INFO:
-						l.Info(logContent)
-					case proto.LogLevel_LOG_LEVEL_WARN:
-						l.Warn(logContent)
-					case proto.LogLevel_LOG_LEVEL_ERROR:
-						l.Error(logContent)
-					}
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
 				}
 			}
 		}
@@ -864,6 +861,7 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 			return outputLine, nil
 		}
 
+		//nolint:dupl // Similar structure to init response handling, but different protobuf types
 		switch resp := responseType.(type) {
 		case *proto.ShutdownResponse_Stdout:
 			if resp.Stdout != nil {
@@ -883,20 +881,8 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 			}
 		case *proto.ShutdownResponse_Log:
 			if resp.Log != nil {
-				logContent := resp.Log.GetContent()
-
-				logLevel := resp.Log.GetLevel()
-				if logContent != "" {
-					switch logLevel {
-					case proto.LogLevel_LOG_LEVEL_DEBUG:
-						l.Debug(logContent)
-					case proto.LogLevel_LOG_LEVEL_INFO:
-						l.Info(logContent)
-					case proto.LogLevel_LOG_LEVEL_WARN:
-						l.Warn(logContent)
-					case proto.LogLevel_LOG_LEVEL_ERROR:
-						l.Error(logContent)
-					}
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
 				}
 			}
 		}
