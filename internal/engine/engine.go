@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -442,6 +443,8 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 	return result, nil
 }
 
+const gracefulExitTimeout = 5 * time.Second
+
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
@@ -469,13 +472,41 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
-		// kill grpc client
-		instance.client.Kill()
+
+		// Wait for plugin to exit gracefully before force-killing.
+		// The shutdown RPC has already told the plugin to exit, so it should
+		// be cleaning up and exiting on its own. Give it time to finish.
+		if !waitForPluginExit(instance.client, gracefulExitTimeout) {
+			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
+			instance.client.Kill()
+		}
 
 		return true
 	})
 
 	return nil
+}
+
+// waitForPluginExit waits for the plugin process to exit, returning true if it exited
+// within the timeout, false otherwise.
+func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
+	done := make(chan struct{})
+
+	go func() {
+		// Client.Exited() returns true when the plugin process has exited
+		for !client.Exited() {
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 // createEngine create engine for working directory
