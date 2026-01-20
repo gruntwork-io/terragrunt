@@ -5,6 +5,12 @@
 # Supported architectures: x86_64 (amd64), aarch64/arm64, i386/i686 (386)
 # Requirements: bash 3.2+, curl, sha256sum or shasum
 #
+# Note: This script requires bash (not sh) for:
+#   - pipefail option (set -o pipefail)
+#   - local variables in functions
+#   - [[ ]] test syntax
+#   - arrays and readonly declarations
+#
 # Usage:
 #   curl -sL https://terragrunt.gruntwork.io/install.sh | bash
 #   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
@@ -251,15 +257,21 @@ install_binary() {
     local binary_path="$1"
     local install_dir="$2"
     local force="$3"
+    local requested_version="$4"
 
     local target_path="${install_dir}/${BINARY_NAME}"
 
     # Check if already exists
     if [[ -f "$target_path" && "$force" != "true" ]]; then
         local existing_version
-        existing_version=$("$target_path" --version 2>/dev/null | head -n 1 || echo "unknown")
-        abort "Terragrunt already installed at $target_path ($existing_version)
-Use --force to overwrite, or remove the existing installation first."
+        existing_version=$("$target_path" --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "unknown")
+
+        if [[ "$existing_version" == "$requested_version" ]]; then
+            abort "Terragrunt ${existing_version} is already installed at $target_path"
+        else
+            abort "A different version (${existing_version}) is installed at $target_path
+Use --force to upgrade/downgrade to ${requested_version}"
+        fi
     fi
 
     # Check if install directory exists
@@ -334,6 +346,13 @@ check_dependencies() {
         abort "curl is required but not installed.
 Please install curl and try again."
     fi
+
+    if [[ "$VERIFY_SHA" == true ]]; then
+        if ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null; then
+            abort "Neither sha256sum nor shasum found.
+Install one or use --no-verify to skip checksum verification."
+        fi
+    fi
 }
 
 # --- Main ---
@@ -362,7 +381,7 @@ main() {
 
     # Create temp directory
     local tmpdir
-    tmpdir=$(mktemp -d)
+    tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'terragrunt-install')
     trap 'rm -rf "${tmpdir:-}"' EXIT
 
     # Download files
@@ -385,7 +404,7 @@ main() {
     fi
 
     # Install
-    install_binary "$tmpdir/$binary_name" "$INSTALL_DIR" "$FORCE"
+    install_binary "$tmpdir/$binary_name" "$INSTALL_DIR" "$FORCE" "$version"
 
     success "Terragrunt ${version} installed successfully!"
     echo ""

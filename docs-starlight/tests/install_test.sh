@@ -241,20 +241,21 @@ test_macos_shasum_fallback() {
 }
 
 test_temp_directory_cleanup() {
-    local before after
-    before=$(ls -1 /tmp 2>/dev/null | wc -l)
+    local install_dir
+    install_dir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand install_dir now, not at trap time
+    trap "rm -rf '$install_dir'" RETURN
 
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    rm -rf "$tmpdir"
-    mkdir "$tmpdir"
+    # Count terragrunt-specific temp dirs before
+    local before
+    before=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
 
-    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 >/dev/null 2>&1
-    rm -rf "$tmpdir"
+    bash "$INSTALL_SCRIPT" -d "$install_dir" -v v0.72.5 >/dev/null 2>&1
 
-    # Temp files should be cleaned up (allow some variance)
-    after=$(ls -1 /tmp 2>/dev/null | wc -l)
-    [[ $((after - before)) -lt 5 ]]
+    # Verify no new terragrunt-specific temp dirs remain (script uses trap to cleanup)
+    local after
+    after=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
+    [[ "$after" -le "$before" ]]
 }
 
 # --- Main ---
