@@ -262,19 +262,35 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 	}
 
-	visited := make(map[string]bool)
+	visited := make(map[string]int)
 
 	if expr.IncludeDependencies {
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
+		if expr.DependencyDepth > 0 {
+			depth = expr.DependencyDepth
+			warnOnLimit = false
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, depth, warnOnLimit)
 		}
 	}
 
-	visited = make(map[string]bool)
+	visited = make(map[string]int)
 
 	if expr.IncludeDependents {
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
+		if expr.DependentDepth > 0 {
+			depth = expr.DependentDepth
+			warnOnLimit = false
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, depth, warnOnLimit)
 		}
 	}
 
@@ -325,16 +341,20 @@ func (d graphDirection) String() string {
 }
 
 // traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
+// The visited map tracks the maximum remaining depth at which each node was visited, allowing re-traversal
+// when a node is reached with more remaining depth (e.g., from a closer target).
+// The warnOnLimit flag controls whether to log a warning when depth is exhausted (used for safety limits only).
 func traverseGraph(
 	l log.Logger,
 	c component.Component,
 	resultSet map[string]component.Component,
-	visited map[string]bool,
+	visited map[string]int,
 	direction graphDirection,
-	maxDepth int,
+	remainingDepth int,
+	warnOnLimit bool,
 ) {
-	if maxDepth <= 0 {
-		if l != nil {
+	if remainingDepth <= 0 {
+		if l != nil && warnOnLimit {
 			directionName := direction.String()
 
 			l.Warnf(
@@ -350,11 +370,12 @@ func traverseGraph(
 	}
 
 	path := c.Path()
-	if visited[path] {
+
+	if prevDepth, seen := visited[path]; seen && prevDepth >= remainingDepth {
 		return
 	}
 
-	visited[path] = true
+	visited[path] = remainingDepth
 
 	var relatedComponents []component.Component
 	if direction == graphDirectionDependencies {
@@ -388,7 +409,7 @@ func traverseGraph(
 
 		resultSet[relatedPath] = related
 
-		traverseGraph(l, related, resultSet, visited, direction, maxDepth-1)
+		traverseGraph(l, related, resultSet, visited, direction, remainingDepth-1, warnOnLimit)
 	}
 }
 
