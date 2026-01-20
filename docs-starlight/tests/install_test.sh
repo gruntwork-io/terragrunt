@@ -302,7 +302,7 @@ test_gpg_signature_verification() {
     # Use RC version which has signatures
     local output
     output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-gpg 2>&1)
-    [[ "$output" == *"Using GPG for signature verification"* ]] &&
+    [[ "$output" == *"Verifying GPG signature"* ]] &&
     [[ "$output" == *"Signature verified"* ]]
 }
 
@@ -318,7 +318,7 @@ test_cosign_signature_verification() {
     # Use RC version which has signatures
     local output
     output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-cosign 2>&1)
-    [[ "$output" == *"Using Cosign for signature verification"* ]] &&
+    [[ "$output" == *"Verifying Cosign signature"* ]] &&
     [[ "$output" == *"Signature verified"* ]]
 }
 
