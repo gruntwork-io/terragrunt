@@ -241,7 +241,7 @@ func runTerragruntWithConfig(
 		maps.Copy(opts.Env, filterTerraformEnvVarsFromExtraArgsRunCfg(opts, cfg))
 	}
 
-	if err := setTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(l, opts, cfg); err != nil {
 		return err
 	}
 
@@ -280,7 +280,7 @@ func runTerragruntWithConfig(
 		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs...)
 
 		var lockFileError error
-		if shouldCopyLockFileRunCfg(opts.TerraformCliArgs, &cfg.Terraform) {
+		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -619,26 +619,6 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *options.TerragruntOptions, 
 	return out
 }
 
-// setTerragruntInputsAsEnvVars sets terragrunt inputs as env vars using runcfg types.
-func setTerragruntInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	asEnvVars, err := ToTerraformEnvVars(l, opts, cfg.Inputs)
-	if err != nil {
-		return err
-	}
-
-	if opts.Env == nil {
-		opts.Env = map[string]string{}
-	}
-
-	for key, value := range asEnvVars {
-		if _, envVarAlreadySet := opts.Env[key]; !envVarAlreadySet {
-			opts.Env[key] = value
-		}
-	}
-
-	return nil
-}
-
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
 func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	if cfg.RemoteState.Config == nil {
@@ -787,21 +767,4 @@ func checkProtectedModuleRunCfg(opts *options.TerragruntOptions, cfg *runcfg.Run
 	}
 
 	return nil
-}
-
-// shouldCopyLockFileRunCfg checks if lock file should be copied using runcfg types.
-func shouldCopyLockFileRunCfg(args clihelper.Args, terraformConfig *runcfg.TerraformConfig) bool {
-	if terraformConfig != nil && terraformConfig.NoCopyTerraformLockFile {
-		return false
-	}
-
-	if args.First() == tf.CommandNameInit {
-		return true
-	}
-
-	if args.First() == tf.CommandNameProviders && args.Second() == tf.CommandNameLock {
-		return true
-	}
-
-	return false
 }
