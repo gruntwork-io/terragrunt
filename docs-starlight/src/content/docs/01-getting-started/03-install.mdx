@@ -20,68 +20,9 @@ The quickest way to install Terragrunt on Linux or macOS:
 curl -sL https://terragrunt.gruntwork.io/install | bash
 ```
 
-:::note[Windows Users]
-This script is for Unix-like systems (Linux/macOS). Windows users should use the PowerShell snippet in the [Convenience Scripts](#convenience-scripts) section below, or install via [Chocolatey](https://chocolatey.org/).
+:::tip[Script Options]
+Run `curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --help` to see all options, or [view the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs-starlight/public/install).
 :::
-
-## Install Script Options
-
-The install script supports several options for customization:
-
-### Basic Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-v, --version VERSION` | Install specific version | Latest |
-| `-d, --dir PATH` | Installation directory | `/usr/local/bin` |
-| `-f, --force` | Overwrite existing installation | Off |
-| `-h, --help` | Show help message | - |
-
-### Verification Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--verify-sig` | Verify signature (auto-detect gpg/cosign) | On (v0.98.0+) |
-| `--verify-gpg` | Force GPG signature verification | - |
-| `--verify-cosign` | Force Cosign signature verification | - |
-| `--no-verify-sig` | Skip signature verification | - |
-| `--no-verify` | Skip checksum verification | - |
-
-:::tip[Signature Verification]
-Signature verification is enabled by default for Terragrunt v0.98.0 and later. The script auto-detects whether `gpg` or `cosign` is available.
-:::
-
-### Examples
-
-Install a specific version:
-
-<Code
-  lang="bash"
-  code={`curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v ${version}`}
-  frame="terminal"
-/>
-
-Install to a custom directory:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
-```
-
-Skip signature verification (not recommended):
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
-```
-
-### Download and Review First
-
-If you prefer to review the script before running:
-
-```bash
-curl -sL https://terragrunt.gruntwork.io/install -o install.sh
-less install.sh
-bash install.sh
-```
 
 ## Download from releases page
 

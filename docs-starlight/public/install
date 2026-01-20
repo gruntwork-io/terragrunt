@@ -532,9 +532,11 @@ Install cosign or use --verify-sig for auto-detection."
             fi
             ;;
         auto)
+            # Auto mode: warn if no tools available, but don't abort
             if ! command -v gpg &>/dev/null && ! command -v cosign &>/dev/null; then
-                abort "Signature verification requested but neither gpg nor cosign is installed.
-Install gpg or cosign, or use --no-verify-sig to skip."
+                warn "Neither gpg nor cosign found. Signature verification will be skipped."
+                warn "Install gpg or cosign for signature verification."
+                VERIFY_SIG=""
             fi
             ;;
     esac
