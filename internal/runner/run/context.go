@@ -10,8 +10,7 @@ type configKey byte
 
 const (
 	versionCacheContextKey configKey = iota
-	dependentUnitsFinderContextKey
-	versionCacheName = "versionCache"
+	versionCacheName                 = "versionCache"
 )
 
 // WithRunVersionCache initializes the version cache in the context for the run package.
