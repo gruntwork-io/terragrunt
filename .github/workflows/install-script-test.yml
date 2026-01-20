@@ -1,0 +1,15 @@
+name: Install Script Test
+
+on:
+  workflow_call:
+
+jobs:
+  install-script-test:
+    name: Run Install Script Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Run install script tests
+        run: ./docs-starlight/tests/install_test.sh --quick
