@@ -295,6 +295,7 @@ verify_gpg() {
 
     local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
     local sig_path="${tmpdir}/SHA256SUMS.gpgsig"
+    local gnupg_home="${tmpdir}/gnupg"
 
     info "Downloading GPG signature..."
     if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
@@ -302,17 +303,18 @@ verify_gpg() {
         return 1
     fi
 
-    # Check if key already imported, otherwise import
-    if ! gpg --list-keys "Gruntwork" >/dev/null 2>&1; then
-        info "Importing Gruntwork GPG key..."
-        if ! curl -sL "$GPG_KEY_URL" | gpg --import 2>/dev/null; then
-            warn "Failed to import GPG key"
-            return 1
-        fi
+    # Create temporary GNUPGHOME to avoid polluting user's keyring
+    mkdir -p "$gnupg_home"
+    chmod 700 "$gnupg_home"
+
+    info "Importing Gruntwork GPG key..."
+    if ! curl -sL "$GPG_KEY_URL" | GNUPGHOME="$gnupg_home" gpg --import 2>/dev/null; then
+        warn "Failed to import GPG key"
+        return 1
     fi
 
     info "Verifying GPG signature..."
-    if gpg --verify "$sig_path" "$checksums_path" 2>/dev/null; then
+    if GNUPGHOME="$gnupg_home" gpg --verify "$sig_path" "$checksums_path" 2>/dev/null; then
         return 0
     else
         return 1

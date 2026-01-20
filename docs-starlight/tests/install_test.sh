@@ -163,6 +163,18 @@ test_install_specific_version() {
     "$tmpdir/terragrunt" --version 2>&1 | grep -q "v0.72.5"
 }
 
+test_install_rc_version() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 >/dev/null 2>&1 &&
+    [[ -f "$tmpdir/terragrunt" ]] &&
+    [[ -x "$tmpdir/terragrunt" ]] &&
+    "$tmpdir/terragrunt" --version 2>&1 | grep -q "v0.98.0-rc2026011601"
+}
+
 test_install_latest_version() {
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -337,6 +349,7 @@ main() {
         echo "--- Integration Tests (SKIPPED - ${skip_reason}) ---"
         skip_test "Fetch latest version from GitHub"
         skip_test "Install specific version"
+        skip_test "Install RC version"
         skip_test "Install latest version"
         skip_test "Install fails when already exists"
         skip_test "Install with --force overwrites"
@@ -351,6 +364,7 @@ main() {
         echo "--- Integration Tests (require network) ---"
         run_test "Fetch latest version from GitHub" test_fetch_latest_version
         run_test "Install specific version (v0.72.5)" test_install_specific_version
+        run_test "Install RC version (v0.98.0-rc2026011601)" test_install_rc_version
         run_test "Install latest version" test_install_latest_version
         run_test "Install fails when already exists" test_install_already_exists_fails
         run_test "Install with --force overwrites" test_install_force_overwrites
