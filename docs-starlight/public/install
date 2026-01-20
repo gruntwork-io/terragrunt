@@ -583,7 +583,7 @@ main() {
         warn "Skipping checksum verification (--no-verify specified)"
     fi
 
-    # Verify signature (enabled by default for versions >= MIN_SIGNED_VERSION)
+    # Verify signature (disabled by default, enable with --verify-sig)
     if [[ -n "$VERIFY_SIG" ]]; then
         if supports_signature_verification "$version"; then
             verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
@@ -591,8 +591,6 @@ main() {
         else
             warn "Skipping signature verification: not available for versions older than v${MIN_SIGNED_VERSION}"
         fi
-    else
-        warn "Skipping signature verification (--no-verify-sig specified)"
     fi
 
     # Install
