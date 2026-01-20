@@ -272,6 +272,53 @@ test_no_verify_sig_skips_signature() {
     [[ "$output" == *"Skipping signature verification (--no-verify-sig specified)"* ]]
 }
 
+test_gpg_signature_verification() {
+    # Skip if gpg not available
+    command -v gpg &>/dev/null || return 0
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Use RC version which has signatures
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-gpg 2>&1)
+    [[ "$output" == *"Using GPG for signature verification"* ]] &&
+    [[ "$output" == *"Signature verified"* ]]
+}
+
+test_cosign_signature_verification() {
+    # Skip if cosign not available
+    command -v cosign &>/dev/null || return 0
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Use RC version which has signatures
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-cosign 2>&1)
+    [[ "$output" == *"Using Cosign for signature verification"* ]] &&
+    [[ "$output" == *"Signature verified"* ]]
+}
+
+test_auto_signature_verification() {
+    # Skip if neither gpg nor cosign available
+    command -v gpg &>/dev/null || command -v cosign &>/dev/null || return 0
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Use RC version which has signatures, auto-detect method
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
+    [[ "$output" == *"Signature verified"* ]]
+}
+
 # --- Platform-Specific Tests ---
 
 test_macos_shasum_fallback() {
@@ -359,6 +406,9 @@ main() {
         skip_test "Checksum verification works"
         skip_test "Old version skips signature verification"
         skip_test "--no-verify-sig skips signature verification"
+        skip_test "GPG signature verification"
+        skip_test "Cosign signature verification"
+        skip_test "Auto signature verification"
         skip_test "Temp directory cleanup"
     else
         echo "--- Integration Tests (require network) ---"
@@ -374,6 +424,9 @@ main() {
         run_test "Checksum verification works" test_checksum_verification
         run_test "Old version skips signature verification" test_old_version_skips_signature
         run_test "--no-verify-sig skips signature verification" test_no_verify_sig_skips_signature
+        run_test "GPG signature verification" test_gpg_signature_verification
+        run_test "Cosign signature verification" test_cosign_signature_verification
+        run_test "Auto signature verification" test_auto_signature_verification
         run_test "Temp directory cleanup" test_temp_directory_cleanup
     fi
     echo ""

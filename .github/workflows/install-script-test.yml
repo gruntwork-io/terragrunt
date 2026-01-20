@@ -14,5 +14,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install GPG (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y gnupg
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
       - name: Run install script tests
-        run: ./docs-starlight/tests/install_test.sh --quick
+        run: ./docs-starlight/tests/install_test.sh
