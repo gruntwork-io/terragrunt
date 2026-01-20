@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_SCRIPT="${SCRIPT_DIR}/../public/install.sh"
+INSTALL_SCRIPT="${SCRIPT_DIR}/../public/install"
 
 # Test counters
 TESTS_RUN=0
@@ -133,11 +133,21 @@ test_curl_exists() {
     command -v curl &>/dev/null
 }
 
+# --- Network Connectivity Check ---
+
+check_network_connectivity() {
+    # Quick check if we can reach GitHub
+    curl -fsI --connect-timeout 5 "https://github.com" >/dev/null 2>&1
+}
+
 # --- Integration Tests (require network) ---
 
 test_fetch_latest_version() {
     local version
-    version=$(curl -sL "https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+    # Use redirect method (same as install.sh)
+    local redirect_url
+    redirect_url=$(curl -fsI "https://github.com/gruntwork-io/terragrunt/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r')
+    version=$(echo "$redirect_url" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]
 }
 
@@ -315,9 +325,17 @@ main() {
     run_test "Platform checksum tool works" test_macos_shasum_fallback
     echo ""
 
+    # Check network connectivity for integration tests
+    local skip_reason=""
     if [[ "$quick_mode" == true ]]; then
-        echo "--- Integration Tests (SKIPPED - quick mode) ---"
-        skip_test "Fetch latest version from GitHub API"
+        skip_reason="quick mode"
+    elif ! check_network_connectivity; then
+        skip_reason="no network connectivity"
+    fi
+
+    if [[ -n "$skip_reason" ]]; then
+        echo "--- Integration Tests (SKIPPED - ${skip_reason}) ---"
+        skip_test "Fetch latest version from GitHub"
         skip_test "Install specific version"
         skip_test "Install latest version"
         skip_test "Install fails when already exists"
@@ -331,7 +349,7 @@ main() {
         skip_test "Temp directory cleanup"
     else
         echo "--- Integration Tests (require network) ---"
-        run_test "Fetch latest version from GitHub API" test_fetch_latest_version
+        run_test "Fetch latest version from GitHub" test_fetch_latest_version
         run_test "Install specific version (v0.72.5)" test_install_specific_version
         run_test "Install latest version" test_install_latest_version
         run_test "Install fails when already exists" test_install_already_exists_fails

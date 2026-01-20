@@ -17,7 +17,7 @@ export const version = data.tag_name || 'v0.72.5';
 The quickest way to install Terragrunt on Linux or macOS:
 
 ```bash
-curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+curl -sL https://terragrunt.gruntwork.io/install | bash
 ```
 
 :::note[Windows Users]
@@ -44,8 +44,8 @@ The install script supports several options for customization:
 | `--verify-sig` | Verify signature (auto-detect gpg/cosign) | On (v0.98.0+) |
 | `--verify-gpg` | Force GPG signature verification | - |
 | `--verify-cosign` | Force Cosign signature verification | - |
-| `--no-verify-sig` | Skip signature verification | Off |
-| `--no-verify` | Skip checksum verification | Off |
+| `--no-verify-sig` | Skip signature verification | - |
+| `--no-verify` | Skip checksum verification | - |
 
 :::tip[Signature Verification]
 Signature verification is enabled by default for Terragrunt v0.98.0 and later. The script auto-detects whether `gpg` or `cosign` is available.
@@ -57,20 +57,20 @@ Install a specific version:
 
 <Code
   lang="bash"
-  code={`curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v ${version}`}
+  code={`curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v ${version}`}
   frame="terminal"
 />
 
 Install to a custom directory:
 
 ```bash
-curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
 ```
 
 Skip signature verification (not recommended):
 
 ```bash
-curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --no-verify-sig
+curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
 ```
 
 ### Download and Review First
@@ -78,7 +78,7 @@ curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --no-verify-sig
 If you prefer to review the script before running:
 
 ```bash
-curl -sL https://terragrunt.gruntwork.io/install.sh -o install.sh
+curl -sL https://terragrunt.gruntwork.io/install -o install.sh
 less install.sh
 bash install.sh
 ```

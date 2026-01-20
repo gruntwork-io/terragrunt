@@ -187,13 +187,29 @@ Supported: x86_64 (amd64), aarch64 (arm64), i386/i686 (386)"
 # --- Version Resolution ---
 get_latest_version() {
     local version
-    if ! version=$(curl -sL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
-        abort "Failed to fetch latest version from GitHub API"
+
+    # Method 1: Use redirect URL (higher rate limits than API)
+    # GitHub redirects /releases/latest to /releases/tag/vX.Y.Z
+    local redirect_url
+    if redirect_url=$(curl -fsI "https://github.com/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r'); then
+        version=$(echo "$redirect_url" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        if [[ -n "$version" ]]; then
+            echo "$version"
+            return 0
+        fi
     fi
-    if [[ -z "$version" ]]; then
-        abort "Could not determine latest version. Check your internet connection or specify a version with -v"
+
+    # Method 2: Fallback to GitHub API (may hit rate limits: 60 req/hour unauthenticated)
+    if version=$(curl -fsL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4); then
+        if [[ -n "$version" ]]; then
+            echo "$version"
+            return 0
+        fi
     fi
-    echo "$version"
+
+    abort "Could not determine latest version.
+This may be due to GitHub API rate limits (60 requests/hour).
+Specify a version manually with -v, e.g.: -v v0.72.5"
 }
 
 validate_version() {

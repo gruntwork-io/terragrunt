@@ -74,6 +74,16 @@ import ButtonLink from '@components/ui/ButtonLink.tsx';
             </div>
         </div>
 
+        <!-- Inline Install Command -->
+        <div class="flex items-center justify-center gap-2 bg-white/10 rounded-lg px-4 py-2">
+          <span id="install-cmd" class="font-mono text-sm text-white">curl -sL https://terragrunt.gruntwork.io/install | bash</span>
+          <button id="copy-install" class="bg-transparent border-none text-white/60 hover:text-white transition" title="Copy to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+              <path fill-rule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1z"/>
+            </svg>
+          </button>
+        </div>
+
         <div class="flex gap-5 justify-center items-center w-full pb-28 md:pb-52">
           <ButtonLink href="/docs/getting-started/quick-start" variant="primary">
             Quick Start
@@ -90,3 +100,17 @@ import ButtonLink from '@components/ui/ButtonLink.tsx';
     </div>
     -->
 </section>
+
+<script>
+  const copyBtn = document.getElementById("copy-install");
+  const installCmd = document.getElementById("install-cmd");
+
+  copyBtn?.addEventListener("click", () => {
+    navigator.clipboard.writeText(installCmd?.textContent || "").then(() => {
+      copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0"/></svg>';
+      setTimeout(() => {
+        copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M4 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zM2 5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1v1z"/></svg>';
+      }, 2000);
+    });
+  });
+</script>
