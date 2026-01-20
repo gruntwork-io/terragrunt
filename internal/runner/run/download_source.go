@@ -97,6 +97,28 @@ func DownloadTerraformSourceIfNecessary(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
+	// For local sources where source == working dir (synthesized local source),
+	// skip the getter entirely since CopyFolderContents in DownloadTerraformSource handles copying.
+	// This optimizes the common case where no terraform.source is specified.
+	isLocalSource := tf.IsLocalSource(terraformSource.CanonicalSourceURL)
+	sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
+	workingDir := filepath.Clean(opts.WorkingDir)
+
+	if isLocalSource && sourceDir == workingDir {
+		l.Debugf("Local source matches working directory, preparing cache without download")
+
+		// Ensure cache directory structure exists
+		if err := os.MkdirAll(terraformSource.DownloadDir, os.ModePerm); err != nil {
+			return errors.New(err)
+		}
+
+		if err := terraformSource.WriteVersionFile(l); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
@@ -303,14 +325,14 @@ func downloadSource(
 	// so it's better to get rid of it.
 	canonicalSourceURL = strings.TrimPrefix(canonicalSourceURL, fileURIScheme)
 
-	l.Infof(
-		"Downloading Terraform configurations from %s into %s",
-		canonicalSourceURL,
-		src.DownloadDir)
+	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
+	if isLocalSource {
+		l.Infof("Preparing cache from local source %s into %s", canonicalSourceURL, src.DownloadDir)
+	} else {
+		l.Infof("Downloading Terraform configurations from %s into %s", canonicalSourceURL, src.DownloadDir)
+	}
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
-
-	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
 		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)

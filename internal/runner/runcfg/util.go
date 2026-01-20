@@ -48,7 +48,8 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 //
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
-// method returns the source URL or an empty string if there is no source url.
+// method returns the source URL. If no source is specified, the working directory is returned to ensure Terraform
+// always runs from the .terragrunt-cache directory.
 func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (string, error) {
 	switch {
 	case opts.Source != "":
@@ -56,7 +57,8 @@ func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (str
 	case cfg != nil && cfg.Terraform.Source != "":
 		return AdjustSourceWithMap(opts.SourceMap, cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
 	default:
-		return "", nil
+		// Always use cache: return working directory as local source
+		return opts.WorkingDir, nil
 	}
 }
 
