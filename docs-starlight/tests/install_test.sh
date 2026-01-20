@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for Terragrunt instal script
+# Tests for Terragrunt install script
 #
 # Usage:
 #   ./install_test.sh              # Run all tests
