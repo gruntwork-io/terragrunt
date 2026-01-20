@@ -380,13 +380,13 @@ test_temp_directory_cleanup() {
 
     # Count terragrunt-specific temp dirs before
     local before
-    before=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
+    before=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
 
     bash "$INSTALL_SCRIPT" -d "$install_dir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1
 
     # Verify no new terragrunt-specific temp dirs remain (script uses trap to cleanup)
     local after
-    after=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
+    after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
     [[ "$after" -le "$before" ]]
 }
 
