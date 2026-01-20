@@ -12,21 +12,21 @@
 #   - arrays and readonly declarations
 #
 # Usage:
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+#   curl -sL https://terragrunt.gruntwork.io/install | bash
+#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.72.5
+#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
 #
 # Options:
 #   -v, --version VERSION    Install specific version (default: latest)
 #   -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
 #   -f, --force              Overwrite existing installation
 #   --verify-cosign          Use Cosign instead of GPG for signature verification
-#   --no-verify-sig          Skip signature verification (GPG enabled by default)
-#   --no-verify              Skip checksum verification
+#   --no-verify-sig          Skip GPG/Cosign signature verification
+#   --no-verify              Skip SHA256 checksum verification
 #   -h, --help               Show this help message
 #
-# Note: GPG signature verification is enabled by default. Use --no-verify-sig to disable
-#       or --verify-cosign to use Cosign instead.
+# Signature verification (GPG) is enabled by default for versions >= v0.98.0.
+# Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
 #
 # Environment:
 #   TERRAGRUNT_VERSION       Override version (same as -v)
@@ -81,32 +81,36 @@ usage() {
 Terragrunt Installer
 
 Usage:
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- [OPTIONS]
+  curl -sL https://terragrunt.gruntwork.io/install | bash
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- [OPTIONS]
 
 Options:
   -v, --version VERSION    Install specific version (default: latest)
   -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
   -f, --force              Overwrite existing installation
   --verify-cosign          Use Cosign instead of GPG for signature verification
-  --no-verify-sig          Skip signature verification (GPG enabled by default)
-  --no-verify              Skip checksum verification
+  --no-verify-sig          Skip GPG/Cosign signature verification
+  --no-verify              Skip SHA256 checksum verification
   -h, --help               Show this help message
 
-Note: GPG signature verification is enabled by default.
+Signature verification (GPG) is enabled by default for versions >= v0.98.0.
+Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
 
 Examples:
   # Install latest version
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+  curl -sL https://terragrunt.gruntwork.io/install | bash
 
   # Install specific version
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.98.0
 
   # Install to custom directory
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
 
   # Install without signature verification
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --no-verify-sig
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
+
+  # Install using Cosign instead of GPG
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign
 EOF
 }
 

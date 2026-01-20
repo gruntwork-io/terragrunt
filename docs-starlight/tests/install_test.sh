@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for Terragrunt install.sh script
+# Tests for Terragrunt instal script
 #
 # Usage:
 #   ./install_test.sh              # Run all tests
@@ -143,7 +143,7 @@ check_network_connectivity() {
 
 test_fetch_latest_version() {
     local version
-    # Use redirect method (same as install.sh)
+    # Use redirect method (same as install)
     local redirect_url
     redirect_url=$(curl -fsI "https://github.com/gruntwork-io/terragrunt/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r')
     version=$(echo "$redirect_url" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
