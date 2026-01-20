@@ -407,7 +407,7 @@ path_already_configured() {
     local rc_file
     rc_file=$(detect_shell_rc)
 
-    [[ -n "$rc_file" ]] && grep -q "${install_dir}" "$rc_file" 2>/dev/null
+    [[ -n "$rc_file" ]] && grep -Fq "${install_dir}" "$rc_file" 2>/dev/null
 }
 
 # --- Installation ---
@@ -438,7 +438,10 @@ Use --force to upgrade/downgrade to ${requested_version}"
 
     # Check write permissions
     [[ ! -w "$install_dir" ]] && abort "Cannot write to $install_dir
-Try running with sudo or specify a different directory with -d"
+Run with sudo:
+  curl -sL https://terragrunt.gruntwork.io/install | sudo bash
+Or specify a different directory:
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin"
 
     info "Installing to ${target_path}..."
     install -m 0755 "$binary_path" "$target_path"
