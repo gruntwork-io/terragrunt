@@ -412,35 +412,29 @@ install_binary() {
     local install_dir="$2"
     local force="$3"
     local requested_version="$4"
-
     local target_path="${install_dir}/${BINARY_NAME}"
 
-    # Check if already exists
+    # Check if already exists (skip if force)
     if [[ -f "$target_path" && "$force" != "true" ]]; then
         local existing_version
         existing_version=$("$target_path" --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "unknown")
 
-        if [[ "$existing_version" == "$requested_version" ]]; then
+        [[ "$existing_version" == "$requested_version" ]] && \
             abort "Terragrunt ${existing_version} is already installed at $target_path"
-        else
-            abort "A different version (${existing_version}) is installed at $target_path
+
+        abort "A different version (${existing_version}) is installed at $target_path
 Use --force to upgrade/downgrade to ${requested_version}"
-        fi
     fi
 
-    # Create install directory if it doesn't exist
-    if [[ ! -d "$install_dir" ]]; then
+    # Create install directory if needed
+    [[ ! -d "$install_dir" ]] && {
         info "Creating installation directory: $install_dir"
-        if ! mkdir -p "$install_dir" 2>/dev/null; then
-            abort "Failed to create installation directory: $install_dir"
-        fi
-    fi
+        mkdir -p "$install_dir" 2>/dev/null || abort "Failed to create installation directory: $install_dir"
+    }
 
     # Check write permissions
-    if [[ ! -w "$install_dir" ]]; then
-        abort "Cannot write to $install_dir
+    [[ ! -w "$install_dir" ]] && abort "Cannot write to $install_dir
 Try running with sudo or specify a different directory with -d"
-    fi
 
     info "Installing to ${target_path}..."
     install -m 0755 "$binary_path" "$target_path"
@@ -502,42 +496,30 @@ Use -h or --help for usage information"
 
 # --- Dependency Check ---
 check_dependencies() {
-    if ! command -v curl &>/dev/null; then
-        abort "curl is required but not installed.
+    command -v curl &>/dev/null || abort "curl is required but not installed.
 Please install curl and try again."
-    fi
 
-    if [[ "$VERIFY_SHA" == true ]]; then
-        if ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null; then
-            abort "Neither sha256sum nor shasum found.
+    [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null && \
+        abort "Neither sha256sum nor shasum found.
 Install one of these tools or skip checksum verification with:
   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify"
-        fi
-    fi
 
     # Handle signature verification setup
-    if [[ "$SKIP_SIG_VERIFY" == true ]]; then
-        # User explicitly disabled signature verification
-        VERIFY_SIG=""
-    else
-        # Verify required tool is available
-        case "$VERIFY_SIG" in
-            gpg)
-                if ! command -v gpg &>/dev/null; then
-                    abort "GPG signature verification requires gpg but it is not installed.
+    [[ "$SKIP_SIG_VERIFY" == true ]] && { VERIFY_SIG=""; return; }
+
+    # Verify required tool is available
+    case "$VERIFY_SIG" in
+        gpg)
+            command -v gpg &>/dev/null || abort "GPG signature verification requires gpg but it is not installed.
 Install gpg or skip signature verification with:
   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
 Or use Cosign instead:
   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign"
-                fi
-                ;;
-            cosign)
-                if ! command -v cosign &>/dev/null; then
-                    abort "Cosign verification requested but cosign is not installed."
-                fi
-                ;;
-        esac
-    fi
+            ;;
+        cosign)
+            command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed."
+            ;;
+    esac
 }
 
 # --- Main ---
@@ -576,15 +558,7 @@ main() {
     download_binary "$version" "$binary_name" "$tmpdir"
     download_checksums "$version" "$tmpdir"
 
-    # Verify checksum
-    if [[ "$VERIFY_SHA" == true ]]; then
-        verify_sha256 "$tmpdir/$binary_name" "$tmpdir/SHA256SUMS" "$binary_name"
-        success "SHA256 checksum verified"
-    else
-        warn "Skipping checksum verification (--no-verify specified)"
-    fi
-
-    # Verify signature (enabled by default, disable with --no-verify-sig)
+    # Verify signature first (authenticates SHA256SUMS file)
     if [[ -n "$VERIFY_SIG" ]]; then
         if supports_signature_verification "$version"; then
             verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
@@ -592,6 +566,14 @@ main() {
         else
             warn "Skipping signature verification: not available for versions older than v${MIN_SIGNED_VERSION}"
         fi
+    fi
+
+    # Verify checksum (validates binary against authenticated checksums)
+    if [[ "$VERIFY_SHA" == true ]]; then
+        verify_sha256 "$tmpdir/$binary_name" "$tmpdir/SHA256SUMS" "$binary_name"
+        success "SHA256 checksum verified"
+    else
+        warn "Skipping checksum verification (--no-verify specified)"
     fi
 
     # Install
