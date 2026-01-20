@@ -20,22 +20,36 @@ The quickest way to install Terragrunt on Linux or macOS:
 curl -sL https://terragrunt.gruntwork.io/install.sh | bash
 ```
 
-This will:
-1. Detect your operating system and architecture
-2. Download the latest Terragrunt binary
-3. Verify the SHA256 checksum
-4. Install to `/usr/local/bin`
+:::note[Windows Users]
+This script is for Unix-like systems (Linux/macOS). Windows users should use the PowerShell snippet in the [Convenience Scripts](#convenience-scripts) section below, or install via [Chocolatey](https://chocolatey.org/).
+:::
 
-### Script Options
+## Install Script Options
+
+The install script supports several options for customization:
+
+### Basic Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-v, --version VERSION` | Install specific version | Latest |
 | `-d, --dir PATH` | Installation directory | `/usr/local/bin` |
 | `-f, --force` | Overwrite existing installation | Off |
-| `--verify-gpg` | Also verify GPG signature | Off |
-| `--no-verify` | Skip checksum verification | On |
 | `-h, --help` | Show help message | - |
+
+### Verification Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--verify-sig` | Verify signature (auto-detect gpg/cosign) | On (v0.98.0+) |
+| `--verify-gpg` | Force GPG signature verification | - |
+| `--verify-cosign` | Force Cosign signature verification | - |
+| `--no-verify-sig` | Skip signature verification | Off |
+| `--no-verify` | Skip checksum verification | Off |
+
+:::tip[Signature Verification]
+Signature verification is enabled by default for Terragrunt v0.98.0 and later. The script auto-detects whether `gpg` or `cosign` is available.
+:::
 
 ### Examples
 
@@ -53,10 +67,10 @@ Install to a custom directory:
 curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
 ```
 
-Install with GPG signature verification:
+Skip signature verification (not recommended):
 
 ```bash
-curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-gpg
+curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --no-verify-sig
 ```
 
 ### Download and Review First
@@ -68,10 +82,6 @@ curl -sL https://terragrunt.gruntwork.io/install.sh -o install.sh
 less install.sh
 bash install.sh
 ```
-
-:::note[Windows Users]
-This script is for Unix-like systems (Linux/macOS). Windows users should use the PowerShell snippet in the Convenience Scripts section below, or install via [Chocolatey](https://chocolatey.org/).
-:::
 
 ## Download from releases page
 
