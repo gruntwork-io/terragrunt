@@ -20,10 +20,9 @@
 #   -v, --version VERSION    Install specific version (default: latest)
 #   -d, --dir PATH           Installation directory (default: /usr/local/bin)
 #   -f, --force              Overwrite existing installation
-#   --verify-sig             Verify signature (auto-detect gpg/cosign)
-#   --verify-gpg             Verify GPG signature (requires gpg)
-#   --verify-cosign          Verify Cosign signature (requires cosign)
-#   --no-verify-sig          Skip signature verification
+#   --verify-sig             Enable signature verification (auto-detect gpg/cosign)
+#   --verify-gpg             Enable GPG signature verification (requires gpg)
+#   --verify-cosign          Enable Cosign signature verification (requires cosign)
 #   --no-verify              Skip checksum verification
 #   -h, --help               Show this help message
 #
@@ -87,10 +86,9 @@ Options:
   -v, --version VERSION    Install specific version (default: latest)
   -d, --dir PATH           Installation directory (default: /usr/local/bin)
   -f, --force              Overwrite existing installation
-  --verify-sig             Verify signature (auto-detect gpg/cosign)
-  --verify-gpg             Verify GPG signature (requires gpg)
-  --verify-cosign          Verify Cosign signature (requires cosign)
-  --no-verify-sig          Skip signature verification
+  --verify-sig             Enable signature verification (auto-detect gpg/cosign)
+  --verify-gpg             Enable GPG signature verification (requires gpg)
+  --verify-cosign          Enable Cosign signature verification (requires cosign)
   --no-verify              Skip checksum verification
   -h, --help               Show this help message
 
@@ -449,7 +447,7 @@ parse_args() {
     VERSION="${TERRAGRUNT_VERSION:-}"
     INSTALL_DIR="${TERRAGRUNT_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
     VERIFY_SHA=true
-    VERIFY_SIG="auto"  # auto=auto-detect, gpg/cosign=specific, empty=skip
+    VERIFY_SIG=""  # empty=skip (default), auto=auto-detect, gpg/cosign=specific
     FORCE=false
 
     while [[ $# -gt 0 ]]; do
@@ -532,11 +530,10 @@ Install cosign or use --verify-sig for auto-detection."
             fi
             ;;
         auto)
-            # Auto mode: warn if no tools available, but don't abort
+            # Auto mode: user explicitly requested verification, abort if no tools
             if ! command -v gpg &>/dev/null && ! command -v cosign &>/dev/null; then
-                warn "Neither gpg nor cosign found. Signature verification will be skipped."
-                warn "Install gpg or cosign for signature verification."
-                VERIFY_SIG=""
+                abort "Signature verification requested but neither gpg nor cosign is installed.
+Install gpg or cosign to enable signature verification."
             fi
             ;;
     esac

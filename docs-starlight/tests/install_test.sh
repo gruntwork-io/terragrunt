@@ -84,7 +84,7 @@ test_help_output() {
     [[ "$output" == *"--verify-sig"* ]] &&
     [[ "$output" == *"--verify-gpg"* ]] &&
     [[ "$output" == *"--verify-cosign"* ]] &&
-    [[ "$output" == *"--no-verify-sig"* ]]
+    [[ "$output" == *"--no-verify"* ]]
 }
 
 test_help_exit_code() {
@@ -238,6 +238,22 @@ test_install_no_verify() {
     [[ -f "$tmpdir/terragrunt" ]]
 }
 
+test_install_no_verification_at_all() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Install with no checksum verification (signature already disabled by default)
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify 2>&1)
+    [[ "$output" == *"Skipping checksum verification"* ]] &&
+    [[ "$output" != *"SHA256 checksum verified"* ]] &&
+    [[ "$output" != *"Signature verified"* ]] &&
+    [[ -f "$tmpdir/terragrunt" ]] &&
+    [[ -x "$tmpdir/terragrunt" ]]
+}
+
 test_checksum_verification() {
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -255,21 +271,23 @@ test_old_version_skips_signature() {
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    # v0.72.5 is below MIN_SIGNED_VERSION (0.98.0)
+    # v0.72.5 is below MIN_SIGNED_VERSION (0.98.0), even with --verify-sig it should skip
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --verify-sig 2>&1)
     [[ "$output" == *"Skipping signature verification: not available for versions older than"* ]]
 }
 
-test_no_verify_sig_skips_signature() {
+test_signature_disabled_by_default() {
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
+    # Without --verify-sig, no signature verification messages should appear
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
-    [[ "$output" == *"Skipping signature verification (--no-verify-sig specified)"* ]]
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
+    [[ "$output" != *"Signature verified"* ]] &&
+    [[ "$output" != *"signature verification"* ]]
 }
 
 test_gpg_signature_verification() {
@@ -313,9 +331,9 @@ test_auto_signature_verification() {
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    # Use RC version which has signatures, auto-detect method
+    # Use RC version which has signatures, auto-detect method with --verify-sig
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-sig 2>&1)
     [[ "$output" == *"Signature verified"* ]]
 }
 
@@ -403,9 +421,10 @@ main() {
         skip_test "Install to nonexistent directory fails"
         skip_test "Install with invalid version fails"
         skip_test "Install with --no-verify skips checksum"
+        skip_test "Install with no verification at all"
         skip_test "Checksum verification works"
         skip_test "Old version skips signature verification"
-        skip_test "--no-verify-sig skips signature verification"
+        skip_test "Signature disabled by default"
         skip_test "GPG signature verification"
         skip_test "Cosign signature verification"
         skip_test "Auto signature verification"
@@ -421,9 +440,10 @@ main() {
         run_test "Install to nonexistent directory fails" test_install_nonexistent_dir_fails
         run_test "Install with invalid version fails" test_install_invalid_version_fails
         run_test "Install with --no-verify skips checksum" test_install_no_verify
+        run_test "Install with no verification at all" test_install_no_verification_at_all
         run_test "Checksum verification works" test_checksum_verification
         run_test "Old version skips signature verification" test_old_version_skips_signature
-        run_test "--no-verify-sig skips signature verification" test_no_verify_sig_skips_signature
+        run_test "Signature disabled by default" test_signature_disabled_by_default
         run_test "GPG signature verification" test_gpg_signature_verification
         run_test "Cosign signature verification" test_cosign_signature_verification
         run_test "Auto signature verification" test_auto_signature_verification
