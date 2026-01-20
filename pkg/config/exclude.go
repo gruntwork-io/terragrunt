@@ -3,18 +3,12 @@ package config
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/zclconf/go-cty/cty"
-)
-
-const (
-	allActions              = "all"               // handle all actions
-	allExcludeOutputActions = "all_except_output" // handle all exclude output actions
-	tgOutput                = "output"
 )
 
 // bool values to be used as booleans.
@@ -30,30 +24,12 @@ type ExcludeConfig struct {
 
 // IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
-	if len(e.Actions) == 0 {
-		return false
-	}
-
-	for _, checkAction := range e.Actions {
-		if checkAction == allActions { // if actions contains all, return true in all cases
-			return true
-		}
-
-		if checkAction == allExcludeOutputActions && action != tgOutput {
-			return true
-		}
-
-		if checkAction == strings.ToLower(action) {
-			return true
-		}
-	}
-
-	return false
+	return runcfg.IsActionListedInExclude(e.Actions, action)
 }
 
 // ShouldPreventRun checks if the unit should be prevented from running based on the no_run attribute and current action.
 func (e *ExcludeConfig) ShouldPreventRun(action string) bool {
-	return e.NoRun != nil && *e.NoRun && e.If && e.IsActionListed(action)
+	return runcfg.ShouldPreventRunBasedOnExclude(e.Actions, e.NoRun, e.If, action)
 }
 
 // Clone returns a new instance of ExcludeConfig with the same values as the original.
