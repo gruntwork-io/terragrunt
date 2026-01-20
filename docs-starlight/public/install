@@ -273,7 +273,8 @@ verify_sha256() {
     fi
 
     local expected_checksum
-    expected_checksum=$(awk -v bin="$binary_name" '$2 == bin {print $1; exit}' "$checksums_path")
+    # Strip CRLF and find checksum for binary
+    expected_checksum=$(tr -d '\r' < "$checksums_path" | awk -v bin="$binary_name" '$2 == bin {print $1; exit}')
 
     if [[ -z "$expected_checksum" ]]; then
         abort "Could not find checksum for $binary_name in SHA256SUMS file"
@@ -439,8 +440,7 @@ Try running with sudo or specify a different directory with -d"
     fi
 
     info "Installing to ${target_path}..."
-    chmod +x "$binary_path"
-    mv "$binary_path" "$target_path"
+    install -m 0755 "$binary_path" "$target_path"
 }
 
 # --- Argument Parsing ---
@@ -543,6 +543,9 @@ Install gpg or cosign, or use --no-verify-sig to skip."
 # --- Main ---
 main() {
     parse_args "$@"
+
+    # Expand tilde in INSTALL_DIR (bash doesn't expand ~ in quoted variables)
+    INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
 
     # Check dependencies
     check_dependencies
