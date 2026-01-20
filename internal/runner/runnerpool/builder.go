@@ -15,11 +15,21 @@ func Build(
 	terragruntOptions *options.TerragruntOptions,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	// Run discovery (with automatic retry if needed)
 	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	runner, err := createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	units := runner.GetStack().Units
+
+	if err := checkVersionConstraints(ctx, l, terragruntOptions, units); err != nil {
+		return nil, err
+	}
+
+	return runner, nil
 }

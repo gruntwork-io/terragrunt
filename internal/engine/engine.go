@@ -145,10 +145,21 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	}
 
 	e := opts.Engine
+	if e == nil {
+		return nil
+	}
 
 	if util.FileExists(e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
+	}
+
+	// If source is empty, we cannot download the engine
+	// This indicates an engine block was configured but source was not provided
+	if e.Source == "" {
+		return errors.Errorf(
+			"engine block is configured but source is empty. Please provide an engine source or remove the engine block",
+		)
 	}
 
 	// identify engine version if not specified
@@ -468,18 +479,31 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 }
 
 // createEngine create engine for working directory
-func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	path, err := engineDir(terragruntOptions)
+func createEngine(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*proto.EngineClient, *plugin.Client, error) {
+	if opts.Engine == nil {
+		return nil, nil, errors.Errorf("engine options are nil")
+	}
+
+	// If source is empty, we cannot determine the engine file path
+	if opts.Engine.Source == "" {
+		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
+	}
+
+	path, err := engineDir(opts)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
 
-	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
-	localChecksumFile := filepath.Join(path, engineChecksumName(terragruntOptions.Engine))
-	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
+	localEnginePath := filepath.Join(path, engineFileName(opts.Engine))
+	localChecksumFile := filepath.Join(path, engineChecksumName(opts.Engine))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.Engine))
 
 	// validate engine before loading if verification is not disabled
-	skipCheck := terragruntOptions.EngineSkipChecksumCheck
+	skipCheck := opts.EngineSkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
@@ -491,7 +515,7 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 
 	l.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := terragruntOptions.EngineLogLevel
+	engineLogLevel := opts.EngineLogLevel
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()
 		// update log level if it is different from info

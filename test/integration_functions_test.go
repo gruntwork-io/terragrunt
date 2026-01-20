@@ -347,12 +347,12 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+	assert.NotContains(t, stderr, "Detected dependent units:\n"+clusterPath)
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+	assert.Contains(t, stderr, "Detected dependent units:\n"+clusterPath)
 }
 
 func TestGetPathFromRepoRoot(t *testing.T) {
