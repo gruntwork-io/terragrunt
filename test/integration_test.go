@@ -182,6 +182,26 @@ func TestDetailedExitCodeError(t *testing.T) {
 	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
 }
 
+// TestRunAllReturnsErrorOnFailure verifies that `terragrunt run --all` returns
+// a non-zero exit code when one of the units fails. This is a regression test
+// for https://github.com/gruntwork-io/terragrunt/issues/5379
+func TestRunAllReturnsErrorOnFailure(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "error")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan",
+	)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+}
+
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	t.Parallel()
 
