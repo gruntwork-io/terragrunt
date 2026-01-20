@@ -131,7 +131,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		{"Name": "first-exclude", "Result": "excluded", "Reason": "exclude block", "Cause": ""},
 		{"Name": "first-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
 		{"Name": "first-success", "Result": "succeeded", "Reason": "", "Cause": ""},
-		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": ""},
+		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": "file_not_there_yet"},
 		{"Name": "second-early-exit", "Result": "early exit", "Reason": "ancestor error", "Cause": "second-failure"},
 		{"Name": "second-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
 		{"Name": "second-success", "Result": "succeeded", "Reason": "", "Cause": ""},
