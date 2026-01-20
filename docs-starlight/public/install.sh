@@ -20,7 +20,10 @@
 #   -v, --version VERSION    Install specific version (default: latest)
 #   -d, --dir PATH           Installation directory (default: /usr/local/bin)
 #   -f, --force              Overwrite existing installation
+#   --verify-sig             Verify signature (auto-detect gpg/cosign)
 #   --verify-gpg             Verify GPG signature (requires gpg)
+#   --verify-cosign          Verify Cosign signature (requires cosign)
+#   --no-verify-sig          Skip signature verification
 #   --no-verify              Skip checksum verification
 #   -h, --help               Show this help message
 #
@@ -35,6 +38,8 @@ readonly GITHUB_REPO="gruntwork-io/terragrunt"
 readonly GPG_KEY_URL="https://gruntwork.io/.well-known/pgp-key.txt"
 readonly DEFAULT_INSTALL_DIR="/usr/local/bin"
 readonly BINARY_NAME="terragrunt"
+# Minimum version that has signed release assets (GPG and Cosign)
+readonly MIN_SIGNED_VERSION="0.98.0"
 
 # --- Colors (if terminal) ---
 # Use $'...' syntax for reliable escape sequence interpretation on macOS/Linux
@@ -82,7 +87,10 @@ Options:
   -v, --version VERSION    Install specific version (default: latest)
   -d, --dir PATH           Installation directory (default: /usr/local/bin)
   -f, --force              Overwrite existing installation
+  --verify-sig             Verify signature (auto-detect gpg/cosign)
   --verify-gpg             Verify GPG signature (requires gpg)
+  --verify-cosign          Verify Cosign signature (requires cosign)
+  --no-verify-sig          Skip signature verification
   --no-verify              Skip checksum verification
   -h, --help               Show this help message
 
@@ -96,9 +104,50 @@ Examples:
   # Install to custom directory
   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
 
-  # Install with GPG verification
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-gpg
+  # Install with signature verification (auto-detect gpg/cosign)
+  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-sig
 EOF
+}
+
+# --- Version Comparison ---
+# Compare two semantic versions. Returns 0 if $1 >= $2, 1 otherwise.
+version_gte() {
+    local version=$1
+    local min_version=$2
+
+    # Strip 'v' prefix if present
+    version="${version#v}"
+    min_version="${min_version#v}"
+
+    # Use sort -V if available, otherwise fall back to manual comparison
+    if echo | sort -V >/dev/null 2>&1; then
+        local sorted_first
+        sorted_first=$(printf '%s\n%s' "$min_version" "$version" | sort -V | head -n1)
+        [[ "$sorted_first" == "$min_version" ]]
+    else
+        # Manual version comparison for systems without sort -V (e.g., older macOS)
+        local i
+        local IFS='.'
+        read -ra v1 <<<"$version"
+        read -ra v2 <<<"$min_version"
+
+        for ((i = 0; i < ${#v2[@]}; i++)); do
+            local n1=${v1[i]:-0}
+            local n2=${v2[i]:-0}
+            if ((n1 > n2)); then
+                return 0
+            elif ((n1 < n2)); then
+                return 1
+            fi
+        done
+        return 0
+    fi
+}
+
+# Check if version supports signature verification
+supports_signature_verification() {
+    local version=$1
+    version_gte "$version" "$MIN_SIGNED_VERSION"
 }
 
 # --- OS/Arch Detection ---
@@ -190,14 +239,6 @@ download_checksums() {
     download_file "$url" "${output_dir}/SHA256SUMS" "checksums"
 }
 
-download_gpg_signature() {
-    local version="$1"
-    local output_dir="$2"
-
-    local url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
-    download_file "$url" "${output_dir}/SHA256SUMS.gpgsig" "GPG signature"
-}
-
 # --- Verification Functions ---
 verify_sha256() {
     local binary_path="$1"
@@ -232,24 +273,117 @@ The downloaded file may be corrupted or tampered with."
 }
 
 verify_gpg() {
-    local checksums_path="$1"
-    local signature_path="$2"
+    local version="$1"
+    local checksums_path="$2"
+    local tmpdir="$3"
 
-    if ! command -v gpg &>/dev/null; then
-        abort "GPG verification requested but gpg is not installed.
-Install gpg or remove the --verify-gpg flag."
+    local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
+    local sig_path="${tmpdir}/SHA256SUMS.gpgsig"
+
+    info "Downloading GPG signature..."
+    if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
+        warn "Failed to download GPG signature file"
+        return 1
     fi
 
-    info "Importing Gruntwork GPG key..."
-    if ! curl -sL "$GPG_KEY_URL" | gpg --import 2>/dev/null; then
-        warn "Failed to import GPG key. Attempting verification with existing keyring..."
+    # Check if key already imported, otherwise import
+    if ! gpg --list-keys "Gruntwork" >/dev/null 2>&1; then
+        info "Importing Gruntwork GPG key..."
+        if ! curl -sL "$GPG_KEY_URL" | gpg --import 2>/dev/null; then
+            warn "Failed to import GPG key"
+            return 1
+        fi
     fi
 
     info "Verifying GPG signature..."
-    if ! gpg --verify "$signature_path" "$checksums_path" 2>/dev/null; then
-        abort "GPG signature verification failed!
-The checksums file signature is invalid."
+    if gpg --verify "$sig_path" "$checksums_path" 2>/dev/null; then
+        return 0
+    else
+        return 1
     fi
+}
+
+verify_cosign() {
+    local version="$1"
+    local checksums_path="$2"
+    local tmpdir="$3"
+
+    local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sig"
+    local cert_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.pem"
+    local sig_path="${tmpdir}/SHA256SUMS.sig"
+    local cert_path="${tmpdir}/SHA256SUMS.pem"
+
+    info "Downloading Cosign signature files..."
+    if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
+        warn "Failed to download Cosign signature file"
+        return 1
+    fi
+    if ! curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null; then
+        warn "Failed to download Cosign certificate file"
+        return 1
+    fi
+
+    info "Verifying Cosign signature..."
+    if cosign verify-blob "$checksums_path" \
+        --signature "$sig_path" \
+        --certificate "$cert_path" \
+        --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+        --certificate-identity-regexp "github.com/gruntwork-io/terragrunt" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Verify signature using specified method or auto-detect
+verify_signature() {
+    local version="$1"
+    local checksums_path="$2"
+    local tmpdir="$3"
+    local method="$4"  # gpg, cosign, or auto
+
+    case "$method" in
+        gpg)
+            if ! command -v gpg &>/dev/null; then
+                abort "GPG verification requested but gpg is not installed"
+            fi
+            if verify_gpg "$version" "$checksums_path" "$tmpdir"; then
+                return 0
+            else
+                abort "GPG signature verification failed!"
+            fi
+            ;;
+        cosign)
+            if ! command -v cosign &>/dev/null; then
+                abort "Cosign verification requested but cosign is not installed"
+            fi
+            if verify_cosign "$version" "$checksums_path" "$tmpdir"; then
+                return 0
+            else
+                abort "Cosign signature verification failed!"
+            fi
+            ;;
+        auto)
+            # Try GPG first, then Cosign
+            if command -v gpg &>/dev/null; then
+                info "Using GPG for signature verification"
+                if verify_gpg "$version" "$checksums_path" "$tmpdir"; then
+                    return 0
+                fi
+                warn "GPG verification failed, trying Cosign..."
+            fi
+
+            if command -v cosign &>/dev/null; then
+                info "Using Cosign for signature verification"
+                if verify_cosign "$version" "$checksums_path" "$tmpdir"; then
+                    return 0
+                fi
+            fi
+
+            abort "Signature verification failed. Neither gpg nor cosign succeeded.
+Install gpg or cosign, or use --no-verify-sig to skip signature verification."
+            ;;
+    esac
 }
 
 # --- Installation ---
@@ -297,7 +431,7 @@ parse_args() {
     VERSION="${TERRAGRUNT_VERSION:-}"
     INSTALL_DIR="${TERRAGRUNT_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
     VERIFY_SHA=true
-    VERIFY_GPG=false
+    VERIFY_SIG="auto"  # auto=auto-detect, gpg/cosign=specific, empty=skip
     FORCE=false
 
     while [[ $# -gt 0 ]]; do
@@ -316,8 +450,20 @@ parse_args() {
                 FORCE=true
                 shift
                 ;;
+            --verify-sig)
+                VERIFY_SIG="auto"
+                shift
+                ;;
             --verify-gpg)
-                VERIFY_GPG=true
+                VERIFY_SIG="gpg"
+                shift
+                ;;
+            --verify-cosign)
+                VERIFY_SIG="cosign"
+                shift
+                ;;
+            --no-verify-sig)
+                VERIFY_SIG=""
                 shift
                 ;;
             --no-verify)
@@ -353,6 +499,27 @@ Please install curl and try again."
 Install one or use --no-verify to skip checksum verification."
         fi
     fi
+
+    case "$VERIFY_SIG" in
+        gpg)
+            if ! command -v gpg &>/dev/null; then
+                abort "GPG verification requested but gpg is not installed.
+Install gpg or use --verify-sig for auto-detection."
+            fi
+            ;;
+        cosign)
+            if ! command -v cosign &>/dev/null; then
+                abort "Cosign verification requested but cosign is not installed.
+Install cosign or use --verify-sig for auto-detection."
+            fi
+            ;;
+        auto)
+            if ! command -v gpg &>/dev/null && ! command -v cosign &>/dev/null; then
+                abort "Signature verification requested but neither gpg nor cosign is installed.
+Install gpg or cosign, or use --no-verify-sig to skip."
+            fi
+            ;;
+    esac
 }
 
 # --- Main ---
@@ -396,11 +563,16 @@ main() {
         warn "Skipping checksum verification (--no-verify specified)"
     fi
 
-    # Verify GPG signature (optional)
-    if [[ "$VERIFY_GPG" == true ]]; then
-        download_gpg_signature "$version" "$tmpdir"
-        verify_gpg "$tmpdir/SHA256SUMS" "$tmpdir/SHA256SUMS.gpgsig"
-        success "GPG signature verified"
+    # Verify signature (enabled by default for versions >= MIN_SIGNED_VERSION)
+    if [[ -n "$VERIFY_SIG" ]]; then
+        if supports_signature_verification "$version"; then
+            verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
+            success "Signature verified"
+        else
+            warn "Skipping signature verification: not available for versions older than v${MIN_SIGNED_VERSION}"
+        fi
+    else
+        warn "Skipping signature verification (--no-verify-sig specified)"
     fi
 
     # Install

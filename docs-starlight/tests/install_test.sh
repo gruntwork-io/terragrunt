@@ -81,7 +81,10 @@ test_help_output() {
     [[ "$output" == *"--version"* ]] &&
     [[ "$output" == *"--dir"* ]] &&
     [[ "$output" == *"--force"* ]] &&
-    [[ "$output" == *"--verify-gpg"* ]]
+    [[ "$output" == *"--verify-sig"* ]] &&
+    [[ "$output" == *"--verify-gpg"* ]] &&
+    [[ "$output" == *"--verify-cosign"* ]] &&
+    [[ "$output" == *"--no-verify-sig"* ]]
 }
 
 test_help_exit_code() {
@@ -224,6 +227,29 @@ test_checksum_verification() {
     [[ "$output" == *"SHA256 checksum verified"* ]]
 }
 
+test_old_version_skips_signature() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # v0.72.5 is below MIN_SIGNED_VERSION (0.98.0)
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
+    [[ "$output" == *"Skipping signature verification: not available for versions older than"* ]]
+}
+
+test_no_verify_sig_skips_signature() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+    [[ "$output" == *"Skipping signature verification (--no-verify-sig specified)"* ]]
+}
+
 # --- Platform-Specific Tests ---
 
 test_macos_shasum_fallback() {
@@ -300,6 +326,8 @@ main() {
         skip_test "Install with invalid version fails"
         skip_test "Install with --no-verify skips checksum"
         skip_test "Checksum verification works"
+        skip_test "Old version skips signature verification"
+        skip_test "--no-verify-sig skips signature verification"
         skip_test "Temp directory cleanup"
     else
         echo "--- Integration Tests (require network) ---"
@@ -312,6 +340,8 @@ main() {
         run_test "Install with invalid version fails" test_install_invalid_version_fails
         run_test "Install with --no-verify skips checksum" test_install_no_verify
         run_test "Checksum verification works" test_checksum_verification
+        run_test "Old version skips signature verification" test_old_version_skips_signature
+        run_test "--no-verify-sig skips signature verification" test_no_verify_sig_skips_signature
         run_test "Temp directory cleanup" test_temp_directory_cleanup
     fi
     echo ""
