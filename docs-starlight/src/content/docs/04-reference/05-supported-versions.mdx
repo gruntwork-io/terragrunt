@@ -1,0 +1,71 @@
+---
+title: OpenTofu and Terraform Version Compatibility Table
+description: Learn which Terraform and OpenTofu versions are compatible with which versions of Terragrunt.
+slug: docs/reference/supported-versions
+sidebar:
+  order: 5
+---
+
+import CompatibilityTable from '@components/CompatibilityTable.astro';
+
+{/* Compatibility data source: src/data/compatibility/compatibility.json */}
+
+## Supported OpenTofu Versions
+
+The officially supported versions are:
+
+<CompatibilityTable tool="opentofu" />
+
+## Supported Terraform Versions
+
+The officially supported versions are:
+
+<CompatibilityTable tool="terraform" />
+
+**Note 1:** Terragrunt lists support for BSL versions of Terraform (>= 1.6.x) and core IaC functionality will work as expected.
+However, support for BSL Terraform-specific features is not guaranteed even if that version is in this table.
+
+**Note 2:** This table lists versions that are officially tested in the CI process. In practice, the version
+compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version
+above 0.19.0, and we've also found that terraform 0.11 works with any version above 0.19.18 as well.
+
+If you wish to use Terragrunt against an untested Terraform version, you can use the
+[terraform_version_constraint](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#terraform_version_constraint)
+(introduced in Terragrunt [v0.19.18](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.18)) attribute to
+relax the version constraint.
+
+## Compatibility API
+
+Version compatibility data is available via JSON API:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/api/compatibility.json` | All entries |
+| `/api/compatibility.json?tool=opentofu` | OpenTofu only |
+| `/api/compatibility.json?tool=terraform` | Terraform only |
+
+**Example:**
+
+```bash
+curl https://terragrunt.gruntwork.io/api/compatibility.json?tool=opentofu
+```
+
+**Response format:**
+
+```json
+[
+  {
+    "tool": "opentofu",
+    "version": "1.11.x",
+    "terragrunt_min": "0.95.0",
+    "terragrunt_max": null
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `tool` | IaC tool name: `opentofu` or `terraform` |
+| `version` | Tool version pattern (e.g., `1.11.x`) |
+| `terragrunt_min` | Minimum compatible Terragrunt version |
+| `terragrunt_max` | Maximum compatible version, or `null` for open-ended support |

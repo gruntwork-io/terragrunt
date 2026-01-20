@@ -1,111 +1,34 @@
 import type { APIRoute } from 'astro';
+import { getCollection } from 'astro:content';
 
-const tofuCompatibility = [
-	{
-		"tofu": "1.9.x",
-		"terragrunt": ">= 0.72.0"
-	},
-	{
-		"tofu": "1.8.x",
-		"terragrunt": ">= 0.66.0"
-	},
-	{
-		"tofu": "1.7.x",
-		"terragrunt": ">= 0.58.0"
-	},
-	{
-		"tofu": "1.6.x",
-		"terragrunt": ">= 0.52.0"
-	}
-]
+export const GET: APIRoute = async ({ request }) => {
+	const entries = (await getCollection('compatibility'))
+		.sort((a, b) => {
+			// Sort by tool first (opentofu before terraform), then by order
+			if (a.data.tool !== b.data.tool) {
+				return a.data.tool === 'opentofu' ? -1 : 1;
+			}
+			return a.data.order - b.data.order;
+		})
+		.map(e => ({
+			tool: e.data.tool,
+			version: e.data.version,
+			terragrunt_min: e.data.terragrunt_min,
+			terragrunt_max: e.data.terragrunt_max,
+		}));
 
-const terraformCompatibility = [
-	{
-		"terraform": "1.9.x",
-		"terragrunt": ">= 0.60.0"
-	},
-	{
-		"terraform": "1.8.x",
-		"terragrunt": ">= 0.57.0"
-	},
-	{
-		"terraform": "1.7.x",
-		"terragrunt": ">= 0.56.0"
-	},
-	{
-		"terraform": "1.6.x",
-		"terragrunt": ">= 0.53.0"
-	},
-	{
-		"terraform": "1.5.x",
-		"terragrunt": ">= 0.48.0"
-	},
-	{
-		"terraform": "1.4.x",
-		"terragrunt": ">= 0.45.0"
-	},
-	{
-		"terraform": "1.3.x",
-		"terragrunt": ">= 0.40.0"
-	},
-	{
-		"terraform": "1.2.x",
-		"terragrunt": ">= 0.38.0"
-	},
-	{
-		"terraform": "1.1.x",
-		"terragrunt": ">= 0.36.0"
-	},
-	{
-		"terraform": "1.0.x",
-		"terragrunt": ">= 0.31.0"
-	},
-	{
-		"terraform": "0.15.x",
-		"terragrunt": ">= 0.29.0"
-	},
-	{
-		"terraform": "0.14.x",
-		"terragrunt": ">= 0.27.0"
-	},
-	{
-		"terraform": "0.13.x",
-		"terragrunt": ">= 0.25.0"
-	},
-	{
-		"terraform": "0.12.x",
-		"terragrunt": "0.19.0 - 0.24.4"
-	},
-	{
-		"terraform": "0.11.x",
-		"terragrunt": "0.14.0 - 0.18.7"
-	},
-]
+	const url = new URL(request.url);
+	const tool = url.searchParams.get('tool');
 
-const compatibility = [...tofuCompatibility, ...terraformCompatibility]
-
-export const GET: APIRoute = ({ params, request }) => {
-	// Parse the request.url to get the query parameters
-	const url = new URL(request.url)
-	const searchParams = Object.fromEntries(url.searchParams.entries())
-
-	// Only return the tofu compatibility table
-	// if the user asks for it with the "tf" query parameter
-	if (searchParams.tf && searchParams.tf === "tofu") {
-		return new Response(
-			JSON.stringify(tofuCompatibility)
-		)
+	// Filter by tool if query param provided
+	let filtered = entries;
+	if (tool === 'opentofu') {
+		filtered = entries.filter(e => e.tool === 'opentofu');
+	} else if (tool === 'terraform') {
+		filtered = entries.filter(e => e.tool === 'terraform');
 	}
 
-	// Only return the terraform compatibility table
-	// if the user asks for it with the "tf" query parameter
-	if (searchParams.tf && searchParams.tf === "terraform") {
-		return new Response(
-			JSON.stringify(terraformCompatibility)
-		)
-	}
-
-	return new Response(
-		JSON.stringify(compatibility)
-	)
-}
+	return new Response(JSON.stringify(filtered), {
+		headers: { 'Content-Type': 'application/json' },
+	});
+};
