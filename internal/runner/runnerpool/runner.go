@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,7 +28,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/hashicorp/hcl/v2"
 )
 
 // Runner implements the Stack interface for runner pool execution.
@@ -384,54 +382,6 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 	return result
 }
 
-// Limit recursive descent when inspecting nested errors
-const maxConfigurationErrorDepth = 100
-
-// isConfigurationError checks if an error is a configuration/validation error
-// that should always cause command failure regardless of fail-fast setting.
-func isConfigurationError(err error) bool {
-	return isConfigurationErrorDepth(err, 0)
-}
-
-func isConfigurationErrorDepth(err error, depth int) bool {
-	if err == nil {
-		return false
-	}
-
-	if depth >= maxConfigurationErrorDepth {
-		return false
-	}
-
-	// Check for specific configuration error types
-	if tgerrors.IsError(err, config.ConflictingRunCmdCacheOptionsError{}) {
-		return true
-	}
-
-	// Inspect HCL diagnostics (structured errors) for run_cmd cache-option conflicts
-	for _, unwrapped := range tgerrors.UnwrapErrors(err) {
-		var diags hcl.Diagnostics
-		if errors.As(unwrapped, &diags) {
-			for _, d := range diags {
-				if d != nil && d.Severity == hcl.DiagError && d.Summary == "Error in function call" {
-					return true
-				}
-			}
-		}
-	}
-
-	// Check wrapped errors in MultiError
-	var multiErr *tgerrors.MultiError
-	if errors.As(err, &multiErr) {
-		for _, wrappedErr := range multiErr.WrappedErrors() {
-			if isConfigurationErrorDepth(wrappedErr, depth+1) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
 func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -670,22 +620,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				}
 			}
 		}
-	}
-
-	// Handle errors based on fail-fast mode and error type
-	// Configuration errors always fail regardless of --fail-fast
-	// Execution errors are suppressed when --fail-fast is not set
-	if err != nil {
-		if isConfigurationError(err) || opts.FailFast {
-			// Configuration errors or fail-fast mode: propagate error
-			return err
-		}
-
-		// Execution errors without fail-fast: log but don't fail
-		l.Errorf("Run failed: %v", err)
-
-		// Return nil to indicate success (no --fail-fast) but errors were logged
-		return nil
 	}
 
 	return err
