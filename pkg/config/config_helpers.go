@@ -1136,7 +1136,9 @@ func readTerragruntConfigAsFuncImpl(ctx context.Context, pctx *ParsingContext, l
 
 			err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_read_terragrunt_config", attrs, func(childCtx context.Context) error {
 				var innerErr error
+
 				result, innerErr = ParseTerragruntConfig(childCtx, pctx, l, targetConfigPath, defaultVal)
+
 				return innerErr
 			})
 

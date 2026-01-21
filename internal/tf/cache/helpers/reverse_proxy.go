@@ -53,6 +53,7 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 			if reverseProxy.ModifyResponse != nil {
 				return reverseProxy.ModifyResponse(resp)
 			}
+
 			return nil
 		},
 		ErrorHandler: func(resp http.ResponseWriter, req *http.Request, err error) {

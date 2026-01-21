@@ -142,6 +142,7 @@ func TestRun(t *testing.T) {
 
 				// Verify the output is valid JSON
 				var configs find.FoundComponents
+
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -356,6 +357,7 @@ dependency "B" {
 
 				// Verify the output is valid JSON
 				var configs []find.FoundComponent
+
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 
@@ -455,6 +457,7 @@ locals {
 
 				// Verify the output is valid JSON
 				var configs find.FoundComponents
+
 				err := json.Unmarshal([]byte(output), &configs)
 				require.NoError(t, err)
 

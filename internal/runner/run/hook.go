@@ -44,20 +44,22 @@ func processErrorHooks(
 		Errors: previousExecErrors.WrappedErrors(),
 		ErrorFormat: func(err []error) string {
 			result := ""
+
 			for _, e := range err {
 				errorMessage := e.Error()
 				// Check if is process execution error and try to extract output
 				// https://github.com/gruntwork-io/terragrunt/issues/2045
 				originalError := errors.Unwrap(e)
-
 				if originalError != nil {
 					var processError util.ProcessExecutionError
 					if ok := errors.As(originalError, &processError); ok {
 						errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
 					}
 				}
+
 				result = fmt.Sprintf("%s\n%s", result, errorMessage)
 			}
+
 			return result
 		},
 	}

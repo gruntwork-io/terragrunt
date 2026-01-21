@@ -548,9 +548,13 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 
 			// Build command with multiple --filter flags
 			cmd := "terragrunt find --no-color --working-dir " + workingDir
+
+			var cmdSb551 strings.Builder
 			for _, filter := range tc.filterQueries {
-				cmd += " --filter " + filter
+				cmdSb551.WriteString(" --filter " + filter)
 			}
+
+			cmd += cmdSb551.String()
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -1680,6 +1684,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, "custom-filters.txt")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "", // Will be set in test
@@ -1694,6 +1699,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",               // No flag, should auto-detect and read .terragrunt-filters
@@ -1708,6 +1714,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "--no-filters-file",
@@ -1723,6 +1730,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				content := "# This is a comment\n\ntype=unit\n  \n# Another comment\n"
 				err := os.WriteFile(filterFile, []byte(content), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",
@@ -1738,6 +1746,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				content := "unit\nstack\n"
 				err := os.WriteFile(filterFile, []byte(content), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",
@@ -1752,6 +1761,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "--filter type=stack",

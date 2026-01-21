@@ -101,7 +101,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Usage:   "Disable logging.",
 			Setter: func(val bool) error {
 				l.Formatter().SetDisabledOutput(val)
+
 				opts.ForwardTFStdout = true
+
 				return nil
 			},
 		},
@@ -305,6 +307,7 @@ func NewLogLevelFlag(l log.Logger, opts *options.TerragruntOptions, prefix flags
 
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
+
 				l.Formatter().SetDisabledOutput(true)
 			}
 

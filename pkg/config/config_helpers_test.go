@@ -1071,6 +1071,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 		[]any{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
 		afterHooksMap["after_hook_2"].(map[string]any)["execute"].([]any),
 	)
+
 	errorHooksMap := terraformMap["error_hook"].(map[string]any)
 	assert.Equal(
 		t,
