@@ -39,6 +39,10 @@ run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m ./...
 
+run-lint-fix:
+	@echo "Linting with feature flags: [$(LINT_TAGS)]"
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --fix ./...
+
 run-strict-lint:
 	golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
 
