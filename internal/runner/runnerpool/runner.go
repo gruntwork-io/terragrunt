@@ -22,6 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -222,12 +224,8 @@ func resolveUnitsFromDiscovery(
 			}
 		}
 
-		// Initialize execution context
-		unit.Execution = &component.UnitExecution{
-			TerragruntOptions:    unitOpts,
-			Logger:               unitLogger,
-			FlagExcluded:         unit.Excluded(),
-			AssumeAlreadyApplied: false,
+		if unit.Execution == nil {
+			unit.Execution = component.NewUnitExecution(unitLogger, unitOpts, unit.Excluded())
 		}
 
 		// Store config from discovery context if available
@@ -260,7 +258,7 @@ func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
 			continue
 		}
 
-		if unitConfig.RemoteState == nil || unitConfig.RemoteState.BackendName == "local" {
+		if unitConfig.RemoteState == nil || (unitConfig.RemoteState.Config != nil && unitConfig.RemoteState.BackendName == "local") {
 			l.Warnf(
 				"One or more units discovered using Git-based filter expressions (e.g. [HEAD~1...HEAD]) do not have a remote_state configuration. This may result in unexpected outcomes, such as outputs for dependencies returning empty. It is strongly recommended to use remote state when working with Git-based filter expressions.",
 			)
@@ -530,7 +528,41 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			u.Execution.TerragruntOptions.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
-			err := unitRunner.Run(childCtx, u.Execution.TerragruntOptions, r.Stack.Execution.Report)
+			// Use the unit's logger if populated, which has the proper context for logging.
+			unitLogger := u.Execution.Logger
+			if unitLogger == nil {
+				unitLogger = l
+			}
+
+			cfg, err := config.ReadTerragruntConfig(
+				childCtx,
+				unitLogger,
+				u.Execution.TerragruntOptions,
+				config.DefaultParserOptions(unitLogger, u.Execution.TerragruntOptions),
+			)
+			if err != nil {
+				return err
+			}
+
+			runCfg := cfg.ToRunConfig(unitLogger)
+
+			credsGetter := creds.NewGetter()
+			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
+				childCtx,
+				unitLogger,
+				u.Execution.TerragruntOptions,
+				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
+			); err != nil {
+				return err
+			}
+
+			err = unitRunner.Run(
+				childCtx,
+				u.Execution.TerragruntOptions,
+				r.Stack.Execution.Report,
+				runCfg,
+				credsGetter,
+			)
 
 			// Flush any remaining buffered output
 			if flushErr := unitWriter.Flush(); flushErr != nil && err == nil {
@@ -554,7 +586,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	err := controller.Run(ctx, l)
 
-	// Emit report entries for early exit units after controller completes
+	// Emit report entries for early exit and failed units after controller completes
 	if r.Stack.Execution != nil && r.Stack.Execution.Report != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
@@ -563,10 +595,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		}
 
 		for _, entry := range r.queue.Entries {
-			if entry.Status == queue.StatusEarlyExit {
+			// Handle both early exit and failed units to ensure they're in the report
+			if entry.Status == queue.StatusEarlyExit || entry.Status == queue.StatusFailed {
 				unit := r.Stack.FindUnitByPath(entry.Component.Path())
 				if unit == nil {
-					l.Warnf("Could not find unit for early exit entry: %s", entry.Component.Path())
+					l.Warnf("Could not find unit for entry: %s", entry.Component.Path())
 					continue
 				}
 
@@ -581,7 +614,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
-					l.Errorf("Error ensuring run for early exit unit %s: %v", unitPath, reportErr)
+					l.Errorf("Error ensuring run for unit %s: %v", unitPath, reportErr)
 					continue
 				}
 
@@ -602,16 +635,38 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					}
 				}
 
-				endOpts := []report.EndOption{
-					report.WithResult(report.ResultEarlyExit),
-					report.WithReason(report.ReasonAncestorError),
-				}
-				if failedAncestor != "" {
-					endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
-				}
+				switch entry.Status { //nolint:exhaustive
+				case queue.StatusEarlyExit:
+					endOpts := []report.EndOption{
+						report.WithResult(report.ResultEarlyExit),
+						report.WithReason(report.ReasonAncestorError),
+					}
+					if failedAncestor != "" {
+						endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
+					}
 
-				if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
-					l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+					if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
+						l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
+					}
+				case queue.StatusFailed:
+					// For failed units, check if they failed due to dependency errors
+					// If so, mark them as early exit; otherwise mark as failed
+					endOpts := []report.EndOption{
+						report.WithResult(report.ResultFailed),
+						report.WithReason(report.ReasonRunError),
+					}
+					if failedAncestor != "" {
+						// If a dependency failed, treat this as early exit due to ancestor error
+						endOpts = []report.EndOption{
+							report.WithResult(report.ResultEarlyExit),
+							report.WithReason(report.ReasonAncestorError),
+							report.WithCauseAncestorExit(failedAncestor),
+						}
+					}
+
+					if endErr := r.Stack.Execution.Report.EndRun(l, run.Path, endOpts...); endErr != nil {
+						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
+					}
 				}
 			}
 		}
@@ -855,7 +910,7 @@ func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams []bytes.Buffe
 			unit := r.Stack.Units[i]
 			if len(unit.Dependencies()) > 0 {
 				cfg := unit.Config()
-				if cfg != nil && cfg.Dependencies != nil {
+				if cfg != nil && cfg.Dependencies != nil && len(cfg.Dependencies.Paths) > 0 {
 					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", cfg.Dependencies.Paths)
 				} else {
 					dependenciesMsg = " contains dependencies and"

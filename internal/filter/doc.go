@@ -70,6 +70,52 @@
 //	{my path/file}          # Path without ./ prefix
 //	{apps}                  # Treat "apps" as a path, not a name filter
 //
+// ## Graph Traversal Operators (...)
+//
+// Graph traversal operators include dependencies and/or dependents in the result:
+//
+//	foo...                  # foo and all its dependencies (transitive)
+//	...foo                  # foo and all its dependents (transitive)
+//	...foo...               # foo, all its dependencies, and all its dependents
+//	^foo...                 # All dependencies of foo, excluding foo itself
+//	...^foo                 # All dependents of foo, excluding foo itself
+//
+// Depth-limited traversal allows specifying how many levels to traverse.
+// Place the depth number on the outside of the ellipsis:
+//
+//	foo...1                 # foo and its direct dependencies only
+//	foo...2                 # foo and dependencies up to 2 levels deep
+//	1...foo                 # foo and its direct dependents only
+//	2...foo                 # foo and dependents up to 2 levels deep
+//	1...foo...2             # Direct dependents and dependencies up to 2 levels
+//
+// When depth is not specified, traversal is unlimited (default behavior).
+//
+// ## Numeric Directory Disambiguation
+//
+// When a purely numeric token appears adjacent to "...", it is interpreted as a depth:
+//
+//	1...1                   # Parsed as: dependent depth 1, target "1"
+//	                        # (first 1 is depth, second 1 is target)
+//
+// To explicitly specify a numeric directory as the target, use escape hatches:
+//
+// Braced path syntax (for path filters):
+//
+//	{1}...1                 # target path "1", dependency depth 1
+//	1...{1}                 # dependent depth 1, target path "1"
+//	1...{1}...1             # depth 1 dependents, path "1", depth 1 dependencies
+//
+// Explicit name attribute (for name filters):
+//
+//	name=1...1              # target name=1, dependency depth 1
+//	1...name=1              # dependent depth 1, target name=1
+//
+// Alphanumeric names are not ambiguous (only purely numeric tokens are depths):
+//
+//	1...1foo                # dependent depth 1, target "1foo"
+//	foo1...1                # target "foo1", dependency depth 1
+//
 // # Operator Precedence
 //
 // Operators are evaluated with the following precedence (highest to lowest):
