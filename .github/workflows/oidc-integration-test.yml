@@ -23,7 +23,7 @@ jobs:
       matrix:
         integration:
           - name: GHA AWS
-            os: blacksmith-4vcpu-ubuntu-2404
+            os: ubuntu
             target: ./...
             tags: awsoidc
             run: '^TestAws'

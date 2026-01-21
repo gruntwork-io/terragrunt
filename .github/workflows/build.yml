@@ -6,7 +6,7 @@ on:
 jobs:
   detect_release:
     name: Detect if this is a release build
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       is_release: ${{ steps.check.outputs.is_release }}
     steps:
@@ -30,7 +30,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }}/${{ matrix.arch }})
     needs: detect_release
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -120,7 +120,7 @@ jobs:
     name: Merge All Signed Binaries
     if: ${{ needs.detect_release.outputs.is_release == 'true' }}
     needs: [detect_release, sign_macos, sign_windows]
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
