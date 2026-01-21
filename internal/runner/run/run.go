@@ -194,7 +194,15 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 	actualLock.Lock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, genCfg); err != nil {
+		// For disabled generate blocks (remove operations), use original directory since
+		// we're cleaning up files that may exist in the source directory.
+		// For create operations, use the working directory (cache) where terraform runs.
+		basePath := opts.WorkingDir
+		if genCfg.Disable {
+			basePath = opts.OriginalWorkingDir
+		}
+
+		if err := codegen.WriteToFile(l, opts, basePath, genCfg); err != nil {
 			return err
 		}
 	}

@@ -65,9 +65,14 @@ func processErrorHooks(
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
+			hookWorkingDir := curHook.WorkingDir
+			if hookWorkingDir == "" {
+				hookWorkingDir = opts.OriginalWorkingDir
+			}
+
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
-				"dir":  curHook.WorkingDir,
+				"dir":  hookWorkingDir,
 			}, func(ctx context.Context) error {
 				l.Infof("Executing hook: %s", curHook.Name)
 
@@ -79,7 +84,7 @@ func processErrorHooks(
 					ctx,
 					l,
 					opts,
-					curHook.WorkingDir,
+					hookWorkingDir,
 					curHook.SuppressStdout,
 					false,
 					actionToExecute, actionParams...,
@@ -168,6 +173,10 @@ func runHook(
 	l.Infof("Executing hook: %s", curHook.Name)
 
 	workingDir := curHook.WorkingDir
+	if workingDir == "" {
+		workingDir = opts.OriginalWorkingDir
+	}
+
 	suppressStdout := curHook.SuppressStdout
 
 	actionToExecute := curHook.Execute[0]

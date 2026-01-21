@@ -886,9 +886,23 @@ func TestStackApplyWithDependency(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// With "always use cache", terraform creates files in the cache directory
+	// Search for data.txt in the cache directory
+	cacheDir := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", ".terragrunt-cache")
+	found := false
+	_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && info.Name() == "data.txt" {
+			found = true
+		}
+
+		return nil
+	})
+
+	assert.True(t, found, "data.txt should exist in cache directory")
 }
 
 func TestStackApplyWithDependencyParallelism(t *testing.T) {
@@ -903,9 +917,22 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// With "always use cache", terraform creates files in the cache directory
+	cacheDir := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", ".terragrunt-cache")
+	found := false
+	_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && info.Name() == "data.txt" {
+			found = true
+		}
+
+		return nil
+	})
+
+	assert.True(t, found, "data.txt should exist in cache directory")
 }
 
 func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
@@ -920,9 +947,22 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// With "always use cache", terraform creates files in the cache directory
+	cacheDir := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", ".terragrunt-cache")
+	found := false
+	_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && info.Name() == "data.txt" {
+			found = true
+		}
+
+		return nil
+	})
+
+	assert.True(t, found, "data.txt should exist in cache directory")
 }
 
 func TestStackApplyDestroyWithDependency(t *testing.T) {

@@ -91,8 +91,8 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	// With "always use cache" feature, init-from-module is always executed (local source is copied to cache)
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module should execute once")
 }
 
 func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {

@@ -142,6 +142,8 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
+	// Original working directory where terragrunt.hcl is located (before cache redirect)
+	OriginalWorkingDir string
 	// Location (or name) of the OpenTofu/Terraform binary
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
@@ -407,6 +409,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	}
 
 	opts.WorkingDir = workingDir
+	opts.OriginalWorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 	opts.DownloadDir = downloadDir
 
@@ -500,6 +503,7 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 
 	newOpts.TerragruntConfigPath = configPath
 	newOpts.WorkingDir = workingDir
+	newOpts.OriginalWorkingDir = workingDir
 
 	return l, newOpts, nil
 }
