@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -18,6 +19,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
+
+// assertErrorType checks that the error chain contains an error of the same type as expectedErr.
+func assertErrorType(t *testing.T, expectedErr, actualErr error) bool {
+	t.Helper()
+
+	expectedType := reflect.TypeOf(expectedErr)
+
+	for err := actualErr; err != nil; err = errors.Unwrap(err) {
+		if reflect.TypeOf(err) == expectedType {
+			return true
+		}
+	}
+
+	return assert.Fail(t, "error type mismatch", "expected error of type %T in chain, but got %T", expectedErr, actualErr)
+}
 
 func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
@@ -239,7 +255,7 @@ func TestRunCommand(t *testing.T) {
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
+					assertErrorType(t, tc.expectedErr, actualErr)
 				}
 			} else {
 				require.NoError(t, actualErr)
@@ -351,7 +367,7 @@ func TestFindInParentFolders(t *testing.T) {
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
+					assertErrorType(t, tc.expectedErr, actualErr)
 				}
 			} else {
 				require.NoError(t, actualErr)

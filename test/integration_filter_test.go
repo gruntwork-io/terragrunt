@@ -550,6 +550,7 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 			cmd := "terragrunt find --no-color --working-dir " + workingDir
 
 			var cmdSb551 strings.Builder
+
 			for _, filter := range tc.filterQueries {
 				cmdSb551.WriteString(" --filter " + filter)
 			}

@@ -9,12 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/test/helpers"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -139,8 +137,8 @@ func TestPreventDestroyNotSet(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, run.ModuleIsProtected{}, underlying)
+		var target run.ModuleIsProtected
+		assert.ErrorAs(t, err, &target)
 	}
 }
 

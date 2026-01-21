@@ -102,10 +102,11 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		parseOpts := []hclparse.Option{
+		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
+		parseOpts = append(parseOpts,
 			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
-		}
+		)
 
 		strictControl := opts.StrictControls.Find(controls.BareInclude)
 

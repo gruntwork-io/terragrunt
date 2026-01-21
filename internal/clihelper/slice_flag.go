@@ -184,7 +184,7 @@ func (flag *sliceValue[T]) Set(str string) error {
 }
 
 func (flag *sliceValue[T]) Get() any {
-	var vals []T
+	vals := make([]T, 0, len(*flag.values))
 
 	vals = append(vals, *flag.values...)
 

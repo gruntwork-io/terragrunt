@@ -82,7 +82,7 @@ func (f Filters) RequiresParse() (Expression, bool) {
 
 // DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
 func (f Filters) DependencyGraphExpressions() []Expression {
-	var targets []Expression
+	targets := make([]Expression, 0, len(f))
 
 	for _, filter := range f {
 		targets = append(targets, collectGraphExpressionTargetsWithDependencies(filter.expr)...)
@@ -93,7 +93,7 @@ func (f Filters) DependencyGraphExpressions() []Expression {
 
 // DependentGraphExpressions returns all target expressions from graph expressions that require dependent traversal.
 func (f Filters) DependentGraphExpressions() []Expression {
-	var targets []Expression
+	targets := make([]Expression, 0, len(f))
 
 	for _, filter := range f {
 		targets = append(targets, collectGraphExpressionTargetsWithDependents(filter.expr)...)

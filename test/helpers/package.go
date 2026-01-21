@@ -397,12 +397,13 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	}
+	)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -448,12 +449,13 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	}
+	)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))

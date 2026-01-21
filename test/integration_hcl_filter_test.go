@@ -152,6 +152,7 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 			filterStr := ""
 
 			var filterStrSb152 strings.Builder
+
 			for _, filter := range tc.filterArgs {
 				filterStrSb152.WriteString(fmt.Sprintf(" --filter '%s'", filter))
 			}
@@ -260,6 +261,7 @@ func TestHCLValidateWithFilter(t *testing.T) {
 			filterStr := ""
 
 			var filterStrSb256 strings.Builder
+
 			for _, filter := range tc.filterArgs {
 				filterStrSb256.WriteString(fmt.Sprintf(" --filter '%s'", filter))
 			}

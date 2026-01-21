@@ -42,7 +42,8 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	// set pre-defined variables
 	vars := map[string]any{}
 
-	var requiredVariables, optionalVariables []*config.ParsedVariable
+	requiredVariables := make([]*config.ParsedVariable, 0, 1)
+	optionalVariables := make([]*config.ParsedVariable, 0, 1)
 
 	requiredVariables = append(requiredVariables, &config.ParsedVariable{
 		Name:                    "required_var_1",

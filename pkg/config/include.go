@@ -620,7 +620,7 @@ func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies [
 		dependencyBlocks[dep.Name] = dep
 	}
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := make([]Dependency, 0, len(keys))
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}
@@ -658,7 +658,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	}
 
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := make([]Dependency, 0, len(keys))
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}
@@ -767,7 +767,7 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
 func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
-	includedPaths := []string{}
+	includedPaths := make([]string, 0, len(terragruntIncludeList))
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 
 	for _, tgInc := range terragruntIncludeList {
