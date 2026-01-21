@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,7 +21,6 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
-	"golang.org/x/exp/slices"
 
 	"maps"
 
@@ -334,7 +334,7 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 		return err
 	}
 
-	allVars := append(required, optional...)
+	allVars := slices.Concat(required, optional)
 
 	allInputs, err := getDefinedTerragruntInputs(l, opts, cfg)
 	if err != nil {

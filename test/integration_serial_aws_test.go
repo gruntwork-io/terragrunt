@@ -117,8 +117,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	require.NoError(t, err)
 
 	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	regex, err := regexp.Compile(`out = "([-:\w]+)"`)
-	require.NoError(t, err)
+	regex := regexp.MustCompile(`out = "([-:\w]+)"`)
 
 	matches := regex.FindAllStringSubmatch(output, -1)
 	assert.Len(t, matches, numberOfModules)

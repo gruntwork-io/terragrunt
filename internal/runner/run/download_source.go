@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-getter"
@@ -63,7 +64,7 @@ func DownloadTerraformSource(
 	l.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
 
 	// Always include the .tflint.hcl file, if it exists
-	includeInCopy := append(cfg.Terraform.IncludeInCopy, tfLintConfig)
+	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
 	err = util.CopyFolderContents(
 		l,

@@ -263,7 +263,7 @@ func TestFmtGeneratedFile(t *testing.T) {
 			assert.NotNil(t, opts)
 
 			l := logger.CreateLogger()
-			err = codegen.WriteToFile(l, opts, "", config)
+			err = codegen.WriteToFile(l, opts, "", &config)
 			require.NoError(t, err)
 
 			assert.True(t, util.FileExists(tc.path))
@@ -322,7 +322,7 @@ func TestGenerateDisabling(t *testing.T) {
 			assert.NotNil(t, opts)
 
 			l := logger.CreateLogger()
-			err = codegen.WriteToFile(l, opts, "", config)
+			err = codegen.WriteToFile(l, opts, "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {

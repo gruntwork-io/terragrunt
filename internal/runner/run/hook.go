@@ -120,7 +120,8 @@ func ProcessHooks(
 
 	l.Debugf("Detected %d Hooks", len(hooks))
 
-	for _, curHook := range hooks {
+	for i := range hooks {
+		curHook := &hooks[i]
 		if !curHook.If {
 			l.Debugf("Skipping hook: %s", curHook.Name)
 			continue
@@ -144,7 +145,7 @@ func ProcessHooks(
 }
 
 func shouldRunHook(
-	hook runcfg.Hook,
+	hook *runcfg.Hook,
 	opts *options.TerragruntOptions,
 	previousExecErrors *errors.MultiError,
 ) bool {
@@ -165,7 +166,7 @@ func runHook(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
-	curHook runcfg.Hook,
+	curHook *runcfg.Hook,
 ) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
@@ -204,7 +205,7 @@ func executeTFLint(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
-	curHook runcfg.Hook,
+	curHook *runcfg.Hook,
 	workingDir string,
 ) error {
 	// fetching source code changes lock since tflint is not thread safe

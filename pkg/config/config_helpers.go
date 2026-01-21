@@ -916,7 +916,7 @@ func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger)
 			return err
 		}
 
-		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, awsConfig)
+		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -944,7 +944,7 @@ func getAWSAccountID(ctx context.Context, pctx *ParsingContext, l log.Logger) (s
 			return err
 		}
 
-		accountID, err := awshelper.GetAWSAccountID(childCtx, awsConfig)
+		accountID, err := awshelper.GetAWSAccountID(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -972,7 +972,7 @@ func getAWSCallerIdentityARN(ctx context.Context, pctx *ParsingContext, l log.Lo
 			return err
 		}
 
-		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, awsConfig)
+		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -1000,7 +1000,7 @@ func getAWSCallerIdentityUserID(ctx context.Context, pctx *ParsingContext, l log
 			return err
 		}
 
-		userID, err := awshelper.GetAWSUserID(childCtx, awsConfig)
+		userID, err := awshelper.GetAWSUserID(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}

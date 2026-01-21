@@ -29,7 +29,7 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook runcfg.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
@@ -170,11 +170,12 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(l log.Logger, hook runcfg.Hook,
+func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 	tfCfg *runcfg.TerraformConfig) ([]string, error) {
 	var variables []string
 
-	for _, arg := range tfCfg.ExtraArgs {
+	for i := range tfCfg.ExtraArgs {
+		arg := &tfCfg.ExtraArgs[i]
 		// use extra args which will be used on same command as hook
 		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
 			continue

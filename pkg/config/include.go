@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -501,7 +502,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 				if cfg.Terraform.IncludeInCopy != nil {
 					targetList := *cfg.Terraform.IncludeInCopy
-					combinedList := append(srcList, targetList...)
+					combinedList := slices.Concat(srcList, targetList)
 					cfg.Terraform.IncludeInCopy = &combinedList
 				} else {
 					cfg.Terraform.IncludeInCopy = &srcList
@@ -513,7 +514,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 				if cfg.Terraform.ExcludeFromCopy != nil {
 					targetList := *cfg.Terraform.ExcludeFromCopy
-					combinedList := append(srcList, targetList...)
+					combinedList := slices.Concat(srcList, targetList)
 					cfg.Terraform.ExcludeFromCopy = &combinedList
 				} else {
 					cfg.Terraform.ExcludeFromCopy = &srcList
@@ -646,7 +647,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 		sameKeyDep, hasSameKey := dependencyBlocks[dep.Name]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
-			if err := sameKeyDepPtr.DeepMerge(dep); err != nil {
+			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 

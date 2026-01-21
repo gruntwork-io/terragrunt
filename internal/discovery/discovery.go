@@ -426,16 +426,16 @@ func Parse(
 
 	if suppressParseErrors {
 		// Suppressing parse errors to avoid false positive errors
-		parseOptions := append(
+		parseOptions := slices.Concat(
 			parsingCtx.ParserOptions,
-			hclparse.WithDiagnosticsHandler(func(
+			[]hclparse.Option{hclparse.WithDiagnosticsHandler(func(
 				file *hcl.File,
 				hclDiags hcl.Diagnostics,
 			) (hcl.Diagnostics, error) {
 				l.Debugf("Suppressed parsing errors %w", hclDiags)
 
 				return nil, nil
-			}))
+			})})
 		parsingCtx = parsingCtx.WithParseOption(parseOptions)
 	}
 

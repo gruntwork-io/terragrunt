@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
@@ -73,69 +74,70 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 // Clone returns a shallow copy of the ParsingContext.
-func (ctx ParsingContext) Clone() *ParsingContext {
-	return &ctx
+func (ctx *ParsingContext) Clone() *ParsingContext {
+	clone := *ctx
+	return &clone
 }
 
-func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
+func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	ctx.PartialParseDecodeList = decodeList
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
+func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
 	ctx.TerragruntOptions = opts
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
+func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	ctx.Locals = locals
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithValues(values *cty.Value) *ParsingContext {
+func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 	ctx.Values = values
-	return &ctx
+	return ctx
 }
 
 // WithFeatures sets the feature flags to be used in evaluation context.
-func (ctx ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
+func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	ctx.Features = features
 
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
+func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	ctx.TrackInclude = trackInclude
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	ctx.ParserOptions = parserOptions
-	return &ctx
+	return ctx
 }
 
 // WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
 // Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
 // This avoids false positive "There is no variable named dependency" errors during parsing
 // when dependency outputs haven't been resolved yet.
-func (ctx ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
+func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
 	var diagWriter = io.Discard
 	if l.Level() >= log.DebugLevel {
 		diagWriter = os.Stderr
 	}
 
-	opts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(diagWriter, true))
+	opts := slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
 	ctx.ParserOptions = opts
 
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
+func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	ctx.SkipOutputsResolution = true
-	return &ctx
+	return ctx
 }
 
-func (ctx ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
 	ctx.DecodedDependencies = v
-	return &ctx
+	return ctx
 }

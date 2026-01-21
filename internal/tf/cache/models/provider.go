@@ -90,12 +90,12 @@ type ResponseBody struct {
 	SigningKeys SigningKeyList `json:"signing_keys"`
 }
 
-func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
+func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
 	body.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
 	body.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
 	body.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
 
-	return &body
+	return body
 }
 
 // Provider represents the details of the Terraform provider.

@@ -88,7 +88,7 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 	}
 
 	if !config.SkipCredentialsValidation {
-		if err = awshelper.ValidateAwsConfig(ctx, cfg); err != nil {
+		if err = awshelper.ValidateAwsConfig(ctx, &cfg); err != nil {
 			return nil, err
 		}
 	}
@@ -749,7 +749,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		return errors.Errorf("AWS config region is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(ctx, client.awsConfig)
+	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucket, err)
 	}
@@ -758,7 +758,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		return errors.Errorf("AWS account ID is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
 
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
@@ -842,7 +842,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 }
 
 func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
@@ -1143,7 +1143,8 @@ func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, l log.Lo
 			}
 		}
 
-		for _, item := range res.Versions {
+		for i := range res.Versions {
+			item := &res.Versions[i]
 			if len(keys) != 0 && !slices.Contains(keys, aws.ToString(item.Key)) {
 				continue
 			}
@@ -1703,12 +1704,12 @@ func (client *Client) EnableVersioningForS3Bucket(ctx context.Context, l log.Log
 func (client *Client) EnableSSEForS3BucketWide(ctx context.Context, l log.Logger, bucketName string, algorithm string) error {
 	l.Debugf("Enabling server-side encryption for S3 bucket %s", bucketName)
 
-	accountID, err := awshelper.GetAWSAccountID(ctx, client.awsConfig)
+	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucketName, err)
 	}
 
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucketName, err)
 	}

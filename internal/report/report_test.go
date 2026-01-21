@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -350,14 +351,14 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 			r.AddRun(l, run)
 
 			// Set up initial options with the initial result
-			initialOptions := append(tt.initialOptions, report.WithResult(tt.initialResult))
+			initialOptions := slices.Concat(tt.initialOptions, []report.EndOption{report.WithResult(tt.initialResult)})
 
 			// End the run with the initial state
 			err := r.EndRun(l, runName, initialOptions...)
 			require.NoError(t, err)
 
 			// Set up second options with the second result
-			secondOptions := append(tt.secondOptions, report.WithResult(tt.secondResult))
+			secondOptions := slices.Concat(tt.secondOptions, []report.EndOption{report.WithResult(tt.secondResult)})
 
 			// Then try to end it again with a different state
 			err = r.EndRun(l, runName, secondOptions...)

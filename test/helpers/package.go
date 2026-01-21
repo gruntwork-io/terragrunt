@@ -309,7 +309,8 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 		if len(out.Versions) > 0 {
 			var objectsToDelete []s3types.ObjectIdentifier
 
-			for _, version := range out.Versions {
+			for i := range out.Versions {
+				version := &out.Versions[i]
 				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
 					Key:       version.Key,
 					VersionId: version.VersionId,
@@ -425,8 +426,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
@@ -477,8 +477,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
