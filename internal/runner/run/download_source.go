@@ -102,7 +102,14 @@ func DownloadTerraformSourceIfNecessary(
 	// This optimizes the common case where no terraform.source is specified.
 	isLocalSource := tf.IsLocalSource(terraformSource.CanonicalSourceURL)
 	sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
-	workingDir := filepath.Clean(opts.WorkingDir)
+
+	// Use absolute path for comparison since sourceDir from URL is always absolute
+	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	workingDir := filepath.Clean(absWorkingDir)
 
 	if isLocalSource && sourceDir == workingDir {
 		l.Debugf("Local source matches working directory, preparing cache without download")

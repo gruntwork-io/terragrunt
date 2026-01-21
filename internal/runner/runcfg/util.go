@@ -57,8 +57,15 @@ func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (str
 	case cfg != nil && cfg.Terraform.Source != "":
 		return AdjustSourceWithMap(opts.SourceMap, cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
 	default:
-		// Always use cache: return working directory as local source
-		return opts.WorkingDir, nil
+		// Always use cache: return working directory as local source.
+		// Use absolute path to avoid path resolution issues when go-getter
+		// resolves relative paths against the working directory.
+		absPath, err := filepath.Abs(opts.WorkingDir)
+		if err != nil {
+			return "", errors.New(err)
+		}
+
+		return absPath, nil
 	}
 }
 
