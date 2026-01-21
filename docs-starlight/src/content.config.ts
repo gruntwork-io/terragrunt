@@ -78,31 +78,10 @@ const testimonials = defineCollection({
 	}),
 });
 
-function compatibilityLoader() {
-	return {
-		name: "compatibility-loader",
-		load: async ({ store, parseData }: { store: any; parseData: any }) => {
-			const content = await import("./data/compatibility/compatibility.json");
-			const items = content.default as Array<{
-				tool: string;
-				version: string;
-				terragrunt_min: string;
-				terragrunt_max: string | null;
-				order: number;
-			}>;
-			store.clear();
-			for (const item of items) {
-				const id = `${item.tool}-${item.version}`;
-				const data = await parseData({ id, data: item });
-				store.set({ id, data });
-			}
-		},
-	};
-}
-
 const compatibility = defineCollection({
-	loader: compatibilityLoader(),
+	loader: file("src/data/compatibility/compatibility.json"),
 	schema: z.object({
+		id: z.string(),
 		tool: z.enum(["opentofu", "terraform"]),
 		version: z.string(),
 		terragrunt_min: z.string(),
