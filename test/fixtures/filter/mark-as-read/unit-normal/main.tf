@@ -1,1 +1,1 @@
-# Minimal terraform config
+# Intentionally empty

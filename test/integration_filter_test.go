@@ -2472,11 +2472,14 @@ func TestFilterFlagWithMarkAsRead(t *testing.T) {
 
 			if tc.expectError {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err, "Unexpected error for filter query: %s\nstderr: %s", tc.filterQuery, stderr)
-				results := strings.Fields(stdout)
-				assert.ElementsMatch(t, tc.expectedUnits, results, "Output mismatch for filter query: %s", tc.filterQuery)
+
+				return
 			}
+
+			require.NoError(t, err, "Unexpected error for filter query: %s\nstderr: %s", tc.filterQuery, stderr)
+
+			results := strings.Fields(stdout)
+			assert.ElementsMatch(t, tc.expectedUnits, results, "Output mismatch for filter query: %s", tc.filterQuery)
 		})
 	}
 }
