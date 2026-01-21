@@ -1,6 +1,5 @@
 [
   {
-    "id": "opentofu-1.11.x",
     "tool": "opentofu",
     "version": "1.11.x",
     "terragrunt_min": "0.95.0",
@@ -8,7 +7,6 @@
     "order": 26
   },
   {
-    "id": "opentofu-1.10.x",
     "tool": "opentofu",
     "version": "1.10.x",
     "terragrunt_min": "0.82.0",
@@ -16,7 +14,6 @@
     "order": 25
   },
   {
-    "id": "opentofu-1.9.x",
     "tool": "opentofu",
     "version": "1.9.x",
     "terragrunt_min": "0.72.0",
@@ -24,7 +21,6 @@
     "order": 24
   },
   {
-    "id": "opentofu-1.8.x",
     "tool": "opentofu",
     "version": "1.8.x",
     "terragrunt_min": "0.66.0",
@@ -32,7 +28,6 @@
     "order": 23
   },
   {
-    "id": "opentofu-1.7.x",
     "tool": "opentofu",
     "version": "1.7.x",
     "terragrunt_min": "0.58.0",
@@ -40,7 +35,6 @@
     "order": 22
   },
   {
-    "id": "opentofu-1.6.x",
     "tool": "opentofu",
     "version": "1.6.x",
     "terragrunt_min": "0.52.0",
@@ -48,7 +42,6 @@
     "order": 21
   },
   {
-    "id": "terraform-1.14.x",
     "tool": "terraform",
     "version": "1.14.x",
     "terragrunt_min": "0.94.0",
@@ -56,7 +49,6 @@
     "order": 20
   },
   {
-    "id": "terraform-1.13.x",
     "tool": "terraform",
     "version": "1.13.x",
     "terragrunt_min": "0.86.0",
@@ -64,7 +56,6 @@
     "order": 19
   },
   {
-    "id": "terraform-1.12.x",
     "tool": "terraform",
     "version": "1.12.x",
     "terragrunt_min": "0.80.0",
@@ -72,7 +63,6 @@
     "order": 18
   },
   {
-    "id": "terraform-1.11.x",
     "tool": "terraform",
     "version": "1.11.x",
     "terragrunt_min": "0.75.0",
@@ -80,7 +70,6 @@
     "order": 17
   },
   {
-    "id": "terraform-1.10.x",
     "tool": "terraform",
     "version": "1.10.x",
     "terragrunt_min": "0.74.0",
@@ -88,7 +77,6 @@
     "order": 16
   },
   {
-    "id": "terraform-1.9.x",
     "tool": "terraform",
     "version": "1.9.x",
     "terragrunt_min": "0.60.0",
@@ -96,7 +84,6 @@
     "order": 15
   },
   {
-    "id": "terraform-1.8.x",
     "tool": "terraform",
     "version": "1.8.x",
     "terragrunt_min": "0.57.0",
@@ -104,7 +91,6 @@
     "order": 14
   },
   {
-    "id": "terraform-1.7.x",
     "tool": "terraform",
     "version": "1.7.x",
     "terragrunt_min": "0.56.0",
@@ -112,7 +98,6 @@
     "order": 13
   },
   {
-    "id": "terraform-1.6.x",
     "tool": "terraform",
     "version": "1.6.x",
     "terragrunt_min": "0.53.0",
@@ -120,7 +105,6 @@
     "order": 12
   },
   {
-    "id": "terraform-1.5.x",
     "tool": "terraform",
     "version": "1.5.x",
     "terragrunt_min": "0.48.0",
@@ -128,7 +112,6 @@
     "order": 11
   },
   {
-    "id": "terraform-1.4.x",
     "tool": "terraform",
     "version": "1.4.x",
     "terragrunt_min": "0.45.0",
@@ -136,7 +119,6 @@
     "order": 10
   },
   {
-    "id": "terraform-1.3.x",
     "tool": "terraform",
     "version": "1.3.x",
     "terragrunt_min": "0.40.0",
@@ -144,7 +126,6 @@
     "order": 9
   },
   {
-    "id": "terraform-1.2.x",
     "tool": "terraform",
     "version": "1.2.x",
     "terragrunt_min": "0.38.0",
@@ -152,7 +133,6 @@
     "order": 8
   },
   {
-    "id": "terraform-1.1.x",
     "tool": "terraform",
     "version": "1.1.x",
     "terragrunt_min": "0.36.0",
@@ -160,7 +140,6 @@
     "order": 7
   },
   {
-    "id": "terraform-1.0.x",
     "tool": "terraform",
     "version": "1.0.x",
     "terragrunt_min": "0.31.0",
@@ -168,7 +147,6 @@
     "order": 6
   },
   {
-    "id": "terraform-0.15.x",
     "tool": "terraform",
     "version": "0.15.x",
     "terragrunt_min": "0.29.0",
@@ -176,7 +154,6 @@
     "order": 5
   },
   {
-    "id": "terraform-0.14.x",
     "tool": "terraform",
     "version": "0.14.x",
     "terragrunt_min": "0.27.0",
@@ -184,7 +161,6 @@
     "order": 4
   },
   {
-    "id": "terraform-0.13.x",
     "tool": "terraform",
     "version": "0.13.x",
     "terragrunt_min": "0.25.0",
@@ -192,7 +168,6 @@
     "order": 3
   },
   {
-    "id": "terraform-0.12.x",
     "tool": "terraform",
     "version": "0.12.x",
     "terragrunt_min": "0.19.0",
@@ -200,7 +175,6 @@
     "order": 2
   },
   {
-    "id": "terraform-0.11.x",
     "tool": "terraform",
     "version": "0.11.x",
     "terragrunt_min": "0.14.0",
