@@ -20,28 +20,34 @@ const (
 func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	t.Parallel()
 
-	// Create test fixture with dependency chain: transitive-dependency -> dependency -> dependent
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictInclude)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictInclude)
+	setup := func(t *testing.T) string {
+		// Create test fixture with dependency chain: transitive-dependency -> dependency -> dependent
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictInclude)
+		helpers.CleanupTerraformFolder(t, tmpEnvPath)
+		testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictInclude)
 
-	// First, apply all units to create state
-	// This simulates the scenario where units have been previously applied
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
-		fmt.Sprintf(
-			"terragrunt run --log-level debug --all --non-interactive --working-dir %s -- apply -auto-approve",
-			testPath,
-		),
-	)
-	require.NoError(t, err, "Failed to apply all units initially\nstdout: %s\nstderr: %s", stdout, stderr)
+		// First, apply all units to create state
+		// This simulates the scenario where units have been previously applied
+		stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+			fmt.Sprintf(
+				"terragrunt run --log-level debug --all --non-interactive --working-dir %s -- apply -auto-approve",
+				testPath,
+			),
+		)
+		require.NoError(t, err, "Failed to apply all units initially\nstdout: %s\nstderr: %s", stdout, stderr)
 
-	// Verify all units were applied
-	assert.Contains(t, stdout+stderr, "transitive-dependency", "transitive-dependency should be applied")
-	assert.Contains(t, stdout+stderr, "dependency", "dependency should be applied")
-	assert.Contains(t, stdout+stderr, "dependent", "dependent should be applied")
+		// Verify all units were applied
+		assert.Contains(t, stdout+stderr, "transitive-dependency", "transitive-dependency should be applied")
+		assert.Contains(t, stdout+stderr, "dependency", "dependency should be applied")
+		assert.Contains(t, stdout+stderr, "dependent", "dependent should be applied")
+
+		return testPath
+	}
 
 	t.Run("queue-include-dir", func(t *testing.T) {
 		t.Parallel()
+
+		testPath := setup(t)
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
@@ -75,6 +81,8 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 	t.Run("queue-include-dir and destroy", func(t *testing.T) {
 		t.Parallel()
+
+		testPath := setup(t)
 
 		helpers.CleanupTerraformFolder(t, testPath)
 
@@ -113,6 +121,8 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	t.Run("filter flag", func(t *testing.T) {
 		t.Parallel()
 
+		testPath := setup(t)
+
 		helpers.CleanupTerraformFolder(t, testPath)
 
 		// Test with --filter to only include dependency
@@ -147,6 +157,8 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 	t.Run("filter flag and destroy", func(t *testing.T) {
 		t.Parallel()
+
+		testPath := setup(t)
 
 		helpers.CleanupTerraformFolder(t, testPath)
 

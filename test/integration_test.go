@@ -177,7 +177,7 @@ func TestDetailedExitCodeError(t *testing.T) {
 		ctx,
 		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
 }
@@ -3609,8 +3609,11 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureModulePathError)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
-	require.NoError(t, err)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color",
+	)
+	require.Error(t, err)
 
 	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
 	// catch "Run failed" message printed in case of error in apply of units
@@ -4686,7 +4689,7 @@ func TestNoColorDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan -no-color --tf-forward-stdout --working-dir "+testPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan -no-color --tf-forward-stdout --working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(stdout, "has been successfully initialized!"))
 

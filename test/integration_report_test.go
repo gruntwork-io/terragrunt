@@ -42,7 +42,7 @@ func TestTerragruntReport(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
@@ -168,7 +168,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 				filepath.Join(rootPath, "second-exclude"),
 				reportFile)
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-			require.NoError(t, err)
+			require.Error(t, err)
 
 			// Verify the report file exists
 			reportFilePath := filepath.Join(rootPath, reportFile)
@@ -259,10 +259,12 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
-	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+	setup := func(t *testing.T) string {
+		helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+		return rootPath
+	}
 
 	testCases := []struct {
 		name           string
@@ -314,6 +316,8 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			rootPath := setup(t)
+
 			// Build command with appropriate flags
 			cmd := "terragrunt run --all apply --non-interactive --working-dir " + rootPath
 			if tc.reportFile != "" {
@@ -335,7 +339,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			)
 
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-			require.NoError(t, err)
+			require.Error(t, err)
 
 			// Verify the report file exists
 			reportFile := filepath.Join(rootPath, tc.reportFile)
@@ -429,7 +433,7 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
