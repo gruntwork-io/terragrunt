@@ -219,15 +219,8 @@ Specify a version manually with -v, e.g.: -v v0.72.5"
 
 validate_version() {
     local version="$1"
-    # Accept versions with or without 'v' prefix
-    if [[ ! "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-        abort "Invalid version format: $version
-Expected format: v0.72.5 or 0.72.5"
-    fi
-    # Ensure version has 'v' prefix
-    if [[ ! "$version" =~ ^v ]]; then
-        version="v$version"
-    fi
+    # Allow any version/tag (semver, release candidates, custom builds)
+    [[ -z "$version" ]] && abort "Version cannot be empty"
     echo "$version"
 }
 
