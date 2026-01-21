@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for Terragrunt install.sh script
+# Tests for Terragrunt install script
 #
 # Usage:
 #   ./install_test.sh              # Run all tests
@@ -81,8 +81,7 @@ test_help_output() {
     [[ "$output" == *"--version"* ]] &&
     [[ "$output" == *"--dir"* ]] &&
     [[ "$output" == *"--force"* ]] &&
-    [[ "$output" == *"--verify-sig"* ]] &&
-    [[ "$output" == *"--verify-gpg"* ]] &&
+    [[ "$output" == *"--no-verify-sig"* ]] &&
     [[ "$output" == *"--verify-cosign"* ]] &&
     [[ "$output" == *"--no-verify"* ]]
 }
@@ -144,7 +143,7 @@ check_network_connectivity() {
 
 test_fetch_latest_version() {
     local version
-    # Use redirect method (same as install.sh)
+    # Use redirect method (same as install)
     local redirect_url
     redirect_url=$(curl -fsI "https://github.com/gruntwork-io/terragrunt/releases/latest" 2>/dev/null | grep -i '^location:' | tr -d '\r')
     version=$(echo "$redirect_url" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -157,13 +156,16 @@ test_install_specific_version() {
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 >/dev/null 2>&1 &&
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1 &&
     [[ -f "$tmpdir/terragrunt" ]] &&
     [[ -x "$tmpdir/terragrunt" ]] &&
     "$tmpdir/terragrunt" --version 2>&1 | grep -q "v0.72.5"
 }
 
 test_install_rc_version() {
+    # Requires gpg (GPG signature verification is default)
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
+
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
@@ -176,6 +178,9 @@ test_install_rc_version() {
 }
 
 test_install_latest_version() {
+    # Requires gpg (GPG signature verification is default)
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
+
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
@@ -194,10 +199,10 @@ test_install_already_exists_fails() {
     trap "rm -rf '$tmpdir'" RETURN
 
     # First install
-    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 >/dev/null 2>&1 || return 1
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1 || return 1
 
     # Second install without --force should fail
-    ! bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>/dev/null
+    ! bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>/dev/null
 }
 
 test_install_force_overwrites() {
@@ -207,14 +212,22 @@ test_install_force_overwrites() {
     trap "rm -rf '$tmpdir'" RETURN
 
     # First install
-    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 >/dev/null 2>&1 || return 1
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1 || return 1
 
     # Second install with --force should succeed
-    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --force >/dev/null 2>&1
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --force --no-verify-sig >/dev/null 2>&1
 }
 
-test_install_nonexistent_dir_fails() {
-    ! bash "$INSTALL_SCRIPT" -d /nonexistent/path/that/does/not/exist -v v0.72.5 2>/dev/null
+test_install_creates_directory() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    local install_dir="${tmpdir}/new/nested/dir"
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # Should auto-create the directory
+    bash "$INSTALL_SCRIPT" -d "$install_dir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1 &&
+    [[ -f "${install_dir}/terragrunt" ]]
 }
 
 test_install_invalid_version_fails() {
@@ -223,7 +236,7 @@ test_install_invalid_version_fails() {
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    ! bash "$INSTALL_SCRIPT" -d "$tmpdir" -v invalid 2>/dev/null
+    ! bash "$INSTALL_SCRIPT" -d "$tmpdir" -v invalid --no-verify-sig 2>/dev/null
 }
 
 test_install_no_verify() {
@@ -233,7 +246,7 @@ test_install_no_verify() {
     trap "rm -rf '$tmpdir'" RETURN
 
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify --no-verify-sig 2>&1)
     [[ "$output" == *"Skipping checksum verification"* ]] &&
     [[ -f "$tmpdir/terragrunt" ]]
 }
@@ -244,9 +257,9 @@ test_install_no_verification_at_all() {
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    # Install with no checksum verification (signature already disabled by default)
+    # Install with no checksum and no signature verification
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify --no-verify-sig 2>&1)
     [[ "$output" == *"Skipping checksum verification"* ]] &&
     [[ "$output" != *"SHA256 checksum verified"* ]] &&
     [[ "$output" != *"Signature verified"* ]] &&
@@ -261,54 +274,59 @@ test_checksum_verification() {
     trap "rm -rf '$tmpdir'" RETURN
 
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
     [[ "$output" == *"SHA256 checksum verified"* ]]
 }
 
 test_old_version_skips_signature() {
+    # Requires gpg (GPG signature verification is default)
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
+
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    # v0.72.5 is below MIN_SIGNED_VERSION (0.98.0), even with --verify-sig it should skip
+    # v0.72.5 is below MIN_SIGNED_VERSION (0.98.0), should skip signature gracefully
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --verify-sig 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
     [[ "$output" == *"Skipping signature verification: not available for versions older than"* ]]
 }
 
-test_signature_disabled_by_default() {
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
-    trap "rm -rf '$tmpdir'" RETURN
-
-    # Without --verify-sig, no signature verification messages should appear
-    local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 2>&1)
-    [[ "$output" != *"Signature verified"* ]] &&
-    [[ "$output" != *"signature verification"* ]]
-}
-
-test_gpg_signature_verification() {
-    # Skip if gpg not available
-    command -v gpg &>/dev/null || return 0
+test_signature_enabled_by_default() {
+    # Requires gpg (GPG signature verification is default)
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
 
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
+    # GPG signature verification is enabled by default
     # Use RC version which has signatures
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-gpg 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
     [[ "$output" == *"Verifying GPG signature"* ]] &&
     [[ "$output" == *"Signature verified"* ]]
 }
 
+test_no_verify_sig_skips_signature() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # With --no-verify-sig, signature verification should be skipped
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.72.5 --no-verify-sig 2>&1)
+    [[ "$output" != *"Signature verified"* ]] &&
+    [[ "$output" != *"Using GPG"* ]] &&
+    [[ "$output" != *"Using Cosign"* ]]
+}
+
 test_cosign_signature_verification() {
-    # Skip if cosign not available
-    command -v cosign &>/dev/null || return 0
+    # Requires cosign
+    command -v cosign &>/dev/null || { echo "cosign required"; return 1; }
 
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -322,18 +340,19 @@ test_cosign_signature_verification() {
     [[ "$output" == *"Signature verified"* ]]
 }
 
-test_auto_signature_verification() {
-    # Skip if neither gpg nor cosign available
-    command -v gpg &>/dev/null || command -v cosign &>/dev/null || return 0
+test_gpg_is_default_signature_method() {
+    # Requires gpg
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
 
     local tmpdir
     tmpdir=$(mktemp -d)
     # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
     trap "rm -rf '$tmpdir'" RETURN
 
-    # Use RC version which has signatures, auto-detect method with --verify-sig
+    # GPG is default method - verify it's used without any flags
     local output
-    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 --verify-sig 2>&1)
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" -v v0.98.0-rc2026011601 2>&1)
+    [[ "$output" == *"Verifying GPG signature"* ]] &&
     [[ "$output" == *"Signature verified"* ]]
 }
 
@@ -361,13 +380,13 @@ test_temp_directory_cleanup() {
 
     # Count terragrunt-specific temp dirs before
     local before
-    before=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
+    before=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
 
-    bash "$INSTALL_SCRIPT" -d "$install_dir" -v v0.72.5 >/dev/null 2>&1
+    bash "$INSTALL_SCRIPT" -d "$install_dir" -v v0.72.5 --no-verify-sig >/dev/null 2>&1
 
     # Verify no new terragrunt-specific temp dirs remain (script uses trap to cleanup)
     local after
-    after=$(find /tmp -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
+    after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'terragrunt-install.*' -type d 2>/dev/null | wc -l)
     [[ "$after" -le "$before" ]]
 }
 
@@ -418,16 +437,16 @@ main() {
         skip_test "Install latest version"
         skip_test "Install fails when already exists"
         skip_test "Install with --force overwrites"
-        skip_test "Install to nonexistent directory fails"
+        skip_test "Install creates directory"
         skip_test "Install with invalid version fails"
         skip_test "Install with --no-verify skips checksum"
         skip_test "Install with no verification at all"
         skip_test "Checksum verification works"
         skip_test "Old version skips signature verification"
-        skip_test "Signature disabled by default"
-        skip_test "GPG signature verification"
+        skip_test "Signature enabled by default"
+        skip_test "--no-verify-sig skips signature"
         skip_test "Cosign signature verification"
-        skip_test "Auto signature verification"
+        skip_test "GPG is default signature method"
         skip_test "Temp directory cleanup"
     else
         echo "--- Integration Tests (require network) ---"
@@ -437,16 +456,16 @@ main() {
         run_test "Install latest version" test_install_latest_version
         run_test "Install fails when already exists" test_install_already_exists_fails
         run_test "Install with --force overwrites" test_install_force_overwrites
-        run_test "Install to nonexistent directory fails" test_install_nonexistent_dir_fails
+        run_test "Install creates directory" test_install_creates_directory
         run_test "Install with invalid version fails" test_install_invalid_version_fails
         run_test "Install with --no-verify skips checksum" test_install_no_verify
         run_test "Install with no verification at all" test_install_no_verification_at_all
         run_test "Checksum verification works" test_checksum_verification
         run_test "Old version skips signature verification" test_old_version_skips_signature
-        run_test "Signature disabled by default" test_signature_disabled_by_default
-        run_test "GPG signature verification" test_gpg_signature_verification
+        run_test "Signature enabled by default" test_signature_enabled_by_default
+        run_test "--no-verify-sig skips signature" test_no_verify_sig_skips_signature
         run_test "Cosign signature verification" test_cosign_signature_verification
-        run_test "Auto signature verification" test_auto_signature_verification
+        run_test "GPG is default signature method" test_gpg_is_default_signature_method
         run_test "Temp directory cleanup" test_temp_directory_cleanup
     fi
     echo ""

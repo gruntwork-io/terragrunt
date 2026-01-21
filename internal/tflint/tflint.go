@@ -10,12 +10,12 @@ import (
 
 	"github.com/gruntwork-io/terratest/modules/collections"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/terraform-linters/tflint/cmd"
 )
@@ -29,7 +29,7 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook runcfg.Hook) error {
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
@@ -44,12 +44,12 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Using .tflint.hcl file in %s", configFile)
 
-	variables, err := InputsToTflintVar(config.Inputs)
+	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(l, hook, config.Terraform)
+	tfVariables, err := tfArgumentsToTflintVar(l, hook, &cfg.Terraform)
 	if err != nil {
 		return err
 	}
@@ -169,19 +169,19 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
-	config *config.TerraformConfig) ([]string, error) {
+func tfArgumentsToTflintVar(l log.Logger, hook runcfg.Hook,
+	tfCfg *runcfg.TerraformConfig) ([]string, error) {
 	var variables []string
 
-	for _, arg := range config.ExtraArgs {
+	for _, arg := range tfCfg.ExtraArgs {
 		// use extra args which will be used on same command as hook
 		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
 			continue
 		}
 
-		if arg.EnvVars != nil {
+		if len(arg.EnvVars) > 0 {
 			// extract env_vars
-			for name, value := range *arg.EnvVars {
+			for name, value := range arg.EnvVars {
 				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
 					varName := after
 
@@ -196,9 +196,9 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 			}
 		}
 
-		if arg.Arguments != nil {
+		if len(arg.Arguments) > 0 {
 			// extract variables and var files from arguments
-			for _, value := range *arg.Arguments {
+			for _, value := range arg.Arguments {
 				if after, ok := strings.CutPrefix(value, argVarPrefix); ok {
 					varName := after
 					newVar := fmt.Sprintf("--var='%s'", varName)
@@ -213,17 +213,17 @@ func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
 			}
 		}
 
-		if arg.RequiredVarFiles != nil {
+		if len(arg.RequiredVarFiles) > 0 {
 			// extract required variables
-			for _, file := range *arg.RequiredVarFiles {
+			for _, file := range arg.RequiredVarFiles {
 				newVar := "--var-file=" + file
 				variables = append(variables, newVar)
 			}
 		}
 
-		if arg.OptionalVarFiles != nil {
+		if len(arg.OptionalVarFiles) > 0 {
 			// extract optional variables
-			for _, file := range util.RemoveDuplicatesKeepLast(*arg.OptionalVarFiles) {
+			for _, file := range util.RemoveDuplicatesKeepLast(arg.OptionalVarFiles) {
 				if util.FileExists(file) {
 					newVar := "--var-file=" + file
 					variables = append(variables, newVar)

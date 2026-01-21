@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -38,7 +39,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
 			l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
-			return config.CleanStacks(ctx, l, opts)
+			return clean.CleanStacks(l, opts)
 		})
 		if err != nil {
 			return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)
@@ -185,7 +186,7 @@ func RunClean(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return config.CleanStacks(ctx, l, opts)
+		return clean.CleanStacks(l, opts)
 	})
 	if err != nil {
 		return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, err)

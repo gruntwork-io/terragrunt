@@ -82,17 +82,19 @@ type ProcessExecutionError struct {
 }
 
 func (err ProcessExecutionError) Error() string {
+	commandStr := strings.TrimSpace(
+		strings.Join(append([]string{err.Command}, err.Args...), " "),
+	)
+
 	if err.DisableSummary {
-		return fmt.Sprintf("Failed to execute \"%s %s\" in %s",
-			err.Command,
-			strings.Join(err.Args, " "),
+		return fmt.Sprintf("Failed to execute \"%s\" in %s",
+			commandStr,
 			err.WorkingDir,
 		)
 	}
 
-	return fmt.Sprintf("Failed to execute \"%s %s\" in %s\n%s\n%v",
-		err.Command,
-		strings.Join(err.Args, " "),
+	return fmt.Sprintf("Failed to execute \"%s\" in %s\n%s\n%v",
+		commandStr,
 		err.WorkingDir,
 		err.Output.Stderr.String(),
 		err.Err,

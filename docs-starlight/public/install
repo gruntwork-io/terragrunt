@@ -12,19 +12,21 @@
 #   - arrays and readonly declarations
 #
 # Usage:
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
-#   curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+#   curl -sL https://terragrunt.gruntwork.io/install | bash
+#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.72.5
+#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
 #
 # Options:
 #   -v, --version VERSION    Install specific version (default: latest)
-#   -d, --dir PATH           Installation directory (default: /usr/local/bin)
+#   -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
 #   -f, --force              Overwrite existing installation
-#   --verify-sig             Enable signature verification (auto-detect gpg/cosign)
-#   --verify-gpg             Enable GPG signature verification (requires gpg)
-#   --verify-cosign          Enable Cosign signature verification (requires cosign)
-#   --no-verify              Skip checksum verification
+#   --verify-cosign          Use Cosign instead of GPG for signature verification
+#   --no-verify-sig          Skip GPG/Cosign signature verification
+#   --no-verify              Skip SHA256 checksum verification
 #   -h, --help               Show this help message
+#
+# Signature verification (GPG) is enabled by default for versions >= v0.98.0.
+# Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
 #
 # Environment:
 #   TERRAGRUNT_VERSION       Override version (same as -v)
@@ -35,7 +37,7 @@ set -euo pipefail
 # --- Constants ---
 readonly GITHUB_REPO="gruntwork-io/terragrunt"
 readonly GPG_KEY_URL="https://gruntwork.io/.well-known/pgp-key.txt"
-readonly DEFAULT_INSTALL_DIR="/usr/local/bin"
+readonly DEFAULT_INSTALL_DIR="${HOME}/.terragrunt/bin"
 readonly BINARY_NAME="terragrunt"
 # Minimum version that has signed release assets (GPG and Cosign)
 readonly MIN_SIGNED_VERSION="0.98.0"
@@ -79,31 +81,36 @@ usage() {
 Terragrunt Installer
 
 Usage:
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- [OPTIONS]
+  curl -sL https://terragrunt.gruntwork.io/install | bash
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- [OPTIONS]
 
 Options:
   -v, --version VERSION    Install specific version (default: latest)
-  -d, --dir PATH           Installation directory (default: /usr/local/bin)
+  -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
   -f, --force              Overwrite existing installation
-  --verify-sig             Enable signature verification (auto-detect gpg/cosign)
-  --verify-gpg             Enable GPG signature verification (requires gpg)
-  --verify-cosign          Enable Cosign signature verification (requires cosign)
-  --no-verify              Skip checksum verification
+  --verify-cosign          Use Cosign instead of GPG for signature verification
+  --no-verify-sig          Skip GPG/Cosign signature verification
+  --no-verify              Skip SHA256 checksum verification
   -h, --help               Show this help message
+
+Signature verification (GPG) is enabled by default for versions >= v0.98.0.
+Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
 
 Examples:
   # Install latest version
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash
+  curl -sL https://terragrunt.gruntwork.io/install | bash
 
   # Install specific version
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -v v0.72.5
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.98.0
 
   # Install to custom directory
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- -d ~/bin
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
 
-  # Install with signature verification (auto-detect gpg/cosign)
-  curl -sL https://terragrunt.gruntwork.io/install.sh | bash -s -- --verify-sig
+  # Install without signature verification
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
+
+  # Install using Cosign instead of GPG
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign
 EOF
 }
 
@@ -212,15 +219,8 @@ Specify a version manually with -v, e.g.: -v v0.72.5"
 
 validate_version() {
     local version="$1"
-    # Accept versions with or without 'v' prefix
-    if [[ ! "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-        abort "Invalid version format: $version
-Expected format: v0.72.5 or 0.72.5"
-    fi
-    # Ensure version has 'v' prefix
-    if [[ ! "$version" =~ ^v ]]; then
-        version="v$version"
-    fi
+    # Allow any version/tag (semver, release candidates, custom builds)
+    [[ -z "$version" ]] && abort "Version cannot be empty"
     echo "$version"
 }
 
@@ -352,55 +352,55 @@ verify_cosign() {
     fi
 }
 
-# Verify signature using specified method or auto-detect
+# Verify signature using specified method
 verify_signature() {
     local version="$1"
     local checksums_path="$2"
     local tmpdir="$3"
-    local method="$4"  # gpg, cosign, or auto
+    local method="$4"  # gpg or cosign
 
     case "$method" in
         gpg)
-            if ! command -v gpg &>/dev/null; then
-                abort "GPG verification requested but gpg is not installed"
-            fi
-            if verify_gpg "$version" "$checksums_path" "$tmpdir"; then
-                return 0
-            else
-                abort "GPG signature verification failed!"
-            fi
+            command -v gpg &>/dev/null || abort "GPG verification requested but gpg is not installed"
+            verify_gpg "$version" "$checksums_path" "$tmpdir" && return 0
+            abort "GPG signature verification failed!"
             ;;
         cosign)
-            if ! command -v cosign &>/dev/null; then
-                abort "Cosign verification requested but cosign is not installed"
-            fi
-            if verify_cosign "$version" "$checksums_path" "$tmpdir"; then
-                return 0
-            else
-                abort "Cosign signature verification failed!"
-            fi
-            ;;
-        auto)
-            # Try GPG first, then Cosign
-            if command -v gpg &>/dev/null; then
-                info "Using GPG for signature verification"
-                if verify_gpg "$version" "$checksums_path" "$tmpdir"; then
-                    return 0
-                fi
-                warn "GPG verification failed, trying Cosign..."
-            fi
-
-            if command -v cosign &>/dev/null; then
-                info "Using Cosign for signature verification"
-                if verify_cosign "$version" "$checksums_path" "$tmpdir"; then
-                    return 0
-                fi
-            fi
-
-            abort "Signature verification failed. Neither gpg nor cosign succeeded.
-Install gpg or cosign, or use --no-verify-sig to skip signature verification."
+            command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed"
+            verify_cosign "$version" "$checksums_path" "$tmpdir" && return 0
+            abort "Cosign signature verification failed!"
             ;;
     esac
+}
+
+# --- Shell RC Detection ---
+detect_shell_rc() {
+    local shell_name
+    shell_name=$(basename "${SHELL:-}")
+    case "$shell_name" in
+        bash)
+            if [[ -f "${HOME}/.bashrc" ]]; then
+                echo "${HOME}/.bashrc"
+            elif [[ -f "${HOME}/.bash_profile" ]]; then
+                echo "${HOME}/.bash_profile"
+            fi
+            ;;
+        zsh)
+            echo "${HOME}/.zshrc"
+            ;;
+        fish)
+            echo "${HOME}/.config/fish/config.fish"
+            ;;
+    esac
+}
+
+# Check if PATH already contains install dir
+path_already_configured() {
+    local install_dir="$1"
+    local rc_file
+    rc_file=$(detect_shell_rc)
+
+    [[ -n "$rc_file" ]] && grep -Fq "${install_dir}" "$rc_file" 2>/dev/null
 }
 
 # --- Installation ---
@@ -409,33 +409,32 @@ install_binary() {
     local install_dir="$2"
     local force="$3"
     local requested_version="$4"
-
     local target_path="${install_dir}/${BINARY_NAME}"
 
-    # Check if already exists
+    # Check if already exists (skip if force)
     if [[ -f "$target_path" && "$force" != "true" ]]; then
         local existing_version
         existing_version=$("$target_path" --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "unknown")
 
-        if [[ "$existing_version" == "$requested_version" ]]; then
+        [[ "$existing_version" == "$requested_version" ]] && \
             abort "Terragrunt ${existing_version} is already installed at $target_path"
-        else
-            abort "A different version (${existing_version}) is installed at $target_path
+
+        abort "A different version (${existing_version}) is installed at $target_path
 Use --force to upgrade/downgrade to ${requested_version}"
-        fi
     fi
 
-    # Check if install directory exists
-    if [[ ! -d "$install_dir" ]]; then
-        abort "Installation directory does not exist: $install_dir
-Create it first or specify a different directory with -d"
-    fi
+    # Create install directory if needed
+    [[ ! -d "$install_dir" ]] && {
+        info "Creating installation directory: $install_dir"
+        mkdir -p "$install_dir" 2>/dev/null || abort "Failed to create installation directory: $install_dir"
+    }
 
     # Check write permissions
-    if [[ ! -w "$install_dir" ]]; then
-        abort "Cannot write to $install_dir
-Try running with sudo or specify a different directory with -d"
-    fi
+    [[ ! -w "$install_dir" ]] && abort "Cannot write to $install_dir
+Run with sudo:
+  curl -sL https://terragrunt.gruntwork.io/install | sudo bash
+Or specify a different directory:
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin"
 
     info "Installing to ${target_path}..."
     install -m 0755 "$binary_path" "$target_path"
@@ -447,7 +446,8 @@ parse_args() {
     VERSION="${TERRAGRUNT_VERSION:-}"
     INSTALL_DIR="${TERRAGRUNT_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
     VERIFY_SHA=true
-    VERIFY_SIG=""  # empty=skip (default), auto=auto-detect, gpg/cosign=specific
+    VERIFY_SIG="gpg"  # gpg (default), cosign, or empty (via --no-verify-sig)
+    SKIP_SIG_VERIFY=false  # set by --no-verify-sig to disable signature verification
     FORCE=false
 
     while [[ $# -gt 0 ]]; do
@@ -466,20 +466,12 @@ parse_args() {
                 FORCE=true
                 shift
                 ;;
-            --verify-sig)
-                VERIFY_SIG="auto"
-                shift
-                ;;
-            --verify-gpg)
-                VERIFY_SIG="gpg"
-                shift
-                ;;
             --verify-cosign)
                 VERIFY_SIG="cosign"
                 shift
                 ;;
             --no-verify-sig)
-                VERIFY_SIG=""
+                SKIP_SIG_VERIFY=true
                 shift
                 ;;
             --no-verify)
@@ -504,37 +496,28 @@ Use -h or --help for usage information"
 
 # --- Dependency Check ---
 check_dependencies() {
-    if ! command -v curl &>/dev/null; then
-        abort "curl is required but not installed.
+    command -v curl &>/dev/null || abort "curl is required but not installed.
 Please install curl and try again."
-    fi
 
-    if [[ "$VERIFY_SHA" == true ]]; then
-        if ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null; then
-            abort "Neither sha256sum nor shasum found.
-Install one or use --no-verify to skip checksum verification."
-        fi
-    fi
+    [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null && \
+        abort "Neither sha256sum nor shasum found.
+Install one of these tools or skip checksum verification with:
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify"
 
+    # Handle signature verification setup
+    [[ "$SKIP_SIG_VERIFY" == true ]] && { VERIFY_SIG=""; return; }
+
+    # Verify required tool is available
     case "$VERIFY_SIG" in
         gpg)
-            if ! command -v gpg &>/dev/null; then
-                abort "GPG verification requested but gpg is not installed.
-Install gpg or use --verify-sig for auto-detection."
-            fi
+            command -v gpg &>/dev/null || abort "GPG signature verification requires gpg but it is not installed.
+Install gpg or skip signature verification with:
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
+Or use Cosign instead:
+  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign"
             ;;
         cosign)
-            if ! command -v cosign &>/dev/null; then
-                abort "Cosign verification requested but cosign is not installed.
-Install cosign or use --verify-sig for auto-detection."
-            fi
-            ;;
-        auto)
-            # Auto mode: user explicitly requested verification, abort if no tools
-            if ! command -v gpg &>/dev/null && ! command -v cosign &>/dev/null; then
-                abort "Signature verification requested but neither gpg nor cosign is installed.
-Install gpg or cosign to enable signature verification."
-            fi
+            command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed."
             ;;
     esac
 }
@@ -566,24 +549,16 @@ main() {
 
     info "Installing Terragrunt ${version} for ${os}/${arch}"
 
-    # Create temp directory
+    # Create temp directory with safe cleanup
     local tmpdir
     tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'terragrunt-install')
-    trap 'rm -rf "${tmpdir:-}"' EXIT
+    trap '[[ -n "${tmpdir:-}" && -d "${tmpdir:-}" ]] && rm -rf "$tmpdir"' EXIT
 
     # Download files
     download_binary "$version" "$binary_name" "$tmpdir"
     download_checksums "$version" "$tmpdir"
 
-    # Verify checksum
-    if [[ "$VERIFY_SHA" == true ]]; then
-        verify_sha256 "$tmpdir/$binary_name" "$tmpdir/SHA256SUMS" "$binary_name"
-        success "SHA256 checksum verified"
-    else
-        warn "Skipping checksum verification (--no-verify specified)"
-    fi
-
-    # Verify signature (disabled by default, enable with --verify-sig)
+    # Verify signature first (authenticates SHA256SUMS file)
     if [[ -n "$VERIFY_SIG" ]]; then
         if supports_signature_verification "$version"; then
             verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
@@ -593,12 +568,40 @@ main() {
         fi
     fi
 
+    # Verify checksum (validates binary against authenticated checksums)
+    if [[ "$VERIFY_SHA" == true ]]; then
+        verify_sha256 "$tmpdir/$binary_name" "$tmpdir/SHA256SUMS" "$binary_name"
+        success "SHA256 checksum verified"
+    else
+        warn "Skipping checksum verification (--no-verify specified)"
+    fi
+
     # Install
     install_binary "$tmpdir/$binary_name" "$INSTALL_DIR" "$FORCE" "$version"
 
-    success "Terragrunt ${version} installed successfully!"
+    local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+    success "Terragrunt ${version} installed successfully to ${target_path}"
     echo ""
-    echo "Run 'terragrunt --version' to verify the installation."
+
+    # Show PATH instructions if using default dir and not already configured
+    if [[ "$INSTALL_DIR" == "$DEFAULT_INSTALL_DIR" ]] && ! path_already_configured "$INSTALL_DIR"; then
+        local rc_file
+        rc_file=$(detect_shell_rc)
+
+        if [[ -n "$rc_file" ]]; then
+            echo "To add terragrunt to your PATH, run:"
+            echo ""
+            echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ${rc_file}"
+            echo "  source ${rc_file}"
+        else
+            echo "Add to your shell configuration:"
+            echo ""
+            echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+        fi
+        echo ""
+    fi
+
+    echo "Run 'terragrunt --help' to get started."
     echo "For documentation, visit: https://terragrunt.gruntwork.io/docs"
 }
 
