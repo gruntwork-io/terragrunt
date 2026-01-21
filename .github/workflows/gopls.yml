@@ -9,7 +9,7 @@ on:
 jobs:
   gopls-quickfix:
     name: Gopls Quickfix
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       issues: write

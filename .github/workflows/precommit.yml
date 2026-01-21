@@ -6,7 +6,7 @@ on:
 jobs:
   precommit:
     name: Run pre-commit hooks
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     env:
       MISE_PROFILE: cicd
 
