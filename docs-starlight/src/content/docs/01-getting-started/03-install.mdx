@@ -12,6 +12,18 @@ export const response = await fetch('https://api.github.com/repos/gruntwork-io/t
 export const data = await response.json();
 export const version = data.tag_name || 'v0.72.5';
 
+## Quick Install
+
+The quickest way to install Terragrunt on Linux or macOS:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install | bash
+```
+
+:::tip[Script Options]
+Run `curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --help` to see all options, or [view the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs-starlight/public/install).
+:::
+
 ## Download from releases page
 
 1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
@@ -90,7 +102,7 @@ If you  want the latest version, the recommended installation option is to [down
   emerge -a app-admin/terragrunt-bin
   ```
 
-* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): 
+* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)):
 
   ```bash
   pkg install terragrunt
