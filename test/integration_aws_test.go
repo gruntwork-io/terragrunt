@@ -367,9 +367,41 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	}()
 
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		commonConfigPath,
+		commonConfigPath,
+		s3BucketName,
+		dynamoDBName,
+		helpers.TerraformRemoteStateS3Region,
+	)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+" apply --backend-bootstrap")
+	dualLockingPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		dualLockingPath,
+		dualLockingPath,
+		s3BucketName,
+		dynamoDBName,
+		helpers.TerraformRemoteStateS3Region,
+	)
+
+	useLockfilePath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		useLockfilePath,
+		useLockfilePath,
+		s3BucketName,
+		dynamoDBName,
+		helpers.TerraformRemoteStateS3Region,
+	)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+
+			rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+
+			" apply --backend-bootstrap",
+	)
 	require.NoError(t, err)
 
 	validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
@@ -763,7 +795,15 @@ func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTarg
 		"remote_terragrunt.hcl",
 	)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt validate --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, examplePath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt validate --non-interactive --backend-bootstrap --config %s "+
+				"--working-dir %s",
+			tmpTerragruntConfigPath,
+			examplePath,
+		),
+	)
 
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
@@ -792,11 +832,22 @@ func TestAwsRunAllCommand(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputAll, "root.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all init --non-interactive --working-dir "+environmentPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt run --all init --backend-bootstrap "+
+			"--non-interactive --working-dir "+environmentPath,
+	)
 }
 
 func TestAwsOutputAllCommand(t *testing.T) {
@@ -840,18 +891,19 @@ func TestAwsOutputFromDependency(t *testing.T) {
 
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
 	t.Setenv("AWS_CSM_ENABLED", "true")
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --log-level trace", rootTerragruntPath)+" -- apply -auto-approve", &stdout, &stderr)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --backend-bootstrap --non-interactive --working-dir %s --log-level trace",
+			rootTerragruntPath,
+		)+
+			" -- apply -auto-approve",
+	)
 	require.NoError(t, err)
 
-	output := stderr.String()
-	assert.NotContains(t, output, "invalid character")
+	assert.NotContains(t, stderr, "invalid character")
 }
 
 func TestAwsValidateAllCommand(t *testing.T) {
@@ -863,11 +915,18 @@ func TestAwsValidateAllCommand(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputAll)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputAll, "root.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all validate --non-interactive --working-dir "+environmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all validate --backend-bootstrap --non-interactive --working-dir "+environmentPath)
 }
 
 func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
@@ -885,21 +944,15 @@ func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T)
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --backend-bootstrap --working-dir "+environmentPath)
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all output app2_text --queue-ignore-errors --non-interactive --backend-bootstrap --working-dir "+environmentPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := stdout.String()
-
-	helpers.LogBufferContentsLineByLine(t, stdout, "run --all output stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "run --all output stderr")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t, "terragrunt run --all output app2_text --queue-ignore-errors --non-interactive "+
+			"--backend-bootstrap --working-dir "+environmentPath,
+	)
+	require.Error(t, err)
 
 	// Without --queue-ignore-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
-	assert.Contains(t, output, "app2 output")
+	assert.Contains(t, stdout, "app2 output")
 }
 
 func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
@@ -917,19 +970,26 @@ func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStack)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureStack, "root.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		lockTableName,
+		"not-used",
+	)
 
 	mgmtEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureStack, "mgmt")
 	stageEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureStack, "stage")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+mgmtEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all apply --non-interactive --working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all apply --non-interactive --working-dir "+stageEnvironmentPath)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all output --non-interactive --working-dir "+mgmtEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt run --all output --non-interactive --working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all output --non-interactive --working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all output --non-interactive --working-dir "+stageEnvironmentPath)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all destroy --non-interactive --working-dir "+stageEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt run --all destroy --non-interactive --working-dir "+mgmtEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all destroy --non-interactive --working-dir "+stageEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run --backend-bootstrap --all destroy --non-interactive --working-dir "+mgmtEnvironmentPath)
 }
 
 func TestAwsRemoteWithBackend(t *testing.T) {
@@ -1999,6 +2059,7 @@ func validateS3BucketExistsAndIsTaggedAndVersioning(t *testing.T, awsRegion stri
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	ctx := t.Context()
+
 	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
@@ -2017,6 +2078,7 @@ func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string
 	client := helpers.CreateS3ClientForTest(t, awsRegion)
 
 	ctx := t.Context()
+
 	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
