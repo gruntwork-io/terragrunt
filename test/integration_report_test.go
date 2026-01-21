@@ -201,6 +201,9 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 				}
 			} else {
 				// JSON format
+				err = report.ValidateJSONReportFromFile(reportFilePath)
+				require.NoError(t, err, "Report should pass schema validation")
+
 				content, err := os.ReadFile(reportFilePath)
 				require.NoError(t, err)
 

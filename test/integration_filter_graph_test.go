@@ -336,6 +336,9 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 
 			require.FileExists(t, reportFile)
 
+			err = report.ValidateJSONReportFromFile(reportFile)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 			require.NoError(t, parseErr)
 
@@ -365,6 +368,9 @@ func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) 
 	require.NoError(t, err)
 
 	require.FileExists(t, reportFile)
+
+	err = report.ValidateJSONReportFromFile(reportFile)
+	require.NoError(t, err, "Report should pass schema validation")
 
 	runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 	require.NoError(t, parseErr)
@@ -744,6 +750,9 @@ dependency "vpc" {
 			require.NoError(t, err)
 
 			require.FileExists(t, reportFile)
+
+			err = report.ValidateJSONReportFromFile(reportFile)
+			require.NoError(t, err, "Report should pass schema validation")
 
 			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 			require.NoError(t, parseErr)
