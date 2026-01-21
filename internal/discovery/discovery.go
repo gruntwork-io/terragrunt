@@ -250,7 +250,7 @@ func (d *Discovery) SetParseOptions(options []hclparse.Option) {
 // WithOptions ingests runner options and applies any discovery-relevant settings.
 // Currently, it extracts HCL parser options provided via common.ParseOptionsProvider
 // and forwards them to discovery's parser configuration.
-func (d *Discovery) WithOptions(opts ...interface{}) *Discovery {
+func (d *Discovery) WithOptions(opts ...any) *Discovery {
 	var parserOptions []hclparse.Option
 
 	for _, opt := range opts {
@@ -490,10 +490,31 @@ func Parse(
 	// Populate the Reading field with files read during parsing.
 	// The parsing context tracks all files that were read.
 	if parsingCtx.FilesRead != nil {
-		c.SetReading(*parsingCtx.FilesRead...)
+		readFiles := sanitizeReadFiles(*parsingCtx.FilesRead)
+
+		c.SetReading(readFiles...)
 	}
 
 	return nil
+}
+
+// sanitizeReadFiles sanitizes the list of files being read by a component.
+//
+// It removes empty files, sorts and deduplicates the list.
+func sanitizeReadFiles(files []string) []string {
+	if len(files) == 0 {
+		return []string{}
+	}
+
+	files = slices.Clone(files)
+
+	files = slices.DeleteFunc(files, func(file string) bool {
+		return len(file) == 0
+	})
+
+	slices.Sort(files)
+
+	return slices.Compact(files)
 }
 
 // isInHiddenDirectory returns true if the path is in a hidden directory.
