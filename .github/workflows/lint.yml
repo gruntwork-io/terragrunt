@@ -13,7 +13,7 @@ jobs:
         # Windows doesn't get to be linted continuously because it annoyingly requires
         # that all files use \r\n line endings.
         # os: [ubuntu, macos, windows]
-        os: [ubuntu, macos]
+        os: [blacksmith-4vcpu-ubuntu-2404, macos]
 
     steps:
     - uses: actions/checkout@v6
