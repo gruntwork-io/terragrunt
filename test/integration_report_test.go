@@ -260,9 +260,12 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) string {
+		t.Helper()
+
 		helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+
 		return rootPath
 	}
 

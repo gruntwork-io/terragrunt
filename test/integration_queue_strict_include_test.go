@@ -21,6 +21,8 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) string {
+		t.Helper()
+
 		// Create test fixture with dependency chain: transitive-dependency -> dependency -> dependent
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictInclude)
 		helpers.CleanupTerraformFolder(t, tmpEnvPath)
