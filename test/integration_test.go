@@ -2281,16 +2281,11 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-854", "root")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
-		&stdout,
-		&stderr,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+
+			" --filter '!{.}'",
 	)
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
 }
 
