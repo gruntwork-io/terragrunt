@@ -8,7 +8,7 @@ interface Props {
 const { tool } = Astro.props;
 const entries = (await getCollection('compatibility'))
   .filter(e => e.data.tool === tool)
-  .sort((a, b) => a.data.order - b.data.order);
+  .sort((a, b) => b.data.order - a.data.order);
 
 const label = tool === 'opentofu' ? 'OpenTofu' : 'Terraform';
 const baseUrl = 'https://github.com/gruntwork-io/terragrunt/releases/tag/v';

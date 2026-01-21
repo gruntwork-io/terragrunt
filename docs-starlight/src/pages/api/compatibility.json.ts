@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ request }) => {
 			if (a.data.tool !== b.data.tool) {
 				return a.data.tool === 'opentofu' ? -1 : 1;
 			}
-			return a.data.order - b.data.order;
+			return b.data.order - a.data.order;
 		})
 		.map(e => ({
 			tool: e.data.tool,
