@@ -97,35 +97,6 @@ func DownloadTerraformSourceIfNecessary(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	// For local sources where source == working dir (synthesized local source),
-	// skip the getter entirely since CopyFolderContents in DownloadTerraformSource handles copying.
-	// This optimizes the common case where no terraform.source is specified.
-	isLocalSource := tf.IsLocalSource(terraformSource.CanonicalSourceURL)
-	sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
-
-	// Use absolute path for comparison since sourceDir from URL is always absolute
-	absWorkingDir, err := filepath.Abs(opts.WorkingDir)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	workingDir := filepath.Clean(absWorkingDir)
-
-	if isLocalSource && sourceDir == workingDir {
-		l.Debugf("Local source matches working directory, preparing cache without download")
-
-		// Ensure cache directory structure exists
-		if err := os.MkdirAll(terraformSource.DownloadDir, os.ModePerm); err != nil {
-			return errors.New(err)
-		}
-
-		if err := terraformSource.WriteVersionFile(l); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 

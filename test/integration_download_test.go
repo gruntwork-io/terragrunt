@@ -43,6 +43,7 @@ const (
 	testFixtureNotExistingSource                      = "fixtures/download/invalid-path"
 	testFixtureDisableCopyLockFilePath                = "fixtures/download/local-disable-copy-terraform-lock-file"
 	testFixtureIncludeDisableCopyLockFilePath         = "fixtures/download/local-include-disable-copy-lock-file/module-b"
+	testFixtureNoSourceDownloadPath                   = "fixtures/download/no-source"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -57,6 +58,30 @@ func TestLocalDownload(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureLocalDownloadPath)
+}
+
+// TestNoSourceAlwaysUsesCache tests that Terragrunt creates .terragrunt-cache
+// and runs OpenTofu/Terraform from there even when no terraform.source is specified.
+func TestNoSourceAlwaysUsesCache(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNoSourceDownloadPath)
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureNoSourceDownloadPath)
+
+	// Verify .terragrunt-cache directory was created
+	cacheDir := filepath.Join(testFixtureNoSourceDownloadPath, ".terragrunt-cache")
+	assert.DirExists(t, cacheDir, ".terragrunt-cache should be created even without terraform.source")
+
+	// Lock file should be copied back to working directory
+	assert.FileExists(t, filepath.Join(testFixtureNoSourceDownloadPath, util.TerraformLockFile))
+
+	// Verify .terraform directory is in cache, not in source directory
+	assert.NoDirExists(t, filepath.Join(testFixtureNoSourceDownloadPath, ".terraform"),
+		".terraform should be in cache, not in source directory")
+
+	// Run a second time to make sure cache is reused without errors
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testFixtureNoSourceDownloadPath)
 }
 
 func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
