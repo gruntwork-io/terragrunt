@@ -30,6 +30,7 @@ const (
 	testFixtureMinimizeParsing        = "fixtures/filter/minimize-parsing"
 	testFixtureMinimizeParsingDestroy = "fixtures/filter/minimize-parsing-destroy"
 	testFixtureExcludeByDefault       = "fixtures/exclude-by-default"
+	testFixtureFilterMarkAsRead       = "fixtures/filter/mark-as-read"
 )
 
 // createTestUnit creates a unit directory with terragrunt.hcl and main.tf files.
@@ -2402,4 +2403,80 @@ func TestFilterExcludeByDefault(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "No units discovered", "Filter should discover units, not result in empty discovery")
+}
+
+func TestFilterFlagWithMarkAsRead(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := filepath.Abs(testFixtureFilterMarkAsRead)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name          string
+		filterQuery   string
+		expectedUnits []string
+		expectError   bool
+	}{
+		{
+			name:          "filter by reading - exact match with unit path",
+			filterQuery:   "reading=unit-normal/foo.txt",
+			expectedUnits: []string{"unit-normal"},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - wildcard matches foo.txt in multiple units",
+			filterQuery:   "reading=*/foo.txt",
+			expectedUnits: []string{"unit-normal", "unit-duplicate"},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - bar.txt only in duplicate unit",
+			filterQuery:   "reading=unit-duplicate/bar.txt",
+			expectedUnits: []string{"unit-duplicate"},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - wildcard *.txt matches all txt files",
+			filterQuery:   "reading=*/*.txt",
+			expectedUnits: []string{"unit-normal", "unit-duplicate"},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - double wildcard",
+			filterQuery:   "reading=**/foo.txt",
+			expectedUnits: []string{"unit-normal", "unit-duplicate"},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - non-matching file",
+			filterQuery:   "reading=*/nonexistent.txt",
+			expectedUnits: []string{},
+			expectError:   false,
+		},
+		{
+			name:          "filter by reading - empty string is parse error",
+			filterQuery:   "reading=",
+			expectedUnits: []string{},
+			expectError:   true, // Empty value after = is a parse error
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, workingDir)
+
+			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err, "Unexpected error for filter query: %s\nstderr: %s", tc.filterQuery, stderr)
+				results := strings.Fields(stdout)
+				assert.ElementsMatch(t, tc.expectedUnits, results, "Output mismatch for filter query: %s", tc.filterQuery)
+			}
+		})
+	}
 }
