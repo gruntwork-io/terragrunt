@@ -1056,7 +1056,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	output := stdout.String()
 	errOutput := stderr.String()
