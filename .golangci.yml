@@ -71,11 +71,6 @@ linters:
       min-len: 3
       min-occurrences: 5
     gocritic:
-      disabled-checks:
-        - regexpMust
-        - rangeValCopy
-        - appendAssign
-        - hugeParam
       enabled-tags:
         - performance
       disabled-tags:
