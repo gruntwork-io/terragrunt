@@ -44,7 +44,7 @@ func processErrorHooks(
 	customMultierror := multierror.Error{
 		Errors: previousExecErrors.WrappedErrors(),
 		ErrorFormat: func(err []error) string {
-			var errorMessages []string
+			errorMessages := make([]string, 0, len(err))
 
 			for _, e := range err {
 				errorMessage := e.Error()

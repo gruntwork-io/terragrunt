@@ -82,24 +82,28 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
+
 	return c
 }
 
 func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
 	c := ctx.Clone()
 	c.TerragruntOptions = opts
+
 	return c
 }
 
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Locals = locals
+
 	return c
 }
 
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.Values = values
+
 	return c
 }
 
@@ -114,12 +118,14 @@ func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	c := ctx.Clone()
 	c.TrackInclude = trackInclude
+
 	return c
 }
 
 func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	c := ctx.Clone()
 	c.ParserOptions = parserOptions
+
 	return c
 }
 
@@ -142,11 +148,13 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	c := ctx.Clone()
 	c.SkipOutputsResolution = true
+
 	return c
 }
 
 func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
 	c := ctx.Clone()
 	c.DecodedDependencies = v
+
 	return c
 }
