@@ -146,7 +146,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.successColorizer(successLabel),
 			colorizer.successUnitColorizer(strconv.Itoa(s.UnitsSucceeded)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -157,7 +156,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.failureColorizer(failureLabel),
 			colorizer.failureUnitColorizer(strconv.Itoa(s.UnitsFailed)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -168,7 +166,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.exitColorizer(earlyExitLabel),
 			colorizer.exitUnitColorizer(strconv.Itoa(s.EarlyExits)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -179,7 +176,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.excludeColorizer(excludeLabel),
 			colorizer.excludeUnitColorizer(strconv.Itoa(s.Excluded)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -213,8 +209,8 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 	return nil
 }
 
-func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string, colorizer *Colorizer) error {
-	_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, label, s.padding(label, colorizer), value)
+func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
+	_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, label, s.padding(label), value)
 	if err != nil {
 		return err
 	}
@@ -364,7 +360,7 @@ func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer,
 	return nil
 }
 
-func (s *Summary) padding(label string, colorizer *Colorizer) string {
+func (s *Summary) padding(label string) string {
 	headerUnitCountVisualPosition := s.visualLength(runSummaryHeader) + headerUnitCountSpacing
 
 	currentLabelLength := s.visualLength(label)
