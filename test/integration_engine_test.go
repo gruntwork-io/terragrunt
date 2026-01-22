@@ -234,7 +234,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 			rootPath,
 		),
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	require.Contains(t, stderr, "checksum list has unexpected SHA-256 hash")
 }

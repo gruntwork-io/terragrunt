@@ -1465,7 +1465,7 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(
 			t,
-			"terragrunt run --all apply --source-update --non-interactive --working-dir "+rootPath,
+			"terragrunt run --all apply --backend-bootstrap --source-update --non-interactive --working-dir "+rootPath,
 		)
 		require.NoError(t, err)
 	}
@@ -1639,7 +1639,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+tmpEnvPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --all --backend-bootstrap --non-interactive --working-dir "+tmpEnvPath+" -- apply -auto-approve")
 }
 
 func TestAwsAssumeRole(t *testing.T) {
@@ -1731,7 +1731,8 @@ func TestAwsInitConfirmation(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --backend-bootstrap --all init --working-dir "+tmpEnvPath, &stdout, &stderr)
-	require.NoError(t, err)
+	// Expected to fail with EOF since there's no stdin to respond to the confirmation prompt
+	require.Error(t, err)
 
 	errout := stderr.String()
 	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
