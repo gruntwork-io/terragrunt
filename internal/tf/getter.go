@@ -356,6 +356,10 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
 func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL *url.URL) ([]byte, *http.Header, error) {
+	if getURL == nil {
+		return nil, nil, errors.New("httpGETAndGetResponse received nil getURL")
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
 	if err != nil {
 		return nil, nil, errors.New(err)

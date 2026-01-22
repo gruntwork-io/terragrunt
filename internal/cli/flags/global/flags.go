@@ -102,7 +102,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Setter: func(val bool) error {
 				l.Formatter().SetDisabledOutput(val)
 
-				opts.ForwardTFStdout = true
+				if val {
+					opts.ForwardTFStdout = true
+				}
 
 				return nil
 			},

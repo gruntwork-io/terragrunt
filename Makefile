@@ -55,4 +55,4 @@ license-check:
 	licensei check --debug
 	licensei header --debug
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-strict-lint
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-strict-lint

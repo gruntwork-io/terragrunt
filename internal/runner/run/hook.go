@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -43,7 +44,7 @@ func processErrorHooks(
 	customMultierror := multierror.Error{
 		Errors: previousExecErrors.WrappedErrors(),
 		ErrorFormat: func(err []error) string {
-			result := ""
+			var errorMessages []string
 
 			for _, e := range err {
 				errorMessage := e.Error()
@@ -57,10 +58,10 @@ func processErrorHooks(
 					}
 				}
 
-				result = fmt.Sprintf("%s\n%s", result, errorMessage)
+				errorMessages = append(errorMessages, errorMessage)
 			}
 
-			return result
+			return strings.Join(errorMessages, "\n")
 		},
 	}
 	errorMessage := customMultierror.Error()
