@@ -1463,16 +1463,10 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 		commonDepConfigPath := filepath.Join(rootPath, "common-dep", "terragrunt.hcl")
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonDepConfigPath, commonDepConfigPath, s3BucketName, "not-used", "not-used")
 
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
-		err := helpers.RunTerragruntCommand(
+		_, _, err := helpers.RunTerragruntCommandWithOutput(
 			t,
 			"terragrunt run --all apply --source-update --non-interactive --working-dir "+rootPath,
-			&stdout,
-			&stderr,
 		)
-		helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-		helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 		require.NoError(t, err)
 	}
 
