@@ -303,3 +303,13 @@ type DependencyInvalidConfigPathError struct {
 func (err DependencyInvalidConfigPathError) Error() string {
 	return fmt.Sprintf("dependency %q has invalid config_path", err.DependencyName)
 }
+
+// MaxParseDepthError is returned when config parsing exceeds the maximum allowed depth.
+type MaxParseDepthError struct {
+	Depth int
+	Max   int
+}
+
+func (err MaxParseDepthError) Error() string {
+	return fmt.Sprintf("maximum parse depth of %d exceeded (current depth: %d). This usually indicates circular includes or extremely deep config nesting.", err.Max, err.Depth)
+}

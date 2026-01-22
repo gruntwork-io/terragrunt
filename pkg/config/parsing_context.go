@@ -9,10 +9,17 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+const (
+	// MaxParseDepth limits nested parsing to prevent stack overflow
+	// from deeply recursive config structures (includes, dependencies, etc.).
+	MaxParseDepth = 1000
 )
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
@@ -59,6 +66,10 @@ type ParsingContext struct {
 
 	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
 	SkipOutputsResolution bool
+
+	// ParseDepth tracks the current parsing recursion depth.
+	// This prevents stack overflow from deeply nested configs.
+	ParseDepth int
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
@@ -157,4 +168,20 @@ func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext
 	c.DecodedDependencies = v
 
 	return c
+}
+
+// WithIncrementedDepth returns a new ParsingContext with incremented parse depth.
+// Returns an error if the maximum depth would be exceeded.
+func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
+	if ctx.ParseDepth > MaxParseDepth {
+		return nil, errors.New(MaxParseDepthError{
+			Depth: ctx.ParseDepth,
+			Max:   MaxParseDepth,
+		})
+	}
+
+	c := ctx.Clone()
+	c.ParseDepth = ctx.ParseDepth + 1
+
+	return c, nil
 }
