@@ -63,47 +63,54 @@ func TestAwsBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		checkExpectedResultFn func(t *testing.T, output string, s3BucketName, dynamoDBName string)
+		checkExpectedResultFn func(t *testing.T, output string, s3BucketName, dynamoDBName string, err error)
 		name                  string
 		args                  string
 	}{
 		{
 			name: "no bootstrap s3 backend without flag",
 			args: "run apply",
-			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string, err error) {
 				t.Helper()
 
 				assert.Regexp(t, "(S3 bucket must have been previously created)|(S3 bucket does not exist)", output)
+				require.Error(t, err)
 			},
 		},
 		{
 			name: "bootstrap s3 backend with flag",
 			args: "run apply --backend-bootstrap",
-			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string, err error) {
 				t.Helper()
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
+
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "bootstrap s3 backend with lock table ssencryption",
 			args: "run apply --backend-bootstrap --feature enable_lock_table_ssencryption=true",
-			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string, err error) {
 				t.Helper()
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, true)
+
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "bootstrap s3 backend by backend command",
 			args: "backend bootstrap",
-			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string) {
+			checkExpectedResultFn: func(t *testing.T, output string, s3BucketName, dynamoDBName string, err error) {
 				t.Helper()
 
 				validateS3BucketExistsAndIsTaggedAndVersioning(t, helpers.TerraformRemoteStateS3Region, s3BucketName, true, nil)
 				validateDynamoDBTableExistsAndIsTaggedAndIsSSEncrypted(t, helpers.TerraformRemoteStateS3Region, dynamoDBName, nil, false)
+
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -167,9 +174,8 @@ func TestAwsBootstrapBackend(t *testing.T) {
 				t,
 				"terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath,
 			)
-			require.NoError(t, err)
 
-			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName)
+			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName, err)
 		})
 	}
 }
