@@ -136,13 +136,13 @@ func CreateAwsConfig(
 
 	if iamRoleOptions.WebIdentityToken != "" {
 		l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
-		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(&cfg, iamRoleOptions)
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
 
 		return cfg, nil
 	}
 
 	l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
-	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(&cfg, iamRoleOptions, getExternalID(awsCfg))
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
 
 	return cfg, nil
 }
@@ -369,7 +369,8 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 		aws.ToBool(config.RestrictPublicBuckets), nil
 }
 
-func getWebIdentityCredentialsFromIAMRoleOptions(cfg *aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
+//nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
+func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
@@ -377,7 +378,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg *aws.Config, iamRoleOptions
 	}
 
 	return func(ctx context.Context) (aws.Credentials, error) {
-		stsClient := sts.NewFromConfig(*cfg)
+		stsClient := sts.NewFromConfig(cfg)
 
 		token, err := tokenFetcher(iamRoleOptions.WebIdentityToken).FetchToken(ctx)
 		if err != nil {
@@ -411,9 +412,10 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg *aws.Config, iamRoleOptions
 	}
 }
 
-func getSTSCredentialsFromIAMRoleOptions(cfg *aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
+//nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
+func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
 	return func(ctx context.Context) (aws.Credentials, error) {
-		stsClient := sts.NewFromConfig(*cfg)
+		stsClient := sts.NewFromConfig(cfg)
 
 		roleSessionName := iamRoleOptions.AssumeRoleSessionName
 		if roleSessionName == "" {
