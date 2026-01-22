@@ -80,40 +80,47 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 }
 
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
-	ctx.PartialParseDecodeList = decodeList
-	return ctx
+	c := ctx.Clone()
+	c.PartialParseDecodeList = decodeList
+	return c
 }
 
 func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
-	ctx.TerragruntOptions = opts
-	return ctx
+	c := ctx.Clone()
+	c.TerragruntOptions = opts
+	return c
 }
 
 func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
-	ctx.Locals = locals
-	return ctx
+	c := ctx.Clone()
+	c.Locals = locals
+	return c
 }
 
 func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
-	ctx.Values = values
-	return ctx
+	c := ctx.Clone()
+	c.Values = values
+	return c
 }
 
 // WithFeatures sets the feature flags to be used in evaluation context.
 func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
-	ctx.Features = features
+	c := ctx.Clone()
+	c.Features = features
 
-	return ctx
+	return c
 }
 
 func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
-	ctx.TrackInclude = trackInclude
-	return ctx
+	c := ctx.Clone()
+	c.TrackInclude = trackInclude
+	return c
 }
 
 func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
-	ctx.ParserOptions = parserOptions
-	return ctx
+	c := ctx.Clone()
+	c.ParserOptions = parserOptions
+	return c
 }
 
 // WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
@@ -126,18 +133,20 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 		diagWriter = os.Stderr
 	}
 
-	opts := slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
-	ctx.ParserOptions = opts
+	c := ctx.Clone()
+	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
 
-	return ctx
+	return c
 }
 
 func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
-	ctx.SkipOutputsResolution = true
-	return ctx
+	c := ctx.Clone()
+	c.SkipOutputsResolution = true
+	return c
 }
 
 func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
-	ctx.DecodedDependencies = v
-	return ctx
+	c := ctx.Clone()
+	c.DecodedDependencies = v
+	return c
 }
