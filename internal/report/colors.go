@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mgutz/ansi"
@@ -31,9 +30,6 @@ type Colorizer struct {
 
 // NewColorizer creates a new Colorizer.
 func NewColorizer(shouldColor bool) *Colorizer {
-	// Check if unit colorizing is enabled via environment variable
-	shouldColorizeUnits := shouldColor && os.Getenv(envTmpUndocumentedReportUnitColorize) != ""
-
 	if !shouldColor {
 		return &Colorizer{
 			headingTitleColorizer: func(s string) string { return s },
@@ -58,7 +54,7 @@ func NewColorizer(shouldColor bool) *Colorizer {
 
 	// Define unit colorizers based on environment variable
 	var successUnitColorizer, failureUnitColorizer, exitUnitColorizer, excludeUnitColorizer func(string) string
-	if shouldColorizeUnits {
+	if shouldColor {
 		successUnitColorizer = ansi.ColorFunc("green+h")
 		failureUnitColorizer = ansi.ColorFunc("red+h")
 		exitUnitColorizer = ansi.ColorFunc("yellow+h")

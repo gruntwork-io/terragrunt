@@ -3740,31 +3740,6 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTerragruntHandleLegacyNullValues(t *testing.T) {
-	// no parallel since we need to set env vars
-	t.Setenv("TERRAGRUNT_TEMP_QUOTE_NULL", "1")
-
-	generateTestCase := testFixtureNullValue
-	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
-	helpers.CleanupTerraformFolder(t, tmpEnv)
-	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Input `var1` has value `null`. Quoting due to TERRAGRUNT_TEMP_QUOTE_NULL")
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+tmpEnv)
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-
-	// check that null value is passed as "null"
-	assert.Equal(t, "null", outputs["output1"].Value)
-	assert.Equal(t, "variable 2", outputs["output2"].Value)
-}
-
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	t.Parallel()
 

@@ -26,14 +26,6 @@ type Summary struct {
 	showUnitLevelSummary bool
 }
 
-// These are undocumented temporary environment variables that are used
-// to play with the summary, so that we can experiment with it.
-const (
-	envTmpUndocumentedReportPadder                  = "TMP_UNDOCUMENTED_REPORT_PADDER"
-	envTmpUndocumentedReportUnitColorize            = "TMP_UNDOCUMENTED_REPORT_UNIT_COLORIZE"
-	envTmpUndocumentedColorizeDefaultSummaryPadding = "TMP_UNDOCUMENTED_COLORIZE_DEFAULT_SUMMARY_PADDING"
-)
-
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
@@ -42,10 +34,6 @@ func (r *Report) Summarize() *Summary {
 		showUnitLevelSummary: r.showUnitLevelSummary,
 		padder:               ".",
 		runs:                 r.Runs,
-	}
-
-	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
-		summary.padder = os.Getenv(envTmpUndocumentedReportPadder)
 	}
 
 	if len(r.Runs) == 0 {
@@ -399,10 +387,6 @@ func (s *Summary) padding(label string, colorizer *Colorizer) string {
 	}
 
 	padding = " " + padding[1:len(padding)-1] + " "
-
-	if os.Getenv(envTmpUndocumentedColorizeDefaultSummaryPadding) == "true" {
-		return colorizer.paddingColorizer(padding)
-	}
 
 	return strings.ReplaceAll(padding, s.padder, " ")
 }
