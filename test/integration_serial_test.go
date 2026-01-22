@@ -104,7 +104,16 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 		}
 
 		// Verify the config was created correctly
-		terraformrcBytes, readErr := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+		// With "always use cache" feature, .terraformrc may be in cache directory
+		terraformrcPath := filepath.Join(appPath, ".terraformrc")
+		if !util.FileExists(terraformrcPath) {
+			terraformrcPath = helpers.FindFileInCacheDir(t, appPath, ".terraformrc")
+		}
+		if terraformrcPath == "" {
+			return "", fmt.Errorf("failed to find .terraformrc")
+		}
+
+		terraformrcBytes, readErr := os.ReadFile(terraformrcPath)
 		if readErr != nil {
 			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
 		}
@@ -220,8 +229,17 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
-	for _, filename := range []string{"app0/.terraformrc", "app1/.terraformrc"} {
-		terraformrcBytes, err := os.ReadFile(filepath.Join(appsPath, filename))
+	for _, appDir := range []string{"app0", "app1"} {
+		appDirPath := filepath.Join(appsPath, appDir)
+
+		// With "always use cache" feature, .terraformrc may be in cache directory
+		terraformrcPath := filepath.Join(appDirPath, ".terraformrc")
+		if !util.FileExists(terraformrcPath) {
+			terraformrcPath = helpers.FindFileInCacheDir(t, appDirPath, ".terraformrc")
+		}
+		require.NotEmpty(t, terraformrcPath, "Could not find .terraformrc for %s", appDir)
+
+		terraformrcBytes, err := os.ReadFile(terraformrcPath)
 		require.NoError(t, err)
 
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
@@ -630,7 +648,14 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 			appPath := filepath.Join(subDir, entry.Name())
 
+			// With "always use cache" feature, lockfile and providers are in the cache directory
 			lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+			if !util.FileExists(lockfilePath) {
+				// Try finding lockfile in cache directory
+				lockfilePath = helpers.FindFileInCacheDir(t, appPath, ".terraform.lock.hcl")
+			}
+			require.NotEmpty(t, lockfilePath, "Could not find .terraform.lock.hcl for app %s", appPath)
+
 			lockfileContent, err := os.ReadFile(lockfilePath)
 			require.NoError(t, err)
 
@@ -647,8 +672,14 @@ func TestTerragruntProviderCache(t *testing.T) {
 				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
 				assert.NotNil(t, providerBlock)
 
+				// With "always use cache" feature, providers are in the cache directory
 				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
-				assert.True(t, util.FileExists(providerPath))
+				if !util.FileExists(providerPath) {
+					// Try finding providers in cache directory
+					providerPath = helpers.FindDirInCacheDir(t, appPath, filepath.Join(".terraform/providers", provider))
+				}
+				require.NotEmpty(t, providerPath, "Could not find provider path for %s in app %s", provider, appPath)
+				assert.True(t, util.FileExists(providerPath), "Provider path does not exist: %s", providerPath)
 
 				entries, err := os.ReadDir(providerPath)
 				require.NoError(t, err)

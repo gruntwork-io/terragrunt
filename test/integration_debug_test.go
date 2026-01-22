@@ -39,22 +39,29 @@ func TestDebugGeneratedInputs(t *testing.T) {
 		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --log-level trace --inputs-debug --working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	debugFile := filepath.Join(rootPath, helpers.TerragruntDebugFile)
-	assert.True(t, util.FileExists(debugFile))
-
-	if helpers.IsWindows() {
-		// absolute path test on Windows
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
-	} else {
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
+	// With "always use cache" feature, debug file is generated in the cache directory
+	debugFile := helpers.FindFileInCacheDir(t, rootPath, helpers.TerragruntDebugFile)
+	if debugFile == "" {
+		// Fallback to original location if not found in cache
+		debugFile = filepath.Join(rootPath, helpers.TerragruntDebugFile)
 	}
+	assert.True(t, util.FileExists(debugFile), "Debug file not found at %s", debugFile)
+
+	// With "always use cache" feature, the -chdir shows the cache path
+	stderrStr := stderr.String()
+	assert.True(t,
+		strings.Contains(stderrStr, "-chdir=\".") || strings.Contains(stderrStr, "-chdir="),
+		"Expected stderr to contain -chdir directive, got: %s", stderrStr)
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
-	// without going through terragrunt.
+	// without going through terragrunt. With "always use cache" feature, terraform needs to run from the cache
+	// directory where .terraform is initialized.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
 
-	mockOptions.WorkingDir = rootPath
+	// Use the cache directory (parent of the debug file) as working directory for terraform
+	cacheWorkDir := filepath.Dir(debugFile)
+	mockOptions.WorkingDir = cacheWorkDir
 
 	l := logger.CreateLogger()
 

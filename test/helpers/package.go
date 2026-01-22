@@ -1270,3 +1270,99 @@ func isAWSResourceNotFoundError(err error) bool {
 		apiErr.ErrorCode() == "NotFound" ||
 		apiErr.ErrorCode() == "ResourceNotFoundException")
 }
+
+// FindFileInCacheDir searches for a file with the given name in the .terragrunt-cache directory
+// under the specified root path. Returns the path to the first match or empty string if not found.
+func FindFileInCacheDir(t *testing.T, rootPath, filename string) string {
+	t.Helper()
+
+	cacheDir := filepath.Join(rootPath, TerragruntCache)
+	if !util.FileExists(cacheDir) {
+		return ""
+	}
+
+	var foundPath string
+
+	err := filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // ignore errors, continue walking
+		}
+
+		if !info.IsDir() && filepath.Base(path) == filename {
+			foundPath = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Logf("Warning: error walking cache dir: %v", err)
+	}
+
+	return foundPath
+}
+
+// FindDirInCacheDir searches for a directory path pattern in the .terragrunt-cache directory.
+// The pattern should be relative to the cache hash directories (e.g., ".terraform/providers/registry.opentofu.org/hashicorp/aws/5.36.0").
+// Returns the full path to the first match or empty string if not found.
+func FindDirInCacheDir(t *testing.T, rootPath, pattern string) string {
+	t.Helper()
+
+	cacheDir := filepath.Join(rootPath, TerragruntCache)
+	if !util.FileExists(cacheDir) {
+		return ""
+	}
+
+	var foundPath string
+
+	err := filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		if info.IsDir() && strings.HasSuffix(path, pattern) {
+			foundPath = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Logf("Warning: error walking cache dir: %v", err)
+	}
+
+	return foundPath
+}
+
+// FindFileInDir searches for a file with the given name recursively in the specified directory.
+// Returns the full path to the first match or empty string if not found.
+func FindFileInDir(t *testing.T, rootPath, filename string) string {
+	t.Helper()
+
+	if !util.FileExists(rootPath) {
+		return ""
+	}
+
+	var foundPath string
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		if !info.IsDir() && filepath.Base(path) == filename {
+			foundPath = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Logf("Warning: error walking dir: %v", err)
+	}
+
+	return foundPath
+}
