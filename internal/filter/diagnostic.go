@@ -21,9 +21,9 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 
 	// Line 1: Error header
 	if useColor {
-		fmt.Fprintf(&sb, "%s%serror:%s %s\n", ansiBold, ansiRed, ansiReset, err.Message)
+		fmt.Fprintf(&sb, "%s%sFilter parsing error:%s %s\n", ansiBold, ansiRed, ansiReset, err.Message)
 	} else {
-		fmt.Fprintf(&sb, "error: %s\n", err.Message)
+		fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Message)
 	}
 
 	// Line 2: Location arrow

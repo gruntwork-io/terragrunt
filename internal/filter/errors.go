@@ -33,7 +33,7 @@ type ParseError struct {
 }
 
 func (e ParseError) Error() string {
-	return fmt.Sprintf("parse error at position %d: %s", e.Position, e.Message)
+	return fmt.Sprintf("Parse error at position %d: %s", e.Position, e.Message)
 }
 
 // NewParseError creates a new ParseError with the given message and position.
@@ -61,7 +61,7 @@ type EvaluationError struct {
 
 func (e EvaluationError) Error() string {
 	if e.Cause != nil {
-		return fmt.Sprintf("evaluation error: %s: %v", e.Message, e.Cause)
+		return fmt.Sprintf("Evaluation error: %s: %v", e.Message, e.Cause)
 	}
 
 	return "evaluation error: " + e.Message
