@@ -8,6 +8,7 @@
 package test_test
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -62,7 +63,12 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+			ctx, pctx := config.NewParsingContext(
+				// Create a child context so that we don't create context that's too massive
+				context.WithValue(t.Context(), "file_name", file),
+				l,
+				opts,
+			)
 
 			cfg, _ := config.ParseConfigFile(ctx, pctx, l, file, nil)
 
