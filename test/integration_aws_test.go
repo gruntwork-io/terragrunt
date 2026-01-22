@@ -1494,35 +1494,61 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteState)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "root.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteState)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app1", environmentPath))
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app3", environmentPath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app1 -- apply -auto-approve",
+			environmentPath,
+		),
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app3 -- apply -auto-approve",
+			environmentPath,
+		),
+	)
 	// Now delete dependencies cached state
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app2", environmentPath))
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app2 -- apply -auto-approve",
+			environmentPath,
+		),
 	)
 
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --backend-bootstrap --dependency-fetch-output-from-state --non-interactive --log-level trace --working-dir "+environmentPath, &stdout, &stderr)
-	output := stdout.String()
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --backend-bootstrap --dependency-fetch-output-from-state --non-interactive --log-level trace --working-dir "+environmentPath)
+	require.NoError(t, err)
 
-	assert.Contains(t, output, "app1 output")
-	assert.Contains(t, output, "app2 output")
-	assert.Contains(t, output, "app3 output")
-	assert.NotContains(t, stderr.String(), "terraform output -json")
-	assert.NotContains(t, stderr.String(), "tofu output -json")
+	assert.Contains(t, stdout, "app1 output")
+	assert.Contains(t, stdout, "app2 output")
+	assert.Contains(t, stdout, "app3 output")
+	assert.NotContains(t, stderr, "terraform output -json")
+	assert.NotContains(t, stderr, "tofu output -json")
 
-	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+	assert.True(
+		t, (strings.Index(stdout, "app3 output") < strings.Index(stdout, "app1 output")) &&
+			(strings.Index(stdout, "app1 output") < strings.Index(stdout, "app2 output")),
+	)
 }
 
 func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: paralleltest

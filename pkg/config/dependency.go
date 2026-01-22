@@ -903,6 +903,21 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	pctx.TerragruntOptions.Engine = engineOpts
 
+	shouldFetchFromState := pctx.TerragruntOptions.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
+		!pctx.TerragruntOptions.NoDependencyFetchOutputFromState &&
+		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
+
+	if shouldFetchFromState {
+		return getTerragruntOutputJSONFromRemoteState(
+			ctx,
+			pctx,
+			l,
+			targetConfig,
+			remoteStateTGConfig.RemoteState,
+			remoteStateTGConfig.GetIAMRoleOptions(),
+		)
+	}
+
 	if isInit {
 		credsGetter := creds.NewGetter()
 		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
