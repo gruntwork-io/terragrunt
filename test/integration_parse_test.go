@@ -23,10 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type contextKey string
-
-const fileNameKey contextKey = "file_name"
-
 var knownBadFiles = []string{
 	"fixtures/catalog/local-template/.boilerplate/terragrunt.hcl",
 	"fixtures/disabled/unit-disabled/terragrunt.hcl",
@@ -68,8 +64,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 			l := logger.CreateLogger()
 
 			ctx, pctx := config.NewParsingContext(
-				// Create a child context so that we don't create context that's too massive
-				context.WithValue(t.Context(), fileNameKey, file),
+				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
 				l,
 				opts,
 			)
