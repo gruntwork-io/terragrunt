@@ -36,7 +36,11 @@ const (
 var (
 	engineAssetName    = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
 	engineAssetArchive = engineAssetName + ".zip"
-	downloadURL        = fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s", testEngineVersion(), engineAssetArchive)
+	downloadURL        = fmt.Sprintf(
+		"https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/%s/%s",
+		testEngineVersion(),
+		engineAssetArchive,
+	)
 )
 
 //nolint:paralleltest
@@ -131,7 +135,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 	arch := runtime.GOARCH
 
 	helpers.CopyAndFillMapPlaceholders(t, filepath.Join(testFixtureRemoteEngine, "terragrunt.hcl"), filepath.Join(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
-		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.4/terragrunt-iac-engine-opentofu_rpc_v0.0.4_%s_%s.zip", platform, arch),
+		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.1.0/terragrunt-iac-engine-opentofu_rpc_v0.1.0_%s_%s.zip", platform, arch),
 	})
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --tf-forward-stdout --working-dir "+rootPath)
@@ -153,7 +157,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// change the checksum of the package file
-	version := "v0.0.16"
+	version := "v0.1.0"
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 	executablePath := fmt.Sprintf("terragrunt/plugins/iac-engine/rpc/%s/%s/%s/terragrunt-iac-engine-opentofu_rpc_%s_%s_%s", version, platform, arch, version, platform, arch)
@@ -398,7 +402,7 @@ func setupLocalEngine(t *testing.T) string {
 func testEngineVersion() string {
 	value, found := os.LookupEnv("TOFU_ENGINE_VERSION")
 	if !found {
-		return "v0.0.16"
+		return "v0.1.0"
 	}
 
 	return value
