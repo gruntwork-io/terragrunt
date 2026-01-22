@@ -270,7 +270,7 @@ func ListStackFiles(
 	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+	discovery, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
@@ -349,7 +349,7 @@ func worktreeStacksToGenerate(
 		fromFilters, toFilters := pair.Expand()
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 				WorkingDir:    pair.FromWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
@@ -362,7 +362,7 @@ func worktreeStacksToGenerate(
 		}
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 				WorkingDir:    pair.ToWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,

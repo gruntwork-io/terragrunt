@@ -81,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	useColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+	useColor := !l.Formatter().DisabledColors() && !stdout.StderrIsRedirected()
 	filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 	if err != nil {
 		return errors.Errorf("failed to parse filters: %w", err)

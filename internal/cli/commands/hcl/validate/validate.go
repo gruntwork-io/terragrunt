@@ -89,7 +89,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
@@ -241,7 +241,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,

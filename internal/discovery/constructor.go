@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
 
@@ -40,11 +41,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(opts *DiscoveryCommandOptions) (*Discovery, error) {
-	if opts == nil {
-		return nil, errors.New("NewForDiscoveryCommand received nil DiscoveryCommandOptions")
-	}
-
+func NewForDiscoveryCommand(l log.Logger, opts DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -99,7 +96,8 @@ func NewForDiscoveryCommand(opts *DiscoveryCommandOptions) (*Discovery, error) {
 	}
 
 	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		useColor := !l.Formatter().DisabledColors()
+		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 		if err != nil {
 			return nil, err
 		}
@@ -111,11 +109,12 @@ func NewForDiscoveryCommand(opts *DiscoveryCommandOptions) (*Discovery, error) {
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		useColor := !l.Formatter().DisabledColors()
+		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 		if err != nil {
 			return nil, err
 		}
@@ -127,11 +126,12 @@ func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
 }
 
 // NewForStackGenerate creates a Discovery configured for `stack generate`.
-func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
+func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+		useColor := !l.Formatter().DisabledColors()
+		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 		if err != nil {
 			return nil, err
 		}

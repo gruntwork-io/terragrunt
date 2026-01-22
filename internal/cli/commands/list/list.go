@@ -26,7 +26,7 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(&discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          !opts.Hidden,
@@ -41,7 +41,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	useColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+	useColor := !l.Formatter().DisabledColors() && !stdout.StderrIsRedirected()
 	filters, parseErr := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 	if parseErr != nil {
 		return fmt.Errorf("failed to parse filters: %w", parseErr)

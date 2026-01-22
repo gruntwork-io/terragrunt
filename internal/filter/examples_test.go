@@ -238,10 +238,10 @@ func Example_multipleFilters() {
 	}
 
 	// Parse multiple filters - results are unioned
-	filters, _ := filter.ParseFilterQueries([]string{
+	filters, _ := filter.ParseFilterQueriesWithColor([]string{
 		"./apps/*",
 		"name=db",
-	})
+	}, false)
 
 	l := log.New()
 	result, _ := filters.Evaluate(l, components)

@@ -13,32 +13,32 @@ func GetHints(code ErrorCode, token, query string, position int) []string {
 	case ErrorCodeMissingClosingBracket:
 		return []string{
 			"Git filter expressions must be closed with ']'.",
-			"Example: '[main...HEAD]'",
+			"e.g. '[main...HEAD]'",
 		}
 	case ErrorCodeMissingClosingBrace:
 		return []string{
 			"Braced paths must be closed with '}'.",
-			"Example: '{my path with spaces}'",
+			"e.g. '{my path with spaces}'",
 		}
 	case ErrorCodeEmptyGitFilter:
 		return []string{
 			"Git filter cannot be empty.",
-			"Example: '[main...HEAD]' or '[main]'",
+			"e.g. '[main...HEAD]' or '[main]'",
 		}
 	case ErrorCodeEmptyExpression:
 		return []string{
 			"Braced path expression cannot be empty.",
-			"Example: '{./my path}'",
+			"e.g. '{./my path}'",
 		}
 	case ErrorCodeMissingGitRef:
 		return []string{
 			"Git filters require at least one reference.",
-			"Example: '[main]' or '[main...HEAD]'",
+			"e.g. '[main]' or '[main...HEAD]'",
 		}
 	case ErrorCodeMissingOperand:
 		return []string{
 			"Operators require expressions on both sides.",
-			"Example: 'foo | bar' or '!name=excluded'",
+			"e.g. './foo/** | ./foo/bar/**' filters for all units in ./foo except ./foo/bar.",
 		}
 	case ErrorCodeUnexpectedEOF:
 		return []string{
@@ -63,36 +63,36 @@ func getUnexpectedTokenHints(token, query string, position int) []string {
 	case "|":
 		return []string{
 			"The pipe operator requires expressions on both sides.",
-			"Example: 'a | b' selects both 'a' and 'b'.",
+			"e.g. './foo/** | !./foo/bar/**' filters for all units in ./foo except ./foo/bar.",
 		}
 	case "=":
 		return []string{
 			"The equals sign is used for attribute filters.",
-			"Example: 'name=foo' or 'tag=production'",
+			"e.g. 'name=foo'  filters for all units with the 'foo' name.",
 		}
 	case "]":
 		return []string{
-			"Unexpected closing bracket without matching '['.",
-			"Git filters use brackets: '[main...HEAD]'",
+			"Unexpected closing bracket for a Git expression without matching '['.",
+			"e.g. '[main...HEAD]' filters for all units that changed between main and HEAD.",
 		}
 	case "}":
 		return []string{
-			"Unexpected closing brace without matching '{'.",
-			"Braced paths use braces: '{my path}'",
+			"Unexpected closing brace for a braced path without matching '{'.",
+			"e.g. '{./my path}' filters for a unit named 'my path' in the current directory.",
 		}
 	case "...":
 		return []string{
-			"Ellipsis (...) is used for graph traversal.",
-			"Prefix: '...foo' selects dependents of foo.",
-			"Suffix: 'foo...' selects dependencies of foo.",
+			"Ellipsis '...' is used for graph traversal and graph expressions.",
+			"e.g. '...foo...' filters for all dependencies and dependents of foo.",
+			"e.g. '[main...HEAD]' filters for all units that changed between main and HEAD.",
 		}
 	}
 
 	// Generic unexpected token hints
 	if strings.HasPrefix(token, ".") || strings.HasPrefix(token, "/") {
 		return []string{
-			"Paths should start with './' for relative or '/' for absolute.",
-			"Example: './apps/*' or '/absolute/path'",
+			"Path expressions should start with './' for relative or '/' for absolute paths.",
+			"e.g. './relative/path' or '/absolute/path'",
 		}
 	}
 
@@ -110,7 +110,7 @@ func getCaretHints(query string, position int) []string {
 			return []string{
 				"The caret (^) excludes the target from graph results.",
 				"It must follow the ellipsis, not precede text.",
-				"Example: '^...foo' selects dependents of foo, excluding foo itself.",
+				"e.g. '^...foo' selects dependents of foo, excluding foo itself.",
 			}
 		}
 
@@ -128,6 +128,6 @@ func getCaretHints(query string, position int) []string {
 	return []string{
 		"The caret (^) excludes the target from graph results.",
 		"It must be combined with ellipsis (...) for graph traversal.",
-		"Example: '^...foo' selects dependents of foo, excluding foo itself.",
+		"e.g. '^...foo' selects dependents of foo, excluding foo itself.",
 	}
 }

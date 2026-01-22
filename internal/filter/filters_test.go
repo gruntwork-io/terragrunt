@@ -784,7 +784,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("UniqueGitFilters extracts GitExpression from all graph positions", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"...[main...HEAD]..."}, false)
 		require.NoError(t, err)
 
 		gitFilters := filters.UniqueGitFilters()
@@ -796,10 +796,10 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("Multiple git expressions in graph - unique extraction", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{
+		filters, err := filter.ParseFilterQueriesWithColor([]string{
 			"[main...HEAD]...",
 			"...[feature...develop]",
-		})
+		}, false)
 		require.NoError(t, err)
 
 		depTargets := filters.DependencyGraphExpressions()
@@ -815,7 +815,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("Exclude target with GitExpression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"^[main...HEAD]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"^[main...HEAD]..."}, false)
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -829,7 +829,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("Single git ref with graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"[main]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"[main]..."}, false)
 		require.NoError(t, err)
 
 		targets := filters.DependencyGraphExpressions()
@@ -844,7 +844,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("Git expression with commit SHA in graph", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...[abc123...def456]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"...[abc123...def456]..."}, false)
 		require.NoError(t, err)
 
 		depTargets := filters.DependencyGraphExpressions()
@@ -859,7 +859,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("RequiresParse returns true for git-graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"...[main...HEAD]..."}, false)
 		require.NoError(t, err)
 
 		expr, requires := filters.RequiresParse()
@@ -870,7 +870,7 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 	t.Run("HasPositiveFilter returns true for git-graph expression", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...[main...HEAD]..."})
+		filters, err := filter.ParseFilterQueriesWithColor([]string{"...[main...HEAD]..."}, false)
 		require.NoError(t, err)
 
 		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")

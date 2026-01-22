@@ -1,9 +1,10 @@
-package filter
+package filter_test
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -11,16 +12,16 @@ import (
 func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
+	err := &filter.ParseError{
 		Message:      "unexpected token after expression: ^",
 		Position:     4,
 		Query:        "HEAD^",
 		TokenLiteral: "^",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeUnexpectedToken,
+		ErrorCode:    filter.ErrorCodeUnexpectedToken,
 	}
 
-	result := FormatDiagnostic(err, 0, false)
+	result := filter.FormatDiagnostic(err, 0, false)
 
 	// Check error header
 	assert.Contains(t, result, "error: unexpected token after expression: ^")
@@ -42,16 +43,16 @@ func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 func TestFormatDiagnostic_WithFilterIndex(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
-		Message:      "unexpected token: |",
+	err := &filter.ParseError{
+		Message:      "Unexpected token: |",
 		Position:     0,
 		Query:        "| foo",
 		TokenLiteral: "|",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeUnexpectedToken,
+		ErrorCode:    filter.ErrorCodeUnexpectedToken,
 	}
 
-	result := FormatDiagnostic(err, 2, false)
+	result := filter.FormatDiagnostic(err, 2, false)
 
 	// Check filter index is included
 	assert.Contains(t, result, " --> --filter[2] '| foo'")
@@ -60,19 +61,19 @@ func TestFormatDiagnostic_WithFilterIndex(t *testing.T) {
 func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
+	err := &filter.ParseError{
 		Message:      "expected ']' to close Git filter",
-		Position:     11,
+		Position:     12,
 		Query:        "[main...HEAD",
 		TokenLiteral: "",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeMissingClosingBracket,
+		ErrorCode:    filter.ErrorCodeMissingClosingBracket,
 	}
 
-	result := FormatDiagnostic(err, 0, false)
+	result := filter.FormatDiagnostic(err, 0, false)
 
 	// Check error message
-	assert.Contains(t, result, "error: expected ']' to close Git filter")
+	assert.Contains(t, result, "Filter parsing error: expected ']' to close Git filter")
 
 	// Check hints
 	assert.Contains(t, result, "hint: Git filter expressions must be closed with ']'")
@@ -81,19 +82,19 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
+	err := &filter.ParseError{
 		Message:      "empty Git filter expression",
 		Position:     1,
 		Query:        "[]",
 		TokenLiteral: "]",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeEmptyGitFilter,
+		ErrorCode:    filter.ErrorCodeEmptyGitFilter,
 	}
 
-	result := FormatDiagnostic(err, 0, false)
+	result := filter.FormatDiagnostic(err, 0, false)
 
 	// Check error message
-	assert.Contains(t, result, "error: empty Git filter expression")
+	assert.Contains(t, result, "Filter parsing error: empty Git filter expression")
 
 	// Check hints
 	assert.Contains(t, result, "hint: Git filter cannot be empty")
@@ -102,16 +103,16 @@ func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
 func TestFormatDiagnostic_WithColor(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
-		Message:      "unexpected token after expression: ^",
+	err := &filter.ParseError{
+		Message:      "Unexpected token after expression: ^",
 		Position:     4,
 		Query:        "HEAD^",
 		TokenLiteral: "^",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeUnexpectedToken,
+		ErrorCode:    filter.ErrorCodeUnexpectedToken,
 	}
 
-	result := FormatDiagnostic(err, 0, true)
+	result := filter.FormatDiagnostic(err, 0, true)
 
 	// Check ANSI codes are present
 	assert.Contains(t, result, "\033[") // ANSI escape sequence
@@ -120,16 +121,16 @@ func TestFormatDiagnostic_WithColor(t *testing.T) {
 func TestFormatDiagnostic_NoColor(t *testing.T) {
 	t.Parallel()
 
-	err := &ParseError{
-		Message:      "unexpected token after expression: ^",
+	err := &filter.ParseError{
+		Message:      "Unexpected token after expression: ^",
 		Position:     4,
 		Query:        "HEAD^",
 		TokenLiteral: "^",
 		TokenLength:  1,
-		ErrorCode:    ErrorCodeUnexpectedToken,
+		ErrorCode:    filter.ErrorCodeUnexpectedToken,
 	}
 
-	result := FormatDiagnostic(err, 0, false)
+	result := filter.FormatDiagnostic(err, 0, false)
 
 	// Check no ANSI codes
 	assert.NotContains(t, result, "\033[")
@@ -138,7 +139,7 @@ func TestFormatDiagnostic_NoColor(t *testing.T) {
 func TestGetHints_CaretAfterIdentifier(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeUnexpectedToken, "^", "HEAD^", 4)
+	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "^", "HEAD^", 4)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "Git")
@@ -148,7 +149,7 @@ func TestGetHints_CaretAfterIdentifier(t *testing.T) {
 func TestGetHints_CaretAtStart(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeUnexpectedToken, "^", "^foo", 0)
+	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "^", "^foo", 0)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "excludes the target")
@@ -157,7 +158,7 @@ func TestGetHints_CaretAtStart(t *testing.T) {
 func TestGetHints_MissingClosingBracket(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeMissingClosingBracket, "", "[main...HEAD", 12)
+	hints := filter.GetHints(filter.ErrorCodeMissingClosingBracket, "", "[main...HEAD", 12)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "]")
@@ -166,7 +167,7 @@ func TestGetHints_MissingClosingBracket(t *testing.T) {
 func TestGetHints_MissingClosingBrace(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeMissingClosingBrace, "", "{my path", 8)
+	hints := filter.GetHints(filter.ErrorCodeMissingClosingBrace, "", "{my path", 8)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "}")
@@ -175,7 +176,7 @@ func TestGetHints_MissingClosingBrace(t *testing.T) {
 func TestGetHints_EmptyGitFilter(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeEmptyGitFilter, "]", "[]", 1)
+	hints := filter.GetHints(filter.ErrorCodeEmptyGitFilter, "]", "[]", 1)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "empty")
@@ -184,7 +185,7 @@ func TestGetHints_EmptyGitFilter(t *testing.T) {
 func TestGetHints_PipeOperator(t *testing.T) {
 	t.Parallel()
 
-	hints := GetHints(ErrorCodeUnexpectedToken, "|", "| foo", 0)
+	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "|", "| foo", 0)
 
 	require.NotEmpty(t, hints)
 	assert.Contains(t, strings.Join(hints, " "), "both sides")
@@ -193,7 +194,7 @@ func TestGetHints_PipeOperator(t *testing.T) {
 func TestParseFilterQueriesWithColor_RichDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseFilterQueriesWithColor([]string{"HEAD^"}, false)
+	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^"}, false)
 
 	require.Error(t, err)
 
@@ -210,7 +211,7 @@ func TestParseFilterQueriesWithColor_RichDiagnostics(t *testing.T) {
 func TestParseFilterQueriesWithColor_MultipleErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseFilterQueriesWithColor([]string{"HEAD^", "[unclosed"}, false)
+	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^", "[unclosed"}, false)
 
 	require.Error(t, err)
 
@@ -227,7 +228,7 @@ func TestParseFilterQueriesWithColor_MultipleErrors(t *testing.T) {
 func TestParseFilterQueriesWithColor_ValidFilters(t *testing.T) {
 	t.Parallel()
 
-	filters, err := ParseFilterQueriesWithColor([]string{"name=foo", "./apps/*"}, false)
+	filters, err := filter.ParseFilterQueriesWithColor([]string{"name=foo", "./apps/*"}, false)
 
 	require.NoError(t, err)
 	assert.Len(t, filters, 2)
@@ -236,7 +237,7 @@ func TestParseFilterQueriesWithColor_ValidFilters(t *testing.T) {
 func TestParseFilterQueriesWithColor_EmptyInput(t *testing.T) {
 	t.Parallel()
 
-	filters, err := ParseFilterQueriesWithColor([]string{}, false)
+	filters, err := filter.ParseFilterQueriesWithColor([]string{}, false)
 
 	require.NoError(t, err)
 	assert.Empty(t, filters)
@@ -245,7 +246,7 @@ func TestParseFilterQueriesWithColor_EmptyInput(t *testing.T) {
 func TestParseFilterQueriesWithColor_WithColor(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseFilterQueriesWithColor([]string{"HEAD^"}, true)
+	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^"}, true)
 
 	require.Error(t, err)
 

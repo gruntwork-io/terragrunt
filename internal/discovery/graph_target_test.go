@@ -109,7 +109,7 @@ dependency "db" {
 	filters, err := filter.ParseFilterQueries([]string{`...{` + vpcDir + `}`})
 	require.NoError(t, err)
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueriesWithColor([]string{"{./**}..."}, false)
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).
