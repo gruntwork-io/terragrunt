@@ -155,7 +155,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				}(e)
 			}
 
-			if len(readyEntries) == 0 && len(sem) == 0 {
+			if dr.q.Finished() {
 				break
 			}
 
