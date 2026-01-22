@@ -1520,6 +1520,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.Contains(t, output, "app2 output")
 	assert.Contains(t, output, "app3 output")
 	assert.NotContains(t, stderr.String(), "terraform output -json")
+	assert.NotContains(t, stderr.String(), "tofu output -json")
 
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
