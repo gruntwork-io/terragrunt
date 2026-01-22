@@ -134,7 +134,7 @@ func TestHTTPBackendEncryptionDependencyFails(t *testing.T) {
 	err = os.WriteFile(rootHclPath, []byte(newContent), 0644)
 	require.NoError(t, err)
 
-	cmd := fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir %s", testPath)
+	cmd := "terragrunt run --all apply --non-interactive --working-dir " + testPath
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
@@ -183,7 +183,9 @@ func runHTTPStateServer(t *testing.T, ctx context.Context) string {
 		switch r.Method {
 		case http.MethodGet:
 			mu.RLock()
+
 			state, ok := states[path]
+
 			mu.RUnlock()
 
 			if !ok {
@@ -202,7 +204,9 @@ func runHTTPStateServer(t *testing.T, ctx context.Context) string {
 			}
 
 			mu.Lock()
+
 			states[path] = body
+
 			mu.Unlock()
 
 			w.WriteHeader(http.StatusOK)
@@ -223,14 +227,18 @@ func runHTTPStateServer(t *testing.T, ctx context.Context) string {
 			}
 
 			mu.Lock()
+
 			if existingLock, ok := locks[path]; ok {
 				mu.Unlock()
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusLocked)
 				json.NewEncoder(w).Encode(map[string]string{"ID": existingLock})
+
 				return
 			}
+
 			locks[path] = lockInfo.ID
+
 			mu.Unlock()
 
 			w.WriteHeader(http.StatusOK)
@@ -261,7 +269,9 @@ func runHTTPStateServer(t *testing.T, ctx context.Context) string {
 		}
 	})
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+
+	listener, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	server := &http.Server{
@@ -276,8 +286,8 @@ func runHTTPStateServer(t *testing.T, ctx context.Context) string {
 
 	go func() {
 		<-ctx.Done()
-		server.Shutdown(context.Background())
+		server.Shutdown(context.WithoutCancel(ctx))
 	}()
 
-	return fmt.Sprintf("http://%s", listener.Addr().String())
+	return "http://" + listener.Addr().String()
 }
