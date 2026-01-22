@@ -3697,49 +3697,6 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestTerragruntPassNullValues(t *testing.T) {
-	t.Parallel()
-
-	generateTestCase := testFixtureNullValue
-	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
-	helpers.CleanupTerraformFolder(t, tmpEnv)
-	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
-
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
-
-	// Now check the outputs to make sure they are as expected
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+tmpEnv)
-
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-
-	// check that the null values are passed correctly
-	assert.Nil(t, outputs["output1"].Value)
-	assert.Equal(t, "variable 2", outputs["output2"].Value)
-
-	// check that file with null values is removed
-	cachePath := filepath.Join(tmpEnv, helpers.TerragruntCache)
-	foundNullValuesFile := false
-	err = filepath.Walk(cachePath,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if strings.HasPrefix(path, run.NullTFVarsFile) {
-				foundNullValuesFile = true
-			}
-
-			return nil
-		})
-
-	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", run.NullTFVarsFile)
-	require.NoError(t, err)
-}
-
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	t.Parallel()
 

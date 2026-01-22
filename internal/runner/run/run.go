@@ -35,7 +35,6 @@ import (
 
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
-	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
 )
 
 var TerraformCommandsThatUseState = []string{
