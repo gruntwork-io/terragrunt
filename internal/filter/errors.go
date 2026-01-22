@@ -6,10 +6,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// ErrorCode categorizes parse errors for hint lookup.
+type ErrorCode int
+
+const (
+	ErrorCodeUnknown ErrorCode = iota
+	ErrorCodeUnexpectedToken
+	ErrorCodeUnexpectedEOF
+	ErrorCodeEmptyExpression
+	ErrorCodeMissingClosingBracket
+	ErrorCodeMissingClosingBrace
+	ErrorCodeIllegalToken
+	ErrorCodeMissingOperand
+	ErrorCodeEmptyGitFilter
+	ErrorCodeMissingGitRef
+)
+
 // ParseError represents an error that occurred during parsing.
 type ParseError struct {
-	Message  string
-	Position int
+	Message      string
+	Position     int
+	Query        string    // Original filter query
+	TokenLiteral string    // The problematic token
+	TokenLength  int       // For underline width
+	ErrorCode    ErrorCode // For hint lookup
 }
 
 func (e ParseError) Error() string {
@@ -19,6 +39,18 @@ func (e ParseError) Error() string {
 // NewParseError creates a new ParseError with the given message and position.
 func NewParseError(message string, position int) error {
 	return errors.New(ParseError{Message: message, Position: position})
+}
+
+// NewParseErrorWithContext creates a new ParseError with full context for rich diagnostics.
+func NewParseErrorWithContext(message string, position int, query string, tokenLiteral string, tokenLength int, code ErrorCode) error {
+	return errors.New(ParseError{
+		Message:      message,
+		Position:     position,
+		Query:        query,
+		TokenLiteral: tokenLiteral,
+		TokenLength:  tokenLength,
+		ErrorCode:    code,
+	})
 }
 
 // EvaluationError represents an error that occurred during evaluation.

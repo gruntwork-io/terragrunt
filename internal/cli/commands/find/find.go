@@ -42,7 +42,8 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	useColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+	filters, parseErr := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 	if parseErr != nil {
 		return fmt.Errorf("failed to parse filters: %w", parseErr)
 	}

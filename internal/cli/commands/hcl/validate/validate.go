@@ -100,7 +100,8 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	useColor := !l.Formatter().DisabledColors()
+	filters, parseErr := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 	if parseErr != nil {
 		return fmt.Errorf("failed to parse filters: %w", parseErr)
 	}
@@ -250,7 +251,8 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+		useColor := !l.Formatter().DisabledColors()
+		filters, parseErr := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
 		if parseErr != nil {
 			return fmt.Errorf("failed to parse filters: %w", parseErr)
 		}

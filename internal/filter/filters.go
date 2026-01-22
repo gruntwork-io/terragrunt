@@ -2,11 +2,12 @@ package filter
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -18,19 +19,30 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
+// This function maintains backwards compatibility (no color output).
 func ParseFilterQueries(filterStrings []string) (Filters, error) {
+	return ParseFilterQueriesWithColor(filterStrings, false)
+}
+
+// ParseFilterQueriesWithColor parses filter queries and formats errors with optional color.
+func ParseFilterQueriesWithColor(filterStrings []string, useColor bool) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
 
 	filters := make([]*Filter, 0, len(filterStrings))
 
-	var parseErrors []error
+	var diagnostics []string
 
 	for i, filterString := range filterStrings {
 		filter, err := Parse(filterString)
 		if err != nil {
-			parseErrors = append(parseErrors, fmt.Errorf("filter %d (%q): %w", i, filterString, err))
+			var parseErr ParseError
+			if errors.As(err, &parseErr) {
+				diagnostics = append(diagnostics, FormatDiagnostic(&parseErr, i, useColor))
+			} else {
+				diagnostics = append(diagnostics, fmt.Sprintf("filter %d: %v", i, err))
+			}
 
 			continue
 		}
@@ -40,8 +52,8 @@ func ParseFilterQueries(filterStrings []string) (Filters, error) {
 
 	result := Filters(filters)
 
-	if len(parseErrors) > 0 {
-		return result, errors.Join(parseErrors...)
+	if len(diagnostics) > 0 {
+		return result, fmt.Errorf("\n%s", strings.Join(diagnostics, "\n"))
 	}
 
 	return result, nil

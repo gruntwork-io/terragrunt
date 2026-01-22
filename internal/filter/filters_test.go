@@ -46,7 +46,8 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		filters, err := filter.ParseFilterQueries([]string{"invalid |"})
 		require.Error(t, err)
 		assert.NotNil(t, filters)
-		assert.Contains(t, err.Error(), "filter 0")
+		// Rich diagnostic format
+		assert.Contains(t, err.Error(), "--filter")
 		assert.Contains(t, err.Error(), "invalid |")
 	})
 
@@ -59,8 +60,8 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		// Should have 2 valid filters parsed
 		assert.Contains(t, filters.String(), "./apps/*")
 		assert.Contains(t, filters.String(), "!legacy")
-		// Error should mention the invalid filter
-		assert.Contains(t, err.Error(), "filter 1")
+		// Error should mention the invalid filter with rich diagnostic format
+		assert.Contains(t, err.Error(), "--filter[1]")
 		assert.Contains(t, err.Error(), "name=")
 	})
 
@@ -72,9 +73,9 @@ func TestFilters_ParseFilterQueries(t *testing.T) {
 		assert.NotNil(t, filters)
 		// Should have 1 valid filter
 		assert.Equal(t, `["!baz"]`, filters.String())
-		// Error should mention both invalid filters
-		assert.Contains(t, err.Error(), "filter 0")
-		assert.Contains(t, err.Error(), "filter 1")
+		// Error should mention both invalid filters with rich diagnostic format
+		assert.Contains(t, err.Error(), "--filter 'foo |'")
+		assert.Contains(t, err.Error(), "--filter[1]")
 	})
 
 	t.Run("filter in parent directory", func(t *testing.T) {
