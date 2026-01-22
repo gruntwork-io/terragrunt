@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -442,6 +443,11 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 	return result, nil
 }
 
+const (
+	gracefulExitTimeout    = 5 * time.Second
+	pluginExitPollInterval = 50 * time.Millisecond
+)
+
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
@@ -469,13 +475,58 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
-		// kill grpc client
-		instance.client.Kill()
+
+		// Wait for plugin to exit gracefully before force-killing.
+		// The shutdown RPC has already told the plugin to exit, so it should
+		// be cleaning up and exiting on its own. Give it time to finish.
+		if !waitForPluginExit(instance.client, gracefulExitTimeout) {
+			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
+			instance.client.Kill()
+		}
 
 		return true
 	})
 
 	return nil
+}
+
+// waitForPluginExit waits for the plugin process to exit, returning true if it exited
+// within the timeout, false otherwise.
+func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
+	done := make(chan struct{})
+
+	go func() {
+		// Client.Exited() returns true when the plugin process has exited
+		for !client.Exited() {
+			time.Sleep(pluginExitPollInterval)
+		}
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+// logEngineMessage logs a message from the engine at the appropriate log level.
+func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
+	switch logLevel {
+	case proto.LogLevel_LOG_LEVEL_DEBUG:
+		l.Debug(content)
+	case proto.LogLevel_LOG_LEVEL_INFO:
+		l.Info(content)
+	case proto.LogLevel_LOG_LEVEL_WARN:
+		l.Warn(content)
+	case proto.LogLevel_LOG_LEVEL_ERROR:
+		l.Error(content)
+	case proto.LogLevel_LOG_LEVEL_UNSPECIFIED:
+		// Treat unspecified as debug level
+		l.Debug(content)
+	}
 }
 
 // createEngine create engine for working directory
@@ -624,15 +675,35 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			break
 		}
 
-		if err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
-			return nil, errors.New(err)
+		responseType := runResp.GetResponse()
+		if responseType == nil {
+			continue
 		}
 
-		if err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
-			return nil, errors.New(err)
+		switch resp := responseType.(type) {
+		case *proto.RunResponse_Stdout:
+			if resp.Stdout != nil {
+				if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_Stderr:
+			if resp.Stderr != nil {
+				if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_ExitResult:
+			if resp.ExitResult != nil {
+				resultCode = int(resp.ExitResult.GetCode())
+			}
+		case *proto.RunResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
 		}
-
-		resultCode = int(runResp.GetResultCode())
 	}
 
 	if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
@@ -664,7 +735,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 // processStream handles the character buffering and line printing for a given stream
 func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	for _, ch := range data {
-		lineBuf.WriteByte(byte(ch))
+		lineBuf.WriteRune(ch)
 
 		if ch == '\n' {
 			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
@@ -721,16 +792,35 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine init failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, output.GetResultCode())
+		//nolint:dupl // Similar structure to shutdown response handling, but different protobuf types
+		switch resp := output.GetResponse().(type) {
+		case *proto.InitResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.InitResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.InitResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine init failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+				}
+			}
+		case *proto.InitResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
 		}
 
-		return &OutputLine{
-			Stderr: output.GetStderr(),
-			Stdout: output.GetStdout(),
-		}, nil
+		return outputLine, nil
 	})
 }
 
@@ -764,16 +854,40 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine shutdown failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, output.GetResultCode())
+		responseType := output.GetResponse()
+		if responseType == nil {
+			return outputLine, nil
 		}
 
-		return &OutputLine{
-			Stdout: output.GetStdout(),
-			Stderr: output.GetStderr(),
-		}, nil
+		//nolint:dupl // Similar structure to init response handling, but different protobuf types
+		switch resp := responseType.(type) {
+		case *proto.ShutdownResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.ShutdownResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.ShutdownResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine shutdown failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+				}
+			}
+		case *proto.ShutdownResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
+		}
+
+		return outputLine, nil
 	})
 }
 

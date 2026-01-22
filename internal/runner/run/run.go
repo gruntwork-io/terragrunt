@@ -63,6 +63,11 @@ var TerraformCommandsThatUseState = []string{
 // TerraformCommandsThatDoNotNeedInit is a list of Terraform commands that do not require 'terraform init' to be executed.
 var TerraformCommandsThatDoNotNeedInit = []string{
 	"version",
+
+	// The engine command is a special command that engines can implement to provide additional functionality.
+	// It's not part of the OpenTofu/Terraform CLI API, so we know that we don't consistently need to run 'init'.
+	// Engines can decide to selectively perform inits based on the logic of their engine commands.
+	"engine",
 }
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
