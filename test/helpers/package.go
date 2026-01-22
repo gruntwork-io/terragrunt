@@ -309,7 +309,8 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 		if len(out.Versions) > 0 {
 			var objectsToDelete []s3types.ObjectIdentifier
 
-			for _, version := range out.Versions {
+			for i := range out.Versions {
+				version := &out.Versions[i]
 				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
 					Key:       version.Key,
 					VersionId: version.VersionId,
@@ -397,12 +398,13 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	}
+	)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -424,8 +426,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
@@ -448,12 +449,13 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	}
+	)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
@@ -475,8 +477,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}

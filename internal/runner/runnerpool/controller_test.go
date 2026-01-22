@@ -205,7 +205,11 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+	for _, want := range []string{
+		"unit B failed",
+		"unit D did not run due to early exit",
+		"unit E did not run due to early exit",
+	} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }

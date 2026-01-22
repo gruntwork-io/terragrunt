@@ -178,7 +178,7 @@ func testSliceFlagApply[T clihelper.SliceFlagType](t *testing.T, flag *clihelper
 	assert.Equal(t, expectedValue, actualValue)
 
 	expectedStringValueFn := func(value []T) string {
-		var stringValue []string
+		stringValue := make([]string, 0, len(value))
 		for _, val := range value {
 			stringValue = append(stringValue, fmt.Sprintf("%v", val))
 		}

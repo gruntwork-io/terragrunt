@@ -81,7 +81,7 @@ type ProcessExecutionError struct {
 	DisableSummary bool
 }
 
-func (err ProcessExecutionError) Error() string {
+func (err ProcessExecutionError) Error() string { //nolint:gocritic
 	commandStr := strings.TrimSpace(
 		strings.Join(append([]string{err.Command}, err.Args...), " "),
 	)
@@ -101,10 +101,10 @@ func (err ProcessExecutionError) Error() string {
 	)
 }
 
-func (err ProcessExecutionError) ExitStatus() (int, error) {
+func (err ProcessExecutionError) ExitStatus() (int, error) { //nolint:gocritic
 	return GetExitCode(err.Err)
 }
 
-func (err ProcessExecutionError) Unwrap() error {
+func (err ProcessExecutionError) Unwrap() error { //nolint:gocritic
 	return err.Err
 }

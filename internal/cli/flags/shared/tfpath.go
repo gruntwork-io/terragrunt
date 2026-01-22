@@ -24,6 +24,7 @@ func NewTFPathFlag(opts *options.TerragruntOptions) *flags.Flag {
 			Setter: func(value string) error {
 				opts.TFPath = value
 				opts.TFPathExplicitlySet = true
+
 				return nil
 			},
 		},

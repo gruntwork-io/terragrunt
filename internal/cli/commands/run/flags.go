@@ -291,6 +291,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				if value {
 					return opts.StrictControls.FilterByNames(controls.DisableCommandValidation).Evaluate(ctx)
 				}
+
 				return nil
 			},
 		},
@@ -305,6 +306,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				if value {
 					return opts.StrictControls.FilterByNames(controls.NoDestroyDependenciesCheck).Evaluate(ctx)
 				}
+
 				return nil
 			},
 		}),

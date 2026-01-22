@@ -92,7 +92,7 @@ func (cfg *Config) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOp
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 
-	return codegen.WriteToFile(l, opts, opts.WorkingDir, codegenConfig)
+	return codegen.WriteToFile(l, opts, opts.WorkingDir, &codegenConfig)
 }
 
 type ConfigFileGenerate struct {

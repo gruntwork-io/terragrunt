@@ -30,7 +30,7 @@ func TestGetTerraformHeader(t *testing.T) {
 		Host:   "registry.terraform.io",
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
-	terraformGetHeader, err := tf.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), testModuleURL)
+	terraformGetHeader, err := tf.GetTerraformGetHeader(t.Context(), logger.CreateLogger(), &testModuleURL)
 	require.NoError(t, err)
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }
@@ -95,7 +95,7 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			downloadURL, err := tf.GetDownloadURLFromHeader(tc.moduleURL, tc.terraformGet)
+			downloadURL, err := tf.GetDownloadURLFromHeader(&tc.moduleURL, tc.terraformGet)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedResult, downloadURL)
 		})

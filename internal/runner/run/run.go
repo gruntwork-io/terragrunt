@@ -199,7 +199,7 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 	actualLock.Lock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, genCfg); err != nil {
+		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
 	}
@@ -538,7 +538,8 @@ func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg
 	out := []string{}
 	cmd := opts.TerraformCliArgs.First()
 
-	for _, arg := range cfg.Terraform.ExtraArgs {
+	for i := range cfg.Terraform.ExtraArgs {
+		arg := &cfg.Terraform.ExtraArgs[i]
 		for _, argCmd := range arg.Commands {
 			if cmd == argCmd {
 				lastArg := opts.TerraformCliArgs.Last()
@@ -609,7 +610,8 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *options.TerragruntOptions, 
 	out := map[string]string{}
 	cmd := opts.TerraformCliArgs.First()
 
-	for _, arg := range cfg.Terraform.ExtraArgs {
+	for i := range cfg.Terraform.ExtraArgs {
+		arg := &cfg.Terraform.ExtraArgs[i]
 		if len(arg.EnvVars) == 0 {
 			continue
 		}

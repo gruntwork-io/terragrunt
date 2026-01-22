@@ -36,7 +36,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	prefix := "."
 	terraformPath := "testdata/test_outputs.sh"
 
-	prefixedOutput := []string{}
+	prefixedOutput := make([]string, 0, len(FullOutput))
 	for _, line := range FullOutput {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}

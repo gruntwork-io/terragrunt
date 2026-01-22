@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/mattn/go-shellwords"
@@ -39,7 +40,11 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(opts *DiscoveryCommandOptions) (*Discovery, error) {
+	if opts == nil {
+		return nil, errors.New("NewForDiscoveryCommand received nil DiscoveryCommandOptions")
+	}
+
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()

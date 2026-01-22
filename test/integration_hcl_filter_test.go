@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
@@ -149,9 +150,14 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 
 			// Build filter arguments
 			filterStr := ""
+
+			var filterStrSb152 strings.Builder
+
 			for _, filter := range tc.filterArgs {
-				filterStr += fmt.Sprintf(" --filter '%s'", filter)
+				filterStrSb152.WriteString(fmt.Sprintf(" --filter '%s'", filter))
 			}
+
+			filterStr += filterStrSb152.String()
 
 			cmd := fmt.Sprintf(
 				"terragrunt hcl fmt %s --check --working-dir %s",
@@ -253,9 +259,14 @@ func TestHCLValidateWithFilter(t *testing.T) {
 
 			// Build filter arguments with proper quoting
 			filterStr := ""
+
+			var filterStrSb256 strings.Builder
+
 			for _, filter := range tc.filterArgs {
-				filterStr += fmt.Sprintf(" --filter '%s'", filter)
+				filterStrSb256.WriteString(fmt.Sprintf(" --filter '%s'", filter))
 			}
+
+			filterStr += filterStrSb256.String()
 
 			cmd := fmt.Sprintf("terragrunt hcl validate%s --working-dir %s", filterStr, rootPath)
 

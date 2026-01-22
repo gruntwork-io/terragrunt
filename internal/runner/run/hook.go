@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
@@ -43,22 +44,24 @@ func processErrorHooks(
 	customMultierror := multierror.Error{
 		Errors: previousExecErrors.WrappedErrors(),
 		ErrorFormat: func(err []error) string {
-			result := ""
+			errorMessages := make([]string, 0, len(err))
+
 			for _, e := range err {
 				errorMessage := e.Error()
 				// Check if is process execution error and try to extract output
 				// https://github.com/gruntwork-io/terragrunt/issues/2045
 				originalError := errors.Unwrap(e)
-
 				if originalError != nil {
 					var processError util.ProcessExecutionError
 					if ok := errors.As(originalError, &processError); ok {
 						errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
 					}
 				}
-				result = fmt.Sprintf("%s\n%s", result, errorMessage)
+
+				errorMessages = append(errorMessages, errorMessage)
 			}
-			return result
+
+			return strings.Join(errorMessages, "\n")
 		},
 	}
 	errorMessage := customMultierror.Error()
@@ -118,7 +121,8 @@ func ProcessHooks(
 
 	l.Debugf("Detected %d Hooks", len(hooks))
 
-	for _, curHook := range hooks {
+	for i := range hooks {
+		curHook := &hooks[i]
 		if !curHook.If {
 			l.Debugf("Skipping hook: %s", curHook.Name)
 			continue
@@ -142,7 +146,7 @@ func ProcessHooks(
 }
 
 func shouldRunHook(
-	hook runcfg.Hook,
+	hook *runcfg.Hook,
 	opts *options.TerragruntOptions,
 	previousExecErrors *errors.MultiError,
 ) bool {
@@ -163,7 +167,7 @@ func runHook(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
-	curHook runcfg.Hook,
+	curHook *runcfg.Hook,
 ) error {
 	l.Infof("Executing hook: %s", curHook.Name)
 
@@ -202,7 +206,7 @@ func executeTFLint(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *runcfg.RunConfig,
-	curHook runcfg.Hook,
+	curHook *runcfg.Hook,
 	workingDir string,
 ) error {
 	// fetching source code changes lock since tflint is not thread safe

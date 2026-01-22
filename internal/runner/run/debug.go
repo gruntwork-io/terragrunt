@@ -33,7 +33,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		return err
 	}
 
-	variables := append(required, optional...)
+	variables := slices.Concat(required, optional)
 
 	tofuImpl := "tofu"
 	if opts.TofuImplementation != "" {

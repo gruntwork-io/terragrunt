@@ -99,6 +99,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 				}
 
 				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+
 				return nil
 			},
 		}),

@@ -1612,7 +1612,7 @@ func TestAwsAssumeRole(t *testing.T) {
 	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
+	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1650,7 +1650,7 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
 	require.NoError(t, err)
 
-	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
+	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
 	require.NoError(t, err)
 
 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
@@ -1747,7 +1747,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, &options.TerragruntOptions{})
 	require.NoError(t, err)
 
-	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), cfg)
+	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
 	require.NoError(t, err)
 
 	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
