@@ -1693,10 +1693,6 @@ func TestDependencyMockOutput(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
-
 	// Now run --all apply so that the dependency is applied, and verify it uses the dependency output
 	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
@@ -2400,9 +2396,6 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	mainPathFileOut := filepath.Join(mainPath, "file.out")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
 
 	// The file should exist in the first run.
 	assert.True(t, util.FileExists(depPathFileOut))
@@ -3360,8 +3353,6 @@ func TestDependenciesOptimisation(t *testing.T) {
 		stderr,
 		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
 	)
-
-	config.ClearOutputCache()
 
 	moduleC := filepath.Join(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 

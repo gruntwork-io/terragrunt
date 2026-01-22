@@ -183,13 +183,15 @@ func (dep *Dependency) setRenderedOutputs(ctx context.Context, pctx *ParsingCont
 	return nil
 }
 
-// jsonOutputCache is a map that maps config paths to the outputs so that they can be reused across calls for common
-// modules. We use sync.Map to ensure atomic updates during concurrent access.
-var jsonOutputCache = sync.Map{}
+// outputLocksFromContext retrieves the KeyLocks from the context for synchronizing output retrieval.
+// If not present in context, returns a new KeyLocks instance.
+func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
+	if val, ok := ctx.Value(OutputLocksContextKey).(*util.KeyLocks); ok && val != nil {
+		return val
+	}
 
-// outputLocks is a map that maps config paths to mutex locks to ensure we only have a single instance of terragrunt
-// output running for a given dependent config. We use sync.Map to ensure atomic updates during concurrent access.
-var outputLocks = sync.Map{}
+	return util.NewKeyLocks()
+}
 
 // Decode the dependency blocks from the file, and then retrieve all the outputs from the remote state. Then encode the
 // resulting map as a cty.Value object.
@@ -709,28 +711,19 @@ func isRenderCommand(pctx *ParsingContext) bool {
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
 func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Acquire synchronization lock to ensure only one instance of output is called per config.
-	rawActualLock, _ := outputLocks.LoadOrStore(targetConfig, &sync.Mutex{})
+	locks := outputLocksFromContext(ctx)
 
-	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
+	locks.Lock(targetConfig)
+	defer locks.Unlock(targetConfig)
 
-	actualLock.Lock()
-
-	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
-	// we should only see one pair of logs at a time that begin with this statement, and then the relevant "terraform
-	// output" log for the dependency.
 	l.Debugf("Getting output of dependency %s for config %s", targetConfig, pctx.TerragruntOptions.TerragruntConfigPath)
 
-	// Look up if we have already run terragrunt output for this target config
-	rawJSONBytes, hasRun := jsonOutputCache.Load(targetConfig)
-	if hasRun {
-		// Cache hit, so return cached output
+	jsonCache := cache.ContextCache[[]byte](ctx, JSONOutputCacheContextKey)
+	if jsonBytes, found := jsonCache.Get(ctx, targetConfig); found {
 		l.Debugf("%s was run before. Using cached output.", targetConfig)
-		return rawJSONBytes.([]byte), nil
+		return jsonBytes, nil
 	}
 
-	// Cache miss, so look up the output and store in cache
 	newJSONBytes, err := getTerragruntOutputJSON(ctx, pctx, l, targetConfig)
 	if err != nil {
 		return nil, err
@@ -743,7 +736,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		newJSONBytes = newJSONBytes[index:]
 	}
 
-	jsonOutputCache.Store(targetConfig, newJSONBytes)
+	jsonCache.Put(ctx, targetConfig, newJSONBytes)
 
 	return newJSONBytes, nil
 }
@@ -1334,11 +1327,6 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	}
 
 	return flattenedOutput, nil
-}
-
-// ClearOutputCache clears the output cache. Useful during testing.
-func ClearOutputCache() {
-	jsonOutputCache = sync.Map{}
 }
 
 // runTerraformInitForDependencyOutput will run terraform init in a mode that doesn't pull down plugins or modules. Note

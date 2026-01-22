@@ -1149,10 +1149,6 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt apply --all --log-level trace --non-interactive --backend-bootstrap --working-dir "+rootPath)
 
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
-
 	// verify expected output
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
@@ -1164,8 +1160,7 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	// If we want to force reinit, delete the relevant .terraform directories
 	helpers.CleanupTerraformFolder(t, depPath)
 
-	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
-	config.ClearOutputCache()
+	// Now delete the deepdep state and verify still works
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
 	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
@@ -1222,10 +1217,6 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --backend-bootstrap --working-dir "+rootPath)
 
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
-
 	// verify expected output
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
@@ -1235,7 +1226,6 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
-	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(deepDepPath, ".terraform")))
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
@@ -1472,9 +1462,6 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 
 	for range 3 {
 		tt()
-		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-		// This is only a problem during testing, where the process is shared across terragrunt runs.
-		config.ClearOutputCache()
 	}
 }
 
@@ -1514,7 +1501,6 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app1", environmentPath))
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app3", environmentPath))
 	// Now delete dependencies cached state
-	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
@@ -1556,7 +1542,6 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app1", environmentPath))
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app3", environmentPath))
 	// Now delete dependencies cached state
-	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
@@ -1570,9 +1555,6 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
-
-	// Clear cache again before running output command
-	config.ClearOutputCache()
 
 	// Run output command with experiment enabled but flag set to disable
 	// When the flag is set, it should use terraform output instead of fetching from S3
@@ -1609,7 +1591,6 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	// applying only the app1 dependency, the app3 dependency was purposely not applied and should be mocked when running the app2 module
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --dependency-fetch-output-from-state --auto-approve --backend-bootstrap --non-interactive --working-dir %s/app1", environmentPath))
 	// Now delete dependencies cached state
-	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 
@@ -1919,10 +1900,6 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --log-level trace --non-interactive --backend-bootstrap --working-dir "+rootPath)
 
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
-
 	// verify expected output
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
@@ -1936,8 +1913,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 		helpers.CleanupTerraformFolder(t, depPath)
 	}
 
-	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
-	config.ClearOutputCache()
+	// Now delete the deepdep state and verify still works
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
 	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
