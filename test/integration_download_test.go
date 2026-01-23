@@ -337,7 +337,7 @@ func TestExcludeDirs(t *testing.T) {
 
 			err = helpers.RunTerragruntCommand(
 				t,
-				"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+				"terragrunt show --non-interactive --working-dir "+modulePath,
 				&showStdout,
 				&showStderr,
 			)
@@ -492,7 +492,7 @@ func TestIncludeDirs(t *testing.T) {
 			err = helpers.RunTerragruntCommand(
 				t,
 				fmt.Sprintf(
-					"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+					"terragrunt run --all apply --non-interactive --working-dir %s %s",
 					workingDir, tc.includeArgs,
 				),
 				&applyAllStdout,
@@ -510,7 +510,7 @@ func TestIncludeDirs(t *testing.T) {
 
 				err = helpers.RunTerragruntCommand(
 					t,
-					"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+					"terragrunt show --non-interactive --working-dir "+modulePath,
 					&showStdout,
 					&showStderr,
 				)
@@ -596,7 +596,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 		err := helpers.RunTerragruntCommand(
 			t,
 			fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s %s",
 				workingDir, tc.includeArgs,
 			),
 			&applyAllStdout,
@@ -614,7 +614,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 
 			err = helpers.RunTerragruntCommand(
 				t,
-				"terragrunt show --non-interactive --log-level trace --working-dir "+unitPath,
+				"terragrunt show --non-interactive --working-dir "+unitPath,
 				&showStdout,
 				&showStderr,
 			)
