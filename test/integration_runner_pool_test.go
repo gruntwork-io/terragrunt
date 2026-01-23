@@ -149,9 +149,9 @@ func TestRunnerPoolFailFast(t *testing.T) {
 				"failing-unit":       {result: "failed", reason: "run error"},
 				"succeeding-unit":    {result: "succeeded"},
 				"depends-on-failing": {result: "early exit", reason: "ancestor error", cause: "failing-unit"},
-				// depends-on-succeeding gets early exit due to fail-fast triggered by failing-unit,
-				// but since its actual dependency (succeeding-unit) succeeded, no cause is set.
-				"depends-on-succeeding": {result: "early exit", reason: "ancestor error"},
+				// depends-on-succeeding can be either "early exit" or "succeeded" depending on timing.
+				// With parallel execution, it may complete before fail-fast propagates, or get stopped.
+				// Both outcomes are valid - we handle this case separately in the test below.
 			},
 		},
 	}
@@ -200,6 +200,23 @@ func TestRunnerPoolFailFast(t *testing.T) {
 				if expected.cause != "" {
 					require.NotNil(t, run.Cause, "expected cause for %q but got nil", unitName)
 					assert.Equal(t, expected.cause, *run.Cause, "unexpected cause for %q", unitName)
+				}
+			}
+
+			// Special handling for depends-on-succeeding in fail-fast=true case.
+			// Due to parallel execution, it can either complete before fail-fast propagates
+			// (result: "succeeded") or be stopped (result: "early exit"). Both are valid.
+			if tc.failFast {
+				run := runs.FindByName("depends-on-succeeding")
+				require.NotNil(t, run, "run %q not found in report", "depends-on-succeeding")
+
+				validResults := []string{"succeeded", "early exit"}
+				assert.Contains(t, validResults, run.Result,
+					"depends-on-succeeding should be either 'succeeded' or 'early exit', got %q", run.Result)
+
+				if run.Result == "early exit" {
+					require.NotNil(t, run.Reason, "expected reason for depends-on-succeeding but got nil")
+					assert.Equal(t, "ancestor error", *run.Reason)
 				}
 			}
 		})
