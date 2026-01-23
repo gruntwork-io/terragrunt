@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,8 +169,6 @@ func TestDestroyDependentModule(t *testing.T) {
 		t,
 		"terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Join(rootPath, "c"),
 	)
-
-	config.ClearOutputCache()
 
 	// destroy module which have outputs from other modules
 	stdout := bytes.Buffer{}

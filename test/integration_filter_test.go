@@ -1028,6 +1028,10 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
+				// Validate the report file against the JSON schema
+				err = report.ValidateJSONReportFromFile(reportFilePath)
+				require.NoError(t, err, "Report should pass schema validation")
+
 				// Read and parse the report file
 				content, err := os.ReadFile(reportFilePath)
 				require.NoError(t, err, "Should be able to read report file")
@@ -1581,6 +1585,10 @@ unit "unit-to-be-created-2" {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
+				// Validate the report file against the JSON schema
+				err = report.ValidateJSONReportFromFile(reportFilePath)
+				require.NoError(t, err, "Report should pass schema validation")
+
 				// Read and parse the report file
 				content, err := os.ReadFile(reportFilePath)
 				require.NoError(t, err, "Should be able to read report file")
@@ -1857,6 +1865,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -1925,6 +1936,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -2005,6 +2019,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -2075,6 +2092,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -2152,6 +2172,9 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 			// Verify the report file exists
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
+
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
 
 			r, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err)

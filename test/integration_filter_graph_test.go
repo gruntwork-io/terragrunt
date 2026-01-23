@@ -336,6 +336,9 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 
 			require.FileExists(t, reportFile)
 
+			err = report.ValidateJSONReportFromFile(reportFile)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 			require.NoError(t, parseErr)
 
@@ -365,6 +368,9 @@ func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) 
 	require.NoError(t, err)
 
 	require.FileExists(t, reportFile)
+
+	err = report.ValidateJSONReportFromFile(reportFile)
+	require.NoError(t, err, "Report should pass schema validation")
 
 	runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 	require.NoError(t, parseErr)
@@ -625,6 +631,10 @@ func TestFilterFlagWithRunAllCombinedGitAndGraphExpressions(t *testing.T) {
 		cacheHCL := `# Cache unit
 dependency "vpc" {
   config_path = "../vpc"
+
+  mock_outputs = {
+    value = "mock value"
+  }
 }
 `
 		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(cacheHCL), 0644)
@@ -641,6 +651,10 @@ dependency "vpc" {
 		serviceHCL := `# Service unit
 dependency "cache" {
   config_path = "../cache"
+
+  mock_outputs = {
+    value = "mock value"
+  }
 }
 `
 		err = os.WriteFile(filepath.Join(serviceDir, "terragrunt.hcl"), []byte(serviceHCL), 0644)
@@ -666,6 +680,10 @@ dependency "cache" {
 		modifiedCacheHCL := `# Cache unit (MODIFIED)
 dependency "vpc" {
   config_path = "../vpc"
+
+  mock_outputs = {
+    value = "mock value"
+  }
 }
 `
 		err = os.WriteFile(filepath.Join(cacheDir, "terragrunt.hcl"), []byte(modifiedCacheHCL), 0644)
@@ -732,6 +750,9 @@ dependency "vpc" {
 			require.NoError(t, err)
 
 			require.FileExists(t, reportFile)
+
+			err = report.ValidateJSONReportFromFile(reportFile)
+			require.NoError(t, err, "Report should pass schema validation")
 
 			runs, parseErr := report.ParseJSONRunsFromFile(reportFile)
 			require.NoError(t, parseErr)
