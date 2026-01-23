@@ -642,8 +642,15 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 	currentAttempt := 1
 
-	// convert working dir to a clean, absolute path for reporting
-	reportDir, err := filepath.Abs(opts.WorkingDir)
+	// Convert working dir to a clean, absolute path for reporting.
+	// Use OriginalWorkingDir if available (pre-cache location) to ensure
+	// report runs match those created by the runner pool.
+	reportWorkingDir := opts.WorkingDir
+	if opts.OriginalWorkingDir != "" {
+		reportWorkingDir = opts.OriginalWorkingDir
+	}
+
+	reportDir, err := filepath.Abs(reportWorkingDir)
 	if err != nil {
 		return err
 	}

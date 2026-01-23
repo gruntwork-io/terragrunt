@@ -107,7 +107,10 @@ func TestIgnoreSignal(t *testing.T) {
 	assert.Contains(t, stderr, "Ignoring error example1")
 	assert.NotContains(t, stderr, "Ignoring error example2")
 
-	signalsFile := filepath.Join(rootPath, "error-signals.json")
+	// Signals file is written to .terragrunt-cache directory since terraform runs from cache
+	cacheDir := helpers.FindCacheWorkingDir(t, rootPath)
+	require.NotEmpty(t, cacheDir, "Cache directory should exist")
+	signalsFile := filepath.Join(cacheDir, "error-signals.json")
 	assert.FileExists(t, signalsFile)
 
 	content, err := os.ReadFile(signalsFile)

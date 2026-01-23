@@ -164,8 +164,10 @@ func Run(
 
 	// Update opts.WorkingDir to match the cache directory so that
 	// exit codes and other logic that uses opts.WorkingDir are consistent.
-	// We set OriginalWorkingDir so the lock file can be copied back to the original location.
+	// We set OriginalWorkingDir so the lock file can be copied back to the original location,
+	// and so error handling in RunTerraformWithRetry uses the correct path for reporting.
 	opts.WorkingDir = updatedTerragruntOptions.WorkingDir
+	opts.OriginalWorkingDir = originalWorkingDir
 	updatedTerragruntOptions.OriginalWorkingDir = originalWorkingDir
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.

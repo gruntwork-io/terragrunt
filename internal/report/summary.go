@@ -228,6 +228,8 @@ func (s *Summary) writeUnitLevelSummary(w io.Writer, colorizer *Colorizer) error
 			name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
 		}
 
+		name = stripCachePath(name)
+
 		if len(name) > maxUnitNameLength {
 			maxUnitNameLength = len(name)
 		}
@@ -344,6 +346,8 @@ func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer,
 		name = strings.TrimPrefix(name, s.workingDir+string(os.PathSeparator))
 	}
 
+	name = stripCachePath(name)
+
 	padding := s.unitDurationPadding(name, colorizer)
 
 	_, err := fmt.Fprintf(
@@ -408,6 +412,8 @@ func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string 
 			runName = strings.TrimPrefix(runName, s.workingDir+string(os.PathSeparator))
 		}
 
+		runName = stripCachePath(runName)
+
 		if len(runName) > maxUnitNameLength {
 			maxUnitNameLength = len(runName)
 		}
@@ -437,4 +443,24 @@ func (s *Summary) unitDurationPadding(name string, colorizer *Colorizer) string 
 	padding = " " + padding[1:len(padding)-1] + " "
 
 	return colorizer.paddingColorizer(padding)
+}
+
+// stripCachePath removes .terragrunt-cache subdirectories from a path.
+// This is needed because when terraform runs from cache, the path includes
+// .terragrunt-cache/<hash>/<module>/ which should not appear in summaries.
+func stripCachePath(name string) string {
+	const cacheDir = ".terragrunt-cache"
+
+	sep := string(os.PathSeparator)
+
+	if idx := strings.Index(name, sep+cacheDir+sep); idx >= 0 {
+		return name[:idx]
+	}
+
+	// Also handle case where name starts with .terragrunt-cache
+	if strings.HasPrefix(name, cacheDir+sep) {
+		return ""
+	}
+
+	return name
 }
