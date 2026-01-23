@@ -1147,10 +1147,10 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --all --log-level trace --non-interactive --backend-bootstrap --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply --all --non-interactive --backend-bootstrap --working-dir "+rootPath)
 
 	// verify expected output
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1163,9 +1163,9 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	// Now delete the deepdep state and verify still works
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
-	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
+	fmt.Println("terragrunt output -no-color -json --non-interactive --working-dir " + livePath)
 
-	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
@@ -1536,7 +1536,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 		),
 	)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --backend-bootstrap --dependency-fetch-output-from-state --non-interactive --log-level trace --working-dir "+environmentPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --backend-bootstrap --dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "app1 output")
@@ -1585,7 +1585,7 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 
 	// Run output command with experiment enabled but flag set to disable
 	// When the flag is set, it should use terraform output instead of fetching from S3
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --non-interactive --log-level trace --working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 	stderrOutput := stderr.String()
 
@@ -1848,7 +1848,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
 }
 
@@ -1863,7 +1863,7 @@ func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
 }
 
@@ -1925,10 +1925,10 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt run --all apply --log-level trace --non-interactive --backend-bootstrap --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --backend-bootstrap --working-dir "+rootPath)
 
 	// verify expected output
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1943,9 +1943,9 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	// Now delete the deepdep state and verify still works
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
-	fmt.Println("terragrunt output -no-color -json --log-level trace --non-interactive --working-dir " + livePath)
+	fmt.Println("terragrunt output -no-color -json --non-interactive --working-dir " + livePath)
 
-	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --log-level trace --non-interactive --working-dir "+livePath)
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
@@ -2258,7 +2258,7 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --non-interactive --log-level trace --config %s --working-dir %s", configPath, workingDir), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --non-interactive --config %s --working-dir %s", configPath, workingDir), &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

@@ -247,7 +247,7 @@ func TestCustomLockFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := filepath.Join(tmpEnvPath, path)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
 	downloadDir := filepath.Join(rootPath, helpers.TerragruntCache)

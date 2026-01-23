@@ -49,7 +49,7 @@ func TestEngineLocalPlan(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --non-interactive --log-level trace --tf-forward-stdout --working-dir "+
+		"terragrunt run --non-interactive --tf-forward-stdout --working-dir "+
 			rootPath+" -- plan",
 	)
 	require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestEngineLogLevel(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
-		"terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s --log-level trace -- apply -no-color -auto-approve",
+		"terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve",
 		rootPath,
 	),
 	)

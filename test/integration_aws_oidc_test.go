@@ -83,7 +83,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --backend-bootstrap --log-level trace --working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --backend-bootstrap --working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
@@ -113,7 +113,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	roleARN := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	require.NotEmpty(t, roleARN)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token)
+	helpers.RunTerragrunt(t, "terragrunt apply --non-interactive --working-dir "+tmp+" --iam-assume-role "+roleARN+" --iam-assume-role-web-identity-token "+token)
 }
 
 func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {

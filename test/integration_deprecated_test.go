@@ -38,7 +38,7 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		cmd := fmt.Sprintf("terragrunt %s --non-interactive --log-level trace --working-dir %s", strings.Join(tc.command, " "), testFixtureExtraArgsPath)
+		cmd := fmt.Sprintf("terragrunt %s --non-interactive --working-dir %s", strings.Join(tc.command, " "), testFixtureExtraArgsPath)
 
 		var (
 			stdout bytes.Buffer

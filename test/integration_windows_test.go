@@ -119,7 +119,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 				),
 			)
 			tgPath := filepath.Join(rootPath, tc.name)
-			tgArgs := fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir '%s'", tgPath)
+			tgArgs := fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir '%s'", tgPath)
 			helpers.RunTerragrunt(t, tgArgs)
 		})
 	}
@@ -130,7 +130,7 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 	errOut := new(bytes.Buffer)
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
 	modulePath := filepath.Join(rootPath, testFixtureTflintNoIssuesFound)
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --log-level trace --working-dir %s", modulePath), out, errOut)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
@@ -150,7 +150,7 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 	errOut := new(bytes.Buffer)
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureManifestRemoval)
 	modulePath := filepath.Join(rootPath, testFixtureManifestRemoval, "app")
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --log-level trace --working-dir %s", modulePath), out, errOut)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
 	info1, err := fileInfo(modulePath, ".terragrunt-module-manifest")
@@ -159,7 +159,7 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 
 	out = new(bytes.Buffer)
 	errOut = new(bytes.Buffer)
-	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --log-level trace --working-dir %s", modulePath), out, errOut)
+	err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt plan --non-interactive --working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
 	info2, err := fileInfo(modulePath, ".terragrunt-module-manifest")

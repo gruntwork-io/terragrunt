@@ -52,11 +52,11 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
+			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -89,11 +89,11 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --log-level trace --working-dir "+childPath+" -- apply -auto-approve")
+			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -112,7 +112,7 @@ func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --log-level trace --working-dir "+modulePath+" --filter 'reading=alpha.hcl'",
+		"terragrunt run --all plan --non-interactive --working-dir "+modulePath+" --filter 'reading=alpha.hcl'",
 	)
 	require.NoError(t, err)
 
@@ -175,11 +175,11 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	childPath := filepath.Join(includeDeepFixturePath, "child")
 	helpers.CleanupTerraformFolder(t, childPath)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+childPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -227,11 +227,11 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 
 			childPath := filepath.Join(includeMultipleFixturePath, tc, includeDeepFixtureChildPath)
 			helpers.CleanupTerraformFolder(t, childPath)
-			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+childPath)
+			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --log-level trace --working-dir "+childPath, &stdout, &stderr)
+			err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr)
 			require.NoError(t, err)
 
 			outputs := map[string]helpers.TerraformOutput{}
@@ -259,7 +259,7 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --non-interactive --log-level trace --working-dir "+rootPath+" --queue-exclude-dir=. -- plan",
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" --queue-exclude-dir=. -- plan",
 	)
 	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
 

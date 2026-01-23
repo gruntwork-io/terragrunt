@@ -154,7 +154,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath
 
 			for _, f := range tc.unitsReading {
 				cmd = cmd + " --queue-include-units-reading " + f
@@ -311,7 +311,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath
 
 			for _, f := range tc.unitsReading {
 				cmd = cmd + " --filter reading=" + filepath.Join(rootPath, f)
@@ -356,7 +356,7 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 
 	// Test the bug scenario: --queue-include-units-reading
 	// without --queue-include-dir. Units reading shared.hcl should be included.
-	cmd := "terragrunt run --all plan --non-interactive --log-level trace --working-dir " + rootPath +
+	cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath +
 		" --queue-include-units-reading shared.hcl"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
