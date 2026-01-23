@@ -179,26 +179,28 @@ func runHook(
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
-		if err := executeTFLint(ctx, l, opts, cfg, curHook, workingDir); err != nil {
-			return err
-		}
-	} else {
-		_, possibleError := shell.RunCommandWithOutput(
-			ctx,
-			l,
-			opts,
-			workingDir,
-			suppressStdout,
-			false,
-			actionToExecute, actionParams...,
-		)
-		if possibleError != nil {
-			l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
-			return possibleError
+		// TODO(thisguycodes): actually read the strict control
+		strictControlEnabled := false
+		if strictControlEnabled {
+			actionParams = slices.DeleteFunc(actionParams, tflint.IsExternalTFLintFlag)
+		} else {
+			return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
 		}
 	}
 
-	return nil
+	_, possibleError := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		opts,
+		workingDir,
+		suppressStdout,
+		false,
+		actionToExecute, actionParams...,
+	)
+	if possibleError != nil {
+		l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+	}
+	return possibleError
 }
 
 func executeTFLint(

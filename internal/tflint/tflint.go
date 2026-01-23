@@ -28,6 +28,12 @@ const (
 	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
+// IsExternalTFLintFlag satisfies DeleteFunc signatures (i.e. for
+// slices.DeleteFunc) to match the external tflint flag.
+func IsExternalTFLintFlag(flag string) bool {
+	return flag == tfExternalTFLint
+}
+
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
 	// try to fetch configuration file from hook parameters
