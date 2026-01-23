@@ -234,8 +234,11 @@ func TestDetailedExitCodeChangesUnit(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- apply")
 	require.NoError(t, err)
 
-	// delete example.txt from rootPath/app1 to have changes in one unit
-	err = os.Remove(filepath.Join(rootPath, "app1", "example.txt"))
+	// delete example.txt from cache directory to have changes in one unit
+	// The file is created in the cache directory since source is always copied there
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(rootPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Should find cache working directory for app1")
+	err = os.Remove(filepath.Join(app1CacheDir, "example.txt"))
 	require.NoError(t, err)
 
 	// check that the exit code is 2 when there are changes in one unit
@@ -383,7 +386,10 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 			filepath.Join(rootPath, "app_drift"),
 	)
 	require.NoError(t, err)
-	err = os.Remove(filepath.Join(rootPath, "app_drift", "example.txt"))
+	// Delete file from cache directory since that's where it was created
+	appDriftCacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(rootPath, "app_drift"))
+	require.NotEmpty(t, appDriftCacheDir, "Should find cache working directory for app_drift")
+	err = os.Remove(filepath.Join(appDriftCacheDir, "example.txt"))
 	require.NoError(t, err)
 
 	exitCode := tf.NewDetailedExitCodeMap()
@@ -2391,21 +2397,22 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1273")
-	depPathFileOut := filepath.Join(rootPath, "dep", "file.out")
+	depPath := filepath.Join(rootPath, "dep")
 	mainPath := filepath.Join(rootPath, "main")
-	mainPathFileOut := filepath.Join(mainPath, "file.out")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	// The file should exist in the first run.
-	assert.True(t, util.FileExists(depPathFileOut))
-	assert.False(t, util.FileExists(mainPathFileOut))
+	// The file should exist in the first run (now in cache directory).
+	assert.True(t, helpers.FileExistsInCache(t, depPath, "file.out"))
+	assert.False(t, helpers.FileExistsInCache(t, mainPath, "file.out"))
 
-	// Now delete file and run plain main again. It should NOT create file.out.
-	require.NoError(t, os.Remove(depPathFileOut))
+	// Now delete file from cache and run plain main again. It should NOT create file.out.
+	depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
+	require.NotEmpty(t, depCacheDir, "Should find cache working directory for dep")
+	require.NoError(t, os.Remove(filepath.Join(depCacheDir, "file.out")))
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+mainPath)
-	assert.False(t, util.FileExists(depPathFileOut))
-	assert.False(t, util.FileExists(mainPathFileOut))
+	assert.False(t, helpers.FileExistsInCache(t, depPath, "file.out"))
+	assert.False(t, helpers.FileExistsInCache(t, mainPath, "file.out"))
 }
 
 func TestDeepDependencyOutputWithMock(t *testing.T) {
@@ -2793,7 +2800,8 @@ func TestTerragruntGenerateBlockRemove(t *testing.T) {
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
-	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	// With cache always used, the generate block removes files from the cache directory
+	assert.False(t, helpers.FileExistsInCache(t, generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
@@ -2803,7 +2811,8 @@ func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
 	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remove-file", "remove_terragrunt")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
-	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	// With cache always used, the generate block removes files from the cache directory
+	assert.False(t, helpers.FileExistsInCache(t, generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {

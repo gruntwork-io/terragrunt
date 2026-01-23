@@ -289,3 +289,79 @@ func determineToolName(command string) string {
 
 	return command
 }
+
+// FindCacheWorkingDir finds the working directory inside the .terragrunt-cache folder.
+// It returns the directory that contains terragrunt.hcl within the cache structure.
+// This skips .terraform subdirectories which may contain nested module .tf files.
+func FindCacheWorkingDir(t *testing.T, rootDir string) string {
+	t.Helper()
+
+	cacheDir := filepath.Join(rootDir, ".terragrunt-cache")
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		return ""
+	}
+
+	var workingDir string
+
+	_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip .terraform directories to avoid finding nested module files
+		if info.IsDir() && info.Name() == ".terraform" {
+			return filepath.SkipDir
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+		// Look for terragrunt.hcl as the definitive marker of the cache working directory
+		if info.Name() == "terragrunt.hcl" {
+			workingDir = filepath.Dir(path)
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+
+	// Fallback: if no terragrunt.hcl found, look for .tf files (but still skip .terraform dirs)
+	if workingDir == "" {
+		_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() && info.Name() == ".terraform" {
+				return filepath.SkipDir
+			}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tf.json") {
+				workingDir = filepath.Dir(path)
+				return filepath.SkipAll
+			}
+
+			return nil
+		})
+	}
+
+	return workingDir
+}
+
+// FileExistsInCache checks if a file exists within the cache directory structure.
+func FileExistsInCache(t *testing.T, rootDir, filename string) bool {
+	t.Helper()
+
+	cacheWorkingDir := FindCacheWorkingDir(t, rootDir)
+	if cacheWorkingDir == "" {
+		return false
+	}
+
+	filePath := filepath.Join(cacheWorkingDir, filename)
+	_, err := os.Stat(filePath)
+
+	return err == nil
+}

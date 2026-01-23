@@ -886,9 +886,9 @@ func TestStackApplyWithDependency(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyWithDependencyParallelism(t *testing.T) {
@@ -903,9 +903,9 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
@@ -920,9 +920,9 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyDestroyWithDependency(t *testing.T) {

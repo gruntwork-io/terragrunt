@@ -146,16 +146,16 @@ func Run(
 		return err
 	}
 
-	if sourceURL != "" {
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
-			"sourceUrl": sourceURL,
-		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
-			return err
-		})
-		if err != nil {
-			return err
-		}
+	// Always download/copy source to cache directory for consistency.
+	// When no source is specified, sourceURL will be "." (current directory).
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+		"sourceUrl": sourceURL,
+	}, func(ctx context.Context) error {
+		updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
+		return err
+	})
+	if err != nil {
+		return err
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.

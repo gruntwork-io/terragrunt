@@ -39,22 +39,21 @@ func TestDebugGeneratedInputs(t *testing.T) {
 		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --log-level trace --inputs-debug --working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	debugFile := filepath.Join(rootPath, helpers.TerragruntDebugFile)
+	// Debug file is now created in the cache directory
+	cacheWorkingDir := helpers.FindCacheWorkingDir(t, rootPath)
+	require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory")
+	debugFile := filepath.Join(cacheWorkingDir, helpers.TerragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
-	if helpers.IsWindows() {
-		// absolute path test on Windows
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
-	} else {
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
-	}
+	// The chdir path now points to the cache directory (shown as relative path in output)
+	assert.Contains(t, stderr.String(), "-chdir=\"./.terragrunt-cache/")
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	require.NoError(t, err)
 
-	mockOptions.WorkingDir = rootPath
+	mockOptions.WorkingDir = cacheWorkingDir
 
 	l := logger.CreateLogger()
 
