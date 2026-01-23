@@ -18,7 +18,7 @@ import (
 
 const (
 	// csvFieldCount is the expected number of fields in a CSV report row.
-	csvFieldCount = 6
+	csvFieldCount = 9
 	// csvRowOffset accounts for: 0-indexed loop (i starts at 0) + skipped header row.
 	csvRowOffset = 2
 )
@@ -37,6 +37,12 @@ type JSONRun struct {
 	Name string `json:"Name" jsonschema:"required"`
 	// Result is the result of the run.
 	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
+	// Ref is the worktree reference (e.g., git commit, branch).
+	Ref *string `json:"Ref,omitempty"`
+	// Cmd is the terraform command (plan, apply, etc.).
+	Cmd *string `json:"Cmd,omitempty"`
+	// Args are the terraform CLI arguments.
+	Args []string `json:"Args,omitempty"`
 }
 
 // JSONRuns is a slice of JSONRun entries with helper methods.
@@ -95,6 +101,9 @@ type CSVRun struct {
 	Result  string
 	Reason  string
 	Cause   string
+	Ref     string
+	Cmd     string
+	Args    string
 }
 
 // CSVRuns is a slice of CSVRun entries with helper methods.
@@ -130,6 +139,9 @@ func ParseCSVRuns(data []byte) (CSVRuns, error) {
 			Result:  record[3],
 			Reason:  record[4],
 			Cause:   record[5],
+			Ref:     record[6],
+			Cmd:     record[7],
+			Args:    record[8],
 		})
 	}
 
@@ -268,6 +280,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		"Result",
 		"Reason",
 		"Cause",
+		"Ref",
+		"Cmd",
+		"Args",
 	})
 	if err != nil {
 		return err
@@ -298,6 +313,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			}
 		}
 
+		// Format Args as comma-separated string for CSV
+		args := strings.Join(run.Args, ",")
+
 		err := csvWriter.Write([]string{
 			name,
 			started,
@@ -305,6 +323,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			result,
 			reason,
 			cause,
+			run.Ref,
+			run.Cmd,
+			args,
 		})
 		if err != nil {
 			return err
@@ -347,6 +368,18 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			}
 
 			jsonRun.Cause = &cause
+		}
+
+		if run.Ref != "" {
+			jsonRun.Ref = &run.Ref
+		}
+
+		if run.Cmd != "" {
+			jsonRun.Cmd = &run.Cmd
+		}
+
+		if len(run.Args) > 0 {
+			jsonRun.Args = run.Args
 		}
 
 		runs = append(runs, jsonRun)

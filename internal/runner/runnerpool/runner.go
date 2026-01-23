@@ -426,10 +426,24 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil {
+					if discoveryCtx.WorkingDir != "" {
+						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+					}
+
+					if discoveryCtx.Ref != "" {
+						ensureOpts = append(ensureOpts, report.WithRef(discoveryCtx.Ref))
+					}
+
+					if discoveryCtx.Cmd != "" {
+						ensureOpts = append(ensureOpts, report.WithCmd(discoveryCtx.Cmd))
+					}
+
+					if len(discoveryCtx.Args) > 0 {
+						ensureOpts = append(ensureOpts, report.WithArgs(discoveryCtx.Args))
+					}
 				}
 
 				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -556,10 +570,24 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
+					if discoveryCtx.WorkingDir != "" {
+						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+					}
+
+					if discoveryCtx.Ref != "" {
+						ensureOpts = append(ensureOpts, report.WithRef(discoveryCtx.Ref))
+					}
+
+					if discoveryCtx.Cmd != "" {
+						ensureOpts = append(ensureOpts, report.WithCmd(discoveryCtx.Cmd))
+					}
+
+					if len(discoveryCtx.Args) > 0 {
+						ensureOpts = append(ensureOpts, report.WithArgs(discoveryCtx.Args))
+					}
 				}
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
