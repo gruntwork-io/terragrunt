@@ -1863,6 +1863,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 			// Verify expected units are in the report
 			found := false
+
 			for _, name := range names {
 				if strings.Contains(name, "target-unit") {
 					found = true
@@ -1875,6 +1876,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
 				found := false
+
 				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
@@ -1916,6 +1918,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 			// Verify expected units are in the report
 			found := false
+
 			for _, name := range names {
 				if strings.Contains(name, "target-unit") {
 					found = true
@@ -1926,6 +1929,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			require.True(t, found, "target-unit should be in report. Found units: %v", names)
 
 			found = false
+
 			for _, name := range names {
 				if strings.Contains(name, "dependency-unit") {
 					found = true
@@ -1938,6 +1942,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
 				found := false
+
 				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
@@ -1980,6 +1985,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 			// Verify expected unit is in the report
 			found := false
+
 			for _, name := range names {
 				if strings.Contains(name, "unit-a") {
 					found = true
@@ -1992,6 +1998,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
 				found := false
+
 				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
@@ -2035,6 +2042,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 
 			// Verify expected unit is in the report
 			found := false
+
 			for _, name := range names {
 				if strings.Contains(name, "unit-a") {
 					found = true
@@ -2047,6 +2055,7 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
 				found := false
+
 				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true

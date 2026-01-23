@@ -86,8 +86,8 @@ func (runs JSONRuns) FindByName(name string) *JSONRun {
 // Useful for debugging and assertions in tests.
 func (runs JSONRuns) Names() []string {
 	names := make([]string, len(runs))
-	for i, run := range runs {
-		names[i] = run.Name
+	for i := range runs {
+		names[i] = runs[i].Name
 	}
 
 	return names
@@ -175,8 +175,8 @@ func (runs CSVRuns) FindByName(name string) *CSVRun {
 // Useful for debugging and assertions in tests.
 func (runs CSVRuns) Names() []string {
 	names := make([]string, len(runs))
-	for i, run := range runs {
-		names[i] = run.Name
+	for i := range runs {
+		names[i] = runs[i].Name
 	}
 
 	return names
