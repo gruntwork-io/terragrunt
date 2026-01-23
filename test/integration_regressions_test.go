@@ -268,7 +268,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	assert.NotContains(t, errorMessage, "Could not find Terragrunt configuration settings")
 }
 
-// TestRunAllWithGenerateAndExpose tests that run --all works correctly with:
+// TestParsingWithGenerateAndExpose tests that config parsing works correctly with:
 // - Exposed include blocks with generate blocks
 // - Dependencies between units
 // - Complex inputs with map comparisons
@@ -277,8 +277,11 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 // configs with exposed includes containing generate blocks would fail during
 // discovery with "Could not find Terragrunt configuration settings" errors.
 //
+// Uses `list --dag --format=dot` instead of `run --all plan` since this is a parsing test
+// and doesn't need to run terraform operations.
+//
 // See: https://github.com/gruntwork-io/terragrunt/issues/4983
-func TestRunAllWithGenerateAndExpose(t *testing.T) {
+func TestParsingWithGenerateAndExpose(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
@@ -288,11 +291,11 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
 	)
 
 	// The command should succeed
-	require.NoError(t, err, "run --all plan should succeed")
+	require.NoError(t, err, "list --dag --format=dot should succeed")
 
 	// Should not see parsing errors
 	assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings",
@@ -304,20 +307,18 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 	assert.NotContains(t, stderr, "%!w(",
 		"Should not see formatting artifacts in error output")
 
-	// Verify both units ran successfully
-	combinedOutput := stdout + stderr
-	assert.Contains(t, combinedOutput, "test1",
-		"Should process the service dependency")
-	assert.Contains(t, combinedOutput, "null_resource.services_info",
-		"Should process the services-info unit with null resource")
+	// Verify both units are discovered in the dependency graph
+	// list --dag --format=dot outputs DOT format showing dependencies
+	assert.Contains(t, stdout, "test1", "Should discover the service dependency")
 }
 
-// TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
-// to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
-// excluding external dependencies.
-// Note: As of #5195 fix, external dependencies are excluded by default, so --queue-exclude-external
-// is now deprecated and acts as a no-op. This test verifies the behavior still works correctly.
-func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
+// TestParsingWithGenerateAndExpose_WithExternalDependencies tests that config parsing
+// works correctly when external dependencies exist. This is a variant of TestParsingWithGenerateAndExpose
+// that verifies the same parsing behavior works with the full fixture including external dependencies.
+//
+// Uses `list --dag --format=dot` instead of `run --all plan` since this is a parsing test
+// and doesn't need to run terraform operations.
+func TestParsingWithGenerateAndExpose_WithExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
@@ -325,11 +326,9 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := filepath.Join(tmpEnvPath, testFixture, "services-info")
 
-	// Use --queue-exclude-external as in the repro steps (now deprecated, acts as no-op since
-	// external dependencies are excluded by default after #5195 fix)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
 	)
 
 	// The command should succeed
@@ -340,10 +339,8 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.NotContains(t, stderr, "Unrecoverable parse error")
 	assert.NotContains(t, stderr, "%!w(")
 
-	// Verify the current unit ran successfully and external dependency was excluded
-	combinedOutput := stdout + stderr
-	assert.NotContains(t, combinedOutput, "service1")
-	assert.Contains(t, combinedOutput, "null_resource.services_info")
+	// Verify units are discovered in the dependency graph
+	assert.Contains(t, stdout, "test1", "Should discover the service dependency")
 }
 
 // TestSensitiveValues tests that sensitive values can be properly handled
