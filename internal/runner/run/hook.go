@@ -179,11 +179,13 @@ func runHook(
 	actionParams := curHook.Execute[1:]
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
-	containsExternalTFLintFlag := slices.ContainsFunc(actionParams, tflint.IsExternalTFLintFlag)
+	containsExternalTFLintFlag := slices.Contains(actionParams, tflint.TfExternalTFLint)
 	if actionToExecute == "tflint" {
 		if containsExternalTFLintFlag {
 			// delete the flag and continue to execute as a normal hook
-			actionParams = slices.DeleteFunc(actionParams, tflint.IsExternalTFLintFlag)
+			actionParams = slices.DeleteFunc(actionParams, func(arg string) bool {
+				return arg == tflint.TfExternalTFLint
+			})
 		} else {
 			strictControl := opts.StrictControls.Find(controls.InternalTFLint)
 			forceExternalTFLint := false

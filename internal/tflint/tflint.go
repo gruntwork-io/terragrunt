@@ -25,14 +25,8 @@ const (
 	tfVarPrefix      = "TF_VAR_"
 	argVarPrefix     = "-var="
 	argVarFilePrefix = "-var-file="
-	tfExternalTFLint = "--terragrunt-external-tflint"
+	TfExternalTFLint = "--terragrunt-external-tflint"
 )
-
-// IsExternalTFLintFlag satisfies XyzFunc signatures (i.e. for
-// slices.DeleteFunc) to match the external tflint flag.
-func IsExternalTFLintFlag(flag string) bool {
-	return flag == tfExternalTFLint
-}
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
@@ -136,7 +130,7 @@ func tflintArguments(arguments []string) ([]string, bool) {
 	filteredArguments := make([]string, 0, len(arguments))
 
 	for _, arg := range arguments {
-		if arg == tfExternalTFLint {
+		if arg == TfExternalTFLint {
 			externalTfLint = true
 			continue
 		}
