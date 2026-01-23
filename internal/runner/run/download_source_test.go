@@ -629,6 +629,61 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 	}
 }
 
+// TestDownloadWithNoSourceCreatesCache tests that when sourceURL is "." (no source specified),
+// DownloadTerraformSource creates cache and copies files from the working directory.
+// This tests the behavior when terragrunt.hcl doesn't have a terraform { source = "..." } block.
+func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
+	t.Parallel()
+
+	// Create a temp directory to act as the source/working directory
+	sourceDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(sourceDir)
+
+	// Create a simple terraform file in the source directory
+	mainTfContent := "# Test file for no-source cache creation\n"
+	err := os.WriteFile(filepath.Join(sourceDir, "main.tf"), []byte(mainTfContent), 0644)
+	require.NoError(t, err)
+
+	// Create the download directory where cache will be created
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+	defer os.RemoveAll(downloadDir)
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(sourceDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = sourceDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{
+			ExtraArgs: []runcfg.TerraformExtraArguments{},
+		},
+	}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	r := report.NewReport()
+
+	// sourceURL "." represents the current directory (no terraform.source specified)
+	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, ".", opts, cfg, r)
+	require.NoError(t, err)
+
+	// Verify that the working directory was changed to the cache directory (inside downloadDir)
+	assert.NotEqual(t, sourceDir, updatedOpts.WorkingDir, "Working dir should be changed to cache")
+	assert.True(t, strings.HasPrefix(updatedOpts.WorkingDir, downloadDir), "Working dir should be under download dir")
+
+	// Verify that the main.tf file was copied to the cache
+	cachedMainTf := filepath.Join(updatedOpts.WorkingDir, "main.tf")
+	assert.FileExists(t, cachedMainTf, "main.tf should exist in cache directory")
+
+	// Verify the contents were copied correctly
+	cachedContent, err := os.ReadFile(cachedMainTf)
+	require.NoError(t, err)
+	assert.Equal(t, mainTfContent, string(cachedContent), "File contents should match")
+}
+
 // TestDownloadSourceWithCASExperimentDisabled tests that CAS is not used when the experiment is disabled
 func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	t.Parallel()
