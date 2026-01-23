@@ -113,21 +113,23 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
+		const testTag = "v0.98.0"
+
 		// First clone to populate store
 		c, err := cas.New(cas.Options{
 			StorePath: storePath,
 		})
 		require.NoError(t, err)
 		require.NoError(t, c.Clone(ctx, l, &cas.CloneOptions{
-			Dir: filepath.Join(tempDir, "repo"),
+			Dir:    filepath.Join(tempDir, "repo"),
+			Branch: testTag,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
-		// Get the commit hash
+		// Get the commit hash for the tag
 		g, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		g = g.WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", testTag)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
