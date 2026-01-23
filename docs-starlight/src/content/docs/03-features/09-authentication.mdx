@@ -6,6 +6,10 @@ sidebar:
   order: 9
 ---
 
+import { Code } from '@astrojs/starlight/components';
+
+import authProviderCmdSchema from '../../../../public/schemas/auth-provider-cmd/v1/schema.json?raw';
+
 ## Motivation
 
 AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS, especially when you have to manage multiple AWS accounts.
@@ -63,7 +67,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 
 Terragrunt will resolve the value of the option by first looking for the cli argument, then looking for the environment variable, then defaulting to the value specified in the config file.
 
-Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment variables when running OpenTofu/Terraform. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the complexity of calling `assume-role` yourself, and you don’t have to modify your OpenTofu/Terraform code or backend configuration at all.
+Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment variables when running OpenTofu/Terraform. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the complexity of calling `assume-role` yourself, and you don't have to modify your OpenTofu/Terraform code or backend configuration at all.
 
 ## Leveraging OIDC role assumption
 
@@ -121,29 +125,12 @@ terragrunt apply
 
 When Terragrunt executes this script, it will expect a response in stdout that obeys the following schema:
 
-```json
-{
-  "awsCredentials": {
-    "ACCESS_KEY_ID": "",
-    "SECRET_ACCESS_KEY": "",
-    "SESSION_TOKEN": ""
-  },
-  "awsRole": {
-    "roleARN": "",
-    "sessionName": "",
-    "duration": 0,
-    "webIdentityToken": ""
-  },
-  "envs": {
-    "ANY_KEY": ""
-  }
-}
-```
+<Code title="auth-provider-cmd/v1/schema.json" lang="json" code={authProviderCmdSchema} />
 
 All top-level objects are optional, and you can provide multiple.
 
 - `awsCredentials` is the standard AWS credential object, which can be used to set the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and (optionally) `AWS_SESSION_TOKEN` environment variables before running OpenTofu/Terraform.
-- `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `sessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
+- `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `roleSessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
 - `envs` is a map of environment variables that will be set before running OpenTofu/Terraform.
 
 Given that the working directory of Terragrunt execution is the same as the command, you can author logic in your script to determine which credentials are appropriate to return based on the context of the Terragrunt run.
