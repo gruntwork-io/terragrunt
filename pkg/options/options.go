@@ -142,6 +142,9 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
+	// The original working directory before downloading to cache.
+	// Used to copy the lock file back to the original location.
+	OriginalWorkingDir string
 	// Location (or name) of the OpenTofu/Terraform binary
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
