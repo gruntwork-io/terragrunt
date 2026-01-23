@@ -28,7 +28,7 @@ const (
 	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
-// IsExternalTFLintFlag satisfies DeleteFunc signatures (i.e. for
+// IsExternalTFLintFlag satisfies XyzFunc signatures (i.e. for
 // slices.DeleteFunc) to match the external tflint flag.
 func IsExternalTFLintFlag(flag string) bool {
 	return flag == tfExternalTFLint
