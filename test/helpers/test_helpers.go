@@ -291,8 +291,8 @@ func determineToolName(command string) string {
 }
 
 // FindCacheWorkingDir finds the working directory inside the .terragrunt-cache folder.
-// It returns the directory that contains terragrunt.hcl within the cache structure.
-// This skips .terraform subdirectories which may contain nested module .tf files.
+// The cache layout is <root>/.terragrunt-cache/<hash>/<module>/..., so we return the first
+// two-level directory path we find.
 func FindCacheWorkingDir(t *testing.T, rootDir string) string {
 	t.Helper()
 
@@ -301,54 +301,26 @@ func FindCacheWorkingDir(t *testing.T, rootDir string) string {
 		return ""
 	}
 
-	var workingDir string
+	firstLevel, err := os.ReadDir(cacheDir)
+	require.NoError(t, err)
 
-	_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		// Skip .terraform directories to avoid finding nested module files
-		if info.IsDir() && info.Name() == ".terraform" {
-			return filepath.SkipDir
+	for _, first := range firstLevel {
+		if !first.IsDir() {
+			continue
 		}
 
-		if info.IsDir() {
-			return nil
+		firstPath := filepath.Join(cacheDir, first.Name())
+		secondLevel, err := os.ReadDir(firstPath)
+		require.NoError(t, err)
+
+		for _, second := range secondLevel {
+			if second.IsDir() {
+				return filepath.Join(firstPath, second.Name())
+			}
 		}
-		// Look for terragrunt.hcl as the definitive marker of the cache working directory
-		if info.Name() == "terragrunt.hcl" {
-			workingDir = filepath.Dir(path)
-			return filepath.SkipAll
-		}
-
-		return nil
-	})
-
-	// Fallback: if no terragrunt.hcl found, look for .tf files (but still skip .terraform dirs)
-	if workingDir == "" {
-		_ = filepath.Walk(cacheDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if info.IsDir() && info.Name() == ".terraform" {
-				return filepath.SkipDir
-			}
-
-			if info.IsDir() {
-				return nil
-			}
-
-			if strings.HasSuffix(path, ".tf") || strings.HasSuffix(path, ".tf.json") {
-				workingDir = filepath.Dir(path)
-				return filepath.SkipAll
-			}
-
-			return nil
-		})
 	}
 
-	return workingDir
+	return ""
 }
 
 // FileExistsInCache checks if a file exists within the cache directory structure.
