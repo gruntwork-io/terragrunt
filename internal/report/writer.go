@@ -60,11 +60,16 @@ func ParseJSONRuns(data []byte) (JSONRuns, error) {
 }
 
 // ParseJSONRunsFromFile reads and parses a JSON report from a file.
-// Returns a slice of JSONRun entries or an error if reading or parsing fails.
+// Returns a slice of JSONRun entries or an error if reading, validation, or parsing fails.
+// The report is validated against the JSON schema before parsing.
 func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
+	}
+
+	if err := validateJSONReport(data); err != nil {
+		return nil, err
 	}
 
 	return ParseJSONRuns(data)
@@ -191,9 +196,9 @@ func (e *SchemaValidationError) Error() string {
 	return fmt.Sprintf("schema validation failed with %d error(s): %v", len(e.Errors), e.Errors)
 }
 
-// ValidateJSONReport validates a JSON report against the schema.
+// validateJSONReport validates a JSON report against the schema.
 // Returns nil if valid, or a SchemaValidationError with details if invalid.
-func ValidateJSONReport(data []byte) error {
+func validateJSONReport(data []byte) error {
 	schemaBytes, err := json.Marshal(generateReportSchema())
 	if err != nil {
 		return fmt.Errorf("failed to generate schema: %w", err)
@@ -217,17 +222,6 @@ func ValidateJSONReport(data []byte) error {
 	}
 
 	return nil
-}
-
-// ValidateJSONReportFromFile reads and validates a JSON report file against the schema.
-// Returns nil if valid, or an error if reading fails or validation fails.
-func ValidateJSONReportFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read report file %s: %w", path, err)
-	}
-
-	return ValidateJSONReport(data)
 }
 
 // WriteToFile writes the report to a file.

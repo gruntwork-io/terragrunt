@@ -1027,10 +1027,6 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
-				// Validate the report file against the JSON schema
-				err = report.ValidateJSONReportFromFile(reportFilePath)
-				require.NoError(t, err, "Report should pass schema validation")
-
 				// Read and parse the report file
 				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
@@ -1580,10 +1576,6 @@ unit "unit-to-be-created-2" {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
-				// Validate the report file against the JSON schema
-				err = report.ValidateJSONReportFromFile(reportFilePath)
-				require.NoError(t, err, "Report should pass schema validation")
-
 				// Read and parse the report file
 				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
@@ -2099,9 +2091,6 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 			// Verify the report file exists
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
-
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
 
 			r, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err)

@@ -198,9 +198,6 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 				}
 			} else {
 				// JSON format
-				err = report.ValidateJSONReportFromFile(reportFilePath)
-				require.NoError(t, err, "Report should pass schema validation")
-
 				content, err := os.ReadFile(reportFilePath)
 				require.NoError(t, err)
 
@@ -711,11 +708,6 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				if tc.validateSchema {
-					err := report.ValidateJSONReportFromFile(reportFilePath)
-					require.NoError(t, err, "Report should pass schema validation")
-				}
-
 				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 

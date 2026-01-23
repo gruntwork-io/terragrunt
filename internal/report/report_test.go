@@ -1935,8 +1935,9 @@ func TestCSVRunsNames(t *testing.T) {
 	}
 }
 
-// TestValidateJSONReport verifies that JSON report validation works correctly.
-func TestValidateJSONReport(t *testing.T) {
+// TestParseJSONRunsFromFileValidation verifies that JSON report validation works correctly
+// when parsing files. Validation is performed as the first step in parsing.
+func TestParseJSONRunsFromFileValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -2001,11 +2002,17 @@ func TestValidateJSONReport(t *testing.T) {
 		},
 	}
 
+	tmp := helpers.TmpDirWOSymlinks(t)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := report.ValidateJSONReport([]byte(tt.input))
+			reportFile := filepath.Join(tmp, strings.ReplaceAll(tt.name, " ", "-")+".json")
+			err := os.WriteFile(reportFile, []byte(tt.input), 0644)
+			require.NoError(t, err)
+
+			_, err = report.ParseJSONRunsFromFile(reportFile)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -2014,49 +2021,22 @@ func TestValidateJSONReport(t *testing.T) {
 			}
 		})
 	}
-}
 
-// TestValidateJSONReportFromFile verifies that file-based validation works.
-func TestValidateJSONReportFromFile(t *testing.T) {
-	t.Parallel()
-
-	tmp := helpers.TmpDirWOSymlinks(t)
-
-	t.Run("valid file", func(t *testing.T) {
+	t.Run("schema validation error details", func(t *testing.T) {
 		t.Parallel()
 
-		reportFile := filepath.Join(tmp, "valid-report.json")
-		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
-
-		err := os.WriteFile(reportFile, []byte(content), 0644)
-		require.NoError(t, err)
-
-		err = report.ValidateJSONReportFromFile(reportFile)
-		require.NoError(t, err)
-	})
-
-	t.Run("invalid file content", func(t *testing.T) {
-		t.Parallel()
-
-		reportFile := filepath.Join(tmp, "invalid-report.json")
+		reportFile := filepath.Join(tmp, "schema-error-details.json")
 		content := `[{"Name": "test-unit"}]` // missing required fields
 
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		err = report.ValidateJSONReportFromFile(reportFile)
+		_, err = report.ParseJSONRunsFromFile(reportFile)
 		require.Error(t, err)
 
 		var schemaErr *report.SchemaValidationError
 		require.ErrorAs(t, err, &schemaErr)
 		assert.NotEmpty(t, schemaErr.Errors)
-	})
-
-	t.Run("non-existent file", func(t *testing.T) {
-		t.Parallel()
-
-		err := report.ValidateJSONReportFromFile(filepath.Join(tmp, "does-not-exist.json"))
-		require.Error(t, err)
 	})
 }
 
