@@ -117,7 +117,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		},
 	}
 
-	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause"}
+	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause", "Ref", "Cmd", "Args"}
 
 	expectedRecords := []map[string]string{
 		{"Name": "chain-a", "Result": "failed", "Reason": "run error", "Cause": ""},
@@ -356,7 +356,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			switch tc.expectedFormat {
 			case "csv":
 				// For CSV, verify it starts with the expected header
-				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause"))
+				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args"))
 			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
 				var jsonContent []map[string]any

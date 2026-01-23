@@ -38,9 +38,9 @@ type JSONRun struct {
 	// Result is the result of the run.
 	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
 	// Ref is the worktree reference (e.g., git commit, branch).
-	Ref *string `json:"Ref,omitempty"`
+	Ref string `json:"Ref,omitempty"`
 	// Cmd is the terraform command (plan, apply, etc.).
-	Cmd *string `json:"Cmd,omitempty"`
+	Cmd string `json:"Cmd,omitempty"`
 	// Args are the terraform CLI arguments.
 	Args []string `json:"Args,omitempty"`
 }
@@ -313,8 +313,8 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			}
 		}
 
-		// Format Args as comma-separated string for CSV
-		args := strings.Join(run.Args, ",")
+		// Format Args as pipe-separated string for CSV to avoid conflicts with CSV column separator
+		args := strings.Join(run.Args, "|")
 
 		err := csvWriter.Write([]string{
 			name,
@@ -371,11 +371,11 @@ func (r *Report) WriteJSON(w io.Writer) error {
 		}
 
 		if run.Ref != "" {
-			jsonRun.Ref = &run.Ref
+			jsonRun.Ref = run.Ref
 		}
 
 		if run.Cmd != "" {
-			jsonRun.Cmd = &run.Cmd
+			jsonRun.Cmd = run.Cmd
 		}
 
 		if len(run.Args) > 0 {
@@ -484,7 +484,7 @@ func generateReportSchema() *jsonschema.Schema {
 	schema := reflector.Reflect(&JSONRun{})
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json"
 
 	return &jsonschema.Schema{
 		Type:        "array",

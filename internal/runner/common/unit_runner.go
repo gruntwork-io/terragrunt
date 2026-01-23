@@ -70,6 +70,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
+
 		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil {
 			if discoveryCtx.WorkingDir != "" {
 				ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))

@@ -428,6 +428,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
+
 				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil {
 					if discoveryCtx.WorkingDir != "" {
 						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
@@ -572,6 +573,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
+
 				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
 					if discoveryCtx.WorkingDir != "" {
 						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))

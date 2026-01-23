@@ -766,7 +766,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json",
     "properties": {
       "Started": {
         "type": "string",
@@ -904,7 +904,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 				"schemas",
 				"run",
 				"report",
-				"v2",
+				"v3",
 				"schema.json",
 			),
 		},
@@ -1780,11 +1780,11 @@ func TestParseCSVRuns(t *testing.T) {
 		{
 			name: "multiple runs with all fields",
 			input: `Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args
-unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,HEAD~1,plan,-out=plan.tfplan
+unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,HEAD~1,plan,-out=plan.tfplan|-var=foo=bar
 unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error,main,apply,
 `,
 			expected: report.CSVRuns{
-				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded", Ref: "HEAD~1", Cmd: "plan", Args: "-out=plan.tfplan"},
+				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded", Ref: "HEAD~1", Cmd: "plan", Args: "-out=plan.tfplan|-var=foo=bar"},
 				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error", Ref: "main", Cmd: "apply"},
 			},
 		},
