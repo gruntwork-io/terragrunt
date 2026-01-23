@@ -188,10 +188,12 @@ func runHook(
 			})
 		} else {
 			strictControl := opts.StrictControls.Find(controls.InternalTFLint)
+
 			forceExternalTFLint := false
 			if strictControl != nil && strictControl.Evaluate(ctx) != nil {
 				forceExternalTFLint = true
 			}
+
 			if forceExternalTFLint {
 				// continue to execute as a normal hook
 			} else {

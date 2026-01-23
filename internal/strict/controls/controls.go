@@ -267,8 +267,8 @@ func New() strict.Controls {
 			Name:        InternalTFLint,
 			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
 			Category:    stageCategory,
-			Error:       errors.New("The embedded version of tflint is no longer supported."),
-			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally.",
+			Error:       errors.New("The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally."),
+			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
 		},
 	}
 
