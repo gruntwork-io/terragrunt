@@ -200,6 +200,7 @@ func runHook(
 	if possibleError != nil {
 		l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 	}
+
 	return possibleError
 }
 
