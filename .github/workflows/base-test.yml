@@ -45,6 +45,12 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
+      - name: Terragrunt Provider Cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
+          key: ${{ runner.os }}-terragrunt-provider-cache
+
       - name: Run Tests
         id: run-tests
         run: |

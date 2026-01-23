@@ -98,6 +98,12 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
 
+      - name: Terragrunt Provider Cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/terragrunt
+          key: ${{ runner.os }}-terragrunt-provider-cache
+
       - name: Run Tests
         run: |
           if [ "$SKIP" != "true" ]; then
