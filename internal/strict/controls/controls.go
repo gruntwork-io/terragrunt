@@ -70,6 +70,9 @@ const (
 
 	// NoDestroyDependenciesCheck is the control that prevents the use of the deprecated `--no-destroy-dependencies-check` flag.
 	NoDestroyDependenciesCheck = "no-destroy-dependencies-check"
+
+	// InternalTFLint is the control that prevents the use of the deprecated embedded version of tflint.
+	InternalTFLint = "legacy-internal-tflint"
 )
 
 //nolint:lll
@@ -259,6 +262,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations."),
 			Warning:     "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
+		},
+		&Control{
+			Name:        InternalTFLint,
+			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
+			Category:    stageCategory,
+			Error:       errors.New("The embedded version of tflint is no longer supported."),
+			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally.",
 		},
 	}
 

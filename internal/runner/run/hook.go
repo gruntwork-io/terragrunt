@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -178,13 +179,22 @@ func runHook(
 	actionParams := curHook.Execute[1:]
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
+	containsExternalTFLintFlag := slices.ContainsFunc(actionParams, tflint.IsExternalTFLintFlag)
 	if actionToExecute == "tflint" {
-		// TODO(thisguycodes): actually read the strict control
-		strictControlEnabled := false
-		if strictControlEnabled {
+		if containsExternalTFLintFlag {
+			// delete the flag and continue to execute as a normal hook
 			actionParams = slices.DeleteFunc(actionParams, tflint.IsExternalTFLintFlag)
 		} else {
-			return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
+			strictControl := opts.StrictControls.Find(controls.InternalTFLint)
+			forceExternalTFLint := false
+			if strictControl != nil && strictControl.Evaluate(ctx) != nil {
+				forceExternalTFLint = true
+			}
+			if forceExternalTFLint {
+				// continue to execute as a normal hook
+			} else {
+				return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
+			}
 		}
 	}
 
