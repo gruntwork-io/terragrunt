@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terratest/modules/retry"
 	"github.com/stretchr/testify/assert"
@@ -257,32 +258,46 @@ func TestTerragruntWorksWithRootTerragruntHCL(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt run --all --non-interactive --working-dir "+rootPath+" --queue-exclude-dir=. -- plan",
+	reportFile := filepath.Join(rootPath, helpers.ReportFile)
+
+	command := fmt.Sprintf(
+		"terragrunt run --all --non-interactive --working-dir %s --queue-exclude-dir=. --report-file %s --report-format json -- plan",
+		rootPath,
+		reportFile,
 	)
-	require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout, stderr)
 
-	// Child configs should still be able to include the root `terragrunt.hcl` (deprecated, but supported).
-	assert.Regexp(t, `Included config \./terragrunt\.hcl`, stderr)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, command)
+	require.NoError(t, err)
 
-	// And the child units should still be discovered.
-	assert.Contains(t, stderr, "=> Unit bar (excluded: false")
-	assert.Contains(t, stderr, "=> Unit baz (excluded: false")
-	assert.Contains(t, stderr, "=> Unit foo (excluded: false")
+	// Validate the report file against the schema
+	err = report.ValidateJSONReportFromFile(reportFile)
+	require.NoError(t, err, "Report should pass schema validation")
 
-	// And they should be queued for execution.
-	assert.Contains(t, stderr, "Unit queue will be processed for plan in this order:")
-	assert.Contains(t, stderr, "- Unit bar")
-	assert.Contains(t, stderr, "- Unit baz")
-	assert.Contains(t, stderr, "- Unit foo")
+	// Parse the report file to verify the correct units ran
+	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, err, "Should be able to parse JSON report")
 
-	// Root should not be treated as a runnable unit.
-	assert.NotContains(t, stderr, "=> Unit bar (excluded: true")
-	assert.NotContains(t, stderr, "=> Unit baz (excluded: true")
-	assert.NotContains(t, stderr, "=> Unit foo (excluded: true")
+	runNames := runs.Names()
 
-	assert.NotContains(t, stderr, "Runner Pool Controller: starting with 0 tasks")
+	// Verify exactly 3 child units ran (bar, baz, foo)
+	assert.Len(t, runs, 3, "Expected exactly 3 units in report. Found: %v", runNames)
+
+	// Verify each child unit was discovered and executed successfully
+	barRun := runs.FindByName("bar")
+	require.NotNil(t, barRun, "Expected bar unit to be in report. Found: %v", runNames)
+	assert.Equal(t, "succeeded", barRun.Result)
+
+	bazRun := runs.FindByName("baz")
+	require.NotNil(t, bazRun, "Expected baz unit to be in report. Found: %v", runNames)
+	assert.Equal(t, "succeeded", bazRun.Result)
+
+	fooRun := runs.FindByName("foo")
+	require.NotNil(t, fooRun, "Expected foo unit to be in report. Found: %v", runNames)
+	assert.Equal(t, "succeeded", fooRun.Result)
+
+	// Root should not be treated as a runnable unit (the "." directory should be excluded)
+	rootRun := runs.FindByName(".")
+	assert.Nil(t, rootRun, "Root directory should not be in the report as it should be excluded")
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]helpers.TerraformOutput) {

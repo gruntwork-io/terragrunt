@@ -785,7 +785,11 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+
+			testPath+" -- apply",
+	)
 	require.NoError(t, err)
 
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
@@ -810,7 +814,7 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply",
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+" -- apply",
 	)
 	require.NoError(t, err)
 

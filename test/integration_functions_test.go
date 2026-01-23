@@ -188,7 +188,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		"terragrunt run --log-level debug --all plan --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 

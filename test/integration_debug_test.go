@@ -31,22 +31,20 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --inputs-debug --working-dir "+rootPath, &stdout, &stderr),
+		"terragrunt plan --non-interactive --log-level debug --inputs-debug --working-dir "+rootPath,
 	)
+	require.NoError(t, err)
 
 	debugFile := filepath.Join(rootPath, helpers.TerragruntDebugFile)
 	assert.True(t, util.FileExists(debugFile))
 
 	if helpers.IsWindows() {
 		// absolute path test on Windows
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
+		assert.Contains(t, stderr, fmt.Sprintf("-chdir=\"%s\"", rootPath))
 	} else {
-		assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
+		assert.Contains(t, stderr, fmt.Sprintf("-chdir=\"%s\"", getPathRelativeTo(t, rootPath, rootPath)))
 	}
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
@@ -63,15 +61,14 @@ func TestDebugGeneratedInputs(t *testing.T) {
 		tf.RunCommand(t.Context(), l, mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	require.NoError(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr),
+		"terragrunt output -no-color -json --non-interactive --working-dir "+rootPath,
 	)
+	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
