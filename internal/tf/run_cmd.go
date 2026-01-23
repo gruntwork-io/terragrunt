@@ -74,9 +74,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 		}
 
 		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
-			// Use empty string as key since the unit exit code map is scoped to one unit run,
-			// and opts.WorkingDir may change during the run (e.g., to cache directory)
-			exitCode.Set("", code)
+			exitCode.Set(opts.WorkingDir, code)
 		}
 
 		if code != 1 {
