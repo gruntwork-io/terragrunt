@@ -176,6 +176,7 @@ func runHook(
 	suppressStdout := curHook.SuppressStdout
 
 	actionToExecute := curHook.Execute[0]
+	actionParams := curHook.Execute[1:]
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
 	containsExternalTFLintFlag := slices.Contains(curHook.Execute, tflint.TfExternalTFLint)
