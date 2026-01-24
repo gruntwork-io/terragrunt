@@ -177,9 +177,29 @@ func TestDetailedExitCodeError(t *testing.T) {
 		ctx,
 		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 	assert.Equal(t, 1, exitCode.GetFinalDetailedExitCode())
+}
+
+// TestRunAllReturnsErrorOnFailure verifies that `terragrunt run --all` returns
+// a non-zero exit code when one of the units fails. This is a regression test
+// for https://github.com/gruntwork-io/terragrunt/issues/5379
+func TestRunAllReturnsErrorOnFailure(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "error")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- plan",
+	)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -1036,7 +1056,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	)
 	// Call helpers.RunTerragruntCommand directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
 	err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	output := stdout.String()
 	errOutput := stderr.String()
@@ -1617,6 +1637,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent3Path, &stdout, &stderr),
 	)
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
@@ -1635,6 +1656,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent3Path, &stdout, &stderr),
 	)
+
 	outputs = map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
@@ -1666,13 +1688,10 @@ func TestDependencyMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent1Path, &stdout, &stderr),
 	)
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
-
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
 
 	// Now run --all apply so that the dependency is applied, and verify it uses the dependency output
 	err = helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &showStdout, &showStderr)
@@ -1688,6 +1707,7 @@ func TestDependencyMockOutput(t *testing.T) {
 		t,
 		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+dependent1Path, &stdout, &stderr),
 	)
+
 	outputs = map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 42", outputs["truth"].Value)
@@ -1938,6 +1958,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -1971,6 +1992,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2024,6 +2046,7 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2059,6 +2082,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	stderr.Reset()
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+childPath, &stdout, &stderr))
+
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	helpers.LogBufferContentsLineByLine(t, stdout, "output stdout")
@@ -2253,16 +2277,11 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-854", "root")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all apply --non-interactive --working-dir "+rootPath,
-		&stdout,
-		&stderr,
+		"terragrunt run --all apply --non-interactive --working-dir "+rootPath+
+			" --filter '!{.}'",
 	)
-	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
-	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 	require.NoError(t, err)
 }
 
@@ -2377,9 +2396,6 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	mainPathFileOut := filepath.Join(mainPath, "file.out")
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
-	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-	// This is only a problem during testing, where the process is shared across terragrunt runs.
-	config.ClearOutputCache()
 
 	// The file should exist in the first run.
 	assert.True(t, util.FileExists(depPathFileOut))
@@ -2658,6 +2674,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	localstgOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
 	assert.Equal(t, map[string]any{"the_answer": float64(42)}, localstgOut)
+
 	inputsOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
 	assert.Equal(t, map[string]any{"doc": "Emmett Brown"}, inputsOut)
@@ -2694,6 +2711,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		},
 		generateOut,
 	)
+
 	remoteStateOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
@@ -2708,6 +2726,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		},
 		remoteStateOut,
 	)
+
 	terraformOut := map[string]any{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
@@ -3335,8 +3354,6 @@ func TestDependenciesOptimisation(t *testing.T) {
 		"Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. If a value in a dependency is needed, use dependency outputs instead.",
 	)
 
-	config.ClearOutputCache()
-
 	moduleC := filepath.Join(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
 
 	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
@@ -3578,8 +3595,11 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureModulePathError)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color")
-	require.NoError(t, err)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color",
+	)
+	require.Error(t, err)
 
 	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
 	// catch "Run failed" message printed in case of error in apply of units
@@ -3695,74 +3715,6 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply --fail-on-state-bucket-creation --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
 	require.Error(t, err)
-}
-
-func TestTerragruntPassNullValues(t *testing.T) {
-	t.Parallel()
-
-	generateTestCase := testFixtureNullValue
-	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
-	helpers.CleanupTerraformFolder(t, tmpEnv)
-	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
-
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
-
-	// Now check the outputs to make sure they are as expected
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+tmpEnv)
-
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-
-	// check that the null values are passed correctly
-	assert.Nil(t, outputs["output1"].Value)
-	assert.Equal(t, "variable 2", outputs["output2"].Value)
-
-	// check that file with null values is removed
-	cachePath := filepath.Join(tmpEnv, helpers.TerragruntCache)
-	foundNullValuesFile := false
-	err = filepath.Walk(cachePath,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if strings.HasPrefix(path, run.NullTFVarsFile) {
-				foundNullValuesFile = true
-			}
-
-			return nil
-		})
-
-	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", run.NullTFVarsFile)
-	require.NoError(t, err)
-}
-
-func TestTerragruntHandleLegacyNullValues(t *testing.T) {
-	// no parallel since we need to set env vars
-	t.Setenv("TERRAGRUNT_TEMP_QUOTE_NULL", "1")
-
-	generateTestCase := testFixtureNullValue
-	tmpEnv := helpers.CopyEnvironment(t, generateTestCase)
-	helpers.CleanupTerraformFolder(t, tmpEnv)
-	helpers.CleanupTerragruntFolder(t, tmpEnv)
-	tmpEnv = filepath.Join(tmpEnv, generateTestCase)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+tmpEnv)
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Input `var1` has value `null`. Quoting due to TERRAGRUNT_TEMP_QUOTE_NULL")
-
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+tmpEnv)
-	require.NoError(t, err)
-
-	outputs := map[string]helpers.TerraformOutput{}
-	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-
-	// check that null value is passed as "null"
-	assert.Equal(t, "null", outputs["output1"].Value)
-	assert.Equal(t, "variable 2", outputs["output2"].Value)
 }
 
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
@@ -4634,6 +4586,10 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 	require.NoError(t, err)
 
+	// Validate the report file against the JSON schema
+	err = report.ValidateJSONReportFromFile(reportFile)
+	require.NoError(t, err, "Report should pass schema validation")
+
 	// Parse the report file to verify the correct units ran
 	runs, err := report.ParseJSONRunsFromFile(reportFile)
 	require.NoError(t, err, "Should be able to parse JSON report")
@@ -4655,7 +4611,7 @@ func TestNoColorDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan -no-color --tf-forward-stdout --working-dir "+testPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan -no-color --tf-forward-stdout --working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Equal(t, 1, strings.Count(stdout, "has been successfully initialized!"))
 

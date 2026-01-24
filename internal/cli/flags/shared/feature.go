@@ -28,6 +28,7 @@ func NewFeatureFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihe
 				for key, val := range value {
 					opts.FeatureFlags.Store(key, val)
 				}
+
 				return nil
 			},
 		},

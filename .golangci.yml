@@ -55,15 +55,6 @@ linters:
     - wastedassign
     - wsl_v5
     - zerologlint
-  disable:
-    - depguard
-    - exhaustruct
-    - gocyclo
-    - gosec
-    - nolintlint
-    - recvcheck
-    - varnamelen
-    - wrapcheck
   settings:
     dupl:
       threshold: 120
@@ -80,11 +71,6 @@ linters:
       min-len: 3
       min-occurrences: 5
     gocritic:
-      disabled-checks:
-        - regexpMust
-        - rangeValCopy
-        - appendAssign
-        - hugeParam
       enabled-tags:
         - performance
       disabled-tags:

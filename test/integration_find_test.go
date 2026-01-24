@@ -293,7 +293,7 @@ func TestFindExclude(t *testing.T) {
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
 
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, config.Path)
 					if strings.Contains(tc.args, "--exclude") {
@@ -378,7 +378,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
 
-			var paths []string
+			paths := make([]string, 0, len(configs))
 			for _, config := range configs {
 				// Normalize path separators for cross-platform compatibility
 				paths = append(paths, filepath.ToSlash(config.Path))

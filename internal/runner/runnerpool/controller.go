@@ -155,7 +155,7 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 				}(e)
 			}
 
-			if len(readyEntries) == 0 && len(sem) == 0 {
+			if dr.q.Finished() {
 				break
 			}
 
@@ -184,11 +184,12 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			}
 
 			if entry.Status == queue.StatusEarlyExit {
-				errCollector = errCollector.Append(errors.Errorf("unit %s did not run due to early exit", entry.Component.Path()))
+				failedDep := findFailedDependency(entry, dr.q)
+				errCollector = errCollector.Append(NewUnitEarlyExitError(entry.Component.Path(), failedDep))
 			}
 
 			if entry.Status == queue.StatusFailed {
-				errCollector = errCollector.Append(errors.Errorf("unit %s failed to run", entry.Component.Path()))
+				errCollector = errCollector.Append(NewUnitFailedError(entry.Component.Path()))
 			}
 		}
 

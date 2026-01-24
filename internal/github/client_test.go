@@ -294,8 +294,7 @@ func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 		// Note: No Version, ChecksumFile, or ChecksumSigFile for direct URLs
 	}
 
-	ctx := context.Background()
-	result, err := client.DownloadReleaseAssets(ctx, assets)
+	result, err := client.DownloadReleaseAssets(t.Context(), assets)
 	require.NoError(t, err)
 
 	// Verify result

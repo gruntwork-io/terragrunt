@@ -230,7 +230,7 @@ func (ctrls Controls) AddSubcontrols(newCtrls ...Control) {
 
 // GetSubcontrols returns all subcontrols from all `ctrls`.
 func (ctrls Controls) GetSubcontrols() Controls {
-	var found Controls
+	found := make(Controls, 0, len(ctrls))
 
 	for _, ctrl := range ctrls {
 		found = append(found, ctrl.GetSubcontrols()...)

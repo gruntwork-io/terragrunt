@@ -16,7 +16,7 @@ var (
 
 // View is the main view, which just calls the appropriate sub-view and returns a string representation of the TUI
 // based on the application's state.
-func (m Model) View() string {
+func (m Model) View() string { //nolint:gocritic
 	var s string
 
 	switch m.State {
@@ -32,15 +32,15 @@ func (m Model) View() string {
 	return s
 }
 
-func (m Model) listView() string {
+func (m Model) listView() string { //nolint:gocritic
 	return m.List.View()
 }
 
-func (m Model) pagerView() string {
+func (m Model) pagerView() string { //nolint:gocritic
 	return lipgloss.JoinVertical(lipgloss.Left, m.viewport.View(), m.footerView())
 }
 
-func (m Model) footerView() string {
+func (m Model) footerView() string { //nolint:gocritic
 	var percent float64 = 100
 
 	info := infoPositionStyle.Render(fmt.Sprintf("%2.f%%", m.viewport.ScrollPercent()*percent))

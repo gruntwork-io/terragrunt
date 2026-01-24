@@ -41,35 +41,38 @@ func TestGcpBootstrapBackend(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		checkExpectedResultFn func(t *testing.T, stderr string, gcsBucketNameName string)
+		checkExpectedResultFn func(t *testing.T, stderr string, gcsBucketNameName string, err error)
 		name                  string
 		args                  string
 	}{
 		{
 			name: "no bootstrap gcs backend without flag",
 			args: "run apply",
-			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketNameName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketNameName string, err error) {
 				t.Helper()
 
 				assert.Contains(t, stderr, "bucket doesn't exist")
+				require.Error(t, err)
 			},
 		},
 		{
 			name: "bootstrap gcs backend with flag",
 			args: "run apply --backend-bootstrap",
-			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string, err error) {
 				t.Helper()
 
 				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+				require.NoError(t, err)
 			},
 		},
 		{
 			name: "bootstrap gcs backend by backend command",
 			args: "backend bootstrap --backend-bootstrap",
-			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string) {
+			checkExpectedResultFn: func(t *testing.T, stderr string, gcsBucketName string, err error) {
 				t.Helper()
 
 				validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, nil)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -93,9 +96,8 @@ func TestGcpBootstrapBackend(t *testing.T) {
 			copyTerragruntGCSConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt "+tc.args+" --all --non-interactive --log-level debug --working-dir "+rootPath)
-			require.NoError(t, err)
 
-			tc.checkExpectedResultFn(t, stderr, gcsBucketName)
+			tc.checkExpectedResultFn(t, stderr, gcsBucketName, err)
 		})
 	}
 }

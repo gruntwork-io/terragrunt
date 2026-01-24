@@ -452,7 +452,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assertOptionsEqual(t, *tc.expectedOptions, *actualOptions, "For args %v", tc.args)
+				assertOptionsEqual(t, tc.expectedOptions, actualOptions, "For args %v", tc.args)
 			}
 		})
 	}
@@ -460,7 +460,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 // We can't do a direct comparison between TerragruntOptions objects because we can't compare Logger or RunTerragrunt
 // instances. Therefore, we have to manually check everything else.
-func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, msgAndArgs ...any) {
+func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actual *options.TerragruntOptions, msgAndArgs ...any) {
 	t.Helper()
 
 	// Normalize path separators for cross-platform compatibility

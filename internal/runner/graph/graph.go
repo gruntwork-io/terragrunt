@@ -48,7 +48,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	stackOpts := []common.Option{}
+	stackOpts := make([]common.Option, 0, 1)
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 

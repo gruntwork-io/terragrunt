@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -146,8 +145,8 @@ func TestLocalWithMissingBackend(t *testing.T) {
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, run.BackendNotDefined{}, underlying)
+		var target run.BackendNotDefined
+		assert.ErrorAs(t, err, &target)
 	}
 }
 
@@ -817,8 +816,8 @@ func TestPreventDestroy(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --non-interactive --working-dir "+fixtureRoot, os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, run.ModuleIsProtected{}, underlying)
+		var target run.ModuleIsProtected
+		assert.ErrorAs(t, err, &target)
 	}
 }
 
@@ -833,8 +832,8 @@ func TestPreventDestroyApply(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -destroy -auto-approve --non-interactive --working-dir "+fixtureRoot, os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, run.ModuleIsProtected{}, underlying)
+		var target run.ModuleIsProtected
+		assert.ErrorAs(t, err, &target)
 	}
 }
 

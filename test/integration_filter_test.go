@@ -548,9 +548,14 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 
 			// Build command with multiple --filter flags
 			cmd := "terragrunt find --no-color --working-dir " + workingDir
+
+			var cmdSb551 strings.Builder
+
 			for _, filter := range tc.filterQueries {
-				cmd += " --filter " + filter
+				cmdSb551.WriteString(" --filter " + filter)
 			}
+
+			cmd += cmdSb551.String()
 
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -1022,6 +1027,10 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				// Verify the report file exists
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
+
+				// Validate the report file against the JSON schema
+				err = report.ValidateJSONReportFromFile(reportFilePath)
+				require.NoError(t, err, "Report should pass schema validation")
 
 				// Read and parse the report file
 				content, err := os.ReadFile(reportFilePath)
@@ -1576,6 +1585,10 @@ unit "unit-to-be-created-2" {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
+				// Validate the report file against the JSON schema
+				err = report.ValidateJSONReportFromFile(reportFilePath)
+				require.NoError(t, err, "Report should pass schema validation")
+
 				// Read and parse the report file
 				content, err := os.ReadFile(reportFilePath)
 				require.NoError(t, err, "Should be able to read report file")
@@ -1680,6 +1693,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, "custom-filters.txt")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "", // Will be set in test
@@ -1694,6 +1708,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",               // No flag, should auto-detect and read .terragrunt-filters
@@ -1708,6 +1723,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "--no-filters-file",
@@ -1723,6 +1739,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				content := "# This is a comment\n\ntype=unit\n  \n# Another comment\n"
 				err := os.WriteFile(filterFile, []byte(content), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",
@@ -1738,6 +1755,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				content := "unit\nstack\n"
 				err := os.WriteFile(filterFile, []byte(content), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "",
@@ -1752,6 +1770,7 @@ func TestFiltersFileFlag(t *testing.T) {
 				filterFile := filepath.Join(dir, ".terragrunt-filters")
 				err := os.WriteFile(filterFile, []byte("type=unit\n"), 0644)
 				require.NoError(t, err)
+
 				return filterFile
 			},
 			cmdFlags:      "--filter type=stack",
@@ -1846,6 +1865,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -1914,6 +1936,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -1994,6 +2019,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -2064,6 +2092,9 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
+
 			content, err := os.ReadFile(reportFilePath)
 			require.NoError(t, err, "Should be able to read report file")
 
@@ -2141,6 +2172,9 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 			// Verify the report file exists
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
+
+			err = report.ValidateJSONReportFromFile(reportFilePath)
+			require.NoError(t, err, "Report should pass schema validation")
 
 			r, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -322,9 +323,9 @@ func worktreeStacksToGenerate(
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
 
-	editedStacks := append(
+	editedStacks := slices.Concat(
 		stackDiff.Added,
-		stackDiff.Removed...,
+		stackDiff.Removed,
 	)
 
 	for _, changed := range stackDiff.Changed {

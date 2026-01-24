@@ -5,7 +5,6 @@ package run
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -36,9 +35,6 @@ import (
 
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
-	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
-
-	useLegacyNullValuesEnvVar = "TERRAGRUNT_TEMP_QUOTE_NULL"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -63,6 +59,11 @@ var TerraformCommandsThatUseState = []string{
 // TerraformCommandsThatDoNotNeedInit is a list of Terraform commands that do not require 'terraform init' to be executed.
 var TerraformCommandsThatDoNotNeedInit = []string{
 	"version",
+
+	// The engine command is a special command that engines can implement to provide additional functionality.
+	// It's not part of the OpenTofu/Terraform CLI API, so we know that we don't consistently need to run 'init'.
+	// Engines can decide to selectively perform inits based on the logic of their engine commands.
+	"engine",
 }
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
@@ -194,7 +195,7 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 	actualLock.Lock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, genCfg); err != nil {
+		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
 	}
@@ -253,21 +254,6 @@ func runTerragruntWithConfig(
 		if err := PrepareNonInitCommand(ctx, l, originalOpts, opts, cfg, r); err != nil {
 			return err
 		}
-	}
-
-	if !useLegacyNullValues() {
-		fileName, err := setTerragruntNullValuesRunCfg(opts, cfg)
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			if fileName != "" {
-				if err := os.Remove(fileName); err != nil {
-					l.Debugf("Failed to remove null values file %s: %v", fileName, err)
-				}
-			}
-		}()
 	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
@@ -533,7 +519,8 @@ func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg
 	out := []string{}
 	cmd := opts.TerraformCliArgs.First()
 
-	for _, arg := range cfg.Terraform.ExtraArgs {
+	for i := range cfg.Terraform.ExtraArgs {
+		arg := &cfg.Terraform.ExtraArgs[i]
 		for _, argCmd := range arg.Commands {
 			if cmd == argCmd {
 				lastArg := opts.TerraformCliArgs.Last()
@@ -567,19 +554,11 @@ func FilterTerraformExtraArgs(l log.Logger, opts *options.TerragruntOptions, cfg
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 func ToTerraformEnvVars(l log.Logger, opts *options.TerragruntOptions, vars map[string]any) (map[string]string, error) {
-	if useLegacyNullValues() {
-		l.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
-	}
-
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
 		if varValue == nil {
-			if useLegacyNullValues() {
-				l.Warnf("⚠️ Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
-			} else {
-				continue
-			}
+			continue
 		}
 
 		envVarName := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
@@ -595,16 +574,13 @@ func ToTerraformEnvVars(l log.Logger, opts *options.TerragruntOptions, vars map[
 	return out, nil
 }
 
-func useLegacyNullValues() bool {
-	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
-}
-
 // filterTerraformEnvVarsFromExtraArgsRunCfg extracts terraform env vars from extra args using runcfg types.
 func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *options.TerragruntOptions, cfg *runcfg.RunConfig) map[string]string {
 	out := map[string]string{}
 	cmd := opts.TerraformCliArgs.First()
 
-	for _, arg := range cfg.Terraform.ExtraArgs {
+	for i := range cfg.Terraform.ExtraArgs {
+		arg := &cfg.Terraform.ExtraArgs[i]
 		if len(arg.EnvVars) == 0 {
 			continue
 		}
@@ -716,35 +692,6 @@ func runTerraformInitRunCfg(
 	}
 
 	return nil
-}
-
-// setTerragruntNullValuesRunCfg generates null values tfvars file using runcfg types.
-func setTerragruntNullValuesRunCfg(opts *options.TerragruntOptions, cfg *runcfg.RunConfig) (string, error) {
-	jsonEmptyVars := make(map[string]any)
-
-	for varName, varValue := range cfg.Inputs {
-		if varValue == nil {
-			jsonEmptyVars[varName] = nil
-		}
-	}
-
-	if len(jsonEmptyVars) == 0 {
-		return "", nil
-	}
-
-	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
-
-	const ownerReadWritePermissions = 0600
-	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
-		return "", errors.New(err)
-	}
-
-	return varFile, nil
 }
 
 // checkProtectedModuleRunCfg checks if module is protected using runcfg types.

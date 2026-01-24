@@ -156,12 +156,12 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, *moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, moduleURL)
 	if err != nil {
 		return err
 	}
 
-	downloadURL, err := GetDownloadURLFromHeader(*moduleURL, terraformGet)
+	downloadURL, err := GetDownloadURLFromHeader(moduleURL, terraformGet)
 	if err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, logger, sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, logger, &sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -279,7 +279,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
 // body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
-func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) (string, error) {
+func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url *url.URL) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, logger, url)
 	if err != nil {
 		details := "error receiving HTTP data"
@@ -316,7 +316,7 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 
 // GetDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
 // and prepends it if not
-func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, error) {
+func GetDownloadURLFromHeader(moduleURL *url.URL, terraformGet string) (string, error) {
 	// If url from X-Terrafrom-Get Header seems to be a relative url,
 	// append scheme and host from url used for getting the download url
 	// because third-party registry implementations may not "know" their own absolute URLs if
@@ -355,7 +355,11 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
-func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL *url.URL) ([]byte, *http.Header, error) {
+	if getURL == nil {
+		return nil, nil, errors.New("httpGETAndGetResponse received nil getURL")
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
 	if err != nil {
 		return nil, nil, errors.New(err)

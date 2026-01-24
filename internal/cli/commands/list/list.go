@@ -26,7 +26,7 @@ import (
 
 // Run runs the list command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(&discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
 		NoHidden:          !opts.Hidden,
@@ -372,7 +372,7 @@ func renderLong(opts *Options, components ListedComponents, c *Colorizer) error 
 		buf.WriteString(" " + c.Colorize(component))
 
 		if opts.Dependencies && len(component.Dependencies) > 0 {
-			colorizedDeps := []string{}
+			colorizedDeps := make([]string, 0, len(component.Dependencies))
 
 			for _, dep := range component.Dependencies {
 				colorizedDeps = append(colorizedDeps, c.Colorize(dep))
