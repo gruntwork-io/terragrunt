@@ -458,8 +458,9 @@ func stripCachePath(name string) string {
 	}
 
 	// Also handle case where name starts with .terragrunt-cache
+	// Return "." as fallback to avoid empty unit names in reports
 	if strings.HasPrefix(name, cacheDir+sep) {
-		return ""
+		return "."
 	}
 
 	return name
