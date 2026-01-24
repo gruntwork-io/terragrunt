@@ -12,10 +12,9 @@ package test_test
 
 import (
 	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -143,8 +142,6 @@ func TestSOPSUnitsReading(t *testing.T) {
 		},
 	}
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Unit ([^ ]+) \(excluded: false`)
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -154,7 +151,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath + " --report-file " + helpers.ReportFile
 
 			for _, f := range tc.unitsReading {
 				cmd = cmd + " --queue-include-units-reading " + f
@@ -168,18 +165,16 @@ func TestSOPSUnitsReading(t *testing.T) {
 				cmd = cmd + " --queue-exclude-dir " + unit
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			_, _, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
-			includedUnits := []string{}
+			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath, "Report file should exist")
 
-			for _, line := range strings.Split(stderr, "\n") {
-				if includedLogEntryRegex.MatchString(line) {
-					includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
-				}
-			}
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, err, "Should be able to parse report file")
 
-			assert.ElementsMatch(t, tc.expectedUnits, includedUnits)
+			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
 		})
 	}
 }
@@ -300,8 +295,6 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 		},
 	}
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Unit ([^ ]+) \(excluded: false`)
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -311,7 +304,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath
+			cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath + " --report-file " + helpers.ReportFile
 
 			for _, f := range tc.unitsReading {
 				cmd = cmd + " --filter reading=" + filepath.Join(rootPath, f)
@@ -325,18 +318,16 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				cmd = cmd + " --filter !" + filepath.Join(rootPath, unit)
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			_, _, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
-			includedUnits := []string{}
+			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath, "Report file should exist")
 
-			for _, line := range strings.Split(stderr, "\n") {
-				if includedLogEntryRegex.MatchString(line) {
-					includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
-				}
-			}
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, err, "Should be able to parse report file")
 
-			assert.ElementsMatch(t, tc.expectedUnits, includedUnits)
+			assert.ElementsMatch(t, tc.expectedUnits, runs.Names())
 		})
 	}
 }
@@ -357,25 +348,22 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	// Test the bug scenario: --queue-include-units-reading
 	// without --queue-include-dir. Units reading shared.hcl should be included.
 	cmd := "terragrunt run --all plan --non-interactive --working-dir " + rootPath +
-		" --queue-include-units-reading shared.hcl"
+		" --queue-include-units-reading shared.hcl --report-file " + helpers.ReportFile
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err, "Command should succeed and include units reading shared.hcl")
 
-	includedLogEntryRegex := regexp.MustCompile(`=> Unit ([^ ]+) \(excluded: false`)
-	includedUnits := []string{}
+	reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
+	assert.FileExists(t, reportFilePath, "Report file should exist")
 
-	for _, line := range strings.Split(stderr, "\n") {
-		if includedLogEntryRegex.MatchString(line) {
-			includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
-		}
-	}
+	runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+	require.NoError(t, err, "Should be able to parse report file")
 
 	// Units that read shared.hcl should be included
 	expectedUnits := []string{
 		"reading-hcl",
 		"reading-hcl-and-tfvars",
 	}
-	assert.ElementsMatch(t, expectedUnits, includedUnits,
+	assert.ElementsMatch(t, expectedUnits, runs.Names(),
 		"Units reading shared.hcl should be included when using --queue-include-units-reading")
 }
