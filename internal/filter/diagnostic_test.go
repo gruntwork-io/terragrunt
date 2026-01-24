@@ -5,9 +5,19 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testLoggerForDiagnostics creates a logger for tests with colors disabled.
+func testLoggerForDiagnostics() log.Logger {
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
+
+	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
+}
 
 func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 	t.Parallel()
@@ -191,10 +201,10 @@ func TestGetHints_PipeOperator(t *testing.T) {
 	assert.Contains(t, strings.Join(hints, " "), "both sides")
 }
 
-func TestParseFilterQueriesWithColor_RichDiagnostics(t *testing.T) {
+func TestParseFilterQueries_RichDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^"}, false)
+	_, err := filter.ParseFilterQueries(testLoggerForDiagnostics(), []string{"HEAD^"})
 
 	require.Error(t, err)
 
@@ -208,10 +218,10 @@ func TestParseFilterQueriesWithColor_RichDiagnostics(t *testing.T) {
 	assert.Contains(t, errMsg, "hint:")
 }
 
-func TestParseFilterQueriesWithColor_MultipleErrors(t *testing.T) {
+func TestParseFilterQueries_MultipleErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^", "[unclosed"}, false)
+	_, err := filter.ParseFilterQueries(testLoggerForDiagnostics(), []string{"HEAD^", "[unclosed"})
 
 	require.Error(t, err)
 
@@ -225,33 +235,20 @@ func TestParseFilterQueriesWithColor_MultipleErrors(t *testing.T) {
 	assert.Contains(t, errMsg, "unclosed")
 }
 
-func TestParseFilterQueriesWithColor_ValidFilters(t *testing.T) {
+func TestParseFilterQueries_ValidFilters(t *testing.T) {
 	t.Parallel()
 
-	filters, err := filter.ParseFilterQueriesWithColor([]string{"name=foo", "./apps/*"}, false)
+	filters, err := filter.ParseFilterQueries(testLoggerForDiagnostics(), []string{"name=foo", "./apps/*"})
 
 	require.NoError(t, err)
 	assert.Len(t, filters, 2)
 }
 
-func TestParseFilterQueriesWithColor_EmptyInput(t *testing.T) {
+func TestParseFilterQueries_EmptyInput(t *testing.T) {
 	t.Parallel()
 
-	filters, err := filter.ParseFilterQueriesWithColor([]string{}, false)
+	filters, err := filter.ParseFilterQueries(testLoggerForDiagnostics(), []string{})
 
 	require.NoError(t, err)
 	assert.Empty(t, filters)
-}
-
-func TestParseFilterQueriesWithColor_WithColor(t *testing.T) {
-	t.Parallel()
-
-	_, err := filter.ParseFilterQueriesWithColor([]string{"HEAD^"}, true)
-
-	require.Error(t, err)
-
-	errMsg := err.Error()
-
-	// Check ANSI codes are present
-	assert.Contains(t, errMsg, "\033[")
 }

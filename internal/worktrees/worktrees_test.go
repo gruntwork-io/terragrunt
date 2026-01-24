@@ -65,7 +65,7 @@ func TestNewWorktrees(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	filters, err := filter.ParseFilterQueriesWithColor([]string{"[HEAD~1...HEAD]"}, false)
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
 	w, err := worktrees.NewWorktrees(
@@ -123,7 +123,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with invalid Git reference
-	filters, err := filter.ParseFilterQueriesWithColor([]string{"[nonexistent-branch]"}, false)
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[nonexistent-branch]"})
 	require.NoError(t, err) // Parsing should succeed
 
 	_, err = worktrees.NewWorktrees(
@@ -724,7 +724,7 @@ func TestWorktreeCleanup(t *testing.T) {
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
-	filters, err := filter.ParseFilterQueriesWithColor([]string{"[test-worktree-cleanup]"}, false)
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[test-worktree-cleanup]"})
 	require.NoError(t, err)
 
 	_, err = worktrees.NewWorktrees(

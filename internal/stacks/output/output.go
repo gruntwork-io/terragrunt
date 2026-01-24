@@ -266,8 +266,7 @@ func buildWorktreesIfNeeded(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (*worktrees.Worktrees, error) {
-	useColor := !l.Formatter().DisabledColors()
-	filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
+	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse filters: %w", err)
 	}

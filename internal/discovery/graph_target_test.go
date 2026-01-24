@@ -54,7 +54,7 @@ dependency "db" {
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -106,10 +106,10 @@ dependency "db" {
 	opts.RootWorkingDir = tmpDir
 
 	// Path A: filter queries (experiment ON equivalent)
-	filters, err := filter.ParseFilterQueries([]string{`...{` + vpcDir + `}`})
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{`...{` + vpcDir + `}`})
 	require.NoError(t, err)
 
-	depsFilters, err := filter.ParseFilterQueriesWithColor([]string{"{./**}..."}, false)
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	configsA, err := discovery.NewDiscovery(tmpDir).

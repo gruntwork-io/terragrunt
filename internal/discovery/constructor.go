@@ -96,8 +96,7 @@ func NewForDiscoveryCommand(l log.Logger, opts DiscoveryCommandOptions) (*Discov
 	}
 
 	if len(opts.FilterQueries) > 0 {
-		useColor := !l.Formatter().DisabledColors()
-		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -113,8 +112,7 @@ func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) 
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.FilterQueries) > 0 {
-		useColor := !l.Formatter().DisabledColors()
-		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -130,8 +128,7 @@ func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, e
 	d := NewDiscovery(opts.WorkingDir)
 
 	if len(opts.FilterQueries) > 0 {
-		useColor := !l.Formatter().DisabledColors()
-		filters, err := filter.ParseFilterQueriesWithColor(opts.FilterQueries, useColor)
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 		if err != nil {
 			return nil, err
 		}

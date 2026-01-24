@@ -61,8 +61,7 @@ func parseFilters(l log.Logger, queries []string) (filter.Filters, error) {
 		return filter.Filters{}, nil
 	}
 
-	useColor := !l.Formatter().DisabledColors()
-	return filter.ParseFilterQueriesWithColor(queries, useColor)
+	return filter.ParseFilterQueries(l, queries)
 }
 
 // extractWorktrees finds WorktreeOption in options and returns worktrees.

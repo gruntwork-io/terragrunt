@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -19,16 +20,15 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
-// This function maintains backwards compatibility (no color output).
-func ParseFilterQueries(filterStrings []string) (Filters, error) {
-	return ParseFilterQueriesWithColor(filterStrings, false)
-}
-
-// ParseFilterQueriesWithColor parses filter queries and formats errors with optional color.
-func ParseFilterQueriesWithColor(filterStrings []string, useColor bool) (Filters, error) {
+// Color output for diagnostics is determined by the logger's color settings and terminal detection.
+func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
+
+	// Determine if we should use color based on logger settings and terminal detection.
+	// Error output goes to stderr, so we check if stderr is redirected.
+	useColor := !l.Formatter().DisabledColors() && !stdout.StderrIsRedirected()
 
 	filters := make([]*Filter, 0, len(filterStrings))
 

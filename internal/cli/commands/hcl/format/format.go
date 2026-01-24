@@ -67,7 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		err     error
 	)
 
-	filters, err = filter.ParseFilterQueriesWithColor(opts.FilterQueries, false)
+	filters, err = filter.ParseFilterQueries(l, opts.FilterQueries)
 	if err != nil {
 		return errors.New(err)
 	}
