@@ -103,7 +103,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		switch statusCode {
 		case cmd.ExitCodeError:
-			return errors.New(ErrorRunningTflint{args: initArgs})
+			return errors.New(ErrorRunningTflint{args: args})
 		case cmd.ExitCodeIssuesFound:
 			return errors.New(IssuesFound{})
 		case cmd.ExitCodeOK:
