@@ -53,7 +53,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	result := Filters(filters)
 
 	if len(diagnostics) > 0 {
-		return result, fmt.Errorf("\n%s", strings.Join(diagnostics, "\n"))
+		return result, fmt.Errorf("%s", strings.Join(diagnostics, "\n"))
 	}
 
 	return result, nil
