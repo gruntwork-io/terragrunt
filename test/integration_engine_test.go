@@ -49,7 +49,7 @@ func TestEngineLocalPlan(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --non-interactive --tf-forward-stdout --working-dir "+
+		"terragrunt run --log-level debug --non-interactive --tf-forward-stdout --working-dir "+
 			rootPath+" -- plan",
 	)
 	require.NoError(t, err)

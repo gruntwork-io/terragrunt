@@ -178,7 +178,10 @@ func TestSOPSDecryptOnMissing(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply --log-level debug --non-interactive --working-dir "+rootPath,
+	)
 	require.Error(t, err)
 
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
