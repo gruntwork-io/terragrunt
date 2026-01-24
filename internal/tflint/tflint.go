@@ -29,17 +29,11 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook, externalTfLint bool) error {
 	// try to fetch configuration file from hook parameters
-	configFile := tflintConfigFilePath(hook.Execute)
-	if configFile == "" {
-		// find .tflint.hcl configuration in project files if it is not provided in arguments
-		projectConfigFile, err := findTflintConfigInProject(l, opts)
-		if err != nil {
-			return err
-		}
-
-		configFile = projectConfigFile
+	configFile, err := tflintConfigFilePath(l, opts, hook.Execute)
+	if err != nil {
+		return err
 	}
 
 	l.Debugf("Using .tflint.hcl file in %s", configFile)
@@ -54,8 +48,6 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
-	variables = append(variables, tfVariables...)
-
 	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
 
 	cli, err := cmd.NewCLI(opts.Writer, opts.ErrWriter)
@@ -63,7 +55,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return errors.New(err)
 	}
 
-	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
+	tflintArgs := hook.Execute[1:]
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
@@ -85,13 +77,14 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	}
 
 	// tflint execution
-	args := make([]string, 0, 6+len(variables)+len(tflintArgs))
+	args := make([]string, 0, 5+len(variables)+len(tfVariables)+len(tflintArgs))
 	args = append(args,
 		"tflint",
 		"--config", configFile,
 		"--chdir", opts.WorkingDir,
 	)
 	args = append(args, variables...)
+	args = append(args, tfVariables...)
 	args = append(args, tflintArgs...)
 
 	if externalTfLint {
@@ -123,33 +116,20 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	return nil
 }
 
-// tflintArguments filters args for --external-tflint, returning filtered args and a flag for using
-// external tflint.
-func tflintArguments(arguments []string) ([]string, bool) {
-	externalTfLint := false
-	filteredArguments := make([]string, 0, len(arguments))
-
-	for _, arg := range arguments {
-		if arg == TfExternalTFLint {
-			externalTfLint = true
-			continue
-		}
-
-		filteredArguments = append(filteredArguments, arg)
-	}
-
-	return filteredArguments, externalTfLint
-}
-
 // configFilePathArgument return configuration file specified in --config argument
-func tflintConfigFilePath(arguments []string) string {
+func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, arguments []string) (string, error) {
 	for i, arg := range arguments {
 		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1]
+			return arguments[i+1], nil
 		}
 	}
+	// find .tflint.hcl configuration in project files if it is not provided in arguments
+	projectConfigFile, err := findTflintConfigInProject(l, opts)
+	if err != nil {
+		return "", err
+	}
 
-	return ""
+	return projectConfigFile, nil
 }
 
 // InputsToTflintVar converts the inputs map to a list of tflint variables.
