@@ -6,6 +6,8 @@ sidebar:
   order: 10
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
 
 They allow you to _orchestrate_ certain operations around IaC updates so that you have a consistent way to run custom code before or after running OpenTofu/Terraform.
@@ -234,7 +236,10 @@ to OpenTofu/Terraform.
 _Before Hooks_ or _After Hooks_ natively support _tflint_, a linter for OpenTofu/Terraform code. It will validate the
 OpenTofu/Terraform code used by Terragrunt, and its inputs.
 
+This support includes automatically running `tflint init`, and passing in variables.
+
 Here's an example:
+
 ```hcl
 # terragrunt.hcl
 
@@ -268,6 +273,16 @@ config {
 
 By default, `tflint` is executed with the internal `tflint` built into Terragrunt, which will evaluate parameters passed in.
 
+<Aside type="warning">
+    The internal `tflint` has become horribly out of date due to upstream adoption of the BUSL license (preventing us
+    from updating our embedded version).
+
+    Use of the internal `tflint` is deprecated, and will be removed in the future. You may opt in ahead of time by
+    adding `--terragrunt-external-tflint` to your hook arguments (see example below), or enabling the
+    [`legacy-internal-tflint` strict control](/docs/reference/strict-controls#legacy-internal-tflint).
+
+</Aside>
+
 Any desired extra configuration should be added in the `.tflint.hcl` file.
 It will work with a `.tflint.hcl` file in the current folder or any parent folder.
 To utilize an alternative configuration file, use the `--config` flag with the path to the configuration file.
@@ -291,6 +306,7 @@ terraform {
 ### Authentication for tflint rulesets
 
 <!-- markdownlint-disable MD036 -->
+
 _Public rulesets_
 
 `tflint` works without any authentication for public rulesets (hosted on public repositories).
@@ -301,7 +317,7 @@ If you want to run the `tflint` hook with custom rulesets defined in a private r
 
 ### Troubleshooting
 
-__`flag provided but not defined: -act-as-bundled-plugin` error__
+**`flag provided but not defined: -act-as-bundled-plugin` error**
 
 If you have an `.tflint.hcl` file that is empty, or uses the `terraform` ruleset without version or source constraint, it can return the following error:
 

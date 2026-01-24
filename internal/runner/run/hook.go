@@ -185,6 +185,7 @@ func runHook(
 			curHook.Execute = slices.DeleteFunc(curHook.Execute, func(arg string) bool {
 				return arg == tflint.TfExternalTFLint
 			})
+
 			return executeTFLint(ctx, l, opts, cfg, curHook, workingDir, true)
 		} else {
 			strictControl := opts.StrictControls.Find(controls.InternalTFLint)
