@@ -1163,7 +1163,10 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// If we want to force reinit, delete the relevant .terraform directories
-	helpers.CleanupTerraformFolder(t, depPath)
+	// Since terraform runs from cache, clean the cache directory
+	depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
+	require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
+	helpers.CleanupTerraformFolder(t, depCacheDir)
 
 	// Now delete the deepdep state and verify still works
 	// Since terraform runs from cache, the state file is in the cache directory
@@ -1964,8 +1967,11 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// If we want to force reinit, delete the relevant .terraform directories
+	// Since terraform runs from cache, clean the cache directory
 	if forceInit {
-		helpers.CleanupTerraformFolder(t, depPath)
+		depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
+		require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
+		helpers.CleanupTerraformFolder(t, depCacheDir)
 	}
 
 	// Now delete the deepdep state and verify still works
