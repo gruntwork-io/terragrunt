@@ -24,12 +24,14 @@ const (
 
 // ParseError represents an error that occurred during parsing.
 type ParseError struct {
-	Message      string
-	Position     int
-	Query        string    // Original filter query
-	TokenLiteral string    // The problematic token
-	TokenLength  int       // For underline width
-	ErrorCode    ErrorCode // For hint lookup
+	Title         string    // High-level error description (e.g., "Unclosed Git filter expression")
+	Message       string    // Detailed explanation (shown at caret position)
+	Position      int       // Position of the problematic token (current behavior)
+	ErrorPosition int       // Position to show the caret (may differ from Position for unclosed brackets)
+	Query         string    // Original filter query
+	TokenLiteral  string    // The problematic token
+	TokenLength   int       // For underline width
+	ErrorCode     ErrorCode // For hint lookup
 }
 
 func (e ParseError) Error() string {
@@ -42,14 +44,16 @@ func NewParseError(message string, position int) error {
 }
 
 // NewParseErrorWithContext creates a new ParseError with full context for rich diagnostics.
-func NewParseErrorWithContext(message string, position int, query string, tokenLiteral string, tokenLength int, code ErrorCode) error {
+func NewParseErrorWithContext(title, message string, position, errorPosition int, query, tokenLiteral string, tokenLength int, code ErrorCode) error {
 	return errors.New(ParseError{
-		Message:      message,
-		Position:     position,
-		Query:        query,
-		TokenLiteral: tokenLiteral,
-		TokenLength:  tokenLength,
-		ErrorCode:    code,
+		Title:         title,
+		Message:       message,
+		Position:      position,
+		ErrorPosition: errorPosition,
+		Query:         query,
+		TokenLiteral:  tokenLiteral,
+		TokenLength:   tokenLength,
+		ErrorCode:     code,
 	})
 }
 

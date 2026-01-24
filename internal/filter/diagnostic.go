@@ -7,23 +7,22 @@ import (
 
 // ANSI escape codes for colored output.
 const (
-	ansiReset  = "\033[0m"
-	ansiBold   = "\033[1m"
-	ansiItalic = "\033[3m"
-	ansiRed    = "\033[31m"
-	ansiBlue   = "\033[34m"
-	ansiCyan   = "\033[36m"
+	ansiReset = "\033[0m"
+	ansiBold  = "\033[1m"
+	ansiRed   = "\033[31m"
+	ansiBlue  = "\033[34m"
+	ansiCyan  = "\033[36m"
 )
 
 // FormatDiagnostic produces a Rust-style error message from a ParseError.
 func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 	var sb strings.Builder
 
-	// Line 1: Error header
+	// Line 1: Error header with high-level title
 	if useColor {
-		fmt.Fprintf(&sb, "%s%sFilter parsing error:%s %s\n", ansiBold, ansiRed, ansiReset, err.Message)
+		fmt.Fprintf(&sb, "%s%sFilter parsing error:%s %s\n", ansiBold, ansiRed, ansiReset, err.Title)
 	} else {
-		fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Message)
+		fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Title)
 	}
 
 	// Line 2: Location arrow
@@ -46,27 +45,26 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 	// Line 4: The query with indentation
 	fmt.Fprintf(&sb, "     %s\n", err.Query)
 
-	// Line 5: Underline at error position
+	// Line 5: Caret at ErrorPosition (may differ from Position for unclosed brackets)
 	indent := "     " // 5 spaces for alignment
-	spaces := strings.Repeat(" ", err.Position)
-	underlineLen := max(1, err.TokenLength)
-	underline := strings.Repeat("^", underlineLen)
+	spaces := strings.Repeat(" ", err.ErrorPosition)
+	caret := "^"
 	detail := " " + err.Message
 
 	if useColor {
-		fmt.Fprintf(&sb, "%s%s%s%s%s%s%s\n", indent, spaces, ansiBold, ansiRed, underline, ansiReset, detail)
+		fmt.Fprintf(&sb, "%s%s%s%s%s%s%s\n", indent, spaces, ansiBold, ansiRed, caret, ansiReset, detail)
 	} else {
-		fmt.Fprintf(&sb, "%s%s%s%s\n", indent, spaces, underline, detail)
+		fmt.Fprintf(&sb, "%s%s%s%s\n", indent, spaces, caret, detail)
 	}
 
-	// Line 6: Blank line before hints
+	// Line 6: Blank line before hint
 	sb.WriteString("\n")
 
-	// Line 7+: Hints
-	hints := GetHints(err.ErrorCode, err.TokenLiteral, err.Query, err.Position)
-	for _, hint := range hints {
+	// Line 7: Single consolidated hint
+	hint := GetHint(err.ErrorCode, err.TokenLiteral, err.Query, err.Position)
+	if hint != "" {
 		if useColor {
-			fmt.Fprintf(&sb, "  %s%shint:%s %s%s%s\n", ansiBold, ansiCyan, ansiReset, ansiItalic, hint, ansiReset)
+			fmt.Fprintf(&sb, "  %s%shint:%s %s\n", ansiBold, ansiCyan, ansiReset, hint)
 		} else {
 			fmt.Fprintf(&sb, "  hint: %s\n", hint)
 		}

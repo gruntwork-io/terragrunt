@@ -51,25 +51,27 @@ func (p *Parser) ParseExpression() (Expression, error) {
 			return nil, p.errors[0]
 		}
 
-		return nil, p.createError(ErrorCodeUnknown, "failed to parse expression")
+		return nil, p.createError(ErrorCodeUnknown, "Parse error", "failed to parse expression")
 	}
 
 	if p.curToken.Type != EOF {
-		return nil, p.createError(ErrorCodeUnexpectedToken, "unexpected token after expression: "+p.curToken.Literal)
+		return nil, p.createError(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"' after expression")
 	}
 
 	return expr, nil
 }
 
 // createError creates a ParseError with full context for rich diagnostics.
-func (p *Parser) createError(code ErrorCode, msg string) error {
+func (p *Parser) createError(code ErrorCode, title, msg string) error {
 	tokenLen := len(p.curToken.Literal)
 	if tokenLen == 0 {
 		tokenLen = 1 // Minimum length for underline
 	}
 
 	return NewParseErrorWithContext(
+		title,
 		msg,
+		p.curToken.Position,
 		p.curToken.Position,
 		p.originalQuery,
 		p.curToken.Literal,
@@ -136,16 +138,16 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		leftExpr = &AttributeExpression{Key: "name", Value: p.curToken.Literal}
 		p.nextToken()
 	case ILLEGAL:
-		p.addErrorWithCode(ErrorCodeIllegalToken, "illegal token: "+p.curToken.Literal)
+		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "unrecognized character '"+p.curToken.Literal+"'")
 		return nil
 	case EOF:
-		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "unexpected end of input")
+		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "Unexpected end of input", "expression is incomplete")
 		return nil
 	case PIPE, EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "unexpected token: "+p.curToken.Literal)
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"'")
 		return nil
 	default:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "unexpected token: "+p.curToken.Literal)
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"'")
 		return nil
 	}
 
@@ -238,7 +240,7 @@ func (p *Parser) parsePrefixExpression() Expression {
 	expression.Right = p.parseExpression(PREFIX)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "expected expression after "+expression.Operator)
+		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "expected expression after '"+expression.Operator+"'")
 		return nil
 	}
 
@@ -257,7 +259,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "expected expression after "+expression.Operator)
+		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "expected expression after '"+expression.Operator+"'")
 		return nil
 	}
 
@@ -274,11 +276,14 @@ func (p *Parser) parsePathFilter() Expression {
 
 // parseBracedPath parses a braced path filter (e.g., "{./apps/*}" or "{my path}").
 func (p *Parser) parseBracedPath() Expression {
+	// Capture opening brace position for error reporting
+	openBracePos := p.curToken.Position
+
 	// We're currently at LBRACE, move to the content
 	p.nextToken()
 
 	if p.curToken.Type == RBRACE {
-		p.addErrorWithCode(ErrorCodeEmptyExpression, "empty braced path expression")
+		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty braced path", "braced path expression cannot be empty")
 		return nil
 	}
 
@@ -290,7 +295,7 @@ func (p *Parser) parseBracedPath() Expression {
 	}
 
 	if p.curToken.Type != RBRACE {
-		p.addErrorWithCode(ErrorCodeMissingClosingBrace, "expected '}' to close braced path")
+		p.addErrorAtPosition(ErrorCodeMissingClosingBrace, "Unclosed braced path", "this braced path expression is missing a closing '}'", openBracePos)
 		return nil
 	}
 
@@ -314,7 +319,7 @@ func (p *Parser) parseAttributeFilter() Expression {
 	p.nextToken()
 
 	if p.curToken.Type != IDENT && p.curToken.Type != PATH {
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "expected identifier or path after '='")
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "expected identifier or path after '='")
 		return nil
 	}
 
@@ -329,11 +334,14 @@ func (p *Parser) parseAttributeFilter() Expression {
 
 // parseGitFilter parses a Git filter expression (e.g., "[main...HEAD]" or "[main]").
 func (p *Parser) parseGitFilter() Expression {
+	// Capture opening bracket position for error reporting
+	openBracketPos := p.curToken.Position
+
 	// We're currently at LBRACKET, move to the content
 	p.nextToken()
 
 	if p.curToken.Type == RBRACKET {
-		p.addErrorWithCode(ErrorCodeEmptyGitFilter, "empty Git filter expression")
+		p.addErrorWithCode(ErrorCodeEmptyGitFilter, "Empty Git filter", "Git filter expression cannot be empty")
 		return nil
 	}
 
@@ -345,7 +353,7 @@ func (p *Parser) parseGitFilter() Expression {
 	}
 
 	if len(fromRefParts) == 0 {
-		p.addErrorWithCode(ErrorCodeMissingGitRef, "expected Git reference in filter")
+		p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "expected Git reference in filter")
 		return nil
 	}
 
@@ -364,14 +372,14 @@ func (p *Parser) parseGitFilter() Expression {
 		}
 
 		if len(toRefParts) == 0 {
-			p.addErrorWithCode(ErrorCodeMissingGitRef, "expected second Git reference after ellipsis")
+			p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "expected second Git reference after '...'")
 			return nil
 		}
 
 		toRef := strings.Join(toRefParts, "")
 
 		if p.curToken.Type != RBRACKET {
-			p.addErrorWithCode(ErrorCodeMissingClosingBracket, "expected ']' to close Git filter")
+			p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "this Git-based expression is missing a closing ']'", openBracketPos)
 			return nil
 		}
 
@@ -383,7 +391,7 @@ func (p *Parser) parseGitFilter() Expression {
 
 	// Single reference case
 	if p.curToken.Type != RBRACKET {
-		p.addErrorWithCode(ErrorCodeMissingClosingBracket, "expected ']' to close Git filter")
+		p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "this Git-based expression is missing a closing ']'", openBracketPos)
 		return nil
 	}
 
@@ -416,19 +424,38 @@ func (p *Parser) curPrecedence() int {
 
 // addError adds an error to the parser's error list.
 func (p *Parser) addError(msg string) {
-	p.addErrorWithCode(ErrorCodeUnknown, msg)
+	p.addErrorWithCode(ErrorCodeUnknown, "Parse error", msg)
 }
 
 // addErrorWithCode adds an error with a specific error code for hint lookup.
-func (p *Parser) addErrorWithCode(code ErrorCode, msg string) {
+func (p *Parser) addErrorWithCode(code ErrorCode, title, msg string) {
 	tokenLen := len(p.curToken.Literal)
 	if tokenLen == 0 {
 		tokenLen = 1 // Minimum length for underline
 	}
 
 	err := NewParseErrorWithContext(
+		title,
 		msg,
 		p.curToken.Position,
+		p.curToken.Position,
+		p.originalQuery,
+		p.curToken.Literal,
+		tokenLen,
+		code,
+	)
+	p.errors = append(p.errors, err)
+}
+
+// addErrorAtPosition adds an error with a specific error code and custom error position for caret placement.
+func (p *Parser) addErrorAtPosition(code ErrorCode, title, msg string, errorPosition int) {
+	tokenLen := 1 // Single character underline for bracket errors
+
+	err := NewParseErrorWithContext(
+		title,
+		msg,
+		p.curToken.Position,
+		errorPosition,
 		p.originalQuery,
 		p.curToken.Literal,
 		tokenLen,

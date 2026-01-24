@@ -1,7 +1,6 @@
 package filter_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -23,18 +22,20 @@ func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "unexpected token after expression: ^",
-		Position:     4,
-		Query:        "HEAD^",
-		TokenLiteral: "^",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeUnexpectedToken,
+		Title:         "Unexpected token",
+		Message:       "unexpected '^' after expression",
+		Position:      4,
+		ErrorPosition: 4,
+		Query:         "HEAD^",
+		TokenLiteral:  "^",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeUnexpectedToken,
 	}
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error header
-	assert.Contains(t, result, "error: unexpected token after expression: ^")
+	// Check error header with title
+	assert.Contains(t, result, "Filter parsing error: Unexpected token")
 
 	// Check location arrow
 	assert.Contains(t, result, " --> --filter 'HEAD^'")
@@ -42,10 +43,10 @@ func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 	// Check query is displayed
 	assert.Contains(t, result, "     HEAD^")
 
-	// Check underline position (4 spaces + 5 indent = 9 chars before ^)
-	assert.Contains(t, result, "         ^ unexpected token")
+	// Check caret at ErrorPosition with message
+	assert.Contains(t, result, "^ unexpected '^' after expression")
 
-	// Check hints are present
+	// Check hint is present
 	assert.Contains(t, result, "hint:")
 	assert.Contains(t, result, "Git")
 }
@@ -54,12 +55,14 @@ func TestFormatDiagnostic_WithFilterIndex(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "Unexpected token: |",
-		Position:     0,
-		Query:        "| foo",
-		TokenLiteral: "|",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeUnexpectedToken,
+		Title:         "Unexpected token",
+		Message:       "unexpected '|'",
+		Position:      0,
+		ErrorPosition: 0,
+		Query:         "| foo",
+		TokenLiteral:  "|",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeUnexpectedToken,
 	}
 
 	result := filter.FormatDiagnostic(err, 2, false)
@@ -72,41 +75,48 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "expected ']' to close Git filter",
-		Position:     12,
-		Query:        "[main...HEAD",
-		TokenLiteral: "",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeMissingClosingBracket,
+		Title:         "Unclosed Git filter expression",
+		Message:       "this Git-based expression is missing a closing ']'",
+		Position:      12,
+		ErrorPosition: 0, // Points to opening bracket
+		Query:         "[main...HEAD",
+		TokenLiteral:  "",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeMissingClosingBracket,
 	}
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error message
-	assert.Contains(t, result, "Filter parsing error: expected ']' to close Git filter")
+	// Check error header with title
+	assert.Contains(t, result, "Filter parsing error: Unclosed Git filter expression")
 
-	// Check hints
-	assert.Contains(t, result, "hint: Git filter expressions must be closed with ']'")
+	// Check caret points to opening bracket (position 0)
+	assert.Contains(t, result, "     ^ this Git-based expression is missing a closing ']'")
+
+	// Check consolidated hint
+	assert.Contains(t, result, "hint: Git filter expressions must be enclosed in '[]'")
 }
 
 func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "empty Git filter expression",
-		Position:     1,
-		Query:        "[]",
-		TokenLiteral: "]",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeEmptyGitFilter,
+		Title:         "Empty Git filter",
+		Message:       "Git filter expression cannot be empty",
+		Position:      1,
+		ErrorPosition: 1,
+		Query:         "[]",
+		TokenLiteral:  "]",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeEmptyGitFilter,
 	}
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error message
-	assert.Contains(t, result, "Filter parsing error: empty Git filter expression")
+	// Check error header with title
+	assert.Contains(t, result, "Filter parsing error: Empty Git filter")
 
-	// Check hints
+	// Check consolidated hint
 	assert.Contains(t, result, "hint: Git filter cannot be empty")
 }
 
@@ -114,12 +124,14 @@ func TestFormatDiagnostic_WithColor(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "Unexpected token after expression: ^",
-		Position:     4,
-		Query:        "HEAD^",
-		TokenLiteral: "^",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeUnexpectedToken,
+		Title:         "Unexpected token",
+		Message:       "unexpected '^' after expression",
+		Position:      4,
+		ErrorPosition: 4,
+		Query:         "HEAD^",
+		TokenLiteral:  "^",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeUnexpectedToken,
 	}
 
 	result := filter.FormatDiagnostic(err, 0, true)
@@ -132,12 +144,14 @@ func TestFormatDiagnostic_NoColor(t *testing.T) {
 	t.Parallel()
 
 	err := &filter.ParseError{
-		Message:      "Unexpected token after expression: ^",
-		Position:     4,
-		Query:        "HEAD^",
-		TokenLiteral: "^",
-		TokenLength:  1,
-		ErrorCode:    filter.ErrorCodeUnexpectedToken,
+		Title:         "Unexpected token",
+		Message:       "unexpected '^' after expression",
+		Position:      4,
+		ErrorPosition: 4,
+		Query:         "HEAD^",
+		TokenLiteral:  "^",
+		TokenLength:   1,
+		ErrorCode:     filter.ErrorCodeUnexpectedToken,
 	}
 
 	result := filter.FormatDiagnostic(err, 0, false)
@@ -146,59 +160,59 @@ func TestFormatDiagnostic_NoColor(t *testing.T) {
 	assert.NotContains(t, result, "\033[")
 }
 
-func TestGetHints_CaretAfterIdentifier(t *testing.T) {
+func TestGetHint_CaretAfterIdentifier(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "^", "HEAD^", 4)
+	hint := filter.GetHint(filter.ErrorCodeUnexpectedToken, "^", "HEAD^", 4)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "Git")
-	assert.Contains(t, strings.Join(hints, " "), "[HEAD^]")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "Git")
+	assert.Contains(t, hint, "[HEAD^]")
 }
 
-func TestGetHints_CaretAtStart(t *testing.T) {
+func TestGetHint_CaretAtStart(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "^", "^foo", 0)
+	hint := filter.GetHint(filter.ErrorCodeUnexpectedToken, "^", "^foo", 0)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "excludes the target")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "excludes the target")
 }
 
-func TestGetHints_MissingClosingBracket(t *testing.T) {
+func TestGetHint_MissingClosingBracket(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeMissingClosingBracket, "", "[main...HEAD", 12)
+	hint := filter.GetHint(filter.ErrorCodeMissingClosingBracket, "", "[main...HEAD", 12)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "]")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "[]")
 }
 
-func TestGetHints_MissingClosingBrace(t *testing.T) {
+func TestGetHint_MissingClosingBrace(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeMissingClosingBrace, "", "{my path", 8)
+	hint := filter.GetHint(filter.ErrorCodeMissingClosingBrace, "", "{my path", 8)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "}")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "{}")
 }
 
-func TestGetHints_EmptyGitFilter(t *testing.T) {
+func TestGetHint_EmptyGitFilter(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeEmptyGitFilter, "]", "[]", 1)
+	hint := filter.GetHint(filter.ErrorCodeEmptyGitFilter, "]", "[]", 1)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "empty")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "empty")
 }
 
-func TestGetHints_PipeOperator(t *testing.T) {
+func TestGetHint_PipeOperator(t *testing.T) {
 	t.Parallel()
 
-	hints := filter.GetHints(filter.ErrorCodeUnexpectedToken, "|", "| foo", 0)
+	hint := filter.GetHint(filter.ErrorCodeUnexpectedToken, "|", "| foo", 0)
 
-	require.NotEmpty(t, hints)
-	assert.Contains(t, strings.Join(hints, " "), "both sides")
+	require.NotEmpty(t, hint)
+	assert.Contains(t, hint, "both sides")
 }
 
 func TestParseFilterQueries_RichDiagnostics(t *testing.T) {
