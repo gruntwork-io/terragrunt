@@ -11,325 +11,220 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestHints_GoldenGitSyntaxCaretAfterRef tests the hint when using Git-style caret
-// outside of brackets (e.g., HEAD^ instead of [HEAD^]).
-func TestHints_GoldenGitSyntaxCaretAfterRef(t *testing.T) {
+// TestHints_Golden tests the full rendered error messages for golden/regression testing.
+func TestHints_Golden(t *testing.T) {
 	t.Parallel()
 
-	output, err := renderParseError("HEAD^")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+	testCases := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{
+			name:  "git syntax caret after ref",
+			query: "HEAD^",
+			expected: `Filter parsing error: Unexpected token
  --> --filter 'HEAD^'
 
      HEAD^
          ^ unexpected '^' after expression
 
   hint: Git syntax requires '[]'. Did you mean '[HEAD^]'?
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenUnclosedBracket tests the hint for unclosed Git filter brackets.
-func TestHints_GoldenUnclosedBracket(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("[main...HEAD")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unclosed Git filter expression
+`,
+		},
+		{
+			name:  "unclosed bracket",
+			query: "[main...HEAD",
+			expected: `Filter parsing error: Unclosed Git filter expression
  --> --filter '[main...HEAD'
 
      [main...HEAD
      ^ This Git-based expression is missing a closing ']'
 
   hint: Git filter expressions must be enclosed in '[]'. e.g. '[main...HEAD]'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenUnclosedBrace tests the hint for unclosed braced paths.
-func TestHints_GoldenUnclosedBrace(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("{my path")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unclosed path expression
+`,
+		},
+		{
+			name:  "unclosed brace",
+			query: "{my path",
+			expected: `Filter parsing error: Unclosed path expression
  --> --filter '{my path'
 
      {my path
      ^ This braced path expression is missing a closing '}'
 
   hint: Braced paths must be enclosed in '{}'. e.g. '{path/with spaces}'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenEmptyGitFilter tests that empty Git filters show no hint.
-func TestHints_GoldenEmptyGitFilter(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("[]")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Empty Git filter
+`,
+		},
+		{
+			name:  "empty git filter",
+			query: "[]",
+			expected: `Filter parsing error: Empty Git filter
  --> --filter '[]'
 
      []
       ^ Git filter expression cannot be empty
 
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenPipeAtStart tests the hint for pipe operator at start of expression.
-func TestHints_GoldenPipeAtStart(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("| foo")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "pipe at start",
+			query: "| foo",
+			expected: `Filter parsing error: Unexpected token
  --> --filter '| foo'
 
      | foo
      ^ unexpected '|'
 
   hint: The pipe operator requires expressions on both sides. e.g. 'app | !legacy'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenPipeAtEnd tests the hint for pipe operator at end of expression.
-func TestHints_GoldenPipeAtEnd(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("foo |")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected end of input
+`,
+		},
+		{
+			name:  "pipe at end",
+			query: "foo |",
+			expected: `Filter parsing error: Unexpected end of input
  --> --filter 'foo |'
 
      foo |
           ^ expression is incomplete
 
   hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenBangWithoutOperand tests the hint for negation without operand.
-func TestHints_GoldenBangWithoutOperand(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("!")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected end of input
+`,
+		},
+		{
+			name:  "bang without operand",
+			query: "!",
+			expected: `Filter parsing error: Unexpected end of input
  --> --filter '!'
 
      !
       ^ expression is incomplete
 
   hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenUnexpectedClosingBracket tests the hint for unexpected closing bracket.
-func TestHints_GoldenUnexpectedClosingBracket(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("]")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "unexpected closing bracket",
+			query: "]",
+			expected: `Filter parsing error: Unexpected token
  --> --filter ']'
 
      ]
      ^ unexpected ']'
 
   hint: Unexpected ']' without matching '['. Git filters use brackets: '[main...HEAD]'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenUnexpectedClosingBrace tests the hint for unexpected closing brace.
-func TestHints_GoldenUnexpectedClosingBrace(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("}")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "unexpected closing brace",
+			query: "}",
+			expected: `Filter parsing error: Unexpected token
  --> --filter '}'
 
      }
      ^ unexpected '}'
 
   hint: Unexpected '}' without matching '{'. Braced paths use braces: '{./my path}'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenEqualsWithoutContext tests the hint for equals sign without context.
-func TestHints_GoldenEqualsWithoutContext(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("=foo")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "equals without context",
+			query: "=foo",
+			expected: `Filter parsing error: Unexpected token
  --> --filter '=foo'
 
      =foo
      ^ unexpected '='
 
   hint: The equals sign is used for attribute filters. e.g. 'name=foo'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenCaretAtStart tests the hint for caret at start (graph exclusion).
-func TestHints_GoldenCaretAtStart(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("^")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected end of input
+`,
+		},
+		{
+			name:  "caret at start",
+			query: "^",
+			expected: `Filter parsing error: Unexpected end of input
  --> --filter '^'
 
      ^
       ^ expression is incomplete
 
   hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenEllipsisAtStart tests the hint for ellipsis at start without target.
-func TestHints_GoldenEllipsisAtStart(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("...")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected end of input
+`,
+		},
+		{
+			name:  "ellipsis at start",
+			query: "...",
+			expected: `Filter parsing error: Unexpected end of input
  --> --filter '...'
 
      ...
         ^ expression is incomplete
 
   hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenIllegalCharacter tests the hint for illegal/unrecognized characters.
-// A single dot (.) not followed by a path separator or identifier char is illegal.
-func TestHints_GoldenIllegalCharacter(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError(".")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Illegal token
+`,
+		},
+		{
+			name:  "illegal character",
+			query: ".",
+			expected: `Filter parsing error: Illegal token
  --> --filter '.'
 
      .
      ^ unrecognized character '.'
 
   hint: This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenMissingGitRefAfterEllipsis tests missing second Git reference.
-func TestHints_GoldenMissingGitRefAfterEllipsis(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("[main...]")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Missing Git reference
+`,
+		},
+		{
+			name:  "missing git ref after ellipsis",
+			query: "[main...]",
+			expected: `Filter parsing error: Missing Git reference
  --> --filter '[main...]'
 
      [main...]
              ^ Expected second Git reference after '...'
 
   hint: Git filters require at least one reference. e.g. '[main]' or '[main...HEAD]'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenComplexExpression tests error in a more complex expression.
-func TestHints_GoldenComplexExpression(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("./apps/* | HEAD^")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "complex expression with caret",
+			query: "./apps/* | HEAD^",
+			expected: `Filter parsing error: Unexpected token
  --> --filter './apps/* | HEAD^'
 
      ./apps/* | HEAD^
                     ^ unexpected '^' after expression
 
   hint: The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'
-`
-	assert.Equal(t, expected, output)
-}
-
-// TestHints_GoldenCaretAfterEllipsis tests the hint for caret after ellipsis.
-func TestHints_GoldenCaretAfterEllipsis(t *testing.T) {
-	t.Parallel()
-
-	output, err := renderParseError("./foo...^")
-	require.NoError(t, err)
-
-	output = stripTimestampPrefix(output)
-
-	expected := `Filter parsing error: Unexpected token
+`,
+		},
+		{
+			name:  "caret after ellipsis",
+			query: "./foo...^",
+			expected: `Filter parsing error: Unexpected token
  --> --filter './foo...^'
 
      ./foo...^
              ^ unexpected '^' after expression
 
   hint: The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'
-`
-	assert.Equal(t, expected, output)
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			output, err := renderParseError(tc.query)
+			require.NoError(t, err)
+
+			output = stripTimestampPrefix(output)
+
+			assert.Equal(t, tc.expected, output)
+		})
+	}
 }
 
 // TestHints_ErrorCodeCoverage verifies that all error codes produce appropriate hints.
