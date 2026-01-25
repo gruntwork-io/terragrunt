@@ -430,21 +430,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				var ensureOpts []report.EndOption
 
 				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil {
-					if discoveryCtx.WorkingDir != "" {
-						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
-					}
-
-					if discoveryCtx.Ref != "" {
-						ensureOpts = append(ensureOpts, report.WithRef(discoveryCtx.Ref))
-					}
-
-					if discoveryCtx.Cmd != "" {
-						ensureOpts = append(ensureOpts, report.WithCmd(discoveryCtx.Cmd))
-					}
-
-					if len(discoveryCtx.Args) > 0 {
-						ensureOpts = append(ensureOpts, report.WithArgs(discoveryCtx.Args))
-					}
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -698,7 +690,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 			unitPath = unit.Component.Path()
 		}
 
-		outStrSb729.WriteString(fmt.Sprintf("- Unit %s\n", unitPath))
+		fmt.Fprintf(&outStrSb729, "- Unit %s\n", unitPath)
 	}
 
 	outStr += outStrSb729.String()
