@@ -51,7 +51,7 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 	case "^":
 		return getCaretHint(query, position)
 	case "|":
-		return "The pipe operator requires expressions on both sides. e.g. 'app | !legacy'"
+		return "The '|' operator requires expressions on both sides. e.g. 'app | !legacy'"
 	case "=":
 		return "The equals sign is used for attribute filters. e.g. 'name=foo'"
 	case "]":

@@ -41,7 +41,7 @@ func TestHints_Golden(t *testing.T) {
      [main...HEAD
      ^ This Git-based expression is missing a closing ']'
 
-  hint: Git filter expressions must be enclosed in '[]'. e.g. '[main...HEAD]'
+  hint: Git filter expressions must be enclosed in '[]'. Did you mean '[main...HEAD]'?
 `,
 		},
 		{
@@ -53,7 +53,7 @@ func TestHints_Golden(t *testing.T) {
      {my path
      ^ This braced path expression is missing a closing '}'
 
-  hint: Braced paths must be enclosed in '{}'. e.g. '{path/with spaces}'
+  hint: Braced paths must be enclosed in '{}'. Did you mean '{my path}'?
 `,
 		},
 		{
@@ -74,9 +74,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '| foo'
 
      | foo
-     ^ unexpected '|'
-
-  hint: The pipe operator requires expressions on both sides. e.g. 'app | !legacy'
+     ^ Missing left-hand side of '|' operator
 `,
 		},
 		{
@@ -86,9 +84,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter 'foo |'
 
      foo |
-          ^ expression is incomplete
-
-  hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
+          ^ Missing right-hand side of '|' operator
 `,
 		},
 		{
@@ -98,9 +94,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '!'
 
      !
-      ^ expression is incomplete
-
-  hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
+      ^ Missing target expression for '!' operator
 `,
 		},
 		{
@@ -112,7 +106,7 @@ func TestHints_Golden(t *testing.T) {
      ]
      ^ unexpected ']'
 
-  hint: Unexpected ']' without matching '['. Git filters use brackets: '[main...HEAD]'
+  hint: Unexpected ']' without matching '['. Git filters use square brackets: '[main...HEAD]'
 `,
 		},
 		{
@@ -148,7 +142,7 @@ func TestHints_Golden(t *testing.T) {
      ^
       ^ expression is incomplete
 
-  hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
+  hint: The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'
 `,
 		},
 		{
@@ -160,9 +154,10 @@ func TestHints_Golden(t *testing.T) {
      ...
         ^ expression is incomplete
 
-  hint: The expression is incomplete. Make sure all brackets are closed and operators have operands.
+  hint: The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'
 `,
 		},
+		// TODO: Make this not an error. This should just be a path expression pointing at the current directory.
 		{
 			name:  "illegal character",
 			query: ".",
@@ -184,7 +179,7 @@ func TestHints_Golden(t *testing.T) {
      [main...]
              ^ Expected second Git reference after '...'
 
-  hint: Git filters require at least one reference. e.g. '[main]' or '[main...HEAD]'
+  hint: Git filters with '...' require a reference on each side. e.g. '[main...HEAD]'
 `,
 		},
 		{
@@ -196,7 +191,8 @@ func TestHints_Golden(t *testing.T) {
      ./apps/* | HEAD^
                     ^ unexpected '^' after expression
 
-  hint: The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'
+  hint: Git syntax requires '[]'. Did you mean '[HEAD^]'?
+
 `,
 		},
 		{
@@ -208,7 +204,7 @@ func TestHints_Golden(t *testing.T) {
      ./foo...^
              ^ unexpected '^' after expression
 
-  hint: The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'
+  hint: The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^./foo...'?
 `,
 		},
 	}
