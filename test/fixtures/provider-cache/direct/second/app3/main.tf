@@ -1,15 +1,15 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
+      source  = "registry.opentofu.org/hashicorp/aws"
       version = "5.40.0"
     }
     azure = {
-      source  = "hashicorp/azurerm"
+      source  = "registry.opentofu.org/hashicorp/azurerm"
       version = "3.95.0"
     }
     kubernetes = {
-      source  = "hashicorp/kubernetes"
+      source  = "registry.opentofu.org/hashicorp/kubernetes"
       version = "2.27.0"
     }
   }

@@ -3,11 +3,11 @@ terraform {
 
   required_providers {
     cloudflare = {
-      source  = "cloudflare/cloudflare"
+      source  = "registry.opentofu.org/cloudflare/cloudflare"
       version = "~> 4.0"
     }
     time = {
-      source  = "hashicorp/time"
+      source  = "registry.opentofu.org/hashicorp/time"
       version = ">= 0.10.0"
     }
   }

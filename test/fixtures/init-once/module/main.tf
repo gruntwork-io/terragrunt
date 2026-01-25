@@ -1,3 +1,3 @@
 module "vpc" {
-  source = "cloudposse/module/example"
+  source = "registry.opentofu.org/cloudposse/module/example"
 }
