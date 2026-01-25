@@ -14,10 +14,6 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 		return "Git filter expressions must be enclosed in '[]'. e.g. '[main...HEAD]'"
 	case ErrorCodeMissingClosingBrace:
 		return "Braced paths must be enclosed in '{}'. e.g. '{path/with spaces}'"
-	case ErrorCodeEmptyGitFilter:
-		return "Git filter cannot be empty. e.g. '[main...HEAD]' or '[HEAD~1]'"
-	case ErrorCodeEmptyExpression:
-		return "Braced path expression cannot be empty. e.g. '{./my path}'"
 	case ErrorCodeMissingGitRef:
 		return "Git filters require at least one reference. e.g. '[main]' or '[main...HEAD]'"
 	case ErrorCodeMissingOperand:
@@ -26,6 +22,14 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 		return "The expression is incomplete. Make sure all brackets are closed and operators have operands."
 	case ErrorCodeIllegalToken:
 		return "This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)"
+
+	// These have error messages that are pretty self-explanatory and don't need hints.
+	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression:
+		return ""
+
+	// These are errors that don't have obvious hints that can be offered.
+	case ErrorCodeUnknown:
+		return ""
 	}
 
 	return ""
@@ -37,6 +41,7 @@ func GetHints(code ErrorCode, token, query string, position int) []string {
 	if hint == "" {
 		return nil
 	}
+
 	return []string{hint}
 }
 

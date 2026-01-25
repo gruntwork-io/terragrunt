@@ -113,11 +113,9 @@ func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error header with title
 	assert.Contains(t, result, "Filter parsing error: Empty Git filter")
 
-	// Check consolidated hint
-	assert.Contains(t, result, "hint: Git filter cannot be empty")
+	assert.NotContains(t, result, "hint:")
 }
 
 func TestFormatDiagnostic_WithColor(t *testing.T) {
@@ -202,8 +200,7 @@ func TestGetHint_EmptyGitFilter(t *testing.T) {
 
 	hint := filter.GetHint(filter.ErrorCodeEmptyGitFilter, "]", "[]", 1)
 
-	require.NotEmpty(t, hint)
-	assert.Contains(t, hint, "empty")
+	assert.Empty(t, hint)
 }
 
 func TestGetHint_PipeOperator(t *testing.T) {

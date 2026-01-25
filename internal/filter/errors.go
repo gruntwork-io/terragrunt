@@ -24,14 +24,22 @@ const (
 
 // ParseError represents an error that occurred during parsing.
 type ParseError struct {
-	Title         string    // High-level error description (e.g., "Unclosed Git filter expression")
-	Message       string    // Detailed explanation (shown at caret position)
-	Position      int       // Position of the problematic token (current behavior)
-	ErrorPosition int       // Position to show the caret (may differ from Position for unclosed brackets)
-	Query         string    // Original filter query
-	TokenLiteral  string    // The problematic token
-	TokenLength   int       // For underline width
-	ErrorCode     ErrorCode // For hint lookup
+	// Title is a high-level error description (e.g., "Unclosed Git filter expression")
+	Title string
+	// Message is a detailed explanation shown at the problematic location (e.g., "this Git-based expression is missing a closing ']'")
+	Message string
+	// Query is the original filter query
+	Query string
+	// TokenLiteral is the problematic token
+	TokenLiteral string
+	// TokenLength is the length of the problematic token (used for underline width)
+	TokenLength int
+	// Position is the position of the problematic token
+	Position int
+	// ErrorPosition is the position to show the caret (e.g. for unclosed brackets, it points to the opening bracket)
+	ErrorPosition int
+	// ErrorCode is the error code, used for hint lookup
+	ErrorCode ErrorCode
 }
 
 func (e ParseError) Error() string {
