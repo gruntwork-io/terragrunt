@@ -48,9 +48,9 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		return err
 	}
 
-	// Write debug file to the working directory (which is now the cache directory)
-	// so it can be used directly with terraform/tofu from that directory
-	fileName := filepath.Join(opts.WorkingDir, TerragruntTFVarsFile)
+	configFolder := filepath.Dir(opts.TerragruntConfigPath)
+
+	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
 		return errors.New(err)
 	}
