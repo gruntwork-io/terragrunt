@@ -682,7 +682,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
 		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
 
-	var outStrSb729 strings.Builder
+	var outStrSb strings.Builder
 
 	for _, unit := range entries {
 		unitPath := unit.Component.DisplayPath()
@@ -690,10 +690,10 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 			unitPath = unit.Component.Path()
 		}
 
-		fmt.Fprintf(&outStrSb729, "- Unit %s\n", unitPath)
+		fmt.Fprintf(&outStrSb, "- Unit %s\n", unitPath)
 	}
 
-	outStr += outStrSb729.String()
+	outStr += outStrSb.String()
 
 	l.Info(outStr)
 
