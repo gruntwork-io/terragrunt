@@ -81,7 +81,14 @@ func TestAwsDocsOverview(t *testing.T) {
 		}()
 
 		rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
-		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
+		helpers.CopyTerragruntConfigAndFillPlaceholders(
+			t,
+			rootTerragruntConfigPath,
+			rootTerragruntConfigPath,
+			s3BucketName,
+			"not-used",
+			region,
+		)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --backend-bootstrap --working-dir "+rootPath+" -- apply -auto-approve")
 		require.NoError(t, err)

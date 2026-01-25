@@ -1145,12 +1145,25 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		lockTableName,
+		helpers.TerraformRemoteStateS3Region,
+	)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --all --non-interactive --backend-bootstrap --working-dir "+rootPath)
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply --all --non-interactive --backend-bootstrap --working-dir "+rootPath,
+	)
 
 	// verify expected output
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -no-color -json --non-interactive --working-dir "+livePath,
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1163,9 +1176,10 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	// Now delete the deepdep state and verify still works
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
-	fmt.Println("terragrunt output -no-color -json --non-interactive --working-dir " + livePath)
-
-	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --log-level debug --non-interactive --working-dir "+livePath+" -- output -no-color -json",
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
