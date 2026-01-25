@@ -89,6 +89,7 @@ func (runner *UnitRunner) runTerragrunt(
 	runErr := run.Run(ctx, runner.Unit.Execution.Logger, opts, r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key
+	// Get the exit code from the unit-scoped map (stored with empty string key in run_cmd.go)
 	if globalExitCode != nil {
 		unitPath := filepath.Clean(runner.Unit.AbsolutePath())
 		code := unitExitCode.Get(opts.WorkingDir)
