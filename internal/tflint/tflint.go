@@ -243,8 +243,8 @@ func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 // When running from cache, we start searching from the original config directory to find config in the source directory.
 func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
 	startDir := opts.WorkingDir
-	if opts.OriginalTerragruntConfigPath != "" {
-		startDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
+	if opts.TerragruntConfigPath != "" {
+		startDir = filepath.Dir(opts.TerragruntConfigPath)
 	}
 
 	previousDir := startDir
