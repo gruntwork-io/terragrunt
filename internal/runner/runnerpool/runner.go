@@ -567,21 +567,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				var ensureOpts []report.EndOption
 
 				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
-					if discoveryCtx.WorkingDir != "" {
-						ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
-					}
-
-					if discoveryCtx.Ref != "" {
-						ensureOpts = append(ensureOpts, report.WithRef(discoveryCtx.Ref))
-					}
-
-					if discoveryCtx.Cmd != "" {
-						ensureOpts = append(ensureOpts, report.WithCmd(discoveryCtx.Cmd))
-					}
-
-					if len(discoveryCtx.Args) > 0 {
-						ensureOpts = append(ensureOpts, report.WithArgs(discoveryCtx.Args))
-					}
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
