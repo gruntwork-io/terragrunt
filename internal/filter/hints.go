@@ -83,7 +83,7 @@ func getCaretHint(query string, position int) string {
 
 		// User likely meant Git syntax [HEAD^]
 		if len(beforeCaret) > 0 && !strings.ContainsAny(beforeCaret, " \t|!={}[]") {
-			return fmt.Sprintf("Git syntax requires brackets. Did you mean '[%s^]'?", beforeCaret)
+			return fmt.Sprintf("Git syntax requires '[]'. Did you mean '[%s^]'?", beforeCaret)
 		}
 	}
 
