@@ -414,9 +414,17 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 }
 
 // SetEntryStatus safely sets the status of an entry with proper synchronization.
+//
+// If the entry is already in a terminal state (StatusSucceeded, StatusFailed, or StatusEarlyExit),
+// this operation is a no-op. This prevents race conditions where a concurrent success could
+// overwrite an early-exit status set by fail-fast mode.
 func (q *Queue) SetEntryStatus(e *Entry, status Status) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	if isTerminal(e.Status) {
+		return
+	}
 
 	e.Status = status
 }

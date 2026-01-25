@@ -1566,8 +1566,22 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteState)
 
 	// Apply dependencies first
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app1", environmentPath))
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app3", environmentPath))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--auto-approve --non-interactive --working-dir %s/app1",
+			environmentPath,
+		),
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--auto-approve --non-interactive --working-dir %s/app3",
+			environmentPath,
+		),
+	)
 	// Now delete dependencies cached state
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
@@ -1576,29 +1590,45 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 
 	// Apply app2 with experiment enabled but --no-dependency-fetch-output-from-state flag set
 	// This should fall back to using terraform output instead of fetching from state
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app2", environmentPath))
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --experiment dependency-fetch-output-from-state "+
+				"--no-dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app2",
+			environmentPath,
+		),
 	)
 
 	// Run output command with experiment enabled but flag set to disable
 	// When the flag is set, it should use terraform output instead of fetching from S3
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt run --all output --backend-bootstrap --experiment dependency-fetch-output-from-state --no-dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath, &stdout, &stderr)
-	output := stdout.String()
-	stderrOutput := stderr.String()
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --log-level debug --all output --backend-bootstrap --experiment dependency-fetch-output-from-state "+
+			"--no-dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath,
+	)
+	require.NoError(t, err)
 
 	// Verify outputs are still correct
-	assert.Contains(t, output, "app1 output")
-	assert.Contains(t, output, "app2 output")
-	assert.Contains(t, output, "app3 output")
+	assert.Contains(t, stdout, "app1 output")
+	assert.Contains(t, stdout, "app2 output")
+	assert.Contains(t, stdout, "app3 output")
 
 	// When --no-dependency-fetch-output-from-state is set, it should use terraform output
 	// This means we should see "terraform output -json" or "tofu output -json" in stderr
 	// (The exact command depends on which terraform implementation is being used)
 	// This is the opposite of TestAwsOutputFromRemoteState which asserts this is NOT present
-	assert.True(t, strings.Contains(stderrOutput, "terraform output") || strings.Contains(stderrOutput, "tofu output"), "Expected to see terraform/tofu output command when --no-dependency-fetch-output-from-state flag is set, but stderr was: %s", stderrOutput)
+	assert.True(
+		t,
+		strings.Contains(
+			stderr,
+			"terraform output",
+		) || strings.Contains(
+			stderr,
+			"tofu output",
+		),
+		"Expected to see terraform/tofu output command when --no-dependency-fetch-output-from-state flag is set, but stderr was: %s",
+		stderr,
+	)
 }
 
 func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
