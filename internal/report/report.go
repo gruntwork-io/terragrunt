@@ -322,14 +322,6 @@ func WithCauseRunError(name string) EndOption {
 	return withCause(name)
 }
 
-// withCause sets the cause of a run to the name of a particular cause.
-func withCause(name string) EndOption {
-	return func(run *Run) {
-		cause := Cause(name)
-		run.Cause = &cause
-	}
-}
-
 // WithDiscoveryWorkingDir sets the discovery working directory for a run.
 // This is used to compute relative paths for units discovered in worktrees.
 func WithDiscoveryWorkingDir(workingDir string) EndOption {
@@ -358,5 +350,13 @@ func WithCmd(cmd string) EndOption {
 func WithArgs(args []string) EndOption {
 	return func(run *Run) {
 		run.Args = args
+	}
+}
+
+// withCause sets the cause of a run to the name of a particular cause.
+func withCause(name string) EndOption {
+	return func(run *Run) {
+		cause := Cause(name)
+		run.Cause = &cause
 	}
 }

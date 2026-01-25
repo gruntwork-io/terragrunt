@@ -347,6 +347,9 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			Name:    name,
 			Started: run.Started,
 			Ended:   run.Ended,
+			Ref:     run.Ref,
+			Cmd:     run.Cmd,
+			Args:    run.Args,
 			Result:  string(run.Result),
 		}
 
@@ -362,18 +365,6 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			}
 
 			jsonRun.Cause = &cause
-		}
-
-		if run.Ref != "" {
-			jsonRun.Ref = run.Ref
-		}
-
-		if run.Cmd != "" {
-			jsonRun.Cmd = run.Cmd
-		}
-
-		if len(run.Args) > 0 {
-			jsonRun.Args = run.Args
 		}
 
 		runs = append(runs, jsonRun)
