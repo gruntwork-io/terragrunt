@@ -351,7 +351,8 @@ func TestEngineLogLevel(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
-		"terragrunt run --all --non-interactive --tf-forward-stdout --working-dir %s -- apply -no-color -auto-approve",
+		"terragrunt run --log-level debug --all --non-interactive --tf-forward-stdout "+
+			"--working-dir %s -- apply -no-color -auto-approve",
 		rootPath,
 	),
 	)
