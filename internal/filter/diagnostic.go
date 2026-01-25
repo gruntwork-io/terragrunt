@@ -19,11 +19,7 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 	var sb strings.Builder
 
 	// Line 1: Error header with high-level title
-	if useColor {
-		fmt.Fprintf(&sb, "%s%sFilter parsing error:%s %s\n", ansiBold, ansiRed, ansiReset, err.Title)
-	} else {
-		fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Title)
-	}
+	fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Title)
 
 	// Line 2: Location arrow
 	var arrow string

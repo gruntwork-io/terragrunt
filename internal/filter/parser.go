@@ -9,9 +9,9 @@ import (
 type Parser struct {
 	lexer         *Lexer
 	errors        []error
+	originalQuery string
 	curToken      Token
 	peekToken     Token
-	originalQuery string // Original input for rich error diagnostics
 }
 
 // Operator precedence levels
@@ -283,7 +283,7 @@ func (p *Parser) parseBracedPath() Expression {
 	p.nextToken()
 
 	if p.curToken.Type == RBRACE {
-		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty braced path", "braced path expression cannot be empty")
+		p.addErrorWithCode(ErrorCodeEmptyExpression, "Empty path expression", "Braced path expression cannot be empty")
 		return nil
 	}
 
@@ -295,7 +295,7 @@ func (p *Parser) parseBracedPath() Expression {
 	}
 
 	if p.curToken.Type != RBRACE {
-		p.addErrorAtPosition(ErrorCodeMissingClosingBrace, "Unclosed braced path", "this braced path expression is missing a closing '}'", openBracePos)
+		p.addErrorAtPosition(ErrorCodeMissingClosingBrace, "Unclosed path expression", "This braced path expression is missing a closing '}'", openBracePos)
 		return nil
 	}
 
@@ -319,7 +319,7 @@ func (p *Parser) parseAttributeFilter() Expression {
 	p.nextToken()
 
 	if p.curToken.Type != IDENT && p.curToken.Type != PATH {
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "expected identifier or path after '='")
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Attribute expression missing value", "Attribute expressions require a value after '='")
 		return nil
 	}
 
@@ -353,7 +353,7 @@ func (p *Parser) parseGitFilter() Expression {
 	}
 
 	if len(fromRefParts) == 0 {
-		p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "expected Git reference in filter")
+		p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "Expected Git reference in filter")
 		return nil
 	}
 
@@ -372,14 +372,14 @@ func (p *Parser) parseGitFilter() Expression {
 		}
 
 		if len(toRefParts) == 0 {
-			p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "expected second Git reference after '...'")
+			p.addErrorWithCode(ErrorCodeMissingGitRef, "Missing Git reference", "Expected second Git reference after '...'")
 			return nil
 		}
 
 		toRef := strings.Join(toRefParts, "")
 
 		if p.curToken.Type != RBRACKET {
-			p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "this Git-based expression is missing a closing ']'", openBracketPos)
+			p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "This Git-based expression is missing a closing ']'", openBracketPos)
 			return nil
 		}
 
@@ -391,7 +391,7 @@ func (p *Parser) parseGitFilter() Expression {
 
 	// Single reference case
 	if p.curToken.Type != RBRACKET {
-		p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "this Git-based expression is missing a closing ']'", openBracketPos)
+		p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "This Git-based expression is missing a closing ']'", openBracketPos)
 		return nil
 	}
 
