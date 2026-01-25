@@ -240,11 +240,11 @@ func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 }
 
 // findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
-// When running from cache, we start searching from OriginalWorkingDir to find config in the source directory.
+// When running from cache, we start searching from the original config directory to find config in the source directory.
 func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
 	startDir := opts.WorkingDir
-	if opts.OriginalWorkingDir != "" {
-		startDir = opts.OriginalWorkingDir
+	if opts.OriginalTerragruntConfigPath != "" {
+		startDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
 	previousDir := startDir

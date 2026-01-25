@@ -142,9 +142,6 @@ type TerragruntOptions struct {
 	Source string
 	// The working directory in which to run Terraform
 	WorkingDir string
-	// The original working directory before downloading to cache.
-	// Used to copy the lock file back to the original location.
-	OriginalWorkingDir string
 	// Location (or name) of the OpenTofu/Terraform binary
 	TFPath string
 	// Download Terraform configurations specified in the Source parameter into this folder
@@ -643,11 +640,11 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 	currentAttempt := 1
 
 	// Convert working dir to a clean, absolute path for reporting.
-	// Use OriginalWorkingDir if available (pre-cache location) to ensure
+	// Use directory of original config path (pre-cache location) to ensure
 	// report runs match those created by the runner pool.
 	reportWorkingDir := opts.WorkingDir
-	if opts.OriginalWorkingDir != "" {
-		reportWorkingDir = opts.OriginalWorkingDir
+	if opts.OriginalTerragruntConfigPath != "" {
+		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
 	reportDir, err := filepath.Abs(reportWorkingDir)
