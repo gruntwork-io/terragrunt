@@ -428,9 +428,6 @@ func nameOfPath(path string, workingDir string) string {
 	path = strings.TrimPrefix(path, workingDir)
 	path = strings.TrimPrefix(path, string(os.PathSeparator))
 
-	// Strip .terragrunt-cache subdirectories from the name
-	path = stripCachePath(path)
-
 	return path
 }
 
