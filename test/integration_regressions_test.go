@@ -44,7 +44,7 @@ func TestNoAutoInit(t *testing.T) {
 	helpers.LogBufferContentsLineByLine(t, stdout, "no force apply stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
-	assert.Contains(t, stderr.String(), "This module is not yet installed.")
+	assert.Contains(t, stderr.String(), "Required plugins are not installed")
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
