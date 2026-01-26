@@ -297,7 +297,7 @@ For example:
 terraform {
     before_hook "tflint" {
     commands = ["apply", "plan"]
-    execute = ["tflint" , "--terragrunt-external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
+    execute = ["tflint", "--terragrunt-external-tflint", "--minimum-failure-severity=error", "--config", "custom.tflint.hcl"]
   }
 }
 ```
