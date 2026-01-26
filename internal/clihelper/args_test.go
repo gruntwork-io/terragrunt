@@ -206,6 +206,15 @@ func TestNewIacArgs(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
+			// Documents known limitation: unknown boolean flags are treated as taking values.
+			// If this causes issues with a new Terraform flag, add it to booleanFlags list.
+			name:      "unknown boolean flag followed by arg (treated as flag value)",
+			input:     []string{"apply", "-unknown-bool", "planfile"},
+			wantCmd:   "apply",
+			wantFlags: []string{"-unknown-bool", "planfile"},
+			wantArgs:  nil,
+		},
+		{
 			name:      "empty args",
 			input:     []string{},
 			wantCmd:   "",

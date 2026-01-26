@@ -182,6 +182,12 @@ func (args Args) Contains(target string) bool {
 // booleanFlags contains flags that don't take values (boolean flags).
 // Unknown flags are assumed to take space-separated values for safer parsing
 // of new Terraform/Tofu flags without requiring updates to this list.
+//
+// Note: If Terraform/Tofu adds a new boolean flag not in this list, and a user
+// runs `terragrunt apply -new-bool planfile`, the parser will treat `planfile`
+// as the value of `-new-bool`. To fix, add the new flag to this list.
+//
+// Reference: https://developer.hashicorp.com/terraform/cli/commands
 var booleanFlags = []string{
 	"-auto-approve",
 	"-compact-warnings",
