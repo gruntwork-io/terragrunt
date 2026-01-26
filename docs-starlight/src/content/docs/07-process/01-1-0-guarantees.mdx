@@ -1,0 +1,107 @@
+---
+title: Terragrunt 1.0 Guarantees
+description: Stability and compatibility guarantees for Terragrunt 1.0 and the 1.x release line.
+slug: docs/process/1-0-guarantees
+sidebar:
+  order: 1
+---
+
+## What compatibility guarantees are being made in 1.0?
+
+The term "breaking change" means something different to different people, and every change can, in some way, be a breaking change to someone.
+
+![Relevant XKCD](https://imgs.xkcd.com/comics/workflow.png)
+
+*Relevant XKCD*
+
+With the release of Terragrunt 1.0, there are some concrete compatibility guarantees that you can rely on for the duration of the 1.x line of Terragrunt, which is intended to remain the latest major version of Terragrunt for the foreseeable future. Any violations of these guarantees is a bug that will be fixed in a future 1.x release, or an oversight on the part of maintainers that will result in an update to this document.
+
+This is a living document that will be updated as questions are answered regarding what is and isn't considered a breaking change in Terragrunt 1.x.
+
+### The CLI
+
+All of the CLI commands and flags you use as of Terragrunt 1.0 will remain in the CLI for the duration of 1.x. You will not get an error that a CLI command or flag has been removed or renamed in the CLI. You should also expect commands and flags to work the same way for the duration of 1.x.
+
+You might still get deprecation warnings during 1.x releases, and you might have new commands/flags introduced that let you opt-in to different functionality, but you should expect the same results when running the same commands for the duration of 1.x. Also note that any new CLI commands and flags introduced during 1.x will observe the same backwards compatibility guarantee. No changes will be introduced that break how they work for the duration of 1.x.
+
+### HCL Configurations
+
+All your existing Terragrunt HCL configurations will remain valid for the duration of 1.x if they are valid as of Terragrunt 1.0. The Terragrunt HCL parser will not drop support for any HCL configuration block, attribute or function for the duration of 1.x, and you will be able to reuse the same HCL configurations for the duration of 1.x.
+
+Again, you might get deprecation warnings when using particular HCL configurations, and new HCL configurations will continue to be introduced, but you should expect the same results when using the same configurations for the duration of 1.x. Just like with the CLI, every new HCL configuration introduced in a 1.x release will work the same way for the duration of 1.x.
+
+### Run Report
+
+The [Run Report](/docs/features/run-report/) generated using the [`--report-file`](/docs/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by the flag [`--report-schema-file`](/docs/reference/cli/commands/run/#report-schema-file). You can also find at the URL listed in the `$id` field of the schema. e.g. https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json.
+
+Any modifications made to the schema that break parsing of existing report files using a modern JSON parser will only be done on an opt-in basis for the duration of 1.x, and you will be able to use the `$id` field of the generated schema to confirm that you are parsing a file with an expected schema.
+
+Note that no guarantee is made that new fields won’t be added to the generated report file. If you are not using a modern deserialization library that can ignore unknown fields, this may cause issues for you, and you’ll have to take note of the `$id` field of the generated `--report-schema-file` to catch any such cases. Modern deserialization libraries in popular programming languages like Golang have built-in support for ignoring unknown fields, and it's expected that most users will be using one such deserialization library or a tool like `jq` to parse reports. As such, new versions of the report schema that _add_ new fields will not be considered breaking, whereas _removing_ fields will be.
+
+### Find
+
+The [find](/docs/reference/cli/commands/find/) command provides the ability to discover Terragrunt configurations programmatically. Maintaining a stable schema for `find` output is something you will be able to rely on. For the duration of 1.x, you will be able to expect the same output from any usage of the `find` command. You will never have a field in `find` output disappear, or for the general shape of the JSON schema to change.
+
+New opt-in flags that allow you to discover more about the configurations in your codebase might be introduced, and backwards compatibility of their behavior will be ensured for the duration of 1.x.
+
+### OpenTofu/Terraform stdout/stderr
+
+There will be special consideration made to ensure that no onerous changes are made to OpenTofu/Terraform stdout/stderr forwarding. You should expect OpenTofu/Terraform stdout/stderr logs to be [enriched](/docs/reference/logging/) the same way when using the same logging configurations, and consistency in whether the output is forwarded to Terragrunt stdout/stderr.
+
+## What compatibility guarantees aren’t being made in 1.0?
+
+### Experimental Features
+
+Terragrunt supports the ability to utilize certain [experimental features](/docs/reference/experiments/) on an opt-in basis. These are features that will explicitly not be given any stability guarantees, and can change in any given release. Big new features in Terragrunt are very likely to be introduced as experiments and iterated on in collaboration with early adopters before they are stabilized, to ensure that they are feasible to support without breaking changes for the duration of 1.x.
+
+No guarantees are made regarding the stability of experimental features, or even that any given experiment will ever be generally available. Experiments give maintainers the opportunity to iterate quickly without the same stability guarantees made for the rest of Terragrunt.
+
+### List
+
+The [list](/docs/reference/cli/commands/list/) command differs from the `find` command in that it is designed to be understood by humans (as opposed to being parsed programmatically in `find`), and as such, changes to how information is presented might be encountered during 1.x releases. These changes might be done to improve the legibility of results, or provide additional useful information by default without requiring complex invocations of the `list` command.
+
+No guarantees that list output will have the same colors, or that list results will be displayed with the same general shape for the duration of 1.x. Any change made in this regard will be made carefully, however, and maintainers will do their best to ensure that they are communicated effectively and opt-in where possible.
+
+### Catalog
+
+The [catalog](/docs/reference/cli/commands/catalog/) command has a Terminal User Interface (TUI), and is also designed to be understood and interacted with by humans on the terminal. Changes to how information is displayed in the catalog command is subject to change, and stability in the UI is not guaranteed in 1.x releases. You should be able to expect that you won't lose any capabilities in the catalog TUI, however.
+
+New buttons and columns might appear in future 1.x releases, and you may have to navigate the TUI in different ways. Major changes to TUIs in Terragrunt will occur gradually over multiple releases as experimental features when possible.
+
+### Stdout/Stderr
+
+With the exception of OpenTofu/Terraform stdout/stderr and certain structured data, like report files and `find` output, no guarantees are made that you will see the exact same stdout/stderr for the same invocation of the Terragrunt CLI. This includes logging. You should not rely on the same log entries or error messages existing from one release of Terragrunt to another, or that they are worded the same way. You also shouldn't rely on the same run summary being printed with the same content.
+
+Log messages including error messages will be continuously adjusted to improve the user experience of using the Terragrunt CLI. This will be done to make it easier to understand what is happening in Terragrunt runs, and troubleshoot errors.
+
+### Bugs
+
+The most important guarantee that we cannot make in Terragrunt 1.x is that no bugs will be created. It is possible that we will *accidentally* introduce regressions that result in breaking changes to Terragrunt. Those are bugs that will be fixed in a future release of Terragrunt 1.x.
+
+If you depend on functionality in Terragrunt that is considered to be a bug (either as of 1.0, or introduced in a 1.x release), it is possible that fixing that bug will result in a breaking change to your workflows. Whenever possible, maintainers will be judicious with any such fix, and will attempt to preserve backwards compatibility despite the bug fix via opt-in functionality.
+
+### Integrations
+
+It is possible that changes to third party software that Terragrunt integrates with will require a breaking change in Terragrunt. In those scenarios, it might not always be possible for the change to be opt-in. These scenarios will be handled on a case-by-case basis, and maintainers endeavor to minimize the impact of these changes to you.
+
+### Performance
+
+The fastest thing you can do in software is to do nothing at all. In the pursuit of improving performance, maintainers may prevent Terragrunt from doing work understood to be unnecessary. In a large enough user base, *someone* is potentially going to be impacted by changes like this. Whenever possible, maintainers will strive to err on the side of maintaining exactly the same functionality, and only changing functionality if there's little to no justification for how the behavior would be beneficial to Terragrunt users. In the event changes like this cause disruption to users, maintainers will take this disruption very seriously and work to remediate the disruption, or revert the performance improvement.
+
+## Versioning Policy
+
+For the duration of 1.x, only the minor and patch versions of Terragrunt releases will be used in the [semantic versioning scheme](https://semver.org/), just like it was in Terragrunt 0.x.
+
+The difference as of 1.0 is that no backwards incompatible breaking changes will be introduced in any minor release. Bug fixes will continue to be released as patch versions, and minor releases will be used to introduce new [backward compatible](https://en.wikipedia.org/wiki/Backward_compatibility) major features. All [_forward incompatible changes_](https://en.wikipedia.org/wiki/Forward_compatibility) will be released in minor releases, and will usually be supported on an experimental basis before they are generally available.
+
+e.g. If a new flag is going to be introduced, it will likely be an experimental feature introduced in a minor or patch release, then eventually promoted to a generally available feature in a future minor release. Versions of Terragrunt released before that minor release will not be able to use that flag without enabling the experiment, but every version of Terragrunt released afterwards in 1.x will support it.
+
+Release candidates of minor releases will be published to give users a chance to test out the stability of new releases before they are fully released.
+
+## Deprecations
+
+If functionality is deprecated in 1.x, it will likely be removed in 2.x. On a case-by-case basis, maintainers may decide to explicitly extend the lifetime of deprecated functionality beyond 2.x.
+
+## Feedback
+
+If you have any feedback on these guarantees, or would like clarification on something that isn't covered here, please open a [discussion topic](https://github.com/gruntwork-io/terragrunt/discussions) or [create an issue](https://github.com/gruntwork-io/terragrunt/issues) in the Terragrunt GitHub repository.
