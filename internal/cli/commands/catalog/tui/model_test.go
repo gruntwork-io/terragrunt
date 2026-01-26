@@ -134,7 +134,7 @@ func TestTUIFinalModel(t *testing.T) {
 
 	fm := tm.FinalModel(t)
 	finalModel, ok := fm.(tui.Model)
-	require.True(t, ok, "final model should be of type model")
+	require.True(t, ok, "final model should be of type tui.Model, got %T", fm)
 
 	// Verify the model has the expected state
 	assert.Equal(t, tui.ListState, finalModel.State)
