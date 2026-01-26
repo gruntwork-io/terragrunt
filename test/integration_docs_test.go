@@ -508,6 +508,26 @@ func TestFilterDocumentationExamples(t *testing.T) {
 			expectedOutput: "cache\ndb\nservice\n",
 		},
 
+		// Depth-limited graph traversal
+		{
+			name:           "graph-depth-limited-dependencies-1-level",
+			fixtureDir:     "graph-based",
+			filterQuery:    "service...1",
+			expectedOutput: "cache\ndb\nservice\n",
+		},
+		{
+			name:           "graph-depth-limited-dependents-1-level",
+			fixtureDir:     "graph-based",
+			filterQuery:    "1...vpc",
+			expectedOutput: "cache\ndb\nvpc\n",
+		},
+		{
+			name:           "graph-depth-limited-both-directions",
+			fixtureDir:     "graph-based",
+			filterQuery:    "1...db...2",
+			expectedOutput: "db\nservice\nvpc\n",
+		},
+
 		// Source-based filtering
 		{
 			name:           "source-exact-match-github",

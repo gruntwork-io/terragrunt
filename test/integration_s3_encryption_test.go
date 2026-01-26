@@ -212,18 +212,32 @@ func TestAwsSkipBackend(t *testing.T) {
 	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
 	// The bucket and table name here are intentionally invalid.
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSEAESFixturePath, "N/A", "N/A", config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(
+		t,
+		s3SSEAESFixturePath,
+		"N/A",
+		"N/A",
+		config.DefaultTerragruntConfigPath,
+	)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt init --backend-bootstrap --non-interactive --config "+
+			tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false",
+	)
 	require.Error(t, err)
 
-	lockFile := filepath.Join(testPath, ".terraform.lock.hcl")
-	assert.False(t, util.FileExists(lockFile), "Lock file %s exists", lockFile)
+	dotTerraformDir := filepath.Join(testPath, ".terraform")
+	assert.False(t, util.FileExists(dotTerraformDir), ".terraform directory %s exists", dotTerraformDir)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" --disable-bucket-update -backend=false")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt init --non-interactive --config "+
+			tmpTerragruntConfigPath+" --working-dir "+testPath+" --disable-bucket-update -backend=false",
+	)
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(lockFile), "Lock file %s does not exist", lockFile)
+	assert.True(t, util.FileExists(dotTerraformDir), ".terraform directory %s does not exist", dotTerraformDir)
 }
 
 func applyCommand(configPath, fixturePath string) string {

@@ -200,13 +200,23 @@ jobs:
       - id: go-cache-paths
         run: |
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Go Build Cache
         uses: actions/cache@v5
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: |
+            ${{ steps.go-cache-paths.outputs.go-build }}
+            ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
+
+      - name: Terragrunt Provider Cache
+        if: runner.os == 'Linux'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/terragrunt
+          key: ${{ runner.os }}-terragrunt-provider-cache
 
       - name: Run Tests
         run: |

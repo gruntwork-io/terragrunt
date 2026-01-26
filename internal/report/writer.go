@@ -18,7 +18,7 @@ import (
 
 const (
 	// csvFieldCount is the expected number of fields in a CSV report row.
-	csvFieldCount = 6
+	csvFieldCount = 9
 	// csvRowOffset accounts for: 0-indexed loop (i starts at 0) + skipped header row.
 	csvRowOffset = 2
 )
@@ -37,6 +37,12 @@ type JSONRun struct {
 	Name string `json:"Name" jsonschema:"required"`
 	// Result is the result of the run.
 	Result string `json:"Result" jsonschema:"required,enum=succeeded,enum=failed,enum=early exit,enum=excluded"`
+	// Ref is the worktree reference (e.g., git commit, branch).
+	Ref string `json:"Ref,omitempty"`
+	// Cmd is the terraform command (plan, apply, etc.).
+	Cmd string `json:"Cmd,omitempty"`
+	// Args are the terraform CLI arguments.
+	Args []string `json:"Args,omitempty"`
 }
 
 // JSONRuns is a slice of JSONRun entries with helper methods.
@@ -54,11 +60,16 @@ func ParseJSONRuns(data []byte) (JSONRuns, error) {
 }
 
 // ParseJSONRunsFromFile reads and parses a JSON report from a file.
-// Returns a slice of JSONRun entries or an error if reading or parsing fails.
+// Returns a slice of JSONRun entries or an error if reading, validation, or parsing fails.
+// The report is validated against the JSON schema before parsing.
 func ParseJSONRunsFromFile(path string) (JSONRuns, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report file %s: %w", path, err)
+	}
+
+	if err := validateJSONReport(data); err != nil {
+		return nil, err
 	}
 
 	return ParseJSONRuns(data)
@@ -80,8 +91,8 @@ func (runs JSONRuns) FindByName(name string) *JSONRun {
 // Useful for debugging and assertions in tests.
 func (runs JSONRuns) Names() []string {
 	names := make([]string, len(runs))
-	for i, run := range runs {
-		names[i] = run.Name
+	for i := range runs {
+		names[i] = runs[i].Name
 	}
 
 	return names
@@ -95,6 +106,9 @@ type CSVRun struct {
 	Result  string
 	Reason  string
 	Cause   string
+	Ref     string
+	Cmd     string
+	Args    string
 }
 
 // CSVRuns is a slice of CSVRun entries with helper methods.
@@ -130,6 +144,9 @@ func ParseCSVRuns(data []byte) (CSVRuns, error) {
 			Result:  record[3],
 			Reason:  record[4],
 			Cause:   record[5],
+			Ref:     record[6],
+			Cmd:     record[7],
+			Args:    record[8],
 		})
 	}
 
@@ -163,8 +180,8 @@ func (runs CSVRuns) FindByName(name string) *CSVRun {
 // Useful for debugging and assertions in tests.
 func (runs CSVRuns) Names() []string {
 	names := make([]string, len(runs))
-	for i, run := range runs {
-		names[i] = run.Name
+	for i := range runs {
+		names[i] = runs[i].Name
 	}
 
 	return names
@@ -179,9 +196,9 @@ func (e *SchemaValidationError) Error() string {
 	return fmt.Sprintf("schema validation failed with %d error(s): %v", len(e.Errors), e.Errors)
 }
 
-// ValidateJSONReport validates a JSON report against the schema.
+// validateJSONReport validates a JSON report against the schema.
 // Returns nil if valid, or a SchemaValidationError with details if invalid.
-func ValidateJSONReport(data []byte) error {
+func validateJSONReport(data []byte) error {
 	schemaBytes, err := json.Marshal(generateReportSchema())
 	if err != nil {
 		return fmt.Errorf("failed to generate schema: %w", err)
@@ -205,17 +222,6 @@ func ValidateJSONReport(data []byte) error {
 	}
 
 	return nil
-}
-
-// ValidateJSONReportFromFile reads and validates a JSON report file against the schema.
-// Returns nil if valid, or an error if reading fails or validation fails.
-func ValidateJSONReportFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read report file %s: %w", path, err)
-	}
-
-	return ValidateJSONReport(data)
 }
 
 // WriteToFile writes the report to a file.
@@ -268,6 +274,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 		"Result",
 		"Reason",
 		"Cause",
+		"Ref",
+		"Cmd",
+		"Args",
 	})
 	if err != nil {
 		return err
@@ -298,6 +307,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			}
 		}
 
+		// Format Args as pipe-separated string for CSV to avoid conflicts with CSV column separator
+		args := strings.Join(run.Args, "|")
+
 		err := csvWriter.Write([]string{
 			name,
 			started,
@@ -305,6 +317,9 @@ func (r *Report) WriteCSV(w io.Writer) error {
 			result,
 			reason,
 			cause,
+			run.Ref,
+			run.Cmd,
+			args,
 		})
 		if err != nil {
 			return err
@@ -332,6 +347,9 @@ func (r *Report) WriteJSON(w io.Writer) error {
 			Name:    name,
 			Started: run.Started,
 			Ended:   run.Ended,
+			Ref:     run.Ref,
+			Cmd:     run.Cmd,
+			Args:    run.Args,
 			Result:  string(run.Result),
 		}
 
@@ -451,7 +469,7 @@ func generateReportSchema() *jsonschema.Schema {
 	schema := reflector.Reflect(&JSONRun{})
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json"
+	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json"
 
 	return &jsonschema.Schema{
 		Type:        "array",
