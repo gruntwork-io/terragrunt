@@ -367,11 +367,11 @@ func NewRunnerPoolStack(
 // filterUnitsToComponents converts resolved units to Components.
 // Excluded units that are assumed already applied are kept in the queue
 // so their dependents can run (they will be immediately marked as succeeded).
-// Only truly excluded units (FlagExcluded && !AssumeAlreadyApplied) are filtered out.
+// Only truly excluded units with set FlagExcluded are filtered out.
 func filterUnitsToComponents(units []*component.Unit) component.Components {
 	result := make(component.Components, 0, len(units))
 	for _, u := range units {
-		if u.Execution != nil && u.Execution.FlagExcluded && !u.Execution.AssumeAlreadyApplied {
+		if u.Execution != nil && u.Execution.FlagExcluded {
 			// Truly excluded - skip entirely
 			continue
 		}
@@ -452,9 +452,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					// Determine the reason for exclusion
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
-					if u.Execution.AssumeAlreadyApplied {
-						reason = report.ReasonExcludeExternal
-					}
 
 					if err := r.Stack.Execution.Report.EndRun(
 						l,
