@@ -273,12 +273,10 @@ config {
 
 By default, `tflint` is executed with the internal `tflint` built into Terragrunt, which will evaluate parameters passed in.
 
-<Aside type="warning">
-    Previous versions of Terragrunt shipped with a version of `tflint` compiled into the binary to allow for more convenient usage without installing `tflint` directly. Due to the adoption of a BUSL license in `tflint` (due to the adoption of a BUSL license in Terraform), the version included in Terragrunt was frozen.
+<Aside type="caution">
+    Previous versions of Terragrunt shipped with a version of `tflint` compiled into the binary to allow for more convenient usage without installing `tflint` directly. Due to the adoption of a BUSL license in `tflint` (following Terraform's move), the version included in Terragrunt was frozen.
 
-    Use of the internal `tflint` is deprecated, and will be removed in the future. You may opt in ahead of time by
-    adding `--terragrunt-external-tflint` to your hook arguments (see example below), or enabling the
-    [`legacy-internal-tflint` strict control](/docs/reference/strict-controls#legacy-internal-tflint).
+    Use of the internal `tflint` is deprecated, and will be removed in the future. You may opt in ahead of time by adding `--terragrunt-external-tflint` to your hook arguments (see example below), or enabling the [`legacy-internal-tflint` strict control](/docs/reference/strict-controls#legacy-internal-tflint).
 
 </Aside>
 
@@ -304,7 +302,7 @@ terraform {
 
 ### Authentication for tflint rulesets
 
-<!-- markdownlint-disable MD036 -->
+\<!-- markdownlint-disable MD036 -->
 
 _Public rulesets_
 
