@@ -426,10 +426,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil {
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -556,10 +563,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -660,7 +674,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
 		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
 
-	var outStrSb729 strings.Builder
+	var outStrSb strings.Builder
 
 	for _, unit := range entries {
 		unitPath := unit.Component.DisplayPath()
@@ -668,10 +682,10 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 			unitPath = unit.Component.Path()
 		}
 
-		outStrSb729.WriteString(fmt.Sprintf("- Unit %s\n", unitPath))
+		fmt.Fprintf(&outStrSb, "- Unit %s\n", unitPath)
 	}
 
-	outStr += outStrSb729.String()
+	outStr += outStrSb.String()
 
 	l.Info(outStr)
 

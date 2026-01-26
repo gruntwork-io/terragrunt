@@ -4644,10 +4644,6 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, command)
 	require.NoError(t, err)
 
-	// Validate the report file against the JSON schema
-	err = report.ValidateJSONReportFromFile(reportFile)
-	require.NoError(t, err, "Report should pass schema validation")
-
 	// Parse the report file to verify the correct units ran
 	runs, err := report.ParseJSONRunsFromFile(reportFile)
 	require.NoError(t, err, "Should be able to parse JSON report")

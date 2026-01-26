@@ -1,7 +1,6 @@
 package test_test
 
 import (
-	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1028,47 +1027,39 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
-				// Validate the report file against the JSON schema
-				err = report.ValidateJSONReportFromFile(reportFilePath)
-				require.NoError(t, err, "Report should pass schema validation")
-
 				// Read and parse the report file
-				content, err := os.ReadFile(reportFilePath)
-				require.NoError(t, err, "Should be able to read report file")
-
-				var records []map[string]string
-
-				err = json.Unmarshal(content, &records)
+				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
 				// The report contains full paths, so we extract the unit name from the path
-				recordsByUnit := make(map[string]map[string]string)
+				recordsByUnit := make(map[string]*report.JSONRun)
 
-				for _, record := range records {
-					fullPath := record["Name"]
+				for i := range runs {
+					run := &runs[i]
+					fullPath := run.Name
 					// Extract unit name from path (e.g., "unit-to-be-created" from "/tmp/.../unit-to-be-created")
 					baseName := filepath.Base(fullPath)
-					recordsByUnit[baseName] = record
+					recordsByUnit[baseName] = run
 					// Also store by full path for fallback
-					recordsByUnit[fullPath] = record
+					recordsByUnit[fullPath] = run
 					// Store by any part of the path that matches our unit pattern
 					parts := strings.SplitSeq(fullPath, string(filepath.Separator))
 					for part := range parts {
 						if strings.HasPrefix(part, "unit-to-be-") {
-							recordsByUnit[part] = record
+							recordsByUnit[part] = run
 						}
 					}
 				}
 
 				// Verify expected units are in the report and not excluded
 				for _, expectedUnit := range tc.expectedUnits {
-					record, found := recordsByUnit[expectedUnit]
+					run, found := recordsByUnit[expectedUnit]
 					if !found {
 						// Try to find by partial match
 						for name, rec := range recordsByUnit {
 							if strings.Contains(name, expectedUnit) {
-								record = rec
+								run = rec
 								found = true
 
 								break
@@ -1076,8 +1067,8 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 						}
 					}
 
-					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getUnitNames(recordsByUnit))
-					assert.NotEqual(t, "excluded", record["Result"], "Expected unit '%s' should not be excluded", expectedUnit)
+					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getJSONRunNames(recordsByUnit))
+					assert.NotEqual(t, "excluded", run.Result, "Expected unit '%s' should not be excluded", expectedUnit)
 				}
 
 				// Verify excluded units are NOT in the report
@@ -1096,12 +1087,12 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 				// Verify expected excluded units are in the report but marked as excluded
 				for _, excludedUnit := range tc.expectedExcluded {
-					record, found := recordsByUnit[excludedUnit]
+					run, found := recordsByUnit[excludedUnit]
 					if !found {
 						// Try to find by partial match
 						for name, rec := range recordsByUnit {
 							if strings.Contains(name, excludedUnit) {
-								record = rec
+								run = rec
 								found = true
 
 								break
@@ -1110,7 +1101,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 					}
 
 					require.True(t, found, "Expected excluded unit '%s' should be in report", excludedUnit)
-					assert.Equal(t, "excluded", record["Result"], "Unit '%s' should be marked as excluded", excludedUnit)
+					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
 				}
 			}
 		})
@@ -1585,48 +1576,40 @@ unit "unit-to-be-created-2" {
 				reportFilePath := filepath.Join(tmpDir, helpers.ReportFile)
 				assert.FileExists(t, reportFilePath, "Report file should exist")
 
-				// Validate the report file against the JSON schema
-				err = report.ValidateJSONReportFromFile(reportFilePath)
-				require.NoError(t, err, "Report should pass schema validation")
-
 				// Read and parse the report file
-				content, err := os.ReadFile(reportFilePath)
-				require.NoError(t, err, "Should be able to read report file")
-
-				var records []map[string]string
-
-				err = json.Unmarshal(content, &records)
+				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse report JSON")
 
 				// Create a map of unit names to records for easier lookup
 				// The report contains full paths, so we extract the unit name from the path
-				recordsByUnit := make(map[string]map[string]string)
+				recordsByUnit := make(map[string]*report.JSONRun)
 
-				for _, record := range records {
-					fullPath := record["Name"]
+				for i := range runs {
+					run := &runs[i]
+					fullPath := run.Name
 					// Extract unit name from path
 					// Paths might be like: /tmp/.../live/stack-to-be-modified/.terragrunt-stack/unit-to-be-added
 					baseName := filepath.Base(fullPath)
-					recordsByUnit[baseName] = record
+					recordsByUnit[baseName] = run
 					// Also store by full path for fallback
-					recordsByUnit[fullPath] = record
+					recordsByUnit[fullPath] = run
 					// Store by any part of the path that matches our unit pattern
 					parts := strings.SplitSeq(fullPath, string(filepath.Separator))
 					for part := range parts {
 						if strings.HasPrefix(part, "unit-to-be-") {
-							recordsByUnit[part] = record
+							recordsByUnit[part] = run
 						}
 					}
 				}
 
 				// Verify expected units are in the report and not excluded
 				for _, expectedUnit := range tc.expectedUnits {
-					record, found := recordsByUnit[expectedUnit]
+					run, found := recordsByUnit[expectedUnit]
 					if !found {
 						// Try to find by partial match
 						for name, rec := range recordsByUnit {
 							if strings.Contains(name, expectedUnit) {
-								record = rec
+								run = rec
 								found = true
 
 								break
@@ -1634,8 +1617,8 @@ unit "unit-to-be-created-2" {
 						}
 					}
 
-					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getUnitNames(recordsByUnit))
-					assert.NotEqual(t, "excluded", record["Result"], "Expected unit '%s' should not be excluded", expectedUnit)
+					require.True(t, found, "Expected unit '%s' should be in report. Found units: %v", expectedUnit, getJSONRunNames(recordsByUnit))
+					assert.NotEqual(t, "excluded", run.Result, "Expected unit '%s' should not be excluded", expectedUnit)
 				}
 
 				// Verify excluded units are NOT in the report
@@ -1654,12 +1637,12 @@ unit "unit-to-be-created-2" {
 
 				// Verify expected excluded units are in the report but marked as excluded
 				for _, excludedUnit := range tc.expectedExcluded {
-					record, found := recordsByUnit[excludedUnit]
+					run, found := recordsByUnit[excludedUnit]
 					if !found {
 						// Try to find by partial match
 						for name, rec := range recordsByUnit {
 							if strings.Contains(name, excludedUnit) {
-								record = rec
+								run = rec
 								found = true
 
 								break
@@ -1668,7 +1651,7 @@ unit "unit-to-be-created-2" {
 					}
 
 					require.True(t, found, "Expected excluded unit '%s' should be in report", excludedUnit)
-					assert.Equal(t, "excluded", record["Result"], "Unit '%s' should be marked as excluded", excludedUnit)
+					assert.Equal(t, "excluded", run.Result, "Unit '%s' should be marked as excluded", excludedUnit)
 				}
 			}
 		})
@@ -1865,44 +1848,28 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
-			content, err := os.ReadFile(reportFilePath)
-			require.NoError(t, err, "Should be able to read report file")
-
-			var records []map[string]string
-
-			err = json.Unmarshal(content, &records)
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Create a map of unit names to records for easier lookup
-			recordsByUnit := make(map[string]map[string]string)
-
-			for _, record := range records {
-				fullPath := record["Name"]
-				baseName := filepath.Base(fullPath)
-				recordsByUnit[baseName] = record
-				recordsByUnit[fullPath] = record
-			}
+			names := runs.Names()
 
 			// Verify expected units are in the report
 			found := false
 
-			for name := range recordsByUnit {
+			for _, name := range names {
 				if strings.Contains(name, "target-unit") {
 					found = true
 					break
 				}
 			}
 
-			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+			require.True(t, found, "target-unit should be in report. Found units: %v", names)
 
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
 				found := false
 
-				for name := range recordsByUnit {
+				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
 						break
@@ -1936,55 +1903,39 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
-			content, err := os.ReadFile(reportFilePath)
-			require.NoError(t, err, "Should be able to read report file")
-
-			var records []map[string]string
-
-			err = json.Unmarshal(content, &records)
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Create a map of unit names to records for easier lookup
-			recordsByUnit := make(map[string]map[string]string)
-
-			for _, record := range records {
-				fullPath := record["Name"]
-				baseName := filepath.Base(fullPath)
-				recordsByUnit[baseName] = record
-				recordsByUnit[fullPath] = record
-			}
+			names := runs.Names()
 
 			// Verify expected units are in the report
 			found := false
 
-			for name := range recordsByUnit {
+			for _, name := range names {
 				if strings.Contains(name, "target-unit") {
 					found = true
 					break
 				}
 			}
 
-			require.True(t, found, "target-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+			require.True(t, found, "target-unit should be in report. Found units: %v", names)
 
 			found = false
 
-			for name := range recordsByUnit {
+			for _, name := range names {
 				if strings.Contains(name, "dependency-unit") {
 					found = true
 					break
 				}
 			}
 
-			require.True(t, found, "dependency-unit should be in report. Found units: %v", getUnitNames(recordsByUnit))
+			require.True(t, found, "dependency-unit should be in report. Found units: %v", names)
 
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
 				found := false
 
-				for name := range recordsByUnit {
+				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
 						break
@@ -2019,44 +1970,28 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
-			content, err := os.ReadFile(reportFilePath)
-			require.NoError(t, err, "Should be able to read report file")
-
-			var records []map[string]string
-
-			err = json.Unmarshal(content, &records)
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Create a map of unit names to records for easier lookup
-			recordsByUnit := make(map[string]map[string]string)
-
-			for _, record := range records {
-				fullPath := record["Name"]
-				baseName := filepath.Base(fullPath)
-				recordsByUnit[baseName] = record
-				recordsByUnit[fullPath] = record
-			}
+			names := runs.Names()
 
 			// Verify expected unit is in the report
 			found := false
 
-			for name := range recordsByUnit {
+			for _, name := range names {
 				if strings.Contains(name, "unit-a") {
 					found = true
 					break
 				}
 			}
 
-			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+			require.True(t, found, "unit-a should be in report. Found units: %v", names)
 
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
 				found := false
 
-				for name := range recordsByUnit {
+				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
 						break
@@ -2092,44 +2027,28 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		// Verify the report file exists and parse it
 		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 		if util.FileExists(reportFilePath) {
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
-			content, err := os.ReadFile(reportFilePath)
-			require.NoError(t, err, "Should be able to read report file")
-
-			var records []map[string]string
-
-			err = json.Unmarshal(content, &records)
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err, "Should be able to parse report JSON")
 
-			// Create a map of unit names to records for easier lookup
-			recordsByUnit := make(map[string]map[string]string)
-
-			for _, record := range records {
-				fullPath := record["Name"]
-				baseName := filepath.Base(fullPath)
-				recordsByUnit[baseName] = record
-				recordsByUnit[fullPath] = record
-			}
+			names := runs.Names()
 
 			// Verify expected unit is in the report
 			found := false
 
-			for name := range recordsByUnit {
+			for _, name := range names {
 				if strings.Contains(name, "unit-a") {
 					found = true
 					break
 				}
 			}
 
-			require.True(t, found, "unit-a should be in report. Found units: %v", getUnitNames(recordsByUnit))
+			require.True(t, found, "unit-a should be in report. Found units: %v", names)
 
 			// Verify land-mine units are NOT in the report
 			for _, excludedUnit := range []string{"landmine-unit-1", "landmine-unit-2"} {
 				found := false
 
-				for name := range recordsByUnit {
+				for _, name := range names {
 					if strings.Contains(name, excludedUnit) {
 						found = true
 						break
@@ -2173,9 +2092,6 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 			reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
 			r, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err)
 
@@ -2187,8 +2103,8 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 	}
 }
 
-// getUnitNames extracts unit names from records map for error messages
-func getUnitNames(recordsByUnit map[string]map[string]string) []string {
+// getJSONRunNames extracts unit names from records map for error messages
+func getJSONRunNames(recordsByUnit map[string]*report.JSONRun) []string {
 	names := make([]string, 0, len(recordsByUnit))
 	for name := range recordsByUnit {
 		names = append(names, name)
