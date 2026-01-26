@@ -1776,9 +1776,25 @@ func TestAwsReadTerragruntAuthProviderCmd(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app1")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s`, rootPath, mockAuthCmd)+" -- apply -auto-approve")
+	helpers.ValidateAuthProviderScript(t, appPath, mockAuthCmd)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --working-dir %s --auth-provider-cmd %s", appPath, mockAuthCmd))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			`terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s -- apply -auto-approve`,
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt output -json --working-dir %s --auth-provider-cmd %s",
+			appPath,
+			mockAuthCmd,
+		),
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1797,9 +1813,24 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	sopsPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "sops")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, sopsPath, mockAuthCmd))
+	helpers.ValidateAuthProviderScript(t, sopsPath, mockAuthCmd)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --working-dir %s --auth-provider-cmd %s", sopsPath, mockAuthCmd))
+	helpers.RunTerragrunt(
+		t, fmt.Sprintf(
+			`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`,
+			sopsPath,
+			mockAuthCmd,
+		),
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt output -json --working-dir %s --auth-provider-cmd %s",
+			sopsPath,
+			mockAuthCmd,
+		),
+	)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
@@ -288,4 +289,22 @@ func determineToolName(command string) string {
 	}
 
 	return command
+}
+
+// ValidateAuthProviderScript runs the given auth provider script in the specified directory
+// and validates its response against the expected schema.
+func ValidateAuthProviderScript(t *testing.T, dir string, script string) {
+	t.Helper()
+
+	scriptStdout := bytes.Buffer{}
+
+	cmd := exec.CommandContext(t.Context(), script)
+	cmd.Dir = dir
+	cmd.Stdout = &scriptStdout
+
+	err := cmd.Run()
+	require.NoError(t, err)
+
+	err = externalcmd.ValidateResponse(scriptStdout.Bytes())
+	require.NoError(t, err)
 }

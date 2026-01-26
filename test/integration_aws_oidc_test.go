@@ -128,6 +128,8 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, oidcPath)
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
+	helpers.ValidateAuthProviderScript(t, oidcPath, mockAuthCmd)
+
 	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --non-interactive --working-dir %s --auth-provider-cmd %s`, oidcPath, mockAuthCmd))
 }
 
@@ -149,6 +151,8 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 	remoteStateOIDCPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
 	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
+
+	helpers.ValidateAuthProviderScript(t, remoteStateOIDCPath, mockAuthCmd)
 
 	// Create a temporary terragrunt config with actual values
 	tmpTerragruntConfigFile := filepath.Join(remoteStateOIDCPath, "terragrunt.hcl")
