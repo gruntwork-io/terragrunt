@@ -237,13 +237,12 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 		expectHint    bool
 	}{
 		{
-			name:          "UnexpectedToken with pipe",
-			code:          filter.ErrorCodeUnexpectedToken,
-			token:         "|",
-			query:         "| foo",
-			position:      0,
-			expectHint:    true,
-			hintSubstring: "both sides",
+			name:       "UnexpectedToken with pipe",
+			code:       filter.ErrorCodeUnexpectedToken,
+			token:      "|",
+			query:      "| foo",
+			position:   0,
+			expectHint: false,
 		},
 		{
 			name:          "UnexpectedToken with caret",
@@ -288,7 +287,7 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			query:         "...",
 			position:      0,
 			expectHint:    true,
-			hintSubstring: "graph traversal",
+			hintSubstring: "graph-based",
 		},
 		{
 			name:          "MissingClosingBracket",
@@ -315,16 +314,15 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			query:         "[main...]",
 			position:      8,
 			expectHint:    true,
-			hintSubstring: "require at least one reference",
+			hintSubstring: "require a reference on each side",
 		},
 		{
-			name:          "MissingOperand",
-			code:          filter.ErrorCodeMissingOperand,
-			token:         "",
-			query:         "foo |",
-			position:      5,
-			expectHint:    true,
-			hintSubstring: "both sides",
+			name:       "MissingOperand",
+			code:       filter.ErrorCodeMissingOperand,
+			token:      "",
+			query:      "foo |",
+			position:   5,
+			expectHint: false,
 		},
 		{
 			name:          "UnexpectedEOF",

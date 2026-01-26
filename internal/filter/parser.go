@@ -143,7 +143,9 @@ func (p *Parser) parseExpression(precedence int) Expression {
 	case EOF:
 		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "Unexpected end of input", "expression is incomplete")
 		return nil
-	case PIPE, EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
+	case PIPE:
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Missing left-hand side of '|' operator")
+	case EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
 		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"'")
 		return nil
 	default:
@@ -240,7 +242,7 @@ func (p *Parser) parsePrefixExpression() Expression {
 	expression.Right = p.parseExpression(PREFIX)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "expected expression after '"+expression.Operator+"'")
+		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "Missing target expression for '!' operator")
 		return nil
 	}
 
@@ -259,7 +261,7 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "expected expression after '"+expression.Operator+"'")
+		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "Missing right-hand side of '|' operator")
 		return nil
 	}
 

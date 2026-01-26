@@ -11,13 +11,13 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 	case ErrorCodeUnexpectedToken:
 		return getUnexpectedTokenHint(token, query, position)
 	case ErrorCodeMissingClosingBracket:
-		return "Git filter expressions must be enclosed in '[]'. e.g. '[main...HEAD]'"
+		return getMissingClosingBracketHint(query)
 	case ErrorCodeMissingClosingBrace:
-		return "Braced paths must be enclosed in '{}'. e.g. '{path/with spaces}'"
+		return getMissingClosingBraceHint(query)
 	case ErrorCodeMissingGitRef:
-		return "Git filters require at least one reference. e.g. '[main]' or '[main...HEAD]'"
+		return "Git filters with '...' require a reference on each side. e.g. '[main...HEAD]'"
 	case ErrorCodeMissingOperand:
-		return "Operators require expressions on both sides. e.g. './foo/** | !./foo/bar/**'"
+		return ""
 	case ErrorCodeUnexpectedEOF:
 		return "The expression is incomplete. Make sure all brackets are closed and operators have operands."
 	case ErrorCodeIllegalToken:
@@ -51,15 +51,15 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 	case "^":
 		return getCaretHint(query, position)
 	case "|":
-		return "The '|' operator requires expressions on both sides. e.g. 'app | !legacy'"
+		return ""
 	case "=":
 		return "The equals sign is used for attribute filters. e.g. 'name=foo'"
 	case "]":
-		return "Unexpected ']' without matching '['. Git filters use brackets: '[main...HEAD]'"
+		return "Unexpected ']' without matching '['. Git filters use square brackets: '[main...HEAD]'"
 	case "}":
 		return "Unexpected '}' without matching '{'. Braced paths use braces: '{./my path}'"
 	case "...":
-		return "Ellipsis is used for graph traversal (e.g. '...foo...') or Git ranges (e.g. '[main...HEAD]')"
+		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
 	}
 
 	// Generic unexpected token hints
@@ -76,9 +76,10 @@ func getCaretHint(query string, position int) string {
 	if position > 0 {
 		beforeCaret := strings.TrimSpace(query[:position])
 
-		// Check if it follows an ellipsis
-		if strings.HasSuffix(beforeCaret, "...") {
-			return "The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'"
+		// Check if it follows an ellipsis - suggest moving caret to left side
+		if targetPart, found := strings.CutSuffix(beforeCaret, "..."); found {
+			// Extract the target before the ellipsis for a dynamic suggestion
+			return fmt.Sprintf("The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^%s...'?", targetPart)
 		}
 
 		// User likely meant Git syntax [HEAD^]
@@ -88,5 +89,25 @@ func getCaretHint(query string, position int) string {
 	}
 
 	// Caret at start or in unusual position
-	return "The caret (^) excludes the target from graph results. e.g. '^foo...' or 'foo...^bar'"
+	return "The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'"
+}
+
+// getMissingClosingBracketHint returns a dynamic hint for unclosed Git filter expressions.
+func getMissingClosingBracketHint(query string) string {
+	// Find the opening bracket and extract content after it
+	if _, content, found := strings.Cut(query, "["); found {
+		return fmt.Sprintf("Git filter expressions must be enclosed in '[]'. Did you mean '[%s]'?", content)
+	}
+
+	return "Git filter expressions must be enclosed in '[]'. e.g. '[main...HEAD]'"
+}
+
+// getMissingClosingBraceHint returns a dynamic hint for unclosed braced path expressions.
+func getMissingClosingBraceHint(query string) string {
+	// Find the opening brace and extract content after it
+	if _, content, found := strings.Cut(query, "{"); found {
+		return fmt.Sprintf("Braced paths must be enclosed in '{}'. Did you mean '{%s}'?", content)
+	}
+
+	return "Braced paths must be enclosed in '{}'. e.g. '{path/with spaces}'"
 }
