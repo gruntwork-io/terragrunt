@@ -373,12 +373,25 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			hint := filter.GetHint(tc.code, tc.token, tc.query, tc.position)
 
 			if tc.expectHint {
-				require.NotEmpty(t, hint, "expected hint for error code %v", tc.code)
-				assert.Contains(t, hint, tc.hintSubstring,
-					"hint should contain '%s', got: %s", tc.hintSubstring, hint)
-			} else {
-				assert.Empty(t, hint, "expected no hint for error code %v", tc.code)
+				require.NotEmpty(
+					t,
+					hint,
+					"expected hint for error code %v",
+					tc.code,
+				)
+				assert.Contains(
+					t,
+					hint,
+					tc.hintSubstring,
+					"hint should contain '%s', got: %s",
+					tc.hintSubstring,
+					hint,
+				)
+
+				return
 			}
+
+			assert.Empty(t, hint, "expected no hint for error code %v", tc.code)
 		})
 	}
 }
@@ -442,33 +455,25 @@ func TestHints_FormatDiagnosticStructure(t *testing.T) {
 
 	output := filter.FormatDiagnostic(parseErr, 0, false)
 
-	// Verify structural elements are present and in order
 	lines := strings.Split(output, "\n")
 
 	require.GreaterOrEqual(t, len(lines), 6, "diagnostic should have at least 6 lines")
 
-	// Line 1: Error header
 	assert.Contains(t, lines[0], "Filter parsing error:")
 	assert.Contains(t, lines[0], "Test Error")
 
-	// Line 2: Location arrow
 	assert.Contains(t, lines[1], " --> ")
 	assert.Contains(t, lines[1], "--filter")
 
-	// Line 3: Blank line
 	assert.Empty(t, lines[2])
 
-	// Line 4: Query
 	assert.Contains(t, lines[3], "test query")
 
-	// Line 5: Caret and message
 	assert.Contains(t, lines[4], "^")
 	assert.Contains(t, lines[4], "test message")
 
-	// Line 6: Blank line
 	assert.Empty(t, lines[5])
 
-	// Line 7: Hint (when present)
 	assert.Contains(t, lines[6], "hint:")
 }
 
@@ -487,21 +492,21 @@ func TestHints_FilterIndexInDiagnostic(t *testing.T) {
 		ErrorCode:     filter.ErrorCodeUnexpectedToken,
 	}
 
-	// Filter index 0 should not show index
 	output0 := filter.FormatDiagnostic(parseErr, 0, false)
 	assert.Contains(t, output0, "--filter 'bad'")
 	assert.NotContains(t, output0, "--filter[")
 
-	// Filter index > 0 should show index
 	output2 := filter.FormatDiagnostic(parseErr, 2, false)
 	assert.Contains(t, output2, "--filter[2]")
 }
 
 // stripTimestampPrefix removes any timestamp prefix from log output.
+//
 // Timestamps typically appear at the start of lines in formats like:
 // "2024-01-15T10:30:00Z" or "2024/01/15 10:30:00"
+//
+// This makes it easier to assert expected output in golden tests.
 func stripTimestampPrefix(s string) string {
-	// Match common timestamp patterns at the start of lines
 	timestampPattern := regexp.MustCompile(`(?m)^(\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*\s+)`)
 	return timestampPattern.ReplaceAllString(s, "")
 }

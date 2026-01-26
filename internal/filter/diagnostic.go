@@ -14,14 +14,26 @@ const (
 	ansiCyan  = "\033[36m"
 )
 
-// FormatDiagnostic produces a Rust-style error message from a ParseError.
+// FormatDiagnostic produces an error message from a ParseError.
+//
+// These diagnostics are formatted like so:
+//
+// ```
+// Filter parsing error: Missing Git reference
+//
+//	--> --filter '[main...]'
+//
+//	    [main...]
+//	            ^ Expected second Git reference after '...'
+//
+//	 hint: Git filters with '...' require a reference on each side. e.g. '[main...HEAD]'
+//
+// ```
 func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 	var sb strings.Builder
 
-	// Line 1: Error header with high-level title
 	fmt.Fprintf(&sb, "Filter parsing error: %s\n", err.Title)
 
-	// Line 2: Location arrow
 	var arrow string
 	if useColor {
 		arrow = fmt.Sprintf("%s%s --> %s", ansiBold, ansiBlue, ansiReset)
@@ -35,14 +47,11 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 		fmt.Fprintf(&sb, "%s--filter '%s'\n", arrow, err.Query)
 	}
 
-	// Line 3: Blank line
 	sb.WriteString("\n")
 
-	// Line 4: The query with indentation
 	fmt.Fprintf(&sb, "     %s\n", err.Query)
 
-	// Line 5: Caret at ErrorPosition (may differ from Position for unclosed brackets)
-	indent := "     " // 5 spaces for alignment
+	indent := "     "
 	spaces := strings.Repeat(" ", err.ErrorPosition)
 	caret := "^"
 	detail := " " + err.Message
@@ -53,7 +62,6 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 		fmt.Fprintf(&sb, "%s%s%s%s\n", indent, spaces, caret, detail)
 	}
 
-	// Line 6-7: Blank line and hint (only if hint exists)
 	hint := GetHint(err.ErrorCode, err.TokenLiteral, err.Query, err.Position)
 	if hint != "" {
 		sb.WriteString("\n")

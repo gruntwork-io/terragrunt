@@ -34,19 +34,14 @@ func TestFormatDiagnostic_UnexpectedToken(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error header with title
 	assert.Contains(t, result, "Filter parsing error: Unexpected token")
 
-	// Check location arrow
 	assert.Contains(t, result, " --> --filter 'HEAD^'")
 
-	// Check query is displayed
 	assert.Contains(t, result, "     HEAD^")
 
-	// Check caret at ErrorPosition with message
 	assert.Contains(t, result, "^ unexpected '^' after expression")
 
-	// Check hint is present
 	assert.Contains(t, result, "hint:")
 	assert.Contains(t, result, "Git")
 }
@@ -67,7 +62,6 @@ func TestFormatDiagnostic_WithFilterIndex(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 2, false)
 
-	// Check filter index is included
 	assert.Contains(t, result, " --> --filter[2] '| foo'")
 }
 
@@ -78,7 +72,7 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 		Title:         "Unclosed Git filter expression",
 		Message:       "this Git-based expression is missing a closing ']'",
 		Position:      12,
-		ErrorPosition: 0, // Points to opening bracket
+		ErrorPosition: 0,
 		Query:         "[main...HEAD",
 		TokenLiteral:  "",
 		TokenLength:   1,
@@ -87,13 +81,10 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check error header with title
 	assert.Contains(t, result, "Filter parsing error: Unclosed Git filter expression")
 
-	// Check caret points to opening bracket (position 0)
 	assert.Contains(t, result, "     ^ this Git-based expression is missing a closing ']'")
 
-	// Check consolidated hint
 	assert.Contains(t, result, "hint: Git-based expressions require surrounding references with '[]'")
 }
 
@@ -134,8 +125,7 @@ func TestFormatDiagnostic_WithColor(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 0, true)
 
-	// Check ANSI codes are present
-	assert.Contains(t, result, "\033[") // ANSI escape sequence
+	assert.Contains(t, result, "\033[")
 }
 
 func TestFormatDiagnostic_NoColor(t *testing.T) {
@@ -154,7 +144,6 @@ func TestFormatDiagnostic_NoColor(t *testing.T) {
 
 	result := filter.FormatDiagnostic(err, 0, false)
 
-	// Check no ANSI codes
 	assert.NotContains(t, result, "\033[")
 }
 

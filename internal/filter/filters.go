@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -28,7 +27,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 
 	// Determine if we should use color based on logger settings and terminal detection.
 	// Error output goes to stderr, so we check if stderr is redirected.
-	useColor := !l.Formatter().DisabledColors() && !stdout.StderrIsRedirected()
+	useColor := !l.Formatter().DisabledColors()
 
 	filters := make([]*Filter, 0, len(filterStrings))
 
@@ -40,9 +39,11 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 			var parseErr ParseError
 			if errors.As(err, &parseErr) {
 				diagnostics = append(diagnostics, FormatDiagnostic(&parseErr, i, useColor))
-			} else {
-				diagnostics = append(diagnostics, fmt.Sprintf("filter %d: %v", i, err))
+
+				continue
 			}
+
+			diagnostics = append(diagnostics, fmt.Sprintf("filter %d: %v", i, err))
 
 			continue
 		}

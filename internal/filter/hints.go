@@ -16,15 +16,13 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 		return getMissingClosingBraceHint(query)
 	case ErrorCodeMissingGitRef:
 		return "Git filters with '...' require a reference on each side. e.g. '[main...HEAD]'"
-	case ErrorCodeMissingOperand:
-		return ""
 	case ErrorCodeUnexpectedEOF:
 		return getUnexpectedEOFHint(query)
 	case ErrorCodeIllegalToken:
 		return "This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)"
 
 	// These have error messages that are pretty self-explanatory and don't need hints.
-	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression:
+	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression, ErrorCodeMissingOperand:
 		return ""
 
 	// These are errors that don't have obvious hints that can be offered.
@@ -108,23 +106,19 @@ func getCaretHint(query string, position int) string {
 func getUnexpectedEOFHint(query string) string {
 	trimmed := strings.TrimSpace(query)
 
-	// Check for trailing ellipsis
 	if strings.HasSuffix(trimmed, "...") {
 		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
 	}
 
-	// Check for trailing caret
 	if strings.HasSuffix(trimmed, "^") {
 		return "The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'"
 	}
 
-	// Generic
 	return "The expression is incomplete. Make sure all brackets are closed and operators have operands."
 }
 
 // getMissingClosingBracketHint returns a dynamic hint for unclosed Git filter expressions.
 func getMissingClosingBracketHint(query string) string {
-	// Find the opening bracket and extract content after it
 	if _, content, found := strings.Cut(query, "["); found {
 		return fmt.Sprintf("Git-based expressions require surrounding references with '[]'. Did you mean '[%s]'?", content)
 	}
@@ -134,7 +128,6 @@ func getMissingClosingBracketHint(query string) string {
 
 // getMissingClosingBraceHint returns a dynamic hint for unclosed braced path expressions.
 func getMissingClosingBraceHint(query string) string {
-	// Find the opening brace and extract content after it
 	if _, content, found := strings.Cut(query, "{"); found {
 		return fmt.Sprintf("Explicit path expressions require surrounding paths with '{}'. Did you mean '{%s}'?", content)
 	}
