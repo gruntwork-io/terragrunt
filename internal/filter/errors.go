@@ -42,6 +42,12 @@ type ParseError struct {
 	ErrorCode ErrorCode
 }
 
+// Error returns a string representation of the error.
+//
+// We suppress the gocritic "hugeParam" warning because this is a very large struct,
+// but we need it to implement the error interface, not its pointer.
+//
+//nolint:gocritic
 func (e ParseError) Error() string {
 	return fmt.Sprintf("Parse error at position %d: %s", e.Position, e.Message)
 }

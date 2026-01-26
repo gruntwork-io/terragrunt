@@ -55,7 +55,7 @@ func (p *Parser) ParseExpression() (Expression, error) {
 	}
 
 	if p.curToken.Type != EOF {
-		return nil, p.createError(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"' after expression")
+		return nil, p.createError(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"' after expression")
 	}
 
 	return expr, nil
@@ -138,18 +138,18 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		leftExpr = &AttributeExpression{Key: "name", Value: p.curToken.Literal}
 		p.nextToken()
 	case ILLEGAL:
-		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "unrecognized character '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "Unrecognized character '"+p.curToken.Literal+"'")
 		return nil
 	case EOF:
-		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "Unexpected end of input", "expression is incomplete")
+		p.addErrorWithCode(ErrorCodeUnexpectedEOF, "Unexpected end of input", "Expression is incomplete")
 		return nil
 	case PIPE:
 		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Missing left-hand side of '|' operator")
 	case EQUAL, RBRACE, RBRACKET, ELLIPSIS, CARET:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"'")
 		return nil
 	default:
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "unexpected '"+p.curToken.Literal+"'")
+		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"'")
 		return nil
 	}
 
@@ -242,7 +242,11 @@ func (p *Parser) parsePrefixExpression() Expression {
 	expression.Right = p.parseExpression(PREFIX)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "Missing target expression for '!' operator")
+		// Clear any errors from parseExpression (like generic EOF error)
+		// and add our specific error with the EOF title for consistency
+		p.errors = nil
+		p.addMissingOperandError("Unexpected end of input", "Missing target expression for '!' operator")
+
 		return nil
 	}
 
@@ -261,7 +265,11 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 	expression.Right = p.parseExpression(precedence)
 
 	if expression.Right == nil {
-		p.addErrorWithCode(ErrorCodeMissingOperand, "Missing operand", "Missing right-hand side of '|' operator")
+		// Clear any errors from parseExpression (like generic EOF error)
+		// and add our specific error with the EOF title for consistency
+		p.errors = nil
+		p.addMissingOperandError("Unexpected end of input", "Missing right-hand side of '|' operator")
+
 		return nil
 	}
 
@@ -445,6 +453,27 @@ func (p *Parser) addErrorWithCode(code ErrorCode, title, msg string) {
 		p.curToken.Literal,
 		tokenLen,
 		code,
+	)
+	p.errors = append(p.errors, err)
+}
+
+// addMissingOperandError adds a MissingOperand error with a custom title.
+// This is used when a more specific error replaces a generic EOF error.
+func (p *Parser) addMissingOperandError(title, msg string) {
+	tokenLen := len(p.curToken.Literal)
+	if tokenLen == 0 {
+		tokenLen = 1 // Minimum length for underline
+	}
+
+	err := NewParseErrorWithContext(
+		title,
+		msg,
+		p.curToken.Position,
+		p.curToken.Position,
+		p.originalQuery,
+		p.curToken.Literal,
+		tokenLen,
+		ErrorCodeMissingOperand,
 	)
 	p.errors = append(p.errors, err)
 }

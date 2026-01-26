@@ -27,9 +27,9 @@ func TestHints_Golden(t *testing.T) {
  --> --filter 'HEAD^'
 
      HEAD^
-         ^ unexpected '^' after expression
+         ^ Unexpected '^' after expression
 
-  hint: Git syntax requires '[]'. Did you mean '[HEAD^]'?
+  hint: Git-based expressions require surrounding references with '[]'. Did you mean '[HEAD^]'?
 `,
 		},
 		{
@@ -41,7 +41,7 @@ func TestHints_Golden(t *testing.T) {
      [main...HEAD
      ^ This Git-based expression is missing a closing ']'
 
-  hint: Git filter expressions must be enclosed in '[]'. Did you mean '[main...HEAD]'?
+  hint: Git-based expressions require surrounding references with '[]'. Did you mean '[main...HEAD]'?
 `,
 		},
 		{
@@ -53,7 +53,7 @@ func TestHints_Golden(t *testing.T) {
      {my path
      ^ This braced path expression is missing a closing '}'
 
-  hint: Braced paths must be enclosed in '{}'. Did you mean '{my path}'?
+  hint: Explicit path expressions require surrounding paths with '{}'. Did you mean '{my path}'?
 `,
 		},
 		{
@@ -64,7 +64,6 @@ func TestHints_Golden(t *testing.T) {
 
      []
       ^ Git filter expression cannot be empty
-
 `,
 		},
 		{
@@ -98,27 +97,27 @@ func TestHints_Golden(t *testing.T) {
 `,
 		},
 		{
-			name:  "unexpected closing bracket",
+			name:  "Unexpected closing bracket",
 			query: "]",
 			expected: `Filter parsing error: Unexpected token
  --> --filter ']'
 
      ]
-     ^ unexpected ']'
+     ^ Unexpected ']'
 
-  hint: Unexpected ']' without matching '['. Git filters use square brackets: '[main...HEAD]'
+  hint: Unexpected ']' without matching '['. Git-based expressions use square brackets. e.g. '[main...HEAD]'
 `,
 		},
 		{
-			name:  "unexpected closing brace",
+			name:  "Unexpected closing brace",
 			query: "}",
 			expected: `Filter parsing error: Unexpected token
  --> --filter '}'
 
      }
-     ^ unexpected '}'
+     ^ Unexpected '}'
 
-  hint: Unexpected '}' without matching '{'. Braced paths use braces: '{./my path}'
+  hint: Unexpected '}' without matching '{'. Explicit path expressions use braces. e.g. '{./my path}'
 `,
 		},
 		{
@@ -128,7 +127,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '=foo'
 
      =foo
-     ^ unexpected '='
+     ^ Unexpected '='
 
   hint: The equals sign is used for attribute filters. e.g. 'name=foo'
 `,
@@ -140,7 +139,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '^'
 
      ^
-      ^ expression is incomplete
+      ^ Expression is incomplete
 
   hint: The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'
 `,
@@ -152,7 +151,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '...'
 
      ...
-        ^ expression is incomplete
+        ^ Expression is incomplete
 
   hint: The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'
 `,
@@ -165,7 +164,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter '.'
 
      .
-     ^ unrecognized character '.'
+     ^ Unrecognized character '.'
 
   hint: This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)
 `,
@@ -189,10 +188,9 @@ func TestHints_Golden(t *testing.T) {
  --> --filter './apps/* | HEAD^'
 
      ./apps/* | HEAD^
-                    ^ unexpected '^' after expression
+                    ^ Unexpected '^' after expression
 
-  hint: Git syntax requires '[]'. Did you mean '[HEAD^]'?
-
+  hint: Git-based expressions require surrounding references with '[]'. Did you mean '[HEAD^]'?
 `,
 		},
 		{
@@ -202,7 +200,7 @@ func TestHints_Golden(t *testing.T) {
  --> --filter './foo...^'
 
      ./foo...^
-             ^ unexpected '^' after expression
+             ^ Unexpected '^' after expression
 
   hint: The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^./foo...'?
 `,
@@ -296,7 +294,7 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			query:         "[main",
 			position:      5,
 			expectHint:    true,
-			hintSubstring: "enclosed in '[]'",
+			hintSubstring: "require surrounding references with '[]'",
 		},
 		{
 			name:          "MissingClosingBrace",
@@ -305,7 +303,7 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			query:         "{path",
 			position:      5,
 			expectHint:    true,
-			hintSubstring: "enclosed in '{}'",
+			hintSubstring: "require surrounding paths with '{}'",
 		},
 		{
 			name:          "MissingGitRef",
@@ -331,7 +329,7 @@ func TestHints_ErrorCodeCoverage(t *testing.T) {
 			query:         "...",
 			position:      3,
 			expectHint:    true,
-			hintSubstring: "incomplete",
+			hintSubstring: "expression",
 		},
 		{
 			name:          "IllegalToken",

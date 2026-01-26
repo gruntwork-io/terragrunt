@@ -53,12 +53,11 @@ func FormatDiagnostic(err *ParseError, filterIndex int, useColor bool) string {
 		fmt.Fprintf(&sb, "%s%s%s%s\n", indent, spaces, caret, detail)
 	}
 
-	// Line 6: Blank line before hint
-	sb.WriteString("\n")
-
-	// Line 7: Single consolidated hint
+	// Line 6-7: Blank line and hint (only if hint exists)
 	hint := GetHint(err.ErrorCode, err.TokenLiteral, err.Query, err.Position)
 	if hint != "" {
+		sb.WriteString("\n")
+
 		if useColor {
 			fmt.Fprintf(&sb, "  %s%shint:%s %s\n", ansiBold, ansiCyan, ansiReset, hint)
 		} else {

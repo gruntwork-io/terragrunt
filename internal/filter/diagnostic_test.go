@@ -94,7 +94,7 @@ func TestFormatDiagnostic_MissingClosingBracket(t *testing.T) {
 	assert.Contains(t, result, "     ^ this Git-based expression is missing a closing ']'")
 
 	// Check consolidated hint
-	assert.Contains(t, result, "hint: Git filter expressions must be enclosed in '[]'")
+	assert.Contains(t, result, "hint: Git-based expressions require surrounding references with '[]'")
 }
 
 func TestFormatDiagnostic_EmptyGitFilter(t *testing.T) {
@@ -208,8 +208,8 @@ func TestGetHint_PipeOperator(t *testing.T) {
 
 	hint := filter.GetHint(filter.ErrorCodeUnexpectedToken, "|", "| foo", 0)
 
-	require.NotEmpty(t, hint)
-	assert.Contains(t, hint, "both sides")
+	// Pipe errors have specific messages that are self-explanatory, no hint needed
+	assert.Empty(t, hint)
 }
 
 func TestParseFilterQueries_RichDiagnostics(t *testing.T) {
