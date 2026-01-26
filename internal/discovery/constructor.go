@@ -40,7 +40,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(l log.Logger, opts DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
