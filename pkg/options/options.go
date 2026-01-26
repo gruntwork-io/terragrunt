@@ -502,69 +502,38 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	return l, newOpts, nil
 }
 
-// Check if argument is planfile TODO check file formatter
-func checkIfPlanFile(arg string) bool {
-	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
-}
-
-// Extract planfile from arguments list
-func extractPlanFile(argsToInsert []string) (*string, []string) {
-	planFile := ""
-
-	var filteredArgs []string
-
-	for _, arg := range argsToInsert {
-		if checkIfPlanFile(arg) {
-			planFile = arg
-		} else {
-			filteredArgs = append(filteredArgs, arg)
-		}
-	}
-
-	if planFile != "" {
-		return &planFile, filteredArgs
-	}
-
-	return nil, filteredArgs
-}
-
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	if opts.TerraformCliArgs == nil {
 		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
 
-	planFile, restArgs := extractPlanFile(argsToInsert)
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := clihelper.NewIacArgs(argsToInsert...)
 
-	// Insert flags at the beginning of the flags list
-	for i := len(restArgs) - 1; i >= 0; i-- {
-		arg := restArgs[i]
-		if strings.HasPrefix(arg, "-") {
-			opts.TerraformCliArgs.InsertFlag(0, arg)
-		} else {
-			// Non-flag args go to arguments
-			opts.TerraformCliArgs.AppendArgument(arg)
-		}
-	}
+	// Insert flags at beginning, append arguments at end
+	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// Append plan file as an argument if present
-	if planFile != nil {
-		opts.TerraformCliArgs.AppendArgument(*planFile)
+	for _, arg := range parsed.Arguments {
+		opts.TerraformCliArgs.AppendArgument(arg)
 	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	if opts.TerraformCliArgs == nil {
 		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
 
-	for _, arg := range argsToAppend {
-		if strings.HasPrefix(arg, "-") {
-			opts.TerraformCliArgs.AppendFlag(arg)
-		} else {
-			opts.TerraformCliArgs.AppendArgument(arg)
-		}
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := clihelper.NewIacArgs(argsToAppend...)
+
+	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
+
+	for _, arg := range parsed.Arguments {
+		opts.TerraformCliArgs.AppendArgument(arg)
 	}
 }
 
