@@ -348,6 +348,16 @@ func TestIacArgsRoundTrip(t *testing.T) {
 			input: []string{"apply", "-destroy", "/tmp/plan.tfplan", "-auto-approve"},
 			want:  []string{"apply", "-destroy", "-auto-approve", "/tmp/plan.tfplan"},
 		},
+		{
+			name:  "providers lock subcommand preserves order",
+			input: []string{"providers", "lock", "-platform=linux_amd64", "-platform=darwin_arm64"},
+			want:  []string{"providers", "lock", "-platform=linux_amd64", "-platform=darwin_arm64"},
+		},
+		{
+			name:  "state mv subcommand preserves order",
+			input: []string{"state", "mv", "-lock=false", "aws_instance.a", "aws_instance.b"},
+			want:  []string{"state", "mv", "-lock=false", "aws_instance.a", "aws_instance.b"},
+		},
 	}
 
 	for _, tt := range tests {

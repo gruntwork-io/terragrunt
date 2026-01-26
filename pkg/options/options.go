@@ -512,8 +512,13 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Parse args using IacArgs to properly separate flags from arguments
 	parsed := clihelper.NewIacArgs(argsToInsert...)
 
-	// Insert flags at beginning, append arguments at end
+	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
+
+	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	if parsed.Command != "" {
+		opts.TerraformCliArgs.AppendArgument(parsed.Command)
+	}
 
 	for _, arg := range parsed.Arguments {
 		opts.TerraformCliArgs.AppendArgument(arg)
@@ -531,6 +536,11 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	parsed := clihelper.NewIacArgs(argsToAppend...)
 
 	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
+
+	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	if parsed.Command != "" {
+		opts.TerraformCliArgs.AppendArgument(parsed.Command)
+	}
 
 	for _, arg := range parsed.Arguments {
 		opts.TerraformCliArgs.AppendArgument(arg)
