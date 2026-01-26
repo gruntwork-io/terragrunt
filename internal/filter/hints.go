@@ -33,16 +33,6 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 	return ""
 }
 
-// GetHints returns context-aware hints for a parse error (legacy, returns slice for compatibility).
-func GetHints(code ErrorCode, token, query string, position int) []string {
-	hint := GetHint(code, token, query, position)
-	if hint == "" {
-		return nil
-	}
-
-	return []string{hint}
-}
-
 // getUnexpectedTokenHint returns a single hint specific to unexpected token errors.
 func getUnexpectedTokenHint(token, query string, position int) string {
 	switch token {
