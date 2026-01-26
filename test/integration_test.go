@@ -1011,7 +1011,10 @@ func TestTerragruntInitOnce(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitOnce)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInitOnce)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Initializing modules")
 
@@ -1022,12 +1025,14 @@ func TestTerragruntInitOnce(t *testing.T) {
 	err = os.WriteFile(cfgPath, bytes, 0644)
 	require.NoError(t, err)
 
-	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(
+		t, "terragrunt plan --non-interactive --tf-forward-stdout --working-dir "+rootPath,
+	)
 	require.NoError(t, err)
 	assert.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
 }
 
-func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
+func TestTerragruntWorksWithSingleJSONConfig(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureConfigSingleJSONPath)

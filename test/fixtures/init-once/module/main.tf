@@ -1,3 +1,3 @@
 module "vpc" {
-  source = "registry.opentofu.org/cloudposse/module/example"
+  source = "github.com/cloudposse/terraform-example-module?ref=3.0.1"
 }
