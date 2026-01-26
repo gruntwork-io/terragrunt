@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -68,9 +69,15 @@ func processErrorHooks(
 
 	for _, curHook := range hooks {
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && slices.Contains(curHook.Commands, opts.TerraformCommand) {
+			workingDir := curHook.WorkingDir
+			// If no working_dir specified, use original config directory (not cache directory).
+			if workingDir == "" && opts.OriginalTerragruntConfigPath != "" {
+				workingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
+			}
+
 			err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "error_hook_"+curHook.Name, map[string]any{
 				"hook": curHook.Name,
-				"dir":  curHook.WorkingDir,
+				"dir":  workingDir,
 			}, func(ctx context.Context) error {
 				l.Infof("Executing hook: %s", curHook.Name)
 
@@ -82,7 +89,7 @@ func processErrorHooks(
 					ctx,
 					l,
 					opts,
-					curHook.WorkingDir,
+					workingDir,
 					curHook.SuppressStdout,
 					false,
 					actionToExecute, actionParams...,
@@ -172,6 +179,11 @@ func runHook(
 	l.Infof("Executing hook: %s", curHook.Name)
 
 	workingDir := curHook.WorkingDir
+	// If no working_dir specified, use original config directory (not cache directory).
+	if workingDir == "" && opts.OriginalTerragruntConfigPath != "" {
+		workingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
+	}
+
 	suppressStdout := curHook.SuppressStdout
 
 	actionToExecute := curHook.Execute[0]

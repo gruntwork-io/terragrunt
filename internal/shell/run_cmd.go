@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,12 +55,6 @@ func RunCommandWithOutput(
 		output     = util.CmdOutput{}
 		commandDir = workingDir
 	)
-
-	if workingDir == "" && opts.OriginalTerragruntConfigPath != "" {
-		// Prefer original config directory over WorkingDir, since WorkingDir
-		// may be the cache directory after source download.
-		commandDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
-	}
 
 	if commandDir == "" {
 		commandDir = opts.WorkingDir
