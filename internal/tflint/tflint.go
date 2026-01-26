@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terratest/modules/collections"
@@ -30,8 +31,13 @@ const (
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook, externalTfLint bool) error {
+	hookExecute := slices.Clone(hook.Execute)
+	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
+		return arg == TfExternalTFLint
+	})
+
 	// try to fetch configuration file from hook parameters
-	configFile, err := tflintConfigFilePath(l, opts, hook.Execute)
+	configFile, err := tflintConfigFilePath(l, opts, hookExecute)
 	if err != nil {
 		return err
 	}
@@ -55,7 +61,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return errors.New(err)
 	}
 
-	tflintArgs := hook.Execute[1:]
+	tflintArgs := hookExecute[1:]
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
