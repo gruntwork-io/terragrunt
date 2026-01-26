@@ -3949,6 +3949,45 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestRunAllApplyWithCustomPlanFileName tests issue #5409
+// When using `run --all apply` with a plan file without .tfplan extension,
+// the plan file should be moved to the end of args, after flags.
+func TestRunAllApplyWithCustomPlanFileName(t *testing.T) {
+	t.Parallel()
+
+	// Reuse existing fixture
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
+
+	// Apply dependency first (required by app)
+	helpers.RunTerragrunt(t, fmt.Sprintf(
+		"terragrunt apply -auto-approve --non-interactive --working-dir %s",
+		dependencyPath,
+	))
+
+	// Step 1: Create plan with custom name (no .tfplan extension)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+		"terragrunt run --all plan --non-interactive --working-dir %s -- -out=customplan",
+		testPath,
+	))
+	require.NoError(t, err)
+
+	// Step 2: Apply using the custom plan file name
+	// This should fail before fix with "Too many command line arguments"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+		"terragrunt run --all apply --non-interactive --working-dir %s -- customplan",
+		testPath,
+	))
+
+	// Assertions
+	require.NoError(t, err, "Apply should succeed")
+	output := stdout + stderr
+	require.NotContains(t, output, "Too many command line arguments")
+	require.NotContains(t, output, "Expected at most one positional argument")
+}
+
 func TestUsingAllAndGraphFlagsSimultaneously(t *testing.T) {
 	t.Parallel()
 

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/cliargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -768,68 +769,30 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 		if planFile != "" {
 			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
 
-			if slices.ContainsFunc(unit.Execution.TerragruntOptions.TerraformCliArgs, isPlanArg) {
-				// Plan file already present, just reorder to ensure it's at the end
-				unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
+			// Check if plan file already exists in args by parsing and checking Arguments
+			parsed := cliargs.Parse(unit.Execution.TerragruntOptions.TerraformCliArgs)
+			if len(parsed.Arguments) > 0 {
+				// Plan file already present, reorder to ensure correct order: command, flags, arguments
+				unit.Execution.TerragruntOptions.TerraformCliArgs = parsed.ToArgs()
+
 				continue
 			}
 
 			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+
 				continue
 			}
 
 			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
 		}
 
-		// Always reorder to ensure plan files are at the end, after all flags
-		unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
+		// Always reorder to ensure arguments are at the end, after all flags
+		// This uses IacCliArgs which parses and serializes in correct order: [command] [flags...] [arguments...]
+		parsed := cliargs.Parse(unit.Execution.TerragruntOptions.TerraformCliArgs)
+		unit.Execution.TerragruntOptions.TerraformCliArgs = parsed.ToArgs()
 	}
-}
-
-func isPlanArg(arg string) bool {
-	if strings.HasPrefix(arg, "-") {
-		return false
-	}
-
-	if strings.HasSuffix(arg, ".tfplan") || strings.HasSuffix(arg, ".plan") {
-		return true
-	}
-
-	return false
-}
-
-// isPreviousArgFlag checks if the previous argument is a flag that might expect a value.
-// A flag without '=' (like "-out") expects its value as the next argument.
-func isPreviousArgFlag(args []string, index int) bool {
-	if index <= 0 {
-		return false
-	}
-
-	prevArg := args[index-1]
-	// If previous arg is a flag without '=', current arg might be its value
-	return strings.HasPrefix(prevArg, "-") && !strings.Contains(prevArg, "=")
-}
-
-// reorderPlanFilesToEnd moves plan file arguments to the end of the args slice,
-// preserving flag-value pairs (e.g., "-out plan.plan" stays together).
-func reorderPlanFilesToEnd(args []string) []string {
-	regularArgs := make([]string, 0, len(args))
-
-	var planArgs []string
-
-	for i, arg := range args {
-		// Move to end if: looks like plan file AND previous arg isn't a flag expecting a value
-		if isPlanArg(arg) && !isPreviousArgFlag(args, i) {
-			planArgs = append(planArgs, arg)
-			continue
-		}
-
-		regularArgs = append(regularArgs, arg)
-	}
-
-	return append(regularArgs, planArgs...)
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
