@@ -525,7 +525,7 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --log-level trace --working-dir %s %s", testPath, args))
+	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --working-dir %s %s", testPath, args))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -1126,7 +1126,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 	}
 
 	cmd := fmt.Sprintf(
-		"terragrunt hcl validate --inputs %s --log-level trace --non-interactive --working-dir %s",
+		"terragrunt hcl validate --inputs %s --non-interactive --working-dir %s",
 		strings.Join(extraArgs, " "),
 		moduleDir,
 	)

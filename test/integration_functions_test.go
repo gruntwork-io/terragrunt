@@ -188,7 +188,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath,
+		"terragrunt run --log-level debug --all plan --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -303,7 +303,7 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+appPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stdout.String()

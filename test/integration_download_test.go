@@ -247,7 +247,7 @@ func TestCustomLockFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := filepath.Join(tmpEnvPath, path)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
 	downloadDir := filepath.Join(rootPath, helpers.TerragruntCache)
@@ -318,7 +318,7 @@ func TestExcludeDirs(t *testing.T) {
 		err = helpers.RunTerragruntCommand(
 			t,
 			fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s %s",
 				workingDir,
 				tt.excludeArgs,
 			),
@@ -337,7 +337,7 @@ func TestExcludeDirs(t *testing.T) {
 
 			err = helpers.RunTerragruntCommand(
 				t,
-				"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+				"terragrunt show --non-interactive --working-dir "+modulePath,
 				&showStdout,
 				&showStderr,
 			)
@@ -386,21 +386,6 @@ func TestExcludeDirsWithFilter(t *testing.T) {
 			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
 			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
 		},
-		{
-			name:                  "exclude gce modules",
-			excludeArgs:           "--filter '!./**/gce/**'",
-			excludedModuleOutputs: []string{"Module GCE B", "Module GCE C", "Module GCE E"},
-		},
-		{
-			name:                  "exclude production env and gce c modules",
-			excludeArgs:           "--filter '!./production-env/**' --filter '!./**/module-gce-c'",
-			excludedModuleOutputs: []string{"Module GCE C", "Module AWS D", "Module GCE E"},
-		},
-		{
-			name:                  "exclude integration env gce b and c modules and aws modules",
-			excludeArgs:           "--filter '!./integration-env/gce/module-gce-b' --filter '!./integration-env/gce/module-gce-c' --filter '!./**/module-aws*'",
-			excludedModuleOutputs: []string{"Module AWS A", "Module GCE B", "Module GCE C", "Module AWS D"},
-		},
 	}
 
 	for _, tt := range testCases {
@@ -418,7 +403,7 @@ func TestExcludeDirsWithFilter(t *testing.T) {
 		_, _, err = helpers.RunTerragruntCommandWithOutput(
 			t,
 			fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive --log-level trace --working-dir %s %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s %s",
 				workingDir,
 				tt.excludeArgs,
 			),
@@ -427,7 +412,7 @@ func TestExcludeDirsWithFilter(t *testing.T) {
 
 		// Check that the excluded module output is not present
 		for _, modulePath := range modulePaths {
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt show --non-interactive --log-level trace --working-dir "+modulePath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt show --non-interactive --working-dir "+modulePath)
 
 			require.NoError(t, err)
 
@@ -507,7 +492,7 @@ func TestIncludeDirs(t *testing.T) {
 			err = helpers.RunTerragruntCommand(
 				t,
 				fmt.Sprintf(
-					"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+					"terragrunt run --all apply --non-interactive --working-dir %s %s",
 					workingDir, tc.includeArgs,
 				),
 				&applyAllStdout,
@@ -525,7 +510,7 @@ func TestIncludeDirs(t *testing.T) {
 
 				err = helpers.RunTerragruntCommand(
 					t,
-					"terragrunt show --non-interactive --log-level trace --working-dir "+modulePath,
+					"terragrunt show --non-interactive --working-dir "+modulePath,
 					&showStdout,
 					&showStderr,
 				)
@@ -611,7 +596,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 		err := helpers.RunTerragruntCommand(
 			t,
 			fmt.Sprintf(
-				"terragrunt run --all apply --non-interactive  --log-level trace --working-dir %s %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s %s",
 				workingDir, tc.includeArgs,
 			),
 			&applyAllStdout,
@@ -629,7 +614,7 @@ func TestIncludeDirsWithFilter(t *testing.T) {
 
 			err = helpers.RunTerragruntCommand(
 				t,
-				"terragrunt show --non-interactive --log-level trace --working-dir "+unitPath,
+				"terragrunt show --non-interactive --working-dir "+unitPath,
 				&showStdout,
 				&showStderr,
 			)
