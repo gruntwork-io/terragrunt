@@ -438,7 +438,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		return l, nil, err
 	}
 
-	initOptions.TerraformCliArgs = clihelper.NewEmptyIacArgs().SetCommand(tf.CommandNameInit)
+	initOptions.TerraformCliArgs = clihelper.NewIacArgs().SetCommand(tf.CommandNameInit)
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true

@@ -53,7 +53,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
 
-	terragruntOptions.TerraformCliArgs = clihelper.NewEmptyIacArgs()
+	terragruntOptions.TerraformCliArgs = clihelper.NewIacArgs()
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 

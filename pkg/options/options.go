@@ -377,7 +377,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:          true,
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
-		TerraformCliArgs:           clihelper.NewEmptyIacArgs(),
+		TerraformCliArgs:           clihelper.NewIacArgs(),
 		Writer:                     stdout,
 		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
@@ -531,7 +531,7 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewEmptyIacArgs()
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
 
 	planFile, restArgs := extractPlanFile(argsToInsert)
@@ -556,7 +556,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewEmptyIacArgs()
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
 
 	for _, arg := range argsToAppend {

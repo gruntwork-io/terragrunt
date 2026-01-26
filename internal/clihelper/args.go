@@ -179,12 +179,24 @@ func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
 
-// flagsWithSpaceValue contains flags that take space-separated values (not using = format).
-var flagsWithSpaceValue = []string{
-	"-var",
-	"-var-file",
-	"-target",
-	"-replace",
+// booleanFlags contains flags that don't take values (boolean flags).
+// Unknown flags are assumed to take space-separated values for safer parsing
+// of new Terraform/Tofu flags without requiring updates to this list.
+var booleanFlags = []string{
+	"-auto-approve",
+	"-compact-warnings",
+	"-destroy",
+	"-detailed-exitcode",
+	"-force-copy",
+	"-get",
+	"-json",
+	"-no-color",
+	"-raw",
+	"-reconfigure",
+	"-refresh",
+	"-refresh-only",
+	"-upgrade",
+	"-write-out",
 }
 
 // IacArgs represents parsed IaC (terraform/tofu) CLI arguments
@@ -205,14 +217,6 @@ func NewIacArgs(args ...string) *IacArgs {
 	result.parse(args)
 
 	return result
-}
-
-// NewEmptyIacArgs creates an empty IacArgs.
-func NewEmptyIacArgs() *IacArgs {
-	return &IacArgs{
-		Flags:     make([]string, 0),
-		Arguments: make([]string, 0),
-	}
 }
 
 // SetCommand sets the command and returns self for chaining.
@@ -432,21 +436,32 @@ func (a *IacArgs) parse(args []string) {
 }
 
 // processFlag handles flag parsing, returns true if next arg should be skipped.
+// Unknown flags are assumed to take space-separated values for forward compatibility.
 func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 	flagName := extractFlagName(arg)
 
-	if !slices.Contains(flagsWithSpaceValue, flagName) || strings.Contains(arg, "=") {
+	// Flag with inline value (-flag=value) - self-contained
+	if strings.Contains(arg, "=") {
 		a.Flags = append(a.Flags, arg)
 
 		return false
 	}
 
+	// Known boolean flag - self-contained
+	if slices.Contains(booleanFlags, flagName) {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	// Check if next arg looks like a value (doesn't start with -)
 	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
 		a.Flags = append(a.Flags, arg)
 
 		return false
 	}
 
+	// Assume unknown flag takes a space-separated value
 	a.Flags = append(a.Flags, arg, args[i+1])
 
 	return true
@@ -454,9 +469,6 @@ func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 
 // extractFlagName gets flag name before = if present.
 func extractFlagName(arg string) string {
-	if idx := strings.Index(arg, "="); idx > 0 {
-		return arg[:idx]
-	}
-
-	return arg
+	name, _, _ := strings.Cut(arg, "=")
+	return name
 }

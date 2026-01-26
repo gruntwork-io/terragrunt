@@ -192,6 +192,20 @@ func TestNewIacArgs(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
+			name:      "lock-timeout with space-separated value",
+			input:     []string{"apply", "-lock-timeout", "5m", "-auto-approve"},
+			wantCmd:   "apply",
+			wantFlags: []string{"-lock-timeout", "5m", "-auto-approve"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "unknown flag with space-separated value (forward compatible)",
+			input:     []string{"apply", "-future-flag", "value", "-auto-approve"},
+			wantCmd:   "apply",
+			wantFlags: []string{"-future-flag", "value", "-auto-approve"},
+			wantArgs:  nil,
+		},
+		{
 			name:      "empty args",
 			input:     []string{},
 			wantCmd:   "",
@@ -451,7 +465,7 @@ func TestIacArgsFirst(t *testing.T) {
 	args := clihelper.NewIacArgs("apply", "-auto-approve", "tfplan")
 	assert.Equal(t, "apply", args.First())
 
-	empty := clihelper.NewEmptyIacArgs()
+	empty := clihelper.NewIacArgs()
 	assert.Empty(t, empty.First())
 }
 
@@ -461,7 +475,7 @@ func TestIacArgsTail(t *testing.T) {
 	args := clihelper.NewIacArgs("apply", "-auto-approve", "tfplan")
 	assert.Equal(t, []string{"-auto-approve", "tfplan"}, args.Tail())
 
-	empty := clihelper.NewEmptyIacArgs()
+	empty := clihelper.NewIacArgs()
 	assert.Empty(t, empty.Tail())
 }
 
@@ -475,7 +489,7 @@ func TestIacArgsHasPlanFile(t *testing.T) {
 	}{
 		{
 			name:     "empty args",
-			args:     clihelper.NewEmptyIacArgs(),
+			args:     clihelper.NewIacArgs(),
 			expected: false,
 		},
 		{
@@ -537,7 +551,7 @@ func TestIacArgsMergeFlags(t *testing.T) {
 		{
 			name:          "merge from empty",
 			base:          clihelper.NewIacArgs("apply", "-auto-approve"),
-			other:         clihelper.NewEmptyIacArgs(),
+			other:         clihelper.NewIacArgs(),
 			expectedFlags: []string{"-auto-approve"},
 		},
 		{
