@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -169,7 +170,7 @@ func (runner *UnitRunner) Run(
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts)}
+		jsonOptions.TerraformCliArgs = clihelper.NewIacArgs(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts))
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()

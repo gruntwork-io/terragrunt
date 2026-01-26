@@ -3962,10 +3962,7 @@ func TestRunAllApplyWithCustomPlanFileName(t *testing.T) {
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 
 	// Apply dependency first (required by app)
-	helpers.RunTerragrunt(t, fmt.Sprintf(
-		"terragrunt apply -auto-approve --non-interactive --working-dir %s",
-		dependencyPath,
-	))
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+dependencyPath)
 
 	// Step 1: Create plan with custom name (no .tfplan extension)
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
@@ -3983,6 +3980,7 @@ func TestRunAllApplyWithCustomPlanFileName(t *testing.T) {
 
 	// Assertions
 	require.NoError(t, err, "Apply should succeed")
+
 	output := stdout + stderr
 	require.NotContains(t, output, "Too many command line arguments")
 	require.NotContains(t, output, "Expected at most one positional argument")

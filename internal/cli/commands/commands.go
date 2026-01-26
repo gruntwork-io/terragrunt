@@ -301,7 +301,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.TerraformCommand = cmdName
-	opts.TerraformCliArgs = args
+	opts.TerraformCliArgs = clihelper.NewIacArgs(args...)
 
 	opts.Env = env.Parse(os.Environ())
 

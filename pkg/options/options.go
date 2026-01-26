@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -187,7 +186,7 @@ type TerragruntOptions struct {
 	// Path to the report schema file.
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs clihelper.Args
+	TerraformCliArgs *clihelper.IacArgs
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -380,6 +379,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:          true,
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
+		TerraformCliArgs:           clihelper.NewEmptyIacArgs(),
 		Writer:                     stdout,
 		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
@@ -532,34 +532,42 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewEmptyIacArgs()
+	}
+
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
-	commandLength := 1
-	if slices.Contains(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
-		// Since these terraform commands require subcommands which may not always be properly passed by the user,
-		// using min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = min(minCommandLength, len(opts.TerraformCliArgs))
+	// Insert flags at the beginning of the flags list
+	for i := len(restArgs) - 1; i >= 0; i-- {
+		arg := restArgs[i]
+		if strings.HasPrefix(arg, "-") {
+			opts.TerraformCliArgs.InsertFlag(0, arg)
+		} else {
+			// Non-flag args go to arguments
+			opts.TerraformCliArgs.AppendArgument(arg)
+		}
 	}
 
-	// Options must be inserted after command but before the other args
-	// command is either 1 word or 2 words
-	var args []string
-
-	args = append(args, opts.TerraformCliArgs[:commandLength]...)
-	args = append(args, restArgs...)
-	args = append(args, opts.TerraformCliArgs[commandLength:]...)
-
-	// check if planfile was extracted
+	// Append plan file as an argument if present
 	if planFile != nil {
-		args = append(args, *planFile)
+		opts.TerraformCliArgs.AppendArgument(*planFile)
 	}
-
-	opts.TerraformCliArgs = args
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
-	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewEmptyIacArgs()
+	}
+
+	for _, arg := range argsToAppend {
+		if strings.HasPrefix(arg, "-") {
+			opts.TerraformCliArgs.AppendFlag(arg)
+		} else {
+			opts.TerraformCliArgs.AppendArgument(arg)
+		}
+	}
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)

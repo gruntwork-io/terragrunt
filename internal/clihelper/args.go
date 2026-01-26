@@ -178,3 +178,285 @@ func (args Args) SubCommandName() string {
 func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
+
+// flagsWithSpaceValue contains flags that take space-separated values (not using = format).
+var flagsWithSpaceValue = []string{
+	"-var",
+	"-var-file",
+	"-target",
+	"-replace",
+}
+
+// IacArgs represents parsed IaC (terraform/tofu) CLI arguments
+// with separate command, flags, and arguments fields.
+// Provides a builder pattern for constructing CLI arguments.
+type IacArgs struct {
+	Command   string   // e.g., "apply", "plan", "destroy"
+	Flags     []string // e.g., "-input=false", "-auto-approve"
+	Arguments []string // e.g., plan files, resource addresses
+}
+
+// NewIacArgs creates IacArgs from strings, parsing command/flags/arguments.
+func NewIacArgs(args ...string) *IacArgs {
+	result := &IacArgs{
+		Flags:     make([]string, 0),
+		Arguments: make([]string, 0),
+	}
+	result.parse(args)
+
+	return result
+}
+
+// NewEmptyIacArgs creates an empty IacArgs.
+func NewEmptyIacArgs() *IacArgs {
+	return &IacArgs{
+		Flags:     make([]string, 0),
+		Arguments: make([]string, 0),
+	}
+}
+
+// SetCommand sets the command and returns self for chaining.
+func (a *IacArgs) SetCommand(cmd string) *IacArgs {
+	a.Command = cmd
+
+	return a
+}
+
+// AppendFlag adds flag(s) and returns self for chaining.
+func (a *IacArgs) AppendFlag(flags ...string) *IacArgs {
+	a.Flags = append(a.Flags, flags...)
+
+	return a
+}
+
+// InsertFlag inserts flag(s) at position and returns self for chaining.
+func (a *IacArgs) InsertFlag(pos int, flags ...string) *IacArgs {
+	a.Flags = slices.Insert(a.Flags, pos, flags...)
+
+	return a
+}
+
+// AppendArgument adds an argument and returns self for chaining.
+func (a *IacArgs) AppendArgument(arg string) *IacArgs {
+	a.Arguments = append(a.Arguments, arg)
+
+	return a
+}
+
+// AddFlagIfNotPresent adds a flag only if not already present.
+func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
+	if !slices.Contains(a.Flags, flag) {
+		a.Flags = append(a.Flags, flag)
+	}
+
+	return a
+}
+
+// HasFlag checks if flag exists (by prefix for -flag=value).
+func (a *IacArgs) HasFlag(name string) bool {
+	return slices.ContainsFunc(a.Flags, func(f string) bool {
+		return f == name || strings.HasPrefix(f, name+"=")
+	})
+}
+
+// RemoveFlag removes a flag by name (handles both -flag and -flag=value).
+func (a *IacArgs) RemoveFlag(name string) *IacArgs {
+	a.Flags = slices.DeleteFunc(a.Flags, func(f string) bool {
+		return f == name || strings.HasPrefix(f, name+"=")
+	})
+
+	return a
+}
+
+// HasPlanFile checks if a plan file is already specified in args.
+// Checks for -out= flag (plan command) or any argument present (apply/destroy).
+func (a *IacArgs) HasPlanFile() bool {
+	// Check for -out= flag (used with plan command)
+	if a.HasFlag("-out") {
+		return true
+	}
+
+	// For apply/destroy: any argument is assumed to be a plan file
+	// (can't reliably check file existence - path may be relative or created later)
+	return len(a.Arguments) > 0
+}
+
+// MergeFlags merges flags from another IacArgs, adding only flags not already present.
+// Returns self for chaining.
+func (a *IacArgs) MergeFlags(other *IacArgs) *IacArgs {
+	for _, flag := range other.Flags {
+		if !a.Contains(flag) {
+			a.Flags = append(a.Flags, flag)
+		}
+	}
+
+	return a
+}
+
+// Slice returns args in correct order: [command] [flags...] [arguments...]
+func (a *IacArgs) Slice() []string {
+	result := make([]string, 0, 1+len(a.Flags)+len(a.Arguments))
+
+	if a.Command != "" {
+		result = append(result, a.Command)
+	}
+
+	result = append(result, a.Flags...)
+	result = append(result, a.Arguments...)
+
+	return result
+}
+
+// Clone returns a deep copy of IacArgs.
+func (a *IacArgs) Clone() *IacArgs {
+	return &IacArgs{
+		Command:   a.Command,
+		Flags:     slices.Clone(a.Flags),
+		Arguments: slices.Clone(a.Arguments),
+	}
+}
+
+// First returns the command (first element).
+func (a *IacArgs) First() string {
+	return a.Command
+}
+
+// Second returns the second element (first flag or first argument if no flags).
+func (a *IacArgs) Second() string {
+	if len(a.Flags) > 0 {
+		return a.Flags[0]
+	}
+
+	if len(a.Arguments) > 0 {
+		return a.Arguments[0]
+	}
+
+	return ""
+}
+
+// Last returns the last element (last argument, or last flag, or command).
+func (a *IacArgs) Last() string {
+	if len(a.Arguments) > 0 {
+		return a.Arguments[len(a.Arguments)-1]
+	}
+
+	if len(a.Flags) > 0 {
+		return a.Flags[len(a.Flags)-1]
+	}
+
+	return a.Command
+}
+
+// Tail returns everything except the command (all flags and arguments) as a slice.
+func (a *IacArgs) Tail() []string {
+	result := make([]string, 0, len(a.Flags)+len(a.Arguments))
+	result = append(result, a.Flags...)
+	result = append(result, a.Arguments...)
+
+	return result
+}
+
+// Contains checks if the args contain the target (in command, flags, or arguments).
+func (a *IacArgs) Contains(target string) bool {
+	if a.Command == target {
+		return true
+	}
+
+	for _, f := range a.Flags {
+		if f == target {
+			return true
+		}
+	}
+
+	for _, arg := range a.Arguments {
+		if arg == target {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Normalize formats the flags according to the given actions.
+func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
+	result := a.Clone()
+	result.Flags = make([]string, 0, len(a.Flags))
+
+	for _, flag := range a.Flags {
+		normalized := flag
+
+		for _, act := range acts {
+			switch act {
+			case SingleDashFlag:
+				if doubleDashRegexp.MatchString(normalized) {
+					normalized = normalized[1:]
+				}
+			case DoubleDashFlag:
+				if singleDashRegexp.MatchString(normalized) {
+					normalized = "-" + normalized
+				}
+			}
+		}
+
+		result.Flags = append(result.Flags, normalized)
+	}
+
+	return result
+}
+
+// parse parses raw args into Command/Flags/Arguments.
+func (a *IacArgs) parse(args []string) {
+	skipNext := false
+
+	for i, arg := range args {
+		if skipNext {
+			skipNext = false
+
+			continue
+		}
+
+		if strings.HasPrefix(arg, "-") {
+			skipNext = a.processFlag(arg, args, i)
+
+			continue
+		}
+
+		if a.Command == "" {
+			a.Command = arg
+
+			continue
+		}
+
+		a.Arguments = append(a.Arguments, arg)
+	}
+}
+
+// processFlag handles flag parsing, returns true if next arg should be skipped.
+func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
+	flagName := extractFlagName(arg)
+
+	if !slices.Contains(flagsWithSpaceValue, flagName) || strings.Contains(arg, "=") {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	a.Flags = append(a.Flags, arg, args[i+1])
+
+	return true
+}
+
+// extractFlagName gets flag name before = if present.
+func extractFlagName(arg string) string {
+	if idx := strings.Index(arg, "="); idx > 0 {
+		return arg[:idx]
+	}
+
+	return arg
+}
