@@ -183,11 +183,12 @@ func (args Args) Contains(target string) bool {
 // Unknown flags are assumed to take space-separated values for safer parsing
 // of new Terraform/Tofu flags without requiring updates to this list.
 //
-// Note: If Terraform/Tofu adds a new boolean flag not in this list, and a user
-// runs `terragrunt apply -new-bool planfile`, the parser will treat `planfile`
-// as the value of `-new-bool`. To fix, add the new flag to this list.
+// WARNING: If a new boolean flag is added to Terraform/Tofu and not listed here,
+// using it immediately before a positional argument (like a plan file) will cause
+// the positional argument to be incorrectly parsed as the flag's value.
+// Example: `terragrunt apply -new-bool planfile` -> `-new-bool` gets value `planfile`
 //
-// Reference: https://developer.hashicorp.com/terraform/cli/commands
+// To fix: add the new boolean flag to this list.
 var booleanFlags = []string{
 	"-auto-approve",
 	"-compact-warnings",
@@ -195,7 +196,10 @@ var booleanFlags = []string{
 	"-detailed-exitcode",
 	"-force-copy",
 	"-get",
+	"-input",
 	"-json",
+	"-lock",
+	"-migrate-state",
 	"-no-color",
 	"-raw",
 	"-reconfigure",
