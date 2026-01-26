@@ -53,8 +53,6 @@ const (
 
 	DefaultIAMAssumeRoleDuration = 3600
 
-	minCommandLength = 2
-
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
 

@@ -876,11 +876,12 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
 		for _, arg := range cliCtx.Args() {
-			if strings.HasPrefix(arg, "-") {
+			switch {
+			case strings.HasPrefix(arg, "-"):
 				opts.TerraformCliArgs.AppendFlag(arg)
-			} else if opts.TerraformCliArgs.Command == "" {
+			case opts.TerraformCliArgs.Command == "":
 				opts.TerraformCliArgs.SetCommand(arg)
-			} else {
+			default:
 				opts.TerraformCliArgs.AppendArgument(arg)
 			}
 		}
