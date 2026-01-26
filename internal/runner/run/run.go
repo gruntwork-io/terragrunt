@@ -278,8 +278,8 @@ func runTerragruntWithConfig(
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			// Use directory of OriginalTerragruntConfigPath since WorkingDir may have been changed to the cache directory.
-			lockFileError = runcfg.CopyLockFile(l, opts, opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
+			// Use RootWorkingDir since WorkingDir may have been changed to the cache directory.
+			lockFileError = runcfg.CopyLockFile(l, opts, opts.WorkingDir, opts.RootWorkingDir)
 		}
 
 		// If command failed, log a helpful message
