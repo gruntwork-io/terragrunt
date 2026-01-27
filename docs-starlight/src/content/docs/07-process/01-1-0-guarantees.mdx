@@ -20,19 +20,19 @@ This is a living document that will be updated as questions are answered regardi
 
 ### The CLI
 
-All of the CLI commands and flags you use as of Terragrunt 1.0 will remain in the CLI for the duration of 1.x. You will not get an error that a CLI command or flag has been removed or renamed in the CLI. You should also expect commands and flags to work the same way for the duration of 1.x.
+CLI commands and flags present in Terragrunt 1.0 will not be removed or renamed during 1.x. Commands and flags will continue to work the same way throughout 1.x.
 
-You might still get deprecation warnings during 1.x releases, and you might have new commands/flags introduced that let you opt-in to different functionality, but you should expect the same results when running the same commands for the duration of 1.x. Also note that any new CLI commands and flags introduced during 1.x will observe the same backwards compatibility guarantee. No changes will be introduced that break how they work for the duration of 1.x.
+You may see deprecation warnings, and new commands or flags may be introduced that let you opt in to different functionality, but running the same commands will produce the same results. New CLI commands and flags introduced during 1.x will also maintain backwards compatibility for the remainder of 1.x.
 
 ### HCL Configurations
 
-All your existing Terragrunt HCL configurations will remain valid for the duration of 1.x if they are valid as of Terragrunt 1.0. The Terragrunt HCL parser will not drop support for any HCL configuration block, attribute or function for the duration of 1.x, and you will be able to reuse the same HCL configurations for the duration of 1.x.
+Terragrunt HCL configurations valid in 1.0 will remain valid throughout 1.x. The HCL parser will not drop support for any block, attribute, or function during 1.x.
 
-Again, you might get deprecation warnings when using particular HCL configurations, and new HCL configurations will continue to be introduced, but you should expect the same results when using the same configurations for the duration of 1.x. Just like with the CLI, every new HCL configuration introduced in a 1.x release will work the same way for the duration of 1.x.
+You may see deprecation warnings, and new HCL configurations will continue to be introduced, but using the same configurations will produce the same results. New HCL configurations introduced during 1.x will also maintain backwards compatibility for the remainder of 1.x.
 
 ### Run Report
 
-The [Run Report](/docs/features/run-report/) generated using the [`--report-file`](/docs/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by the flag [`--report-schema-file`](/docs/reference/cli/commands/run/#report-schema-file). You can also find at the URL listed in the `$id` field of the schema. e.g. https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json.
+The [Run Report](/docs/features/run-report/) generated using the [`--report-file`](/docs/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by [`--report-schema-file`](/docs/reference/cli/commands/run/#report-schema-file). You can also find the schema at the URL listed in the `$id` field, e.g., https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json.
 
 Any modifications made to the schema that break parsing of existing report files using a modern JSON parser will only be done on an opt-in basis for the duration of 1.x, and you will be able to use the `$id` field of the generated schema to confirm that you are parsing a file with an expected schema.
 

@@ -286,6 +286,7 @@ export default defineConfig({
 
     // Restructured docs
     "/docs/reference/cli/rules": "/docs/process/cli-rules/",
+    "/docs/reference/cli/rules/": "/docs/process/cli-rules/",
   },
   vite: {
     plugins: [tailwindcss()],
