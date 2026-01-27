@@ -56,7 +56,7 @@ func RunCommandWithOutput(
 		commandDir = workingDir
 	)
 
-	if commandDir == "" {
+	if workingDir == "" {
 		commandDir = opts.WorkingDir
 	}
 
