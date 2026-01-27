@@ -22,6 +22,11 @@ func NewLexer(input string) *Lexer {
 	return l
 }
 
+// Input returns the original input string.
+func (l *Lexer) Input() string {
+	return l.input
+}
+
 // NextToken reads and returns the next token from the input.
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()

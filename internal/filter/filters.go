@@ -2,11 +2,12 @@ package filter
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -18,19 +19,31 @@ type Filters []*Filter
 // ParseFilterQueries parses multiple filter strings and returns a Filters object.
 // Collects all parse errors and returns them as a joined error if any occur.
 // Returns an empty Filters if filterStrings is empty.
-func ParseFilterQueries(filterStrings []string) (Filters, error) {
+// Color output for diagnostics is determined by the logger's color settings and terminal detection.
+func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 	if len(filterStrings) == 0 {
 		return Filters{}, nil
 	}
 
+	// Determine if we should use color based on logger settings and terminal detection.
+	// Error output goes to stderr, so we check if stderr is redirected.
+	useColor := !l.Formatter().DisabledColors()
+
 	filters := make([]*Filter, 0, len(filterStrings))
 
-	var parseErrors []error
+	var diagnostics []string
 
 	for i, filterString := range filterStrings {
 		filter, err := Parse(filterString)
 		if err != nil {
-			parseErrors = append(parseErrors, fmt.Errorf("filter %d (%q): %w", i, filterString, err))
+			var parseErr ParseError
+			if errors.As(err, &parseErr) {
+				diagnostics = append(diagnostics, FormatDiagnostic(&parseErr, i, useColor))
+
+				continue
+			}
+
+			diagnostics = append(diagnostics, fmt.Sprintf("filter %d: %v", i, err))
 
 			continue
 		}
@@ -40,8 +53,8 @@ func ParseFilterQueries(filterStrings []string) (Filters, error) {
 
 	result := Filters(filters)
 
-	if len(parseErrors) > 0 {
-		return result, errors.Join(parseErrors...)
+	if len(diagnostics) > 0 {
+		return result, fmt.Errorf("%s", strings.Join(diagnostics, "\n"))
 	}
 
 	return result, nil

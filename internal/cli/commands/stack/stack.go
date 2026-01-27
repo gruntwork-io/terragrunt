@@ -46,7 +46,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 	}
 
-	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if err != nil {
 		return errors.Errorf("failed to parse filters: %w", err)
 	}
