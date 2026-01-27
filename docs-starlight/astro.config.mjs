@@ -55,7 +55,6 @@ export const sidebar = [
             },
           },
           { label: "Global Flags", slug: "docs/reference/cli/global-flags" },
-          { label: "Rules", slug: "docs/reference/cli/rules" },
         ],
       },
       { label: "Strict Controls", slug: "docs/reference/strict-controls" },
@@ -83,8 +82,13 @@ export const sidebar = [
     collapsed: true,
   },
   {
+    label: "Process",
+    autogenerate: { directory: "07-process", collapsed: true },
+    collapsed: true,
+  },
+  {
     label: "Migrate",
-    autogenerate: { directory: "07-migrate", collapsed: true },
+    autogenerate: { directory: "08-migrate", collapsed: true },
     collapsed: true,
   },
 ];
@@ -95,11 +99,11 @@ export default defineConfig({
   output: isVercel ? "server" : "static",
   adapter: isVercel
     ? vercel({
-        imageService: true,
-        isr: {
-          expiration: 60 * 60 * 24, // 24 hours
-        },
-      })
+      imageService: true,
+      isr: {
+        expiration: 60 * 60 * 24, // 24 hours
+      },
+    })
     : undefined,
   integrations: [
     // We use React for the shadcn/ui components.
@@ -279,6 +283,10 @@ export default defineConfig({
     "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL
     "/docs/features/log-formatting": "/docs/reference/logging/formatting/",
     "/docs/reference/lock-file-handling/": "/docs/reference/lock-files/",
+
+    // Restructured docs
+    "/docs/reference/cli/rules": "/docs/process/cli-rules/",
+    "/docs/reference/cli/rules/": "/docs/process/cli-rules/",
   },
   vite: {
     plugins: [tailwindcss()],
