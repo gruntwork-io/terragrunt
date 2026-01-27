@@ -34,4 +34,4 @@ The guide will assume that you're comfortable using a terminal, and that you hav
 
 While not a requirement, it would be good to have a basic understanding of how Git works, so that you can commit updates to your copy of the project as you go along.
 
-If you get lost or confused at any point, ask for help in the [Terragrunt Discord](https://discord.gg/YENaT9h8jh)! There are plenty of passionate Terragrunt community members that are more than happy to help.
+If you get lost or confused at any point, ask for help in the [Terragrunt Discord](https://discord.gg/4XJgJ6yK)! There are plenty of passionate Terragrunt community members that are more than happy to help.

@@ -187,7 +187,7 @@ export default defineConfig({
       },
       social: [
         {
-          href: "https://discord.gg/SPu4Degs5f",
+          href: "https://discord.gg/4XJgJ6yK",
           icon: "discord",
           label: "Discord",
         },
@@ -287,6 +287,9 @@ export default defineConfig({
     // Restructured docs
     "/docs/reference/cli/rules": "/docs/process/cli-rules/",
     "/docs/reference/cli/rules/": "/docs/process/cli-rules/",
+
+    // Redirects for external resources
+    "/community/invite": "https://discord.gg/4XJgJ6yK",
   },
   vite: {
     plugins: [tailwindcss()],
