@@ -158,10 +158,6 @@ func Run(
 		return err
 	}
 
-	// Update opts.WorkingDir to match the cache directory so that
-	// exit codes and other logic that uses opts.WorkingDir are consistent.
-	opts.WorkingDir = updatedTerragruntOptions.WorkingDir
-
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
 	// Note that relative paths are relative to the terragrunt working dir (where terraform is called).
 	if err = GenerateConfig(l, updatedTerragruntOptions, cfg); err != nil {
