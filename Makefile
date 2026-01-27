@@ -55,4 +55,12 @@ license-check:
 	licensei check --debug
 	licensei header --debug
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-strict-lint
+fuzz:
+	@for package in $$(go list ./...); do \
+		for fuzz_test in $$(go test -list 'Fuzz' "$$package" 2>/dev/null | grep '^Fuzz' || true); do \
+			echo "Fuzzing $$fuzz_test in $$package"; \
+			go test -run '^$$' -fuzztime="30s" -v -fuzz "^$$fuzz_test$$" "$$package"; \
+		done; \
+	done
+
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-strict-lint fuzz
