@@ -216,7 +216,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/terragrunt
-          key: ${{ runner.os }}-terragrunt-provider-cache
+          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terragrunt-provider-cache-
 
       - name: Run Tests
         run: |
