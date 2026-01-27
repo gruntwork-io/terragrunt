@@ -68,7 +68,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	terragruntOptions.Writer = &allOutputBuffer
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
-	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
+	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 	terragruntOptions.TFPath = "testdata/test_outputs.sh"
 
 	withOptions(terragruntOptions)

@@ -178,3 +178,355 @@ func (args Args) SubCommandName() string {
 func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
+
+// booleanFlags contains flags that don't take values (boolean flags).
+// Unknown flags are assumed to take space-separated values for safer parsing
+// of new Terraform/Tofu flags without requiring updates to this list.
+//
+// WARNING: If a new boolean flag is added to Terraform/Tofu and not listed here,
+// using it immediately before a positional argument (like a plan file) will cause
+// the positional argument to be incorrectly parsed as the flag's value.
+// Example: `terragrunt apply -new-bool planfile` -> `-new-bool` gets value `planfile`
+//
+// To fix: add the new boolean flag to this list.
+var booleanFlags = []string{
+	"-auto-approve",
+	"-compact-warnings",
+	"-destroy",
+	"-detailed-exitcode",
+	"-force-copy",
+	"-get",
+	"-input",
+	"-json",
+	"-lock",
+	"-migrate-state",
+	"-no-color",
+	"-raw",
+	"-reconfigure",
+	"-refresh",
+	"-refresh-only",
+	"-upgrade",
+	"-write-out",
+}
+
+// IacArgs represents parsed IaC (terraform/tofu) CLI arguments
+// with separate command, flags, and arguments fields.
+// Provides a builder pattern for constructing CLI arguments.
+//
+// Structure: [Command] [SubCommand...] [Flags...] [Arguments...]
+// - Command: main terraform command (e.g., "apply", "providers")
+// - SubCommand: non-flag args before any flags (e.g., "lock" in "providers lock")
+// - Flags: all flags with their values
+// - Arguments: non-flag args after flags (e.g., plan files)
+type IacArgs struct {
+	Command    string   // e.g., "apply", "plan", "providers"
+	SubCommand []string // e.g., "lock" in "providers lock -platform=..."
+	Flags      []string // e.g., "-input=false", "-auto-approve"
+	Arguments  []string // e.g., plan files, resource addresses
+}
+
+// NewIacArgs creates IacArgs from strings, parsing command/flags/arguments.
+func NewIacArgs(args ...string) *IacArgs {
+	result := &IacArgs{
+		SubCommand: make([]string, 0),
+		Flags:      make([]string, 0),
+		Arguments:  make([]string, 0),
+	}
+	result.parse(args)
+
+	return result
+}
+
+// SetCommand sets the command and returns self for chaining.
+func (a *IacArgs) SetCommand(cmd string) *IacArgs {
+	a.Command = cmd
+
+	return a
+}
+
+// AppendFlag adds flag(s) and returns self for chaining.
+func (a *IacArgs) AppendFlag(flags ...string) *IacArgs {
+	a.Flags = append(a.Flags, flags...)
+
+	return a
+}
+
+// InsertFlag inserts flag(s) at position and returns self for chaining.
+func (a *IacArgs) InsertFlag(pos int, flags ...string) *IacArgs {
+	a.Flags = slices.Insert(a.Flags, pos, flags...)
+
+	return a
+}
+
+// AppendArgument adds an argument and returns self for chaining.
+func (a *IacArgs) AppendArgument(arg string) *IacArgs {
+	a.Arguments = append(a.Arguments, arg)
+
+	return a
+}
+
+// AddFlagIfNotPresent adds a flag only if not already present.
+func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
+	if !slices.Contains(a.Flags, flag) {
+		a.Flags = append(a.Flags, flag)
+	}
+
+	return a
+}
+
+// HasFlag checks if flag exists (by prefix for -flag=value).
+func (a *IacArgs) HasFlag(name string) bool {
+	return slices.ContainsFunc(a.Flags, func(f string) bool {
+		return f == name || strings.HasPrefix(f, name+"=")
+	})
+}
+
+// RemoveFlag removes a flag by name (handles both -flag and -flag=value).
+func (a *IacArgs) RemoveFlag(name string) *IacArgs {
+	a.Flags = slices.DeleteFunc(a.Flags, func(f string) bool {
+		return f == name || strings.HasPrefix(f, name+"=")
+	})
+
+	return a
+}
+
+// HasPlanFile checks if a plan file is already specified in args.
+// Checks for -out= flag (plan command) or any argument present (apply/destroy).
+func (a *IacArgs) HasPlanFile() bool {
+	// Check for -out= flag (used with plan command)
+	if a.HasFlag("-out") {
+		return true
+	}
+
+	// For apply/destroy: any argument is assumed to be a plan file
+	// (can't reliably check file existence - path may be relative or created later)
+	return len(a.Arguments) > 0
+}
+
+// MergeFlags merges flags from another IacArgs, adding only flags not already present.
+// Returns self for chaining.
+func (a *IacArgs) MergeFlags(other *IacArgs) *IacArgs {
+	for _, flag := range other.Flags {
+		if !a.Contains(flag) {
+			a.Flags = append(a.Flags, flag)
+		}
+	}
+
+	return a
+}
+
+// Slice returns args in correct order: [command] [flags...] [arguments...]
+func (a *IacArgs) Slice() []string {
+	result := make([]string, 0, 1+len(a.SubCommand)+len(a.Flags)+len(a.Arguments))
+
+	if a.Command != "" {
+		result = append(result, a.Command)
+	}
+
+	result = append(result, a.SubCommand...)
+	result = append(result, a.Flags...)
+	result = append(result, a.Arguments...)
+
+	return result
+}
+
+// Clone returns a deep copy of IacArgs.
+func (a *IacArgs) Clone() *IacArgs {
+	return &IacArgs{
+		Command:    a.Command,
+		SubCommand: slices.Clone(a.SubCommand),
+		Flags:      slices.Clone(a.Flags),
+		Arguments:  slices.Clone(a.Arguments),
+	}
+}
+
+// First returns the command (first element).
+func (a *IacArgs) First() string {
+	return a.Command
+}
+
+// Second returns the second element (first subcommand, first flag, or first argument).
+func (a *IacArgs) Second() string {
+	if len(a.SubCommand) > 0 {
+		return a.SubCommand[0]
+	}
+
+	if len(a.Flags) > 0 {
+		return a.Flags[0]
+	}
+
+	if len(a.Arguments) > 0 {
+		return a.Arguments[0]
+	}
+
+	return ""
+}
+
+// Last returns the last element (last argument, or last flag, or command).
+func (a *IacArgs) Last() string {
+	if len(a.Arguments) > 0 {
+		return a.Arguments[len(a.Arguments)-1]
+	}
+
+	if len(a.Flags) > 0 {
+		return a.Flags[len(a.Flags)-1]
+	}
+
+	return a.Command
+}
+
+// Tail returns everything except the command (subcommand, flags, and arguments) as a slice.
+func (a *IacArgs) Tail() []string {
+	result := make([]string, 0, len(a.SubCommand)+len(a.Flags)+len(a.Arguments))
+	result = append(result, a.SubCommand...)
+	result = append(result, a.Flags...)
+	result = append(result, a.Arguments...)
+
+	return result
+}
+
+// Contains checks if the args contain the target (in command, subcommand, flags, or arguments).
+func (a *IacArgs) Contains(target string) bool {
+	if a.Command == target {
+		return true
+	}
+
+	for _, s := range a.SubCommand {
+		if s == target {
+			return true
+		}
+	}
+
+	for _, f := range a.Flags {
+		if f == target {
+			return true
+		}
+	}
+
+	for _, arg := range a.Arguments {
+		if arg == target {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Normalize formats the flags according to the given actions.
+func (a *IacArgs) Normalize(acts ...NormalizeActsType) *IacArgs {
+	result := a.Clone()
+	result.Flags = make([]string, 0, len(a.Flags))
+
+	for _, flag := range a.Flags {
+		normalized := flag
+
+		for _, act := range acts {
+			switch act {
+			case SingleDashFlag:
+				if doubleDashRegexp.MatchString(normalized) {
+					normalized = normalized[1:]
+				}
+			case DoubleDashFlag:
+				if singleDashRegexp.MatchString(normalized) {
+					normalized = "-" + normalized
+				}
+			}
+		}
+
+		result.Flags = append(result.Flags, normalized)
+	}
+
+	return result
+}
+
+// parse parses raw args into Command/SubCommand/Flags/Arguments.
+// Known terraform subcommands before any flags go to SubCommand (stay in place).
+// Other non-flag args go to Arguments (appear at end).
+func (a *IacArgs) parse(args []string) {
+	skipNext := false
+	seenFlag := false
+
+	for i, arg := range args {
+		if skipNext {
+			skipNext = false
+
+			continue
+		}
+
+		if strings.HasPrefix(arg, "-") {
+			seenFlag = true
+			skipNext = a.processFlag(arg, args, i)
+
+			continue
+		}
+
+		if a.Command == "" {
+			a.Command = arg
+
+			continue
+		}
+
+		// Known subcommands before flags -> SubCommand (e.g., "lock" in "providers lock")
+		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
+		if !seenFlag && isKnownSubCommand(arg) {
+			a.SubCommand = append(a.SubCommand, arg)
+		} else {
+			a.Arguments = append(a.Arguments, arg)
+		}
+	}
+}
+
+// knownSubCommands lists terraform subcommands that appear after the main command.
+// These should NOT be reordered to the end like plan files.
+var knownSubCommands = []string{
+	// providers subcommands
+	"lock", "mirror", "schema",
+	// state subcommands
+	"list", "mv", "pull", "push", "replace-provider", "rm", "show",
+	// workspace subcommands
+	"delete", "new", "select",
+	// force-unlock takes an argument, not a subcommand
+}
+
+// isKnownSubCommand returns true if arg is a known terraform subcommand.
+func isKnownSubCommand(arg string) bool {
+	return slices.Contains(knownSubCommands, arg)
+}
+
+// processFlag handles flag parsing, returns true if next arg should be skipped.
+// Unknown flags are assumed to take space-separated values for forward compatibility.
+func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
+	flagName := extractFlagName(arg)
+
+	// Flag with inline value (-flag=value) - self-contained
+	if strings.Contains(arg, "=") {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	// Known boolean flag - self-contained
+	if slices.Contains(booleanFlags, flagName) {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	// Check if next arg looks like a value (doesn't start with -)
+	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+		a.Flags = append(a.Flags, arg)
+
+		return false
+	}
+
+	// Assume unknown flag takes a space-separated value
+	a.Flags = append(a.Flags, arg, args[i+1])
+
+	return true
+}
+
+// extractFlagName gets flag name before = if present.
+func extractFlagName(arg string) string {
+	name, _, _ := strings.Cut(arg, "=")
+	return name
+}

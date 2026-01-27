@@ -263,7 +263,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -303,7 +303,7 @@ func runTerragruntWithConfig(
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func ShouldCopyLockFile(args clihelper.Args, terraformConfig *runcfg.TerraformConfig) bool {
+func ShouldCopyLockFile(args *clihelper.IacArgs, terraformConfig *runcfg.TerraformConfig) bool {
 	// If the user has explicitly set NoCopyTerraformLockFile to true, then we should not copy the lock file on any command
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	if terraformConfig != nil && terraformConfig.NoCopyTerraformLockFile {
@@ -438,7 +438,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		return l, nil, err
 	}
 
-	initOptions.TerraformCliArgs = []string{tf.CommandNameInit}
+	initOptions.TerraformCliArgs = clihelper.NewIacArgs().SetCommand(tf.CommandNameInit)
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true
@@ -451,8 +451,8 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		initOptions.Writer = io.Discard
 	}
 
-	if l.Formatter().DisabledColors() || slices.Contains(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
-		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
+	if l.Formatter().DisabledColors() || terragruntOptions.TerraformCliArgs.Contains(tf.FlagNameNoColor) {
+		initOptions.TerraformCliArgs.AppendFlag(tf.FlagNameNoColor)
 	}
 
 	return l, initOptions, nil
@@ -701,7 +701,7 @@ func checkProtectedModuleRunCfg(opts *options.TerragruntOptions, cfg *runcfg.Run
 		destroyFlag = true
 	}
 
-	if slices.Contains(opts.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
+	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
 		destroyFlag = true
 	}
 

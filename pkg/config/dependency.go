@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -701,12 +702,12 @@ func isAwsS3NoSuchKey(err error) bool {
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(pctx *ParsingContext) bool {
-	return slices.Contains(pctx.TerragruntOptions.TerraformCliArgs, renderJSONCommand)
+	return pctx.TerragruntOptions.TerraformCliArgs.Contains(renderJSONCommand)
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
 func isRenderCommand(pctx *ParsingContext) bool {
-	return slices.Contains(pctx.TerragruntOptions.TerraformCliArgs, renderCommand)
+	return pctx.TerragruntOptions.TerraformCliArgs.Contains(renderCommand)
 }
 
 // getOutputJSONWithCaching will run terragrunt output on the target config if it is not already cached.
@@ -779,7 +780,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx context.Context, pctx *Parsin
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentUnits = false
 	targetOptions.TerraformCommand = "output"
-	targetOptions.TerraformCliArgs = []string{"output", "-json"}
+	targetOptions.TerraformCliArgs = clihelper.NewIacArgs("output", "-json")
 
 	// DownloadDir needs to be the dependency's default download directory
 	// because that's where the dependency's state was created when it was applied.

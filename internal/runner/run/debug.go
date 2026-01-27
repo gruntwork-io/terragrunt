@@ -61,7 +61,7 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		"\t%s -chdir=\"%s\" %s -var-file=\"%s\" ",
 		tofuImpl,
 		opts.WorkingDir,
-		strings.Join(opts.TerraformCliArgs, " "),
+		strings.Join(opts.TerraformCliArgs.Slice(), " "),
 		fileName,
 	)
 
