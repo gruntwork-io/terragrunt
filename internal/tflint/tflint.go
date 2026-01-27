@@ -25,14 +25,14 @@ const (
 	tfVarPrefix      = "TF_VAR_"
 	argVarPrefix     = "-var="
 	argVarFilePrefix = "-var-file="
-	TfExternalTFLint = "--terragrunt-external-tflint"
+	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
 func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
 	hookExecute := slices.Clone(hook.Execute)
 	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
-		return arg == TfExternalTFLint
+		return arg == tfExternalTFLint
 	})
 
 	// try to fetch configuration file from hook parameters
