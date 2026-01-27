@@ -32,6 +32,10 @@ jobs:
     uses: ./.github/workflows/license-check.yml
     secrets: inherit
 
+  fuzz:
+    uses: ./.github/workflows/fuzz.yml
+    secrets: inherit
+
   base_tests:
     needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
     uses: ./.github/workflows/base-test.yml
