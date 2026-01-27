@@ -29,7 +29,7 @@ terraform {
 
   after_hook "after_hook_3" {
     commands = ["terragrunt-read-config"]
-    execute = ["${get_terragrunt_dir()}/hook.sh"]
+    execute = ["./hook.sh"]
     run_on_error = true
   }
 }
