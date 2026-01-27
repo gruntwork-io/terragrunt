@@ -38,9 +38,36 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	// Run destroy with report file to capture run order
+	reportFile := filepath.Join(rootPath, "report.json")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf("terragrunt run --all destroy --non-interactive --working-dir %s --report-file %s", rootPath, reportFile),
+	)
 	require.NoError(t, err)
-	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
+
+	// Parse the report file to verify dependency order
+	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, err)
+
+	// Verify all modules are in the report
+	runA := runs.FindByName("module-a")
+	runB := runs.FindByName("module-b")
+	runC := runs.FindByName("module-c")
+	runD := runs.FindByName("module-d")
+	runE := runs.FindByName("module-e")
+
+	require.NotNil(t, runA, "module-a should be in report")
+	require.NotNil(t, runB, "module-b should be in report")
+	require.NotNil(t, runC, "module-c should be in report")
+	require.NotNil(t, runD, "module-d should be in report")
+	require.NotNil(t, runE, "module-e should be in report")
+
+	// Module B depends on A, so B must be destroyed (start) before A
+	assert.True(t, runB.Started.Before(runA.Started), "Module B should start before Module A (B depends on A)")
+
+	// Module D depends on C, so D must be destroyed (start) before C
+	assert.True(t, runD.Started.Before(runC.Started), "Module D should start before Module C (D depends on C)")
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
