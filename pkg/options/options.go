@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -201,6 +202,8 @@ type TerragruntOptions struct {
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
+	// Tips is a collection of tips that can be shown to users.
+	Tips tips.Tips `clone:"shadowcopy"`
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
@@ -390,6 +393,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Errors:                     defaultErrorsConfig(),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
+		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
