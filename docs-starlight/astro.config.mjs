@@ -187,7 +187,7 @@ export default defineConfig({
       },
       social: [
         {
-          href: "https://discord.gg/SPu4Degs5f",
+          href: "/community/invite",
           icon: "discord",
           label: "Discord",
         },
@@ -206,6 +206,9 @@ export default defineConfig({
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
             "/docs/reference/cli/commands/list/#*",
+
+            // Used as a redirect to the Terragrunt Discord server
+            "/community/invite",
           ],
         }),
       ],
@@ -287,6 +290,9 @@ export default defineConfig({
     // Restructured docs
     "/docs/reference/cli/rules": "/docs/process/cli-rules/",
     "/docs/reference/cli/rules/": "/docs/process/cli-rules/",
+
+    // Redirects for external resources
+    "/community/invite": "https://discord.gg/4XJgJ6yK",
   },
   vite: {
     plugins: [tailwindcss()],
