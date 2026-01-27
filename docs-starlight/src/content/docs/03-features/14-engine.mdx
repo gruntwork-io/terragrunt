@@ -7,9 +7,9 @@ sidebar:
 ---
 
 import { Code } from '@astrojs/starlight/components'
-export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt-engine-opentofu/releases/latest');
-export const data = await response.json();
-export const version = data.tag_name || 'v0.0.15';
+import { getLatestRelease } from '@lib/github';
+export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt-engine-opentofu');
+export const version = releaseData?.tag_name || 'v0.1.0';
 
 IaC engines allow you to customize and configure how IaC updates are orchestrated by Terragrunt. This feature is still experimental and not recommended for general production usage.
 
