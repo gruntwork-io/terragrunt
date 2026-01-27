@@ -15,3 +15,7 @@ errors {
     retryable_errors   = [".*"]
   }
 }
+
+inputs = {
+  config_dir = get_terragrunt_dir()
+}
