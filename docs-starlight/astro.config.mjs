@@ -187,7 +187,7 @@ export default defineConfig({
       },
       social: [
         {
-          href: "https://discord.gg/4XJgJ6yK",
+          href: "/community/invite",
           icon: "discord",
           label: "Discord",
         },

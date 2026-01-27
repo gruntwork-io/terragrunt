@@ -12,7 +12,7 @@ Search [Terragrunt GitHub Discussions](https://gruntwork-io/terragrunt/discussio
 
 ## Join the Discord Community
 
-Join the [Gruntwork Discord Community](https://discord.gg/4XJgJ6yK) to chat with maintainers and members of the community.
+Join the [Gruntwork Discord Community](/community/invite) to chat with maintainers and members of the community.
 
 ## Github Issues
 
