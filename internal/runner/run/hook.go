@@ -179,8 +179,8 @@ func runHook(
 	actionParams := curHook.Execute[1:]
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
-	containsExternalTFLintFlag := slices.Contains(curHook.Execute, tflint.TfExternalTFLint)
 	if actionToExecute == "tflint" {
+		containsExternalTFLintFlag := slices.Contains(curHook.Execute, tflint.TfExternalTFLint)
 		if containsExternalTFLintFlag {
 			// delete the flag and run external tflint
 			curHook.Execute = slices.DeleteFunc(curHook.Execute, func(arg string) bool {
