@@ -206,6 +206,9 @@ export default defineConfig({
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
             "/docs/reference/cli/commands/list/#*",
+
+            // Used as a redirect to the Terragrunt Discord server
+            "/community/invite",
           ],
         }),
       ],
