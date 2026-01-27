@@ -35,15 +35,6 @@ import (
 	"github.com/NYTimes/gziphandler"
 )
 
-func getPathRelativeTo(t *testing.T, path string, basePath string) string {
-	t.Helper()
-
-	relPath, err := util.GetPathRelativeTo(path, basePath)
-	require.NoError(t, err)
-
-	return relPath
-}
-
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
