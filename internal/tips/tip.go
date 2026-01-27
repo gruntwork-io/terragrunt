@@ -82,7 +82,7 @@ func (t Tips) DisableAll() {
 func (t Tips) DisableTip(name string) error {
 	found := t.Find(name)
 	if found == nil {
-		return NewInvalidTipNameError(t.Names())
+		return NewInvalidTipNameError(name, t.Names())
 	}
 
 	found.Disable()

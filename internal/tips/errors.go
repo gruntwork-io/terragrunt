@@ -6,17 +6,19 @@ import (
 
 // InvalidTipNameError is an error that is returned when an invalid tip name is requested.
 type InvalidTipNameError struct {
-	allowedNames []string
+	requestedName string
+	allowedNames  []string
 }
 
-func NewInvalidTipNameError(allowedNames []string) *InvalidTipNameError {
+func NewInvalidTipNameError(requestedName string, allowedNames []string) *InvalidTipNameError {
 	return &InvalidTipNameError{
-		allowedNames: allowedNames,
+		requestedName: requestedName,
+		allowedNames:  allowedNames,
 	}
 }
 
 func (err InvalidTipNameError) Error() string {
-	return "allowed tip(s): " + strings.Join(err.allowedNames, ", ")
+	return "invalid tip suppression requested for `--no-tip`: '" + err.requestedName + "'; valid tip(s) for suppression: " + strings.Join(err.allowedNames, ", ")
 }
 
 func (err InvalidTipNameError) Is(target error) bool {

@@ -135,7 +135,8 @@ func TestTipsDisableTipInvalidName(t *testing.T) {
 
 	var invalidErr *tips.InvalidTipNameError
 	require.ErrorAs(t, err, &invalidErr)
-	assert.Contains(t, err.Error(), "allowed tip(s):")
+	assert.Contains(t, err.Error(), "invalid tip suppression requested for `--no-tip`: 'invalid-tip-name'")
+	assert.Contains(t, err.Error(), "valid tip(s) for suppression:")
 	assert.Contains(t, err.Error(), tips.DebuggingDocs)
 }
 
