@@ -8,7 +8,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 )
+
+// exampleLogger creates a logger for examples with a proper formatter.
+func exampleLogger() log.Logger {
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
+
+	return log.New(log.WithFormatter(formatter))
+}
 
 // Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
 func Example_basicPathFilter() {
@@ -237,13 +246,13 @@ func Example_multipleFilters() {
 		}),
 	}
 
+	l := exampleLogger()
+
 	// Parse multiple filters - results are unioned
-	filters, _ := filter.ParseFilterQueries([]string{
+	filters, _ := filter.ParseFilterQueries(l, []string{
 		"./apps/*",
 		"name=db",
 	})
-
-	l := log.New()
 	result, _ := filters.Evaluate(l, components)
 
 	// Sort for consistent output

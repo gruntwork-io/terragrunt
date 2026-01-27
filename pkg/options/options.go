@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -53,8 +52,6 @@ const (
 	DefaultTFDataDir = ".terraform"
 
 	DefaultIAMAssumeRoleDuration = 3600
-
-	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
@@ -187,7 +184,7 @@ type TerragruntOptions struct {
 	// Path to the report schema file.
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs clihelper.Args
+	TerraformCliArgs *clihelper.IacArgs
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -380,6 +377,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:          true,
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
+		TerraformCliArgs:           clihelper.NewIacArgs(),
 		Writer:                     stdout,
 		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
@@ -504,62 +502,49 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	return l, newOpts, nil
 }
 
-// Check if argument is planfile TODO check file formatter
-func checkIfPlanFile(arg string) bool {
-	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
-}
-
-// Extract planfile from arguments list
-func extractPlanFile(argsToInsert []string) (*string, []string) {
-	planFile := ""
-
-	var filteredArgs []string
-
-	for _, arg := range argsToInsert {
-		if checkIfPlanFile(arg) {
-			planFile = arg
-		} else {
-			filteredArgs = append(filteredArgs, arg)
-		}
-	}
-
-	if planFile != "" {
-		return &planFile, filteredArgs
-	}
-
-	return nil, filteredArgs
-}
-
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
-	planFile, restArgs := extractPlanFile(argsToInsert)
-
-	commandLength := 1
-	if slices.Contains(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
-		// Since these terraform commands require subcommands which may not always be properly passed by the user,
-		// using min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = min(minCommandLength, len(opts.TerraformCliArgs))
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
 
-	// Options must be inserted after command but before the other args
-	// command is either 1 word or 2 words
-	var args []string
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := clihelper.NewIacArgs(argsToInsert...)
 
-	args = append(args, opts.TerraformCliArgs[:commandLength]...)
-	args = append(args, restArgs...)
-	args = append(args, opts.TerraformCliArgs[commandLength:]...)
+	// Insert flags at beginning
+	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// check if planfile was extracted
-	if planFile != nil {
-		args = append(args, *planFile)
+	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	if parsed.Command != "" {
+		opts.TerraformCliArgs.AppendArgument(parsed.Command)
 	}
 
-	opts.TerraformCliArgs = args
+	for _, arg := range parsed.Arguments {
+		opts.TerraformCliArgs.AppendArgument(arg)
+	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
-	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
+	}
+
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := clihelper.NewIacArgs(argsToAppend...)
+
+	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
+
+	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	if parsed.Command != "" {
+		opts.TerraformCliArgs.AppendArgument(parsed.Command)
+	}
+
+	for _, arg := range parsed.Arguments {
+		opts.TerraformCliArgs.AppendArgument(arg)
+	}
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)

@@ -98,7 +98,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
 		if err != nil {
 			return "", fmt.Errorf("terragrunt command failed: %w", err)
 		}
@@ -220,7 +220,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appsPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appsPath))
 
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
@@ -410,7 +410,7 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 		),
 	)
 	tgPath := filepath.Join(rootPath, "multiple-match")
-	tgArgs := "terragrunt run --all --log-level trace --non-interactive --working-dir " + tgPath + " -- apply -auto-approve"
+	tgArgs := "terragrunt run --all --non-interactive --working-dir " + tgPath + " -- apply -auto-approve"
 	helpers.RunTerragrunt(t, tgArgs)
 }
 
@@ -601,7 +601,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": {
@@ -706,7 +706,7 @@ func TestParseTFLog(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
+		"terragrunt run --all init --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -799,7 +799,11 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+
+			testPath+" -- apply",
+	)
 	require.NoError(t, err)
 
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
@@ -824,7 +828,7 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply",
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+" -- apply",
 	)
 	require.NoError(t, err)
 

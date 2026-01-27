@@ -31,6 +31,9 @@ type Run struct {
 	Path                string
 	Result              Result
 	DiscoveryWorkingDir string
+	Ref                 string
+	Cmd                 string
+	Args                []string
 	mu                  sync.RWMutex
 }
 
@@ -319,18 +322,41 @@ func WithCauseRunError(name string) EndOption {
 	return withCause(name)
 }
 
-// withCause sets the cause of a run to the name of a particular cause.
-func withCause(name string) EndOption {
-	return func(run *Run) {
-		cause := Cause(name)
-		run.Cause = &cause
-	}
-}
-
 // WithDiscoveryWorkingDir sets the discovery working directory for a run.
 // This is used to compute relative paths for units discovered in worktrees.
 func WithDiscoveryWorkingDir(workingDir string) EndOption {
 	return func(run *Run) {
 		run.DiscoveryWorkingDir = workingDir
+	}
+}
+
+// WithRef sets the worktree reference for a run.
+// This is typically a git commit, branch, or tag.
+func WithRef(ref string) EndOption {
+	return func(run *Run) {
+		run.Ref = ref
+	}
+}
+
+// WithCmd sets the tofu/terraform command for a run.
+// This is the main tofu/terraform command being executed (e.g., plan, apply).
+func WithCmd(cmd string) EndOption {
+	return func(run *Run) {
+		run.Cmd = cmd
+	}
+}
+
+// WithArgs sets the terraform CLI arguments for a run.
+func WithArgs(args []string) EndOption {
+	return func(run *Run) {
+		run.Args = args
+	}
+}
+
+// withCause sets the cause of a run to the name of a particular cause.
+func withCause(name string) EndOption {
+	return func(run *Run) {
+		cause := Cause(name)
+		run.Cause = &cause
 	}
 }

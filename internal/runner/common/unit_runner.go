@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -68,10 +69,17 @@ func (runner *UnitRunner) runTerragrunt(
 		unitPath := runner.Unit.AbsolutePath()
 		unitPath = util.CleanPath(unitPath)
 
-		// Pass the discovery working directory for worktree scenarios
+		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
-		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-			ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil {
+			ensureOpts = append(
+				ensureOpts,
+				report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+				report.WithRef(discoveryCtx.Ref),
+				report.WithCmd(discoveryCtx.Cmd),
+				report.WithArgs(discoveryCtx.Args),
+			)
 		}
 
 		if _, err := r.EnsureRun(runner.Unit.Execution.Logger, unitPath, ensureOpts...); err != nil {
@@ -139,17 +147,6 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if runner.Unit.Execution.AssumeAlreadyApplied {
-		if runner.Unit.Execution.Logger != nil {
-			runner.Unit.Execution.Logger.Debugf(
-				"Assuming unit %s has already been applied and skipping it",
-				runner.Unit.Path(),
-			)
-		}
-
-		return nil
-	}
-
 	if err := runner.runTerragrunt(ctx, runner.Unit.Execution.TerragruntOptions, r, cfg, credsGetter); err != nil {
 		return err
 	}
@@ -169,7 +166,7 @@ func (runner *UnitRunner) Run(
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts)}
+		jsonOptions.TerraformCliArgs = clihelper.NewIacArgs(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts))
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()

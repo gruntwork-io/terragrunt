@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -218,7 +219,7 @@ func resolveUnitsFromDiscovery(
 				}
 
 				terraformCliArgs = append(terraformCliArgs, discoveryCtx.Args...)
-				unitOpts.TerraformCliArgs = terraformCliArgs
+				unitOpts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
 			}
 		}
 
@@ -367,11 +368,11 @@ func NewRunnerPoolStack(
 // filterUnitsToComponents converts resolved units to Components.
 // Excluded units that are assumed already applied are kept in the queue
 // so their dependents can run (they will be immediately marked as succeeded).
-// Only truly excluded units (FlagExcluded && !AssumeAlreadyApplied) are filtered out.
+// Only truly excluded units with set FlagExcluded are filtered out.
 func filterUnitsToComponents(units []*component.Unit) component.Components {
 	result := make(component.Components, 0, len(units))
 	for _, u := range units {
-		if u.Execution != nil && u.Execution.FlagExcluded && !u.Execution.AssumeAlreadyApplied {
+		if u.Execution != nil && u.Execution.FlagExcluded {
 			// Truly excluded - skip entirely
 			continue
 		}
@@ -397,7 +398,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
-		opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-input=false")
+		opts.TerraformCliArgs.InsertFlag(0, "-input=false")
 		r.syncTerraformCliArgs(l, opts)
 	}
 
@@ -406,7 +407,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	switch terraformCmd {
 	case tf.CommandNameApply, tf.CommandNameDestroy:
 		if opts.RunAllAutoApprove {
-			opts.TerraformCliArgs = slices.Insert(opts.TerraformCliArgs, 1, "-auto-approve")
+			opts.TerraformCliArgs.InsertFlag(0, "-auto-approve")
 		}
 
 		r.syncTerraformCliArgs(l, opts)
@@ -426,10 +427,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+				if discoveryCtx := u.DiscoveryContext(); discoveryCtx != nil {
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, err := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -445,9 +453,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					// Determine the reason for exclusion
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
-					if u.Execution.AssumeAlreadyApplied {
-						reason = report.ReasonExcludeExternal
-					}
 
 					if err := r.Stack.Execution.Report.EndRun(
 						l,
@@ -556,10 +561,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				// Ensure path is absolute for reporting
 				unitPath := unit.AbsolutePath()
 
-				// Pass the discovery working directory for worktree scenarios
+				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
-				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-					ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+				if discoveryCtx := unit.DiscoveryContext(); discoveryCtx != nil {
+					ensureOpts = append(
+						ensureOpts,
+						report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+						report.WithRef(discoveryCtx.Ref),
+						report.WithCmd(discoveryCtx.Cmd),
+						report.WithArgs(discoveryCtx.Args),
+					)
 				}
 
 				run, reportErr := r.Stack.Execution.Report.EnsureRun(l, unitPath, ensureOpts...)
@@ -660,7 +672,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	showAbsPaths := r.Stack.Execution != nil && r.Stack.Execution.TerragruntOptions != nil &&
 		r.Stack.Execution.TerragruntOptions.LogShowAbsPaths
 
-	var outStrSb729 strings.Builder
+	var outStrSb strings.Builder
 
 	for _, unit := range entries {
 		unitPath := unit.Component.DisplayPath()
@@ -668,10 +680,10 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 			unitPath = unit.Component.Path()
 		}
 
-		outStrSb729.WriteString(fmt.Sprintf("- Unit %s\n", unitPath))
+		fmt.Fprintf(&outStrSb, "- Unit %s\n", unitPath)
 	}
 
-	outStr += outStrSb729.String()
+	outStr += outStrSb.String()
 
 	l.Info(outStr)
 
@@ -747,20 +759,10 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 
 		discoveryCtx := unit.DiscoveryContext()
 		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
-			mergedArgs := slices.Clone(unit.Execution.TerragruntOptions.TerraformCliArgs)
-			for _, stackArg := range opts.TerraformCliArgs {
-				if stackArg == opts.TerraformCliArgs.First() {
-					continue
-				}
-
-				if !slices.Contains(mergedArgs, stackArg) {
-					mergedArgs = append(mergedArgs, stackArg)
-				}
-			}
-
-			unit.Execution.TerragruntOptions.TerraformCliArgs = mergedArgs
+			// Merge stack-level flags that aren't already present
+			unit.Execution.TerragruntOptions.TerraformCliArgs.MergeFlags(opts.TerraformCliArgs)
 		} else {
-			unit.Execution.TerragruntOptions.TerraformCliArgs = slices.Clone(opts.TerraformCliArgs)
+			unit.Execution.TerragruntOptions.TerraformCliArgs = opts.TerraformCliArgs.Clone()
 		}
 
 		planFile := unit.PlanFile(opts)
@@ -768,68 +770,22 @@ func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOpti
 		if planFile != "" {
 			l.Debugf("Using output file %s for unit %s", planFile, unit.Execution.TerragruntOptions.TerragruntConfigPath)
 
-			if slices.ContainsFunc(unit.Execution.TerragruntOptions.TerraformCliArgs, isPlanArg) {
-				// Plan file already present, just reorder to ensure it's at the end
-				unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
+			// Check if plan file already exists in args
+			if unit.Execution.TerragruntOptions.TerraformCliArgs.HasPlanFile() {
+				// Plan file already present, args are already structured correctly
 				continue
 			}
 
 			if unit.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, "-out="+planFile)
+				unit.Execution.TerragruntOptions.TerraformCliArgs.AppendFlag("-out=" + planFile)
+
 				continue
 			}
 
-			unit.Execution.TerragruntOptions.TerraformCliArgs = append(unit.Execution.TerragruntOptions.TerraformCliArgs, planFile)
+			unit.Execution.TerragruntOptions.TerraformCliArgs.AppendArgument(planFile)
 		}
-
-		// Always reorder to ensure plan files are at the end, after all flags
-		unit.Execution.TerragruntOptions.TerraformCliArgs = reorderPlanFilesToEnd(unit.Execution.TerragruntOptions.TerraformCliArgs)
 	}
-}
-
-func isPlanArg(arg string) bool {
-	if strings.HasPrefix(arg, "-") {
-		return false
-	}
-
-	if strings.HasSuffix(arg, ".tfplan") || strings.HasSuffix(arg, ".plan") {
-		return true
-	}
-
-	return false
-}
-
-// isPreviousArgFlag checks if the previous argument is a flag that might expect a value.
-// A flag without '=' (like "-out") expects its value as the next argument.
-func isPreviousArgFlag(args []string, index int) bool {
-	if index <= 0 {
-		return false
-	}
-
-	prevArg := args[index-1]
-	// If previous arg is a flag without '=', current arg might be its value
-	return strings.HasPrefix(prevArg, "-") && !strings.Contains(prevArg, "=")
-}
-
-// reorderPlanFilesToEnd moves plan file arguments to the end of the args slice,
-// preserving flag-value pairs (e.g., "-out plan.plan" stays together).
-func reorderPlanFilesToEnd(args []string) []string {
-	regularArgs := make([]string, 0, len(args))
-
-	var planArgs []string
-
-	for i, arg := range args {
-		// Move to end if: looks like plan file AND previous arg isn't a flag expecting a value
-		if isPlanArg(arg) && !isPreviousArgFlag(args, i) {
-			planArgs = append(planArgs, arg)
-			continue
-		}
-
-		regularArgs = append(regularArgs, arg)
-	}
-
-	return append(regularArgs, planArgs...)
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
@@ -1033,9 +989,9 @@ func (r *Runner) SetReport(rpt *report.Report) {
 }
 
 // isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(cmd string, args []string) bool {
+func isDestroyCommand(cmd string, args *clihelper.IacArgs) bool {
 	return cmd == tf.CommandNameDestroy ||
-		slices.Contains(args, "-"+tf.CommandNameDestroy)
+		args.Contains("-"+tf.CommandNameDestroy)
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
@@ -1099,7 +1055,7 @@ func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOpt
 			continue
 		}
 
-		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, discoveryCtx.Args) {
+		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, clihelper.NewIacArgs(discoveryCtx.Args...)) {
 			if unit.Execution != nil {
 				unit.Execution.FlagExcluded = true
 			}

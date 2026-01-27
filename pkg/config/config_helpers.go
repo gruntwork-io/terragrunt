@@ -874,7 +874,7 @@ func getTerraformCliArgs(ctx context.Context, pctx *ParsingContext, l log.Logger
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terraform_cli_args", attrs, func(childCtx context.Context) error {
-		result = pctx.TerragruntOptions.TerraformCliArgs
+		result = pctx.TerragruntOptions.TerraformCliArgs.Slice()
 		return nil
 	})
 

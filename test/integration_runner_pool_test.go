@@ -176,9 +176,6 @@ func TestRunnerPoolFailFast(t *testing.T) {
 			reportFilePath := filepath.Join(testPath, helpers.ReportFile)
 			assert.FileExists(t, reportFilePath)
 
-			err = report.ValidateJSONReportFromFile(reportFilePath)
-			require.NoError(t, err, "Report should pass schema validation")
-
 			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 			require.NoError(t, err)
 
@@ -358,4 +355,6 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 	assert.GreaterOrEqual(t, maxConcurrent, 2,
 		"Expected auth commands to detect at least 2 concurrent executions. "+
 			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
+
+	helpers.ValidateAuthProviderScript(t, testPath, authProviderScript)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -494,7 +495,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = terraformCliArgs
+	opts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
@@ -560,7 +561,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		expected []string
 	}{
 		{
-			args: []string{},
+			args:     []string{},
+			expected: []string{},
 		},
 		{
 			args:     []string{"plan", "--bar"},
@@ -597,7 +599,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		},
 		{
 			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
-			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
+			expected: []string{tf.CommandNameDestroy, "-foo", "-bar", "plan"},
 		},
 	}
 
@@ -613,7 +615,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			)
 			actualOptions, err := runAppTest(l, tc.args, opts)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, []string(actualOptions.TerraformCliArgs), "For args %v", tc.args)
+			assert.Equal(t, tc.expected, actualOptions.TerraformCliArgs.Slice(), "For args %v", tc.args)
 		})
 	}
 }
@@ -873,7 +875,17 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
-		opts.TerraformCliArgs = append(opts.TerraformCliArgs, cliCtx.Args()...)
+		for _, arg := range cliCtx.Args() {
+			switch {
+			case strings.HasPrefix(arg, "-"):
+				opts.TerraformCliArgs.AppendFlag(arg)
+			case opts.TerraformCliArgs.Command == "":
+				opts.TerraformCliArgs.SetCommand(arg)
+			default:
+				opts.TerraformCliArgs.AppendArgument(arg)
+			}
+		}
+
 		return nil
 	}
 	app.ExitErrHandler = cli.ExitErrHandler

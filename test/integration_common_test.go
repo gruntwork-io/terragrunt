@@ -59,7 +59,7 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
 
 	return tmpEnvPath, stdout, stderr, err
 }

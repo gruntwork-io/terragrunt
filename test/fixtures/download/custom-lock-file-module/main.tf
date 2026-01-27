@@ -7,7 +7,7 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
+      source  = "registry.opentofu.org/hashicorp/aws"
       version = "5.23.0"
     }
   }

@@ -239,7 +239,7 @@ func (cache *ProviderCache) warmUpCache(
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
 	// Check if user passed -upgrade flag to terraform init
-	isUpgrade := slices.Contains(opts.TerraformCliArgs, "-upgrade")
+	isUpgrade := opts.TerraformCliArgs.Contains("-upgrade")
 
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
 		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
@@ -356,7 +356,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	errWriter := util.NewTrapWriter(opts.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if slices.Contains(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
+	if opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
@@ -369,10 +369,10 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.TerraformCliArgs = args
+	cloneOpts.TerraformCliArgs = clihelper.NewIacArgs(args...)
 	cloneOpts.Env = envs
 
-	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs...)
+	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs.Slice()...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
 		return new(util.CmdOutput), nil

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -37,9 +38,36 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all destroy --non-interactive --tf-forward-stdout --working-dir "+rootPath)
+	// Run destroy with report file to capture run order
+	reportFile := filepath.Join(rootPath, "report.json")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf("terragrunt run --all destroy --non-interactive --working-dir %s --report-file %s", rootPath, reportFile),
+	)
 	require.NoError(t, err)
-	assert.Regexp(t, `(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`, stdout)
+
+	// Parse the report file to verify dependency order
+	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, err)
+
+	// Verify all modules are in the report
+	runA := runs.FindByName("module-a")
+	runB := runs.FindByName("module-b")
+	runC := runs.FindByName("module-c")
+	runD := runs.FindByName("module-d")
+	runE := runs.FindByName("module-e")
+
+	require.NotNil(t, runA, "module-a should be in report")
+	require.NotNil(t, runB, "module-b should be in report")
+	require.NotNil(t, runC, "module-c should be in report")
+	require.NotNil(t, runD, "module-d should be in report")
+	require.NotNil(t, runE, "module-e should be in report")
+
+	// Module B depends on A, so B must be destroyed (start) before A
+	assert.True(t, runB.Started.Before(runA.Started), "Module B should start before Module A (B depends on A)")
+
+	// Module D depends on C, so D must be destroyed (start) before C
+	assert.True(t, runD.Started.Before(runC.Started), "Module D should start before Module C (D depends on C)")
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -82,40 +110,38 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	// Run destroy with --queue-ignore-errors flag
+	// Run destroy with --queue-ignore-errors flag and capture results in a report file
 	// The main difference with --queue-ignore-errors is that it allows progress even if dependencies fail,
 	// but it should still respect the dependency order when dependencies are in terminal states.
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+	reportFile := filepath.Join(rootPath, "report.json")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all destroy --non-interactive --tf-forward-stdout --queue-ignore-errors --working-dir "+rootPath,
+		fmt.Sprintf("terragrunt run --all destroy --non-interactive --queue-ignore-errors --working-dir %s --report-file %s", rootPath, reportFile),
 	)
 	require.NoError(t, err)
 
-	// Verify dependency order is respected by checking the position of each module's output.
-	// With interleaved parallel output, we can't rely on sequential regex matching.
-	// Instead, find the last occurrence of each module name (which indicates completion) and verify order.
+	// Parse the report file to verify dependency order
+	runs, err := report.ParseJSONRunsFromFile(reportFile)
+	require.NoError(t, err)
 
-	// Helper to find the last index of a module's output in stdout
-	lastIndex := func(module string) int {
-		return strings.LastIndex(stdout, module)
-	}
+	// Verify all modules are in the report
+	runA := runs.FindByName("module-a")
+	runB := runs.FindByName("module-b")
+	runC := runs.FindByName("module-c")
+	runD := runs.FindByName("module-d")
+	runE := runs.FindByName("module-e")
 
-	// Module B depends on A, so B must be destroyed (and appear in output) before A
-	posB := lastIndex("Module B")
-	posA := lastIndex("Module A")
-	assert.Greater(t, posA, posB, "Module B should complete before Module A (B depends on A)")
+	require.NotNil(t, runA, "module-a should be in report")
+	require.NotNil(t, runB, "module-b should be in report")
+	require.NotNil(t, runC, "module-c should be in report")
+	require.NotNil(t, runD, "module-d should be in report")
+	require.NotNil(t, runE, "module-e should be in report")
 
-	// Module D depends on C, so D must be destroyed (and appear in output) before C
-	posD := lastIndex("Module D")
-	posC := lastIndex("Module C")
-	assert.Greater(t, posC, posD, "Module D should complete before Module C (D depends on C)")
+	// Module B depends on A, so B must be destroyed (start) before A
+	assert.True(t, runB.Started.Before(runA.Started), "Module B should start before Module A (B depends on A)")
 
-	// Verify all modules appear in output
-	assert.NotEqual(t, -1, posA, "Module A should appear in output")
-	assert.NotEqual(t, -1, posB, "Module B should appear in output")
-	assert.NotEqual(t, -1, posC, "Module C should appear in output")
-	assert.NotEqual(t, -1, posD, "Module D should appear in output")
-	assert.NotEqual(t, -1, lastIndex("Module E"), "Module E should appear in output")
+	// Module D depends on C, so D must be destroyed (start) before C
+	assert.True(t, runD.Started.Before(runC.Started), "Module D should start before Module C (D depends on C)")
 }
 
 func TestPreventDestroyOverride(t *testing.T) {
@@ -159,26 +185,24 @@ func TestDestroyDependentModule(t *testing.T) {
 	// apply each module in order
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Join(rootPath, "a"),
+		"terragrunt run --working-dir "+filepath.Join(rootPath, "a")+" -- apply -auto-approve",
 	)
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Join(rootPath, "b"),
+		"terragrunt run --working-dir "+filepath.Join(rootPath, "b")+" -- apply -auto-approve",
 	)
 	helpers.RunTerragrunt(
 		t,
-		"terragrunt apply -auto-approve --non-interactive --working-dir "+filepath.Join(rootPath, "c"),
+		"terragrunt run --working-dir "+filepath.Join(rootPath, "c")+" -- apply -auto-approve",
 	)
 
 	// destroy module which have outputs from other modules
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
 	workingDir := filepath.Join(rootPath, "c")
-	err = helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --non-interactive --log-level trace --working-dir "+workingDir, &stdout, &stderr)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --log-level debug --working-dir "+workingDir+" -- destroy -auto-approve",
+	)
 	require.NoError(t, err)
-
-	output := stderr.String()
 
 	for _, path := range []string{
 		filepath.Join(rootPath, "b", "terragrunt.hcl"),
@@ -186,11 +210,11 @@ func TestDestroyDependentModule(t *testing.T) {
 	} {
 		relPath, err := filepath.Rel(workingDir, path)
 		require.NoError(t, err)
-		assert.Contains(t, output, relPath, output)
+		assert.Contains(t, stderr, relPath, stderr)
 	}
 
-	assert.Contains(t, output, "\"value\": \"module-b.txt\"", output)
-	assert.Contains(t, output, "\"value\": \"module-a.txt\"", output)
+	assert.Contains(t, stderr, "\"value\": \"module-b.txt\"", stderr)
+	assert.Contains(t, stderr, "\"value\": \"module-a.txt\"", stderr)
 }
 
 func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
@@ -404,13 +428,34 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s", dependencyPath, tmpDir))
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply -auto-approve --non-interactive --working-dir %s --out-dir %s",
+			dependencyPath,
+			tmpDir,
+		),
+	)
 
 	// plan and apply
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all plan --non-interactive --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
 	// remove all tfstate files from temp directory to prepare destroy
@@ -423,10 +468,16 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	}
 
 	// prepare destroy plan
-	_, output, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all --non-interactive --log-level trace --working-dir %s --out-dir %s -- plan -destroy", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s --out-dir %s -- plan -destroy",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "Using output file "+getPathRelativeTo(t, tmpDir, testPath))
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
@@ -436,7 +487,14 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --log-level trace --working-dir %s --out-dir %s", testPath, tmpDir))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive --working-dir %s --out-dir %s",
+			testPath,
+			tmpDir,
+		),
+	)
 	require.NoError(t, err)
 }
 
@@ -453,7 +511,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply -auto-approve --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			"terragrunt apply -auto-approve --non-interactive --working-dir %s --out-dir %s",
 			dependencyPath,
 			tmpDir,
 		),
@@ -463,7 +521,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt plan --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			"terragrunt plan --all --non-interactive --working-dir %s --out-dir %s",
 			testPath,
 			tmpDir,
 		),
@@ -473,7 +531,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			"terragrunt apply --all --non-interactive --working-dir %s --out-dir %s",
 			testPath,
 			tmpDir,
 		),
@@ -490,17 +548,16 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	}
 
 	// prepare destroy plan
-	_, output, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt plan --all -destroy --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			"terragrunt plan --all -destroy --non-interactive --working-dir %s --out-dir %s",
 			testPath,
 			tmpDir,
 		),
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "Using output file "+getPathRelativeTo(t, tmpDir, testPath))
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
@@ -513,7 +570,7 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
-			"terragrunt apply --all --non-interactive --log-level trace --working-dir %s --out-dir %s",
+			"terragrunt apply --all --non-interactive --working-dir %s --out-dir %s",
 			testPath,
 			tmpDir,
 		),

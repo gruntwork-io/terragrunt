@@ -56,12 +56,12 @@ func buildConfigFilenames(tgOpts *options.TerragruntOptions) []string {
 }
 
 // parseFilters wraps filter parsing for readability.
-func parseFilters(queries []string) (filter.Filters, error) {
+func parseFilters(l log.Logger, queries []string) (filter.Filters, error) {
 	if len(queries) == 0 {
 		return filter.Filters{}, nil
 	}
 
-	return filter.ParseFilterQueries(queries)
+	return filter.ParseFilterQueries(l, queries)
 }
 
 // extractWorktrees finds WorktreeOption in options and returns worktrees.
@@ -115,6 +115,7 @@ func newBaseDiscovery(
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
 func prepareDiscovery(
+	l log.Logger,
 	tgOpts *options.TerragruntOptions,
 	opts ...common.Option,
 ) (*discovery.Discovery, error) {
@@ -125,7 +126,7 @@ func prepareDiscovery(
 
 	// Apply filter queries when provided
 	if len(tgOpts.FilterQueries) > 0 {
-		filters, err := parseFilters(tgOpts.FilterQueries)
+		filters, err := parseFilters(l, tgOpts.FilterQueries)
 		if err != nil {
 			return nil, errors.Errorf("failed to parse filter queries in %s: %w", workingDir, err)
 		}
@@ -155,7 +156,7 @@ func discoverWithRetry(
 	opts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(tgOpts, opts...)
+	d, err := prepareDiscovery(l, tgOpts, opts...)
 	if err != nil {
 		return nil, err
 	}

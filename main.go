@@ -72,8 +72,6 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 			exitCoder, exitCodeErr := util.GetExitCode(err)
 			if exitCodeErr != nil {
 				exitCoder = 1
-
-				logger.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
 			}
 
 			if explain := shell.ExplainError(err); len(explain) > 0 {

@@ -108,7 +108,7 @@ func TestBareIncludeStrictMode(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrictBareInclude)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureStrictBareInclude)
 
-			args := "init --non-interactive --log-level trace --working-dir " + rootPath
+			args := "init --non-interactive --working-dir " + rootPath
 			if tc.strictMode {
 				args = "--strict-mode " + args
 			}
