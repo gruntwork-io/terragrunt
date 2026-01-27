@@ -2440,17 +2440,15 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
-	// The file should exist in the first run (now in cache directory).
-	assert.True(t, helpers.FileExistsInCache(t, depPath, "file.out"))
-	assert.False(t, helpers.FileExistsInCache(t, mainPath, "file.out"))
+	// The file should exist in original config dir (hook behavior), not cache.
+	assert.True(t, util.FileExists(filepath.Join(depPath, "file.out")))
+	assert.False(t, util.FileExists(filepath.Join(mainPath, "file.out")))
 
-	// Now delete file from cache and run plain main again. It should NOT create file.out.
-	depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
-	require.NotEmpty(t, depCacheDir, "Should find cache working directory for dep")
-	require.NoError(t, os.Remove(filepath.Join(depCacheDir, "file.out")))
+	// Now delete file and run plain main again. It should NOT create file.out.
+	require.NoError(t, os.Remove(filepath.Join(depPath, "file.out")))
 	helpers.RunTerragrunt(t, "terragrunt plan --non-interactive --working-dir "+mainPath)
-	assert.False(t, helpers.FileExistsInCache(t, depPath, "file.out"))
-	assert.False(t, helpers.FileExistsInCache(t, mainPath, "file.out"))
+	assert.False(t, util.FileExists(filepath.Join(depPath, "file.out")))
+	assert.False(t, util.FileExists(filepath.Join(mainPath, "file.out")))
 }
 
 func TestDeepDependencyOutputWithMock(t *testing.T) {
