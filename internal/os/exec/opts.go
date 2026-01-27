@@ -39,3 +39,11 @@ func WithForwardSignalDelay(delay time.Duration) Option {
 		cmd.forwardSignalDelay = delay
 	}
 }
+
+// WithWaitDelay sets the time to wait for the subprocess to gracefully exit
+// after receiving a signal before forcefully killing it with SIGKILL.
+func WithWaitDelay(delay time.Duration) Option {
+	return func(cmd *Cmd) {
+		cmd.WaitDelay = delay
+	}
+}
