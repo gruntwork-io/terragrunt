@@ -2140,7 +2140,10 @@ func validateS3BucketExistsAndIsTaggedAndVersioning(t *testing.T, awsRegion stri
 
 	ctx := t.Context()
 
-	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	// Use the AWS SDK waiter to handle S3 eventual consistency.
+	// Newly created buckets may not be immediately visible to subsequent API calls.
+	waiter := s3.NewBucketExistsWaiter(client)
+	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)}, 2*time.Minute)
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	if expectedTags != nil {
@@ -2159,7 +2162,9 @@ func doesS3BucketKeyExist(t *testing.T, awsRegion string, bucketName, key string
 
 	ctx := t.Context()
 
-	_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	// Use the AWS SDK waiter to handle S3 eventual consistency.
+	waiter := s3.NewBucketExistsWaiter(client)
+	err := waiter.Wait(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucketName)}, 2*time.Minute)
 	require.NoError(t, err, "S3 bucket %s does not exist", bucketName)
 
 	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
