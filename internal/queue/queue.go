@@ -345,20 +345,6 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 	for _, dep := range e.Component.Dependencies() {
 		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
-			// Dependency not in queue - check if assumed already applied
-			if q.unitsMap != nil {
-				if unit, ok := q.unitsMap[dep.Path()]; ok {
-					if unit.Execution != nil && unit.Execution.AssumeAlreadyApplied {
-						l.Debugf(
-							"Dependency %s is not in queue, and is assumed to be already applied, considering it ready",
-							dep.Path(),
-						)
-
-						continue
-					}
-				}
-			}
-
 			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
 
 			continue

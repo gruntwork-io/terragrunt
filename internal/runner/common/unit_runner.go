@@ -146,17 +146,6 @@ func (runner *UnitRunner) Run(
 		return nil
 	}
 
-	if runner.Unit.Execution.AssumeAlreadyApplied {
-		if runner.Unit.Execution.Logger != nil {
-			runner.Unit.Execution.Logger.Debugf(
-				"Assuming unit %s has already been applied and skipping it",
-				runner.Unit.Path(),
-			)
-		}
-
-		return nil
-	}
-
 	if err := runner.runTerragrunt(ctx, runner.Unit.Execution.TerragruntOptions, r, cfg, credsGetter); err != nil {
 		return err
 	}

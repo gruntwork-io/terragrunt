@@ -36,10 +36,9 @@ type Unit struct {
 // UnitExecution holds execution-specific fields for running a unit.
 // This is nil during discovery phase and populated when preparing for execution.
 type UnitExecution struct {
-	TerragruntOptions    *options.TerragruntOptions
-	Logger               log.Logger
-	FlagExcluded         bool
-	AssumeAlreadyApplied bool
+	TerragruntOptions *options.TerragruntOptions
+	Logger            log.Logger
+	FlagExcluded      bool
 }
 
 // NewUnit creates a new Unit component with the given path.
@@ -277,7 +276,6 @@ func (u *Unit) String() string {
 
 	if u.Execution != nil {
 		excluded = u.Execution.FlagExcluded
-		assumeApplied = u.Execution.AssumeAlreadyApplied
 	}
 
 	return fmt.Sprintf(
