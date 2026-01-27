@@ -31,7 +31,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt plan --non-interactive --log-level debug --inputs-debug --working-dir "+rootPath,
 	)
