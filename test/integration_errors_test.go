@@ -216,10 +216,8 @@ func TestNoAutoRetryFlag(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, stderr, "Transient error")
 
-	// Cleanup for second test - success.txt is now created in cache directory
-	cacheWorkingDir := helpers.FindCacheWorkingDir(t, rootPath)
-	require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory")
-	successFile := filepath.Join(cacheWorkingDir, "success.txt")
+	// Cleanup for second test - success.txt is created in original config directory (hook behavior)
+	successFile := filepath.Join(rootPath, "success.txt")
 	err = os.Remove(successFile)
 	require.NoError(t, err)
 	cleanupTerraformFolder(t, testNoAutoRetry)
