@@ -293,7 +293,6 @@ export default defineConfig({
 
     // Restructured docs
     "/docs/reference/cli/rules": "/docs/process/cli-rules/",
-    "/docs/reference/cli/rules/": "/docs/process/cli-rules/",
 
     // Redirects for external resources
     "/community/invite": "https://discord.gg/4XJgJ6yK",
