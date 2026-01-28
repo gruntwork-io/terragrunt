@@ -78,9 +78,12 @@ func WithGithubComDefaultAuth() GitHubAPIClientOption {
 func getGithubTokenFromEnv() string {
 	if tok := os.Getenv("GH_TOKEN"); tok != "" {
 		return tok
-	} else if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+	}
+
+	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
 		return tok
 	}
+
 	return ""
 }
 
