@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -25,6 +26,7 @@ const (
 	LongFlagAlias = "l"
 
 	HiddenFlagName       = "hidden"
+	NoHiddenFlagName     = "no-hidden"
 	DependenciesFlagName = "dependencies"
 	ExternalFlagName     = "external"
 
@@ -46,10 +48,25 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			DefaultText: FormatText,
 		}),
 		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        HiddenFlagName,
-			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
-			Destination: &opts.Hidden,
-			Usage:       "Include hidden directories in list results.",
+			Name:        NoHiddenFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHiddenFlagName),
+			Destination: &opts.NoHidden,
+			Usage:       "Exclude hidden directories from list results.",
+		}),
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:    HiddenFlagName,
+			EnvVars: tgPrefix.EnvVars(HiddenFlagName),
+			Usage:   "Include hidden directories in list results.",
+			Hidden:  true,
+			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
+				if value {
+					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).Evaluate(ctx); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			},
 		}),
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        DependenciesFlagName,

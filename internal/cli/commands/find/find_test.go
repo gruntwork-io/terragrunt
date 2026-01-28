@@ -27,7 +27,7 @@ func TestRun(t *testing.T) {
 		format        string
 		mode          string
 		expectedPaths []string
-		hidden        bool
+		noHidden      bool
 		dependencies  bool
 		external      bool
 		reading       bool
@@ -72,6 +72,7 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1"},
 			format:        "text",
 			mode:          "normal",
+			noHidden:      true,
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -211,7 +212,6 @@ func TestRun(t *testing.T) {
 			expectedPaths: []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"},
 			format:        "text",
 			mode:          "normal",
-			hidden:        true,
 			dependencies:  false,
 			external:      false,
 			validate: func(t *testing.T, output string, expectedPaths []string) {
@@ -502,7 +502,7 @@ locals {
 			// Create options
 			opts := find.NewOptions(tgOpts)
 			opts.Format = tt.format
-			opts.Hidden = tt.hidden
+			opts.NoHidden = tt.noHidden
 			opts.Mode = tt.mode
 			opts.Dependencies = tt.dependencies
 			opts.Reading = tt.reading

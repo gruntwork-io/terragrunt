@@ -1,13 +1,15 @@
 ---
 name: hidden
-description: Find configurations in hidden directories.
+description: Include hidden directories in find results.
 type: bool
 env:
   - TG_HIDDEN
 ---
 
-Example:
+import { Aside } from '@astrojs/starlight/components';
 
-```bash
-terragrunt find --hidden
-```
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default, making this flag unnecessary.
+
+Use [`--no-hidden`](/docs/reference/cli/commands/find#no-hidden) to exclude hidden directories from the results.
+</Aside>

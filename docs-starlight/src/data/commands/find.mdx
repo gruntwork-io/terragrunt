@@ -80,7 +80,7 @@ flags:
   - find-format
   - find-json
   - find-dag
-  - find-hidden
+  - find-no-hidden
   - find-dependencies
   - find-exclude
   - find-include
@@ -303,10 +303,10 @@ As the default text format of `find` won't display dependency information anyway
 
 ## Hidden Configurations
 
-By default, hidden directories (those starting with `.`) are excluded from the search. Use the `--hidden` flag to include them:
+By default, hidden directories (those starting with `.`) are included in the search results. Use the `--no-hidden` flag to exclude them:
 
 ```bash
-terragrunt find --hidden
+terragrunt find --no-hidden
 ```
 
 ## Disabling Color Output

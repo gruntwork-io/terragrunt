@@ -29,7 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
-		NoHidden:          !opts.Hidden,
+		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		FilterQueries:     opts.FilterQueries,
@@ -70,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	// Wrap discovery with telemetry
 	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "list_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
-		"hidden":       opts.Hidden,
+		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies || opts.Mode == ModeDAG,
 	}, func(ctx context.Context) error {
 		components, discoverErr = d.Discover(ctx, l, opts.TerragruntOptions)

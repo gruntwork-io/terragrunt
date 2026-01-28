@@ -1,28 +1,15 @@
 ---
 name: hidden
-description: |
-  Include hidden directories in list results.
-type: boolean
+description: Include hidden directories in list results.
+type: bool
 env:
   - TG_HIDDEN
 ---
 
-Controls whether hidden directories (those starting with a dot) are included in the list results.
+import { Aside } from '@astrojs/starlight/components';
 
-By default, Terragrunt excludes hidden directories from the list output to reduce noise and focus on your primary infrastructure components. However, there may be cases where you want to see all configurations, including those in hidden directories.
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default, making this flag unnecessary.
 
-Example:
-
-```bash
-$ terragrunt list -l
-Type  Path
-stack stack
-unit  unit
-```
-```bash
-$ terragrunt list -l --hidden
-Type  Path
-unit  .hide/unit
-stack stack
-unit  unit
-```
+Use [`--no-hidden`](/docs/reference/cli/commands/list#no-hidden) to exclude hidden directories from the results.
+</Aside>

@@ -227,6 +227,20 @@ Force the use of external tflint binary.
 
 **Reason**: The embedded version of tflint has been held back by upstream's adoption of the BUSL license. As a result, the embedded version is horribly out of date, and we are deprecating it for removal in a future version of Terragrunt. You may use `--terragrunt-external-tflint` in your `tflint` hook to opt in to the use of an external tflint binary, or enable this strict control.
 
+### deprecated-hidden-flag
+
+Throw an error when using the deprecated `--hidden` flag.
+
+**Reason**: Hidden directories are now included by default in `find` and `list` command results. The `--hidden` flag is no longer needed and has been deprecated. Use `--no-hidden` if you need to exclude hidden directories.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt find --hidden
+WARN  The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.
+```
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
@@ -253,6 +267,7 @@ Throw an error when using the deprecated flags.
 - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
 - [queue-exclude-external](#queue-exclude-external)
 - [no-destroy-dependencies-check](#no-destroy-dependencies-check)
+- [deprecated-hidden-flag](#deprecated-hidden-flag)
 
 ### deprecated-env-vars
 

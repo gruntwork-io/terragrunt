@@ -54,16 +54,16 @@ func TestFindHidden(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected string
-		hidden   bool
+		noHidden bool
 	}{
 		{
-			name:     "visible",
-			expected: "stack\nunit\n",
+			name:     "default (includes hidden)",
+			expected: ".hide/unit\nstack\nunit\n",
 		},
 		{
-			name:     "hidden",
-			hidden:   true,
-			expected: ".hide/unit\nstack\nunit\n",
+			name:     "no-hidden flag excludes hidden",
+			noHidden: true,
+			expected: "stack\nunit\n",
 		},
 	}
 
@@ -75,8 +75,8 @@ func TestFindHidden(t *testing.T) {
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
-			if tc.hidden {
-				cmd += " --hidden"
+			if tc.noHidden {
+				cmd += " --no-hidden"
 			}
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)

@@ -1,0 +1,24 @@
+---
+name: no-hidden
+description: Exclude hidden directories from find results.
+type: bool
+env:
+  - TG_NO_HIDDEN
+---
+
+By default, Terragrunt includes hidden directories (those starting with a dot) in the find results. Use this flag to exclude them.
+
+Example:
+
+```bash
+# Default: includes hidden directories
+$ terragrunt find
+.hide/unit
+stack
+unit
+
+# With --no-hidden: excludes hidden directories
+$ terragrunt find --no-hidden
+stack
+unit
+```
