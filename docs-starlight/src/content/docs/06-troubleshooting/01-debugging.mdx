@@ -81,7 +81,7 @@ Terragrunt and OpenTofu/Terraform usually play well together in helping you writ
 
 Terragrunt provides a way to configure its logging level through the [`--log-level`](https://terragrunt.gruntwork.io/docs/reference/cli/global-flags/#log-level) flag. Additionally, Terragrunt provides an [`--inputs-debug`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run/#inputs-debug), that can be generate a `terragrunt-debug.tfvars.json` to help you understand what inputs it is setting when calling OpenTofu/Terraform.
 
-For example, you could use it like this to debug an `plan` that's producing unexpected outcomes:
+For example, you could use it like this to debug a `plan` that's producing unexpected outcomes.
 
 ```shell
 terragrunt run --log-level debug --inputs-debug -- plan
