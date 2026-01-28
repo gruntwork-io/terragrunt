@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -638,6 +640,8 @@ func createEngine(
 
 // invoke engine for working directory
 func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
+	l = l.WithField(placeholders.TFPathKeyName, "engine")
+
 	opts := runOptions.TerragruntOptions
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -657,11 +661,37 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		return nil, errors.New(err)
 	}
 
+	// Determine log levels based on headless mode (similar to buildOutWriter/buildErrWriter)
+	stdoutLogLevel := log.StdoutLevel
+	stderrLogLevel := log.StderrLevel
+
+	stdoutWriter := options.ExtractOriginalWriter(opts.Writer)
+	stderrWriter := options.ExtractOriginalWriter(opts.ErrWriter)
+
+	if opts.Headless {
+		stdoutLogLevel = log.InfoLevel
+		stderrLogLevel = log.ErrorLevel
+		stdoutWriter = options.ExtractOriginalWriter(opts.ErrWriter)
+	}
+
 	var (
 		output = util.CmdOutput{}
 
-		stdout = io.MultiWriter(runOptions.CmdStdout, &output.Stdout)
-		stderr = io.MultiWriter(runOptions.CmdStderr, &output.Stderr)
+		// Use the original output writers (before they were wrapped by logTFOutput)
+		// and create new writers with the engine logger
+		engineStdout = writer.New(
+			writer.WithLogger(l.WithOptions(log.WithOutput(stdoutWriter))),
+			writer.WithDefaultLevel(stdoutLogLevel),
+			writer.WithMsgSeparator("\n"),
+		)
+		engineStderr = writer.New(
+			writer.WithLogger(l.WithOptions(log.WithOutput(stderrWriter))),
+			writer.WithDefaultLevel(stderrLogLevel),
+			writer.WithMsgSeparator("\n"),
+		)
+
+		stdout = io.MultiWriter(engineStdout, &output.Stdout)
+		stderr = io.MultiWriter(engineStderr, &output.Stderr)
 	)
 
 	var (

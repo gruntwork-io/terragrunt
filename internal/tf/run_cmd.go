@@ -87,8 +87,10 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 
 func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		outWriter = opts.Writer
-		errWriter = opts.ErrWriter
+		originalOutWriter           = options.NewOriginalWriter(opts.Writer)
+		originalErrWriter           = options.NewOriginalWriter(opts.ErrWriter)
+		outWriter         io.Writer = originalOutWriter
+		errWriter         io.Writer = originalErrWriter
 	)
 
 	logger := l.
@@ -97,34 +99,38 @@ func logTFOutput(l log.Logger, opts *options.TerragruntOptions, args clihelper.A
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
 	if opts.JSONLogFormat && !args.Normalize(clihelper.SingleDashFlag).Contains(FlagNameJSON) {
-		outWriter = buildOutWriter(
+		wrappedOut := buildOutWriter(
 			opts,
 			logger,
 			outWriter,
 			errWriter,
 		)
-
-		errWriter = buildErrWriter(
+		wrappedErr := buildErrWriter(
 			opts,
 			logger,
 			errWriter,
 		)
+
+		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
 	} else if !shouldForceForwardTFStdout(args) {
-		outWriter = buildOutWriter(
+		wrappedOut := buildOutWriter(
 			opts,
 			logger,
 			outWriter,
 			errWriter,
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
-
-		errWriter = buildErrWriter(
+		wrappedErr := buildErrWriter(
 			opts,
 			logger,
 			errWriter,
 			writer.WithMsgSeparator(logMsgSeparator),
 			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
 		)
+
+		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
 	}
 
 	return outWriter, errWriter
