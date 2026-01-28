@@ -375,6 +375,13 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, commonConfigPath, commonConfigPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
 
+	// Fill placeholders in use-lockfile and dual-locking configs (they have their own remote_state blocks)
+	useLockfilePath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, useLockfilePath, useLockfilePath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
+	dualLockingPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, dualLockingPath, dualLockingPath, s3BucketName, dynamoDBName, helpers.TerraformRemoteStateS3Region)
+
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --log-level debug --working-dir "+rootPath+" --feature access_logging_bucket="+s3AccessLogsBucketName+" apply --backend-bootstrap")
 	require.NoError(t, err)
 
