@@ -515,13 +515,21 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
+	// Track insert position for arguments
+	argInsertPos := 0
+
 	// Handle parsed.Command as an argument (extra_arguments don't have a command)
 	if parsed.Command != "" {
-		opts.TerraformCliArgs.AppendArgument(parsed.Command)
+		opts.TerraformCliArgs.InsertArgument(argInsertPos, parsed.Command)
+		argInsertPos++
 	}
 
+	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
+
+	// Insert arguments at correct position (before existing arguments)
 	for _, arg := range parsed.Arguments {
-		opts.TerraformCliArgs.AppendArgument(arg)
+		opts.TerraformCliArgs.InsertArgument(argInsertPos, arg)
+		argInsertPos++
 	}
 }
 
@@ -541,6 +549,8 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	if parsed.Command != "" {
 		opts.TerraformCliArgs.AppendArgument(parsed.Command)
 	}
+
+	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
 
 	for _, arg := range parsed.Arguments {
 		opts.TerraformCliArgs.AppendArgument(arg)

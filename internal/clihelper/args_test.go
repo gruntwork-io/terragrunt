@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var mockArgs = func() clihelper.Args { return clihelper.Args{"one", "-foo", "two", "--bar", "value"} }
@@ -412,17 +411,67 @@ func TestIacArgsHasFlag(t *testing.T) {
 func TestIacArgsRemoveFlag(t *testing.T) {
 	t.Parallel()
 
-	args := &clihelper.IacArgs{
-		Flags: []string{"-auto-approve", "-input=false", "-destroy"},
+	tests := []struct {
+		name          string
+		initialFlags  []string
+		flagToRemove  string
+		expectedFlags []string
+	}{
+		{
+			name:          "remove flag with equals value",
+			initialFlags:  []string{"-auto-approve", "-input=false", "-destroy"},
+			flagToRemove:  "-input",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
+		{
+			name:          "remove boolean flag",
+			initialFlags:  []string{"-auto-approve", "-destroy"},
+			flagToRemove:  "-auto-approve",
+			expectedFlags: []string{"-destroy"},
+		},
+		{
+			name:          "remove flag with space-separated value",
+			initialFlags:  []string{"-var", "foo=bar", "-auto-approve"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-auto-approve"},
+		},
+		{
+			name:          "remove flag where next entry looks like flag preserves it",
+			initialFlags:  []string{"-target", "-module.resource", "-auto-approve"},
+			flagToRemove:  "-target",
+			expectedFlags: []string{"-module.resource", "-auto-approve"},
+		},
+		{
+			name:          "remove flag preserves other flags with dash-prefixed values",
+			initialFlags:  []string{"-var", "key=-value", "-target", "-module.foo", "-destroy"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-target", "-module.foo", "-destroy"},
+		},
+		{
+			name:          "remove middle flag with space-separated value",
+			initialFlags:  []string{"-auto-approve", "-var", "x=y", "-destroy"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
+		{
+			name:          "remove nonexistent flag does nothing",
+			initialFlags:  []string{"-auto-approve", "-destroy"},
+			flagToRemove:  "-nonexistent",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
 	}
 
-	args.RemoveFlag("-input")
-	require.Len(t, args.Flags, 2)
-	assert.Equal(t, []string{"-auto-approve", "-destroy"}, args.Flags)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	args.RemoveFlag("-auto-approve")
-	require.Len(t, args.Flags, 1)
-	assert.Equal(t, []string{"-destroy"}, args.Flags)
+			args := &clihelper.IacArgs{
+				Flags: append([]string{}, tt.initialFlags...),
+			}
+			args.RemoveFlag(tt.flagToRemove)
+			assert.Equal(t, tt.expectedFlags, args.Flags)
+		})
+	}
 }
 
 func TestIacArgsAppendArgument(t *testing.T) {
