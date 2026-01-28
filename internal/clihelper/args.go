@@ -265,6 +265,20 @@ func (a *IacArgs) AppendArgument(arg string) *IacArgs {
 	return a
 }
 
+// InsertArgument inserts an argument at position and returns self for chaining.
+func (a *IacArgs) InsertArgument(pos int, arg string) *IacArgs {
+	a.Arguments = slices.Insert(a.Arguments, pos, arg)
+
+	return a
+}
+
+// AppendSubCommand adds a subcommand and returns self for chaining.
+func (a *IacArgs) AppendSubCommand(sub string) *IacArgs {
+	a.SubCommand = append(a.SubCommand, sub)
+
+	return a
+}
+
 // AddFlagIfNotPresent adds a flag only if not already present.
 func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 	if !slices.Contains(a.Flags, flag) {
@@ -274,18 +288,44 @@ func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 	return a
 }
 
-// HasFlag checks if flag exists (by prefix for -flag=value).
+// HasFlag checks if flag exists (handles both -flag=value and space-separated -flag value).
 func (a *IacArgs) HasFlag(name string) bool {
-	return slices.ContainsFunc(a.Flags, func(f string) bool {
-		return f == name || strings.HasPrefix(f, name+"=")
-	})
+	for i, f := range a.Flags {
+		// Match -flag=value format
+		if f == name || strings.HasPrefix(f, name+"=") {
+			return true
+		}
+
+		// Match space-separated format: flag at position i followed by non-flag value at i+1
+		if f == name && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
+			return true
+		}
+	}
+
+	return false
 }
 
-// RemoveFlag removes a flag by name (handles both -flag and -flag=value).
+// RemoveFlag removes a flag by name (handles -flag, -flag=value, and space-separated -flag value).
 func (a *IacArgs) RemoveFlag(name string) *IacArgs {
-	a.Flags = slices.DeleteFunc(a.Flags, func(f string) bool {
-		return f == name || strings.HasPrefix(f, name+"=")
-	})
+	var newFlags []string
+
+	for i := 0; i < len(a.Flags); i++ {
+		f := a.Flags[i]
+
+		// Match exact flag name or -flag=value format
+		if f == name || strings.HasPrefix(f, name+"=") {
+			// If exact match and next entry is a value (doesn't start with "-"), skip it too
+			if f == name && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
+				i++ // skip the value
+			}
+
+			continue
+		}
+
+		newFlags = append(newFlags, f)
+	}
+
+	a.Flags = newFlags
 
 	return a
 }
@@ -304,15 +344,54 @@ func (a *IacArgs) HasPlanFile() bool {
 }
 
 // MergeFlags merges flags from another IacArgs, adding only flags not already present.
+// Handles both -flag=value and space-separated -flag value formats.
 // Returns self for chaining.
 func (a *IacArgs) MergeFlags(other *IacArgs) *IacArgs {
-	for _, flag := range other.Flags {
-		if !a.Contains(flag) {
-			a.Flags = append(a.Flags, flag)
+	for i := 0; i < len(other.Flags); i++ {
+		flag := other.Flags[i]
+
+		// Check if this is a flag with space-separated value
+		hasValue := i+1 < len(other.Flags) &&
+			!strings.HasPrefix(other.Flags[i+1], "-") &&
+			!strings.Contains(flag, "=") &&
+			strings.HasPrefix(flag, "-")
+
+		if hasValue {
+			value := other.Flags[i+1]
+			if !a.hasFlagWithValue(flag, value) {
+				a.Flags = append(a.Flags, flag, value)
+			}
+
+			i++ // skip the value in iteration
+
+			continue
 		}
+
+		if a.Contains(flag) {
+			continue
+		}
+
+		a.Flags = append(a.Flags, flag)
 	}
 
 	return a
+}
+
+// hasFlagWithValue checks if a flag with specific value exists in either format.
+func (a *IacArgs) hasFlagWithValue(flag, value string) bool {
+	// Check -flag=value format
+	if slices.Contains(a.Flags, flag+"="+value) {
+		return true
+	}
+
+	// Check space-separated format
+	for i := 0; i < len(a.Flags)-1; i++ {
+		if a.Flags[i] == flag && a.Flags[i+1] == value {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Slice returns args in correct order: [command] [flags...] [arguments...]
