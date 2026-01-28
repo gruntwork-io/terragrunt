@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,9 +22,10 @@ import (
 
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
-	baseURL    string
-	httpClient *http.Client
-	cache      *cache.ExpiringCache[string]
+	baseURL        string
+	httpClient     *http.Client
+	cache          *cache.ExpiringCache[string]
+	defaultHeaders http.Header
 }
 
 // Release represents a GitHub repository release.
@@ -50,19 +52,46 @@ func WithBaseURL(baseURL string) GitHubAPIClientOption {
 	}
 }
 
+// WithGithubToken sets the GitHub token for authentication.
+func WithGithubToken(token string) GitHubAPIClientOption {
+	return func(c *GitHubAPIClient) {
+		c.defaultHeaders.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// WithGithubComDefaultAuth sets the authentication header based on the assumption
+// we're talking to github.com, and using the same logic as the gh cli:
+// https://cli.github.com/manual/gh_help_environment
+func WithGithubComDefaultAuth() GitHubAPIClientOption {
+	return func(c *GitHubAPIClient) {
+		if tok := os.Getenv("GH_TOKEN"); tok != "" {
+			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
+		} else if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
+		}
+	}
+}
+
 // NewGitHubAPIClient creates a new GitHub API client with optional configuration.
 func NewGitHubAPIClient(opts ...GitHubAPIClientOption) *GitHubAPIClient {
 	client := &GitHubAPIClient{
-		baseURL:    "https://api.github.com",
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		cache:      cache.NewExpiringCache[string]("github_api"),
+		baseURL:        "https://api.github.com",
+		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		cache:          cache.NewExpiringCache[string]("github_api"),
+		defaultHeaders: http.Header{},
 	}
+	client.defaultHeaders.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	for _, opt := range opts {
 		opt(client)
 	}
 
 	return client
+}
+
+// setDefaultHeaders sets default headers for the given request
+func (c *GitHubAPIClient) setDefaultHeaders(req *http.Request) {
+	req.Header = c.defaultHeaders.Clone()
 }
 
 // GetLatestRelease fetches the latest release for a given repository.
@@ -87,6 +116,7 @@ func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository strin
 	if err != nil {
 		return nil, errors.Errorf("failed to create HTTP request: %w", err)
 	}
+	c.setDefaultHeaders(req)
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
