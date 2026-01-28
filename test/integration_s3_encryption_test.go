@@ -225,7 +225,10 @@ func TestAwsSkipBackend(t *testing.T) {
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --working-dir "+testPath+" --disable-bucket-update -backend=false")
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(dotTerraformDir), ".terraform directory %s does not exist", dotTerraformDir)
+	// .terraform is created in the cache directory, not the original config directory
+	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
+	cacheDotTerraformDir := filepath.Join(cacheDir, ".terraform")
+	assert.True(t, util.FileExists(cacheDotTerraformDir), ".terraform directory %s does not exist", cacheDotTerraformDir)
 }
 
 func applyCommand(configPath, fixturePath string) string {
