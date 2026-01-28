@@ -57,29 +57,29 @@ func main() {
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
-func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
+func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 	return func(err error) {
 		if err == nil {
 			os.Exit(exitCode)
-		} else {
-			logger.Error(err.Error())
-
-			if errStack := errors.ErrorStack(err); errStack != "" {
-				logger.Trace(errStack)
-			}
-
-			// exit with the underlying error code
-			exitCoder, exitCodeErr := util.GetExitCode(err)
-			if exitCodeErr != nil {
-				exitCoder = 1
-			}
-
-			if explain := shell.ExplainError(err); len(explain) > 0 {
-				logger.Errorf("Suggested fixes: \n%s", explain)
-			}
-
-			os.Exit(exitCoder)
 		}
+
+		l.Error(err.Error())
+
+		if errStack := errors.ErrorStack(err); errStack != "" {
+			l.Trace(errStack)
+		}
+
+		// exit with the underlying error code
+		exitCoder, exitCodeErr := util.GetExitCode(err)
+		if exitCodeErr != nil {
+			exitCoder = 1
+		}
+
+		if explain := shell.ExplainError(err); len(explain) > 0 {
+			l.Errorf("Suggested fixes: \n%s", explain)
+		}
+
+		os.Exit(exitCoder)
 	}
 }
 

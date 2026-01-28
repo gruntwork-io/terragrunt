@@ -37,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/hashicorp/go-version"
@@ -134,7 +135,12 @@ func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx c
 				return err
 			}
 
-			return runAction(childCtx, cliCtx, l, opts, action)
+			if err := runAction(childCtx, cliCtx, l, opts, action); err != nil {
+				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
+				return err
+			}
+
+			return nil
 		})
 	}
 }
