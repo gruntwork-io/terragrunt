@@ -288,16 +288,11 @@ func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 	return a
 }
 
-// HasFlag checks if flag exists (handles both -flag=value and space-separated -flag value).
+// HasFlag checks if flag exists (handles -flag and -flag=value formats).
+// Note: Values starting with "-" (like -module.resource) are indistinguishable from flags.
 func (a *IacArgs) HasFlag(name string) bool {
-	for i, f := range a.Flags {
-		// Match -flag=value format
+	for _, f := range a.Flags {
 		if f == name || strings.HasPrefix(f, name+"=") {
-			return true
-		}
-
-		// Match space-separated format: flag at position i followed by non-flag value at i+1
-		if f == name && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
 			return true
 		}
 	}
