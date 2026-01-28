@@ -25,6 +25,7 @@
     "lucide-react": "^0.548.0",
     "sharp": "^0.34.4",
     "starlight-links-validator": "^0.19.0",
+    "starlight-llms-txt": "^0.6.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

@@ -9,6 +9,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
+import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 // Check if we're in Vercel environment
@@ -211,6 +212,7 @@ export default defineConfig({
             "/community/invite",
           ],
         }),
+        starlightLlmsTxt()
       ],
     }),
     d2({
