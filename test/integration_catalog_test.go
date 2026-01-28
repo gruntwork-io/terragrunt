@@ -139,7 +139,6 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCatalogLocalTemplate, ".boilerplate")
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureCatalogLocalTemplate)
 
 	targetPath := filepath.Join(rootPath, "app")

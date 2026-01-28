@@ -29,7 +29,6 @@ const (
 func TestTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyOrder, "app")
 	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var
@@ -73,7 +72,6 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyOrder, "app")
 	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var
@@ -124,7 +122,6 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyOrder, "app")
 	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var
@@ -170,19 +167,21 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 func TestPreventDestroyOverride(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePreventDestroyOverride)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePreventDestroyOverride)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyOverride)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+testFixturePreventDestroyOverride, os.Stdout, os.Stderr))
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyOverride, os.Stdout, os.Stderr))
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
 }
 
 func TestPreventDestroyNotSet(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePreventDestroyNotSet)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePreventDestroyNotSet)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyNotSet)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr))
-	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr)
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
+	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
 		var target run.ModuleIsProtected
@@ -193,7 +192,6 @@ func TestPreventDestroyNotSet(t *testing.T) {
 func TestDestroyDependentModule(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModule)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModule))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModule)
 
@@ -250,9 +248,6 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	appV1Path := filepath.Join(rootPath, "app-v1")
 	appV2Path := filepath.Join(rootPath, "app-v2")
 
-	helpers.CleanupTerraformFolder(t, rootPath)
-	helpers.CleanupTerraformFolder(t, vpcPath)
-
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
@@ -280,11 +275,6 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 
 	rootPath = filepath.Join(rootPath, testFixtureDestroyWarning)
 	vpcPath := filepath.Join(rootPath, "vpc")
-	appV1Path := filepath.Join(rootPath, "app-v1")
-	appV2Path := filepath.Join(rootPath, "app-v2")
-
-	cleanupTerraformFolder(t, rootPath)
-	cleanupTerraformFolder(t, vpcPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -302,12 +292,17 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	require.NoError(t, err)
 
 	output := stderr.String()
+	appV1Path := filepath.Join(rootPath, "app-v1")
+	appV2Path := filepath.Join(rootPath, "app-v2")
 	assert.Equal(t, 0, strings.Count(output, appV1Path))
 	assert.Equal(t, 0, strings.Count(output, appV2Path))
 }
 
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalIncludePreventDestroyDependencies)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludePreventDestroyDependencies)
 
 	// Populate module paths.
 	moduleNames := []string{
@@ -318,14 +313,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = filepath.Join(testFixtureLocalIncludePreventDestroyDependencies, moduleName)
-	}
-
-	// Cleanup all modules directories.
-	helpers.CleanupTerraformFolder(t, testFixtureLocalIncludePreventDestroyDependencies)
-
-	for _, modulePath := range modulePaths {
-		helpers.CleanupTerraformFolder(t, modulePath)
+		modulePaths[moduleName] = filepath.Join(rootPath, moduleName)
 	}
 
 	var (
@@ -334,7 +322,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
@@ -347,7 +335,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+rootPath, &destroyAllStdout, &destroyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
 	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 
@@ -389,7 +377,6 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExternalDependency)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
 	runner, err := git.NewGitRunner()
@@ -447,7 +434,6 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
@@ -527,7 +513,6 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
@@ -604,7 +589,6 @@ func TestStorePlanFilesShortcutAllDestroy(t *testing.T) {
 func TestDestroyDependentModuleParseErrors(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyDependentModuleErrors)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModuleErrors))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModuleErrors)
 

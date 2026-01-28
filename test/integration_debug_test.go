@@ -27,7 +27,6 @@ const (
 func TestDebugGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -82,7 +81,6 @@ func TestDebugGeneratedInputs(t *testing.T) {
 func TestTerragruntInputsWithDashes(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -153,7 +151,6 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
-	helpers.CleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
 	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
@@ -165,7 +162,6 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 	t.Parallel()
 
 	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
-	helpers.CleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, moduleDir))
 	rootPath := filepath.Join(tmpEnvPath, moduleDir)
 
@@ -176,15 +172,10 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSON)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSON)
 	rootPath := filepath.Join(tmpEnvPath, fixtureRenderJSON)
 
 	fixtureRenderJSONMainModulePath := filepath.Join(rootPath, "main")
-	fixtureRenderJSONDepModulePath := filepath.Join(rootPath, "dep")
-
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
-	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt.rendered.json")
@@ -506,7 +497,6 @@ func TestRenderJSONConfigRunAllWithCLIRedesign(t *testing.T) {
 func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, fixtureMultiIncludeDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureMultiIncludeDependency)
 	rootPath := filepath.Join(tmpEnvPath, fixtureMultiIncludeDependency)
 

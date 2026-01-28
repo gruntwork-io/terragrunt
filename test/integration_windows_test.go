@@ -103,7 +103,6 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			fixtureSourceMapPath := "fixtures/source-map"
-			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
 			CopyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 			rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
@@ -192,12 +191,13 @@ func fileInfo(path, fileName string) (*os.FileInfo, error) {
 func TestWindowsFindParent(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindParent)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParent)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureFindParent)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --working-dir %s", testFixtureFindParent))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all plan --non-interactive --working-dir %s", rootPath))
 
 	// second run shouldn't fail with find_in_parent_folders("root.hcl") issue
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+testFixtureFindParent+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 }
 
 func TestWindowsScaffold(t *testing.T) {

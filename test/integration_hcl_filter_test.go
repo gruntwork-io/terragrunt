@@ -23,7 +23,6 @@ func TestHCLFormatCheckWithFilter(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for this test case
-	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -251,7 +250,6 @@ func TestHCLValidateWithFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "validate")
 			rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -286,7 +284,6 @@ func TestHCLValidateWithFilter(t *testing.T) {
 func TestHCLFormatFilterIntegration(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHCLFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHCLFilter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHCLFilter, "fmt")
 

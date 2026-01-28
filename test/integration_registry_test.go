@@ -42,13 +42,14 @@ func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey string) {
 	t.Helper()
 
-	modFullPath := filepath.Join(registryFixturePath, modPath)
-	helpers.CleanupTerraformFolder(t, modFullPath)
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+modFullPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, registryFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, registryFixturePath, modPath)
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+modFullPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}

@@ -33,7 +33,6 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithCustomDefaultTemplate)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(

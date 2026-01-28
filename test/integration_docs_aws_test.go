@@ -29,7 +29,6 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureOverview, "step-01-terragrunt.hcl")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -67,7 +66,6 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureOverview, "step-02-dependencies")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -101,7 +99,6 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureOverview, "step-03-mock-outputs")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -125,7 +122,6 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureOverview, "step-04-configuration-hierarchy")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -149,7 +145,6 @@ func TestAwsDocsOverview(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureOverview, "step-05-exposed-includes")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 

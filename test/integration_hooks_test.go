@@ -38,7 +38,6 @@ const (
 func TestTerragruntHookIfParameter(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureTerragruntHookIfParameter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTerragruntHookIfParameter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTerragruntHookIfParameter)
 
@@ -60,7 +59,6 @@ func TestTerragruntHookIfParameter(t *testing.T) {
 func TestTerragruntBeforeHook(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeOnlyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeOnlyPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeOnlyPath)
 
@@ -74,7 +72,6 @@ func TestTerragruntBeforeHook(t *testing.T) {
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceNoBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceNoSourceNoBackend)
 
@@ -98,7 +95,6 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
 
@@ -134,7 +130,6 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 func TestTerragruntHookRunAllApply(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksAllPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAllPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAllPath)
 	beforeOnlyPath := filepath.Join(rootPath, "before-only")
@@ -152,7 +147,6 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 func TestTerragruntHookApplyAll(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksAllPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAllPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAllPath)
 	beforeOnlyPath := filepath.Join(rootPath, "before-only")
@@ -171,7 +165,6 @@ func TestTerragruntHookWorkingDir(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := "fixtures/hooks/working_dir"
-	helpers.CleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
 	rootPath := filepath.Join(tmpEnvPath, fixturePath)
 
@@ -181,7 +174,6 @@ func TestTerragruntHookWorkingDir(t *testing.T) {
 func TestTerragruntAfterHook(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksAfterOnlyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAfterOnlyPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAfterOnlyPath)
 
@@ -195,7 +187,6 @@ func TestTerragruntAfterHook(t *testing.T) {
 func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
@@ -227,7 +218,6 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 func TestTerragruntSkipOnError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksSkipOnErrorPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksSkipOnErrorPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksSkipOnErrorPath)
 
@@ -256,7 +246,6 @@ func TestTerragruntSkipOnError(t *testing.T) {
 func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksPath)
 
@@ -283,7 +272,6 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 		t.Skip()
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksPath)
 	tfPath := filepath.Join(rootPath, "tf.sh")
@@ -307,7 +295,6 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksOneArgActionPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksOneArgActionPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksOneArgActionPath)
 
@@ -329,7 +316,6 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksEmptyStringCommandPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksEmptyStringCommandPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksEmptyStringCommandPath)
 
@@ -349,7 +335,6 @@ func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 func TestTerragruntEmptyCommandListHook(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksEmptyCommandListPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksEmptyCommandListPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksEmptyCommandListPath)
 
@@ -369,7 +354,6 @@ func TestTerragruntEmptyCommandListHook(t *testing.T) {
 func TestTerragruntHookInterpolation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInterpolationsPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksInterpolationsPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInterpolationsPath)
 
@@ -396,7 +380,6 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 func TestTerragruntInfo(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
 

@@ -36,7 +36,6 @@ func TestExecCommand(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureExecCmd)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmd)
 
 			rootPath := filepath.Join(tmpEnvPath, testFixtureExecCmd, "app")
@@ -80,7 +79,6 @@ func TestExecCommandTfPath(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureExecCmdTfPath)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmdTfPath)
 
 			rootPath := filepath.Join(tmpEnvPath, testFixtureExecCmdTfPath, "app")

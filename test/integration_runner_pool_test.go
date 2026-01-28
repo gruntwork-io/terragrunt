@@ -25,7 +25,6 @@ const (
 func TestRunnerPoolDiscovery(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
@@ -41,7 +40,6 @@ func TestRunnerPoolDiscovery(t *testing.T) {
 func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	// Run the find command to discover the configs
@@ -57,7 +55,6 @@ func TestRunnerPoolDiscoveryNoParallelism(t *testing.T) {
 func TestRunnerPoolTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyOrder, "app")
 
@@ -100,7 +97,6 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureMixedConfig)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -158,7 +154,6 @@ func TestRunnerPoolFailFast(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFailFastEarlyExit)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFastEarlyExit)
 			testPath := filepath.Join(tmpEnvPath, testFixtureFailFastEarlyExit)
 
@@ -204,7 +199,6 @@ func TestRunnerPoolFailFast(t *testing.T) {
 func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 
@@ -230,7 +224,6 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 func TestRunnerPoolDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
 	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
 	testPath, err := filepath.EvalSymlinks(testPath)
@@ -249,7 +242,6 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 func TestRunnerPoolRemoteSource(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRunnerPoolRemoteSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunnerPoolRemoteSource)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRunnerPoolRemoteSource)
 
@@ -263,7 +255,6 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -290,7 +281,6 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 func TestAuthProviderParallelExecution(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderParallel)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderParallel)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderParallel)
 	// Resolve symlinks to avoid path mismatches on macOS where /var -> /private/var

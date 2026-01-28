@@ -46,7 +46,6 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 	t.Helper()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory

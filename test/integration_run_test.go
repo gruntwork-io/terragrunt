@@ -20,7 +20,6 @@ func TestRunStacksGenerate(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -92,8 +91,6 @@ func TestRunNoStacksGenerate(t *testing.T) {
 		},
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
-
 	// Run each test case and verify stack generation is skipped
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,8 +146,6 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 			},
 		},
 	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureVersionFilesCacheKey)
 
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {

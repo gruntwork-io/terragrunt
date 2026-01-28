@@ -36,7 +36,6 @@ const (
 func TestStartsWith(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStartswith)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStartswith)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStartswith)
 
@@ -69,7 +68,6 @@ func TestStartsWith(t *testing.T) {
 func TestTimeCmp(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureTimecmp)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmp)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTimecmp)
 
@@ -99,7 +97,6 @@ func TestTimeCmp(t *testing.T) {
 func TestTimeCmpInvalidTimestamp(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmpInvalidTimestamp)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTimecmpInvalidTimestamp)
 
@@ -116,7 +113,6 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 func TestEndsWith(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureEndswith)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEndswith)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureEndswith)
 
@@ -149,7 +145,6 @@ func TestEndsWith(t *testing.T) {
 func TestStrContains(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStrcontains)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrcontains)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStrcontains)
 
@@ -174,7 +169,6 @@ func TestStrContains(t *testing.T) {
 
 func TestGetRepoRootCaching(t *testing.T) {
 	t.Parallel()
-	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
@@ -201,7 +195,6 @@ func TestGetRepoRootCaching(t *testing.T) {
 func TestGetRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetRepoRoot)
 
@@ -242,7 +235,6 @@ func TestGetRepoRoot(t *testing.T) {
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetWorkingDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetWorkingDir)
 
@@ -314,7 +306,6 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
 	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude))
 	require.NoError(t, err)
 
@@ -358,7 +349,6 @@ func TestPathRelativeFromInclude(t *testing.T) {
 func TestGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
@@ -396,7 +386,6 @@ func TestGetPathToRepoRoot(t *testing.T) {
 
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathToRepoRoot))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPathToRepoRoot)
-	helpers.CleanupTerraformFolder(t, rootPath)
 
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -438,7 +427,6 @@ func TestGetPathToRepoRoot(t *testing.T) {
 func TestGetPlatform(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetPlatform)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetPlatform)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetPlatform)
 

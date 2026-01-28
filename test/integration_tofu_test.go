@@ -32,7 +32,6 @@ func TestAutoProviderCacheDirExperimentBasic(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
 	unitPath := filepath.Join(testPath, "basic", "unit")
 
@@ -50,7 +49,6 @@ func TestAutoProviderCacheDirExperimentRunAll(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
 	unitPath := filepath.Join(testPath, "basic", "unit")
 
@@ -73,7 +71,6 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAutoProviderCacheDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoProviderCacheDir)
 	unitPath := filepath.Join(testPath, "basic", "unit")
 
@@ -89,7 +86,6 @@ func TestAutoProviderCacheDirDisabled(t *testing.T) {
 func TestTfPathRespectedForDependencies(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathDependency)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathDependency)
 	testPath := filepath.Join(rootPath, testFixtureTfPathDependency)
 	testPath, err := filepath.EvalSymlinks(testPath)
@@ -123,7 +119,6 @@ func TestHTTPBackendEncryptionDependencyFails(t *testing.T) {
 	serverURL := runHTTPStateServer(t, ctx)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuHTTPEncryption)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureTofuHTTPEncryption)
 
 	rootHclPath := filepath.Join(testPath, "root.hcl")

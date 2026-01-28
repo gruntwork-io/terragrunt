@@ -20,7 +20,6 @@ const (
 func TestAwsGcpMigrateBetweenDifferentBackends(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureS3BackendMigrate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendMigrate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureS3BackendMigrate)
 

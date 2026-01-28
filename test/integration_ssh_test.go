@@ -23,7 +23,6 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 
 	stdout := bytes.Buffer{}
@@ -37,7 +36,6 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoSubmodules)
 
 	stdout := bytes.Buffer{}
@@ -52,7 +50,6 @@ func TestSSHDownloadSourceWithRef(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureRefSource)
 
 	stdout := bytes.Buffer{}

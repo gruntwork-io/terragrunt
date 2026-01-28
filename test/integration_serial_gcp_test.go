@@ -5,6 +5,7 @@ package test_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -24,7 +25,8 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	os.Unsetenv("GCLOUD_SERVICE_KEY") //nolint:usetesting
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
-	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGcsPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -32,8 +34,8 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, rootPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s", tmpTerragruntGCSConfigPath, rootPath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",

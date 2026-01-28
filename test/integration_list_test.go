@@ -60,8 +60,6 @@ unit  b-unit
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
-
 			args := []string{"terragrunt", "--no-color"}
 			if tc.unnecessaryExperimentFlag {
 				args = append(args, "--experiment", "cli-redesign")
@@ -132,8 +130,6 @@ unit  units/live/prod/vpc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
-
 			args := make([]string, 0, 2+len(tc.args)+2)
 			args = append(args, "terragrunt", "--no-color")
 			args = append(args, tc.args...)
@@ -187,8 +183,6 @@ unit  unit3
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
 
 			args := make([]string, 0, 2+len(tc.args)+2)
 			args = append(args, "terragrunt", "--no-color")

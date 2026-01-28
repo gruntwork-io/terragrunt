@@ -32,7 +32,6 @@ const (
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
 	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
 
@@ -52,7 +51,6 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 			t.Parallel()
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
-			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run --all --queue-include-external --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
@@ -69,7 +67,6 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, includeExposeFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, includeExposeFixturePath)
 	tmpEnvPath = filepath.Join(tmpEnvPath, includeExposeFixturePath)
 
@@ -89,7 +86,6 @@ func TestTerragruntWorksWithIncludeLocalsWithFilter(t *testing.T) {
 			t.Parallel()
 
 			childPath := filepath.Join(tmpEnvPath, tc, includeChildFixturePath)
-			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt run --all --filter '{./**}...' --non-interactive --working-dir "+childPath+" -- apply -auto-approve")
 
 			stdout := bytes.Buffer{}
@@ -109,7 +105,6 @@ func TestTerragruntFilterReadingRestrictsSet(t *testing.T) {
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
 	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
-	helpers.CleanupTerraformFolder(t, modulePath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -127,7 +122,6 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 
 	rootPath := helpers.CopyEnvironment(t, includeRunAllFixturePath)
 	modulePath := filepath.Join(rootPath, includeRunAllFixturePath)
-	helpers.CleanupTerraformFolder(t, modulePath)
 
 	// Retry to handle intermittent failures due to network issues on CICD
 	retry.DoWithRetry(t, "Run all modules with prefix verification", 3, 0, func() (string, error) {
@@ -173,8 +167,8 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeDeepFixturePath, "child")
-	helpers.CleanupTerraformFolder(t, childPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeDeepFixturePath)
+	childPath := filepath.Join(tmpEnvPath, includeDeepFixturePath, "child")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
 
@@ -211,7 +205,10 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
-	files, err := os.ReadDir(includeMultipleFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeMultipleFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeMultipleFixturePath)
+
+	files, err := os.ReadDir(rootPath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -226,8 +223,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeMultipleFixturePath, tc, includeDeepFixtureChildPath)
-			helpers.CleanupTerraformFolder(t, childPath)
+			childPath := filepath.Join(rootPath, tc, includeDeepFixtureChildPath)
 			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
 
 			stdout := bytes.Buffer{}

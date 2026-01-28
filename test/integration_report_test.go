@@ -31,7 +31,6 @@ func TestTerragruntReport(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
@@ -85,7 +84,6 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
@@ -148,7 +146,6 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 			expectedRecordsCopy := slices.Clone(expectedRecords)
 
 			// Set up test environment
-			helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
@@ -259,7 +256,6 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	setup := func(t *testing.T) string {
 		t.Helper()
 
-		helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
@@ -422,7 +418,6 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	t.Parallel()
 
 	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 

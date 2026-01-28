@@ -34,21 +34,6 @@ type runCmdFixtureResult struct {
 func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 	t.Helper()
 
-	for _, modulePath := range []string{
-		testFixtureRunCmdModuleQuiet,
-		testFixtureRunCmdModuleGlobalA,
-		testFixtureRunCmdModuleGlobalB,
-		testFixtureRunCmdModuleNoCache,
-		testFixtureRunCmdModuleConflict,
-	} {
-		helpers.CleanupTerraformFolder(t, modulePath)
-	}
-
-	// Clean up counter files from previous test runs in the fixture directory
-	scriptsPath := filepath.Join(testFixtureRunCmdFlags, "scripts")
-	_ = os.Remove(filepath.Join(scriptsPath, "global_counter.txt"))
-	_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
-
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdFlags)
 
@@ -111,8 +96,6 @@ func TestRunCmdNoCacheSkipsCachedValue(t *testing.T) {
 
 func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
 	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureRunCmdModuleConflict)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdFlags)

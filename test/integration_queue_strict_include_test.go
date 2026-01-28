@@ -25,7 +25,6 @@ func TestQueueStrictIncludeWithDependencyNotInQueue(t *testing.T) {
 
 		// Create test fixture with dependency chain: transitive-dependency -> dependency -> dependent
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictInclude)
-		helpers.CleanupTerraformFolder(t, tmpEnvPath)
 		testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictInclude)
 
 		// First, apply all units to create state
@@ -202,7 +201,6 @@ func TestQueueStrictIncludeWithUnitsReadingWithoutIncludeDir(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureQueueStrictIncludeUnitsReading)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureQueueStrictIncludeUnitsReading)
 
 	// This reproduces the bug: --queue-include-units-reading

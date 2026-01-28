@@ -50,7 +50,6 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
 
 	originalTerragruntConfigPath := filepath.Join(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
@@ -125,7 +124,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	oidcPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
-	helpers.CleanupTerraformFolder(t, oidcPath)
 	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
 	helpers.ValidateAuthProviderScript(t, oidcPath, mockAuthCmd)
@@ -149,7 +147,6 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDCRemoteState(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	remoteStateOIDCPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state-w-oidc")
-	helpers.CleanupTerraformFolder(t, remoteStateOIDCPath)
 	mockAuthCmd := filepath.Join(remoteStateOIDCPath, "mock-auth-cmd.sh")
 
 	helpers.ValidateAuthProviderScript(t, remoteStateOIDCPath, mockAuthCmd)

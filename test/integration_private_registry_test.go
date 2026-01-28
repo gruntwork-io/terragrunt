@@ -29,7 +29,6 @@ func setupPrivateRegistryTest(t *testing.T) (string, string, string) {
 		t.Skip("Skipping test because it requires a valid Terraform registry token and url")
 	}
 
-	helpers.CleanupTerraformFolder(t, privateRegistryFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, privateRegistryFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, privateRegistryFixturePath)
 

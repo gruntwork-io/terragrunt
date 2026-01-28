@@ -139,7 +139,6 @@ func TestTerragruntApplyGraph(t *testing.T) {
 func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraph)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureGraph)
 
 	stdout := bytes.Buffer{}

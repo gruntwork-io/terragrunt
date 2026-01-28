@@ -27,8 +27,6 @@ const (
 func TestFindBasic(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
-
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic)
 	require.NoError(t, err)
 
@@ -38,8 +36,6 @@ func TestFindBasic(t *testing.T) {
 
 func TestFindBasicJSON(t *testing.T) {
 	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureFindBasic)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+testFixtureFindBasic+" --json")
 	require.NoError(t, err)
@@ -70,8 +66,6 @@ func TestFindHidden(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureFindHidden)
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
@@ -106,8 +100,6 @@ func TestFindDAG(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
-
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindDAG
 
 			if tc.sort == "dag" {
@@ -125,8 +117,6 @@ func TestFindDAG(t *testing.T) {
 
 func TestFindDAGWithMixedDependencies(t *testing.T) {
 	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
 
 	testCases := []struct {
 		name     string
@@ -148,8 +138,6 @@ func TestFindDAGWithMixedDependencies(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureFindDAG)
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindDAG + " " + tc.args
 
@@ -181,8 +169,6 @@ func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) 
 func TestFindExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
-
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -209,8 +195,6 @@ func TestFindExternalDependencies(t *testing.T) {
 func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
-
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -233,8 +217,6 @@ func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 
 func TestFindInclude(t *testing.T) {
 	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureFindInclude)
 
 	workdir := testFixtureFindInclude
 
@@ -280,8 +262,6 @@ func TestFindExclude(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
-
 			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindExclude, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
@@ -324,7 +304,6 @@ func TestFindQueueConstructAs(t *testing.T) {
 
 	// I'm using the list fixture here because it's more convenient.
 	testFixtureQueueConstruct := "fixtures/list/dag"
-	helpers.CleanupTerraformFolder(t, testFixtureQueueConstruct)
 
 	testCases := []struct {
 		name           string
@@ -366,8 +345,6 @@ func TestFindQueueConstructAs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureQueueConstruct)
-
 			cmd := fmt.Sprintf("terragrunt find --json --no-color --working-dir %s %s", testFixtureQueueConstruct, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
@@ -394,8 +371,6 @@ func TestFindQueueConstructAs(t *testing.T) {
 func TestFindWithReadTerragruntConfig(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindReadTerragruntConfig)
-
 	testCases := []struct {
 		name     string
 		args     string
@@ -416,8 +391,6 @@ func TestFindWithReadTerragruntConfig(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, testFixtureFindReadTerragruntConfig)
 
 			cmd := fmt.Sprintf("terragrunt find --no-color --working-dir %s %s", testFixtureFindReadTerragruntConfig, tc.args)
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)

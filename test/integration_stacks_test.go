@@ -61,7 +61,6 @@ const (
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -82,7 +81,6 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 
 	// Skip if filter-flag experiment is not enabled
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -106,7 +104,6 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -128,7 +125,6 @@ func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 func TestStacksGenerateBasic(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -141,7 +137,6 @@ func TestStacksGenerateBasic(t *testing.T) {
 func TestNestedStacksGenerate(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
@@ -171,7 +166,6 @@ func TestNestedStacksGenerate(t *testing.T) {
 func TestStacksGenerateLocals(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
 	runner, err := git.NewGitRunner()
 	require.NoError(t, err)
@@ -189,7 +183,6 @@ func TestStacksGenerateLocals(t *testing.T) {
 func TestStacksGenerateLocalsError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalsError)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalsError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksLocalsError)
 
@@ -200,7 +193,6 @@ func TestStacksGenerateLocalsError(t *testing.T) {
 func TestStacksGenerateRemote(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
@@ -213,7 +205,6 @@ func TestStacksGenerateRemote(t *testing.T) {
 func TestStacksBasic(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -244,7 +235,6 @@ func TestStacksBasic(t *testing.T) {
 func TestStacksNoGenerate(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -271,7 +261,6 @@ func TestStacksNoGenerate(t *testing.T) {
 func TestStacksInputs(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksInputs, "live")
 
@@ -284,7 +273,6 @@ func TestStacksInputs(t *testing.T) {
 func TestStacksPlan(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksInputs, "live")
 
@@ -298,7 +286,6 @@ func TestStacksPlan(t *testing.T) {
 func TestStacksApply(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksInputs, "live")
 
@@ -312,7 +299,6 @@ func TestStacksApply(t *testing.T) {
 func TestStacksApplyRemote(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
@@ -331,7 +317,6 @@ func TestStacksApplyRemote(t *testing.T) {
 func TestStacksApplyClean(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksInputs, "live")
 
@@ -348,7 +333,6 @@ func TestStacksApplyClean(t *testing.T) {
 func TestStackCleanRecursively(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 	runner, err := git.NewGitRunner()
@@ -381,7 +365,6 @@ func TestStackCleanRecursively(t *testing.T) {
 func TestStacksDestroy(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksInputs, "live")
 
@@ -397,7 +380,6 @@ func TestStacksDestroy(t *testing.T) {
 func TestStackOutputs(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -421,7 +403,6 @@ func TestStackOutputs(t *testing.T) {
 func TestStackOutputsRaw(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -446,7 +427,6 @@ func TestStackOutputsRaw(t *testing.T) {
 func TestStackOutputsIndex(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -469,7 +449,6 @@ func TestStackOutputsIndex(t *testing.T) {
 func TestStackOutputsJson(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -489,7 +468,6 @@ func TestStackOutputsJson(t *testing.T) {
 func TestStackOutputsJsonIndex(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -513,7 +491,6 @@ func TestStackOutputsJsonIndex(t *testing.T) {
 func TestStackOutputsRawIndex(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -530,7 +507,6 @@ func TestStackOutputsRawIndex(t *testing.T) {
 func TestStackOutputsRawFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -547,7 +523,6 @@ func TestStackOutputsRawFlag(t *testing.T) {
 func TestStackOutputsJsonFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksOutputs, "live")
 
@@ -567,7 +542,6 @@ func TestStackOutputsJsonFlag(t *testing.T) {
 func TestStacksUnitValues(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
@@ -584,7 +558,6 @@ func TestStacksUnitValues(t *testing.T) {
 func TestStacksUnitValuesRunInApp1(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
@@ -607,7 +580,6 @@ func TestStacksUnitValuesRunInApp1(t *testing.T) {
 func TestStacksUnitValuesOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitValues)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnitValues, "live")
 
@@ -630,7 +602,6 @@ func TestStacksUnitValuesOutput(t *testing.T) {
 func TestStacksUnitEmptyPathError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksUnitEmptyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnitEmptyPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnitEmptyPath, "live")
 
@@ -647,7 +618,6 @@ func TestStacksUnitEmptyPathError(t *testing.T) {
 func TestStackStackEmptyPathError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksEmptyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksEmptyPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksEmptyPath)
 
@@ -661,7 +631,6 @@ func TestStackStackEmptyPathError(t *testing.T) {
 func TestNestedStackOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
@@ -714,7 +683,6 @@ func TestNestedStackOutput(t *testing.T) {
 func TestNestedStacksApply(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
@@ -742,7 +710,6 @@ func TestNestedStacksApply(t *testing.T) {
 func TestStackValuesGeneration(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
@@ -768,7 +735,6 @@ func TestStackValuesGeneration(t *testing.T) {
 func TestStackValuesApply(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
@@ -805,7 +771,6 @@ func TestStackValuesApply(t *testing.T) {
 func TestStackValuesOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
@@ -864,7 +829,6 @@ func TestStackValuesOutput(t *testing.T) {
 func TestStacksGenerateParallelism(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -877,7 +841,6 @@ func TestStacksGenerateParallelism(t *testing.T) {
 func TestStackApplyWithDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -894,7 +857,6 @@ func TestStackApplyWithDependency(t *testing.T) {
 func TestStackApplyWithDependencyParallelism(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -911,7 +873,6 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -928,7 +889,6 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 func TestStackApplyDestroyWithDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -946,7 +906,6 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 func TestStackOutputWithDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
@@ -979,7 +938,6 @@ func TestStackOutputWithDependency(t *testing.T) {
 func TestStackApplyStrictInclude(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -1007,7 +965,6 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 
 	// Skip if filter-flag experiment is not enabled
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDependencies)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -1034,7 +991,6 @@ func TestStacksSourceMap(t *testing.T) {
 	t.Parallel()
 
 	// prepare local path to do override of source url
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	localTmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 
 	localTmpTest := filepath.Join(localTmpEnvPath, "test", "fixtures")
@@ -1049,7 +1005,6 @@ func TestStacksSourceMap(t *testing.T) {
 	}
 
 	// prepare local environment with remote to use source map to replace
-	helpers.CleanupTerraformFolder(t, testFixtureStacksRemote)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksRemote)
 
@@ -1077,7 +1032,6 @@ func TestStacksSourceMap(t *testing.T) {
 func TestStacksSourceMapModule(t *testing.T) {
 	t.Parallel()
 	// prepare local environment with remote to use source map to replace
-	helpers.CleanupTerraformFolder(t, testFixtureStackSourceMap)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSourceMap)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSourceMap, "live")
 
@@ -1101,7 +1055,6 @@ func TestStacksSourceMapModule(t *testing.T) {
 func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackAbsolutePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackAbsolutePath, "live")
 
@@ -1124,7 +1077,6 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 func TestStacksGenerateIncorrectSource(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackIncorrectSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackIncorrectSource)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackIncorrectSource, "live")
 
@@ -1148,7 +1100,6 @@ func TestStacksGenerateIncorrectSource(t *testing.T) {
 func TestStacksGenerateRelativePathError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackRelativePathOutsideOfStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRelativePathOutsideOfStack)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRelativePathOutsideOfStack, "live")
 
@@ -1174,7 +1125,6 @@ func TestStacksGenerateRelativePathError(t *testing.T) {
 func TestStacksGenerateNoStack(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
@@ -1196,7 +1146,6 @@ func TestStacksGenerateNoStack(t *testing.T) {
 func TestStacksApplyNoStack(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNoStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
@@ -1218,7 +1167,6 @@ func TestStacksApplyNoStack(t *testing.T) {
 func TestStacksCyclesErrors(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackCycles)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCycles)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCycles)
 
@@ -1248,7 +1196,6 @@ func TestStacksCyclesErrors(t *testing.T) {
 func TestStacksNoStackDirDirectoryCreated(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNoStackNoDir)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStackNoDir)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNoStackNoDir, "live")
 
@@ -1271,7 +1218,6 @@ func TestStacksGeneratePrintWarning(t *testing.T) {
 func TestStacksNotExistingPathError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackNotExist)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNotExist)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackNotExist)
 
@@ -1282,7 +1228,6 @@ func TestStacksNotExistingPathError(t *testing.T) {
 func TestStacksGenerateMultipleStacks(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureMultipleStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMultipleStacks)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureMultipleStacks)
 
@@ -1298,7 +1243,6 @@ func TestStacksGenerateMultipleStacks(t *testing.T) {
 func TestStacksReadFiles(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureReadStack)
 
@@ -1418,7 +1362,6 @@ func TestStacksReadFiles(t *testing.T) {
 func TestStackUnitValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValidationUnitPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnitPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationUnitPath)
 
@@ -1450,7 +1393,6 @@ func TestStackUnitValidation(t *testing.T) {
 func TestStackValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackValidationStackPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStackPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationStackPath)
 
@@ -1510,7 +1452,6 @@ func validateNoStackDirs(t *testing.T, rootPath string) {
 func TestStacksSelfInclude(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackSelfInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackSelfInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackSelfInclude, "live")
 
@@ -1526,7 +1467,6 @@ func TestStacksSelfInclude(t *testing.T) {
 func TestStackNestedOutputs(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackNestedOutputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackNestedOutputs)
 
@@ -1570,7 +1510,6 @@ func TestStackNestedOutputs(t *testing.T) {
 func TestStacksNoValidation(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackNoValidation)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoValidation)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackNoValidation, "live")
 
@@ -1612,7 +1551,6 @@ func validateStackDir(t *testing.T, path string) {
 func TestStackTerragruntDir(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackTerragruntDir)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackTerragruntDir)
 
@@ -1643,7 +1581,6 @@ func TestStackTerragruntDir(t *testing.T) {
 func TestStackOriginalTerragruntDir(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackOriginalTerragruntDir)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackOriginalTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackOriginalTerragruntDir)
 	helpers.CreateGitRepo(t, gitPath)
@@ -1709,7 +1646,6 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 func TestStackRunAllNoStackDir(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksAllNoStackDir)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksAllNoStackDir)
 
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksAllNoStackDir, "live")
@@ -1744,7 +1680,6 @@ func TestStackRunAllNoStackDir(t *testing.T) {
 func TestStackOutputWithNoDotTerragruntStack(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackNoDotTerragruntStackOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoDotTerragruntStackOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackNoDotTerragruntStackOutput, "live")
 
@@ -1765,7 +1700,6 @@ func TestStackOutputWithNoDotTerragruntStack(t *testing.T) {
 func TestStackFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackFindInParentFolders)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackFindInParentFolders)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackFindInParentFolders)
 	stackPath := filepath.Join(rootPath, "live", "stack")
@@ -1788,7 +1722,6 @@ func TestStackFindInParentFolders(t *testing.T) {
 func TestStackGenerateWithFilter(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 	liveDir := filepath.Join(rootPath, "live")

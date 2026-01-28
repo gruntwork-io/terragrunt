@@ -34,7 +34,6 @@ const (
 func TestNoAutoInit(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "skip-init")
 
@@ -51,7 +50,6 @@ func TestNoAutoInit(t *testing.T) {
 func TestYamlDecodeRegressions(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "yamldecode")
 
@@ -76,7 +74,6 @@ func TestYamlDecodeRegressions(t *testing.T) {
 func TestMockOutputsMergeWithState(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "mocks-merge-with-state")
 
@@ -105,7 +102,6 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 func TestIncludeError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "include-error", "project", "app")
 
@@ -130,8 +126,6 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenerate)
 	otherPath := filepath.Join(rootPath, "other")
-
-	helpers.CleanupTerraformFolder(t, rootPath)
 
 	helpers.RunTerragrunt(
 		t,
@@ -160,8 +154,6 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 	otherPath := filepath.Join(rootPath, "other")
 	testingPath := filepath.Join(rootPath, "testing")
 
-	helpers.CleanupTerraformFolder(t, rootPath)
-
 	helpers.RunTerragrunt(
 		t,
 		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
@@ -186,8 +178,6 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	otherPath := filepath.Join(rootPath, "other")
 
 	// Apply the "other" module
-	helpers.CleanupTerraformFolder(t, rootPath)
-
 	helpers.RunTerragrunt(t,
 		"terragrunt apply --auto-approve --non-interactive --working-dir "+otherPath,
 	)
@@ -206,7 +196,6 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
 
@@ -244,7 +233,6 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
 	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
@@ -285,7 +273,6 @@ func TestParsingWithGenerateAndExpose(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
-	helpers.CleanupTerraformFolder(t, testFixture)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := filepath.Join(tmpEnvPath, testFixture, "services-info")
 
@@ -322,7 +309,6 @@ func TestParsingWithGenerateAndExpose_WithExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
-	helpers.CleanupTerraformFolder(t, testFixture)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
 	rootPath := filepath.Join(tmpEnvPath, testFixture, "services-info")
 
@@ -353,7 +339,6 @@ func TestParsingWithGenerateAndExpose_WithExternalDependencies(t *testing.T) {
 func TestSensitiveValues(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSensitiveValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSensitiveValues)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSensitiveValues)
 
@@ -395,7 +380,6 @@ func TestSensitiveValues(t *testing.T) {
 func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDisabledDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledDependencyEmptyConfigPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDisabledDependencyEmptyConfigPath)
 	helpers.CreateGitRepo(t, rootPath)
@@ -433,7 +417,6 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 func TestMultipleStacksDetection(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDetection)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDetection)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDetection, "live")
 
@@ -495,7 +478,6 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput, "app")
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput, "dependency")
@@ -593,7 +575,6 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureScopeEscape)
 	bastionPath := filepath.Join(rootPath, "bastion")
@@ -627,7 +608,6 @@ func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
 func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureScopeEscape)
 
@@ -655,7 +635,6 @@ func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
 func TestNotExistingDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNotExistingDependency)
 
@@ -682,7 +661,6 @@ func TestNotExistingDependency(t *testing.T) {
 func TestDependencyIncludeError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyIncludeError)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyIncludeError)
 	depPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "dep")
 	unitPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "unit")
