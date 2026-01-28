@@ -1,4 +1,5 @@
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+const FETCH_TIMEOUT_MS = 10 * 1000; // 10 second timeout for API requests
 
 interface CacheEntry<T> {
   data: T;
@@ -23,7 +24,10 @@ async function memoizedFetch<T>(
   }
 
   const data = await fetchFn();
-  cache.set(cacheKey, { data, timestamp: now });
+  // Only cache successful (non-null) results to allow retries on failures
+  if (data !== null) {
+    cache.set(cacheKey, { data, timestamp: now });
+  }
   return data;
 }
 
@@ -52,25 +56,33 @@ export async function getGitHubRepo(
 
   try {
     return await memoizedFetch(cacheKey, async () => {
-      const response = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}`,
-        {
-          headers: {
-            'User-Agent': 'Terragrunt-Docs',
-          },
-        }
-      );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      if (!response.ok) {
-        console.error(
-          `Failed to fetch GitHub repo ${owner}/${repo}:`,
-          response.status,
-          await response.text()
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}`,
+          {
+            headers: {
+              'User-Agent': 'Terragrunt-Docs',
+            },
+            signal: controller.signal,
+          }
         );
-        return null;
-      }
 
-      return response.json();
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch GitHub repo ${owner}/${repo}:`,
+            response.status,
+            await response.text()
+          );
+          return null;
+        }
+
+        return response.json();
+      } finally {
+        clearTimeout(timeoutId);
+      }
     });
   } catch (error) {
     console.error(`Error fetching GitHub repo ${owner}/${repo}:`, error);
@@ -90,25 +102,33 @@ export async function getLatestRelease(
 
   try {
     return await memoizedFetch(cacheKey, async () => {
-      const response = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-        {
-          headers: {
-            'User-Agent': 'Terragrunt-Docs',
-          },
-        }
-      );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-      if (!response.ok) {
-        console.error(
-          `Failed to fetch latest release for ${owner}/${repo}:`,
-          response.status,
-          await response.text()
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+          {
+            headers: {
+              'User-Agent': 'Terragrunt-Docs',
+            },
+            signal: controller.signal,
+          }
         );
-        return null;
-      }
 
-      return response.json();
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch latest release for ${owner}/${repo}:`,
+            response.status,
+            await response.text()
+          );
+          return null;
+        }
+
+        return response.json();
+      } finally {
+        clearTimeout(timeoutId);
+      }
     });
   } catch (error) {
     console.error(`Error fetching latest release for ${owner}/${repo}:`, error);
