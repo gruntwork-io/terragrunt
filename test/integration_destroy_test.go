@@ -294,6 +294,7 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	output := stderr.String()
 	appV1Path := filepath.Join(rootPath, "app-v1")
 	appV2Path := filepath.Join(rootPath, "app-v2")
+
 	assert.Equal(t, 0, strings.Count(output, appV1Path))
 	assert.Equal(t, 0, strings.Count(output, appV2Path))
 }
