@@ -26,6 +26,12 @@ type Cmd struct {
 	usePTY             bool
 }
 
+// defaultWaitDelay is the time to wait for the subprocess to gracefully exit
+// after sending a signal before forcefully killing it with SIGKILL.
+// This must be set to a positive value when using exec.CommandContext, otherwise
+// Go will send SIGKILL immediately after the Cancel callback returns.
+const defaultWaitDelay = 30 * time.Second
+
 // Command returns the `Cmd` struct to execute the named program with
 // the given arguments.
 func Command(ctx context.Context, name string, args ...string) *Cmd {
@@ -39,6 +45,13 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// Set WaitDelay to give the subprocess time to gracefully exit after
+	// receiving the signal from Cancel. Without this, Go sends SIGKILL
+	// immediately after Cancel returns, preventing terraform/tofu from
+	// properly releasing state locks.
+	cmd.WaitDelay = defaultWaitDelay
+
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -38,6 +39,9 @@ var excludePaths = []string{
 	util.DefaultBoilerplateDir,
 	config.StackDir,
 }
+
+// waitDelayDiff is the time to wait for the diff command to gracefully exit after receiving a signal.
+const waitDelayDiff = 30 * time.Second
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
@@ -304,6 +308,12 @@ func bytesDiff(ctx context.Context, l log.Logger, b1, b2 []byte, path string) ([
 		f1.Name(),
 		f2.Name(),
 	)
+
+	// Set WaitDelay to give the diff command time to gracefully exit after
+	// receiving the signal. Without this, Go sends SIGKILL immediately after
+	// Cancel returns.
+	cmd.WaitDelay = waitDelayDiff
+
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil

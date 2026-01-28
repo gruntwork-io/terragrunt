@@ -645,8 +645,16 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 	return nil
 }
 
+// waitDelayGit is the time to wait for git to gracefully exit after receiving a signal.
+const waitDelayGit = 30 * time.Second
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
+
+	// Set WaitDelay to give git time to gracefully exit after receiving the signal.
+	// Without this, Go sends SIGKILL immediately after Cancel returns.
+	cmd.WaitDelay = waitDelayGit
+
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
