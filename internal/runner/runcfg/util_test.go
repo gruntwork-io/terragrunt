@@ -274,23 +274,23 @@ func TestGetTerraformSourceURL(t *testing.T) {
 			expectedError:  "",
 		},
 		{
-			name: "no source returns empty string",
+			name: "no source returns current directory",
 			opts: &options.TerragruntOptions{
 				Source:    "",
 				SourceMap: map[string]string{},
 			},
 			cfg:            &runcfg.RunConfig{},
-			expectedResult: "",
+			expectedResult: ".",
 			expectedError:  "",
 		},
 		{
-			name: "nil terraform config returns empty string",
+			name: "nil terraform config returns current directory",
 			opts: &options.TerragruntOptions{
 				Source:    "",
 				SourceMap: map[string]string{},
 			},
 			cfg:            &runcfg.RunConfig{},
-			expectedResult: "",
+			expectedResult: ".",
 			expectedError:  "",
 		},
 	}

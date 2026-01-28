@@ -382,21 +382,22 @@ func TestAwsBootstrapBackendWithAccessLogging(t *testing.T) {
 		helpers.TerraformRemoteStateS3Region,
 	)
 
-	dualLockingPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(
-		t,
-		dualLockingPath,
-		dualLockingPath,
-		s3BucketName,
-		dynamoDBName,
-		helpers.TerraformRemoteStateS3Region,
-	)
-
+	// Fill placeholders in use-lockfile and dual-locking configs (they have their own remote_state blocks)
 	useLockfilePath := filepath.Join(rootPath, "use-lockfile", "terragrunt.hcl")
 	helpers.CopyTerragruntConfigAndFillPlaceholders(
 		t,
 		useLockfilePath,
 		useLockfilePath,
+		s3BucketName,
+		dynamoDBName,
+		helpers.TerraformRemoteStateS3Region,
+	)
+
+	dualLockingPath := filepath.Join(rootPath, "dual-locking", "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		dualLockingPath,
+		dualLockingPath,
 		s3BucketName,
 		dynamoDBName,
 		helpers.TerraformRemoteStateS3Region,
@@ -613,8 +614,9 @@ func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	// With always-cache behavior, init-from-module hooks execute even when no source is explicitly specified
+	// because source="." (local copy to cache) is used internally
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command should execute once")
 }
 
 func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
@@ -667,14 +669,18 @@ func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
 	require.ErrorContains(t, err, "executable file not found in $PATH")
 
-	_, beforeException := os.ReadFile(childPath + "/before.out")
-	_, beforeChildException := os.ReadFile(childPath + "/before-child.out")
-	_, beforeOverriddenParentException := os.ReadFile(childPath + "/before-parent.out")
-	_, afterException := os.ReadFile(childPath + "/after.out")
-	_, afterParentException := os.ReadFile(childPath + "/after-parent.out")
-	_, errorHookParentException := os.ReadFile(childPath + "/error-hook-parent.out")
-	_, errorHookChildException := os.ReadFile(childPath + "/error-hook-child.out")
-	_, errorHookOverridenParentException := os.ReadFile(childPath + "/error-hook-merge-parent.out")
+	// Hook output files are now in .terragrunt-cache directory
+	cacheDir := helpers.FindCacheWorkingDir(t, childPath)
+	require.NotEmpty(t, cacheDir, "Cache directory should exist")
+
+	_, beforeException := os.ReadFile(filepath.Join(cacheDir, "before.out"))
+	_, beforeChildException := os.ReadFile(filepath.Join(cacheDir, "before-child.out"))
+	_, beforeOverriddenParentException := os.ReadFile(filepath.Join(cacheDir, "before-parent.out"))
+	_, afterException := os.ReadFile(filepath.Join(cacheDir, "after.out"))
+	_, afterParentException := os.ReadFile(filepath.Join(cacheDir, "after-parent.out"))
+	_, errorHookParentException := os.ReadFile(filepath.Join(cacheDir, "error-hook-parent.out"))
+	_, errorHookChildException := os.ReadFile(filepath.Join(cacheDir, "error-hook-child.out"))
+	_, errorHookOverridenParentException := os.ReadFile(filepath.Join(cacheDir, "error-hook-merge-parent.out"))
 
 	require.NoError(t, beforeException)
 	require.NoError(t, beforeChildException)
@@ -1171,10 +1177,16 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// If we want to force reinit, delete the relevant .terraform directories
-	helpers.CleanupTerraformFolder(t, depPath)
+	// Since terraform runs from cache, clean the cache directory
+	depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
+	require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
+	helpers.CleanupTerraformFolder(t, depCacheDir)
 
 	// Now delete the deepdep state and verify still works
-	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	// Since terraform runs from cache, the state file is in the cache directory
+	deepDepCacheDir := helpers.FindCacheWorkingDir(t, deepDepPath)
+	require.NotEmpty(t, deepDepCacheDir, "Cache directory for deepdep should exist")
+	require.NoError(t, os.Remove(filepath.Join(deepDepCacheDir, "terraform.tfstate")))
 
 	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -1240,8 +1252,11 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
-	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(deepDepPath, ".terraform")))
+	// Since terraform runs from cache, the state file is in the cache directory
+	deepDepCacheDir := helpers.FindCacheWorkingDir(t, deepDepPath)
+	require.NotEmpty(t, deepDepCacheDir, "Cache directory for deepdep should exist")
+	require.NoError(t, os.Remove(filepath.Join(deepDepCacheDir, "terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(deepDepCacheDir, ".terraform")))
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --non-interactive --working-dir "+livePath)
 	require.Error(t, err)
 }
@@ -1536,10 +1551,15 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 		),
 	)
 	// Now delete dependencies cached state
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app1CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
+	app3CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app3"))
+	require.NotEmpty(t, app3CacheDir, "Cache directory for app3 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app3CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app3CacheDir, ".terraform")))
 
 	helpers.RunTerragrunt(
 		t,
@@ -1597,10 +1617,15 @@ func TestAwsNoDependencyFetchOutputFromState(t *testing.T) { //nolint: parallelt
 		),
 	)
 	// Now delete dependencies cached state
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app1CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
+	app3CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app3"))
+	require.NotEmpty(t, app3CacheDir, "Cache directory for app3 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app3CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app3CacheDir, ".terraform")))
 
 	// Apply app2 with experiment enabled but --no-dependency-fetch-output-from-state flag set
 	// This should fall back to using terraform output instead of fetching from state
@@ -1662,8 +1687,11 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	// applying only the app1 dependency, the app3 dependency was purposely not applied and should be mocked when running the app2 module
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --dependency-fetch-output-from-state --auto-approve --backend-bootstrap --non-interactive --working-dir %s/app1", environmentPath))
 	// Now delete dependencies cached state
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app1CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt init --dependency-fetch-output-from-state --non-interactive --working-dir %s/app2", environmentPath))
 	require.NoError(t, err)
@@ -1709,8 +1737,10 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt hcl validate --inputs -auto-approve --non-interactive --working-dir "+testPath)
 
-	// validate generated backend.tf
-	backendFile := filepath.Join(testPath, "backend.tf")
+	// validate generated backend.tf (now in .terragrunt-cache)
+	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
+	require.NotEmpty(t, cacheDir, "Cache directory should exist")
+	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
 	content, err := files.ReadFileAsString(backendFile)
@@ -1747,8 +1777,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt hcl validate --inputs -auto-approve --non-interactive --working-dir "+testPath)
 
-	// validate generated backend.tf
-	backendFile := filepath.Join(testPath, "backend.tf")
+	// validate generated backend.tf (now in .terragrunt-cache)
+	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
+	require.NotEmpty(t, cacheDir, "Cache directory should exist")
+	backendFile := filepath.Join(cacheDir, "backend.tf")
 	assert.FileExists(t, backendFile)
 
 	content, err := files.ReadFileAsString(backendFile)
@@ -2011,12 +2043,18 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// If we want to force reinit, delete the relevant .terraform directories
+	// Since terraform runs from cache, clean the cache directory
 	if forceInit {
-		helpers.CleanupTerraformFolder(t, depPath)
+		depCacheDir := helpers.FindCacheWorkingDir(t, depPath)
+		require.NotEmpty(t, depCacheDir, "Cache directory for dep should exist")
+		helpers.CleanupTerraformFolder(t, depCacheDir)
 	}
 
 	// Now delete the deepdep state and verify still works
-	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	// Since terraform runs from cache, the state file is in the cache directory
+	deepDepCacheDir := helpers.FindCacheWorkingDir(t, deepDepPath)
+	require.NotEmpty(t, deepDepCacheDir, "Cache directory for deepdep should exist")
+	require.NoError(t, os.Remove(filepath.Join(deepDepCacheDir, "terraform.tfstate")))
 
 	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(
 		t,

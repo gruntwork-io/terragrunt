@@ -291,6 +291,74 @@ func determineToolName(command string) string {
 	return command
 }
 
+// FindCacheWorkingDir finds the working directory inside the .terragrunt-cache folder.
+// The cache layout is <root>/.terragrunt-cache/<hash>/<module>/..., so we expect exactly
+// one directory at each level. Fails the test if the structure is unexpected.
+func FindCacheWorkingDir(t *testing.T, rootDir string) string {
+	t.Helper()
+
+	require.NotEmpty(t, rootDir, "rootDir path cannot be empty")
+
+	cacheDir := filepath.Join(rootDir, ".terragrunt-cache")
+	require.DirExists(t, cacheDir, ".terragrunt-cache directory should exist in %s", rootDir)
+
+	firstLevel, err := os.ReadDir(cacheDir)
+	require.NoError(t, err)
+
+	// Filter to only directories
+	var firstLevelDirs []os.DirEntry
+
+	for _, entry := range firstLevel {
+		if entry.IsDir() {
+			firstLevelDirs = append(firstLevelDirs, entry)
+		}
+	}
+
+	require.Len(t, firstLevelDirs, 1,
+		"expected exactly one hash directory in %s, found %d: %v",
+		cacheDir, len(firstLevelDirs), dirNames(firstLevelDirs))
+
+	firstPath := filepath.Join(cacheDir, firstLevelDirs[0].Name())
+	secondLevel, err := os.ReadDir(firstPath)
+	require.NoError(t, err)
+
+	// Filter to only directories
+	var secondLevelDirs []os.DirEntry
+
+	for _, entry := range secondLevel {
+		if entry.IsDir() {
+			secondLevelDirs = append(secondLevelDirs, entry)
+		}
+	}
+
+	require.Len(t, secondLevelDirs, 1,
+		"expected exactly one module directory in %s, found %d: %v",
+		firstPath, len(secondLevelDirs), dirNames(secondLevelDirs))
+
+	return filepath.Join(firstPath, secondLevelDirs[0].Name())
+}
+
+// dirNames extracts directory names from DirEntry slice for error messages.
+func dirNames(entries []os.DirEntry) []string {
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+
+	return names
+}
+
+// FileExistsInCache checks if a file exists within the cache directory structure.
+func FileExistsInCache(t *testing.T, rootDir, filename string) bool {
+	t.Helper()
+
+	cacheWorkingDir := FindCacheWorkingDir(t, rootDir)
+	filePath := filepath.Join(cacheWorkingDir, filename)
+	_, err := os.Stat(filePath)
+
+	return err == nil
+}
+
 // ValidateAuthProviderScript runs the given auth provider script in the specified directory
 // and validates its response against the expected schema.
 func ValidateAuthProviderScript(t *testing.T, dir string, script string) {

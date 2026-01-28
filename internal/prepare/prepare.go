@@ -124,16 +124,16 @@ func PrepareSource(
 		return nil, err
 	}
 
-	if sourceURL != "" {
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
-			"sourceUrl": sourceURL,
-		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = run.DownloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
-			return err
-		})
-		if err != nil {
-			return nil, err
-		}
+	// Always download/copy source to cache directory for consistency.
+	// When no source is specified, sourceURL will be "." (current directory).
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+		"sourceUrl": sourceURL,
+	}, func(ctx context.Context) error {
+		updatedTerragruntOptions, err = run.DownloadTerraformSource(ctx, l, sourceURL, opts, runCfg, r)
+		return err
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return updatedTerragruntOptions, nil

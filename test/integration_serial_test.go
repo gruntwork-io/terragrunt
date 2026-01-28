@@ -103,8 +103,13 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 			return "", fmt.Errorf("terragrunt command failed: %w", err)
 		}
 
-		// Verify the config was created correctly
-		terraformrcBytes, readErr := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+		// Verify the config was created correctly - it's now in the cache directory
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+		if cacheWorkingDir == "" {
+			return "", fmt.Errorf("failed to find cache working directory for %s", appPath)
+		}
+
+		terraformrcBytes, readErr := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		if readErr != nil {
 			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
 		}
@@ -220,8 +225,13 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
-	for _, filename := range []string{"app0/.terraformrc", "app1/.terraformrc"} {
-		terraformrcBytes, err := os.ReadFile(filepath.Join(appsPath, filename))
+	for _, appName := range []string{"app0", "app1"} {
+		// Find the cache directory for each app since .terraformrc is now created there
+		appPath := filepath.Join(appsPath, appName)
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+		require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", appPath)
+
+		terraformrcBytes, err := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		require.NoError(t, err)
 
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
@@ -637,6 +647,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 			lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
 			assert.False(t, diags.HasErrors())
 
+			// Find the cache working directory since providers are now installed there
+			cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+			require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", appPath)
+
 			for _, provider := range providers {
 				var (
 					actualProviderSymlinks   int
@@ -647,7 +661,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
 				assert.NotNil(t, providerBlock)
 
-				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
+				providerPath := filepath.Join(cacheWorkingDir, ".terraform/providers", provider)
 				assert.True(t, util.FileExists(providerPath))
 
 				entries, err := os.ReadDir(providerPath)

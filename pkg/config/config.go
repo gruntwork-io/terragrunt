@@ -954,7 +954,8 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 //
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
-// method returns the source URL or an empty string if there is no source url
+// method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
+// used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
 func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
 	switch {
 	case terragruntOptions.Source != "":
@@ -962,7 +963,7 @@ func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragr
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
 		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
 	default:
-		return "", nil
+		return ".", nil
 	}
 }
 

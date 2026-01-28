@@ -259,6 +259,7 @@ func TestGcpWorksWithBackend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
+	helpers.CleanupTerragruntFolder(t, testFixtureGcsPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")

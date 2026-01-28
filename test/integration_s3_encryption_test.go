@@ -211,33 +211,24 @@ func TestAwsSkipBackend(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
-	// The bucket and table name here are intentionally invalid.
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(
-		t,
-		s3SSEAESFixturePath,
-		"N/A",
-		"N/A",
-		config.DefaultTerragruntConfigPath,
-	)
+	// Fill placeholders in the config (bucket and table are intentionally invalid).
+	// Use config in working directory to ensure lock file is copied to correct location.
+	configPath := filepath.Join(testPath, config.DefaultTerragruntConfigPath)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath, configPath, "N/A", "N/A", helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt init --backend-bootstrap --non-interactive --config "+
-			tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false",
-	)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --working-dir "+testPath+" -backend=false")
 	require.Error(t, err)
 
 	dotTerraformDir := filepath.Join(testPath, ".terraform")
 	assert.False(t, util.FileExists(dotTerraformDir), ".terraform directory %s exists", dotTerraformDir)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(
-		t,
-		"terragrunt init --non-interactive --config "+
-			tmpTerragruntConfigPath+" --working-dir "+testPath+" --disable-bucket-update -backend=false",
-	)
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --working-dir "+testPath+" --disable-bucket-update -backend=false")
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(dotTerraformDir), ".terraform directory %s does not exist", dotTerraformDir)
+	// .terraform is created in the cache directory, not the original config directory
+	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
+	cacheDotTerraformDir := filepath.Join(cacheDir, ".terraform")
+	assert.True(t, util.FileExists(cacheDotTerraformDir), ".terraform directory %s does not exist", cacheDotTerraformDir)
 }
 
 func applyCommand(configPath, fixturePath string) string {

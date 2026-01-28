@@ -1,5 +1,5 @@
 resource "null_resource" "retry_test" {
   provisioner "local-exec" {
-    command = "ls ${path.module}/success.txt"
+    command = "ls success.txt"
   }
 }

@@ -146,16 +146,16 @@ func Run(
 		return err
 	}
 
-	if sourceURL != "" {
-		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
-			"sourceUrl": sourceURL,
-		}, func(ctx context.Context) error {
-			updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
-			return err
-		})
-		if err != nil {
-			return err
-		}
+	// Always download/copy source to cache directory for consistency.
+	// When no source is specified, sourceURL will be "." (current directory).
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "download_terraform_source", map[string]any{
+		"sourceUrl": sourceURL,
+	}, func(ctx context.Context) error {
+		updatedTerragruntOptions, err = DownloadTerraformSource(ctx, l, sourceURL, opts, cfg, r)
+		return err
+	})
+	if err != nil {
+		return err
 	}
 
 	// Handle code generation configs, both generate blocks and generate attribute of remote_state.
@@ -274,7 +274,8 @@ func runTerragruntWithConfig(
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = runcfg.CopyLockFile(l, opts, opts.WorkingDir, originalOpts.WorkingDir)
+			// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
+			lockFileError = runcfg.CopyLockFile(l, opts, opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
 		}
 
 		// If command failed, log a helpful message

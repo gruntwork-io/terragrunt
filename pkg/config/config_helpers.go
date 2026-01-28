@@ -853,10 +853,7 @@ func getWorkingDirImpl(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 		return "", err
 	}
 
-	if sourceURL == "" {
-		return pctx.TerragruntOptions.WorkingDir, nil
-	}
-
+	// sourceURL will always be at least "." (current directory) to ensure cache is always used
 	walkWithSymlinks := pctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
 
 	source, err := tf.NewSource(l, sourceURL, pctx.TerragruntOptions.DownloadDir, pctx.TerragruntOptions.WorkingDir, walkWithSymlinks)

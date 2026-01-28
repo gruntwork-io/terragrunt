@@ -47,9 +47,12 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
-	found, err := regexp.MatchString("--config ./.terragrunt-cache/.*/.tflint.hcl", errOut.String())
+	// TFLint config should be found in the original working directory, not inside .terragrunt-cache
+	// The config path should end with .tflint.hcl but NOT be inside .terragrunt-cache
+	found, err := regexp.MatchString("--config .*/\\.tflint\\.hcl", errOut.String())
 	require.NoError(t, err)
-	assert.True(t, found)
+	assert.True(t, found, "Expected to find --config .../.tflint.hcl in output")
+	assert.NotContains(t, errOut.String(), "--config ./.terragrunt-cache", "TFLint config should not be inside cache directory")
 }
 
 func TestTflintFindsModule(t *testing.T) {
@@ -129,12 +132,15 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
+	// TFLint config should be found in the original working directory, not inside the download directory
+	// The config path should end with .tflint.hcl but NOT be inside the download directory
+	found, err := regexp.MatchString("--config .*/\\.tflint\\.hcl", errOut.String())
+	require.NoError(t, err)
+	assert.True(t, found, "Expected to find --config .../.tflint.hcl in output")
+
 	relPath, err := filepath.Rel(modulePath, downloadDir)
 	require.NoError(t, err)
-
-	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", relPath), errOut.String())
-	require.NoError(t, err)
-	assert.True(t, found)
+	assert.NotContains(t, errOut.String(), fmt.Sprintf("--config %s/", relPath), "TFLint config should not be inside download directory")
 }
 
 func TestTflintExternalTflint(t *testing.T) {

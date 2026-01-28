@@ -973,24 +973,16 @@ func terragruntAlreadyInit(ctx context.Context, l log.Logger, opts *options.Terr
 		return false, "", err
 	}
 
-	if sourceURL == "" || sourceURL == "." {
-		// When there is no source URL, there is no download process and the working dir is the same as the directory
-		// where the config is.
-		if util.IsDir(configPath) {
-			workingDir = configPath
-		} else {
-			workingDir = filepath.Dir(configPath)
-		}
-	} else {
-		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+	// sourceURL will always be at least "." (current directory) to ensure cache is always used.
+	// Always compute the cache working directory using NewSource.
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
-		terraformSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
-		if err != nil {
-			return false, "", err
-		}
-		// We're only interested in the computed working dir.
-		workingDir = terraformSource.WorkingDir
+	terraformSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+	if err != nil {
+		return false, "", err
 	}
+	// We're only interested in the computed working dir.
+	workingDir = terraformSource.WorkingDir
 	// Terragrunt is already init-ed if the terraform state dir (.terraform) exists in the working dir.
 	// NOTE: if the ref changes, the workingDir would be different as the download dir includes a base64 encoded hash of
 	// the source URL with ref. This would ensure that this routine would not return true if the new ref is not already

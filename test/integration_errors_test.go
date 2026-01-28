@@ -107,6 +107,7 @@ func TestIgnoreSignal(t *testing.T) {
 	assert.Contains(t, stderr, "Ignoring error example1")
 	assert.NotContains(t, stderr, "Ignoring error example2")
 
+	// Signals file is written to original config directory (opts.WorkingDir during error handling)
 	signalsFile := filepath.Join(rootPath, "error-signals.json")
 	assert.FileExists(t, signalsFile)
 
@@ -213,8 +214,9 @@ func TestNoAutoRetryFlag(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, stderr, "Transient error")
 
-	// Cleanup for second test
-	successFile := filepath.Join(rootPath, "success.txt")
+	// Cleanup for second test - success.txt is created in cache directory (default hook behavior)
+	cacheDir := helpers.FindCacheWorkingDir(t, rootPath)
+	successFile := filepath.Join(cacheDir, "success.txt")
 	err = os.Remove(successFile)
 	require.NoError(t, err)
 	cleanupTerraformFolder(t, testNoAutoRetry)
