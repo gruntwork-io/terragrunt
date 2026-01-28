@@ -58,6 +58,7 @@ func TestBasicDiscovery(t *testing.T) {
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text" //nolint: goconst
 	opts.Mode = "normal"
+	opts.NoHidden = true
 	opts.Dependencies = false
 
 	// Create a pipe to capture output
@@ -145,8 +146,6 @@ func TestHiddenDiscovery(t *testing.T) {
 	// Create options
 	opts := list.NewOptions(tgOpts)
 	opts.Format = "text"
-	opts.Hidden = true
-	opts.Dependencies = false
 
 	// Create a pipe to capture output
 	r, w, err := os.Pipe()

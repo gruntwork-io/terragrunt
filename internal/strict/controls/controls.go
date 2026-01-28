@@ -73,6 +73,9 @@ const (
 
 	// InternalTFLint is the control that prevents the use of the deprecated embedded version of tflint.
 	InternalTFLint = "legacy-internal-tflint"
+
+	// DeprecatedHiddenFlag is the control that prevents the use of the deprecated `--hidden` flag.
+	DeprecatedHiddenFlag = "deprecated-hidden-flag"
 )
 
 //nolint:lll
@@ -269,6 +272,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally."),
 			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
+		},
+		&Control{
+			Name:        DeprecatedHiddenFlag,
+			Description: "Prevents the use of the deprecated `--hidden` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them."),
+			Warning:     "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 		},
 	}
 
