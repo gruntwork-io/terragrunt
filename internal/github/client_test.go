@@ -308,6 +308,78 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 	verifyFileContent(t, result.PackageFile, "fake-zip-content")
 }
 
+func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
+	tempDir := helpers.TmpDirWOSymlinks(t)
+
+	// shared logic for handlers
+	doResp := func(w http.ResponseWriter, r *http.Request) {
+		// Serve different content based on the requested file
+		path := r.URL.Path
+		if strings.HasSuffix(path, "package.zip") {
+			w.Header().Set("Content-Type", "application/zip")
+			fmt.Fprint(w, "fake-zip-content")
+		} else if strings.HasSuffix(path, "SHA256SUMS") {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "fake-checksum-content")
+		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, "fake-signature-content")
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}
+
+	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
+	client := github.NewGitHubReleasesDownloadClient()
+
+	t.Run("prefer GH_TOKEN", func(t *testing.T) {
+		t.Setenv("GH_TOKEN", "goodtoken")
+		t.Setenv("GITHUB_TOKEN", "badtoken")
+
+		// Create mock server for GitHub releases
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
+
+			doResp(w, r)
+		}))
+		defer server.Close()
+
+		ctx := t.Context()
+
+		assets := &github.ReleaseAssets{
+			Repository:  server.URL + "/package.zip", // Direct URL
+			PackageFile: filepath.Join(tempDir, "package.zip"),
+			// Direct URLs don't use checksum files
+		}
+
+		_, err := client.DownloadReleaseAssets(ctx, assets)
+		require.NoError(t, err)
+	})
+
+	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
+		t.Setenv("GH_TOKEN", "")
+		t.Setenv("GITHUB_TOKEN", "goodtoken")
+
+		// Create mock server for GitHub releases
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
+
+			doResp(w, r)
+		}))
+		defer server.Close()
+
+		ctx := t.Context()
+
+		assets := &github.ReleaseAssets{
+			Repository:  server.URL + "/package.zip", // Direct URL
+			PackageFile: filepath.Join(tempDir, "package.zip"),
+			// Direct URLs don't use checksum files
+		}
+		_, err := client.DownloadReleaseAssets(ctx, assets)
+		require.NoError(t, err)
+	})
+}
+
 func TestDownloadReleaseAssetsDirectURL(t *testing.T) {
 	t.Parallel()
 

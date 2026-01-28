@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/hashicorp/go-getter"
@@ -64,12 +66,19 @@ func WithGithubToken(token string) GitHubAPIClientOption {
 // https://cli.github.com/manual/gh_help_environment
 func WithGithubComDefaultAuth() GitHubAPIClientOption {
 	return func(c *GitHubAPIClient) {
-		if tok := os.Getenv("GH_TOKEN"); tok != "" {
-			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
-		} else if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+		if tok := getGithubTokenFromEnv(); tok != "" {
 			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
 		}
 	}
+}
+
+func getGithubTokenFromEnv() string {
+	if tok := os.Getenv("GH_TOKEN"); tok != "" {
+		return tok
+	} else if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+		return tok
+	}
+	return ""
 }
 
 // NewGitHubAPIClient creates a new GitHub API client with optional configuration.
@@ -277,6 +286,29 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				Dst:           localPath,
 				Mode:          getter.ClientModeFile,
 				Decompressors: map[string]getter.Decompressor{},
+			}
+
+			// Add GitHub token to HTTP headers if available
+			if tok := getGithubTokenFromEnv(); tok != "" {
+				// use the default getters
+				client.Getters = maps.Clone(getter.Getters)
+				// but override the https getter to inject the github token
+				client.Getters["https"] = &getter.HttpGetter{
+					Netrc: true,
+					Header: http.Header{
+						"Authorization": {"Bearer " + tok},
+					},
+				}
+
+				// test servers don't use https, but we don't usually want to send auth tokens unencrypted
+				if testing.Testing() {
+					client.Getters["http"] = &getter.HttpGetter{
+						Netrc: true,
+						Header: http.Header{
+							"Authorization": {"Bearer " + tok},
+						},
+					}
+				}
 			}
 
 			if err := client.Get(); err != nil {
