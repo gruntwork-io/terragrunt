@@ -432,7 +432,7 @@ func Parse(
 				file *hcl.File,
 				hclDiags hcl.Diagnostics,
 			) (hcl.Diagnostics, error) {
-				l.Debugf("Suppressed parsing errors %w", hclDiags)
+				l.Debugf("Suppressed parsing errors %v", hclDiags)
 
 				return nil, nil
 			})})
@@ -1119,7 +1119,7 @@ func (d *Discovery) Discover(
 		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 			l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-			l.Debugf("Cycle: %w", cycleErr)
+			l.Debugf("Cycle: %v", cycleErr)
 
 			var removeErr error
 

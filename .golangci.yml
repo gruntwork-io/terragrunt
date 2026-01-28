@@ -78,6 +78,7 @@ linters:
     govet:
       enable:
         - fieldalignment
+        - printf
         - unusedwrite
     nakedret:
       max-func-lines: 20
