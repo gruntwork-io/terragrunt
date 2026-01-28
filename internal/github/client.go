@@ -72,6 +72,9 @@ func WithGithubComDefaultAuth() GitHubAPIClientOption {
 	}
 }
 
+// getGithubTokenFromEnv retrieves the GitHub token from environment
+// variables using the same logic as the gh cli:
+// https://cli.github.com/manual/gh_help_environment
 func getGithubTokenFromEnv() string {
 	if tok := os.Getenv("GH_TOKEN"); tok != "" {
 		return tok
