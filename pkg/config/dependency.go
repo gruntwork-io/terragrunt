@@ -780,7 +780,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx context.Context, pctx *Parsin
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentUnits = false
 	targetOptions.TerraformCommand = "output"
-	targetOptions.TerraformCliArgs = clihelper.NewIacArgs("output", "-json")
+	targetOptions.TerraformCliArgs = clihelper.NewIacArgs().SetCommand("output").AppendFlag("-json")
 
 	// DownloadDir needs to be the dependency's default download directory
 	// because that's where the dependency's state was created when it was applied.
