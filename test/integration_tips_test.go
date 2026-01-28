@@ -28,7 +28,7 @@ func TestTipDebuggingDocsShownOnError(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.Contains(t, stderr, "Tip: For help troubleshooting errors")
+	assert.Contains(t, stderr, "TIP (debugging-docs): For help troubleshooting errors")
 	assert.Contains(t, stderr, "terragrunt.gruntwork.io/docs/troubleshooting/debugging")
 }
 
@@ -47,7 +47,7 @@ func TestTipDebuggingDocsNotShownWithNoTips(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.NotContains(t, stderr, "Tip: For help troubleshooting errors")
+	assert.NotContains(t, stderr, "TIP (debugging-docs): For help troubleshooting errors")
 }
 
 // TestTipDebuggingDocsNotShownWithNoTipSpecific verifies that the debugging-docs tip
@@ -65,5 +65,5 @@ func TestTipDebuggingDocsNotShownWithNoTipSpecific(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.NotContains(t, stderr, "Tip: For help troubleshooting errors")
+	assert.NotContains(t, stderr, "TIP (debugging-docs): For help troubleshooting errors")
 }
