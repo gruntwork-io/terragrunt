@@ -246,8 +246,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		} else {
 			if client.AccessLoggingBucketName != "" {
 				if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
-					// TODO: Remove lint suppression
-					return nil //nolint:nilerr
+					return err
 				}
 			} else {
 				l.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", bucketName)
@@ -521,8 +520,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	if client.AccessLoggingBucketName != "" {
 		if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
-			// TODO: Remove lint suppression
-			return nil //nolint:nilerr
+			return err
 		}
 	} else {
 		l.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", cfg.Bucket)
