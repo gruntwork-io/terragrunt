@@ -26,7 +26,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-01", "foo")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -45,7 +44,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-01.1", "foo")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -61,7 +59,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-02")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -77,7 +74,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-03")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -93,7 +89,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-04")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -109,7 +104,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-05")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -125,7 +119,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-06")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -138,7 +131,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-07")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -151,7 +143,6 @@ func TestDocsQuickStart(t *testing.T) {
 
 		stepPath := filepath.Join(testFixtureQuickStart, "step-07.1")
 
-		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
 		rootPath := filepath.Join(tmpEnvPath, stepPath)
 
@@ -163,8 +154,6 @@ func TestDocsQuickStart(t *testing.T) {
 func TestStacksWithLocalState(t *testing.T) {
 	t.Parallel()
 
-	// Clean up the test fixture
-	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalState)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalState)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksLocalState)
 	livePath := filepath.Join(rootPath, "live")
@@ -254,7 +243,6 @@ func TestStacksWithLocalStateFileStructure(t *testing.T) {
 	t.Parallel()
 
 	// Test that verifies the exact file structure created by the local state configuration
-	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalState)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalState)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksLocalState)
 	livePath := filepath.Join(rootPath, "live")

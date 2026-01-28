@@ -82,7 +82,6 @@ func TestEngineLocalApply(t *testing.T) {
 func TestEngineOpentofu(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
@@ -103,7 +102,6 @@ func TestEngineOpentofu(t *testing.T) {
 func TestEngineRunAllOpentofu(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
 
@@ -151,7 +149,6 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 func TestEngineDownloadOverHttp(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureRemoteEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRemoteEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRemoteEngine)
 
@@ -269,7 +266,6 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	// create separated directory for new tests
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath = filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
 
@@ -299,7 +295,6 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 func TestEngineOpentofuLatestRunAll(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuLatestRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
@@ -320,7 +315,6 @@ func TestEngineOpentofuLatestRunAll(t *testing.T) {
 func TestEngineDependency(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureEngineDependency)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEngineDependency)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureEngineDependency)
 
@@ -346,7 +340,6 @@ func TestEngineDependency(t *testing.T) {
 func TestEngineLogLevel(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuLatestRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
@@ -366,7 +359,6 @@ func TestEngineTelemetry(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureEngineTraceParent)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEngineTraceParent)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureEngineTraceParent)
 
@@ -383,7 +375,6 @@ func TestEngineTelemetry(t *testing.T) {
 func TestNoEngineFlagDisablesEngine(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
@@ -411,7 +402,6 @@ func TestNoEngineFlagDisablesEngine(t *testing.T) {
 
 //nolint:paralleltest
 func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuEngine)
 
@@ -441,7 +431,6 @@ func TestNoEngineFlagWithExperimentFlag(t *testing.T) {
 func TestNoEngineFlagWithRunAll(t *testing.T) {
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
 
@@ -480,7 +469,6 @@ func setupEngineCache(t *testing.T) (string, string) {
 	cacheDir := helpers.TmpDirWOSymlinks(t)
 	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
 
-	helpers.CleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOpenTofuRunAll)
 
@@ -492,7 +480,6 @@ func setupLocalEngine(t *testing.T) string {
 
 	t.Setenv(envVarExperimental, "1")
 
-	helpers.CleanupTerraformFolder(t, testFixtureLocalEngine)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalEngine)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalEngine)
 

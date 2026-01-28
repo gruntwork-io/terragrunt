@@ -47,7 +47,6 @@ func TestTerragruntParallelism(t *testing.T) {
 
 //nolint:paralleltest
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
@@ -90,7 +89,6 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")

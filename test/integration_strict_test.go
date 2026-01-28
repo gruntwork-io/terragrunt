@@ -19,8 +19,6 @@ const (
 //
 //nolint:paralleltest,tparallel
 func TestRootTerragruntHCLStrictMode(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
-
 	testCases := []struct {
 		expectedError  error
 		name           string
@@ -75,8 +73,6 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 //
 //nolint:paralleltest,tparallel
 func TestBareIncludeStrictMode(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureStrictBareInclude)
-
 	testCases := []struct {
 		expectedError error
 		name          string

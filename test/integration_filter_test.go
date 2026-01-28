@@ -134,8 +134,6 @@ func TestFilterFlagWithFind(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, workingDir)
-
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -198,8 +196,6 @@ func TestFilterFlagWithFindJSON(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, workingDir)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --json --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -295,8 +291,6 @@ func TestFilterFlagWithList(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, workingDir)
-
 			cmd := "terragrunt list --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -358,8 +352,6 @@ func TestFilterFlagWithListLong(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
-
 			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --long --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -418,8 +410,6 @@ func TestFilterFlagWithListTree(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
 			cmd := "terragrunt list --no-color --working-dir " + tc.workingDir + " --tree --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -490,8 +480,6 @@ func TestFilterFlagWithDAG(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, workingDir)
-
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter " + tc.filterQuery
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
@@ -542,8 +530,6 @@ func TestFilterFlagMultipleFilters(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, workingDir)
 
 			// Build command with multiple --filter flags
 			cmd := "terragrunt find --no-color --working-dir " + workingDir
@@ -603,8 +589,6 @@ func TestFilterFlagEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, workingDir)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -696,8 +680,6 @@ func TestFilterFlagWithSource(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, workingDir)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -833,9 +815,6 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Clean up terraform folders before running
-	helpers.CleanupTerraformFolder(t, tmpDir)
-
 	testCases := []struct {
 		name                  string
 		filterQuery           string
@@ -860,7 +839,6 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			helpers.CleanupTerraformFolder(t, tmpDir)
 
 			cmd := "terragrunt find --no-color --working-dir " + tmpDir
 			if tc.useFilterAffectedFlag {
@@ -1770,8 +1748,6 @@ func TestFiltersFileFlag(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterBasic)
 			tmpDir := filepath.Join(tmpEnvPath, testFixtureFilterBasic)
 
-			helpers.CleanupTerraformFolder(t, tmpDir)
-
 			// Setup filter file if needed
 			var filterFilePath string
 			if tc.setupFile != nil {
@@ -1823,7 +1799,6 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	t.Run("single unit filter", func(t *testing.T) {
 		t.Parallel()
 
-		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
 
@@ -1884,7 +1859,6 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	t.Run("multiple units filter", func(t *testing.T) {
 		t.Parallel()
 
-		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
 
@@ -1950,7 +1924,6 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	t.Run("destroy without graph filter", func(t *testing.T) {
 		t.Parallel()
 
-		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
 
@@ -2006,7 +1979,6 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 	t.Run("destroy with graph filter", func(t *testing.T) {
 		t.Parallel()
 
-		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsingDestroy)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsingDestroy)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsingDestroy)
 
@@ -2080,7 +2052,6 @@ func TestFilterFlagAutoEnablesAll(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFilterDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterDAG)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureFilterDAG)
 
@@ -2346,8 +2317,6 @@ func TestFilterExcludeByDefault(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludeByDefault)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureExcludeByDefault)
 
-	helpers.CleanupTerraformFolder(t, rootPath)
-
 	cmd := "terragrunt run --all --no-color --working-dir " + rootPath + " --filter '!_stacks | type=stack' -- plan"
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
@@ -2414,8 +2383,6 @@ func TestFilterFlagWithMarkAsRead(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			helpers.CleanupTerraformFolder(t, workingDir)
 
 			cmd := "terragrunt find --no-color --working-dir " + workingDir + " --filter '" + tc.filterQuery + "'"
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)

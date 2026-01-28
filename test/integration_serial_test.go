@@ -35,7 +35,6 @@ import (
 
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
-	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheFilesystemMirror)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheFilesystemMirror)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheFilesystemMirror)
 
@@ -126,7 +125,6 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
-	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheNetworkMirror)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheNetworkMirror)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheNetworkMirror)
 
@@ -241,7 +239,6 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 }
 
 func TestTerragruntDownloadDir(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureLocalRelativeDownloadPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 
 	/* we have 2 terragrunt dirs here. One of them doesn't set the download_dir in the config,
@@ -348,7 +345,6 @@ func TestExtraArgumentsWithRegion(t *testing.T) {
 func TestPreserveEnvVarApplyAll(t *testing.T) {
 	t.Setenv("TF_VAR_seed", "from the env")
 
-	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "apply-all-envvar")
 
@@ -395,7 +391,6 @@ func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 
 func TestTerragruntSourceMapEnvArg(t *testing.T) {
 	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
-	helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
 
@@ -418,7 +413,6 @@ func TestTerragruntLogLevelEnvVarOverridesDefault(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
 	t.Setenv("TG_LOG_LEVEL", "debug")
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -439,7 +433,6 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
 	t.Setenv("TG_LOG_LEVEL", "unparsable")
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -456,7 +449,6 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
@@ -473,7 +465,6 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
@@ -490,7 +481,6 @@ func TestTerragruntStackProduceTelemetryTraces(t *testing.T) {
 func TestTerragruntFindProduceTelemetryTraces(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic)
 
@@ -507,7 +497,6 @@ func TestTerragruntFindProduceTelemetryTraces(t *testing.T) {
 func TestTerragruntListProduceTelemetryTraces(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic)
 
@@ -528,7 +517,6 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 
 	t.Setenv("TG_TELEMETRY_METRIC_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
@@ -552,7 +540,6 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
@@ -577,7 +564,6 @@ func TestTerragruntProduceTelemetryInCaseOfError(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
-	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
@@ -592,7 +578,6 @@ func TestTerragruntProduceTelemetryInCaseOfError(t *testing.T) {
 
 // Since this test launches a large number of terraform processes, which sometimes fails with the message `Failed to write to log, write |1: file already closed`, for stability, we need to run it not parallel.
 func TestTerragruntProviderCache(t *testing.T) {
-	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheDirect)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
@@ -697,7 +682,6 @@ func TestTerragruntProviderCache(t *testing.T) {
 func TestParseTFLog(t *testing.T) {
 	t.Setenv("TF_LOG", "info")
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -718,7 +702,6 @@ func TestParseTFLog(t *testing.T) {
 func TestTerragruntTelemetryPassTraceParent(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTraceParent)
 
@@ -751,7 +734,6 @@ func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", envParentTrace)
 
-	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTraceParent)
 
@@ -779,7 +761,6 @@ func TestTerragruntTelemetryPassTraceParentEnvVariable(t *testing.T) {
 func TestRunnerPoolTelemetry(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureTraceParent)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTraceParent)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureTraceParent)
 
@@ -794,7 +775,6 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation, "**/.tool-versions")
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureVersionInvocation)
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
@@ -821,7 +801,6 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
@@ -851,7 +830,6 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 func TestTerragruntTelemetryTraces(t *testing.T) {
 	t.Setenv("TG_TELEMETRY_TRACE_EXPORTER", "console")
 
-	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput)
 

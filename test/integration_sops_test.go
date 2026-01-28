@@ -32,7 +32,6 @@ const (
 func TestSOPSDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 
@@ -65,7 +64,6 @@ func TestSOPSDecryptedCorrectly(t *testing.T) {
 func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -111,7 +109,6 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 	rootPath, err := filepath.EvalSymlinks(rootPath)
@@ -159,7 +156,6 @@ func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsErrors)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors

@@ -521,7 +521,6 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()
 
 	tmpEnvPath := CopyEnvironment(t, TestFixtureOutDir)
-	CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory

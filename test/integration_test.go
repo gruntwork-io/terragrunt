@@ -147,7 +147,6 @@ func TestCLIFlagHints(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureCLIFlagHints)
 			rootPath := helpers.CopyEnvironment(t, testFixtureCLIFlagHints)
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
@@ -163,7 +162,6 @@ func TestDetailedExitCodeError(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "error")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -190,7 +188,6 @@ func TestRunAllReturnsErrorOnFailure(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "error")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -207,7 +204,6 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -226,7 +222,6 @@ func TestDetailedExitCodeChangesUnit(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 	ctx := t.Context()
@@ -256,7 +251,6 @@ func TestDetailedExitCodeFailOnFirstRun(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 
 	exitCode := tf.NewDetailedExitCodeMap()
@@ -281,7 +275,6 @@ func TestDetailedExitCodeFailOnFirstRunWithStatus(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 
 	exitCode := tf.NewDetailedExitCodeMap()
@@ -306,7 +299,6 @@ func TestDetailedExitCodeFailOnFirstRunAllWithStatus(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "fail-on-first-run-with-status")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 
 	exitCode := tf.NewDetailedExitCodeMap()
@@ -331,7 +323,6 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -353,7 +344,6 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -375,7 +365,6 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 
 	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "runall-retry-after-drift")
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -478,7 +467,6 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -516,7 +504,6 @@ func TestLogCustomFormatOutput(t *testing.T) {
 func TestBufferModuleOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureBufferModuleOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureBufferModuleOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureBufferModuleOutput)
 
@@ -541,7 +528,6 @@ func TestBufferModuleOutput(t *testing.T) {
 func TestDisableLogging(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -558,7 +544,6 @@ func TestDisableLogging(t *testing.T) {
 func TestLogWithAbsPath(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -578,7 +563,6 @@ func TestLogWithAbsPath(t *testing.T) {
 func TestLogWithRelPath(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogRelPaths)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogRelPaths)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogRelPaths)
 
@@ -620,7 +604,6 @@ func TestLogWithRelPath(t *testing.T) {
 func TestLogFormatPrettyOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -645,7 +628,6 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 func TestLogStdoutLevel(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogStdoutLevel)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStdoutLevel)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogStdoutLevel)
 
@@ -667,7 +649,6 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 		t.Run("tc-flag-"+flag, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -696,7 +677,6 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 func TestLogRawModuleOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLogFormatter)
 
@@ -748,7 +728,6 @@ func TestHclvalidateValidConfig(t *testing.T) {
 
 	t.Run("using --all", func(t *testing.T) {
 		t.Parallel()
-		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
@@ -762,7 +741,6 @@ func TestHclvalidateValidConfig(t *testing.T) {
 	t.Run("validate each individually", func(t *testing.T) {
 		t.Parallel()
 
-		helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 		rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate, "valid")
 
@@ -790,7 +768,6 @@ func TestHclvalidateValidConfig(t *testing.T) {
 func TestHclvalidateDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
@@ -897,7 +874,6 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
@@ -915,7 +891,6 @@ func TestHclvalidateReturnsNonZeroExitCodeOnError(t *testing.T) {
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclvalidate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclvalidate)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclvalidate)
 
@@ -955,7 +930,6 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheMultiplePlatforms)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheMultiplePlatforms)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheMultiplePlatforms)
 
@@ -1041,7 +1015,6 @@ func TestTerragruntInitOnce(t *testing.T) {
 func TestTerragruntWorksWithSingleJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureConfigSingleJSONPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigSingleJSONPath)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureConfigSingleJSONPath)
@@ -1084,7 +1057,6 @@ func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFailedTerraform)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailedTerraform)
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, "fixtures/failure")
@@ -1168,7 +1140,6 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 
 	disjointEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureDisjoint)
 
-	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
 	helpers.RunTerragrunt(
 		t,
 		"terragrunt run --all  --log-level info --non-interactive --working-dir "+disjointEnvironmentPath+" -- plan -out=plan.tfplan",
@@ -1201,8 +1172,6 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 			filepath.Join(disjointSymlinksEnvironmentPath, "c"),
 		),
 	)
-
-	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
 
 	// perform the first initialization
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
@@ -1251,9 +1220,8 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := testFixtureNotExistingSource
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -1400,7 +1368,6 @@ func validateInputs(t *testing.T, outputs map[string]helpers.TerraformOutput) {
 func TestInputsPassedThroughCorrectly(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -1419,7 +1386,6 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 func TestRunCommand(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInputs)
 
@@ -1438,9 +1404,8 @@ func TestRunCommand(t *testing.T) {
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := testFixtureMissingDependence
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMissingDependence)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureMissingDependence)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -1460,17 +1425,6 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	excludedModule := "module-a"
 	includedModule := "module-b"
-
-	modules := []string{
-		excludedModule,
-		includedModule,
-	}
-
-	helpers.CleanupTerraformFolder(t, testFixtureExternalDependence)
-
-	for _, module := range modules {
-		helpers.CleanupTerraformFolder(t, filepath.Join(testFixtureExternalDependence, module))
-	}
 
 	var (
 		applyAllStdout bytes.Buffer
@@ -1596,7 +1550,6 @@ func TestApplyAllSkipFalse(t *testing.T) {
 func TestDependencyOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 
@@ -1620,7 +1573,6 @@ func TestDependencyOutput(t *testing.T) {
 func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 	app3Path := filepath.Join(rootPath, "app3")
@@ -1640,7 +1592,6 @@ func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 func TestDependencyOutputSkipOutputs(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 	emptyPath := filepath.Join(rootPath, "empty")
@@ -1660,7 +1611,6 @@ func TestDependencyOutputSkipOutputs(t *testing.T) {
 func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs")
 	dependent3Path := filepath.Join(rootPath, "dependent3")
@@ -1711,7 +1661,6 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 func TestDependencyMockOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs")
 	dependent1Path := filepath.Join(rootPath, "dependent1")
@@ -1763,7 +1712,6 @@ func TestDependencyMockOutput(t *testing.T) {
 func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
 	parentPath := filepath.Join(rootPath, "parent")
@@ -1795,7 +1743,6 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
 	parentPath := filepath.Join(rootPath, "parent")
@@ -1826,7 +1773,6 @@ func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
 	parentPath := filepath.Join(rootPath, "parent")
@@ -1871,7 +1817,6 @@ func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
 func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
 	parentPath := filepath.Join(rootPath, "parent")
@@ -1905,7 +1850,6 @@ func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
 func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
 	parentPath := filepath.Join(rootPath, "parent")
@@ -1947,7 +1891,6 @@ func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-default", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -1966,7 +1909,6 @@ func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-false", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -1985,7 +1927,6 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -2019,7 +1960,6 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -2053,7 +1993,6 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-no-merge", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -2073,7 +2012,6 @@ func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-shallow", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -2109,7 +2047,6 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
 	childPath := filepath.Join(rootPath, "child")
@@ -2145,7 +2082,6 @@ func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 func TestDependencyMockOutputRestricted(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "mock-outputs")
 	dependent2Path := filepath.Join(rootPath, "dependent2")
@@ -2191,8 +2127,6 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 func TestDependencyOutputTypeConversion(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 
 	inputsPath := filepath.Join(tmpEnvPath, testFixtureInputs)
@@ -2242,10 +2176,8 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 func TestOrderedMapOutputRegressions1102(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureGetOutput, "regression-1102")
-
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1102")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2277,8 +2209,6 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 // Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
 func TestDependencyOutputCycleHandling(t *testing.T) {
 	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 
 	testCases := []string{
 		"aa",
@@ -2317,7 +2247,6 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 func TestDependencyOutputRegression854(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-854", "root")
 
@@ -2334,7 +2263,6 @@ func TestDependencyOutputRegression854(t *testing.T) {
 func TestDependencyOutputCachePathBug(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "localstate", "live")
 
@@ -2354,7 +2282,6 @@ func TestDependencyOutputCachePathBug(t *testing.T) {
 func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1124", "live")
 	modulePath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1124", "modules")
@@ -2375,7 +2302,6 @@ func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 func TestRunAllWithSourceFlag(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRunAllSource)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunAllSource)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "live")
 	modulePath := filepath.Join(tmpEnvPath, testFixtureRunAllSource, "modules-marked")
@@ -2432,7 +2358,6 @@ func TestRunAllWithSourceFlag(t *testing.T) {
 func TestDependencyOutputWithHooks(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "regression-1273")
 	depPath := filepath.Join(rootPath, "dep")
@@ -2458,7 +2383,6 @@ func TestDeepDependencyOutputWithMock(t *testing.T) {
 	// "output" instead of the original one.
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "nested-mocks", "live")
 
@@ -2468,7 +2392,6 @@ func TestDeepDependencyOutputWithMock(t *testing.T) {
 
 func TestDataDir(t *testing.T) {
 	// Cannot be run in parallel with other tests as it modifies process' environment.
-	helpers.CleanupTerraformFolder(t, testFixtureDirsPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDirsPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDirsPath)
 
@@ -2494,8 +2417,6 @@ func TestDataDir(t *testing.T) {
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	helpers.CleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 
 	inputsPath := filepath.Join(tmpEnvPath, testFixtureInputs)
@@ -2543,7 +2464,6 @@ func TestReadTerragruntConfigWithDependency(t *testing.T) {
 func TestReadTerragruntConfigFromDependency(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
 	tmpEnvPath := helpers.CopyEnvironment(t, ".")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "from_dependency")
 
@@ -2575,8 +2495,8 @@ func TestReadTerragruntConfigFromDependency(t *testing.T) {
 func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "with_default")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_default")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2598,8 +2518,8 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "with_original_terragrunt_dir")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_original_terragrunt_dir")
 
 	rootPathAbs, err := filepath.Abs(rootPath)
 	require.NoError(t, err)
@@ -2687,8 +2607,8 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 func TestReadTerragruntConfigFull(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "full")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "full")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2872,9 +2792,8 @@ func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "skip")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "skip")
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
@@ -2882,9 +2801,8 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
@@ -2895,9 +2813,8 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 func TestTerragruntGenerateAttr(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-attr")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-attr")
 
 	text := "test-terragrunt-generate-attr-hello-world"
 
@@ -2909,9 +2826,8 @@ func TestTerragruntGenerateAttr(t *testing.T) {
 func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite_terragrunt")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
@@ -2922,9 +2838,8 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_error")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_error")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2940,9 +2855,8 @@ func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "nested", "child_inherit")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "nested", "child_inherit")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it inherited the config
@@ -2955,9 +2869,8 @@ func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "nested", "child_overwrite")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "nested", "child_overwrite")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as bar.tfstate, that means it overwrite the parent config
@@ -2970,9 +2883,8 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "disable-signature")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "disable-signature")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 
@@ -2994,9 +2906,8 @@ func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_error")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_error")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3014,9 +2925,8 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_includes_error")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_includes_error")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3034,9 +2944,8 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_pair_error")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_pair_error")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3055,9 +2964,8 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 func TestTerragruntGenerateBlockDisable(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "disable")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "disable")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3069,9 +2977,8 @@ func TestTerragruntGenerateBlockDisable(t *testing.T) {
 func TestTerragruntGenerateBlockEnable(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "enable")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "enable")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3083,10 +2990,8 @@ func TestTerragruntGenerateBlockEnable(t *testing.T) {
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "base")
-
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "base")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
@@ -3096,10 +3001,8 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "overwrite")
-
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "overwrite")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
@@ -3110,9 +3013,8 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "error")
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "error")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3129,10 +3031,8 @@ func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "skip")
-
-	helpers.CleanupTerraformFolder(t, generateTestCase)
-	helpers.CleanupTerragruntFolder(t, generateTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "skip")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
 	assert.False(t, helpers.FileIsInFolder(t, "foo.tfstate", generateTestCase))
@@ -3259,7 +3159,6 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "multiple-apps")
 	appPath := filepath.Join(rootPath, "app1")
@@ -3290,12 +3189,13 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureIamRolesMultipleModules)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIamRolesMultipleModules)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureIamRolesMultipleModules)
 
 	// Invoke terragrunt and verify used IAM roles for each dependency
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt init --debugreset --log-level debug --working-dir "+testFixtureIamRolesMultipleModules,
+		"terragrunt init --debugreset --log-level debug --working-dir "+rootPath,
 	)
 
 	// Taking all outputs in one string
@@ -3325,8 +3225,8 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 //
 //nolint:paralleltest
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
-	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
-	helpers.CleanupTerragruntFolder(t, fixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/partial-parse")
+	fixturePath := filepath.Join(tmpEnvPath, "fixtures/partial-parse/terragrunt-version-constraint")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3472,7 +3372,6 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureStdout)
 
 	stdout := bytes.Buffer{}
@@ -3497,7 +3396,6 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownload)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureAutoInit)
 
 	terragruntHcl := filepath.Join(testPath, "terragrunt.hcl")
@@ -3534,7 +3432,6 @@ func TestNoColor(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColor)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoColor)
 
 	stdout := bytes.Buffer{}
@@ -3552,7 +3449,6 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := testFixtureIncludeParent
-	helpers.CleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
 	rootPath := filepath.Join(tmpEnvPath, fixturePath)
 
@@ -3562,10 +3458,8 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 func TestInitFailureModulePrefix(t *testing.T) {
 	t.Parallel()
 
-	initTestCase := testFixtureInitError
-
-	helpers.CleanupTerraformFolder(t, initTestCase)
-	helpers.CleanupTerragruntFolder(t, initTestCase)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
+	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3581,7 +3475,6 @@ func TestInitFailureModulePrefix(t *testing.T) {
 func TestDependencyOutputModulePrefix(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "integration")
 
@@ -3610,9 +3503,6 @@ func TestExplainingMissingCredentials(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
 	initTestCase := filepath.Join(tmpEnvPath, testFixtureInitError)
-
-	helpers.CleanupTerraformFolder(t, initTestCase)
-	helpers.CleanupTerragruntFolder(t, initTestCase)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3664,7 +3554,6 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 func TestHclFmtDiff(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtDiff)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtDiff)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtDiff)
 
@@ -3688,7 +3577,6 @@ func TestHclFmtDiff(t *testing.T) {
 func TestHclFmtStdin(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureHclfmtStdin)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureHclfmtStdin)
 
@@ -3706,7 +3594,6 @@ func TestHclFmtStdin(t *testing.T) {
 func TestInitSkipCache(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureInitCache)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitCache)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureInitCache, "app")
 
@@ -3751,7 +3638,6 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
-	helpers.CleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -3768,7 +3654,6 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledPath)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledPath)
 
 	stdout := bytes.Buffer{}
@@ -3783,7 +3668,6 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledModule)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app")
 
 	_, output, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+testPath)
@@ -3814,7 +3698,6 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureEmptyState)
 
 	helpers.CreateEmptyStateFile(t, testPath)
@@ -3826,7 +3709,6 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCommandsThatNeedInput)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureCommandsThatNeedInput)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --tf-forward-stdout --working-dir "+testPath)
@@ -3838,7 +3720,6 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSkipDependencies)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSkipDependencies)
 
 	stdout := bytes.Buffer{}
@@ -3866,7 +3747,6 @@ func TestTerragruntInfoError(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInfoError)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureInfoError, "module-b")
 
 	stdout := bytes.Buffer{}
@@ -3889,7 +3769,6 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 
@@ -3937,7 +3816,6 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
@@ -3970,7 +3848,6 @@ func TestRunAllApplyWithCustomPlanFileName(t *testing.T) {
 
 	// Reuse existing fixture
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
 
@@ -4024,7 +3901,6 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-			helpers.CleanupTerraformFolder(t, tmpEnvPath)
 			testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 			// run plan with output directory
@@ -4081,7 +3957,6 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	// create temporary directory for plan files
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
@@ -4120,7 +3995,6 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	// create temporary directory for plan files
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	dependencyPath := filepath.Join(tmpEnvPath, testFixtureOutDir, "dependency")
@@ -4148,7 +4022,6 @@ func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --log-format=json --non-interactive --working-dir "+testPath)
@@ -4255,7 +4128,6 @@ func TestErrorMessageIncludeInOutput(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorPrint)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureErrorPrint)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply  --non-interactive --working-dir "+testPath+" --tf-path "+testPath+"/custom-tf-script.sh --log-level trace")
@@ -4268,7 +4140,6 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureInitError)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --log-format=json --non-interactive --working-dir "+testPath)
@@ -4299,7 +4170,6 @@ func TestLogStreaming(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStreaming)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureLogStreaming)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" apply")
@@ -4349,7 +4219,6 @@ func TestLogFormatBare(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureEmptyState)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --log-format=bare --no-color --non-interactive --working-dir "+testPath)
@@ -4369,7 +4238,6 @@ func TestTF110EphemeralVars(t *testing.T) {
 	}
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEphemeralInputs)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureEphemeralInputs)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+testPath)
@@ -4388,7 +4256,6 @@ func TestTfPath(t *testing.T) {
 
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
 	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
@@ -4412,7 +4279,6 @@ func TestTfPathOverridesConfig(t *testing.T) {
 	t.Parallel()
 	// Test that the terragrunt run version command correctly identifies and uses
 	// the terraform_binary path configuration if present
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathBasic)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathBasic)
 	workingDir := filepath.Join(rootPath, testFixtureTfPathBasic)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
@@ -4434,7 +4300,6 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 		return
 	}
 
-	helpers.CleanupTerraformFolder(t, testFixtureTfPathTofuTerraform)
 	rootPath := helpers.CopyEnvironment(t, testFixtureTfPathTofuTerraform)
 	workingDir := filepath.Join(rootPath, testFixtureTfPathTofuTerraform)
 	workingDir, err := filepath.EvalSymlinks(workingDir)
@@ -4487,7 +4352,6 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMixedConfig)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureMixedConfig)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+testPath+" -- apply")
@@ -4500,7 +4364,6 @@ func TestMixedStackConfigIgnored(t *testing.T) {
 func TestNoDefaultForwardingUnknownCommand(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 
@@ -4676,7 +4539,6 @@ func TestRunAllDetectsHiddenDirectories(t *testing.T) {
 	t.Parallel()
 	rootPath := helpers.CopyEnvironment(t, hiddenRunAllFixturePath, ".cloud/**")
 	modulePath := filepath.Join(rootPath, hiddenRunAllFixturePath)
-	helpers.CleanupTerraformFolder(t, modulePath)
 
 	reportFile := filepath.Join(modulePath, helpers.ReportFile)
 
@@ -4707,7 +4569,6 @@ func TestNoColorDependency(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoColorDependency)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureNoColorDependency)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run plan -no-color --tf-forward-stdout --working-dir "+testPath)

@@ -20,7 +20,6 @@ func TestTerragruntSourceMap(t *testing.T) {
 	t.Parallel()
 
 	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
-	helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
 	sourceMapArgs := fmt.Sprintf(
@@ -75,7 +74,6 @@ func TestTerragruntSourceMap(t *testing.T) {
 func TestGetTerragruntSourceHCL(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetTerragruntSourceHcl)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetTerragruntSourceHcl)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetTerragruntSourceHcl)
 	terraformSource := "" // get_terragrunt_source_cli_flag() only returns the source when it is passed in via the CLI
@@ -100,7 +98,6 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 func TestGetTerragruntSourceCLI(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGetTerragruntSourceCli)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetTerragruntSourceCli)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureGetTerragruntSourceCli)
 	terraformSource := "terraform_config_cli"

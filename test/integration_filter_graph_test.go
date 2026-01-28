@@ -74,7 +74,6 @@ func TestFilterFlagWithFindGraphExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
@@ -144,7 +143,6 @@ func TestFilterFlagWithFindGraphExpressionsJSON(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
@@ -212,7 +210,6 @@ func TestFilterFlagWithRunGraphExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureFilterGraphDAG)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFilterGraphDAG)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureFilterGraphDAG)
 
@@ -320,7 +317,6 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, testFixtureRunFilter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
 			workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
 
@@ -354,7 +350,6 @@ func TestFilterFlagWithRunAllGraphExpressions(t *testing.T) {
 func TestFilterFlagWithRunAllGraphExpressionsVerifyExecutionOrder(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureRunFilter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunFilter)
 	workingDir := filepath.Join(tmpEnvPath, testFixtureRunFilter)
 

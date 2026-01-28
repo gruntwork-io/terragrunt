@@ -21,7 +21,6 @@ const (
 func TestAwsSopsDecryptedKMSCorrectly(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureSopsKMS)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsKMS)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureSopsKMS)
 

@@ -25,8 +25,6 @@ func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	helpers.CleanupTerraformFolder(t, testPath)
-
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+testPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors

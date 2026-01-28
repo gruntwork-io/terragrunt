@@ -137,7 +137,6 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testScaffoldWithRootHCL)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testScaffoldWithRootHCL)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(

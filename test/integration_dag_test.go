@@ -25,8 +25,8 @@ func TestDagGraphFlagsRegistration(t *testing.T) {
 func TestIncludeExternalInDagGraphCmd(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGraphDAG)
-	workDir := filepath.Join(testFixtureGraphDAG, "region-1")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraphDAG)
+	workDir := filepath.Join(tmpEnvPath, testFixtureGraphDAG, "region-1")
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
@@ -40,8 +40,8 @@ func TestIncludeExternalInDagGraphCmd(t *testing.T) {
 func TestIncludeExternalInDagGraphCmdWithList(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGraphDAG)
-	workDir := filepath.Join(testFixtureGraphDAG, "region-1")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraphDAG)
+	workDir := filepath.Join(tmpEnvPath, testFixtureGraphDAG, "region-1")
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
