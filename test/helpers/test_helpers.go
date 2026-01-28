@@ -292,36 +292,57 @@ func determineToolName(command string) string {
 }
 
 // FindCacheWorkingDir finds the working directory inside the .terragrunt-cache folder.
-// The cache layout is <root>/.terragrunt-cache/<hash>/<module>/..., so we return the first
-// two-level directory path we find.
+// The cache layout is <root>/.terragrunt-cache/<hash>/<module>/..., so we expect exactly
+// one directory at each level. Fails the test if the structure is unexpected.
 func FindCacheWorkingDir(t *testing.T, rootDir string) string {
 	t.Helper()
 
+	require.NotEmpty(t, rootDir, "rootDir path cannot be empty")
+
 	cacheDir := filepath.Join(rootDir, ".terragrunt-cache")
-	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
-		return ""
-	}
+	require.DirExists(t, cacheDir, ".terragrunt-cache directory should exist in %s", rootDir)
 
 	firstLevel, err := os.ReadDir(cacheDir)
 	require.NoError(t, err)
 
-	for _, first := range firstLevel {
-		if !first.IsDir() {
-			continue
-		}
-
-		firstPath := filepath.Join(cacheDir, first.Name())
-		secondLevel, err := os.ReadDir(firstPath)
-		require.NoError(t, err)
-
-		for _, second := range secondLevel {
-			if second.IsDir() {
-				return filepath.Join(firstPath, second.Name())
-			}
+	// Filter to only directories
+	var firstLevelDirs []os.DirEntry
+	for _, entry := range firstLevel {
+		if entry.IsDir() {
+			firstLevelDirs = append(firstLevelDirs, entry)
 		}
 	}
 
-	return ""
+	require.Len(t, firstLevelDirs, 1,
+		"expected exactly one hash directory in %s, found %d: %v",
+		cacheDir, len(firstLevelDirs), dirNames(firstLevelDirs))
+
+	firstPath := filepath.Join(cacheDir, firstLevelDirs[0].Name())
+	secondLevel, err := os.ReadDir(firstPath)
+	require.NoError(t, err)
+
+	// Filter to only directories
+	var secondLevelDirs []os.DirEntry
+	for _, entry := range secondLevel {
+		if entry.IsDir() {
+			secondLevelDirs = append(secondLevelDirs, entry)
+		}
+	}
+
+	require.Len(t, secondLevelDirs, 1,
+		"expected exactly one module directory in %s, found %d: %v",
+		firstPath, len(secondLevelDirs), dirNames(secondLevelDirs))
+
+	return filepath.Join(firstPath, secondLevelDirs[0].Name())
+}
+
+// dirNames extracts directory names from DirEntry slice for error messages.
+func dirNames(entries []os.DirEntry) []string {
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	return names
 }
 
 // FileExistsInCache checks if a file exists within the cache directory structure.
@@ -329,10 +350,6 @@ func FileExistsInCache(t *testing.T, rootDir, filename string) bool {
 	t.Helper()
 
 	cacheWorkingDir := FindCacheWorkingDir(t, rootDir)
-	if cacheWorkingDir == "" {
-		return false
-	}
-
 	filePath := filepath.Join(cacheWorkingDir, filename)
 	_, err := os.Stat(filePath)
 
