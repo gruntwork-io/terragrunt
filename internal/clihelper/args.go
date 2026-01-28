@@ -272,9 +272,9 @@ func (a *IacArgs) InsertArgument(pos int, arg string) *IacArgs {
 	return a
 }
 
-// AppendSubCommand adds a subcommand and returns self for chaining.
-func (a *IacArgs) AppendSubCommand(sub string) *IacArgs {
-	a.SubCommand = append(a.SubCommand, sub)
+// AppendSubCommand adds subcommand(s) and returns self for chaining.
+func (a *IacArgs) AppendSubCommand(subs ...string) *IacArgs {
+	a.SubCommand = append(a.SubCommand, subs...)
 
 	return a
 }
