@@ -28,20 +28,22 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestGithubAuthPickupOrder(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
-
-		w.Header().Set("Content-Type", "application/json")
-		response := `{
-			"tag_name": "v1.2.3",
-			"name": "Release v1.2.3",
-			"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
-		}`
-		fmt.Fprint(w, response)
-	}))
-	defer server.Close()
 
 	t.Run("prefer GH_TOKEN", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
+
+			w.Header().Set("Content-Type", "application/json")
+			response := `{
+				"tag_name": "v1.2.3",
+				"name": "Release v1.2.3",
+				"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
+			}`
+			_, err := fmt.Fprint(w, response)
+			require.NoError(t, err)
+		}))
+		defer server.Close()
+
 		t.Setenv("GH_TOKEN", "goodtoken")
 		t.Setenv("GITHUB_TOKEN", "badtoken")
 
@@ -52,6 +54,20 @@ func TestGithubAuthPickupOrder(t *testing.T) {
 	})
 
 	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
+
+			w.Header().Set("Content-Type", "application/json")
+			response := `{
+				"tag_name": "v1.2.3",
+				"name": "Release v1.2.3",
+				"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
+			}`
+			_, err := fmt.Fprint(w, response)
+			require.NoError(t, err)
+		}))
+		defer server.Close()
+
 		t.Setenv("GH_TOKEN", "")
 		t.Setenv("GITHUB_TOKEN", "goodtoken")
 		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
@@ -90,7 +106,8 @@ func TestGetLatestRelease(t *testing.T) {
 			"name": "Release v1.2.3",
 			"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
 		}`
-		fmt.Fprint(w, response)
+		_, err := fmt.Fprint(w, response)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -111,7 +128,8 @@ func TestGetLatestReleaseTag(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		response := `{"tag_name": "v2.0.0"}`
-		fmt.Fprint(w, response)
+		_, err := fmt.Fprint(w, response)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -148,7 +166,8 @@ func TestGetLatestReleaseHTTPError(t *testing.T) {
 	// Create a mock server that returns 404
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, "Not Found")
+		_, err := fmt.Fprint(w, "Not Found")
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -166,7 +185,8 @@ func TestGetLatestReleaseEmptyTag(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		response := `{"tag_name": ""}`
-		fmt.Fprint(w, response)
+		_, err := fmt.Fprint(w, response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -186,7 +206,8 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		response := `{"tag_name": "v1.0.0"}`
-		fmt.Fprint(w, response)
+		_, err := fmt.Fprint(w, response)
+		require.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -274,14 +295,18 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 		if strings.HasSuffix(path, "package.zip") {
 			w.Header().Set("Content-Type", "application/zip")
 			fmt.Fprint(w, "fake-zip-content")
+			return
 		} else if strings.HasSuffix(path, "SHA256SUMS") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-checksum-content")
+			return
 		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-signature-content")
+			return
 		} else {
 			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 	}))
 	defer server.Close()
@@ -318,14 +343,18 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 		if strings.HasSuffix(path, "package.zip") {
 			w.Header().Set("Content-Type", "application/zip")
 			fmt.Fprint(w, "fake-zip-content")
+			return
 		} else if strings.HasSuffix(path, "SHA256SUMS") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-checksum-content")
+			return
 		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-signature-content")
+			return
 		} else {
 			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 	}
 
