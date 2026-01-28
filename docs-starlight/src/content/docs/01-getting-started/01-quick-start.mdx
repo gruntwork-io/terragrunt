@@ -401,26 +401,17 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    ...
 
-   08:57:09.936 ERROR  [bar] Module ./bar has finished with an error
-   08:57:09.936 ERROR  error occurred:
+  If you do not require outputs from your dependency, consider using the dependencies block instead:
+  https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+  
 
-   * ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
+* ./bar/terragrunt.hcl:11,29-39: Unknown variable; There is no variable named "dependency".
 
-     If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
 
-     dependency "foo" {
-         config_path = "../foo"
-
-         mock_outputs = {
-             foo_output = "mock-foo-output"
-         }
-     }
-
-     For more info, see:
-     https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
-
-     If you do not require outputs from your dependency, consider using the dependencies block instead:
-     https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+❯❯ Run Summary  2 units  838ms
+   ────────────────────────────
+   Succeeded    1
+   Failed       1
    ```
 
    Oh no! We got an error. This happens because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependency for use in the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
