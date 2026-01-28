@@ -18,7 +18,7 @@ func NewTips() Tips {
 	return Tips{
 		{
 			Name:    DebuggingDocs,
-			Message: "Tip: For help troubleshooting errors, visit https://terragrunt.gruntwork.io/docs/troubleshooting/debugging",
+			Message: "TIP (" + DebuggingDocs + "): For help troubleshooting errors, visit https://terragrunt.gruntwork.io/docs/troubleshooting/debugging",
 		},
 	}
 }
