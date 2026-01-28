@@ -735,16 +735,16 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 func isBucketErrorRetriable(l log.Logger, err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
-		retriable := apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" || apiErr.ErrorCode() == "InvalidParameter"
+		unrecoverable := apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" || apiErr.ErrorCode() == "InvalidParameter"
 
-		if !retriable {
+		if !unrecoverable {
 			l.Debugf(
 				"Encountered AWS API error '%s' during bucket creation. Assuming it's retriable and will retry.",
 				apiErr.ErrorCode(),
 			)
 		}
 
-		return retriable
+		return unrecoverable
 	}
 
 	l.Debugf(
