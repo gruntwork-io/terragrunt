@@ -27,6 +27,40 @@ func TestNewClient(t *testing.T) {
 	assert.NotNil(t, client)
 }
 
+func TestGithubAuthPickupOrder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer goodtoken", r.Header.Get("Authorization"))
+
+		w.Header().Set("Content-Type", "application/json")
+		response := `{
+			"tag_name": "v1.2.3",
+			"name": "Release v1.2.3",
+			"html_url": "https://github.com/owner/repo/releases/tag/v1.2.3"
+		}`
+		fmt.Fprint(w, response)
+	}))
+	defer server.Close()
+
+	t.Run("prefer GH_TOKEN", func(t *testing.T) {
+		t.Setenv("GH_TOKEN", "goodtoken")
+		t.Setenv("GITHUB_TOKEN", "badtoken")
+
+		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+
+		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
+		require.NoError(t, err)
+	})
+
+	t.Run("use GITHUB_TOKEN", func(t *testing.T) {
+		t.Setenv("GH_TOKEN", "")
+		t.Setenv("GITHUB_TOKEN", "goodtoken")
+		client := github.NewGitHubAPIClient(github.WithBaseURL(server.URL), github.WithGithubComDefaultAuth())
+
+		_, err := client.GetLatestRelease(t.Context(), "owner/repo")
+		require.NoError(t, err)
+	})
+}
+
 func TestNewClientWithOptions(t *testing.T) {
 	t.Parallel()
 
