@@ -1,5 +1,10 @@
-# This file is maintained automatically by "terraform init".
+# This file is maintained automatically by "tofu init".
 # Manual edits may be lost in future updates.
+
+provider "registry.opentofu.org/hashicorp/aws" {
+  version     = "5.23.0"
+  constraints = "5.23.0"
+}
 
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.23.0"
