@@ -300,6 +300,19 @@ terraform {
 }
 ```
 
+If you need to bypass the integration behavior (auto init or passing in variables), you can specify an absolute path to `tflint`, as this integration works by checking the first value in the `execute` array:
+
+```hcl
+# terragrunt.hcl
+
+terraform {
+  before_hook "before_hook" {
+    commands     = ["apply", "plan"]
+    execute      = ["/usr/local/bin/tflint", "some", "args"]
+  }
+}
+```
+
 ### Authentication for tflint rulesets
 
 \<!-- markdownlint-disable MD036 -->
