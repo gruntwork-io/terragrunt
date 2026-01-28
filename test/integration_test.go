@@ -80,7 +80,7 @@ const (
 	testFixtureLogFormatter                   = "fixtures/log/formatter"
 	testFixtureLogStdoutLevel                 = "fixtures/log/levels"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
-	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
+	testFixtureMissingDependence              = "fixtures/missing-dependencies"
 	testFixtureModulePathError                = "fixtures/module-path-in-error"
 	testFixtureNoColor                        = "fixtures/no-color"
 	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
@@ -1405,7 +1405,7 @@ func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMissingDependence)
-	generateTestCase := filepath.Join(tmpEnvPath, testFixtureMissingDependence)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureMissingDependence, "main")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2607,7 +2607,8 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 func TestReadTerragruntConfigFull(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	// This test needs fixtures/terragrunt as a dependency, so we copy "fixtures" directory
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "full")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)

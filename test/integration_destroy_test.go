@@ -19,8 +19,8 @@ import (
 
 const (
 	testFixtureDestroyOrder                 = "fixtures/destroy-order"
-	testFixturePreventDestroyOverride       = "fixtures/prevent-destroy-override/child"
-	testFixturePreventDestroyNotSet         = "fixtures/prevent-destroy-not-set/child"
+	testFixturePreventDestroyOverride       = "fixtures/prevent-destroy-override"
+	testFixturePreventDestroyNotSet         = "fixtures/prevent-destroy-not-set"
 	testFixtureDestroyWarning               = "fixtures/destroy-warning"
 	testFixtureDestroyDependentModule       = "fixtures/destroy-dependent-module"
 	testFixtureDestroyDependentModuleErrors = "fixtures/destroy-dependent-module-errors"
@@ -168,7 +168,7 @@ func TestPreventDestroyOverride(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePreventDestroyOverride)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyOverride)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyOverride, "child")
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
@@ -178,7 +178,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePreventDestroyNotSet)
-	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyNotSet)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyNotSet, "child")
 
 	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
 	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr)
@@ -302,7 +302,7 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalIncludePreventDestroyDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludePreventDestroyDependencies)
 
 	// Populate module paths.

@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	testFixtureDownloadParentPath                     = "fixtures/download"
 	testFixtureLocalDownloadPath                      = "fixtures/download/local"
 	testFixtureCustomLockFile                         = "fixtures/download/custom-lock-file"
 	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
@@ -41,13 +42,13 @@ const (
 	testFixtureLocalIncludePreventDestroyDependencies = "fixtures/download/local-include-with-prevent-destroy-dependencies"
 	testFixtureNotExistingSource                      = "fixtures/download/invalid-path"
 	testFixtureDisableCopyLockFilePath                = "fixtures/download/local-disable-copy-terraform-lock-file"
-	testFixtureIncludeDisableCopyLockFilePath         = "fixtures/download/local-include-disable-copy-lock-file/module-b"
+	testFixtureIncludeDisableCopyLockFilePath         = "fixtures/download/local-include-disable-copy-lock-file"
 )
 
 func TestLocalDownload(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalDownloadPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalDownloadPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
@@ -62,7 +63,7 @@ func TestLocalDownload(t *testing.T) {
 func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisableCopyLockFilePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDisableCopyLockFilePath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
@@ -77,8 +78,8 @@ func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureIncludeDisableCopyLockFilePath)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureIncludeDisableCopyLockFilePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureIncludeDisableCopyLockFilePath, "module-b")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -92,7 +93,7 @@ func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalWithHiddenFolder)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalWithHiddenFolder)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
@@ -104,7 +105,7 @@ func TestLocalDownloadWithHiddenFolder(t *testing.T) {
 func TestLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalWithAllowedHidden)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath, "**/.nonce")
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalWithAllowedHidden)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s/live", rootPath))
@@ -128,7 +129,7 @@ func TestLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 func TestLocalDownloadWithRelativePath(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalRelativeDownloadPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalRelativeDownloadPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
@@ -229,7 +230,7 @@ func TestRemoteDownloadWithRelativePathAndSlashInBranch(t *testing.T) {
 func TestRemoteDownloadOverride(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOverrideDownloadPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureOverrideDownloadPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --working-dir %s --source %s", rootPath, "../hello-world"))
@@ -798,7 +799,7 @@ func TestPreventDestroyApply(t *testing.T) {
 func TestPreventDestroyDependencies(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLocalPreventDestroyDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDownloadParentPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalPreventDestroyDependencies)
 
 	// Populate module paths.
