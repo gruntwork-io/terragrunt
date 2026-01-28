@@ -296,18 +296,22 @@ func TestDownloadReleaseAssetsGitHubRelease(t *testing.T) {
 			w.Header().Set("Content-Type", "application/zip")
 			fmt.Fprint(w, "fake-zip-content")
 			return
-		} else if strings.HasSuffix(path, "SHA256SUMS") {
+		}
+
+		if strings.HasSuffix(path, "SHA256SUMS") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-checksum-content")
 			return
-		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
+		}
+
+		if strings.HasSuffix(path, "SHA256SUMS.sig") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-signature-content")
 			return
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			return
 		}
+
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}))
 	defer server.Close()
 
@@ -340,22 +344,27 @@ func TestDownloadReleaseAssetsGitHubReleaseUsesToken(t *testing.T) {
 	doResp := func(w http.ResponseWriter, r *http.Request) {
 		// Serve different content based on the requested file
 		path := r.URL.Path
+
 		if strings.HasSuffix(path, "package.zip") {
 			w.Header().Set("Content-Type", "application/zip")
 			fmt.Fprint(w, "fake-zip-content")
 			return
-		} else if strings.HasSuffix(path, "SHA256SUMS") {
+		}
+
+		if strings.HasSuffix(path, "SHA256SUMS") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-checksum-content")
 			return
-		} else if strings.HasSuffix(path, "SHA256SUMS.sig") {
+		}
+
+		if strings.HasSuffix(path, "SHA256SUMS.sig") {
 			w.Header().Set("Content-Type", "text/plain")
 			fmt.Fprint(w, "fake-signature-content")
 			return
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			return
 		}
+
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
 	// Use direct URL approach for testing since mock servers are complex to set up for GitHub releases format
