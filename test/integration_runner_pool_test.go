@@ -268,12 +268,12 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all --non-interactive "+
-			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.85.0 "+
+			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.99.0 "+
 			"--working-dir "+testPath+" -- apply ",
 	)
 	require.NoError(t, err)
 	// Verify that source map values are used
-	require.Contains(t, stderr, "configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+	require.Contains(t, stderr, "configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.99.0")
 }
 
 // TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
