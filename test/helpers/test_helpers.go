@@ -307,6 +307,7 @@ func FindCacheWorkingDir(t *testing.T, rootDir string) string {
 
 	// Filter to only directories
 	var firstLevelDirs []os.DirEntry
+
 	for _, entry := range firstLevel {
 		if entry.IsDir() {
 			firstLevelDirs = append(firstLevelDirs, entry)
@@ -323,6 +324,7 @@ func FindCacheWorkingDir(t *testing.T, rootDir string) string {
 
 	// Filter to only directories
 	var secondLevelDirs []os.DirEntry
+
 	for _, entry := range secondLevel {
 		if entry.IsDir() {
 			secondLevelDirs = append(secondLevelDirs, entry)
@@ -342,6 +344,7 @@ func dirNames(entries []os.DirEntry) []string {
 	for i, e := range entries {
 		names[i] = e.Name()
 	}
+
 	return names
 }
 
