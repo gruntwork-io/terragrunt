@@ -10,9 +10,6 @@ const (
 	tailMinArgsLen = 2
 	BuiltinCmdSep  = "--"
 
-	// minFlagValuePairLen is the minimum number of elements needed for a space-separated flag-value pair (e.g., "-var", "foo=bar")
-	minFlagValuePairLen = 2
-
 	// minFlagLen is the minimum length for a valid flag (e.g., "-x" has length 2)
 	minFlagLen = 2
 )
@@ -39,10 +36,8 @@ func (args Args) String() string {
 
 // Split splits `args` into two slices separated by `sep`.
 func (args Args) Split(sep string) (Args, Args) {
-	for i := range args {
-		if args[i] == sep {
-			return args[:i], args[i+1:]
-		}
+	if i := slices.Index(args, sep); i >= 0 {
+		return args[:i], args[i+1:]
 	}
 
 	return args, nil
@@ -85,24 +80,14 @@ func (args Args) Tail() Args {
 		return []string{}
 	}
 
-	tail := []string((args)[1:])
-	ret := make([]string, len(tail))
-	copy(ret, tail)
-
-	return ret
+	return slices.Clone(args[1:])
 }
 
 // Remove returns `args` with the `name` element removed.
 func (args Args) Remove(name string) Args {
-	result := make([]string, 0, len(args))
-
-	for _, arg := range args {
-		if arg != name {
-			result = append(result, arg)
-		}
-	}
-
-	return result
+	return slices.DeleteFunc(slices.Clone(args), func(arg string) bool {
+		return arg == name
+	})
 }
 
 // Len returns the length of the wrapped slice
@@ -117,10 +102,7 @@ func (args Args) Present() bool {
 
 // Slice returns a copy of the internal slice
 func (args Args) Slice() []string {
-	ret := make([]string, len(args))
-	copy(ret, args)
-
-	return ret
+	return slices.Clone(args)
 }
 
 // Normalize formats the arguments according to the given actions.
@@ -129,9 +111,9 @@ func (args Args) Slice() []string {
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing single dashes to double dashes
 func (args Args) Normalize(acts ...NormalizeActsType) Args {
-	strArgs := make(Args, 0, len(args.Slice()))
+	result := make(Args, 0, len(args))
 
-	for _, arg := range args.Slice() {
+	for _, arg := range args {
 		for _, act := range acts {
 			switch act {
 			case SingleDashFlag:
@@ -145,10 +127,10 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 			}
 		}
 
-		strArgs = append(strArgs, arg)
+		result = append(result, arg)
 	}
 
-	return strArgs
+	return result
 }
 
 // CommandNameN returns the nth argument from `args` that starts without a dash `-`.
@@ -418,15 +400,9 @@ func (a *IacArgs) hasFlagWithValue(flag, value string) bool {
 		return true
 	}
 
-	if len(a.Flags) < minFlagValuePairLen {
-		return false
-	}
-
-	// Check space-separated format
-	for i := 0; i < len(a.Flags)-1; i++ {
-		if a.Flags[i] == flag && a.Flags[i+1] == value {
-			return true
-		}
+	// Check space-separated format: find flag and verify next element is value
+	if i := slices.Index(a.Flags, flag); i >= 0 && i+1 < len(a.Flags) {
+		return a.Flags[i+1] == value
 	}
 
 	return false
