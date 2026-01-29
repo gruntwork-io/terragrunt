@@ -518,43 +518,40 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// Merge command field from parsed args
-	opts.mergeCommand(parsed)
+	// Merge command and subcommands from parsed args
+	opts.mergeCommandAndSubCommand(parsed)
 
-	// Subcommands: replace or append
-	if len(parsed.SubCommand) > 0 {
-		// For "providers lock", if we insert "providers mirror", we want "providers mirror".
-		// Our policy is "last writer wins" for subcommands.
-		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
-	}
-
-	if len(parsed.Arguments) > 0 {
-		opts.TerraformCliArgs.InsertArguments(0, parsed.Arguments...)
-	}
+	// Arguments: insert at the beginning
+	opts.TerraformCliArgs.InsertArguments(0, parsed.Arguments...)
 }
 
-// mergeCommand handles command field merging during arg insertion.
-// Rules:
+// mergeCommandAndSubCommand handles command and subcommand merging during arg insertion.
+// Command rules:
 //   - If opts has no command, use parsed.Command
-//   - If parsed.Command matches opts command, do nothing (idempotent)
+//   - If parsed.Command matches opts command, do nothing
 //   - If parsed.Command is a known subcommand, add to SubCommand
 //   - Otherwise treat parsed.Command as positional argument
-func (opts *TerragruntOptions) mergeCommand(parsed *clihelper.IacArgs) {
-	if opts.TerraformCliArgs.Command == "" {
+//
+// SubCommand rules:
+//   - If parsed has explicit subcommands, use them (last writer wins)
+//   - Otherwise keep any subcommand set during command merging
+func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *clihelper.IacArgs) {
+	// Handle command field
+	switch {
+	case opts.TerraformCliArgs.Command == "":
 		opts.TerraformCliArgs.Command = parsed.Command
-		return
-	}
-
-	if parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command {
-		return
-	}
-
-	if clihelper.IsKnownSubCommand(parsed.Command) {
+	case parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command:
+		// no-op
+	case clihelper.IsKnownSubCommand(parsed.Command):
 		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
-		return
+	default:
+		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
 	}
 
-	opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
+	// Explicit subcommands in parsed take precedence
+	if len(parsed.SubCommand) > 0 {
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
