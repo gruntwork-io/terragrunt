@@ -9,9 +9,6 @@ import (
 const (
 	tailMinArgsLen = 2
 	BuiltinCmdSep  = "--"
-
-	// minFlagLen is the minimum length for a valid flag (e.g., "-x" has length 2)
-	minFlagLen = 2
 )
 
 const (
