@@ -266,8 +266,8 @@ func runTerragruntWithConfig(
 
 	defer func() {
 		if nullVarsFile != "" {
-			if err := os.Remove(nullVarsFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, err)
+			if removeErr := os.Remove(nullVarsFile); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, removeErr)
 			}
 		}
 	}()
