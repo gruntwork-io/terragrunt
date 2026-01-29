@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/hashicorp/go-getter"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
@@ -325,7 +325,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 			return errors.Errorf("Failed to create directory %s for %s %w", dest, identifier, err)
 		}
 
-		if _, err := getter.GetAny(ctx, dest, src); err != nil {
+		if err := getter.GetAny(dest, src, getter.WithContext(ctx)); err != nil {
 			return errors.Errorf("Failed to fetch %s %s for %s %w", src, dest, identifier, err)
 		}
 	}
@@ -344,27 +344,12 @@ func isLocal(l log.Logger, workingDir, src string) bool {
 		return true
 	}
 
-	src = filepath.Join(workingDir, src)
-	if util.FileExists(src) {
+	localSrc := filepath.Join(workingDir, src)
+	if util.FileExists(localSrc) {
 		return true
 	}
-	// check path through getters
-	req := &getter.Request{
-		Src: src,
-	}
-	for _, g := range getter.Getters {
-		recognized, err := getter.Detect(req, g)
-		if err != nil {
-			l.Debugf("Error detecting getter for %s: %v", src, err)
-			continue
-		}
+	return strings.HasPrefix(src, "file://")
 
-		if recognized {
-			break
-		}
-	}
-
-	return strings.HasPrefix(req.Src, "file://")
 }
 
 // ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,
