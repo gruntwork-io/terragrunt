@@ -515,22 +515,19 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// Track insert position for arguments
-	argInsertPos := 0
-
 	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	var args []string
 	if parsed.Command != "" {
-		opts.TerraformCliArgs.InsertArgument(argInsertPos, parsed.Command)
-		argInsertPos++
+		args = append(args, parsed.Command)
+	}
+
+	args = append(args, parsed.Arguments...)
+
+	if len(args) > 0 {
+		opts.TerraformCliArgs.InsertArguments(0, args...)
 	}
 
 	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
-
-	// Insert arguments at correct position (before existing arguments)
-	for _, arg := range parsed.Arguments {
-		opts.TerraformCliArgs.InsertArgument(argInsertPos, arg)
-		argInsertPos++
-	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
@@ -551,10 +548,7 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	}
 
 	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
-
-	for _, arg := range parsed.Arguments {
-		opts.TerraformCliArgs.AppendArgument(arg)
-	}
+	opts.TerraformCliArgs.AppendArgument(parsed.Arguments...)
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)

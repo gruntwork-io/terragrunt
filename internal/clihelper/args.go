@@ -198,6 +198,7 @@ var booleanFlags = []string{
 	"-get",
 	"-input",
 	"-json",
+	"--json",
 	"-lock",
 	"-migrate-state",
 	"-no-color",
@@ -258,9 +259,9 @@ func (a *IacArgs) InsertFlag(pos int, flags ...string) *IacArgs {
 	return a
 }
 
-// AppendArgument adds an argument and returns self for chaining.
-func (a *IacArgs) AppendArgument(arg string) *IacArgs {
-	a.Arguments = append(a.Arguments, arg)
+// AppendArgument adds argument(s) and returns self for chaining.
+func (a *IacArgs) AppendArgument(args ...string) *IacArgs {
+	a.Arguments = append(a.Arguments, args...)
 
 	return a
 }
@@ -268,6 +269,13 @@ func (a *IacArgs) AppendArgument(arg string) *IacArgs {
 // InsertArgument inserts an argument at position and returns self for chaining.
 func (a *IacArgs) InsertArgument(pos int, arg string) *IacArgs {
 	a.Arguments = slices.Insert(a.Arguments, pos, arg)
+
+	return a
+}
+
+// InsertArguments inserts arguments at position and returns self for chaining.
+func (a *IacArgs) InsertArguments(pos int, args ...string) *IacArgs {
+	a.Arguments = slices.Insert(a.Arguments, pos, args...)
 
 	return a
 }
@@ -288,30 +296,59 @@ func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 	return a
 }
 
-// HasFlag checks if flag exists (handles -flag and -flag=value formats).
+// HasFlag checks if flag exists (handles -flag, --flag and -flag=value formats).
 // Note: Values starting with "-" (like -module.resource) are indistinguishable from flags.
 func (a *IacArgs) HasFlag(name string) bool {
-	for _, f := range a.Flags {
-		if f == name || strings.HasPrefix(f, name+"=") {
-			return true
-		}
-	}
+	// Normalize name to name without dashes
+	nameBare := strings.TrimLeft(name, "-")
+	targets := []string{"-" + nameBare, "--" + nameBare}
 
-	return false
+	return slices.ContainsFunc(a.Flags, func(f string) bool {
+		for _, target := range targets {
+			if f == target || strings.HasPrefix(f, target+"=") {
+				return true
+			}
+		}
+
+		return false
+	})
 }
 
-// RemoveFlag removes a flag by name (handles -flag, -flag=value, and space-separated -flag value).
+// RemoveFlag removes a flag by name (handles -flag, --flag, -flag=value, and space-separated -flag value).
 func (a *IacArgs) RemoveFlag(name string) *IacArgs {
-	var newFlags []string
+	newFlags := make([]string, 0, len(a.Flags))
+
+	// Normalize name to name without dashes
+	nameBare := strings.TrimLeft(name, "-")
+	targets := []string{"-" + nameBare, "--" + nameBare}
 
 	for i := 0; i < len(a.Flags); i++ {
 		f := a.Flags[i]
 
-		// Match exact flag name or -flag=value format
-		if f == name || strings.HasPrefix(f, name+"=") {
-			// If exact match and next entry is a value (doesn't start with "-"), skip it too
-			if f == name && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
-				i++ // skip the value
+		matchedExact := false
+		matchedWithPrefix := false
+
+		for _, target := range targets {
+			if f == target {
+				matchedExact = true
+				break
+			}
+
+			if strings.HasPrefix(f, target+"=") {
+				matchedWithPrefix = true
+				break
+			}
+		}
+
+		if matchedExact || matchedWithPrefix {
+			// If exact match and next entry is a value (doesn't start with "-"), skip it too.
+			// only if it's NOT a boolean flag.
+			if matchedExact && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
+				// We need to know if the flag we just matched is a boolean flag.
+				// f is the flag name as found in a.Flags.
+				if !slices.Contains(booleanFlags, f) {
+					i++ // skip the value
+				}
 			}
 
 			continue
@@ -461,29 +498,10 @@ func (a *IacArgs) Tail() []string {
 
 // Contains checks if the args contain the target (in command, subcommand, flags, or arguments).
 func (a *IacArgs) Contains(target string) bool {
-	if a.Command == target {
-		return true
-	}
-
-	for _, s := range a.SubCommand {
-		if s == target {
-			return true
-		}
-	}
-
-	for _, f := range a.Flags {
-		if f == target {
-			return true
-		}
-	}
-
-	for _, arg := range a.Arguments {
-		if arg == target {
-			return true
-		}
-	}
-
-	return false
+	return a.Command == target ||
+		slices.Contains(a.SubCommand, target) ||
+		slices.Contains(a.Flags, target) ||
+		slices.Contains(a.Arguments, target)
 }
 
 // Normalize formats the flags according to the given actions.
