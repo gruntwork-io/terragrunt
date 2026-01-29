@@ -4734,6 +4734,11 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	nullVarsFile := filepath.Join(testPath, ".terragrunt-cache", "*", "*", ".terragrunt-null-vars.auto.tfvars.json")
+	matches, err := filepath.Glob(nullVarsFile)
+	require.NoError(t, err)
+	assert.Empty(t, matches, "null vars file should be removed after execution")
+
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt output -json --non-interactive --working-dir "+testPath,
@@ -4743,6 +4748,12 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
-	assert.Nil(t, outputs["output1"].Value)
-	assert.Equal(t, "variable 2", outputs["output2"].Value)
+	// output1 should not be present because OpenTofu/Terraform omit
+	// null-valued outputs from JSON output
+	_, ok := outputs["output1"]
+	assert.False(t, ok, "expected output1 to not be present since it has a null value")
+
+	output2, ok := outputs["output2"]
+	require.True(t, ok, "expected output2 to be present")
+	assert.Equal(t, "variable 2", output2.Value)
 }
