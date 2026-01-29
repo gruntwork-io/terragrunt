@@ -551,9 +551,10 @@ func (opts *TerragruntOptions) mergeCommand(parsed *clihelper.IacArgs) {
 
 	if clihelper.IsKnownSubCommand(parsed.Command) {
 		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
-	} else {
-		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
+		return
 	}
+
+	opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.

@@ -528,12 +528,13 @@ func (a *IacArgs) parse(args []string) {
 		}
 
 		// Known subcommands before flags -> SubCommand (e.g., "lock" in "providers lock")
-		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
 		if !seenFlag && IsKnownSubCommand(arg) {
 			a.SubCommand = append(a.SubCommand, arg)
-		} else {
-			a.Arguments = append(a.Arguments, arg)
+			continue
 		}
+
+		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
+		a.Arguments = append(a.Arguments, arg)
 	}
 }
 
