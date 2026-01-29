@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -184,7 +184,7 @@ type TerragruntOptions struct {
 	// Path to the report schema file.
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs *clihelper.IacArgs
+	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -377,7 +377,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:          true,
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
-		TerraformCliArgs:           clihelper.NewIacArgs(),
+		TerraformCliArgs:           iacargs.New(),
 		Writer:                     stdout,
 		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
@@ -509,11 +509,11 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
 	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
+		opts.TerraformCliArgs = iacargs.New()
 	}
 
 	// Parse args using IacArgs to properly separate flags from arguments
-	parsed := clihelper.NewIacArgs(argsToInsert...)
+	parsed := iacargs.New(argsToInsert...)
 
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
@@ -535,14 +535,14 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 // SubCommand rules:
 //   - If parsed has explicit subcommands, use them (last writer wins)
 //   - Otherwise keep any subcommand set during command merging
-func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *clihelper.IacArgs) {
+func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *iacargs.IacArgs) {
 	// Handle command field
 	switch {
 	case opts.TerraformCliArgs.Command == "":
 		opts.TerraformCliArgs.Command = parsed.Command
 	case parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command:
 		// no-op
-	case clihelper.IsKnownSubCommand(parsed.Command):
+	case iacargs.IsKnownSubCommand(parsed.Command):
 		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
 	default:
 		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
@@ -561,11 +561,11 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
 	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
+		opts.TerraformCliArgs = iacargs.New()
 	}
 
 	// Parse args using IacArgs to properly separate flags from arguments
-	parsed := clihelper.NewIacArgs(argsToAppend...)
+	parsed := iacargs.New(argsToAppend...)
 
 	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
 

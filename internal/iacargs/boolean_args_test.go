@@ -1,9 +1,9 @@
-package clihelper_test
+package iacargs_test
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +14,7 @@ func TestRemoveFlagWithLongBoolean(t *testing.T) {
 	// Unknown flags are treated as boolean, so removing --json
 	// should NOT consume "planfile" as a value.
 
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"--json", "planfile"},
 	}
 
@@ -30,7 +30,7 @@ func TestRemoveFlagWithUnknownFlag(t *testing.T) {
 	// Unknown flags are treated as boolean, so removing --unknown
 	// should NOT consume "val" as a value.
 
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"--unknown", "val", "other"},
 	}
 
@@ -43,7 +43,7 @@ func TestHasFlagFalsePositive(t *testing.T) {
 	t.Parallel()
 
 	// out=foo should not match -out flag
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"-var", "out=foo"},
 	}
 
@@ -54,7 +54,7 @@ func TestRemoveFlagFalsePositive(t *testing.T) {
 	t.Parallel()
 
 	// Removing -out should not remove out=foo
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"-var", "out=foo"},
 	}
 
@@ -66,7 +66,7 @@ func TestRemoveFlagFalsePositive(t *testing.T) {
 func TestHasFlagDoubleDashMatch(t *testing.T) {
 	t.Parallel()
 
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"--help"},
 	}
 
@@ -77,7 +77,7 @@ func TestHasFlagDoubleDashMatch(t *testing.T) {
 func TestRemoveFlagDoubleDashMatch(t *testing.T) {
 	t.Parallel()
 
-	args := &clihelper.IacArgs{
+	args := &iacargs.IacArgs{
 		Flags: []string{"--help", "planfile"},
 	}
 

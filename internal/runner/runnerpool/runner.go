@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -219,7 +219,7 @@ func resolveUnitsFromDiscovery(
 				}
 
 				terraformCliArgs = append(terraformCliArgs, discoveryCtx.Args...)
-				unitOpts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
+				unitOpts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 			}
 		}
 
@@ -331,7 +331,7 @@ func NewRunnerPoolStack(
 	checkLocalStateWithGitRefs(l, units)
 	runner.Stack.Units = units
 
-	if isDestroyCommand(terragruntOptions.TerraformCommand, terragruntOptions.TerraformCliArgs) {
+	if terragruntOptions.TerraformCliArgs.IsDestroyCommand(terragruntOptions.TerraformCommand) {
 		applyPreventDestroyExclusions(l, units)
 	}
 
@@ -661,10 +661,10 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
 	entries := slices.Clone(r.queue.Entries)
-	if r.Stack.Execution != nil && isDestroyCommand(
-		r.Stack.Execution.TerragruntOptions.TerraformCommand,
-		r.Stack.Execution.TerragruntOptions.TerraformCliArgs,
-	) {
+	if r.Stack.Execution != nil &&
+		r.Stack.Execution.TerragruntOptions.TerraformCliArgs.IsDestroyCommand(
+			r.Stack.Execution.TerragruntOptions.TerraformCommand,
+		) {
 		slices.Reverse(entries)
 	}
 
@@ -988,12 +988,6 @@ func (r *Runner) SetReport(rpt *report.Report) {
 	r.Stack.Execution.Report = rpt
 }
 
-// isDestroyCommand checks if the current command is a destroy operation
-func isDestroyCommand(cmd string, args *clihelper.IacArgs) bool {
-	return cmd == tf.CommandNameDestroy ||
-		(args != nil && args.Contains("-"+tf.CommandNameDestroy))
-}
-
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
 // from being destroyed. This prevents accidental destruction of protected infrastructure.
 func applyPreventDestroyExclusions(l log.Logger, units []*component.Unit) {
@@ -1055,7 +1049,7 @@ func applyFilterAllowDestroyExclusions(l log.Logger, opts *options.TerragruntOpt
 			continue
 		}
 
-		if discoveryCtx.Ref != "" && isDestroyCommand(discoveryCtx.Cmd, clihelper.NewIacArgs(discoveryCtx.Args...)) {
+		if discoveryCtx.Ref != "" && iacargs.New(discoveryCtx.Args...).IsDestroyCommand(discoveryCtx.Cmd) {
 			if unit.Execution != nil {
 				unit.Execution.FlagExcluded = true
 			}

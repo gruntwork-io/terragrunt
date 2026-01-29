@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -649,7 +649,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 
 	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
 		opts := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-		opts.TerraformCliArgs = clihelper.NewIacArgs(cliArgs...)
+		opts.TerraformCliArgs = iacargs.New(cliArgs...)
 		expectedFooInput := cliArgs
 		// Expecting nil to be returned for get_terraform_cli_args() call for
 		// either nil or empty array of input args

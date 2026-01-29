@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -495,7 +496,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
+	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors

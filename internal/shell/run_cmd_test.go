@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +53,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
 
-	terragruntOptions.TerraformCliArgs = clihelper.NewIacArgs()
+	terragruntOptions.TerraformCliArgs = iacargs.New()
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
