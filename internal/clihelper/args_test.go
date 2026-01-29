@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var mockArgs = func() clihelper.Args { return clihelper.Args{"one", "-foo", "two", "--bar", "value"} }
@@ -199,20 +198,21 @@ func TestNewIacArgs(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
-			name:      "unknown flag with space-separated value (forward compatible)",
+			// Unknown flags are treated as boolean. If a new Terraform flag needs
+			// space-separated values, add it to valueTakingFlags list.
+			name:      "unknown flag treated as boolean",
 			input:     []string{"apply", "-future-flag", "value", "-auto-approve"},
 			wantCmd:   "apply",
-			wantFlags: []string{"-future-flag", "value", "-auto-approve"},
-			wantArgs:  nil,
+			wantFlags: []string{"-future-flag", "-auto-approve"},
+			wantArgs:  []string{"value"},
 		},
 		{
-			// Documents known limitation: unknown boolean flags are treated as taking values.
-			// If this causes issues with a new Terraform flag, add it to booleanFlags list.
-			name:      "unknown boolean flag followed by arg (treated as flag value)",
+			// Unknown flags are boolean, so planfile correctly goes to Arguments.
+			name:      "unknown boolean flag followed by arg",
 			input:     []string{"apply", "-unknown-bool", "planfile"},
 			wantCmd:   "apply",
-			wantFlags: []string{"-unknown-bool", "planfile"},
-			wantArgs:  nil,
+			wantFlags: []string{"-unknown-bool"},
+			wantArgs:  []string{"planfile"},
 		},
 		{
 			name:      "empty args",
@@ -233,6 +233,20 @@ func TestNewIacArgs(t *testing.T) {
 			input:     []string{"-auto-approve"},
 			wantCmd:   "",
 			wantFlags: []string{"-auto-approve"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "chdir with space-separated value",
+			input:     []string{"-chdir", "/tmp/dir", "apply"},
+			wantCmd:   "apply",
+			wantFlags: []string{"-chdir", "/tmp/dir"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "chdir with equals value",
+			input:     []string{"-chdir=/tmp/dir", "plan"},
+			wantCmd:   "plan",
+			wantFlags: []string{"-chdir=/tmp/dir"},
 			wantArgs:  nil,
 		},
 		{
@@ -412,17 +426,67 @@ func TestIacArgsHasFlag(t *testing.T) {
 func TestIacArgsRemoveFlag(t *testing.T) {
 	t.Parallel()
 
-	args := &clihelper.IacArgs{
-		Flags: []string{"-auto-approve", "-input=false", "-destroy"},
+	tests := []struct {
+		name          string
+		initialFlags  []string
+		flagToRemove  string
+		expectedFlags []string
+	}{
+		{
+			name:          "remove flag with equals value",
+			initialFlags:  []string{"-auto-approve", "-input=false", "-destroy"},
+			flagToRemove:  "-input",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
+		{
+			name:          "remove boolean flag",
+			initialFlags:  []string{"-auto-approve", "-destroy"},
+			flagToRemove:  "-auto-approve",
+			expectedFlags: []string{"-destroy"},
+		},
+		{
+			name:          "remove flag with space-separated value",
+			initialFlags:  []string{"-var", "foo=bar", "-auto-approve"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-auto-approve"},
+		},
+		{
+			name:          "remove flag where next entry looks like flag preserves it",
+			initialFlags:  []string{"-target", "-module.resource", "-auto-approve"},
+			flagToRemove:  "-target",
+			expectedFlags: []string{"-module.resource", "-auto-approve"},
+		},
+		{
+			name:          "remove flag preserves other flags with dash-prefixed values",
+			initialFlags:  []string{"-var", "key=-value", "-target", "-module.foo", "-destroy"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-target", "-module.foo", "-destroy"},
+		},
+		{
+			name:          "remove middle flag with space-separated value",
+			initialFlags:  []string{"-auto-approve", "-var", "x=y", "-destroy"},
+			flagToRemove:  "-var",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
+		{
+			name:          "remove nonexistent flag does nothing",
+			initialFlags:  []string{"-auto-approve", "-destroy"},
+			flagToRemove:  "-nonexistent",
+			expectedFlags: []string{"-auto-approve", "-destroy"},
+		},
 	}
 
-	args.RemoveFlag("-input")
-	require.Len(t, args.Flags, 2)
-	assert.Equal(t, []string{"-auto-approve", "-destroy"}, args.Flags)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	args.RemoveFlag("-auto-approve")
-	require.Len(t, args.Flags, 1)
-	assert.Equal(t, []string{"-destroy"}, args.Flags)
+			args := &clihelper.IacArgs{
+				Flags: append([]string{}, tt.initialFlags...),
+			}
+			args.RemoveFlag(tt.flagToRemove)
+			assert.Equal(t, tt.expectedFlags, args.Flags)
+		})
+	}
 }
 
 func TestIacArgsAppendArgument(t *testing.T) {

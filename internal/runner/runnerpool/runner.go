@@ -991,7 +991,7 @@ func (r *Runner) SetReport(rpt *report.Report) {
 // isDestroyCommand checks if the current command is a destroy operation
 func isDestroyCommand(cmd string, args *clihelper.IacArgs) bool {
 	return cmd == tf.CommandNameDestroy ||
-		args.Contains("-"+tf.CommandNameDestroy)
+		(args != nil && args.Contains("-"+tf.CommandNameDestroy))
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies

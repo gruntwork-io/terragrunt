@@ -98,7 +98,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
 	legacyLogsControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName, controls.LegacyLogs)
 
-	flags := clihelper.Flags{
+	cmdFlags := clihelper.Flags{
 		// `--all` related flags.
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
@@ -497,13 +497,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 	}
 
 	// Add shared flags
-	flags = flags.Add(shared.NewBackendFlags(opts, prefix)...)
-	flags = flags.Add(shared.NewFeatureFlags(opts, prefix)...)
-	flags = flags.Add(shared.NewFailFastFlag(opts))
-	flags = flags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
-	flags = flags.Add(shared.NewQueueFlags(opts, prefix)...)
-	flags = flags.Add(shared.NewFilterFlags(l, opts)...)
-	flags = flags.Add(shared.NewParallelismFlag(opts))
+	cmdFlags = cmdFlags.Add(shared.NewBackendFlags(opts, prefix)...)
+	cmdFlags = cmdFlags.Add(shared.NewFeatureFlags(opts, prefix)...)
+	cmdFlags = cmdFlags.Add(shared.NewFailFastFlag(opts))
+	cmdFlags = cmdFlags.Add(shared.NewIAMAssumeRoleFlags(opts, prefix, CommandName)...)
+	cmdFlags = cmdFlags.Add(shared.NewQueueFlags(opts, prefix)...)
+	cmdFlags = cmdFlags.Add(shared.NewFilterFlags(l, opts)...)
+	cmdFlags = cmdFlags.Add(shared.NewParallelismFlag(opts))
 
-	return flags.Sort()
+	return cmdFlags.Sort()
 }

@@ -9,6 +9,9 @@ import (
 const (
 	tailMinArgsLen = 2
 	BuiltinCmdSep  = "--"
+
+	// minFlagLen is the minimum length for a valid flag (e.g., "-x" has length 2)
+	minFlagLen = 2
 )
 
 const (
@@ -33,10 +36,8 @@ func (args Args) String() string {
 
 // Split splits `args` into two slices separated by `sep`.
 func (args Args) Split(sep string) (Args, Args) {
-	for i := range args {
-		if args[i] == sep {
-			return args[:i], args[i+1:]
-		}
+	if i := slices.Index(args, sep); i >= 0 {
+		return args[:i], args[i+1:]
 	}
 
 	return args, nil
@@ -62,7 +63,7 @@ func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Second returns the first argument or a blank string.
+// Second returns the second argument or a blank string.
 func (args Args) Second() string {
 	return args.Get(1)
 }
@@ -79,24 +80,14 @@ func (args Args) Tail() Args {
 		return []string{}
 	}
 
-	tail := []string((args)[1:])
-	ret := make([]string, len(tail))
-	copy(ret, tail)
-
-	return ret
+	return slices.Clone(args[1:])
 }
 
 // Remove returns `args` with the `name` element removed.
 func (args Args) Remove(name string) Args {
-	result := make([]string, 0, len(args))
-
-	for _, arg := range args {
-		if arg != name {
-			result = append(result, arg)
-		}
-	}
-
-	return result
+	return slices.DeleteFunc(slices.Clone(args), func(arg string) bool {
+		return arg == name
+	})
 }
 
 // Len returns the length of the wrapped slice
@@ -111,10 +102,7 @@ func (args Args) Present() bool {
 
 // Slice returns a copy of the internal slice
 func (args Args) Slice() []string {
-	ret := make([]string, len(args))
-	copy(ret, args)
-
-	return ret
+	return slices.Clone(args)
 }
 
 // Normalize formats the arguments according to the given actions.
@@ -123,9 +111,9 @@ func (args Args) Slice() []string {
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing single dashes to double dashes
 func (args Args) Normalize(acts ...NormalizeActsType) Args {
-	strArgs := make(Args, 0, len(args.Slice()))
+	result := make(Args, 0, len(args))
 
-	for _, arg := range args.Slice() {
+	for _, arg := range args {
 		for _, act := range acts {
 			switch act {
 			case SingleDashFlag:
@@ -139,10 +127,10 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 			}
 		}
 
-		strArgs = append(strArgs, arg)
+		result = append(result, arg)
 	}
 
-	return strArgs
+	return result
 }
 
 // CommandNameN returns the nth argument from `args` that starts without a dash `-`.
@@ -179,34 +167,32 @@ func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
 
-// booleanFlags contains flags that don't take values (boolean flags).
-// Unknown flags are assumed to take space-separated values for safer parsing
-// of new Terraform/Tofu flags without requiring updates to this list.
-//
-// WARNING: If a new boolean flag is added to Terraform/Tofu and not listed here,
-// using it immediately before a positional argument (like a plan file) will cause
-// the positional argument to be incorrectly parsed as the flag's value.
-// Example: `terragrunt apply -new-bool planfile` -> `-new-bool` gets value `planfile`
-//
-// To fix: add the new boolean flag to this list.
-var booleanFlags = []string{
-	"-auto-approve",
-	"-compact-warnings",
-	"-destroy",
-	"-detailed-exitcode",
-	"-force-copy",
-	"-get",
-	"-input",
-	"-json",
-	"-lock",
-	"-migrate-state",
-	"-no-color",
-	"-raw",
-	"-reconfigure",
-	"-refresh",
-	"-refresh-only",
-	"-upgrade",
-	"-write-out",
+// valueTakingFlags contains flags that require space-separated values.
+// Only flags that commonly use a space-separated format need to be listed here.
+var valueTakingFlags = []string{
+	"chdir",
+	"config",
+	"from-module",
+	"lock-timeout",
+	"out",
+	"parallelism",
+	"plugin-dir",
+	"state",
+	"state-out",
+	"backup",
+	"target",
+	"var",
+	"var-file",
+}
+
+// normalizeFlag strips leading dashes from a flag name.
+func normalizeFlag(flag string) string {
+	return strings.TrimLeft(flag, "-")
+}
+
+// isFlag returns true if the string starts with "-" (is a flag token).
+func isFlag(s string) bool {
+	return strings.HasPrefix(s, "-")
 }
 
 // IacArgs represents parsed IaC (terraform/tofu) CLI arguments
@@ -258,9 +244,30 @@ func (a *IacArgs) InsertFlag(pos int, flags ...string) *IacArgs {
 	return a
 }
 
-// AppendArgument adds an argument and returns self for chaining.
-func (a *IacArgs) AppendArgument(arg string) *IacArgs {
-	a.Arguments = append(a.Arguments, arg)
+// AppendArgument adds argument(s) and returns self for chaining.
+func (a *IacArgs) AppendArgument(args ...string) *IacArgs {
+	a.Arguments = append(a.Arguments, args...)
+
+	return a
+}
+
+// InsertArgument inserts an argument at position and returns self for chaining.
+func (a *IacArgs) InsertArgument(pos int, arg string) *IacArgs {
+	a.Arguments = slices.Insert(a.Arguments, pos, arg)
+
+	return a
+}
+
+// InsertArguments inserts arguments at position and returns self for chaining.
+func (a *IacArgs) InsertArguments(pos int, args ...string) *IacArgs {
+	a.Arguments = slices.Insert(a.Arguments, pos, args...)
+
+	return a
+}
+
+// AppendSubCommand adds subcommand(s) and returns self for chaining.
+func (a *IacArgs) AppendSubCommand(subs ...string) *IacArgs {
+	a.SubCommand = append(a.SubCommand, subs...)
 
 	return a
 }
@@ -274,18 +281,50 @@ func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 	return a
 }
 
-// HasFlag checks if flag exists (by prefix for -flag=value).
+// HasFlag checks if flag exists (handles -flag, --flag and -flag=value formats).
+// Note: Values starting with "-" (like -module.resource) are indistinguishable from flags.
 func (a *IacArgs) HasFlag(name string) bool {
+	target := normalizeFlag(name)
+
 	return slices.ContainsFunc(a.Flags, func(f string) bool {
-		return f == name || strings.HasPrefix(f, name+"=")
+		if !isFlag(f) {
+			return false
+		}
+
+		return normalizeFlag(extractFlagName(f)) == target
 	})
 }
 
-// RemoveFlag removes a flag by name (handles both -flag and -flag=value).
+// RemoveFlag removes a flag by name (handles -flag, --flag, -flag=value, and space-separated -flag value).
 func (a *IacArgs) RemoveFlag(name string) *IacArgs {
-	a.Flags = slices.DeleteFunc(a.Flags, func(f string) bool {
-		return f == name || strings.HasPrefix(f, name+"=")
-	})
+	newFlags := make([]string, 0, len(a.Flags))
+	target := normalizeFlag(name)
+
+	for i := 0; i < len(a.Flags); i++ {
+		f := a.Flags[i]
+
+		// Only treat tokens starting with "-" as potential flags
+		if !isFlag(f) {
+			newFlags = append(newFlags, f)
+			continue
+		}
+
+		current := normalizeFlag(extractFlagName(f))
+
+		if current == target {
+			// Skip value too if: no =value, next entry is a value, and it's a known value-taking flag
+			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-")
+			if hasNextValue && slices.Contains(valueTakingFlags, current) {
+				i++ // skip the value
+			}
+
+			continue
+		}
+
+		newFlags = append(newFlags, f)
+	}
+
+	a.Flags = newFlags
 
 	return a
 }
@@ -294,7 +333,7 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 // Checks for -out= flag (plan command) or any argument present (apply/destroy).
 func (a *IacArgs) HasPlanFile() bool {
 	// Check for -out= flag (used with plan command)
-	if a.HasFlag("-out") {
+	if a.HasFlag("out") {
 		return true
 	}
 
@@ -304,15 +343,52 @@ func (a *IacArgs) HasPlanFile() bool {
 }
 
 // MergeFlags merges flags from another IacArgs, adding only flags not already present.
+// Handles both -flag=value and space-separated -flag value formats.
 // Returns self for chaining.
 func (a *IacArgs) MergeFlags(other *IacArgs) *IacArgs {
-	for _, flag := range other.Flags {
-		if !a.Contains(flag) {
-			a.Flags = append(a.Flags, flag)
+	for i := 0; i < len(other.Flags); i++ {
+		flag := other.Flags[i]
+
+		// Check if this is a flag with space-separated value
+		hasValue := i+1 < len(other.Flags) &&
+			!strings.HasPrefix(other.Flags[i+1], "-") &&
+			!strings.Contains(flag, "=") &&
+			strings.HasPrefix(flag, "-")
+
+		if hasValue {
+			value := other.Flags[i+1]
+			if !a.hasFlagWithValue(flag, value) {
+				a.Flags = append(a.Flags, flag, value)
+			}
+
+			i++ // skip the value in iteration
+
+			continue
 		}
+
+		if a.Contains(flag) {
+			continue
+		}
+
+		a.Flags = append(a.Flags, flag)
 	}
 
 	return a
+}
+
+// hasFlagWithValue checks if a flag with specific value exists in either format.
+func (a *IacArgs) hasFlagWithValue(flag, value string) bool {
+	// Check -flag=value format
+	if slices.Contains(a.Flags, flag+"="+value) {
+		return true
+	}
+
+	// Check space-separated format: find flag and verify next element is value
+	if i := slices.Index(a.Flags, flag); i >= 0 && i+1 < len(a.Flags) {
+		return a.Flags[i+1] == value
+	}
+
+	return false
 }
 
 // Slice returns args in correct order: [command] [flags...] [arguments...]
@@ -331,6 +407,9 @@ func (a *IacArgs) Slice() []string {
 }
 
 // Clone returns a deep copy of IacArgs.
+// Note: This performs a deep copy of slices (Command, SubCommand, Flags, Arguments).
+// If IacArgs is extended with pointer fields or nested structs in the future,
+// this method must be updated to ensure deep copying of those fields as well.
 func (a *IacArgs) Clone() *IacArgs {
 	return &IacArgs{
 		Command:    a.Command,
@@ -387,29 +466,10 @@ func (a *IacArgs) Tail() []string {
 
 // Contains checks if the args contain the target (in command, subcommand, flags, or arguments).
 func (a *IacArgs) Contains(target string) bool {
-	if a.Command == target {
-		return true
-	}
-
-	for _, s := range a.SubCommand {
-		if s == target {
-			return true
-		}
-	}
-
-	for _, f := range a.Flags {
-		if f == target {
-			return true
-		}
-	}
-
-	for _, arg := range a.Arguments {
-		if arg == target {
-			return true
-		}
-	}
-
-	return false
+	return a.Command == target ||
+		slices.Contains(a.SubCommand, target) ||
+		slices.Contains(a.Flags, target) ||
+		slices.Contains(a.Arguments, target)
 }
 
 // Normalize formats the flags according to the given actions.
@@ -467,17 +527,19 @@ func (a *IacArgs) parse(args []string) {
 		}
 
 		// Known subcommands before flags -> SubCommand (e.g., "lock" in "providers lock")
-		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
-		if !seenFlag && isKnownSubCommand(arg) {
+		if !seenFlag && IsKnownSubCommand(arg) {
 			a.SubCommand = append(a.SubCommand, arg)
-		} else {
-			a.Arguments = append(a.Arguments, arg)
+			continue
 		}
+
+		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
+		a.Arguments = append(a.Arguments, arg)
 	}
 }
 
 // knownSubCommands lists terraform subcommands that appear after the main command.
 // These should NOT be reordered to the end like plan files.
+// Maintainers: Add new Terraform/OpenTofu subcommands here as they are introduced.
 var knownSubCommands = []string{
 	// providers subcommands
 	"lock", "mirror", "schema",
@@ -488,41 +550,33 @@ var knownSubCommands = []string{
 	// force-unlock takes an argument, not a subcommand
 }
 
-// isKnownSubCommand returns true if arg is a known terraform subcommand.
-func isKnownSubCommand(arg string) bool {
+// IsKnownSubCommand returns true if arg is a known terraform subcommand.
+func IsKnownSubCommand(arg string) bool {
 	return slices.Contains(knownSubCommands, arg)
 }
 
 // processFlag handles flag parsing, returns true if next arg should be skipped.
-// Unknown flags are assumed to take space-separated values for forward compatibility.
+// Unknown flags are assumed to be boolean. Only known value-taking flags consume the next arg.
 func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
-	flagName := extractFlagName(arg)
-
-	// Flag with inline value (-flag=value) - self-contained
-	if strings.Contains(arg, "=") {
+	// Malformed flag (just "-" or empty), or flag with inline value (-flag=value)
+	if len(arg) < minFlagLen || strings.Contains(arg, "=") {
 		a.Flags = append(a.Flags, arg)
-
 		return false
 	}
 
-	// Known boolean flag - self-contained
-	if slices.Contains(booleanFlags, flagName) {
-		a.Flags = append(a.Flags, arg)
+	// Known value-taking flag with next arg available that looks like a value
+	flagName := normalizeFlag(extractFlagName(arg))
+	hasNextValue := i+1 < len(args) && !strings.HasPrefix(args[i+1], "-")
 
-		return false
+	if slices.Contains(valueTakingFlags, flagName) && hasNextValue {
+		a.Flags = append(a.Flags, arg, args[i+1])
+		return true
 	}
 
-	// Check if next arg looks like a value (doesn't start with -)
-	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
-		a.Flags = append(a.Flags, arg)
+	// Unknown flags and boolean flags are self-contained
+	a.Flags = append(a.Flags, arg)
 
-		return false
-	}
-
-	// Assume unknown flag takes a space-separated value
-	a.Flags = append(a.Flags, arg, args[i+1])
-
-	return true
+	return false
 }
 
 // extractFlagName gets flag name before = if present.
