@@ -4673,3 +4673,31 @@ func TestNoColorDependency(t *testing.T) {
 	assert.NotContains(t, stderr, "\x1b")
 	assert.NotContains(t, stdout, "\x1b")
 }
+
+// TestTerragruntPassNullValues verifies that terragrunt can pass null values to
+// Terraform variables. This is a regression test for:
+// https://github.com/gruntwork-io/terragrunt/issues/5452
+func TestTerragruntPassNullValues(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNullValue)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNullValue)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+testPath,
+	)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt output -json --non-interactive --working-dir "+testPath,
+	)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Nil(t, outputs["output1"].Value)
+	assert.Equal(t, "variable 2", outputs["output2"].Value)
+}
