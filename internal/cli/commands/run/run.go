@@ -7,11 +7,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
-	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -27,16 +25,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
-
-	tgOpts := opts.OptionsFromContext(ctx)
-
-	if tgOpts.RunAll {
-		return runall.Run(ctx, l, tgOpts)
-	}
-
-	if tgOpts.Graph {
-		return graph.Run(ctx, l, tgOpts)
-	}
 
 	if opts.TerraformCommand == "" {
 		return errors.New(run.MissingCommand{})
@@ -78,7 +66,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
+	return run.Run(ctx, l, opts, r, runCfg, credsGetter)
 }
 
 // isTerraformPath returns true if the TFPath ends with the default Terraform path.

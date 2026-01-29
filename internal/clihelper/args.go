@@ -368,7 +368,7 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 // Checks for -out= flag (plan command) or any argument present (apply/destroy).
 func (a *IacArgs) HasPlanFile() bool {
 	// Check for -out= flag (used with plan command)
-	if a.HasFlag("-out") {
+	if a.HasFlag("out") {
 		return true
 	}
 
