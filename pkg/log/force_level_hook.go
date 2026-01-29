@@ -31,7 +31,8 @@ func (hook *ForceLogLevelHook) Fire(entry *logrus.Entry) error {
 	return nil
 }
 
-// LogEntriesDropperFormatter is a custom formatter which will ignore log entries which has lower level than preconfigured in logger
+// LogEntriesDropperFormatter is a custom formatter which will ignore log entries
+// which has lower level than preconfigured in logger
 type LogEntriesDropperFormatter struct {
 	originalFormatter logrus.Formatter
 }

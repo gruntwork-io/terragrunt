@@ -148,7 +148,8 @@ func (f Filters) RestrictToStacks() Filters {
 	})
 }
 
-// collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.
+// collectGraphExpressionTargetsWithDependencies recursively collects target expressions from
+// GraphExpression nodes that have IncludeDependencies set.
 func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
 	var targets []Expression
 
@@ -182,7 +183,8 @@ func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression
 	return targets
 }
 
-// collectGraphExpressionTargetsWithDependents recursively collects target expressions from GraphExpression nodes that have IncludeDependents set.
+// collectGraphExpressionTargetsWithDependents recursively collects target expressions from
+// GraphExpression nodes that have IncludeDependents set.
 func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	var targets []Expression
 

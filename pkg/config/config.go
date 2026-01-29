@@ -193,7 +193,9 @@ func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.Terragru
 }
 
 func (cfg *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", cfg.Terraform, cfg.RemoteState, cfg.Dependencies, cfg.PreventDestroy)
+	return fmt.Sprintf(
+		"TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}",
+		cfg.Terraform, cfg.RemoteState, cfg.Dependencies, cfg.PreventDestroy)
 }
 
 // GetIAMRoleOptions is a helper function that converts the Terragrunt config IAM role attributes to
@@ -359,7 +361,8 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		}
 
 		if cfg.RemoteState.DisableDependencyOptimization {
-			remoteStateBody.SetAttributeValue("disable_dependency_optimization", remoteStateAsCty.GetAttr("disable_dependency_optimization"))
+			disableDepOptAttr := remoteStateAsCty.GetAttr("disable_dependency_optimization")
+			remoteStateBody.SetAttributeValue("disable_dependency_optimization", disableDepOptAttr)
 		}
 
 		if cfg.RemoteState.BackendConfig != nil {
@@ -961,7 +964,10 @@ func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragr
 	case terragruntOptions.Source != "":
 		return terragruntOptions.Source, nil
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
-		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
+		return adjustSourceWithMap(
+			terragruntOptions.SourceMap,
+			*terragruntConfig.Terraform.Source,
+			terragruntOptions.OriginalTerragruntConfigPath)
 	default:
 		return ".", nil
 	}

@@ -127,7 +127,9 @@ func ApplyWithRunnerPool(b *testing.B, dir string) {
 	// Track apply time
 	applyStart := time.Now()
 
-	RunTerragruntCommand(b, "terragrunt", "run", "--all", "apply", "--non-interactive", "--experiment", "runner-pool", "--working-dir", dir)
+	RunTerragruntCommand(b,
+		"terragrunt", "run", "--all", "apply", "--non-interactive",
+		"--experiment", "runner-pool", "--working-dir", dir)
 
 	applyDuration := time.Since(applyStart)
 

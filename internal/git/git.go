@@ -412,7 +412,8 @@ func (g *GitRunner) Init(ctx context.Context) error {
 }
 
 // HasUncommittedChanges checks if there are uncommitted changes in the working directory.
-// Returns true if there are uncommitted changes, false otherwise (including if git command fails or not in a git repo).
+// Returns true if there are uncommitted changes, false otherwise
+// (including if git command fails or not in a git repo).
 func (g *GitRunner) HasUncommittedChanges(ctx context.Context) bool {
 	cmd := g.prepareCommand(ctx, "status", "--porcelain")
 

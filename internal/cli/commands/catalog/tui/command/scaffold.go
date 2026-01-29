@@ -19,7 +19,12 @@ type Scaffold struct {
 	logger            log.Logger
 }
 
-func NewScaffold(logger log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, module *module.Module) *Scaffold {
+func NewScaffold(
+	logger log.Logger,
+	opts *options.TerragruntOptions,
+	svc catalog.CatalogService,
+	module *module.Module,
+) *Scaffold {
 	return &Scaffold{
 		module:            module,
 		terragruntOptions: opts,

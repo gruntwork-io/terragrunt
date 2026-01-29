@@ -33,7 +33,10 @@ func NewPlaceholderRegister() Placeholders {
 		Time(),
 		Level(),
 		Message(),
-		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
+		Field(
+			WorkDirKeyName,
+			options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath),
+		),
 		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
 		Field(TFCmdArgsKeyName),
 		Field(TFCmdKeyName),
@@ -181,7 +184,8 @@ func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:iretu
 	return nil, str
 }
 
-// isPlaceholderNameCharacter returns true if the given character `c` does not contain any restricted characters for placeholder names.
+// isPlaceholderNameCharacter returns true if the given character `c` does not contain
+// any restricted characters for placeholder names.
 //
 // e.g. "time" return `true`.
 // e.g. "time " return `false`.

@@ -39,7 +39,8 @@ func unitOutputLock(key string) *sync.Mutex {
 // FlushOutput flushes buffer data to the output writer for this unit, if the writer supports it.
 // This is safe to call even if Execution or the Writer is nil.
 func FlushOutput(u *Unit) error {
-	if u == nil || u.Execution == nil || u.Execution.TerragruntOptions == nil || u.Execution.TerragruntOptions.Writer == nil {
+	if u == nil || u.Execution == nil || u.Execution.TerragruntOptions == nil ||
+		u.Execution.TerragruntOptions.Writer == nil {
 		return nil
 	}
 

@@ -32,9 +32,15 @@ import (
 func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) catalog.CatalogService {
 	t.Helper()
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
+	mockNewRepo := func(
+		ctx context.Context,
+		logger log.Logger,
+		repoURL, path string,
+		walkWithSymlinks, allowCAS bool,
+	) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
-		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
+		repoName := strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", "")
+		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), repoName)
 
 		// Initialize as a proper git repository
 		os.MkdirAll(dummyRepoDir, 0755)
@@ -73,12 +79,18 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 		switch repoURL {
 		case "github.com/gruntwork-io/test-repo-1":
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# VPC terraform configuration"), 0644)
+			vpcReadme := "# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."
+			os.WriteFile(readme1Path, []byte(vpcReadme), 0644)
+
+			mainTfPath := filepath.Join(dummyRepoDir, "main.tf")
+			os.WriteFile(mainTfPath, []byte("# VPC terraform configuration"), 0644)
 		case "github.com/gruntwork-io/test-repo-2":
 			readme2Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme2Path, []byte("# AWS EKS Module\nThis module creates an EKS cluster in AWS."), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# EKS terraform configuration"), 0644)
+			eksReadme := "# AWS EKS Module\nThis module creates an EKS cluster in AWS."
+			os.WriteFile(readme2Path, []byte(eksReadme), 0644)
+
+			mainTfPath := filepath.Join(dummyRepoDir, "main.tf")
+			os.WriteFile(mainTfPath, []byte("# EKS terraform configuration"), 0644)
 		default:
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
 		}
@@ -126,9 +138,14 @@ func TestTUIFinalModel(t *testing.T) {
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	tm.Send(tea.KeyMsg{
 		Type:  tea.KeyRunes,
@@ -188,9 +205,14 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Press Enter to select the first module (assuming it's pre-selected)
 	tm.Send(tea.KeyMsg{
@@ -198,11 +220,19 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	})
 
 	// Wait for the pager view to appear
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		output := string(bts)
-		// Check for pager view elements (scroll percentage, button bar)
-		return strings.Contains(output, "%") && (strings.Contains(output, "Scaffold") || strings.Contains(output, "View Source"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			output := string(bts)
+			// Check for pager view elements (scroll percentage, button bar)
+			hasPercent := strings.Contains(output, "%")
+			hasButton := strings.Contains(output, "Scaffold") || strings.Contains(output, "View Source")
+
+			return hasPercent && hasButton
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*3),
+	)
 
 	// Send 'q' to go back to list
 	tm.Send(tea.KeyMsg{
@@ -211,9 +241,14 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	})
 
 	// Wait for return to list view
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Finally quit the application
 	tm.Send(tea.KeyMsg{
@@ -238,9 +273,14 @@ func TestTUIModuleFiltering(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Activate filtering with '/'
 	tm.Send(tea.KeyMsg{
@@ -252,11 +292,16 @@ func TestTUIModuleFiltering(t *testing.T) {
 	tm.Type("VPC")
 
 	// Wait for filtering to take effect
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		output := string(bts)
-		// Should show filtered results containing "VPC"
-		return strings.Contains(strings.ToUpper(output), "VPC")
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			output := string(bts)
+			// Should show filtered results containing "VPC"
+			return strings.Contains(strings.ToUpper(output), "VPC")
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*3),
+	)
 
 	// Press Escape to exit filtering
 	tm.Send(tea.KeyMsg{
@@ -264,11 +309,16 @@ func TestTUIModuleFiltering(t *testing.T) {
 	})
 
 	// Wait for return to normal list view
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		output := string(bts)
-		// Should show both modules again
-		return strings.Contains(output, "VPC") && strings.Contains(output, "EKS")
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			output := string(bts)
+			// Should show both modules again
+			return strings.Contains(output, "VPC") && strings.Contains(output, "EKS")
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Quit the application
 	tm.Send(tea.KeyMsg{
@@ -293,17 +343,27 @@ func TestTUIWindowResize(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(80, 30))
 
 	// Wait for initial render
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Send window resize message
 	tm.Send(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Verify the interface handles resize gracefully
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*2),
+	)
 
 	// Quit
 	tm.Send(tea.KeyMsg{
@@ -329,7 +389,8 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	opts.ScaffoldVars = []string{"EnableRootInclude=false"}
 
 	// Use real terraform-fake-modules repository
-	svc := catalog.NewCatalogService(opts).WithRepoURL("https://github.com/gruntwork-io/terraform-fake-modules.git")
+	repoURL := "https://github.com/gruntwork-io/terraform-fake-modules.git"
+	svc := catalog.NewCatalogService(opts).WithRepoURL(repoURL)
 
 	// Load modules from the real repository
 	ctx := t.Context()
@@ -345,9 +406,14 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("List of Modules"))
-	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
+	teatest.WaitFor(
+		t, tm.Output(),
+		func(bts []byte) bool {
+			return bytes.Contains(bts, []byte("List of Modules"))
+		},
+		teatest.WithCheckInterval(time.Millisecond*100),
+		teatest.WithDuration(time.Second*3),
+	)
 
 	// Press 'S' to scaffold the first module
 	tm.Send(tea.KeyMsg{

@@ -27,7 +27,8 @@ const (
 	TraceLevel
 )
 
-// Since the first two logrus levels are Panic and Fatal, which cause an exit or panic when called, we need to shift all of our levels by two bytes.
+// Since the first two logrus levels are Panic and Fatal, which cause an exit or panic when called,
+// we need to shift all of our levels by two bytes.
 const shiftLogrusLevel = 2
 
 var logrusLevels = map[Level]logrus.Level{

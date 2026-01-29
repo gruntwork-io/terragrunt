@@ -64,7 +64,8 @@ func (g *GitRunner) GoOpenRepo() error {
 		}
 	}
 
-	s := filesystem.NewStorageWithOptions(dotGitDir, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
+	s := filesystem.NewStorageWithOptions(
+		dotGitDir, cache.NewObjectLRUDefault(), filesystem.Options{KeepDescriptors: true})
 
 	repo, err := git.Open(s, wt)
 	if err != nil {

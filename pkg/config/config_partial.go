@@ -203,7 +203,10 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			if flag.Default == nil {
-				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.TerragruntConfigPath))
+				errs = errs.Append(fmt.Errorf(
+					"feature flag %s does not have a default value in %s",
+					flag.Name, ctx.TerragruntOptions.TerragruntConfigPath))
+
 				continue
 			}
 
@@ -320,20 +323,32 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 // TerragruntConfigFromPartialConfig is a wrapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
-func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList)
+func TerragruntConfigFromPartialConfig(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	file *hclparse.File,
+	includeFromChild *IncludeConfig,
+) (*TerragruntConfig, error) {
+	var cacheKey = fmt.Sprintf(
+		"%#v-%#v-%#v-%#v",
+		file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
+			l.Debugf(
+				"Cache hit for '%s' (partial parsing), decodeList: '%v'.",
+				pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
 
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil
 		}
 
-		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
+		l.Debugf(
+			"Cache miss for '%s' (partial parsing), decodeList: '%v'.",
+			pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
 	}
 
 	config, err := PartialParseConfig(ctx, pctx, l, file, includeFromChild)

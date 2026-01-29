@@ -17,7 +17,8 @@ type CommonProviderHandler struct {
 	// instead of standard `sync.Map` since it's faster and has generic types.
 	registryURLCache *xsync.MapOf[string, *RegistryURLs]
 
-	// includeProviders and excludeProviders are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
+	// includeProviders and excludeProviders are sets of provider matching patterns that together define
+	// which providers are eligible to be potentially installed from the corresponding Source.
 	includeProviders models.Providers
 	excludeProviders models.Providers
 }

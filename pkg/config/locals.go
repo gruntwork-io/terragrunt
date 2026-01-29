@@ -183,7 +183,9 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 		switch {
 		case localVar.IsRelative():
 			// This should never happen, but if it does, we can't evaluate this expression.
-			detail = "This caused an impossible condition, tnis is almost certainly a bug in Terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl file that caused this."
+			detail = "This caused an impossible condition, tnis is almost certainly a bug in Terragrunt. " +
+				"Please open an issue at github.com/gruntwork-io/terragrunt with this message and " +
+				"the contents of your terragrunt.hcl file that caused this."
 
 		case rootName == MetadataInclude:
 			// If the variable is `include`, then we can evaluate it now
@@ -196,7 +198,9 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 
 		case rootName != "local":
 			// We can't evaluate any variable other than `local`
-			detail = fmt.Sprintf("You can only reference to other local variables here, but it looks like you're referencing something else (%q is not defined)", rootName)
+			detail = fmt.Sprintf(
+				"You can only reference to other local variables here, "+
+					"but it looks like you're referencing something else (%q is not defined)", rootName)
 
 		case localName == "":
 			// If we can't get any local name, we can't evaluate it.
@@ -204,7 +208,9 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 
 		case !hasEvaluated:
 			// If the referenced local isn't evaluated, we can't evaluate this expression.
-			detail = fmt.Sprintf("The local reference '%s' is not evaluated. Either it is not ready yet in the current pass, or there was an error evaluating it in an earlier stage.", localName)
+			detail = fmt.Sprintf(
+				"The local reference '%s' is not evaluated. Either it is not ready yet in the current pass, "+
+					"or there was an error evaluating it in an earlier stage.", localName)
 		}
 
 		if detail != "" {

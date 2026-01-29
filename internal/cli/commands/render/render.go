@@ -94,7 +94,12 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 
 func runRender(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+		return errors.New(
+			"terragrunt was not able to render the config because it received no config. " +
+				"This is almost certainly a bug in Terragrunt. " +
+				"Please open an issue on github.com/gruntwork-io/terragrunt with this message " +
+				"and the contents of your terragrunt.hcl",
+		)
 	}
 
 	switch opts.Format {
@@ -140,7 +145,10 @@ func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.Te
 		}
 
 		cfg.DependentModulesPath = dependentModulesPath
-		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.TerragruntConfigPath})
+		cfg.SetFieldMetadata(
+			config.MetadataDependentModules,
+			map[string]any{config.FoundInFile: opts.TerragruntConfigPath},
+		)
 	}
 
 	var terragruntConfigCty cty.Value

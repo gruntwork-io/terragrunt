@@ -637,7 +637,12 @@ func createEngine(
 }
 
 // invoke engine for working directory
-func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
+func invoke(
+	ctx context.Context,
+	l log.Logger,
+	runOptions *ExecutionOptions,
+	client *proto.EngineClient,
+) (*util.CmdOutput, error) {
 	opts := runOptions.TerragruntOptions
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -763,7 +768,12 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
-func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
+func initialize(
+	ctx context.Context,
+	l log.Logger,
+	runOptions *ExecutionOptions,
+	client *proto.EngineClient,
+) error {
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.New(err)
@@ -827,7 +837,12 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory
-func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
+func shutdown(
+	ctx context.Context,
+	l log.Logger,
+	runOptions *ExecutionOptions,
+	terragruntEngine *proto.EngineClient,
+) error {
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.New(err)

@@ -47,7 +47,8 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 	case "}":
 		return "Unexpected '}' without matching '{'. Explicit path expressions use braces. e.g. '{./my path}'"
 	case "...":
-		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
+		return "The '...' operator must be used in either a graph-based or Git-based expression. " +
+			"e.g. '...foo...' or '[main...HEAD]'"
 	}
 
 	// Generic unexpected token hints
@@ -62,7 +63,8 @@ func getUnexpectedTokenHint(token, query string, position int) string {
 func getCaretHint(query string, position int) string {
 	// Check if caret is at start - suggests graph exclusion usage
 	if position == 0 {
-		return "The '^' operator excludes the target from graph results. e.g. '^foo...' selects foo's dependents but not foo itself."
+		return "The '^' operator excludes the target from graph results. " +
+			"e.g. '^foo...' selects foo's dependents but not foo itself."
 	}
 
 	// Check if caret follows text (e.g., "HEAD^")
@@ -89,7 +91,8 @@ func getCaretHint(query string, position int) string {
 	}
 
 	// Caret at start or in unusual position
-	return "The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'"
+	return "The '^' operator must be used in either a graph-based or Git-based expression. " +
+		"e.g. '...^foo...' or '[HEAD^]'"
 }
 
 // getUnexpectedEOFHint returns a context-aware hint for unexpected end of input.
@@ -97,11 +100,13 @@ func getUnexpectedEOFHint(query string) string {
 	trimmed := strings.TrimSpace(query)
 
 	if strings.HasSuffix(trimmed, "...") {
-		return "The '...' operator must be used in either a graph-based or Git-based expression. e.g. '...foo...' or '[main...HEAD]'"
+		return "The '...' operator must be used in either a graph-based or Git-based expression. " +
+			"e.g. '...foo...' or '[main...HEAD]'"
 	}
 
 	if strings.HasSuffix(trimmed, "^") {
-		return "The '^' operator must be used in either a graph-based or Git-based expression. e.g. '...^foo...' or '[HEAD^]'"
+		return "The '^' operator must be used in either a graph-based or Git-based expression. " +
+			"e.g. '...^foo...' or '[HEAD^]'"
 	}
 
 	return "The expression is incomplete. Make sure all brackets are closed and operators have operands."

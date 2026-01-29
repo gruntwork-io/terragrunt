@@ -10,7 +10,8 @@ const (
 
 	// fieldTagValueRequired forces to make deep copy of the field even if the field type is disallowed by the option.
 	fieldTagValueRequired = "required"
-	// fieldTagValueShadowCopy specifies that the dst field should be assigned the src field pointer instead of deep copying.
+	// fieldTagValueShadowCopy specifies that the dst field should be assigned the src field pointer
+	// instead of deep copying.
 	fieldTagValueShadowCopy = "shadowcopy"
 	// fieldTagValueSkip specifies that the dst field should have a null value, regardless of the src value.
 	fieldTagValueSkip      = "skip"
@@ -118,7 +119,8 @@ func (cloner *Cloner[T]) cloneValue(src reflect.Value) reflect.Value {
 		return cloner.clonePointer(src)
 	case reflect.Struct:
 		return cloner.cloneStruct(src)
-	case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Chan, reflect.Func, reflect.Interface:
+	case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128,
+		reflect.Chan, reflect.Func, reflect.Interface:
 	}
 
 	return src

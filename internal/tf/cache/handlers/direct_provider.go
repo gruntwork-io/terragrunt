@@ -20,7 +20,11 @@ type DirectProviderHandler struct {
 	client *helpers.Client
 }
 
-func NewDirectProviderHandler(logger log.Logger, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *DirectProviderHandler {
+func NewDirectProviderHandler(
+	logger log.Logger,
+	method *cliconfig.ProviderInstallationDirect,
+	credsSource *cliconfig.CredentialsSource,
+) *DirectProviderHandler {
 	return &DirectProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
 		client:                helpers.NewClient(credsSource),

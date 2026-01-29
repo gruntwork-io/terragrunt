@@ -46,11 +46,12 @@ func WithFileUpdate(fn func(*File) error) Option {
 	}
 }
 
-// WithHaltOnErrorOnlyForBlocks configures a diagnostic error handler that runs when diagnostic errors occur.
-// If errors occur in the given `blockNames` blocks, parser returns the error to its caller, otherwise it skips the error.
+// WithHaltOnErrorOnlyForBlocks configures a diagnostic error handler that runs when diagnostic
+// errors occur. If errors occur in the given `blockNames` blocks, parser returns the error to its
+// caller, otherwise it skips the error.
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		handler := func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			if file == nil || !diags.HasErrors() {
 				return diags, nil
 			}
@@ -75,23 +76,35 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 			}
 
 			return nil, nil
-		})
+		}
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			handler,
+		)
 
 		return parser
 	}
 }
 
-func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error)) Option {
+func WithDiagnosticsHandler(
+	fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error),
+) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		handler := func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			return fn(file.File, diags)
-		})
+		}
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			handler,
+		)
 
 		return parser
 	}
 }
 
-func appendHandleDiagnosticsFunc(prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
+func appendHandleDiagnosticsFunc(
+	prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error),
+) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
 	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 		var err error
 

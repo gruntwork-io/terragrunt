@@ -1004,7 +1004,8 @@ func (d *Discovery) Discover(
 							return discoveryErr
 						}
 
-						l.Warnf("Parsing errors were encountered while discovering dependencies. They were suppressed, and can be found in the debug logs.")
+						l.Warnf("Parsing errors were encountered while discovering dependencies. " +
+							"They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %v", discoveryErr)
 					}
@@ -1062,7 +1063,8 @@ func (d *Discovery) Discover(
 							return discoveryErr
 						}
 
-						l.Warnf("Parsing errors were encountered while discovering dependents. They were suppressed, and can be found in the debug logs.")
+						l.Warnf("Parsing errors were encountered while discovering dependents. " +
+							"They were suppressed, and can be found in the debug logs.")
 
 						l.Debugf("Errors: %v", discoveryErr)
 					}
@@ -1094,7 +1096,8 @@ func (d *Discovery) Discover(
 			if !d.suppressParseErrors {
 				errs = append(errs, errors.New(err))
 			} else {
-				l.Warnf("Parsing errors were encountered while discovering relationships. They were suppressed, and can be found in the debug logs.")
+				l.Warnf("Parsing errors were encountered while discovering relationships. " +
+					"They were suppressed, and can be found in the debug logs.")
 
 				l.Debugf("Errors: %v", err)
 			}
@@ -1193,7 +1196,8 @@ func canonicalizeGraphTarget(baseDir, target string) (string, error) {
 
 		abs, absErr = filepath.Abs(joined)
 		if absErr != nil {
-			return "", errors.Errorf("failed to resolve graph target %q relative to %q: %w", target, baseDir, absErr)
+			return "", errors.Errorf(
+				"failed to resolve graph target %q relative to %q: %w", target, baseDir, absErr)
 		}
 	}
 
@@ -1520,7 +1524,11 @@ func containsNoSettingsError(err error) bool {
 
 // filterByExcludeBlock filters out components that have exclude blocks with if=true for the current command.
 // This ensures that units with exclude { if = true, actions = ["all"] } are not included in the discovery results.
-func (d *Discovery) filterByExcludeBlock(l log.Logger, opts *options.TerragruntOptions, components component.Components) component.Components {
+func (d *Discovery) filterByExcludeBlock(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	components component.Components,
+) component.Components {
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
@@ -1545,7 +1553,10 @@ func (d *Discovery) filterByExcludeBlock(l log.Logger, opts *options.TerragruntO
 
 		// If the exclude condition is true, filter out this component
 		if cfg.Exclude.If {
-			l.Debugf("Marking %s as excluded due to exclude block (if=true for command %s)", c.Path(), opts.TerraformCommand)
+			l.Debugf(
+				"Marking %s as excluded due to exclude block (if=true for command %s)",
+				c.Path(),
+				opts.TerraformCommand)
 			unit.SetExcluded(true)
 		}
 

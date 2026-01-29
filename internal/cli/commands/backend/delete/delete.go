@@ -36,7 +36,11 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		}
 
 		if !enabled {
-			return errors.Errorf("bucket is not versioned, refusing to delete backend state. If you are sure you want to delete the backend state anyways, use the --%s flag", ForceBackendDeleteFlagName)
+			return errors.Errorf(
+				"bucket is not versioned, refusing to delete backend state. "+
+					"If you are sure you want to delete the backend state anyways, use the --%s flag",
+				ForceBackendDeleteFlagName,
+			)
 		}
 	}
 

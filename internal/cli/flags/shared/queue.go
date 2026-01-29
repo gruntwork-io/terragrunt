@@ -145,8 +145,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 			&clihelper.BoolFlag{
 				Name:    QueueStrictIncludeFlagName,
 				EnvVars: tgPrefix.EnvVars(QueueStrictIncludeFlagName),
-				Usage:   "If flag is set, only modules under the directories passed in with '--queue-include-dir' will be included.",
-				Hidden:  true,
+				Usage: "If flag is set, only modules under the directories passed in with " +
+					"'--queue-include-dir' will be included.",
+				Hidden: true,
 				Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
 					if value {
 						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx)
@@ -162,8 +163,9 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 			&clihelper.SliceFlag[string]{
 				Name:    QueueIncludeUnitsReadingFlagName,
 				EnvVars: tgPrefix.EnvVars(QueueIncludeUnitsReadingFlagName),
-				Usage:   "If flag is set, 'run --all' will only run the command against units that read the specified file via a Terragrunt HCL function or include.",
-				Hidden:  true,
+				Usage: "If flag is set, 'run --all' will only run the command against units " +
+					"that read the specified file via a Terragrunt HCL function or include.",
+				Hidden: true,
 				Action: func(_ context.Context, _ *clihelper.Context, value []string) error {
 					if len(value) == 0 {
 						return nil

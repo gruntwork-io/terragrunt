@@ -137,7 +137,11 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			case viewSourceBtn:
 				if m.selectedModule.URL() != "" {
 					if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
-						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedModule.URL(), err))
+						errMsg := fmt.Sprintf(
+							"could not open url in browser: %s. got error: %s",
+							m.selectedModule.URL(), err,
+						)
+						m.viewport.SetContent(errMsg)
 					}
 				}
 			default:

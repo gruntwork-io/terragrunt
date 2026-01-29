@@ -26,22 +26,31 @@ func TestResolveRelativeReferences(t *testing.T) {
 				SHA256SumsSignatureURL: "terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 			models.ResponseBody{
-				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
-				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
-				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
+				DownloadURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_darwin_amd64.zip",
+				SHA256SumsURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS",
+				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 		},
 		{
 			"https://somehost.com",
 			models.ResponseBody{
-				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
-				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
-				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
+				DownloadURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_darwin_amd64.zip",
+				SHA256SumsURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS",
+				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 			models.ResponseBody{
-				DownloadURL:            "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_darwin_amd64.zip",
-				SHA256SumsURL:          "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS",
-				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
+				DownloadURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_darwin_amd64.zip",
+				SHA256SumsURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS",
+				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/" +
+					"terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 		},
 	}

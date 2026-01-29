@@ -97,7 +97,8 @@ func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
 }
 
 // RelativePather replaces absolute paths with relative ones,
-// For better performance, during instance creation, we creating a cache of relative paths for each subdirectory of baseDir.
+// For better performance, during instance creation, we creating a cache of relative paths
+// for each subdirectory of baseDir.
 //
 // Example of cache:
 // /path/to/dir ./
@@ -133,7 +134,11 @@ func NewRelativePather(baseDir string) (*RelativePather, error) {
 		reversIndex--
 		relPaths[reversIndex] = relPath
 
-		regStr := fmt.Sprintf(`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`, regexp.QuoteMeta(pathSeparator), regexp.QuoteMeta(absPath))
+		regStr := fmt.Sprintf(
+			`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`,
+			regexp.QuoteMeta(pathSeparator),
+			regexp.QuoteMeta(absPath),
+		)
 		absPathsReg[reversIndex] = regexp.MustCompile(regStr)
 	}
 

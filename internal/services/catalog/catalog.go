@@ -25,7 +25,12 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
+type NewRepoFunc func(
+	ctx context.Context,
+	l log.Logger,
+	cloneURL, path string,
+	walkWithSymlinks, allowCAS bool,
+) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -178,7 +183,12 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 	return s.modules
 }
 
-func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {
+func (s *catalogServiceImpl) Scaffold(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	module *module.Module,
+) error {
 	l.Infof("Scaffolding module: %q", module.TerraformSourcePath())
 
 	return scaffold.Run(ctx, l, opts, module.TerraformSourcePath(), "")

@@ -21,7 +21,8 @@ func NewGraphFlag(opts *options.TerragruntOptions, prefix flags.Prefix) *flags.F
 		Name:        GraphFlagName,
 		EnvVars:     tgPrefix.EnvVars(GraphFlagName),
 		Destination: &opts.Graph,
-		Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
+		Usage: "Run the specified OpenTofu/Terraform command " +
+			"following the Directed Acyclic Graph (DAG) of dependencies.",
 		Action: func(_ context.Context, _ *clihelper.Context, _ bool) error {
 			if opts.RunAll {
 				return errors.New(new(AllGraphFlagsError))

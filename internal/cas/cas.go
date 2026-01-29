@@ -175,7 +175,13 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(ctx context.Context, l log.Logger, opts *CloneOptions, url string, hash string) error {
+func (c *CAS) cloneAndStoreContent(
+	ctx context.Context,
+	l log.Logger,
+	opts *CloneOptions,
+	url string,
+	hash string,
+) error {
 	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
 		return err
 	}

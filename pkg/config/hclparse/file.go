@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	// A consistent error message for multiple catalog block in terragrunt config (which is currently not supported)
-	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
+	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks " +
+		"in a single config. Consolidate to a single %[1]s block."
 )
 
 type File struct {

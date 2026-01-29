@@ -45,7 +45,8 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 			&clihelper.BoolFlag{
 				Name:    FilterAffectedFlagName,
 				EnvVars: tgPrefix.EnvVars(FilterAffectedFlagName),
-				Usage:   "Filter components affected by changes between main and HEAD. Equivalent to --filter=[main...HEAD].",
+				Usage: "Filter components affected by changes between main and HEAD. " +
+					"Equivalent to --filter=[main...HEAD].",
 				Action: func(ctx context.Context, _ *clihelper.Context, val bool) error {
 					if !val {
 						return nil
@@ -71,7 +72,8 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					gitRunner = gitRunner.WithWorkDir(workDir)
 
 					if gitRunner.HasUncommittedChanges(ctx) {
-						l.Warnf("Warning: You have uncommitted changes. The --filter-affected flag may not include all your local modifications.")
+						l.Warnf("Warning: You have uncommitted changes. " +
+							"The --filter-affected flag may not include all your local modifications.")
 					}
 
 					defaultBranch := gitRunner.GetDefaultBranch(ctx, l)

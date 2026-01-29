@@ -126,7 +126,9 @@ func (cache *ProviderCache) PackageDir() string {
 	return cache.packageDir
 }
 
-func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getproviders.PackageAuthenticationResult, error) {
+func (cache *ProviderCache) AuthenticatePackage(
+	ctx context.Context,
+) (*getproviders.PackageAuthenticationResult, error) {
 	var (
 		checksum           [sha256.Size]byte
 		documentSHA256Sums []byte
@@ -143,7 +145,9 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 	}
 
 	if _, err := hex.Decode(checksum[:], []byte(cache.SHA256Sum)); err != nil {
-		return nil, errors.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
+		return nil, errors.Errorf(
+			"registry response includes invalid SHA256 hash %q for provider %q: %w",
+			cache.SHA256Sum, cache.Provider, err)
 	}
 
 	checks := []getproviders.PackageAuthentication{
@@ -152,10 +156,13 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 	}
 
 	if len(cache.SigningKeys.Keys()) != 0 {
-		checks = append(checks, getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, cache.SigningKeys.Keys()))
+		checks = append(checks, getproviders.NewSignatureAuthentication(
+			documentSHA256Sums, signature, cache.SigningKeys.Keys()))
 	} else {
 		// `registry.opentofu.org` does not have signatures for some providers.
-		cache.logger.Warnf("Signature validation was skipped due to the registry not containing GPG keys for the provider %s", cache.Provider)
+		cache.logger.Warnf(
+			"Signature validation was skipped due to the registry not containing GPG keys for the provider %s",
+			cache.Provider)
 	}
 
 	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.archivePath)
@@ -270,8 +277,12 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 }
 
 // warmUp checks if the required provider already exists in the cache directory, if not:
-// 1. Checks if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
-// 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
+//  1. Checks if the required provider exists in the user plugins directory, located at
+//     %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems.
+//     If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64,
+//     in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which
+//     compiles and saves providers to the user plugins directory)
+//  2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if util.FileExists(cache.packageDir) {
 		return nil
@@ -300,13 +311,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if util.FileExists(cache.DownloadURL) {
 		cache.archivePath = cache.DownloadURL
 	} else {
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
-			req, err := cache.newRequest(ctx, cache.DownloadURL)
-			if err != nil {
-				return err
-			}
-			return helpers.FetchToFile(ctx, req, cache.archivePath)
-		}); err != nil {
+		retryMsg := fmt.Sprintf("Fetching provider %s", cache.Provider)
+		if err := util.DoWithRetry(
+			ctx, retryMsg, maxRetriesFetchFile, retryDelayFetchFile,
+			cache.logger, log.DebugLevel, func(ctx context.Context) error {
+				req, err := cache.newRequest(ctx, cache.DownloadURL)
+				if err != nil {
+					return err
+				}
+				return helpers.FetchToFile(ctx, req, cache.archivePath)
+			}); err != nil {
 			return err
 		}
 
@@ -366,10 +380,15 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		return nil, errors.New(err)
 	}
 
-	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
-		return lockfile.TryLock()
-	}); err != nil {
-		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
+	retryMsg := "Acquiring lock file " + cache.lockfilePath
+	if err := util.DoWithRetry(
+		ctx, retryMsg, maxRetriesLockFile, retryDelayLockFile,
+		cache.logger, log.DebugLevel, func(ctx context.Context) error {
+			return lockfile.TryLock()
+		}); err != nil {
+		return nil, errors.Errorf(
+			"unable to acquire lock file %s (already locked?) try to remove the file manually: %w",
+			cache.lockfilePath, err)
 	}
 
 	return lockfile, nil
@@ -386,14 +405,19 @@ type ProviderService struct {
 	// The path to a predictable temporary directory for provider archives and lock files.
 	tempDir string
 
-	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
+	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows,
+	// ~/.terraform.d/plugins on other systems.
 	userCacheDir   string
 	providerCaches ProviderCaches
 	cacheMu        sync.RWMutex
 	cacheReadyMu   sync.RWMutex
 }
 
-func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {
+func NewProviderService(
+	cacheDir, userCacheDir string,
+	credsSource *cliconfig.CredentialsSource,
+	logger log.Logger,
+) *ProviderService {
 	service := &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
@@ -411,8 +435,9 @@ func (service *ProviderService) Logger() log.Logger {
 	return service.logger
 }
 
-// WaitForCacheReady returns cached providers that were requested by `terraform init` from the cache server, with an  URL containing the given `requestID` value.
-// The function returns the value only when all cache requests have been processed.
+// WaitForCacheReady returns cached providers that were requested by `terraform init` from the cache
+// server, with an URL containing the given `requestID` value. The function returns the value only
+// when all cache requests have been processed.
 func (service *ProviderService) WaitForCacheReady(requestID string) ([]getproviders.Provider, error) {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
@@ -455,7 +480,11 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
-func (service *ProviderService) CacheProvider(ctx context.Context, requestID string, provider *models.Provider) *ProviderCache {
+func (service *ProviderService) CacheProvider(
+	ctx context.Context,
+	requestID string,
+	provider *models.Provider,
+) *ProviderCache {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
@@ -468,7 +497,9 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 		return cache
 	}
 
-	packageName := fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
+	packageName := fmt.Sprintf(
+		"%s-%s-%s-%s-%s",
+		provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 
 	cache := &ProviderCache{
 		ProviderService: service,
@@ -486,7 +517,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	select {
 	case service.providerCacheWarmUpCh <- cache:
 		service.logger.Debugf("Successfully sent provider %s to warm up channel", provider)
-		// We need to wait for caching to start and only then release the client (Terraform) requestID. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
+		// We need to wait for caching to start and only then release the client (Terraform) requestID.
+		// Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
 		<-cache.started
 		service.providerCaches = append(service.providerCaches, cache)
 		service.logger.Debugf("Added provider %s to provider caches list", provider)
@@ -578,7 +610,8 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 
 	cache.started <- struct{}{}
 
-	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
+	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write
+	// access to the same provider.
 	lockfile, err := cache.acquireLockFile(ctx)
 	if err != nil {
 		service.logger.Errorf("Failed to acquire lock file for %s: %v", cache.Provider, err)

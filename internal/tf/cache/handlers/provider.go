@@ -62,7 +62,11 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 
 	if !directIsDefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, NewDirectProviderHandler(logger, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+		providerHandlers = append(providerHandlers, NewDirectProviderHandler(
+			logger,
+			new(cliconfig.ProviderInstallationDirect),
+			cliCfg.CredentialsSource(),
+		))
 	}
 
 	return providerHandlers, nil

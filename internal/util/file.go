@@ -150,7 +150,9 @@ func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]st
 	for _, globPath := range globPaths {
 		// Log a warning if globPath uses the old glob pattern
 		if strings.HasSuffix(globPath, "**/*") {
-			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
+			l.Warn("Glob behavior will change in a future version of Terragrunt. " +
+				"`**/*` will match all files in a directory and its subdirectories with a depth of at least one. " +
+				"Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
 		}
 
 		// Ensure globPath are absolute
@@ -490,7 +492,11 @@ func CopyFolderContents(
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(
+	logger log.Logger,
+	source, destination, manifestFile string,
+	filter func(absolutePath string) bool,
+) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
@@ -772,7 +778,9 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0644
 
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
+	manifestPath := filepath.Join(manifest.ManifestFolder, manifest.ManifestFile)
+
+	fileHandle, err := os.OpenFile(manifestPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
 		return err
 	}
@@ -1101,7 +1109,8 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			// Convert the current physical path to a logical path relative to the walk root
 			rel, err := filepath.Rel(pair.physical, currentPath)
 			if err != nil {
-				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+				return errors.Errorf(
+					"failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)

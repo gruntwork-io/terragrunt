@@ -26,7 +26,8 @@ const (
 type ParseError struct {
 	// Title is a high-level error description (e.g., "Unclosed Git filter expression")
 	Title string
-	// Message is a detailed explanation shown at the problematic location (e.g., "this Git-based expression is missing a closing ']'")
+	// Message is a detailed explanation shown at the problematic location
+	// (e.g., "this Git-based expression is missing a closing ']'")
 	Message string
 	// Query is the original filter query
 	Query string
@@ -58,7 +59,13 @@ func NewParseError(message string, position int) error {
 }
 
 // NewParseErrorWithContext creates a new ParseError with full context for rich diagnostics.
-func NewParseErrorWithContext(title, message string, position, errorPosition int, query, tokenLiteral string, tokenLength int, code ErrorCode) error {
+func NewParseErrorWithContext(
+	title, message string,
+	position, errorPosition int,
+	query, tokenLiteral string,
+	tokenLength int,
+	code ErrorCode,
+) error {
 	return errors.New(ParseError{
 		Title:         title,
 		Message:       message,
@@ -95,14 +102,16 @@ func NewEvaluationErrorWithCause(message string, cause error) error {
 	return errors.New(EvaluationError{Message: message, Cause: cause})
 }
 
-// FilterQueryRequiresDiscoveryError is an error that is returned when a filter query requires discovery of Terragrunt configurations.
+// FilterQueryRequiresDiscoveryError is an error that is returned when a filter query requires
+// discovery of Terragrunt configurations.
 type FilterQueryRequiresDiscoveryError struct {
 	Query string
 }
 
 func (e FilterQueryRequiresDiscoveryError) Error() string {
 	return fmt.Sprintf(
-		"Filter query '%s' requires discovery of Terragrunt configurations, which is not supported when evaluating filters on generic files",
+		"Filter query '%s' requires discovery of Terragrunt configurations, "+
+			"which is not supported when evaluating filters on generic files",
 		e.Query,
 	)
 }

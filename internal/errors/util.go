@@ -53,8 +53,9 @@ func IsContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
-// IsError returns true if actual is the same type of error as expected. This method unwraps the given error objects (if they
-// are wrapped in objects with a stacktrace) and then does a simple equality check on them.
+// IsError returns true if actual is the same type of error as expected. This method unwraps the
+// given error objects (if they are wrapped in objects with a stacktrace) and then does a simple
+// equality check on them.
 func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
 }

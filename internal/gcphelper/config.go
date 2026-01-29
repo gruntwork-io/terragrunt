@@ -102,7 +102,8 @@ func CreateGCPConfig(
 	return clientOpts, nil
 }
 
-// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in opts.Env
+// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS
+// environment variable in opts.Env.
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
 func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientOption {
@@ -120,7 +121,10 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientO
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
-func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *options.TerragruntOptions) (option.ClientOption, error) {
+func createGCPCredentialsFromGoogleCredentialsEnv(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
 		PrivateKey   string `json:"private_key"`

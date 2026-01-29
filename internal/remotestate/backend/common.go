@@ -30,40 +30,52 @@ func (backend *CommonBackend) Name() string {
 	return backend.name
 }
 
-func (backend *CommonBackend) IsVersionControlEnabled(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *CommonBackend) IsVersionControlEnabled(
+	ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions,
+) (bool, error) {
 	l.Warnf("Checking version control for %s backend not implemented.", backend.Name())
 
 	return false, nil
 }
 
 // NeedsBootstrap implements `backends.NeedsBootstrap` interface.
-func (backend *CommonBackend) NeedsBootstrap(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *CommonBackend) NeedsBootstrap(
+	ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions,
+) (bool, error) {
 	return false, nil
 }
 
 // Bootstrap implements `backends.Bootstrap` interface.
-func (backend *CommonBackend) Bootstrap(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error {
+func (backend *CommonBackend) Bootstrap(
+	ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions,
+) error {
 	l.Warnf("Bootstrap for %s backend not implemented.", backend.Name())
 
 	return nil
 }
 
 // Migrate implements `backends.Migrate` interface.
-func (backend *CommonBackend) Migrate(ctx context.Context, l log.Logger, srcConfig, dstConfig Config, opts *options.TerragruntOptions) error {
+func (backend *CommonBackend) Migrate(
+	ctx context.Context, l log.Logger, srcConfig, dstConfig Config, opts *options.TerragruntOptions,
+) error {
 	l.Warnf("Migrate for %s backend not implemented.", backend.Name())
 
 	return nil
 }
 
 // Delete implements `backends.Delete` interface.
-func (backend *CommonBackend) Delete(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error {
+func (backend *CommonBackend) Delete(
+	ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions,
+) error {
 	l.Warnf("Delete for %s backend not implemented.", backend.Name())
 
 	return nil
 }
 
 // DeleteBucket implements `backends.DeleteBucket` interface.
-func (backend *CommonBackend) DeleteBucket(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error {
+func (backend *CommonBackend) DeleteBucket(
+	ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions,
+) error {
 	l.Warnf("Deleting entire bucket for %s backend not implemented.", backend.Name())
 
 	return nil

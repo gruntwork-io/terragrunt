@@ -25,7 +25,11 @@ type NetworkMirrorProviderHandler struct {
 	networkMirrorURL *url.URL
 }
 
-func NewNetworkMirrorProviderHandler(logger log.Logger, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (*NetworkMirrorProviderHandler, error) {
+func NewNetworkMirrorProviderHandler(
+	logger log.Logger,
+	networkMirror *cliconfig.ProviderInstallationNetworkMirror,
+	credsSource *cliconfig.CredentialsSource,
+) (*NetworkMirrorProviderHandler, error) {
 	networkMirrorURL, err := url.Parse(networkMirror.URL)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse network mirror URL %q: %w", networkMirror.URL, err)

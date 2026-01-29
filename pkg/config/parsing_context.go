@@ -151,7 +151,9 @@ func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingConte
 	}
 
 	c := ctx.Clone()
-	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
+	c.ParserOptions = slices.Concat(
+		ctx.ParserOptions,
+		[]hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
 
 	return c
 }

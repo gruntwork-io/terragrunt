@@ -171,11 +171,15 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.TerraformVersionConstraint, MetadataTerraformVersionConstraint, &output); err != nil {
+	if err := wrapWithMetadata(
+		config, config.TerraformVersionConstraint, MetadataTerraformVersionConstraint, &output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.TerragruntVersionConstraint, MetadataTerragruntVersionConstraint, &output); err != nil {
+	if err := wrapWithMetadata(
+		config, config.TerragruntVersionConstraint, MetadataTerragruntVersionConstraint, &output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 
@@ -187,7 +191,9 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.IamAssumeRoleSessionName, MetadataIamAssumeRoleSessionName, &output); err != nil {
+	if err := wrapWithMetadata(
+		config, config.IamAssumeRoleSessionName, MetadataIamAssumeRoleSessionName, &output,
+	); err != nil {
 		return cty.NilVal, err
 	}
 

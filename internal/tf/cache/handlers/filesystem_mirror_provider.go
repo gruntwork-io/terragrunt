@@ -22,7 +22,10 @@ type FilesystemMirrorProviderHandler struct {
 	filesystemMirrorPath string
 }
 
-func NewFilesystemMirrorProviderHandler(logger log.Logger, method *cliconfig.ProviderInstallationFilesystemMirror) *FilesystemMirrorProviderHandler {
+func NewFilesystemMirrorProviderHandler(
+	logger log.Logger,
+	method *cliconfig.ProviderInstallationFilesystemMirror,
+) *FilesystemMirrorProviderHandler {
 	return &FilesystemMirrorProviderHandler{
 		CommonProviderHandler: NewCommonProviderHandler(logger, method.Include, method.Exclude),
 		filesystemMirrorPath:  method.Path,

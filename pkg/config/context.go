@@ -30,7 +30,8 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File](hclCacheName))
 	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig](configCacheName))
 	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string](runCmdCacheName))
-	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
+	depOutputCache := cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName)
+	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, depOutputCache)
 	ctx = context.WithValue(ctx, JSONOutputCacheContextKey, cache.NewCache[[]byte](jsonOutputCacheName))
 	ctx = context.WithValue(ctx, OutputLocksContextKey, util.NewKeyLocks())
 

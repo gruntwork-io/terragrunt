@@ -71,7 +71,11 @@ func (handler *ProxyProviderHandler) GetVersions(ctx echo.Context, provider *mod
 }
 
 // GetPlatform implements ProviderHandler.GetPlatform
-func (handler *ProxyProviderHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller) error {
+func (handler *ProxyProviderHandler) GetPlatform(
+	ctx echo.Context,
+	provider *models.Provider,
+	downloaderController router.Controller,
+) error {
 	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
 	if err != nil {
 		return err

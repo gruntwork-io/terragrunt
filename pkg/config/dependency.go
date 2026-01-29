@@ -61,12 +61,12 @@ type Dependency struct {
 	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
-	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr"`
 
 	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
 	MockOutputsMergeWithState *bool `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
 
-	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
+	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
@@ -113,7 +113,9 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 		if dep.MockOutputsAllowedTerraformCommands == nil {
 			dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
 		} else {
-			mergedCmds := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
+			mergedCmds := append(
+				*dep.MockOutputsAllowedTerraformCommands,
+				*sourceDepConfig.MockOutputsAllowedTerraformCommands...)
 			dep.MockOutputsAllowedTerraformCommands = &mergedCmds
 		}
 	}
@@ -121,8 +123,9 @@ func (dep *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 	return nil
 }
 
-// getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of mock_outputs_merge_with_state
-// - If mock_outputs_merge_strategy_with_state is not null. The value of mock_outputs_merge_strategy_with_state will be returned
+// getMockOutputsMergeStrategy returns the MergeStrategyType following the deprecation of
+// mock_outputs_merge_with_state
+// - If mock_outputs_merge_strategy_with_state is not null. The value will be returned
 // - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
 //   - mock_outputs_merge_with_state being true returns ShallowMerge
 //   - mock_outputs_merge_with_state being false returns NoMerge
@@ -211,7 +214,10 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		return nil, err
 	}
 
-	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
+	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding
+	// returns an error since this attribute is required, but the `hclvalidate` command suppresses
+	// decoding errors and this causes a cycle between modules, so we need to filter out dependencies
+	// without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
 	// Validate that dependency config_path is not an empty string.
@@ -395,7 +401,10 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 		}
 
 		dependencyContext := pctx.WithTerragruntOptions(dependencyOpts)
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+
+		err = checkForDependencyBlockCyclesUsingDFS(
+			ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths)
+		if err != nil {
 			return err
 		}
 	}
@@ -439,7 +448,10 @@ func checkForDependencyBlockCyclesUsingDFS(
 		}
 
 		dependencyContext := pctx.WithTerragruntOptions(dependencyOpts)
-		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+
+		err = checkForDependencyBlockCyclesUsingDFS(
+			ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths)
+		if err != nil {
 			return err
 		}
 	}
@@ -730,9 +742,15 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		return nil, err
 	}
 
-	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go displays log as a plaintext "Enabling CSM" to stdout, even if the `output -json` flag is specified. The final output looks like this: "2023/05/04 20:22:43 Enabling CSM{...omitted json string...}", and and prevents proper json parsing. Since there is no way to disable this log, the only way out is to filter.
-	// Related AWS code: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-	// Related issues: https://github.com/gruntwork-io/terragrunt/issues/2233 https://github.com/hashicorp/terraform-provider-aws/issues/23620
+	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go displays log as a plaintext
+	// "Enabling CSM" to stdout, even if the `output -json` flag is specified. The final output
+	// looks like this: "2023/05/04 20:22:43 Enabling CSM{...omitted json string...}", and prevents
+	// proper json parsing. Since there is no way to disable this log, the only way out is to filter.
+	// Related AWS code:
+	// https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
+	// Related issues:
+	// https://github.com/gruntwork-io/terragrunt/issues/2233
+	// https://github.com/hashicorp/terraform-provider-aws/issues/23620
 	if index := bytes.IndexByte(newJSONBytes, byte('{')); index > 0 {
 		newJSONBytes = newJSONBytes[index:]
 	}

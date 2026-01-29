@@ -277,9 +277,15 @@ func generateComponent(ctx context.Context, l log.Logger, opts *options.Terragru
 		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
 			if opts.NoStackValidate {
 				// print warning if validation is skipped
-				l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+				l.Warnf(
+					"Suppressing validation error for %s %s at path %s: "+
+						"expected %s to generate with %s file at root of generated directory.",
+					kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			} else {
-				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
+				return errors.Errorf(
+					"Validation failed for %s %s at path %s: "+
+						"expected %s to generate with %s file at root of generated directory.",
+					kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
 			}
 		}
 	}
@@ -636,7 +642,9 @@ func validateTargetDir(kind, name, destDir, expectedFile string) error {
 
 	info, err := os.Stat(expectedPath)
 	if err != nil {
-		return fmt.Errorf("%s '%s': expected file '%s' not found in target directory '%s': %w", kind, name, expectedFile, destDir, err)
+		return fmt.Errorf(
+			"%s '%s': expected file '%s' not found in target directory '%s': %w",
+			kind, name, expectedFile, destDir, err)
 	}
 
 	if info.IsDir() {

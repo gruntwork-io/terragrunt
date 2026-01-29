@@ -27,7 +27,8 @@ func NewDownloadDirFlag(opts *options.TerragruntOptions, prefix flags.Prefix, co
 			Name:        DownloadDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(DownloadDirFlagName),
 			Destination: &opts.DownloadDir,
-			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
+			Usage: "The path to download OpenTofu/Terraform modules into. " +
+				"Default is .terragrunt-cache in the working directory.",
 		},
 		flags.WithDeprecatedEnvVars(
 			append(

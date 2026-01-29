@@ -22,10 +22,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil), shared.NewGraphFlag(opts, nil))
 
 	cmd := &clihelper.Command{
-		Name:        CommandName,
-		Usage:       "Run an OpenTofu/Terraform command.",
-		UsageText:   "terragrunt run [options] -- <tofu/terraform command>",
-		Description: "Run a command, passing arguments to an orchestrated tofu/terraform binary.\n\nThis is the explicit, and most flexible form of running an IaC command with Terragrunt. Shortcuts can be found in \"terragrunt --help\" for common use-cases.",
+		Name:      CommandName,
+		Usage:     "Run an OpenTofu/Terraform command.",
+		UsageText: "terragrunt run [options] -- <tofu/terraform command>",
+		Description: "Run a command, passing arguments to an orchestrated tofu/terraform binary." +
+			"\n\nThis is the explicit, and most flexible form of running an IaC command with Terragrunt. " +
+			"Shortcuts can be found in \"terragrunt --help\" for common use-cases.",
 		Examples: []string{
 			"# Run a plan\nterragrunt run -- plan\n# Shortcut:\n# terragrunt plan",
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",

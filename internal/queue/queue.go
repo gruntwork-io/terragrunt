@@ -1,5 +1,6 @@
 // Package queue provides a run queue implementation.
-// The queue is a double-ended queue (deque) that allows for efficient adding and removing of elements from both ends.
+// The queue is a double-ended queue (deque) that allows for efficient adding and removing of
+// elements from both ends.
 // The queue is used to manage the order of Terragrunt runs.
 //
 // The algorithm for populating the queue is as follows:
@@ -35,12 +36,14 @@ import (
 // Entry represents a node in the execution queue/DAG. Each Entry corresponds to a single Terragrunt configuration
 // and tracks its execution status and relationships to other entries in the queue.
 type Entry struct {
-	// Component is the Terragrunt configuration associated with this entry. It contains all metadata about the unit/stack,
-	// including its path, dependencies, and discovery context (such as the command being run).
+	// Component is the Terragrunt configuration associated with this entry. It contains all
+	// metadata about the unit/stack, including its path, dependencies, and discovery context
+	// (such as the command being run).
 	Component component.Component
 
-	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
-	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
+	// Status represents the current lifecycle state of this entry in the queue. It tracks whether
+	// the entry is pending, blocked, ready, running, succeeded, or failed. Status is updated as
+	// dependencies are resolved and as execution progresses.
 	Status Status
 }
 
@@ -129,11 +132,13 @@ func (e *Entry) IsUp() bool {
 		return false
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "apply" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "apply" &&
+		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
-	if e.Component.DiscoveryContext().Cmd == "plan" && slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
+	if e.Component.DiscoveryContext().Cmd == "plan" &&
+		slices.Contains(e.Component.DiscoveryContext().Args, "-destroy") {
 		return false
 	}
 
@@ -297,7 +302,8 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
+// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies
+// completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -495,7 +501,8 @@ func (q *Queue) earlyExitDependencies(e *Entry) {
 	}
 }
 
-// Finished checks if all entries in the queue are in a terminal state (i.e., not pending, blocked, ready, or running).
+// Finished checks if all entries in the queue are in a terminal state (i.e., not pending,
+// blocked, ready, or running).
 func (q *Queue) Finished() bool {
 	q.mu.RLock()
 	defer q.mu.RUnlock()

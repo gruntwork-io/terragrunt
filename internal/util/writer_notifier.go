@@ -11,7 +11,8 @@ type writerNotifier struct {
 	once     sync.Once
 }
 
-// WriterNotifier fires `notifyFn` once when the first data comes at `Writer(p []byte)` and forwards data further to the specified `writer`.
+// WriterNotifier fires `notifyFn` once when the first data comes at `Writer(p []byte)` and forwards data
+// further to the specified `writer`.
 func WriterNotifier(writer io.Writer, notifyFn func(p []byte)) io.Writer {
 	return &writerNotifier{
 		Writer:   writer,

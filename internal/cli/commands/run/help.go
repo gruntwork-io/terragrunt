@@ -16,6 +16,8 @@ import (
 )
 
 // TFCommandHelpTemplate is the TF command CLI help template.
+//
+//nolint:lll
 const TFCommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Command.UsageText 3 }}{{ else }}{{ range $parent := parentCommands . }}{{ $parent.HelpName }} {{ end }}[global options] {{ .Command.HelpName }} [options]{{ if eq .Command.Name "` + tf.CommandNameApply + `" }} [PLAN]{{ end }}{{ end }}{{ $description := .Command.Usage }}{{ if .Command.Description }}{{ $description = .Command.Description }}{{ end }}{{ if $description }}
 
    {{ wrap $description 3 }}{{ end }}{{ if ne .Parent.Command.Name "` + CommandName + `" }}
@@ -65,7 +67,12 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 			err = processError.Err
 		}
 
-		return fmt.Sprintf("Failed to execute \"%s %s\": %s", opts.TFPath, strings.Join(terraformHelpCmd, " "), err.Error())
+		return fmt.Sprintf(
+			"Failed to execute \"%s %s\": %s",
+			opts.TFPath,
+			strings.Join(terraformHelpCmd, " "),
+			err.Error(),
+		)
 	}
 
 	result := out.Stdout.String()

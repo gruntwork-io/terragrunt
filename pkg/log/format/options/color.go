@@ -108,7 +108,10 @@ func (val *ColorList) Parse(str string) error {
 	}
 
 	if err := val.MapValue.Parse(str); err != nil {
-		return errors.Errorf("available values: 0..255,%s", strings.Join(slices.Collect(maps.Values(val.list)), ","))
+		return errors.Errorf(
+			"available values: 0..255,%s",
+			strings.Join(slices.Collect(maps.Values(val.list)), ","),
+		)
 	}
 
 	return nil
@@ -190,7 +193,8 @@ func Color(val ColorValue) Option {
 }
 
 var (
-	// defaultAutoColorValues contains ANSI color codes that are assigned sequentially to each unique text in a rotating order
+	// defaultAutoColorValues contains ANSI color codes that are assigned sequentially
+	// to each unique text in a rotating order
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
 	// https://www.hackitu.de/termcolor256/
 	defaultAutoColorValues = []ColorValue{ //nolint:gochecknoglobals
@@ -211,7 +215,8 @@ var (
 
 type gradientColor struct {
 	// cache stores unique text with their color code.
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
+	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
+	// instead of standard `sync.Map` since it's faster and has generic types.
 	cache  *xsync.MapOf[string, ColorValue]
 	values []ColorValue
 	mu     sync.Mutex

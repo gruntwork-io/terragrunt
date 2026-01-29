@@ -77,12 +77,14 @@ func (cmd *Cmd) Start() error {
 }
 
 // RegisterGracefullyShutdown registers a graceful shutdown for the command in two ways:
-//  1. If the context cancel contains a cause with a signal, this means that Terragrunt received the signal from the OS,
-//     since our executed command may also receive the same signal, we need to give the command time to gracefully shutting down,
-//     to avoid the command receiving this signal twice.
-//     Thus we will send the signal to the executed command with a delay or immediately if Terragrunt receives this same signal again.
-//  2. If the context does not contain any causes, this means that there was some failure and we need to terminate all executed commands,
-//     in this situation we are sure that commands did not receive any signal, so we send them an interrupt signal immediately.
+//  1. If the context cancel contains a cause with a signal, this means that Terragrunt received
+//     the signal from the OS, since our executed command may also receive the same signal, we
+//     need to give the command time to gracefully shutting down, to avoid the command receiving
+//     this signal twice. Thus we will send the signal to the executed command with a delay or
+//     immediately if Terragrunt receives this same signal again.
+//  2. If the context does not contain any causes, this means that there was some failure and we
+//     need to terminate all executed commands, in this situation we are sure that commands did
+//     not receive any signal, so we send them an interrupt signal immediately.
 func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) func() {
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
 
@@ -133,7 +135,8 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, sig os.Signal) {
 
 // SendSignal sends the given `sig` to the executed command.
 func (cmd *Cmd) SendSignal(sig os.Signal) {
-	cmd.logger.Debugf("%s signal is forwarded to %s", cases.Title(language.English).String(sig.String()), cmd.filename)
+	cmd.logger.Debugf("%s signal is forwarded to %s",
+		cases.Title(language.English).String(sig.String()), cmd.filename)
 
 	if err := cmd.Process.Signal(sig); err != nil {
 		cmd.logger.Errorf("Failed to forwarding signal %s to %s: %v", sig, cmd.filename, err)

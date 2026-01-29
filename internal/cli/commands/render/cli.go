@@ -84,11 +84,12 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Name:        OutFlagName,
 			EnvVars:     tgPrefix.EnvVars(OutFlagName),
 			Destination: &opts.OutputPath,
-			Usage:       "The file name that terragrunt should use when rendering the terragrunt.hcl config (next to the unit configuration).",
+			Usage: "The file name that terragrunt should use when rendering " +
+				"the terragrunt.hcl config (next to the unit configuration).",
 		},
-			flags.WithDeprecatedFlagName("json-out", terragruntPrefixControl),                          // `--json-out` (deprecated: use `--out` instead)
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), terragruntPrefixControl),  // `TG_RENDER_JSON_OUT`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out"), terragruntPrefixControl), // `TERRAGRUNT_JSON_OUT`
+			flags.WithDeprecatedFlagName("json-out", terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-out"), terragruntPrefixControl),
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-out"), terragruntPrefixControl),
 		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -97,8 +98,14 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Destination: &opts.RenderMetadata,
 			Usage:       "Add metadata to the rendered output file.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-with-metadata"), terragruntPrefixControl), // `TG_RENDER_JSON_WITH_METADATA`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("with-metadata"), terragruntPrefixControl),     // `TERRAGRUNT_WITH_METADATA`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("render-json-with-metadata"),
+				terragruntPrefixControl,
+			),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("with-metadata"),
+				terragruntPrefixControl,
+			),
 		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
@@ -107,8 +114,14 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 			Destination: &opts.DisableDependentUnits,
 			Usage:       "Disable identification of dependent modules when rendering config.",
 		},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), terragruntPrefixControl),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-disable-dependent-modules"), terragruntPrefixControl), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("render-json-disable-dependent-modules"),
+				terragruntPrefixControl,
+			),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("json-disable-dependent-modules"),
+				terragruntPrefixControl,
+			),
 		),
 	}
 }
@@ -121,10 +134,12 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, prefix))
 
 	cmd := &clihelper.Command{
-		Name:        CommandName,
-		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, in the specified format.",
-		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       cmdFlags,
+		Name: CommandName,
+		Usage: "Render the final terragrunt config, with all variables, includes, " +
+			"and functions resolved, in the specified format.",
+		Description: "This is useful for enforcing policies using static analysis tools " +
+			"like Open Policy Agent, or for debugging your terragrunt config.",
+		Flags: cmdFlags,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {
 			tgOpts := opts.OptionsFromContext(ctx)
 

@@ -157,7 +157,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			for _, reading := range c.Reading() {
 				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
 				if err != nil {
-					return nil, NewEvaluationErrorWithCause(fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading), err)
+					msg := fmt.Sprintf(
+						"failed to get relative path for component %s reading: %s",
+						c.Path(), reading)
+
+					return nil, NewEvaluationErrorWithCause(msg, err)
 				}
 
 				relReading = append(relReading, filepath.ToSlash(rel))
@@ -216,7 +220,11 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
-func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components component.Components) (component.Components, error) {
+func evaluateInfixExpression(
+	l log.Logger,
+	expr *InfixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "|" {
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
@@ -235,7 +243,11 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 }
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
-func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
+func evaluateGraphExpression(
+	l log.Logger,
+	expr *GraphExpression,
+	components component.Components,
+) (component.Components, error) {
 	targetMatches, err := Evaluate(l, expr.Target, components)
 	if err != nil {
 		return nil, err
@@ -358,7 +370,8 @@ func traverseGraph(
 			directionName := direction.String()
 
 			l.Warnf(
-				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. "+
+					"Some %s may have been excluded from results.",
 				directionName,
 				MaxTraversalDepth,
 				c.Path(),

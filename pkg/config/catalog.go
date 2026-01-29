@@ -46,7 +46,9 @@ type CatalogConfig struct {
 }
 
 func (cfg *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}", cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
+	return fmt.Sprintf(
+		"Catalog{URLs = %v, DefaultTemplate = %v, NoShell = %v, NoHooks = %v}",
+		cfg.URLs, cfg.DefaultTemplate, cfg.NoShell, cfg.NoHooks)
 }
 
 func (cfg *CatalogConfig) normalize(configPath string) {
@@ -113,8 +115,9 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
 		}
 
-		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
-		// it can happen if the functions of the `filepath` package do not work correctly under a certain operating system.
+		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless.
+		// It can happen if the functions of the `filepath` package do not work correctly
+		// under a certain operating system.
 		select {
 		case <-ctx.Done():
 			return "", "", nil
@@ -151,8 +154,9 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 		configPath = filepath.Dir(newConfigPath)
 	}
 
-	// if the config with the `catalog` block is found, create the root config with `include{ find_in_parent_folders() }`
-	// and the path one directory deeper in order for `find_in_parent_folders` can find the catalog configuration.
+	// if the config with the `catalog` block is found, create the root config with
+	// `include{ find_in_parent_folders() }` and the path one directory deeper in order
+	// for `find_in_parent_folders` can find the catalog configuration.
 	if catalogConfigPath != "" {
 		configString := fmt.Sprintf(rootConfigFmt, configName)
 		configPath = filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueID(), configName)
@@ -163,7 +167,12 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(
+	ctx context.Context,
+	pctx *ParsingContext,
+	configPath string,
+	terragruntConfigFromFile *terragruntConfigFile,
+) (cfg *TerragruntConfig, err error) {
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]any{FoundInFile: configPath}
@@ -191,9 +200,12 @@ func convertToTerragruntCatalogConfig(ctx context.Context, pctx *ParsingContext,
 	}
 
 	if pctx.Locals != nil && *pctx.Locals != cty.NilVal {
-		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
-		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
-		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
+		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have
+		// been incorrectly evaluated, that results to `json.Unmarshal` error.
+		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap`
+		// returns the map with "var2" value and an syntax error, but since we consciously understand
+		// that not all variables can be evaluated correctly due to the fact that parsing may not start
+		// from the real root file, we can safely ignore this error.
 		localsParsed, _ := ctyhelper.ParseCtyValueToMap(*pctx.Locals)
 		// Only set Locals if there are actual values to avoid setting an empty map
 		if len(localsParsed) > 0 {
