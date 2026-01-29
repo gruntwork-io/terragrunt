@@ -21,7 +21,7 @@ type Tip struct {
 	// OnceShow is a sync.Once to ensure the tip is only shown once per session
 	OnceShow sync.Once
 	// disabled is an atomic boolean to ensure the tip is only disabled once per session
-	disabled int32
+	disabled atomic.Bool
 }
 
 // Tips is a collection of Tip pointers.
@@ -40,11 +40,11 @@ func (tip *Tip) Evaluate(l log.Logger) {
 
 // Disable disables this tip from being shown.
 func (tip *Tip) Disable() {
-	atomic.StoreInt32(&tip.disabled, 1)
+	tip.disabled.Store(true)
 }
 
 func (tip *Tip) isDisabled() bool {
-	return atomic.LoadInt32(&tip.disabled) == 1
+	return tip.disabled.Load()
 }
 
 // Names returns all tip names.
