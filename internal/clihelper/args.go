@@ -198,6 +198,8 @@ var booleanFlagsMap = map[string]struct{}{
 	"diff":              {},
 	"force-copy":        {},
 	"get":               {},
+	"h":                 {},
+	"help":              {},
 	"input":             {},
 	"json":              {},
 	"list":              {},
@@ -211,6 +213,8 @@ var booleanFlagsMap = map[string]struct{}{
 	"refresh-only":      {},
 	"update":            {},
 	"upgrade":           {},
+	"v":                 {},
+	"version":           {},
 	"write-out":         {},
 }
 

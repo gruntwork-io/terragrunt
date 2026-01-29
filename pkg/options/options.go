@@ -530,6 +530,8 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 
 	// If we are inserting a subcommand, replace any existing subcommand to avoid invalid
 	// sequences like "providers lock mirror". Terraform typically supports only one subcommand.
+	// This "last writer wins" policy ensures that extra_arguments or inserted commands
+	// can override the default subcommand.
 	if len(parsed.SubCommand) > 0 {
 		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
 	}
