@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
-	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -179,25 +178,8 @@ func runHook(
 	actionParams := curHook.Execute[1:]
 	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
 
-	containsExternalTFLintFlag := slices.Contains(curHook.Execute, tflint.TfExternalTFLint)
 	if actionToExecute == "tflint" {
-		if containsExternalTFLintFlag {
-			// delete the flag and run external tflint
-			curHook.Execute = slices.DeleteFunc(curHook.Execute, func(arg string) bool {
-				return arg == tflint.TfExternalTFLint
-			})
-
-			return executeTFLint(ctx, l, opts, cfg, curHook, workingDir, true)
-		} else {
-			strictControl := opts.StrictControls.Find(controls.InternalTFLint)
-
-			forceExternalTFLint := false
-			if strictControl != nil && strictControl.Evaluate(ctx) != nil {
-				forceExternalTFLint = true
-			}
-
-			return executeTFLint(ctx, l, opts, cfg, curHook, workingDir, forceExternalTFLint)
-		}
+		return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
 	}
 
 	_, possibleError := shell.RunCommandWithOutput(
@@ -223,7 +205,6 @@ func executeTFLint(
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
 	workingDir string,
-	externalTfLint bool,
 ) error {
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
@@ -232,7 +213,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, opts, cfg, curHook, externalTfLint)
+	err := tflint.RunTflintWithOpts(ctx, l, opts, cfg, curHook)
 	if err != nil {
 		l.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 		return err

@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/terraform-linters/tflint/cmd"
 )
 
 const (
@@ -26,14 +25,14 @@ const (
 	tfVarPrefix      = "TF_VAR_"
 	argVarPrefix     = "-var="
 	argVarFilePrefix = "-var-file="
-	TfExternalTFLint = "--terragrunt-external-tflint"
+	tfExternalTFLint = "--terragrunt-external-tflint"
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook, externalTfLint bool) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
 	hookExecute := slices.Clone(hook.Execute)
 	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
-		return arg == TfExternalTFLint
+		return arg == tfExternalTFLint
 	})
 
 	// try to fetch configuration file from hook parameters
@@ -56,30 +55,16 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
 
-	cli, err := cmd.NewCLI(opts.Writer, opts.ErrWriter)
-	if err != nil {
-		return errors.New(err)
-	}
-
 	tflintArgs := hookExecute[1:]
 
 	// tflint init
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
-	if externalTfLint {
-		l.Debugf("Running external tflint init with args %v", initArgs)
+	l.Debugf("Running external tflint init with args %v", initArgs)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
-			initArgs[0], initArgs[1:]...)
-		if err != nil {
-			return errors.New(ErrorRunningTflint{args: initArgs})
-		}
-	} else {
-		l.Debugf("Running internal tflint init with args %v", initArgs)
-
-		statusCode := cli.Run(initArgs)
-		if statusCode != 0 {
-			return errors.New(ErrorRunningTflint{args: initArgs})
-		}
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+		initArgs[0], initArgs[1:]...)
+	if err != nil {
+		return errors.New(ErrorRunningTflint{args: initArgs})
 	}
 
 	// tflint execution
@@ -93,31 +78,15 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	args = append(args, tfVariables...)
 	args = append(args, tflintArgs...)
 
-	if externalTfLint {
-		l.Debugf("Running external tflint with args %v", args)
+	l.Debugf("Running external tflint with args %v", args)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
-			args[0], args[1:]...)
-		if err != nil {
-			return errors.New(ErrorRunningTflint{args: args})
-		}
-
-		l.Info("Tflint has run successfully. No issues found.")
-	} else {
-		l.Debugf("Running internal tflint with args %v", args)
-		statusCode := cli.Run(args)
-
-		switch statusCode {
-		case cmd.ExitCodeError:
-			return errors.New(ErrorRunningTflint{args: args})
-		case cmd.ExitCodeIssuesFound:
-			return errors.New(IssuesFound{})
-		case cmd.ExitCodeOK:
-			l.Info("Tflint has run successfully. No issues found.")
-		default:
-			return errors.New(UnknownError{statusCode: statusCode})
-		}
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+		args[0], args[1:]...)
+	if err != nil {
+		return errors.New(ErrorRunningTflint{args: args})
 	}
+
+	l.Info("Tflint has run successfully. No issues found.")
 
 	return nil
 }
