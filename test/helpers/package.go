@@ -95,12 +95,11 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	// Exclude terraform state files that may have been created by previous test runs
+	// Exclude OpenTofu/Terraform/Terragrunt cache directories
+	// that may have been created when manually running in the fixtures directory.
 	excludeFromCopy := []string{
 		"**/.terraform/**",
 		"**/.terragrunt-cache/**",
-		"**/terraform.tfstate",
-		"**/terraform.tfstate.backup",
 		"**/terragrunt-debug.tfvars.json",
 	}
 
