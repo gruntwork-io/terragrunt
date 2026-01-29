@@ -44,6 +44,11 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 		helpers.CleanupTerraformFolder(t, modulePath)
 	}
 
+	// Clean up counter files from previous test runs in the fixture directory
+	scriptsPath := filepath.Join(testFixtureRunCmdFlags, "scripts")
+	_ = os.Remove(filepath.Join(scriptsPath, "global_counter.txt"))
+	_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
+
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRunCmdFlags)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureRunCmdFlags)
 

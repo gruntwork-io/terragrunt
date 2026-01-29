@@ -185,37 +185,37 @@ func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
 
-// booleanFlagsMap contains flags that don't take values (boolean flags).
+// booleanFlags contains flags that don't take values (boolean flags).
 // Unknown flags are assumed to take space-separated values for safer parsing
 // of new Terraform/Tofu flags without requiring updates to this list.
-var booleanFlagsMap = map[string]struct{}{
-	"allow-missing":     {},
-	"auto-approve":      {},
-	"check":             {},
-	"compact-warnings":  {},
-	"destroy":           {},
-	"detailed-exitcode": {},
-	"diff":              {},
-	"force-copy":        {},
-	"get":               {},
-	"h":                 {},
-	"help":              {},
-	"input":             {},
-	"json":              {},
-	"list":              {},
-	"lock":              {},
-	"migrate-state":     {},
-	"no-color":          {},
-	"raw":               {},
-	"reconfigure":       {},
-	"recursive":         {},
-	"refresh":           {},
-	"refresh-only":      {},
-	"update":            {},
-	"upgrade":           {},
-	"v":                 {},
-	"version":           {},
-	"write-out":         {},
+var booleanFlags = []string{
+	"allow-missing",
+	"auto-approve",
+	"check",
+	"compact-warnings",
+	"destroy",
+	"detailed-exitcode",
+	"diff",
+	"force-copy",
+	"get",
+	"h",
+	"help",
+	"input",
+	"json",
+	"list",
+	"lock",
+	"migrate-state",
+	"no-color",
+	"raw",
+	"reconfigure",
+	"recursive",
+	"refresh",
+	"refresh-only",
+	"update",
+	"upgrade",
+	"v",
+	"version",
+	"write-out",
 }
 
 // normalizeFlag strips leading dashes from a flag name.
@@ -315,6 +315,9 @@ func (a *IacArgs) HasFlag(name string) bool {
 	target := normalizeFlag(name)
 
 	return slices.ContainsFunc(a.Flags, func(f string) bool {
+		if !strings.HasPrefix(f, "-") {
+			return false
+		}
 		return normalizeFlag(extractFlagName(f)) == target
 	})
 }
@@ -326,13 +329,20 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 
 	for i := 0; i < len(a.Flags); i++ {
 		f := a.Flags[i]
+
+		// Only treat tokens starting with "-" as potential flags
+		if !strings.HasPrefix(f, "-") {
+			newFlags = append(newFlags, f)
+			continue
+		}
+
 		current := normalizeFlag(extractFlagName(f))
 
 		if current == target {
 			// If exact match (no =value) and next entry is a value (doesn't start with "-"), skip it too.
 			// BUT: only if it's NOT a boolean flag.
 			if !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
-				if _, isBool := booleanFlagsMap[current]; !isBool {
+				if !slices.Contains(booleanFlags, current) {
 					i++ // skip the value
 				}
 			}
@@ -597,7 +607,7 @@ func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 	}
 
 	// Known boolean flag - self-contained
-	if _, ok := booleanFlagsMap[normalizeFlag(flagName)]; ok {
+	if slices.Contains(booleanFlags, normalizeFlag(flagName)) {
 		a.Flags = append(a.Flags, arg)
 		return false
 	}

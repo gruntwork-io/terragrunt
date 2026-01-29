@@ -505,41 +505,51 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
+	}
+
 	// Parse args using IacArgs to properly separate flags from arguments
 	parsed := clihelper.NewIacArgs(argsToInsert...)
 
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// Handle parsed.Command as an argument (extra_arguments don't have a command)
-	var args []string
-
-	if parsed.Command != "" {
+	// If we have a command and no command set in opts, use it.
+	// BUT: usually TerraformCliArgs already has a command (e.g. "plan").
+	// extra_arguments usually don't have a command, just flags/args.
+	if opts.TerraformCliArgs.Command == "" {
+		opts.TerraformCliArgs.Command = parsed.Command
+	} else if parsed.Command != "" && parsed.Command != opts.TerraformCliArgs.Command {
 		if clihelper.IsKnownSubCommand(parsed.Command) {
+			// If it's a known subcommand but parsed as command (because it was first in argsToInsert),
+			// treat it as a subcommand.
 			opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
 		} else {
-			args = append(args, parsed.Command)
+			// If command differs and it's not a known subcommand, treat it as a positional argument
+			opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
 		}
 	}
 
-	args = append(args, parsed.Arguments...)
-
-	if len(args) > 0 {
-		opts.TerraformCliArgs.InsertArguments(0, args...)
+	// Subcommands: replace or append
+	if len(parsed.SubCommand) > 0 {
+		// For "providers lock", if we insert "providers mirror", we want "providers mirror".
+		// Our policy is "last writer wins" for subcommands.
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
 	}
 
-	// If we are inserting a subcommand, replace any existing subcommand to avoid invalid
-	// sequences like "providers lock mirror". Terraform typically supports only one subcommand.
-	// This "last writer wins" policy ensures that extra_arguments or inserted commands
-	// can override the default subcommand.
-	if len(parsed.SubCommand) > 0 {
-		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	if len(parsed.Arguments) > 0 {
+		opts.TerraformCliArgs.InsertArguments(0, parsed.Arguments...)
 	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = clihelper.NewIacArgs()
+	}
+
 	// Parse args using IacArgs to properly separate flags from arguments
 	parsed := clihelper.NewIacArgs(argsToAppend...)
 
@@ -550,8 +560,12 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 		opts.TerraformCliArgs.AppendArgument(parsed.Command)
 	}
 
-	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
 	opts.TerraformCliArgs.AppendArgument(parsed.Arguments...)
+
+	// Replace subcommand if provided
+	if len(parsed.SubCommand) > 0 {
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	}
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
