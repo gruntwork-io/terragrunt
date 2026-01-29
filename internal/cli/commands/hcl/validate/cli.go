@@ -30,13 +30,17 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				Name:        StrictFlagName,
 				EnvVars:     tgPrefix.EnvVars(StrictFlagName),
 				Destination: &opts.HCLValidateStrict,
-				Usage:       "Enables strict mode. When used in combination with the `--inputs` flag, any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
+				Usage: "Enables strict mode. When used in combination with the `--inputs` flag, " +
+					"any inputs defined in Terragrunt that are _not_ used in OpenTofu/Terraform will trigger an error.",
 			},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars(
 				"strict-validate",             // `TG_STRICT_VALIDATE`
 				"hclvalidate-strict-validate", // `TG_HCLVALIDATE_STRICT_VALIDATE`
 			), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("strict-validate"), terragruntPrefixControl), // `TERRAGRUNT_STRICT_VALIDATE`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("strict-validate"),
+				terragruntPrefixControl,
+			), // `TERRAGRUNT_STRICT_VALIDATE`
 		),
 
 		flags.NewFlag(
@@ -56,8 +60,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				Destination: &opts.HCLValidateShowConfigPath,
 			},
 
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-strict-validate"), terragruntPrefixControl),          // `TG_HCLVALIDATE_STRICT_VALIDATE`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-show-config-path"), terragruntPrefixControl), // `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclvalidate-strict-validate"),
+				terragruntPrefixControl,
+			), // `TG_HCLVALIDATE_STRICT_VALIDATE`
+			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(
+				"hclvalidate-show-config-path"),
+				terragruntPrefixControl,
+			), // `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH`
 		),
 
 		flags.NewFlag(
@@ -67,8 +77,14 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Flags {
 				Destination: &opts.HCLValidateJSONOutput,
 				Usage:       "Format results in JSON format.",
 			},
-			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl),         // `TG_HCLVALIDATE_JSON`
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("hclvalidate-json"), terragruntPrefixControl), // `TERRAGRUNT_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(
+				tgPrefix.EnvVars("hclvalidate-json"),
+				terragruntPrefixControl,
+			), // `TG_HCLVALIDATE_JSON`
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars("hclvalidate-json"),
+				terragruntPrefixControl,
+			), // `TERRAGRUNT_HCLVALIDATE_JSON`
 		),
 
 		shared.NewTFPathFlag(opts),

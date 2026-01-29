@@ -169,8 +169,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        NoAutoApproveFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoAutoApproveFlagName),
 			Destination: &opts.RunAllAutoApprove,
-			Usage:       "Don't automatically append '-auto-approve' to the underlying OpenTofu/Terraform commands run with 'run --all'.",
-			Negative:    true,
+			Usage: "Don't automatically append '-auto-approve' to the underlying " +
+				"OpenTofu/Terraform commands run with 'run --all'.",
+			Negative: true,
 		},
 			flags.WithDeprecatedFlag(&clihelper.BoolFlag{
 				EnvVars: terragruntPrefix.EnvVars("auto-approve"),
@@ -207,8 +208,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        SourceMapFlagName,
 			EnvVars:     tgPrefix.EnvVars(SourceMapFlagName),
 			Destination: &opts.SourceMap,
-			Usage:       "Replace any source URL (including the source URL of a config pulled in with dependency blocks) that has root source with dest.",
-			Splitter:    util.SplitUrls,
+			Usage: "Replace any source URL (including the source URL of a config " +
+				"pulled in with dependency blocks) that has root source with dest.",
+			Splitter: util.SplitUrls,
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("source-map"), terragruntPrefixControl)),
 
@@ -244,7 +246,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				return nil
 			},
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("fetch-dependency-output-from-state"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"fetch-dependency-output-from-state",
+				),
+				terragruntPrefixControl,
+			),
+		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoDependencyFetchOutputFromStateFlagName,
@@ -267,8 +275,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    UnitsThatIncludeFlagName,
 			EnvVars: tgPrefix.EnvVars(UnitsThatIncludeFlagName),
-			Usage:   "If flag is set, 'run --all' will only run the command against Terragrunt modules that include the specified file.",
-			Hidden:  true,
+			Usage: "If flag is set, 'run --all' will only run the command " +
+				"against Terragrunt modules that include the specified file.",
+			Hidden: true,
 			Action: func(ctx context.Context, _ *clihelper.Context, value []string) error {
 				if len(value) != 0 {
 					if err := opts.StrictControls.FilterByNames(controls.UnitsThatInclude).Evaluate(ctx); err != nil {
@@ -338,7 +347,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        ProviderCacheDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheDirFlagName),
 			Destination: &opts.ProviderCacheDir,
-			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
+			Usage: "The path to the Terragrunt provider cache directory. " +
+				"By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-dir"), terragruntPrefixControl)),
 
@@ -346,7 +356,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        ProviderCacheTokenFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheTokenFlagName),
 			Destination: &opts.ProviderCacheToken,
-			Usage:       "The token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
+			Usage: "The token for authentication to the Terragrunt Provider Cache server. " +
+				"By default, assigned automatically.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-token"), terragruntPrefixControl)),
 

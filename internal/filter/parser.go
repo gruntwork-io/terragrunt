@@ -55,7 +55,13 @@ func (p *Parser) ParseExpression() (Expression, error) {
 	}
 
 	if p.curToken.Type != EOF {
-		return nil, p.createError(ErrorCodeUnexpectedToken, "Unexpected token", "Unexpected '"+p.curToken.Literal+"' after expression")
+		return nil, p.createError(
+			ErrorCodeUnexpectedToken,
+			"Unexpected token",
+			"Unexpected '"+
+				p.curToken.Literal+
+				"' after expression",
+		)
 	}
 
 	return expr, nil
@@ -305,7 +311,13 @@ func (p *Parser) parseBracedPath() Expression {
 	}
 
 	if p.curToken.Type != RBRACE {
-		p.addErrorAtPosition(ErrorCodeMissingClosingBrace, "Unclosed path expression", "This braced path expression is missing a closing '}'", openBracePos)
+		p.addErrorAtPosition(
+			ErrorCodeMissingClosingBrace,
+			"Unclosed path expression",
+			"This braced path expression is missing a closing '}'",
+			openBracePos,
+		)
+
 		return nil
 	}
 
@@ -329,7 +341,12 @@ func (p *Parser) parseAttributeFilter() Expression {
 	p.nextToken()
 
 	if p.curToken.Type != IDENT && p.curToken.Type != PATH {
-		p.addErrorWithCode(ErrorCodeUnexpectedToken, "Attribute expression missing value", "Attribute expressions require a value after '='")
+		p.addErrorWithCode(
+			ErrorCodeUnexpectedToken,
+			"Attribute expression missing value",
+			"Attribute expressions require a value after '='",
+		)
+
 		return nil
 	}
 
@@ -389,7 +406,13 @@ func (p *Parser) parseGitFilter() Expression {
 		toRef := strings.Join(toRefParts, "")
 
 		if p.curToken.Type != RBRACKET {
-			p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "This Git-based expression is missing a closing ']'", openBracketPos)
+			p.addErrorAtPosition(
+				ErrorCodeMissingClosingBracket,
+				"Unclosed Git filter expression",
+				"This Git-based expression is missing a closing ']'",
+				openBracketPos,
+			)
+
 			return nil
 		}
 
@@ -401,7 +424,13 @@ func (p *Parser) parseGitFilter() Expression {
 
 	// Single reference case
 	if p.curToken.Type != RBRACKET {
-		p.addErrorAtPosition(ErrorCodeMissingClosingBracket, "Unclosed Git filter expression", "This Git-based expression is missing a closing ']'", openBracketPos)
+		p.addErrorAtPosition(
+			ErrorCodeMissingClosingBracket,
+			"Unclosed Git filter expression",
+			"This Git-based expression is missing a closing ']'",
+			openBracketPos,
+		)
+
 		return nil
 	}
 

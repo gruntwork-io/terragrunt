@@ -16,7 +16,12 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func ContExecNoOutput(tb testing.TB, container *testcontainers.DockerContainer, cmd string, options ...tcexec.ProcessOption) {
+func ContExecNoOutput(
+	tb testing.TB,
+	container *testcontainers.DockerContainer,
+	cmd string,
+	options ...tcexec.ProcessOption,
+) {
 	tb.Helper()
 	ctx := tb.Context()
 
@@ -39,7 +44,12 @@ func (l tLogger) Printf(format string, v ...any) {
 	l.tb.Logf(format, v...)
 }
 
-func RunContainer(tb testing.TB, image string, port int, opts ...testcontainers.ContainerCustomizer) (c *testcontainers.DockerContainer, addr string) {
+func RunContainer(
+	tb testing.TB,
+	image string,
+	port int,
+	opts ...testcontainers.ContainerCustomizer,
+) (c *testcontainers.DockerContainer, addr string) {
 	tb.Helper()
 
 	if testing.Short() {

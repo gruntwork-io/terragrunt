@@ -27,7 +27,8 @@ func (e GitFilterCommandError) Error() string {
 
 	return fmt.Sprintf(
 		"Git-based filtering is not supported with the command '%s'. "+
-			"Git-based filtering can only be used with 'plan', 'apply', or discovery commands (like 'find' or 'list') that don't require additional arguments.",
+			"Git-based filtering can only be used with 'plan', 'apply', "+
+			"or discovery commands (like 'find' or 'list') that don't require additional arguments.",
 		command,
 	)
 }

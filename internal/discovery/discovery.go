@@ -43,7 +43,8 @@ const (
 	// channelBufferMultiplier is the channel buffer multiplier for worker pools (larger buffers reduce blocking)
 	channelBufferMultiplier = 4
 
-	// maxHiddenDirMemoSize is the maximum number of hidden directory memoization entries (prevents unbounded memory growth)
+	// maxHiddenDirMemoSize is the maximum number of hidden
+	// directory memoization entries (prevents unbounded memory growth)
 	maxHiddenDirMemoSize = 1000
 
 	// defaultMaxDependencyDepth is the default maximum dependency depth for discovery

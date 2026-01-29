@@ -15,7 +15,11 @@ type Option func(*Flag)
 //	}, WithDeprecatedFlag(&clihelper.BoolFlag{
 //	  Name:    "terragrunt-json-log",
 //	}, flags.NewValue("json"), nil))
-func WithDeprecatedFlag(deprecatedFlag clihelper.Flag, newValueFn NewValueFunc, regControlsFn RegisterStrictControlsFunc) Option {
+func WithDeprecatedFlag(
+	deprecatedFlag clihelper.Flag,
+	newValueFn NewValueFunc,
+	regControlsFn RegisterStrictControlsFunc,
+) Option {
 	return func(newFlag *Flag) {
 		deprecatedFlag := &DeprecatedFlag{
 			Flag:                   deprecatedFlag,
@@ -39,7 +43,8 @@ func WithDeprecatedFlag(deprecatedFlag clihelper.Flag, newValueFn NewValueFunc, 
 //	  EnvVars: []string{"NO_COLOR","DISABLE_COLOR"},
 //	}, WithDeprecatedPrefix(Prefix{"terragrunt"}, nil))
 //
-// The deprecated flag will have "terragrunt-no-color","terragrunt-disable-color" names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
+// The deprecated flag will have "terragrunt-no-color", "terragrunt-disable-color"
+// names and "TERRAGRUNT_NO_COLOR","TERRAGRUNT_DISABLE_COLOR" env vars.
 // NOTE: This function is currently unused but retained for future flag deprecation needs.
 func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFunc) Option {
 	return func(newFlag *Flag) {

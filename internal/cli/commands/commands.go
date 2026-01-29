@@ -122,24 +122,40 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 	return allCommands
 }
 
-// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels,
+// if telemetry is disabled, just runAction the command.
+func WrapWithTelemetry(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
 	return func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, fmt.Sprintf("%s %s", cliCtx.Command.Name, opts.TerraformCommand), map[string]any{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
-		}, func(childCtx context.Context) error {
-			if err := initialSetup(cliCtx, l, opts); err != nil {
-				return err
-			}
+		return telemetry.TelemeterFromContext(ctx).Collect(
+			ctx,
+			fmt.Sprintf(
+				"%s %s",
+				cliCtx.Command.Name,
+				opts.TerraformCommand,
+			), map[string]any{
+				"terraformCommand": opts.TerraformCommand,
+				"args":             opts.TerraformCliArgs,
+				"dir":              opts.WorkingDir,
+			}, func(childCtx context.Context) error {
+				if err := initialSetup(cliCtx, l, opts); err != nil {
+					return err
+				}
 
-			return runAction(childCtx, cliCtx, l, opts, action)
-		})
+				return runAction(childCtx, cliCtx, l, opts, action)
+			})
 	}
 }
 
-func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions, action clihelper.ActionFunc) error {
+func runAction(
+	ctx context.Context,
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	action clihelper.ActionFunc,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -287,7 +303,8 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
-	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+	// It is important to resolve the alias because the `run --all` relies
+	// on terraform command to determine the order, for `destroy` command is used the reverse order.
 	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
@@ -393,7 +410,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
-	l.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
+	l.Debugf(
+		"Terragrunt Version: %s",
+		opts.TerragruntVersion,
+	)
 
 	// --- Others
 	if !opts.RunAllAutoApprove {

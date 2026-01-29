@@ -34,10 +34,12 @@ type MapFlagValueType interface {
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 
-	// Splitter is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	// Splitter is a function that is called when the flag is specified.
+	// It is executed only after all command flags have been parsed.
 	Splitter SplitterFunc
 
-	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	// Action is a function that is called when the flag is specified.
+	// It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[map[K]V]
 
 	// Setter represents the function that is called when the flag is specified.
@@ -46,7 +48,8 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	// Destination is a pointer to which the value of the flag or env var is assigned.
 	Destination *map[K]V
 
-	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	// DefaultText is the default value of the flag to display in the help,
+	// if it is empty, the value is taken from `Destination`.
 	DefaultText string
 
 	// Usage is a short usage description to display in help.
@@ -133,7 +136,8 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	return flag.EnvVars
 }
 
-// GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
+// GetDefaultText returns the flags value as string representation
+// and an empty string if the flag takes no value at all.
 func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.GetInitialTextValue()
@@ -177,7 +181,14 @@ type mapValue[K, V comparable] struct {
 	valSep   string
 }
 
-func newMapValue[K, V comparable](keyType FlagVariable[K], valType FlagVariable[V], argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter MapFlagSetterFunc[K, V]) *mapValue[K, V] {
+func newMapValue[K, V comparable](
+	keyType FlagVariable[K],
+	valType FlagVariable[V],
+	argSep, valSep string,
+	splitter SplitterFunc,
+	dest *map[K]V,
+	setter MapFlagSetterFunc[K, V],
+) *mapValue[K, V] {
 	return &mapValue[K, V]{
 		values:   dest,
 		setter:   setter,

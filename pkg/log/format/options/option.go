@@ -106,7 +106,9 @@ func (opts Options) Format(data *Data, str any) (string, error) {
 
 // Configure parsers the given `str` to configure the `opts` and returns the rest of the given `str`.
 //
-// e.g. (color=green, case=upper) some-text" sets `color` option to `green`, `case` option to `upper` and returns " some-text".
+// e.g. (color=green, case=upper) some-text" sets
+// `color` option to `green`,
+// `case` option to `upper` and returns " some-text".
 func (opts Options) Configure(str string) (string, error) {
 	if len(str) == 0 || !strings.HasPrefix(str, OptStartSign) {
 		return str, nil

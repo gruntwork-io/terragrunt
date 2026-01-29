@@ -51,7 +51,14 @@ func (m Model) footerView() string { //nolint:gocritic
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
 	// button bar and key help
-	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View(), "\n", m.pagerKeys.help.View(m.pagerKeys)))
+	pagerKeys := infoHelp.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.buttonBar.View(),
+			"\n",
+			m.pagerKeys.help.View(m.pagerKeys),
+		),
+	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)
 }

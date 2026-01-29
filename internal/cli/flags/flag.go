@@ -13,11 +13,14 @@ import (
 
 var _ = clihelper.Flag(new(Flag))
 
-// EvaluateWrapperFunc represents a function that is used to wrap the `Evaluate(ctx context.Context) error` strict control method.
-// Which can be passed as an option `WithEvaluateWrapper` to `NewFlag(...)` to control the behavior of strict control evaluation.
+// EvaluateWrapperFunc represents a function that is used to
+// wrap the `Evaluate(ctx context.Context) error` strict control method.
+// Which can be passed as an option `WithEvaluateWrapper` to `NewFlag(...)`
+// to control the behavior of strict control evaluation.
 type EvaluateWrapperFunc func(ctx context.Context, evalFn func(ctx context.Context) error) error
 
-// Flag is a wrapper for `clihelper.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
+// Flag is a wrapper for `clihelper.Flag` that avoids displaying deprecated flags in help,
+// but registers their flag names and environment variables.
 type Flag struct {
 	clihelper.Flag
 	evaluateWrapper EvaluateWrapperFunc

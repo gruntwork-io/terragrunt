@@ -172,7 +172,11 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 	return l, nil
 }
 
-func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
+func getTerragruntConfig(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*config.TerragruntConfig, error) {
 	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,

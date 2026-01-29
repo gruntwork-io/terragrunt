@@ -133,7 +133,8 @@ type TerragruntOptions struct {
 	TerragruntStackConfigPath string
 	// Location of the original Terragrunt config file.
 	OriginalTerragruntConfigPath string
-	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
+	// Unlike `WorkingDir`, this path is the same for all
+	// dependencies and points to the root working directory specified in the CLI.
 	RootWorkingDir string
 	// Download Terraform configurations from the specified source location into a temporary folder
 	Source string
@@ -259,7 +260,12 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 	// If set to true, delete the contents of the temporary folder before downloading Terraform source code into it
 	SourceUpdate bool
-	// HCLValidateStrict is a strict mode for HCL validation files. When it's set to false the command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When it's set to true, an error will be returned if required inputs are missing or if unused variables are passed to Terragrunt.",
+	// HCLValidateStrict is a strict mode for HCL validation files.
+	// When it's set to false the command will only return an error if required inputs are
+	// missing from all input sources (env vars, var files, etc).
+	//
+	// When it's set to true, an error will be returned if required inputs are
+	// missing or if unused variables are passed to Terragrunt.,
 	HCLValidateStrict bool
 	// HCLValidateInputs checks if the terragrunt configured inputs align with the terraform defined variables.
 	HCLValidateInputs bool
@@ -281,7 +287,8 @@ type TerragruntOptions struct {
 	NoStackValidate bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
-	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
+	// Graph runs the provided OpenTofu/Terraform against
+	// the graph of dependencies for the unit in the current working directory.
 	Graph bool
 	// BackendBootstrap automatically bootstraps backend infrastructure before attempting to use it.
 	BackendBootstrap bool
@@ -299,13 +306,15 @@ type TerragruntOptions struct {
 	NoAutoProviderCacheDir bool
 	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
 	NoEngine bool
-	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
+	// NoDependencyFetchOutputFromState disables the
+	// dependency-fetch-output-from-state feature even when the experiment is enabled.
 	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
 	TFPathExplicitlySet bool
 	// FailFast is a flag to stop execution on the first error in apply of units.
 	FailFast bool
-	// NoDependencyPrompt disables prompt requiring confirmation for base and leaf file dependencies when using scaffolding.
+	// NoDependencyPrompt disables prompt requiring confirmation for
+	// base and leaf file dependencies when using scaffolding.
 	NoDependencyPrompt bool
 	// NoShell disables shell commands when using boilerplate templates in catalog and scaffold commands.
 	NoShell bool
@@ -430,11 +439,14 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 }
 
 // NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
-func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
+func NewTerragruntOptionsForTest(
+	cfgPath string,
+	options ...TerragruntOptionsFunc,
+) (*TerragruntOptions, error) {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
 
-	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
+	opts, err := NewTerragruntOptionsWithConfigPath(cfgPath)
 	if err != nil {
 		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.New(err), log.WithFormatter(formatter))
 
@@ -469,12 +481,18 @@ func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	return newOpts
 }
 
-// CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
-// creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+// CloneWithConfigPath creates a copy of this TerragruntOptions, but with
+// different values for the given variables.
 //
-// It also adjusts the given logger, as each cloned option has to use a working directory specific logger to enrich
-// log output correctly.
-func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *TerragruntOptions, error) {
+// This is useful for creating a TerragruntOptions that behaves the same way,
+// but is used for a Terraform module in a different folder.
+//
+// It also adjusts the given logger, as each cloned option has to use a
+// working directory specific logger to enrich log output correctly.
+func (opts *TerragruntOptions) CloneWithConfigPath(
+	l log.Logger,
+	configPath string,
+) (log.Logger, *TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
@@ -502,7 +520,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	return l, newOpts, nil
 }
 
-// InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
+// InsertTerraformCliArgs inserts the given argsToInsert after
+// the terraform command argument, but before the remaining args.
+//
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	if opts.TerraformCliArgs == nil {

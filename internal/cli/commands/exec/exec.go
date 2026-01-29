@@ -14,7 +14,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, args clihelper.Args) error {
+func Run(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cmdOpts *Options,
+	args clihelper.Args,
+) error {
 	prepared, err := prepare.PrepareConfig(ctx, l, opts)
 	if err != nil {
 		return err

@@ -60,7 +60,11 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(CacheProviderHTTPStatusCode) + `.*` + http.StatusText(CacheProviderHTTPStatusCode))
+	httpStatusCacheProviderReg = regexp.MustCompile(
+		`(?smi)` +
+			strconv.Itoa(CacheProviderHTTPStatusCode) +
+			`.*` + http.StatusText(CacheProviderHTTPStatusCode),
+	)
 )
 
 type ProviderCache struct {
@@ -131,8 +135,11 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 	}, nil
 }
 
-// TerraformCommandHook warms up the providers cache, creates `.terraform.lock.hcl` and runs the `tofu/terraform init`
-// command with using this cache. Used as a hook function that is called after running the target tofu/terraform command.
+// TerraformCommandHook warms up the providers cache,
+// creates `.terraform.lock.hcl` and runs the `tofu/terraform init`
+// command with using this cache. Used as a hook function
+// that is called after running the target tofu/terraform command.
+//
 // For example, if the target command is `tofu plan`, it will be intercepted before it is run in the `/shell` package,
 // then control will be passed to this function to init the working directory using cached providers.
 func (cache *ProviderCache) TerraformCommandHook(

@@ -28,7 +28,12 @@ const bareIncludeKey = ""
 var fieldsCopyLocks = util.NewKeyLocks()
 
 // Parse the config of the given include, if one is specified
-func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
+func parseIncludedConfig(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	includedConfig *IncludeConfig,
+) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntOptions.TerragruntConfigPath))
 	}
@@ -90,7 +95,8 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 	if hasDependency && len(pctx.PartialParseDecodeList) > 0 {
 		l.Debugf(
-			"Included config %s can only be partially parsed during dependency graph formation for run --all command as it has a dependency block.",
+			"Included config %s can only be partially parsed during dependency graph "+
+				"formation for run --all command as it has a dependency block.",
 			includePath,
 		)
 
@@ -121,7 +127,13 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
 // user.
-func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
+func handleInclude(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	config *TerragruntConfig,
+	isPartial bool,
+) (*TerragruntConfig, error) {
 	if pctx.TrackInclude == nil {
 		return nil, errors.New(
 			"you reached an impossible condition. This is most likely a bug in terragrunt. " +
@@ -165,7 +177,11 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 		case NoMerge:
 			l.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.Path)
 		case ShallowMerge:
-			l.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
+			l.Debugf(
+				"%sIncluded config %s has strategy shallow merge: merging config in (shallow).",
+				logPrefix,
+				includeConfig.Path,
+			)
 
 			if err := parsedIncludeConfig.Merge(l, baseConfig, pctx.TerragruntOptions); err != nil {
 				return nil, err
@@ -195,7 +211,12 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log.Logger, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
+func handleIncludeForDependency(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	childDecodedDependency TerragruntDependency,
+) (*TerragruntDependency, error) {
 	if pctx.TrackInclude == nil {
 		return nil, errors.New(
 			"you reached an impossible condition. This is most likely a bug in terragrunt. " +
@@ -226,14 +247,20 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 		case NoMerge:
 			l.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
 		case ShallowMerge:
-			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
+				includeConfig.Path,
+			)
 
 			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
 			l.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
 
-			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
+			mergedDependencyBlock, err := deepMergeDependencyBlocks(
+				includedPartialParse.TerragruntDependencies,
+				baseDependencyBlock,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -259,7 +286,11 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
-func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (cfg *TerragruntConfig) Merge(
+	l log.Logger,
+	sourceConfig *TerragruntConfig,
+	terragruntOptions *options.TerragruntOptions,
+) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -348,7 +379,9 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 		}
 	}
 
-	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
+	// Merge the generate configs. This is a shallow merge.
+	//
+	// Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
 
 	err := validateGenerateConfigs(&sourceConfig.GenerateConfigs, &cfg.GenerateConfigs)
@@ -372,8 +405,8 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 //   - For lists, the two attribute lists are combined together in concatenation.
 //   - For maps, the two maps are combined together recursively. That is, if the map keys overlap, then a deep merge is
 //     performed on the map value.
-//   - Note that some structs are not deep mergeable due to an implementation detail. This will change in the future. The
-//     following structs have this limitation:
+//   - Note that some structs are not deep mergeable due to an implementation detail.
+//     This will change in the future. The following structs have this limitation:
 //   - remote_state
 //   - generate
 //   - Note that the following attributes are deliberately omitted from the merge operation, as they are handled
@@ -381,7 +414,11 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 //   - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
 //     the parsing step, not after the full config is decoded]
 //   - locals [These blocks are not merged by design]
-func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (cfg *TerragruntConfig) DeepMerge(
+	l log.Logger,
+	sourceConfig *TerragruntConfig,
+	opts *options.TerragruntOptions,
+) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -460,7 +497,8 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 				}
 			}
 			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
-			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
+			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths
+			// will be copied to resultModuleDependencies.Paths
 			for _, dependencyPath := range cfg.Dependencies.Paths {
 				var addPath = true
 
@@ -689,7 +727,11 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 // extra_arguments on the terraform cli.
 // Therefore, if .tfvar files from both the parent and child contain a variable
 // with the same name, the value from the child will win.
-func mergeExtraArgs(l log.Logger, childExtraArgs []TerraformExtraArguments, parentExtraArgs *[]TerraformExtraArguments) {
+func mergeExtraArgs(
+	l log.Logger,
+	childExtraArgs []TerraformExtraArguments,
+	parentExtraArgs *[]TerraformExtraArguments,
+) {
 	result := *parentExtraArgs
 	for _, child := range childExtraArgs {
 		parentExtraArgsWithSameName := getIndexOfExtraArgsWithName(result, child.Name)
@@ -779,7 +821,11 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 // getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
-func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
+func getTrackInclude(
+	ctx *ParsingContext,
+	terragruntIncludeList IncludeConfigs,
+	includeFromChild *IncludeConfig,
+) (*TrackInclude, error) {
 	includedPaths := make([]string, 0, len(terragruntIncludeList))
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 
@@ -962,9 +1008,13 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 	return nil, false, errors.New(IncludeIsNotABlockErr{parsed: includeBlock})
 }
 
-// updateSingleBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
-// can directly assign to the map with the single "" key without worrying about the possibility of other include blocks
-// since we will only call this function if there is only one include block, and that is a bare block with no labels.
+// updateSingleBareIncludeInParsedJSON replaces the include
+// attribute into a block with the label "" in the json.
+//
+// Note that we can directly assign to the map with the single "" key
+// without worrying about the possibility of other include blocks
+// since we will only call this function if there
+// is only one include block, and that is a bare block with no labels.
 func updateSingleBareIncludeInParsedJSON(parsed map[string]any, newVal any) ([]byte, bool, error) {
 	parsed[MetadataInclude] = map[string]any{bareIncludeKey: newVal}
 	updatedBytes, err := json.Marshal(parsed)
@@ -1005,7 +1055,10 @@ func CopyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *Terragrunt
 }
 
 // validateGenerateConfigs Validate if exists duplicate generate configs.
-func validateGenerateConfigs(sourceConfig *map[string]codegen.GenerateConfig, targetConfig *map[string]codegen.GenerateConfig) error {
+func validateGenerateConfigs(
+	sourceConfig *map[string]codegen.GenerateConfig,
+	targetConfig *map[string]codegen.GenerateConfig,
+) error {
 	var duplicatedNames []string
 
 	for key := range *targetConfig {

@@ -85,14 +85,21 @@ func evaluatePathFilter(filter *PathExpression, components component.Components)
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(
+	filter *AttributeExpression,
+	components []component.Component,
+) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
 	case AttributeName:
 		g, err := filter.CompileGlob()
 		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
+			return nil, NewEvaluationErrorWithCause(
+				"failed to compile glob pattern for name filter: "+
+					filter.Value,
+				err,
+			)
 		}
 
 		for _, c := range components {
@@ -190,7 +197,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 }
 
 // evaluatePrefixExpression evaluates a prefix expression (negation).
-func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components component.Components) (component.Components, error) {
+func evaluatePrefixExpression(
+	l log.Logger,
+	expr *PrefixExpression,
+	components component.Components,
+) (component.Components, error) {
 	if expr.Operator != "!" {
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}

@@ -63,5 +63,12 @@ func Action(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, _ *opt
 		return clihelper.ShowCommandHelp(ctx, cliCtx)
 	}
 
-	return clihelper.NewExitError(errors.New(clihelper.InvalidCommandNameError(args.First())), clihelper.ExitCodeGeneralError)
+	return clihelper.NewExitError(
+		errors.New(
+			clihelper.InvalidCommandNameError(
+				args.First(),
+			),
+		),
+		clihelper.ExitCodeGeneralError,
+	)
 }

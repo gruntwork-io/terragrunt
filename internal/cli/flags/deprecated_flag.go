@@ -14,7 +14,8 @@ var _ = clihelper.Flag(new(DeprecatedFlag))
 // DeprecatedFlags are multiple of DeprecatedFlag flags.
 type DeprecatedFlags []*DeprecatedFlag
 
-// DeprecatedFlag represents a deprecated flag that is not shown in the CLI help, but its names, envVars, are registered.
+// DeprecatedFlag represents a deprecated flag that is not
+// shown in the CLI help, but its names, envVars, are registered.
 type DeprecatedFlag struct {
 	clihelper.Flag
 	newValueFn             NewValueFunc
@@ -85,25 +86,46 @@ func NewValue(val string) NewValueFunc {
 	}
 }
 
-// RegisterStrictControlsFunc represents a callback func that registers the given controls in the `opts.StrictControls` stict control tree .
+// RegisterStrictControlsFunc represents a callback func that
+// registers the given controls in the `opts.StrictControls` stict control tree .
 type RegisterStrictControlsFunc func(flagNameControl, envVarControl strict.Control) bool
 
-// StrictControlsByCommand returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
+// StrictControlsByCommand returns a callback function that
+// adds the taken controls as subcontrols for the given `controlNames`.
 // Using the given `commandName` as categories.
-func StrictControlsByCommand(strictControls strict.Controls, commandName string, controlNames ...string) RegisterStrictControlsFunc {
+func StrictControlsByCommand(
+	strictControls strict.Controls,
+	commandName string,
+	controlNames ...string,
+) RegisterStrictControlsFunc {
 	return func(flagNameControl, envVarControl strict.Control) bool {
 		flagNamesCategory := fmt.Sprintf(controls.CommandFlagsCategoryNameFmt, commandName)
 		envVarsCategory := fmt.Sprintf(controls.CommandEnvVarsCategoryNameFmt, commandName)
 
-		return registerStrictControls(strictControls, flagNameControl, envVarControl, flagNamesCategory, envVarsCategory, controlNames...)
+		return registerStrictControls(
+			strictControls,
+			flagNameControl,
+			envVarControl,
+			flagNamesCategory,
+			envVarsCategory,
+			controlNames...,
+		)
 	}
 }
 
-// StrictControlsByGlobalFlags returns a callback function that adds the taken controls as subcontrols for the given `controlNames`.
+// StrictControlsByGlobalFlags returns a callback function
+// that adds the taken controls as subcontrols for the given `controlNames`.
 // And assigns the "Global Flag" category to these controls.
 func StrictControlsByGlobalFlags(strictControls strict.Controls, controlNames ...string) RegisterStrictControlsFunc {
 	return func(flagNameControl, envVarControl strict.Control) bool {
-		return registerStrictControls(strictControls, flagNameControl, envVarControl, controls.GlobalFlagsCategoryName, controls.GlobalEnvVarsCategoryName, controlNames...)
+		return registerStrictControls(
+			strictControls,
+			flagNameControl,
+			envVarControl,
+			controls.GlobalFlagsCategoryName,
+			controls.GlobalEnvVarsCategoryName,
+			controlNames...,
+		)
 	}
 }
 

@@ -79,7 +79,8 @@ type App struct {
 	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
 	DisabledErrorOnUndefinedFlag bool
 
-	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
+	// DisabledErrorOnMultipleSetFlag prevents the application to
+	// exit and return an error if any flag is set multiple times.
 	DisabledErrorOnMultipleSetFlag bool
 }
 

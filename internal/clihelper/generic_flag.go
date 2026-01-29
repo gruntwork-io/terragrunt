@@ -20,7 +20,8 @@ type GenericType interface {
 type GenericFlag[T GenericType] struct {
 	flag
 
-	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	// Action is a function that is called when the flag is specified.
+	// It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[T]
 
 	// Setter allows to set a value to any type by calling its `func(bool) error` function.
@@ -32,7 +33,8 @@ type GenericFlag[T GenericType] struct {
 	// Name is the name of the flag.
 	Name string
 
-	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	// DefaultText is the default value of the flag to display in the help,
+	// if it is empty, the value is taken from `Destination`.
 	DefaultText string
 
 	// Usage is a short usage description to display in help.
@@ -84,7 +86,8 @@ func (flag *GenericFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
 }
 
-// GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
+// GetDefaultText returns the flags value as string representation
+// and an empty string if the flag takes no value at all.
 func (flag *GenericFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.GetInitialTextValue()
@@ -185,7 +188,12 @@ func (val *genericVar[T]) Set(str string) error {
 	case *bool:
 		v, err := strconv.ParseBool(str)
 		if err != nil {
-			return errors.New(InvalidValueError{underlyingError: err, msg: `must be one of: "0", "1", "f", "t", "false", "true"`})
+			return errors.New(
+				InvalidValueError{
+					underlyingError: err,
+					msg:             `must be one of: "0", "1", "f", "t", "false", "true"`,
+				},
+			)
 		}
 
 		*dest = v

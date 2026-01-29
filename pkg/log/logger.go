@@ -9,7 +9,9 @@ import (
 )
 
 // Logger wraps the logrus package to have full control over implementing the required functionality,
-// such as adding or removing log levels etc. This also provides developers with an easier way to clone and set parameters.
+// such as adding or removing log levels etc.
+//
+// This also provides developers with an easier way to clone and set parameters.
 type Logger interface {
 	// Clone creates a new Logger instance with a copy of the fields from the current one.
 	Clone() Logger

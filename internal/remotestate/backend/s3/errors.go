@@ -17,13 +17,20 @@ func (target MultipleTagsDeclarations) Error() string {
 type MaxRetriesWaitingForS3BucketExceeded string
 
 func (err MaxRetriesWaitingForS3BucketExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries (%d) waiting for bucket S3 bucket %s", maxRetriesWaitingForS3Bucket, string(err))
+	return fmt.Sprintf(
+		"Exceeded max retries (%d) waiting for bucket S3 bucket %s",
+		maxRetriesWaitingForS3Bucket,
+		string(err),
+	)
 }
 
 type MaxRetriesWaitingForS3ACLExceeded string
 
 func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries waiting for S3 bucket %s to have the proper ACL for access logging", string(err))
+	return fmt.Sprintf(
+		"Exceeded max retries waiting for S3 bucket %s to have the proper ACL for access logging",
+		string(err),
+	)
 }
 
 type InvalidAccessLoggingBucketEncryption struct {
@@ -31,7 +38,10 @@ type InvalidAccessLoggingBucketEncryption struct {
 }
 
 func (err InvalidAccessLoggingBucketEncryption) Error() string {
-	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use a supported algorithm, like AES256", err.BucketSSEAlgorithm)
+	return fmt.Sprintf(
+		"Encryption algorithm %s is not supported for access logging bucket. Please use a supported algorithm, like AES256",
+		err.BucketSSEAlgorithm,
+	)
 }
 
 type TableActiveRetriesExceeded struct {
@@ -58,5 +68,9 @@ type TableEncryptedRetriesExceeded struct {
 }
 
 func (err TableEncryptedRetriesExceeded) Error() string {
-	return fmt.Sprintf("Failed to confirm that DynamoDB table %s has encryption enabled after %d retries.", err.TableName, err.Retries)
+	return fmt.Sprintf(
+		"Failed to confirm that DynamoDB table %s has encryption enabled after %d retries.",
+		err.TableName,
+		err.Retries,
+	)
 }

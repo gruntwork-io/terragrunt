@@ -519,7 +519,10 @@ func (g *GitRunner) GetDefaultBranch(ctx context.Context, l log.Logger) string {
 		return branch
 	}
 
-	l.Debugf("Failed to determine default branch of remote repository, attempting to get default branch of local repository")
+	l.Debugf(
+		"Failed to determine default branch of remote repository, " +
+			"attempting to get default branch of local repository",
+	)
 
 	if b, err := g.Config(ctx, "init.defaultBranch"); err == nil && b != "" {
 		return b

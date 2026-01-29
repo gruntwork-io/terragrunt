@@ -123,5 +123,11 @@ var (
 )
 
 func IsMultipleTimesSettingError(err error) bool {
-	return strings.Contains(err.Error(), ErrMultipleTimesSettingFlag.Error()) || strings.Contains(err.Error(), ErrMultipleTimesSettingEnvVar.Error())
+	return strings.Contains(
+		err.Error(),
+		ErrMultipleTimesSettingFlag.Error(),
+	) || strings.Contains(
+		err.Error(),
+		ErrMultipleTimesSettingEnvVar.Error(),
+	)
 }

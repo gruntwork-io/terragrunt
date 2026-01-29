@@ -53,7 +53,7 @@ type ExtendedRemoteStateConfigS3 struct {
 	BucketSSEKMSKeyID                            string              `mapstructure:"bucket_sse_kms_key_id"`
 	BucketSSEAlgorithm                           string              `mapstructure:"bucket_sse_algorithm"`
 	AccessLoggingTargetPrefix                    string              `mapstructure:"accesslogging_target_prefix"`
-	AccessLoggingTargetObjectPartitionDateSource string              `mapstructure:"accesslogging_target_object_partition_date_source"`
+	AccessLoggingTargetObjectPartitionDateSource string              `mapstructure:"accesslogging_target_object_partition_date_source"` //nolint:lll
 	RemoteStateConfigS3                          RemoteStateConfigS3 `mapstructure:",squash"`
 	SkipBucketVersioning                         bool                `mapstructure:"skip_bucket_versioning"`
 	SkipBucketAccessLogging                      bool                `mapstructure:"skip_bucket_accesslogging"`
@@ -64,9 +64,9 @@ type ExtendedRemoteStateConfigS3 struct {
 	SkipBucketRootAccess                         bool                `mapstructure:"skip_bucket_root_access"`
 	SkipBucketPublicAccessBlocking               bool                `mapstructure:"skip_bucket_public_access_blocking"`
 	SkipAccessLoggingBucketACL                   bool                `mapstructure:"skip_accesslogging_bucket_acl"`
-	SkipAccessLoggingBucketEnforcedTLS           bool                `mapstructure:"skip_accesslogging_bucket_enforced_tls"`
-	SkipAccessLoggingBucketPublicAccessBlocking  bool                `mapstructure:"skip_accesslogging_bucket_public_access_blocking"`
-	SkipAccessLoggingBucketSSEncryption          bool                `mapstructure:"skip_accesslogging_bucket_ssencryption"`
+	SkipAccessLoggingBucketEnforcedTLS           bool                `mapstructure:"skip_accesslogging_bucket_enforced_tls"`           //nolint:lll
+	SkipAccessLoggingBucketPublicAccessBlocking  bool                `mapstructure:"skip_accesslogging_bucket_public_access_blocking"` //nolint:lll
+	SkipAccessLoggingBucketSSEncryption          bool                `mapstructure:"skip_accesslogging_bucket_ssencryption"`           //nolint:lll
 	SkipBucketSSEncryption                       bool                `mapstructure:"skip_bucket_ssencryption"`
 	SkipCredentialsValidation                    bool                `mapstructure:"skip_credentials_validation"`
 }

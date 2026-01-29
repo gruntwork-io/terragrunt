@@ -109,7 +109,8 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Name:    External,
 			EnvVars: tgPrefix.EnvVars(External),
 			Hidden:  true,
-			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Usage: "Discover external dependencies from initial results, and add " +
+				"them to top-level results (implies discovery of dependencies).",
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil

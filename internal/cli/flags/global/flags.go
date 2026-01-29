@@ -176,7 +176,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    ExperimentModeFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
-			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Usage: "Enables experiment mode for Terragrunt. " +
+				"For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
 			Setter: func(_ bool) error {
 				opts.Experiments.ExperimentMode()
 
@@ -188,8 +189,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    ExperimentFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
-			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
-			Setter:  opts.Experiments.EnableExperiment,
+			Usage: "Enables specific experiments. For a list of available experiments, " +
+				"see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Setter: opts.Experiments.EnableExperiment,
 			Action: func(_ context.Context, _ *clihelper.Context, _ []string) error {
 				opts.Experiments.NotifyCompletedExperiments(l)
 
@@ -258,15 +260,37 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 			EnvVars:     tgPrefix.EnvVars(TelemetryTraceExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterInsecureEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-insecure-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-insecure-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemetry-trace-exporter-insecure-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemerty-trace-exporter-insecure-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+		),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     tgPrefix.EnvVars(TelemetryTraceExporterHTTPEndpointFlagName),
 			Destination: &opts.Telemetry.TraceExporterHTTPEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-trace-exporter-http-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-trace-exporter-http-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemetry-trace-exporter-http-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemerty-trace-exporter-http-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+		),
 
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			EnvVars:     flags.Prefix{}.EnvVars(TraceparentFlagName),
@@ -283,8 +307,19 @@ func NewTelemetryFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli
 			EnvVars:     tgPrefix.EnvVars(TelemetryMetricExporterInsecureEndpointFlagName),
 			Destination: &opts.Telemetry.MetricExporterInsecureEndpoint,
 		},
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemetry-metric-exporter-insecure-endpoint"), terragruntPrefixControl),
-			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("telemerty-metric-exporter-insecure-endpoint"), terragruntPrefixControl)),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemetry-metric-exporter-insecure-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+			flags.WithDeprecatedEnvVars(
+				terragruntPrefix.EnvVars(
+					"telemerty-metric-exporter-insecure-endpoint",
+				),
+				terragruntPrefixControl,
+			),
+		),
 	}
 }
 

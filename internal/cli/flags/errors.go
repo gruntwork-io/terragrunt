@@ -19,7 +19,12 @@ func NewGlobalFlagHintError(undefFlag, cmdHint, flagHint string) *GlobalFlagHint
 }
 
 func (err GlobalFlagHintError) Error() string {
-	return fmt.Sprintf("flag `--%s` is not a valid global flag. Did you mean to use `%s --%s`?", err.undefFlag, err.cmdHint, err.flagHint)
+	return fmt.Sprintf(
+		"flag `--%s` is not a valid global flag. Did you mean to use `%s --%s`?",
+		err.undefFlag,
+		err.cmdHint,
+		err.flagHint,
+	)
 }
 
 var _ error = new(CommandFlagHintError)
@@ -41,5 +46,11 @@ func NewCommandFlagHintError(wrongCmd, undefFlag, cmdHint, flagHint string) *Com
 }
 
 func (err CommandFlagHintError) Error() string {
-	return fmt.Sprintf("flag `--%s` is not a valid flag for `%s`. Did you mean to use `%s --%s`?", err.undefFlag, err.wrongCmd, err.cmdHint, err.flagHint)
+	return fmt.Sprintf(
+		"flag `--%s` is not a valid flag for `%s`. Did you mean to use `%s --%s`?",
+		err.undefFlag,
+		err.wrongCmd,
+		err.cmdHint,
+		err.flagHint,
+	)
 }

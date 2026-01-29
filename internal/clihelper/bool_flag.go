@@ -14,11 +14,13 @@ var _ Flag = new(BoolFlag)
 type BoolFlag struct {
 	flag
 
-	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	// Action is a function that is called when the flag is specified.
+	// It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[bool]
 
 	// Setter represents the function that is called when the flag is specified.
-	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
+	// Executed during value parsing, in case of an error the returned
+	// error is wrapped with the flag or environment variable name.
 	Setter FlagSetterFunc[bool]
 
 	// Destination ia a pointer to which the value of the flag or env var is assigned.
@@ -28,7 +30,8 @@ type BoolFlag struct {
 	// Name is the name of the flag.
 	Name string
 
-	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	// DefaultText is the default value of the flag to display in the help,
+	// if it is empty, the value is taken from `Destination`.
 	DefaultText string
 
 	// Usage is a short usage description to display in help.
@@ -42,7 +45,9 @@ type BoolFlag struct {
 
 	// Negative inverts the value of the flag.
 	// If set to true, then the assigned flag value will be inverted.
-	// Example: With `Negative: true`, `--boolean-flag` sets the value to `false`, and `--boolean-flag=false` sets the value to `true`.
+	//
+	// Example: With `Negative: true`, `--boolean-flag` sets the value to `false`,
+	// and `--boolean-flag=false` sets the value to `true`.
 	Negative bool
 
 	// Hidden hides the flag from the help.
@@ -92,7 +97,8 @@ func (flag *BoolFlag) TakesValue() bool {
 	return false
 }
 
-// GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
+// GetDefaultText returns the flags value as string representation
+// and an empty string if the flag takes no value at all.
 func (flag *BoolFlag) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.GetInitialTextValue()

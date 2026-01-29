@@ -92,9 +92,17 @@ func (client *Client) CreateGCSBucketIfNecessary(
 		// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 		description := "Create GCS bucket " + bucketName
 
-		return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-			return client.CreateGCSBucketWithVersioning(ctx, l, bucketName)
-		})
+		return util.DoWithRetry(
+			ctx,
+			description,
+			gcpMaxRetries,
+			gcpSleepBetweenRetries,
+			l,
+			log.DebugLevel,
+			func(ctx context.Context) error {
+				return client.CreateGCSBucketWithVersioning(ctx, l, bucketName)
+			},
+		)
 	}
 
 	return nil
@@ -242,7 +250,8 @@ func (client *Client) DoesGCSBucketExist(ctx context.Context, bucketName string)
 	// TODO - the code below attempts to determine whether the storage bucket exists by making a making a number of API
 	// calls, then attempting to list the contents of the bucket. It was adapted from Google's own integration tests and
 	// should be improved once the appropriate API call is added. For more info see:
-	// https://github.com/GoogleCloudPlatform/google-cloud-go/blob/de879f7be552d57556875b8aaa383bce9396cc8c/storage/integration_test.go#L1231 //nolint:lll
+	// https://github.com/GoogleCloudPlatform/google-cloud-go/blob/de879f7be552d57556875b8aaa383bce9396cc8c/storage/integration_test.go#L1231
+	//nolint:lll
 	if _, err := bucketHandle.Attrs(ctx); err != nil {
 		// ErrBucketNotExist
 		return false
@@ -264,13 +273,21 @@ func (client *Client) DeleteGCSBucketIfNecessary(ctx context.Context, l log.Logg
 
 	description := fmt.Sprintf("Delete GCS bucket %s with retry", bucketName)
 
-	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		if err := client.DeleteGCSObjects(ctx, l, bucketName, "", true); err != nil {
-			return err
-		}
+	return util.DoWithRetry(
+		ctx,
+		description,
+		gcpMaxRetries,
+		gcpSleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			if err := client.DeleteGCSObjects(ctx, l, bucketName, "", true); err != nil {
+				return err
+			}
 
-		return client.DeleteGCSBucket(ctx, l, bucketName)
-	})
+			return client.DeleteGCSBucket(ctx, l, bucketName)
+		},
+	)
 }
 
 func (client *Client) DeleteGCSBucket(ctx context.Context, l log.Logger, bucketName string) error {
@@ -313,13 +330,27 @@ func (client *Client) DeleteGCSObjectIfNecessary(ctx context.Context, l log.Logg
 
 	description := fmt.Sprintf("Delete GCS objects with prefix %s in bucket %s with retry", prefix, bucketName)
 
-	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		return client.DeleteGCSObjects(ctx, l, bucketName, prefix, false)
-	})
+	return util.DoWithRetry(
+		ctx,
+		description,
+		gcpMaxRetries,
+		gcpSleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			return client.DeleteGCSObjects(ctx, l, bucketName, prefix, false)
+		},
+	)
 }
 
 // DeleteGCSObjects deletes the bucket objects with the given prefix.
-func (client *Client) DeleteGCSObjects(ctx context.Context, l log.Logger, bucketName, prefix string, withVersions bool) error {
+func (client *Client) DeleteGCSObjects(
+	ctx context.Context,
+	l log.Logger,
+	bucketName,
+	prefix string,
+	withVersions bool,
+) error {
 	bucket := client.Bucket(bucketName)
 
 	it := bucket.Objects(ctx, &storage.Query{
@@ -367,9 +398,17 @@ func (client *Client) MoveGCSObjectIfNecessary(
 	description := fmt.Sprintf("Move GCS bucket object from %s to %s",
 		path.Join(srcBucketName, srcKey), path.Join(dstBucketName, dstKey))
 
-	return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		return client.MoveGCSObject(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey)
-	})
+	return util.DoWithRetry(
+		ctx,
+		description,
+		gcpMaxRetries,
+		gcpSleepBetweenRetries,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			return client.MoveGCSObject(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey)
+		},
+	)
 }
 
 // DoesGCSObjectExist returns true if the specified GCS object exists otherwise false.

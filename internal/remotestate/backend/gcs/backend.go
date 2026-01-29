@@ -207,7 +207,12 @@ func (backend *Backend) Delete(
 		return err
 	}
 
-	prompt := fmt.Sprintf("GCS bucket %s objects with prefix %s will be deleted. Do you want to continue?", bucketName, prefix)
+	prompt := fmt.Sprintf(
+		"GCS bucket %s objects with prefix %s will be deleted. "+
+			"Do you want to continue?",
+		bucketName,
+		prefix,
+	)
 	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
 		return err
 	} else if yes {

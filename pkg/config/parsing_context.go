@@ -42,15 +42,23 @@ type ParsingContext struct {
 
 	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
 	// various fields related to that config:
-	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.
+	//
+	// - outputs: The map of outputs from the terraform state
+	// obtained by running `terragrunt output` on that target config.
 	DecodedDependencies *cty.Value
 
 	// These functions have the highest priority and will overwrite any others with the same name
 	PredefinedFunctions map[string]function.Function
 
 	// Set a custom converter to TerragruntConfig.
-	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
-	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`)
+	// do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
+	ConvertToTerragruntConfigFunc func(
+		ctx context.Context,
+		pctx *ParsingContext,
+		configPath string,
+		terragruntConfigFromFile *terragruntConfigFile,
+	) (cfg *TerragruntConfig, err error)
 
 	// FilesRead tracks files that were read during parsing (absolute paths).
 	// This is a pointer so that it's shared across all parsing context copies.
@@ -72,7 +80,11 @@ type ParsingContext struct {
 	ParseDepth int
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
+func NewParsingContext(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)

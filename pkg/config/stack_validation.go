@@ -54,7 +54,11 @@ func validateStacks(stacks []*Stack) error {
 
 // validateConfigElementsGeneric is a generic function to validate configuration elements
 // It takes a slice of elements, the element type name, and a function to extract name, path, and source from an element
-func validateConfigElementsGeneric(elements any, elementType string, getValues func(element any, index int) (name, path, source string)) error {
+func validateConfigElementsGeneric(
+	elements any,
+	elementType string,
+	getValues func(element any, index int) (name, path, source string),
+) error {
 	validationErrors := &errors.MultiError{}
 
 	var slice []any

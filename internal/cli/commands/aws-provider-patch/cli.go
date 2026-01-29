@@ -1,6 +1,7 @@
 // Package awsproviderpatch provides the `aws-provider-patch` command.
 //
-// The `aws-provider-patch` command finds all Terraform modules nested in the current code (i.e., in the .terraform/modules
+// The `aws-provider-patch` command finds all Terraform modules nested
+// in the current code (i.e., in the .terraform/modules
 // folder), looks for provider "aws" { ... } blocks in those modules, and overwrites the attributes in those provider
 // blocks with the attributes specified in terragrntOptions.
 //
@@ -57,7 +58,8 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Name:        OverrideAttrFlagName,
 			EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+			Usage: "A key=value attribute to override in a provider block as " +
+				"part of the aws-provider-patch command. May be specified multiple times.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("override-attr"), terragruntPrefixControl)),
 	}
@@ -65,7 +67,11 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
 	control := controls.NewDeprecatedCommand(CommandName)
-	opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign, CommandName).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
+	opts.StrictControls.FilterByNames(
+		controls.DeprecatedCommands,
+		controls.CLIRedesign,
+		CommandName,
+	).AddSubcontrolsToCategory(controls.CLIRedesignCommandsCategoryName, control)
 
 	cmdFlags := append(runcmd.NewFlags(l, opts, nil), NewFlags(l, opts, nil)...)
 	cmdFlags = append(cmdFlags, shared.NewAllFlag(opts, nil))

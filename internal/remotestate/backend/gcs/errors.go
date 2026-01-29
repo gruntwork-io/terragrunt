@@ -11,5 +11,9 @@ func (configName MissingRequiredGCSRemoteStateConfig) Error() string {
 type MaxRetriesWaitingForGCSBucketExceeded string
 
 func (err MaxRetriesWaitingForGCSBucketExceeded) Error() string {
-	return fmt.Sprintf("Exceeded max retries (%d) waiting for bucket GCS bucket %s", maxRetriesWaitingForGcsBucket, string(err))
+	return fmt.Sprintf(
+		"Exceeded max retries (%d) waiting for bucket GCS bucket %s",
+		maxRetriesWaitingForGcsBucket,
+		string(err),
+	)
 }

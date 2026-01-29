@@ -76,7 +76,8 @@ type Command struct {
 	// DisabledErrorOnUndefinedFlag prevents the application to exit and return an error on any undefined flag.
 	DisabledErrorOnUndefinedFlag bool
 
-	// DisabledErrorOnMultipleSetFlag prevents the application to exit and return an error if any flag is set multiple times.
+	// DisabledErrorOnMultipleSetFlag prevents the application to
+	// exit and return an error if any flag is set multiple times.
 	DisabledErrorOnMultipleSetFlag bool
 }
 
@@ -311,7 +312,8 @@ func (cmd *Command) WrapAction(fn func(ctx context.Context, cliCtx *Context, act
 	return &clone
 }
 
-// DisableErrorOnMultipleSetFlag returns cloned commands with disabled the check for multiple values set for the same flag.
+// DisableErrorOnMultipleSetFlag returns cloned commands with
+// disabled the check for multiple values set for the same flag.
 func (cmd *Command) DisableErrorOnMultipleSetFlag() *Command {
 	newCmd := *cmd
 	newCmd.DisabledErrorOnMultipleSetFlag = true

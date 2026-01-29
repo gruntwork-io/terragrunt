@@ -159,7 +159,12 @@ func TraceGitWorktreeStackWalk(ctx context.Context, fromRef, toRef string, fn fu
 }
 
 // TraceGitWorktreeFilterApply wraps filter application to git worktrees with telemetry.
-func TraceGitWorktreeFilterApply(ctx context.Context, filterCount, resultCount int, fn func(ctx context.Context) error) error {
+func TraceGitWorktreeFilterApply(
+	ctx context.Context,
+	filterCount,
+	resultCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpGitWorktreeFilterApply, map[string]any{
 		AttrFilterCount: filterCount,
 		AttrResultCount: resultCount,
@@ -167,7 +172,11 @@ func TraceGitWorktreeFilterApply(ctx context.Context, filterCount, resultCount i
 }
 
 // TraceFilterEvaluate wraps filter evaluation with telemetry.
-func TraceFilterEvaluate(ctx context.Context, filterCount, componentCount int, fn func(ctx context.Context) error) error {
+func TraceFilterEvaluate(
+	ctx context.Context,
+	filterCount, componentCount int,
+	fn func(ctx context.Context) error,
+) error {
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, TelemetryOpFilterEvaluate, map[string]any{
 		AttrFilterCount:    filterCount,
 		AttrComponentCount: componentCount,

@@ -25,8 +25,9 @@ func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Comman
 	sharedFlags = append(sharedFlags, shared.NewFilterFlags(l, opts)...)
 
 	return &clihelper.Command{
-		Name:      CommandName,
-		Usage:     "Graph the Directed Acyclic Graph (DAG) in DOT language. Alias for 'list --format=dot --dag --dependencies --external'.",
+		Name: CommandName,
+		Usage: "Graph the Directed Acyclic Graph (DAG) in DOT language. " +
+			"Alias for 'list --format=dot --dag --dependencies --external'.",
 		UsageText: "terragrunt dag graph",
 		Flags:     sharedFlags,
 		Action: func(ctx context.Context, _ *clihelper.Context) error {

@@ -9,7 +9,8 @@ const (
 	ExitCodeConfigError // Configuration error (78)
 )
 
-// ExitCode is a number between 0 and 255, which is returned by any Unix command when it returns control to its parent process.
+// ExitCode is a number between 0 and 255, which is returned
+// by any Unix command when it returns control to its parent process.
 type ExitCode byte
 
 // ExitCoder is the interface checked by `App` and `Command` for a custom exit code.

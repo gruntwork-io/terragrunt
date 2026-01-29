@@ -20,7 +20,8 @@ import (
 type RelationshipDiscovery struct {
 	// components is all components that have been discovered (not just the ones that require relationship discovery)
 	components *component.Components
-	// interTransientComponents are components that are discovered while trying to work out relationships between components, but are not officially discovered
+	// interTransientComponents are components that are discovered
+	// while trying to work out relationships between components, but are not officially discovered
 	interTransientComponents *component.ThreadSafeComponents
 	// discoveryContext is the discovery context of the main Discover() call
 	discoveryContext *component.DiscoveryContext
@@ -60,7 +61,9 @@ func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Opti
 }
 
 // WithDiscoveryContext sets the discovery context for the relationship discovery.
-func (rd *RelationshipDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *RelationshipDiscovery {
+func (rd *RelationshipDiscovery) WithDiscoveryContext(
+	discoveryContext *component.DiscoveryContext,
+) *RelationshipDiscovery {
 	rd.discoveryContext = discoveryContext
 	return rd
 }

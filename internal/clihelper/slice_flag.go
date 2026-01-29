@@ -24,7 +24,8 @@ type SliceFlagType interface {
 type SliceFlag[T SliceFlagType] struct {
 	flag
 
-	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	// Action is a function that is called when the flag is specified.
+	// It is executed only after all command flags have been parsed.
 	Action FlagActionFunc[[]T]
 
 	// Setter represents the function that is called when the flag is specified.
@@ -39,7 +40,8 @@ type SliceFlag[T SliceFlagType] struct {
 	// Name is the name of the flag.
 	Name string
 
-	// DefaultText is the default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
+	// DefaultText is the default value of the flag to display in the help,
+	// if it is empty, the value is taken from `Destination`.
 	DefaultText string
 
 	// Usage is a short usage description to display in help.
@@ -113,7 +115,8 @@ func (flag *SliceFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
 }
 
-// GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
+// GetDefaultText returns the flags value as string representation
+// and an empty string if the flag takes no value at all.
 func (flag *SliceFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.GetInitialTextValue()
@@ -155,7 +158,12 @@ type sliceValue[T comparable] struct {
 	valSep    string
 }
 
-func newSliceValue[T comparable](valueType FlagVariable[T], valSep string, dest *[]T, setter FlagSetterFunc[T]) *sliceValue[T] {
+func newSliceValue[T comparable](
+	valueType FlagVariable[T],
+	valSep string,
+	dest *[]T,
+	setter FlagSetterFunc[T],
+) *sliceValue[T] {
 	return &sliceValue[T]{
 		values:    dest,
 		valueType: valueType,

@@ -74,7 +74,11 @@ func getCaretHint(query string, position int) string {
 		// Check if it follows an ellipsis - suggest moving caret to left side
 		if targetPart, found := strings.CutSuffix(beforeCaret, "..."); found {
 			// Extract the target before the ellipsis for a dynamic suggestion
-			return fmt.Sprintf("The '^' operator excludes the target from graph results when used on the left side of the expression. Did you mean '^%s...'?", targetPart)
+			return fmt.Sprintf(
+				"The '^' operator excludes the target from graph results "+
+					"when used on the left side of the expression. Did you mean '^%s...'?",
+				targetPart,
+			)
 		}
 
 		// Find the immediate identifier before caret (split by operators/whitespace)
@@ -85,7 +89,11 @@ func getCaretHint(query string, position int) string {
 		if len(parts) > 0 {
 			lastIdent := parts[len(parts)-1]
 			if lastIdent != "" {
-				return fmt.Sprintf("Git-based expressions require surrounding references with '[]'. Did you mean '[%s^]'?", lastIdent)
+				return fmt.Sprintf(
+					"Git-based expressions require surrounding references with '[]'. "+
+						"Did you mean '[%s^]'?",
+					lastIdent,
+				)
 			}
 		}
 	}

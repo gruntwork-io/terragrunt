@@ -149,7 +149,14 @@ func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 	return tmpTerragruntConfigFile
 }
 
-func CopyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
+func CopyTerragruntConfigAndFillPlaceholders(
+	t *testing.T,
+	configSrcPath string,
+	configDestPath string,
+	s3BucketName string,
+	lockTableName string,
+	region string,
+) {
 	t.Helper()
 
 	CopyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
@@ -175,9 +182,13 @@ func CopyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, p
 	require.NoError(t, err, "Error writing temp file to %s: %v", destPath, err)
 }
 
-// UniqueID returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other
-// Uses base 62 to generate a 6 character string that's unlikely to collide with the handful of tests we run in
-// parallel. Based on code here: http://stackoverflow.com/a/9543797/483528
+// UniqueID returns a unique (ish) id we can attach to resources and tfstate
+// files so they don't conflict with each other.
+//
+// Uses base 62 to generate a 6 character string that's unlikely to collide
+// with the handful of tests we run in parallel. Based on code here:
+//
+// http://stackoverflow.com/a/9543797/483528
 func UniqueID() string {
 	const (
 		base62Chars    = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -193,8 +204,13 @@ func UniqueID() string {
 	return out.String()
 }
 
-// CreateS3ClientForTest creates a S3 client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.TerragruntOptionsFunc) *s3.Client {
+// CreateS3ClientForTest creates a S3 client we can use at test time.
+// If there are any errors creating the client, fail the test.
+func CreateS3ClientForTest(
+	t *testing.T,
+	awsRegion string,
+	opts ...options.TerragruntOptionsFunc,
+) *s3.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_s3_test")
@@ -212,8 +228,14 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.Terra
 	return s3.NewFromConfig(cfg)
 }
 
-// CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
-func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn string) *dynamodb.Client {
+// CreateDynamoDBClientForTest creates a DynamoDB client we can use at test time.
+// If there are any errors creating the client, fail the test.
+func CreateDynamoDBClientForTest(
+	t *testing.T,
+	awsRegion,
+	awsProfile,
+	iamRoleArn string,
+) *dynamodb.Client {
 	t.Helper()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("aws_dynamodb_test")
@@ -525,7 +547,14 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --working-dir %s %s", testPath, args))
+	stdout, stderr, err := RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terraform run --all plan --non-interactive --working-dir %s %s",
+			testPath,
+			args,
+		),
+	)
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -826,7 +855,8 @@ func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-// WrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
+// WrappedBinary - return which binary will be wrapped by
+// Terragrunt, useful in CICD to run same tests against tofu and terraform
 func WrappedBinary() string {
 	value, found := os.LookupEnv("TG_TF_PATH")
 	if !found {
@@ -1047,7 +1077,13 @@ func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	return RunTerragruntCommandWithContext(t, t.Context(), command, writer, errwriter)
 }
 
-func RunTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntVersionCommand(
+	t *testing.T,
+	ver string,
+	command string,
+	writer io.Writer,
+	errwriter io.Writer,
+) error {
 	t.Helper()
 
 	version.Version = ver
@@ -1071,7 +1107,11 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
-func RunTerragruntCommandWithOutputWithContext(t *testing.T, ctx context.Context, command string) (string, string, error) {
+func RunTerragruntCommandWithOutputWithContext(
+	t *testing.T,
+	ctx context.Context,
+	command string,
+) (string, string, error) {
 	t.Helper()
 
 	stdout := bytes.Buffer{}
@@ -1103,7 +1143,14 @@ func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.ErrorStack(err), stdout, stderr)
+		t.Fatalf(
+			"Failed to run Terragrunt command '%s' due to error: %s\n\n"+
+				"Stdout: %s\n\nStderr: %s",
+			command,
+			errors.ErrorStack(err),
+			stdout,
+			stderr,
+		)
 	}
 }
 
@@ -1140,7 +1187,14 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 	}
 }
 
-func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
+func CreateTmpTerragruntConfigWithParentAndChild(
+	t *testing.T,
+	parentPath string,
+	childRelPath string,
+	s3BucketName string,
+	parentConfigFileName string,
+	childConfigFileName string,
+) string {
 	t.Helper()
 
 	tmpDir := TmpDirWOSymlinks(t)
@@ -1153,11 +1207,25 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 
 	parentTerragruntSrcPath := filepath.Join(parentPath, parentConfigFileName)
 	parentTerragruntDestPath := filepath.Join(tmpDir, parentConfigFileName)
-	CopyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
+	CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		parentTerragruntSrcPath,
+		parentTerragruntDestPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	childTerragruntSrcPath := filepath.Join(parentPath, childRelPath, childConfigFileName)
 	childTerragruntDestPath := filepath.Join(childDestPath, childConfigFileName)
-	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
+	CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		childTerragruntSrcPath,
+		childTerragruntDestPath,
+		s3BucketName,
+		"not-used",
+		"not-used",
+	)
 
 	return childTerragruntDestPath
 }
@@ -1263,7 +1331,8 @@ func CopyFile(t *testing.T, src, dst string) {
 	require.NoError(t, os.Chmod(dst, sourceInfo.Mode()))
 }
 
-// isAWSResourceNotFoundError checks if an error indicates that an AWS resource (S3 bucket, DynamoDB table, etc.) was not found
+// isAWSResourceNotFoundError checks if an error indicates
+// that an AWS resource (S3 bucket, DynamoDB table, etc.) was not found
 func isAWSResourceNotFoundError(err error) bool {
 	var apiErr smithy.APIError
 

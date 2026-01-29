@@ -17,15 +17,14 @@ import (
 const (
 	configLockTableKey                 = "lock_table"
 	configDynamoDBTableKey             = "dynamodb_table"
-	configEncryptKey                   = "encrypt"
-	configKeyKey                       = "key"
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
 
 	DefaultS3BucketAccessLoggingTargetPrefix = "TFStateLogs/"
 
-	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
+	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; " +
+		"use 'dynamodb_table' instead."
 )
 
 type Config map[string]any
