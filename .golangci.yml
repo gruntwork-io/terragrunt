@@ -27,6 +27,7 @@ linters:
     - goconst
     - gocritic
     - gosmopolitan
+    - lll
     - loggercheck
     - makezero
     - misspell
