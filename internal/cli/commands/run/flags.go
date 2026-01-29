@@ -453,7 +453,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 				}
 
 				if ext != ".csv" && ext != ".json" {
-					return fmt.Errorf("unsupported report file extension: %s (supported: .csv, .json)", ext)
+					return nil
 				}
 
 				if opts.ReportFormat == "" {
