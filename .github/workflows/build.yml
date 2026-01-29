@@ -51,10 +51,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
         with:
           version: 2025.8.16
           experimental: true
@@ -67,7 +67,7 @@ jobs:
           echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Go Build Cache
-        uses: actions/cache@v5
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: |
             ${{ steps.go-cache-paths.outputs.go-build }}
@@ -100,7 +100,7 @@ jobs:
           .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: terragrunt_${{ matrix.os }}_${{ matrix.arch }}
           path: bin/terragrunt_${{ matrix.os }}_${{ matrix.arch }}*
@@ -127,10 +127,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download macOS signed binaries
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: macos-signed-files
           path: bin/
@@ -178,13 +178,13 @@ jobs:
           done
 
       - name: Download Windows signed binaries
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: windows-signed-files
           path: bin/
 
       - name: Download Linux binaries (unsigned)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: terragrunt_linux_*
           path: bin/
@@ -196,7 +196,7 @@ jobs:
           ls -lahrt bin/*
 
       - name: Upload All Signed Binaries
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: all-signed-binaries
           path: bin/*

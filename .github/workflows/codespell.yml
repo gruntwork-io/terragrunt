@@ -12,5 +12,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
+        with:
+          version: 2025.8.16
+        env:
+          # Adding token here to reduce the likelihood of hitting rate limit issues.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run codespell
-        uses: codespell-project/actions-codespell@bca0a5887de255a8903221c67b6478c7501c5edc # v2
+        run: codespell
