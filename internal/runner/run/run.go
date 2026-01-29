@@ -5,6 +5,7 @@ package run
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -35,6 +36,7 @@ import (
 
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
+	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -255,6 +257,20 @@ func runTerragruntWithConfig(
 			return err
 		}
 	}
+
+	// Write null-valued inputs to a tfvars.json file that OpenTofu/Terraform will auto-load.
+	nullVarsFile, err := setTerragruntNullValuesRunCfg(opts, cfg)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if nullVarsFile != "" {
+			if err := os.Remove(nullVarsFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+				l.Debugf("Failed to remove null values file %s: %v", nullVarsFile, err)
+			}
+		}
+	}()
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if err := checkProtectedModuleRunCfg(opts, cfg); err != nil {
@@ -714,4 +730,37 @@ func checkProtectedModuleRunCfg(opts *options.TerragruntOptions, cfg *runcfg.Run
 	}
 
 	return nil
+}
+
+// setTerragruntNullValuesRunCfg writes null-valued inputs to a tfvars.json file
+// that OpenTofu/Terraform will auto-load. This is necessary because OpenTofu/Terraform
+// cannot accept null values via environment variables (TF_VAR_*), but it can read them
+// from .auto.tfvars.json files.
+func setTerragruntNullValuesRunCfg(opts *options.TerragruntOptions, cfg *runcfg.RunConfig) (string, error) {
+	jsonEmptyVars := make(map[string]any)
+
+	for varName, varValue := range cfg.Inputs {
+		if varValue == nil {
+			jsonEmptyVars[varName] = nil
+		}
+	}
+
+	if len(jsonEmptyVars) == 0 {
+		return "", nil
+	}
+
+	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
+
+	const ownerReadWritePermissions = 0600
+
+	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
+		return "", errors.New(err)
+	}
+
+	return varFile, nil
 }
