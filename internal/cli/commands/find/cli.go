@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -23,12 +24,13 @@ const (
 
 	DAGFlagName = "dag"
 
-	HiddenFlagName = "hidden"
-	Dependencies   = "dependencies"
-	External       = "external"
-	Exclude        = "exclude"
-	Include        = "include"
-	Reading        = "reading"
+	HiddenFlagName   = "hidden"
+	NoHiddenFlagName = "no-hidden"
+	Dependencies     = "dependencies"
+	External         = "external"
+	Exclude          = "exclude"
+	Include          = "include"
+	Reading          = "reading"
 
 	QueueConstructAsFlagName  = "queue-construct-as"
 	QueueConstructAsFlagAlias = "as"
@@ -59,10 +61,25 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Usage:       "Use DAG mode to sort and group output.",
 		}),
 		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        HiddenFlagName,
-			EnvVars:     tgPrefix.EnvVars(HiddenFlagName),
-			Destination: &opts.Hidden,
-			Usage:       "Include hidden directories in find results.",
+			Name:        NoHiddenFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoHiddenFlagName),
+			Destination: &opts.NoHidden,
+			Usage:       "Exclude hidden directories from find results.",
+		}),
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:    HiddenFlagName,
+			EnvVars: tgPrefix.EnvVars(HiddenFlagName),
+			Usage:   "Include hidden directories in find results.",
+			Hidden:  true,
+			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
+				if value {
+					if err := opts.StrictControls.FilterByNames(controls.DeprecatedHiddenFlag).Evaluate(ctx); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			},
 		}),
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        Dependencies,

@@ -27,7 +27,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
-		NoHidden:          !opts.Hidden,
+		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		Exclude:           opts.Exclude,
@@ -70,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
-		"hidden":       opts.Hidden,
+		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies,
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,
