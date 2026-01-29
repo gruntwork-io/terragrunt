@@ -223,6 +223,11 @@ func normalizeFlag(flag string) string {
 	return strings.TrimLeft(flag, "-")
 }
 
+// isFlag returns true if the string starts with "-" (is a flag token).
+func isFlag(s string) bool {
+	return strings.HasPrefix(s, "-")
+}
+
 // IacArgs represents parsed IaC (terraform/tofu) CLI arguments
 // with separate command, flags, and arguments fields.
 // Provides a builder pattern for constructing CLI arguments.
@@ -315,9 +320,10 @@ func (a *IacArgs) HasFlag(name string) bool {
 	target := normalizeFlag(name)
 
 	return slices.ContainsFunc(a.Flags, func(f string) bool {
-		if !strings.HasPrefix(f, "-") {
+		if !isFlag(f) {
 			return false
 		}
+
 		return normalizeFlag(extractFlagName(f)) == target
 	})
 }
@@ -331,7 +337,7 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 		f := a.Flags[i]
 
 		// Only treat tokens starting with "-" as potential flags
-		if !strings.HasPrefix(f, "-") {
+		if !isFlag(f) {
 			newFlags = append(newFlags, f)
 			continue
 		}

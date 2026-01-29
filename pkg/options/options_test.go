@@ -1,9 +1,10 @@
-package options
+package options_test
 
 import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,13 +35,31 @@ func TestInsertTerraformCliArgsSubcommandReplacement(t *testing.T) {
 			insert:   []string{"list"},
 			expected: []string{"state", "list"},
 		},
+		{
+			name:     "same_command_no_change",
+			initial:  []string{"apply", "-auto-approve"},
+			insert:   []string{"apply"},
+			expected: []string{"apply", "-auto-approve"},
+		},
+		{
+			name:     "unknown_command_becomes_argument",
+			initial:  []string{"apply", "-auto-approve"},
+			insert:   []string{"myplan.tfplan"},
+			expected: []string{"apply", "-auto-approve", "myplan.tfplan"},
+		},
+		{
+			name:     "empty_insert_no_change",
+			initial:  []string{"plan", "-out=plan.tfplan"},
+			insert:   []string{},
+			expected: []string{"plan", "-out=plan.tfplan"},
+		},
 	}
 
 	for _, tt := range tc {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			opts := &TerragruntOptions{
+
+			opts := &options.TerragruntOptions{
 				TerraformCliArgs: clihelper.NewIacArgs(tt.initial...),
 			}
 			opts.InsertTerraformCliArgs(tt.insert...)
@@ -52,7 +71,7 @@ func TestInsertTerraformCliArgsSubcommandReplacement(t *testing.T) {
 func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 	t.Parallel()
 
-	opts := &TerragruntOptions{}
+	opts := &options.TerragruntOptions{}
 	// Should not panic
 	opts.InsertTerraformCliArgs("plan")
 	assert.Equal(t, []string{"plan"}, opts.TerraformCliArgs.Slice())

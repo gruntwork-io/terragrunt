@@ -1,8 +1,9 @@
-package clihelper
+package clihelper_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +13,7 @@ func TestRemoveFlagWithLongBoolean(t *testing.T) {
 	// --json is in booleanFlagsMap (as "json")
 	// Removing --json should NOT remove the next argument if it looks like a value but isn't
 
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"--json", "planfile"},
 	}
 
@@ -31,7 +32,7 @@ func TestRemoveFlagWithUnknownFlag(t *testing.T) {
 	// Unknown flag --unknown. Not in map.
 	// It should be treated as taking a value if the next arg doesn't start with -.
 
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"--unknown", "val", "other"},
 	}
 
@@ -44,7 +45,7 @@ func TestHasFlagFalsePositive(t *testing.T) {
 	t.Parallel()
 
 	// out=foo should not match -out flag
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"-var", "out=foo"},
 	}
 
@@ -55,7 +56,7 @@ func TestRemoveFlagFalsePositive(t *testing.T) {
 	t.Parallel()
 
 	// Removing -out should not remove out=foo
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"-var", "out=foo"},
 	}
 
@@ -67,7 +68,7 @@ func TestRemoveFlagFalsePositive(t *testing.T) {
 func TestHasFlagDoubleDashMatch(t *testing.T) {
 	t.Parallel()
 
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"--help"},
 	}
 
@@ -78,7 +79,7 @@ func TestHasFlagDoubleDashMatch(t *testing.T) {
 func TestRemoveFlagDoubleDashMatch(t *testing.T) {
 	t.Parallel()
 
-	args := &IacArgs{
+	args := &clihelper.IacArgs{
 		Flags: []string{"--help", "planfile"},
 	}
 

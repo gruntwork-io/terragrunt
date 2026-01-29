@@ -505,6 +505,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
+	// Ensure TerraformCliArgs is initialized. This allows callers to use
+	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
+	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
 		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
@@ -515,21 +518,8 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// If we have a command and no command set in opts, use it.
-	// BUT: usually TerraformCliArgs already has a command (e.g. "plan").
-	// extra_arguments usually don't have a command, just flags/args.
-	if opts.TerraformCliArgs.Command == "" {
-		opts.TerraformCliArgs.Command = parsed.Command
-	} else if parsed.Command != "" && parsed.Command != opts.TerraformCliArgs.Command {
-		if clihelper.IsKnownSubCommand(parsed.Command) {
-			// If it's a known subcommand but parsed as command (because it was first in argsToInsert),
-			// treat it as a subcommand.
-			opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
-		} else {
-			// If command differs and it's not a known subcommand, treat it as a positional argument
-			opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
-		}
-	}
+	// Merge command field from parsed args
+	opts.mergeCommand(parsed)
 
 	// Subcommands: replace or append
 	if len(parsed.SubCommand) > 0 {
@@ -543,9 +533,35 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	}
 }
 
+// mergeCommand handles command field merging during arg insertion.
+// Rules:
+//   - If opts has no command, use parsed.Command
+//   - If parsed.Command matches opts command, do nothing (idempotent)
+//   - If parsed.Command is a known subcommand, add to SubCommand
+//   - Otherwise treat parsed.Command as positional argument
+func (opts *TerragruntOptions) mergeCommand(parsed *clihelper.IacArgs) {
+	if opts.TerraformCliArgs.Command == "" {
+		opts.TerraformCliArgs.Command = parsed.Command
+		return
+	}
+
+	if parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command {
+		return
+	}
+
+	if clihelper.IsKnownSubCommand(parsed.Command) {
+		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
+	} else {
+		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
+	}
+}
+
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
+	// Ensure TerraformCliArgs is initialized. This allows callers to use
+	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
+	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
 		opts.TerraformCliArgs = clihelper.NewIacArgs()
 	}
