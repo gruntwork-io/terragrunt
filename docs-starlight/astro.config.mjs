@@ -9,6 +9,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
+import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 // Check if we're in Vercel environment
@@ -206,11 +207,14 @@ export default defineConfig({
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
             "/docs/reference/cli/commands/list/#*",
+            "/docs/reference/cli/commands/find#*",
+            "/docs/reference/cli/commands/find/#*",
 
             // Used as a redirect to the Terragrunt Discord server
             "/community/invite",
           ],
         }),
+        starlightLlmsTxt()
       ],
     }),
     d2({

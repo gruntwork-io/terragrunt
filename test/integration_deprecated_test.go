@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -43,9 +44,12 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 		t.Run(tofuCmd, func(t *testing.T) {
 			t.Parallel()
 
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExtraArgsPath)
+			rootPath := filepath.Join(tmpEnvPath, testFixtureExtraArgsPath)
+
 			cmd := fmt.Sprintf(
 				"terragrunt --log-level debug --non-interactive --working-dir %s -- %s",
-				testFixtureExtraArgsPath,
+				rootPath,
 				strings.Join(tc.command, " "),
 			)
 

@@ -93,7 +93,7 @@ examples:
 
 flags:
   - list-format
-  - list-hidden
+  - list-no-hidden
   - list-dependencies
   - list-external
   - list-tree
@@ -272,7 +272,7 @@ This is because the default text format of `list` won't display dependency infor
 
 ### Hidden Configurations
 
-By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
+By default, Terragrunt includes configurations in hidden directories (those starting with a dot) in the output. Use the `--no-hidden` flag to exclude these configurations.
 
 ## Working Directory
 

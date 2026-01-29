@@ -264,7 +264,7 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 		return val, nil
 	}
 
-	githubClient := github.NewGitHubAPIClient()
+	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth())
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {

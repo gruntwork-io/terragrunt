@@ -40,7 +40,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	listOpts.Format = list.FormatDot
 	listOpts.Mode = list.ModeDAG
 	listOpts.Dependencies = true
-	listOpts.Hidden = true
 
 	return list.Run(ctx, l, listOpts)
 }
