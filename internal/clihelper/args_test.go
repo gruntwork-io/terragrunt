@@ -235,6 +235,20 @@ func TestNewIacArgs(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
+			name:      "chdir with space-separated value",
+			input:     []string{"-chdir", "/tmp/dir", "apply"},
+			wantCmd:   "apply",
+			wantFlags: []string{"-chdir", "/tmp/dir"},
+			wantArgs:  nil,
+		},
+		{
+			name:      "chdir with equals value",
+			input:     []string{"-chdir=/tmp/dir", "plan"},
+			wantCmd:   "plan",
+			wantFlags: []string{"-chdir=/tmp/dir"},
+			wantArgs:  nil,
+		},
+		{
 			name:      "multiple positional args",
 			input:     []string{"apply", "plan1", "plan2", "-auto-approve"},
 			wantCmd:   "apply",

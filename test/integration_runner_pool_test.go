@@ -269,7 +269,7 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 		t,
 		"terragrunt run --all --non-interactive "+
 			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.85.0 "+
-			"--working-dir "+testPath+" -- apply -auto-approve",
+			"--working-dir "+testPath+" -- apply ",
 	)
 	require.NoError(t, err)
 	// Verify that source map values are used

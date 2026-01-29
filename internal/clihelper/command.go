@@ -59,9 +59,8 @@ type Command struct {
 	// Aliases is a list of aliases for the command.
 	Aliases []string
 
-	// IsRoot indicates this command is the application root command.
-	// Root commands have special behavior: they define global flags
-	// and serve as the entry point for CLI parsing.
+	// IsRoot is true if this is a root "special" command.
+	// NOTE: The author of this comment doesn't know what this means.
 	IsRoot bool
 
 	// SkipRunning disables the parsing command, but it will

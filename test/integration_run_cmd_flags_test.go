@@ -63,7 +63,7 @@ func runCmdFlagsFixture(t *testing.T) runCmdFixtureResult {
 
 	// Clean up counter files after test execution
 	t.Cleanup(func() {
-		scriptsPath := filepath.Join(rootPath, "scripts")
+		scriptsPath := filepath.Join(testFixtureRunCmdFlags, "scripts")
 		_ = os.Remove(filepath.Join(scriptsPath, "global_counter.txt"))
 		_ = os.Remove(filepath.Join(scriptsPath, "no_cache_counter.txt"))
 	})

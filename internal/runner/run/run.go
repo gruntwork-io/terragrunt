@@ -190,9 +190,9 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
+	defer actualLock.Unlock()
 
 	actualLock.Lock()
-	defer actualLock.Unlock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
 		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, &genCfg); err != nil {
