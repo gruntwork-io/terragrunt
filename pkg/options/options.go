@@ -505,10 +505,6 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
-	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
-	}
-
 	// Parse args using IacArgs to properly separate flags from arguments
 	parsed := clihelper.NewIacArgs(argsToInsert...)
 
@@ -517,8 +513,13 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 
 	// Handle parsed.Command as an argument (extra_arguments don't have a command)
 	var args []string
+
 	if parsed.Command != "" {
-		args = append(args, parsed.Command)
+		if clihelper.IsKnownSubCommand(parsed.Command) {
+			opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
+		} else {
+			args = append(args, parsed.Command)
+		}
 	}
 
 	args = append(args, parsed.Arguments...)
@@ -527,16 +528,16 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 		opts.TerraformCliArgs.InsertArguments(0, args...)
 	}
 
-	opts.TerraformCliArgs.AppendSubCommand(parsed.SubCommand...)
+	// If we are inserting a subcommand, replace any existing subcommand to avoid invalid
+	// sequences like "providers lock mirror". Terraform typically supports only one subcommand.
+	if len(parsed.SubCommand) > 0 {
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 // Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
-	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
-	}
-
 	// Parse args using IacArgs to properly separate flags from arguments
 	parsed := clihelper.NewIacArgs(argsToAppend...)
 

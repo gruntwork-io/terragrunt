@@ -9,6 +9,12 @@ import (
 const (
 	tailMinArgsLen = 2
 	BuiltinCmdSep  = "--"
+
+	// minFlagValuePairLen is the minimum number of elements needed for a space-separated flag-value pair (e.g., "-var", "foo=bar")
+	minFlagValuePairLen = 2
+
+	// minFlagLen is the minimum length for a valid flag (e.g., "-x" has length 2)
+	minFlagLen = 2
 )
 
 const (
@@ -62,7 +68,7 @@ func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Second returns the first argument or a blank string.
+// Second returns the second argument or a blank string.
 func (args Args) Second() string {
 	return args.Get(1)
 }
@@ -179,35 +185,38 @@ func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
 
-// booleanFlags contains flags that don't take values (boolean flags).
+// booleanFlagsMap contains flags that don't take values (boolean flags).
 // Unknown flags are assumed to take space-separated values for safer parsing
 // of new Terraform/Tofu flags without requiring updates to this list.
-//
-// WARNING: If a new boolean flag is added to Terraform/Tofu and not listed here,
-// using it immediately before a positional argument (like a plan file) will cause
-// the positional argument to be incorrectly parsed as the flag's value.
-// Example: `terragrunt apply -new-bool planfile` -> `-new-bool` gets value `planfile`
-//
-// To fix: add the new boolean flag to this list.
-var booleanFlags = []string{
-	"-auto-approve",
-	"-compact-warnings",
-	"-destroy",
-	"-detailed-exitcode",
-	"-force-copy",
-	"-get",
-	"-input",
-	"-json",
-	"--json",
-	"-lock",
-	"-migrate-state",
-	"-no-color",
-	"-raw",
-	"-reconfigure",
-	"-refresh",
-	"-refresh-only",
-	"-upgrade",
-	"-write-out",
+var booleanFlagsMap = map[string]struct{}{
+	"allow-missing":     {},
+	"auto-approve":      {},
+	"check":             {},
+	"compact-warnings":  {},
+	"destroy":           {},
+	"detailed-exitcode": {},
+	"diff":              {},
+	"force-copy":        {},
+	"get":               {},
+	"input":             {},
+	"json":              {},
+	"list":              {},
+	"lock":              {},
+	"migrate-state":     {},
+	"no-color":          {},
+	"raw":               {},
+	"reconfigure":       {},
+	"recursive":         {},
+	"refresh":           {},
+	"refresh-only":      {},
+	"update":            {},
+	"upgrade":           {},
+	"write-out":         {},
+}
+
+// normalizeFlag strips leading dashes from a flag name.
+func normalizeFlag(flag string) string {
+	return strings.TrimLeft(flag, "-")
 }
 
 // IacArgs represents parsed IaC (terraform/tofu) CLI arguments
@@ -299,54 +308,27 @@ func (a *IacArgs) AddFlagIfNotPresent(flag string) *IacArgs {
 // HasFlag checks if flag exists (handles -flag, --flag and -flag=value formats).
 // Note: Values starting with "-" (like -module.resource) are indistinguishable from flags.
 func (a *IacArgs) HasFlag(name string) bool {
-	// Normalize name to name without dashes
-	nameBare := strings.TrimLeft(name, "-")
-	targets := []string{"-" + nameBare, "--" + nameBare}
+	target := normalizeFlag(name)
 
 	return slices.ContainsFunc(a.Flags, func(f string) bool {
-		for _, target := range targets {
-			if f == target || strings.HasPrefix(f, target+"=") {
-				return true
-			}
-		}
-
-		return false
+		return normalizeFlag(extractFlagName(f)) == target
 	})
 }
 
 // RemoveFlag removes a flag by name (handles -flag, --flag, -flag=value, and space-separated -flag value).
 func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 	newFlags := make([]string, 0, len(a.Flags))
-
-	// Normalize name to name without dashes
-	nameBare := strings.TrimLeft(name, "-")
-	targets := []string{"-" + nameBare, "--" + nameBare}
+	target := normalizeFlag(name)
 
 	for i := 0; i < len(a.Flags); i++ {
 		f := a.Flags[i]
+		current := normalizeFlag(extractFlagName(f))
 
-		matchedExact := false
-		matchedWithPrefix := false
-
-		for _, target := range targets {
-			if f == target {
-				matchedExact = true
-				break
-			}
-
-			if strings.HasPrefix(f, target+"=") {
-				matchedWithPrefix = true
-				break
-			}
-		}
-
-		if matchedExact || matchedWithPrefix {
-			// If exact match and next entry is a value (doesn't start with "-"), skip it too.
-			// only if it's NOT a boolean flag.
-			if matchedExact && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
-				// We need to know if the flag we just matched is a boolean flag.
-				// f is the flag name as found in a.Flags.
-				if !slices.Contains(booleanFlags, f) {
+		if current == target {
+			// If exact match (no =value) and next entry is a value (doesn't start with "-"), skip it too.
+			// BUT: only if it's NOT a boolean flag.
+			if !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
+				if _, isBool := booleanFlagsMap[current]; !isBool {
 					i++ // skip the value
 				}
 			}
@@ -416,6 +398,10 @@ func (a *IacArgs) hasFlagWithValue(flag, value string) bool {
 		return true
 	}
 
+	if len(a.Flags) < minFlagValuePairLen {
+		return false
+	}
+
 	// Check space-separated format
 	for i := 0; i < len(a.Flags)-1; i++ {
 		if a.Flags[i] == flag && a.Flags[i+1] == value {
@@ -442,6 +428,9 @@ func (a *IacArgs) Slice() []string {
 }
 
 // Clone returns a deep copy of IacArgs.
+// Note: This performs a deep copy of slices (Command, SubCommand, Flags, Arguments).
+// If IacArgs is extended with pointer fields or nested structs in the future,
+// this method must be updated to ensure deep copying of those fields as well.
 func (a *IacArgs) Clone() *IacArgs {
 	return &IacArgs{
 		Command:    a.Command,
@@ -560,7 +549,7 @@ func (a *IacArgs) parse(args []string) {
 
 		// Known subcommands before flags -> SubCommand (e.g., "lock" in "providers lock")
 		// All other non-flag args -> Arguments (e.g., plan files, resource addresses)
-		if !seenFlag && isKnownSubCommand(arg) {
+		if !seenFlag && IsKnownSubCommand(arg) {
 			a.SubCommand = append(a.SubCommand, arg)
 		} else {
 			a.Arguments = append(a.Arguments, arg)
@@ -570,6 +559,7 @@ func (a *IacArgs) parse(args []string) {
 
 // knownSubCommands lists terraform subcommands that appear after the main command.
 // These should NOT be reordered to the end like plan files.
+// Maintainers: Add new Terraform/OpenTofu subcommands here as they are introduced.
 var knownSubCommands = []string{
 	// providers subcommands
 	"lock", "mirror", "schema",
@@ -580,34 +570,37 @@ var knownSubCommands = []string{
 	// force-unlock takes an argument, not a subcommand
 }
 
-// isKnownSubCommand returns true if arg is a known terraform subcommand.
-func isKnownSubCommand(arg string) bool {
+// IsKnownSubCommand returns true if arg is a known terraform subcommand.
+func IsKnownSubCommand(arg string) bool {
 	return slices.Contains(knownSubCommands, arg)
 }
 
 // processFlag handles flag parsing, returns true if next arg should be skipped.
 // Unknown flags are assumed to take space-separated values for forward compatibility.
 func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
+	if len(arg) < minFlagLen {
+		// Malformed flag (just "-" or empty), treat as argument or ignore
+		a.Flags = append(a.Flags, arg)
+		return false
+	}
+
 	flagName := extractFlagName(arg)
 
 	// Flag with inline value (-flag=value) - self-contained
 	if strings.Contains(arg, "=") {
 		a.Flags = append(a.Flags, arg)
-
 		return false
 	}
 
 	// Known boolean flag - self-contained
-	if slices.Contains(booleanFlags, flagName) {
+	if _, ok := booleanFlagsMap[normalizeFlag(flagName)]; ok {
 		a.Flags = append(a.Flags, arg)
-
 		return false
 	}
 
 	// Check if next arg looks like a value (doesn't start with -)
 	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
 		a.Flags = append(a.Flags, arg)
-
 		return false
 	}
 

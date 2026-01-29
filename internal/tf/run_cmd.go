@@ -28,6 +28,8 @@ const (
 	tfLogMsgPrefix = "TF_LOG: "
 
 	logMsgSeparator = "\n"
+
+	defaultWriterOptionsLen = 2
 )
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
@@ -193,7 +195,7 @@ func buildOutWriter(opts *options.TerragruntOptions, logger log.Logger, outWrite
 		outWriter = errWriter
 	}
 
-	options := make([]writer.Option, 0, 2+len(writerOptions)) //nolint:mnd
+	options := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	options = append(options,
 		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
 		writer.WithDefaultLevel(logLevel),
@@ -217,7 +219,7 @@ func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWrite
 		logLevel = log.ErrorLevel
 	}
 
-	options := make([]writer.Option, 0, 2+len(writerOptions)) //nolint:mnd
+	options := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	options = append(options,
 		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 		writer.WithDefaultLevel(logLevel),
