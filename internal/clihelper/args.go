@@ -168,8 +168,7 @@ func (args Args) Contains(target string) bool {
 }
 
 // valueTakingFlags contains flags that require space-separated values.
-// Unknown flags are assumed to be boolean for simpler maintenance.
-// Only flags that commonly use space-separated format need to be listed here.
+// Only flags that commonly use a space-separated format need to be listed here.
 var valueTakingFlags = []string{
 	"chdir",
 	"config",
