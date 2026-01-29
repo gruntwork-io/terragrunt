@@ -49,6 +49,10 @@ func (tip *Tip) isDisabled() bool {
 
 // Names returns all tip names.
 func (t Tips) Names() []string {
+	if len(t) == 0 {
+		return []string{}
+	}
+
 	names := make([]string, 0, len(t))
 
 	for _, tip := range t {
@@ -62,6 +66,10 @@ func (t Tips) Names() []string {
 
 // Find searches and returns the tip by the given `name`.
 func (t Tips) Find(name string) *Tip {
+	if len(t) == 0 {
+		return nil
+	}
+
 	for _, tip := range t {
 		if tip.Name == name {
 			return tip
@@ -73,6 +81,10 @@ func (t Tips) Find(name string) *Tip {
 
 // DisableAll disables all tips such that they aren't shown.
 func (t Tips) DisableAll() {
+	if len(t) == 0 {
+		return
+	}
+
 	for _, tip := range t {
 		tip.Disable()
 	}
