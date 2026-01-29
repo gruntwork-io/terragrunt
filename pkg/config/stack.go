@@ -310,7 +310,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 		localSrc, err := filepath.Abs(localSrc)
 		if err != nil {
-			l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
+			l.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
 			// fallback to original source
 			localSrc = src
 		}
@@ -355,7 +355,7 @@ func isLocal(l log.Logger, workingDir, src string) bool {
 	for _, g := range getter.Getters {
 		recognized, err := getter.Detect(req, g)
 		if err != nil {
-			l.Debugf("Error detecting getter for %s: %w", src, err)
+			l.Debugf("Error detecting getter for %s: %v", src, err)
 			continue
 		}
 
