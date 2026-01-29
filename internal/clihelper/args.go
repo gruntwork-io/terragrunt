@@ -313,12 +313,10 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 		current := normalizeFlag(extractFlagName(f))
 
 		if current == target {
-			// If exact match (no =value) and next entry is a value (doesn't start with "-"), skip it too.
-			// BUT: only if it's a known value-taking flag.
-			if !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
-				if slices.Contains(valueTakingFlags, current) {
-					i++ // skip the value
-				}
+			// Skip value too if: no =value, next entry is a value, and it's a known value-taking flag
+			hasNextValue := !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-")
+			if hasNextValue && slices.Contains(valueTakingFlags, current) {
+				i++ // skip the value
 			}
 
 			continue
@@ -560,27 +558,19 @@ func IsKnownSubCommand(arg string) bool {
 // processFlag handles flag parsing, returns true if next arg should be skipped.
 // Unknown flags are assumed to be boolean. Only known value-taking flags consume the next arg.
 func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
-	if len(arg) < minFlagLen {
-		// Malformed flag (just "-" or empty), treat as argument or ignore
+	// Malformed flag (just "-" or empty), or flag with inline value (-flag=value)
+	if len(arg) < minFlagLen || strings.Contains(arg, "=") {
 		a.Flags = append(a.Flags, arg)
 		return false
 	}
 
-	flagName := extractFlagName(arg)
+	// Known value-taking flag with next arg available that looks like a value
+	flagName := normalizeFlag(extractFlagName(arg))
+	hasNextValue := i+1 < len(args) && !strings.HasPrefix(args[i+1], "-")
 
-	// Flag with inline value (-flag=value) - self-contained
-	if strings.Contains(arg, "=") {
-		a.Flags = append(a.Flags, arg)
-		return false
-	}
-
-	// Check if this is a known value-taking flag with a next arg available
-	if slices.Contains(valueTakingFlags, normalizeFlag(flagName)) {
-		// Check if next arg looks like a value (doesn't start with -)
-		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-			a.Flags = append(a.Flags, arg, args[i+1])
-			return true
-		}
+	if slices.Contains(valueTakingFlags, flagName) && hasNextValue {
+		a.Flags = append(a.Flags, arg, args[i+1])
+		return true
 	}
 
 	// Unknown flags and boolean flags are self-contained
