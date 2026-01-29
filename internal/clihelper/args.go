@@ -315,6 +315,9 @@ func (a *IacArgs) HasFlag(name string) bool {
 	target := normalizeFlag(name)
 
 	return slices.ContainsFunc(a.Flags, func(f string) bool {
+		if !strings.HasPrefix(f, "-") {
+			return false
+		}
 		return normalizeFlag(extractFlagName(f)) == target
 	})
 }
@@ -326,6 +329,13 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 
 	for i := 0; i < len(a.Flags); i++ {
 		f := a.Flags[i]
+
+		// Only treat tokens starting with "-" as potential flags
+		if !strings.HasPrefix(f, "-") {
+			newFlags = append(newFlags, f)
+			continue
+		}
+
 		current := normalizeFlag(extractFlagName(f))
 
 		if current == target {

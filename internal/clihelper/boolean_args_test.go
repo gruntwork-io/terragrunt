@@ -1,9 +1,8 @@
-package clihelper_test
+package clihelper
 
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,19 +11,8 @@ func TestRemoveFlagWithLongBoolean(t *testing.T) {
 
 	// --json is in booleanFlagsMap (as "json")
 	// Removing --json should NOT remove the next argument if it looks like a value but isn't
-	// Wait, RemoveFlag removes the flag.
-	// If I have "--json", "planfile". RemoveFlag("--json").
-	// Should result in "planfile".
 
-	// If I have "--json", "-no-color". RemoveFlag("--json").
-	// Should result in "-no-color".
-
-	// The issue described was: "RemoveFlag can wrongly skip a value for --flag booleans not listed in booleanFlags".
-	// "If a boolean flag is passed as --long but only -long exists in booleanFlags, it will treat it as non-boolean and remove the next token"
-
-	// Since we switched to booleanFlagsMap with bare names and normalizeFlag, --json should be recognized as boolean.
-
-	args := &clihelper.IacArgs{
+	args := &IacArgs{
 		Flags: []string{"--json", "planfile"},
 	}
 
@@ -43,11 +31,58 @@ func TestRemoveFlagWithUnknownFlag(t *testing.T) {
 	// Unknown flag --unknown. Not in map.
 	// It should be treated as taking a value if the next arg doesn't start with -.
 
-	args := &clihelper.IacArgs{
+	args := &IacArgs{
 		Flags: []string{"--unknown", "val", "other"},
 	}
 
 	args.RemoveFlag("--unknown")
 
 	assert.Equal(t, []string{"other"}, args.Flags)
+}
+
+func TestHasFlagFalsePositive(t *testing.T) {
+	t.Parallel()
+
+	// out=foo should not match -out flag
+	args := &IacArgs{
+		Flags: []string{"-var", "out=foo"},
+	}
+
+	assert.False(t, args.HasFlag("-out"))
+}
+
+func TestRemoveFlagFalsePositive(t *testing.T) {
+	t.Parallel()
+
+	// Removing -out should not remove out=foo
+	args := &IacArgs{
+		Flags: []string{"-var", "out=foo"},
+	}
+
+	args.RemoveFlag("-out")
+
+	assert.Equal(t, []string{"-var", "out=foo"}, args.Flags)
+}
+
+func TestHasFlagDoubleDashMatch(t *testing.T) {
+	t.Parallel()
+
+	args := &IacArgs{
+		Flags: []string{"--help"},
+	}
+
+	assert.True(t, args.HasFlag("-help"))
+	assert.True(t, args.HasFlag("--help"))
+}
+
+func TestRemoveFlagDoubleDashMatch(t *testing.T) {
+	t.Parallel()
+
+	args := &IacArgs{
+		Flags: []string{"--help", "planfile"},
+	}
+
+	args.RemoveFlag("-help")
+
+	assert.Equal(t, []string{"planfile"}, args.Flags)
 }
