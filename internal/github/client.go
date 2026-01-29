@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/hashicorp/go-getter"
@@ -21,9 +24,10 @@ import (
 
 // GitHubAPIClient represents a GitHub API client.
 type GitHubAPIClient struct {
-	baseURL    string
-	httpClient *http.Client
-	cache      *cache.ExpiringCache[string]
+	baseURL        string
+	httpClient     *http.Client
+	cache          *cache.ExpiringCache[string]
+	defaultHeaders http.Header
 }
 
 // Release represents a GitHub repository release.
@@ -50,19 +54,59 @@ func WithBaseURL(baseURL string) GitHubAPIClientOption {
 	}
 }
 
+// WithGithubToken sets the GitHub token for authentication.
+func WithGithubToken(token string) GitHubAPIClientOption {
+	return func(c *GitHubAPIClient) {
+		c.defaultHeaders.Set("Authorization", "Bearer "+token)
+	}
+}
+
+// WithGithubComDefaultAuth sets the authentication header based on the assumption
+// we're talking to github.com, and using the same logic as the gh cli:
+// https://cli.github.com/manual/gh_help_environment
+func WithGithubComDefaultAuth() GitHubAPIClientOption {
+	return func(c *GitHubAPIClient) {
+		if tok := getGithubTokenFromEnv(); tok != "" {
+			c.defaultHeaders.Set("Authorization", "Bearer "+tok)
+		}
+	}
+}
+
+// getGithubTokenFromEnv retrieves the GitHub token from environment
+// variables using the same logic as the gh cli:
+// https://cli.github.com/manual/gh_help_environment
+func getGithubTokenFromEnv() string {
+	if tok := os.Getenv("GH_TOKEN"); tok != "" {
+		return tok
+	}
+
+	if tok := os.Getenv("GITHUB_TOKEN"); tok != "" {
+		return tok
+	}
+
+	return ""
+}
+
 // NewGitHubAPIClient creates a new GitHub API client with optional configuration.
 func NewGitHubAPIClient(opts ...GitHubAPIClientOption) *GitHubAPIClient {
 	client := &GitHubAPIClient{
-		baseURL:    "https://api.github.com",
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		cache:      cache.NewExpiringCache[string]("github_api"),
+		baseURL:        "https://api.github.com",
+		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		cache:          cache.NewExpiringCache[string]("github_api"),
+		defaultHeaders: http.Header{},
 	}
+	client.defaultHeaders.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	for _, opt := range opts {
 		opt(client)
 	}
 
 	return client
+}
+
+// setDefaultHeaders sets default headers for the given request
+func (c *GitHubAPIClient) setDefaultHeaders(req *http.Request) {
+	req.Header = c.defaultHeaders.Clone()
 }
 
 // GetLatestRelease fetches the latest release for a given repository.
@@ -87,6 +131,7 @@ func (c *GitHubAPIClient) GetLatestRelease(ctx context.Context, repository strin
 	if err != nil {
 		return nil, errors.Errorf("failed to create HTTP request: %w", err)
 	}
+	c.setDefaultHeaders(req)
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
@@ -247,6 +292,29 @@ func (c *GitHubReleasesDownloadClient) DownloadReleaseAssets(
 				Dst:           localPath,
 				Mode:          getter.ClientModeFile,
 				Decompressors: map[string]getter.Decompressor{},
+			}
+
+			// Add GitHub token to HTTP headers if available
+			if tok := getGithubTokenFromEnv(); tok != "" {
+				// use the default getters
+				client.Getters = maps.Clone(getter.Getters)
+				// but override the https getter to inject the github token
+				client.Getters["https"] = &getter.HttpGetter{
+					Netrc: true,
+					Header: http.Header{
+						"Authorization": {"Bearer " + tok},
+					},
+				}
+
+				// test servers don't use https, but we don't usually want to send auth tokens unencrypted
+				if testing.Testing() {
+					client.Getters["http"] = &getter.HttpGetter{
+						Netrc: true,
+						Header: http.Header{
+							"Authorization": {"Bearer " + tok},
+						},
+					}
+				}
 			}
 
 			if err := client.Get(); err != nil {
