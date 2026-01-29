@@ -10,16 +10,13 @@ import (
 func TestRemoveFlagWithLongBoolean(t *testing.T) {
 	t.Parallel()
 
-	// --json is in booleanFlagsMap (as "json")
-	// Removing --json should NOT remove the next argument if it looks like a value but isn't
+	// --json is an unknown flag (not in valueTakingFlags).
+	// Unknown flags are treated as boolean, so removing --json
+	// should NOT consume "planfile" as a value.
 
 	args := &clihelper.IacArgs{
 		Flags: []string{"--json", "planfile"},
 	}
-
-	// We want to remove --json.
-	// It should be identified as boolean (bare "json" is in map).
-	// So it should NOT consume "planfile" as a value.
 
 	args.RemoveFlag("--json")
 
@@ -29,8 +26,9 @@ func TestRemoveFlagWithLongBoolean(t *testing.T) {
 func TestRemoveFlagWithUnknownFlag(t *testing.T) {
 	t.Parallel()
 
-	// Unknown flag --unknown. Not in map.
-	// It should be treated as taking a value if the next arg doesn't start with -.
+	// Unknown flag --unknown is not in valueTakingFlags.
+	// Unknown flags are treated as boolean, so removing --unknown
+	// should NOT consume "val" as a value.
 
 	args := &clihelper.IacArgs{
 		Flags: []string{"--unknown", "val", "other"},
@@ -38,7 +36,7 @@ func TestRemoveFlagWithUnknownFlag(t *testing.T) {
 
 	args.RemoveFlag("--unknown")
 
-	assert.Equal(t, []string{"other"}, args.Flags)
+	assert.Equal(t, []string{"val", "other"}, args.Flags)
 }
 
 func TestHasFlagFalsePositive(t *testing.T) {

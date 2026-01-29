@@ -167,37 +167,23 @@ func (args Args) Contains(target string) bool {
 	return slices.Contains(args, target)
 }
 
-// booleanFlags contains flags that don't take values (boolean flags).
-// Unknown flags are assumed to take space-separated values for safer parsing
-// of new Terraform/Tofu flags without requiring updates to this list.
-var booleanFlags = []string{
-	"allow-missing",
-	"auto-approve",
-	"check",
-	"compact-warnings",
-	"destroy",
-	"detailed-exitcode",
-	"diff",
-	"force-copy",
-	"get",
-	"h",
-	"help",
-	"input",
-	"json",
-	"list",
-	"lock",
-	"migrate-state",
-	"no-color",
-	"raw",
-	"reconfigure",
-	"recursive",
-	"refresh",
-	"refresh-only",
-	"update",
-	"upgrade",
-	"v",
-	"version",
-	"write-out",
+// valueTakingFlags contains flags that require space-separated values.
+// Unknown flags are assumed to be boolean for simpler maintenance.
+// Only flags that commonly use space-separated format need to be listed here.
+var valueTakingFlags = []string{
+	"chdir",
+	"config",
+	"from-module",
+	"lock-timeout",
+	"out",
+	"parallelism",
+	"plugin-dir",
+	"state",
+	"state-out",
+	"backup",
+	"target",
+	"var",
+	"var-file",
 }
 
 // normalizeFlag strips leading dashes from a flag name.
@@ -328,9 +314,9 @@ func (a *IacArgs) RemoveFlag(name string) *IacArgs {
 
 		if current == target {
 			// If exact match (no =value) and next entry is a value (doesn't start with "-"), skip it too.
-			// BUT: only if it's NOT a boolean flag.
+			// BUT: only if it's a known value-taking flag.
 			if !strings.Contains(f, "=") && i+1 < len(a.Flags) && !strings.HasPrefix(a.Flags[i+1], "-") {
-				if !slices.Contains(booleanFlags, current) {
+				if slices.Contains(valueTakingFlags, current) {
 					i++ // skip the value
 				}
 			}
@@ -572,7 +558,7 @@ func IsKnownSubCommand(arg string) bool {
 }
 
 // processFlag handles flag parsing, returns true if next arg should be skipped.
-// Unknown flags are assumed to take space-separated values for forward compatibility.
+// Unknown flags are assumed to be boolean. Only known value-taking flags consume the next arg.
 func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 	if len(arg) < minFlagLen {
 		// Malformed flag (just "-" or empty), treat as argument or ignore
@@ -588,22 +574,19 @@ func (a *IacArgs) processFlag(arg string, args []string, i int) bool {
 		return false
 	}
 
-	// Known boolean flag - self-contained
-	if slices.Contains(booleanFlags, normalizeFlag(flagName)) {
-		a.Flags = append(a.Flags, arg)
-		return false
+	// Check if this is a known value-taking flag with a next arg available
+	if slices.Contains(valueTakingFlags, normalizeFlag(flagName)) {
+		// Check if next arg looks like a value (doesn't start with -)
+		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			a.Flags = append(a.Flags, arg, args[i+1])
+			return true
+		}
 	}
 
-	// Check if next arg looks like a value (doesn't start with -)
-	if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
-		a.Flags = append(a.Flags, arg)
-		return false
-	}
+	// Unknown flags and boolean flags are self-contained
+	a.Flags = append(a.Flags, arg)
 
-	// Assume unknown flag takes a space-separated value
-	a.Flags = append(a.Flags, arg, args[i+1])
-
-	return true
+	return false
 }
 
 // extractFlagName gets flag name before = if present.

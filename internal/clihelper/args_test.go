@@ -198,20 +198,21 @@ func TestNewIacArgs(t *testing.T) {
 			wantArgs:  nil,
 		},
 		{
-			name:      "unknown flag with space-separated value (forward compatible)",
+			// Unknown flags are treated as boolean. If a new Terraform flag needs
+			// space-separated values, add it to valueTakingFlags list.
+			name:      "unknown flag treated as boolean",
 			input:     []string{"apply", "-future-flag", "value", "-auto-approve"},
 			wantCmd:   "apply",
-			wantFlags: []string{"-future-flag", "value", "-auto-approve"},
-			wantArgs:  nil,
+			wantFlags: []string{"-future-flag", "-auto-approve"},
+			wantArgs:  []string{"value"},
 		},
 		{
-			// Documents known limitation: unknown boolean flags are treated as taking values.
-			// If this causes issues with a new Terraform flag, add it to booleanFlags list.
-			name:      "unknown boolean flag followed by arg (treated as flag value)",
+			// Unknown flags are boolean, so planfile correctly goes to Arguments.
+			name:      "unknown boolean flag followed by arg",
 			input:     []string{"apply", "-unknown-bool", "planfile"},
 			wantCmd:   "apply",
-			wantFlags: []string{"-unknown-bool", "planfile"},
-			wantArgs:  nil,
+			wantFlags: []string{"-unknown-bool"},
+			wantArgs:  []string{"planfile"},
 		},
 		{
 			name:      "empty args",
