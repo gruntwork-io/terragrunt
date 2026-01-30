@@ -731,6 +731,19 @@ func (d *Discovery) processFile(
 			if len(filtered) == 0 {
 				return nil
 			}
+		} else if (len(d.dependencyTargetExpressions) > 0 || len(d.dependentTargetExpressions) > 0) && !d.filters.RequiresParseBeyondGraph() {
+			// NOTE: This logic is pretty hacky, and will need to be removed in the future.
+			//
+			// We need a better way to decide with granularity when we need to parse components.
+			// That's going to require some significant refactoring to handle elegantly.
+			//
+			// When parse is required only for graph traversal, we can minimize parsing by only
+			// including components that match the graph target path expressions. When parse is
+			// required for other reasons (e.g. reading=, unknown attributes), we must include all
+			// components so they can be parsed and evaluated.
+			if !componentMatchesGraphTargets(l, c, d.dependencyTargetExpressions, d.dependentTargetExpressions) {
+				return nil
+			}
 		}
 
 		return c
@@ -1302,6 +1315,44 @@ func filterByAllowSet(components component.Components, allowed map[string]struct
 	}
 
 	return filtered
+}
+
+// componentMatchesGraphTargets returns true if the component matches at least one of the
+// dependency or dependent graph target expressions. Used during discovery to minimize parsing:
+// only components matching a graph target path are included; dependency/dependent discovery
+// will add and parse reachable components on demand.
+func componentMatchesGraphTargets(
+	l log.Logger,
+	c component.Component,
+	dependencyTargets, dependentTargets []filter.Expression,
+) bool {
+	single := component.Components{c}
+
+	for _, expr := range dependencyTargets {
+		matched, err := filter.Evaluate(l, expr, single)
+		if err != nil {
+			l.Debugf("Error evaluating dependency graph target for %s: %v", c.Path(), err)
+			continue
+		}
+
+		if len(matched) > 0 {
+			return true
+		}
+	}
+
+	for _, expr := range dependentTargets {
+		matched, err := filter.Evaluate(l, expr, single)
+		if err != nil {
+			l.Debugf("Error evaluating dependent graph target for %s: %v", c.Path(), err)
+			continue
+		}
+
+		if len(matched) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // determineStartingComponentsFromExpressions evaluates target expressions and returns

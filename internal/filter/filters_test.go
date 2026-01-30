@@ -885,3 +885,43 @@ func TestFilters_GitExpressionAsGraphTarget(t *testing.T) {
 		assert.True(t, filters.HasPositiveFilter(), "Git-graph expression is a positive filter")
 	})
 }
+
+func TestFilters_RequiresParseBeyondGraph(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns false for pure graph filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"{./unit-a}..."})
+		require.NoError(t, err)
+
+		assert.False(t, filters.RequiresParseBeyondGraph(), "Pure graph filter only requires parse for graph traversal")
+	})
+
+	t.Run("returns true when filter has reading= (requires parse outside graph)", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"{./unit-a}... | reading=*.hcl"})
+		require.NoError(t, err)
+
+		assert.True(t, filters.RequiresParseBeyondGraph(), "reading= requires parsing every component")
+	})
+
+	t.Run("returns true for reading-only filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"reading=*.hcl"})
+		require.NoError(t, err)
+
+		assert.True(t, filters.RequiresParseBeyondGraph(), "reading= requires parsing")
+	})
+
+	t.Run("returns false for path-only filter", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./unit-a"})
+		require.NoError(t, err)
+
+		assert.False(t, filters.RequiresParseBeyondGraph(), "Path filter does not require parse")
+	})
+}

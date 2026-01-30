@@ -216,6 +216,56 @@ func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	return targets
 }
 
+// RequiresParseBeyondGraph returns true if any filter requires parsing for reasons other than
+// graph traversal (e.g. reading=, unknown attributes). When true, discovery cannot safely
+// restrict to only graph target paths, because other expressions need to be evaluated on
+// every component (which requires parsing).
+//
+// NOTE: This is hacky, and will need to be removed in the future.
+func (f Filters) RequiresParseBeyondGraph() bool {
+	for _, filter := range f {
+		if expressionRequiresParseBeyondGraph(filter.expr, false) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// expressionRequiresParseBeyondGraph walks the expression tree and returns true if any node
+// requires parsing and is not nested under a GraphExpression's Target. Parse requirements
+// inside a graph target are satisfied by restricting discovery to those targets; parse
+// requirements outside (e.g. reading=, unknown attribute) require parsing every component.
+//
+// NOTE: This is hacky, and will need to be removed in the future.
+func expressionRequiresParseBeyondGraph(expr Expression, insideGraphTarget bool) bool {
+	switch node := expr.(type) {
+	case *GraphExpression:
+		// Graph traversal parse need is handled by restricting to graph targets; only recurse Target.
+		return expressionRequiresParseBeyondGraph(node.Target, true)
+	case *InfixExpression:
+		return expressionRequiresParseBeyondGraph(node.Left, insideGraphTarget) ||
+			expressionRequiresParseBeyondGraph(node.Right, insideGraphTarget)
+	case *PrefixExpression:
+		return expressionRequiresParseBeyondGraph(node.Right, insideGraphTarget)
+	case *AttributeExpression:
+		if _, ok := node.RequiresParse(); ok && !insideGraphTarget {
+			return true
+		}
+
+		return false
+	case *PathExpression, *GitExpression:
+		return false
+	default:
+		// Conservative: unknown expression type that might require parse outside graph.
+		if _, ok := expr.RequiresParse(); ok && !insideGraphTarget {
+			return true
+		}
+
+		return false
+	}
+}
+
 // collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
 func collectWorktreeExpressions(expr Expression) []*GitExpression {
 	var targets []*GitExpression
