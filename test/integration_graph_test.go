@@ -16,7 +16,7 @@ const (
 	testFixtureGraph = "fixtures/graph"
 )
 
-func TestTerragruntDestroyGraph(t *testing.T) { //nolint:tparallel
+func TestTerragruntDestroyGraph(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -46,9 +46,10 @@ func TestTerragruntDestroyGraph(t *testing.T) { //nolint:tparallel
 		},
 	}
 
-	for _, tc := range testCases { //nolint:paralleltest
+	for _, tc := range testCases {
 		t.Run(tc.path, func(t *testing.T) {
-			// Run subtests sequentially to avoid timeout
+			t.Parallel()
+
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
@@ -159,6 +160,7 @@ func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraph)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	helpers.CreateGitRepo(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureGraph)
 
 	stdout := bytes.Buffer{}
