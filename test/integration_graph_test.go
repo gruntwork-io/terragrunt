@@ -26,17 +26,17 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 	}{
 		{
 			path:               "eks",
-			expectedModules:    []string{"services/eks-service-3-v3", "services/eks-service-3-v2", "services/eks-service-3", "services/eks-service-4", "services/eks-service-5", "services/eks-service-2-v2", "services/eks-service-2", "services/eks-service-1"},
+			expectedModules:    []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-2-v2", "services/eks-service-3", "services/eks-service-3-v2", "services/eks-service-3-v3", "services/eks-service-4", "services/eks-service-5"},
 			notExpectedModules: []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 		},
 		{
 			path:               "services/lambda-service-1",
-			expectedModules:    []string{"services/lambda-service-2"},
+			expectedModules:    []string{"services/lambda-service-1", "services/lambda-service-2"},
 			notExpectedModules: []string{"lambda"},
 		},
 		{
 			path:               "services/eks-service-3",
-			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-4", "services/eks-service-3-v3"},
+			expectedModules:    []string{"services/eks-service-3", "services/eks-service-3-v2", "services/eks-service-3-v3", "services/eks-service-4"},
 			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2"},
 		},
 		{
