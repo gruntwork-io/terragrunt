@@ -1065,18 +1065,35 @@ func (c *ProductionServiceContainer) HasService(serviceType string) bool {
 func (c *ProductionServiceContainer) Health(ctx context.Context, l log.Logger) error {
 	// Check health of each registered service
 	for serviceName, service := range c.cache {
-		// Check if service implements a health check interface
-		// For now, we'll just log that we're checking the service
 		l.Debugf("Checking health of service: %s", serviceName)
 
-		// TODO: Implement actual health checks for each service type
-		// This could involve:
-		// - Checking if credentials are valid
-		// - Testing connectivity to Azure
-		// - Verifying required permissions
-		// For now, we'll just verify the service exists
 		if service == nil {
 			return fmt.Errorf("service %s is not properly initialized", serviceName)
+		}
+
+		// Perform type-specific health checks
+		switch svc := service.(type) {
+		case interfaces.AuthenticationService:
+			if err := svc.ValidateCredentials(ctx); err != nil {
+				return fmt.Errorf("authentication service health check failed: %w", err)
+			}
+		case interfaces.StorageAccountService:
+			// Check if we can query the storage account (validates connectivity and permissions)
+			if _, err := svc.Exists(ctx); err != nil {
+				return fmt.Errorf("storage account service health check failed: %w", err)
+			}
+		case interfaces.BlobService:
+			// BlobService doesn't have a simple health check method without a container name,
+			// so we just verify the service is not nil (already done above)
+			l.Debugf("Blob service registered and initialized")
+		case interfaces.ResourceGroupService:
+			// ResourceGroupService requires a resource group name to check, so we just verify initialization
+			l.Debugf("Resource group service registered and initialized")
+		case interfaces.RBACService:
+			// RBACService doesn't have a simple health check, so we just verify initialization
+			l.Debugf("RBAC service registered and initialized")
+		default:
+			l.Debugf("Unknown service type for %s, skipping detailed health check", serviceName)
 		}
 	}
 
