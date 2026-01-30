@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

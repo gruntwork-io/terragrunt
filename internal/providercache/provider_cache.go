@@ -9,23 +9,24 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"maps"
 
 	"github.com/google/uuid"
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/tf/cache"
-	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
-	"github.com/gruntwork-io/terragrunt/tf/cache/services"
-	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/tf/getproviders"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -133,7 +134,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	args cli.Args,
+	args clihelper.Args,
 ) (*util.CmdOutput, error) {
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
@@ -182,7 +183,7 @@ func (cache *ProviderCache) warmUpCache(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cliConfigFilename string,
-	args cli.Args,
+	args clihelper.Args,
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	var (
@@ -238,7 +239,7 @@ func (cache *ProviderCache) warmUpCache(
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
 	// Check if user passed -upgrade flag to terraform init
-	isUpgrade := util.ListContainsElement(opts.TerraformCliArgs, "-upgrade")
+	isUpgrade := opts.TerraformCliArgs.Contains("-upgrade")
 
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
 		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
@@ -254,7 +255,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cliConfigFilename string,
-	args cli.Args,
+	args clihelper.Args,
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
@@ -306,9 +307,15 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	var providerInstallationIncludes = make([]string, 0, len(opts.ProviderCacheRegistryNames))
+	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
+	filteredRegistryNames := filterRegistriesByImplementation(
+		opts.ProviderCacheRegistryNames,
+		opts.TofuImplementation,
+	)
 
-	for _, registryName := range opts.ProviderCacheRegistryNames {
+	var providerInstallationIncludes = make([]string, 0, len(filteredRegistryNames))
+
+	for _, registryName := range filteredRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
 		apiURLs, err := cache.DiscoveryURL(ctx, registryName)
@@ -349,8 +356,8 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	errWriter := util.NewTrapWriter(opts.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if util.ListContainsElement(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
-		!util.ListContainsElement(args, tf.FlagNameNoColor) {
+	if opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
+		!slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -362,10 +369,10 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.TerraformCliArgs = args
+	cloneOpts.TerraformCliArgs = clihelper.NewIacArgs(args...)
 	cloneOpts.Env = envs
 
-	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs...)
+	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs.Slice()...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
 		return new(util.CmdOutput), nil
@@ -384,7 +391,13 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	envs := make(map[string]string, len(opts.Env))
 	maps.Copy(envs, opts.Env)
 
-	for _, registryName := range opts.ProviderCacheRegistryNames {
+	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
+	filteredRegistryNames := filterRegistriesByImplementation(
+		opts.ProviderCacheRegistryNames,
+		opts.TofuImplementation,
+	)
+
+	for _, registryName := range filteredRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
 
 		// delete existing key case insensitive
@@ -444,4 +457,51 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	}
 
 	return commandsArgs
+}
+
+// filterRegistriesByImplementation filters registry names based on the Terraform implementation being used.
+// If the registry names match the default registries (both registry.terraform.io and registry.opentofu.org),
+// it filters them based on the implementation:
+//   - OpenTofuImpl: returns only registry.opentofu.org
+//   - TerraformImpl: returns only registry.terraform.io
+//   - UnknownImpl: returns both (backward compatibility)
+//
+// If the user has explicitly set registry names (don't match defaults), returns them as-is.
+func filterRegistriesByImplementation(registryNames []string, implementation options.TerraformImplementationType) []string {
+	// Default registries in the same order as defined in options/options.go
+	defaultRegistries := []string{
+		"registry.terraform.io",
+		"registry.opentofu.org",
+	}
+
+	// Check if registry names match defaults exactly (order-independent)
+	if len(registryNames) == len(defaultRegistries) {
+		matchesDefault := true
+
+		for _, defaultReg := range defaultRegistries {
+			if !slices.Contains(registryNames, defaultReg) {
+				matchesDefault = false
+				break
+			}
+		}
+
+		// If matches defaults, filter based on implementation
+		if matchesDefault {
+			switch implementation {
+			case options.OpenTofuImpl:
+				return []string{"registry.opentofu.org"}
+			case options.TerraformImpl:
+				return []string{"registry.terraform.io"}
+			case options.UnknownImpl:
+				// Backward compatibility: use both registries if implementation is unknown
+				return registryNames
+			default:
+				// Unknown implementation type, return as-is
+				return registryNames
+			}
+		}
+	}
+
+	// User explicitly set registry names, return as-is
+	return registryNames
 }

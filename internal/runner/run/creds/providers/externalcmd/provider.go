@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-shellwords"
 )
 
@@ -42,7 +43,8 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 
 	parser := shellwords.NewParser()
 
-	parts, err := parser.Parse(provider.terragruntOptions.AuthProviderCmd)
+	// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
+	parts, err := parser.Parse(filepath.ToSlash(provider.terragruntOptions.AuthProviderCmd))
 	if err != nil {
 		return nil, errors.Errorf("failed to parse auth provider command: %w", err)
 	}
@@ -98,23 +100,36 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 	return creds, nil
 }
 
+// Response is the JSON response expected from an auth provider command.
 type Response struct {
-	AWSCredentials *AWSCredentials   `json:"awsCredentials"`
-	AWSRole        *AWSRole          `json:"awsRole"`
-	Envs           map[string]string `json:"envs"`
+	// AWSCredentials contains AWS credentials to set as environment variables.
+	AWSCredentials *AWSCredentials `json:"awsCredentials,omitempty"`
+	// AWSRole contains AWS role information for role assumption.
+	AWSRole *AWSRole `json:"awsRole,omitempty"`
+	// Envs contains additional environment variables to set.
+	Envs map[string]string `json:"envs,omitempty"`
 }
 
+// AWSCredentials is the JSON schema for direct AWS credentials.
 type AWSCredentials struct {
-	AccessKeyID     string `json:"ACCESS_KEY_ID"`
-	SecretAccessKey string `json:"SECRET_ACCESS_KEY"`
-	SessionToken    string `json:"SESSION_TOKEN"`
+	// AccessKeyID is the AWS access key ID.
+	AccessKeyID string `json:"ACCESS_KEY_ID" jsonschema:"required"`
+	// SecretAccessKey is the AWS secret access key.
+	SecretAccessKey string `json:"SECRET_ACCESS_KEY" jsonschema:"required"`
+	// SessionToken is the AWS session token (optional).
+	SessionToken string `json:"SESSION_TOKEN,omitempty"`
 }
 
+// AWSRole is the JSON schema for AWS role assumption.
 type AWSRole struct {
-	RoleARN          string `json:"roleARN"`
-	RoleSessionName  string `json:"roleSessionName"`
-	WebIdentityToken string `json:"webIdentityToken"`
-	Duration         int64  `json:"duration"`
+	// RoleARN is the ARN of the IAM role to assume.
+	RoleARN string `json:"roleARN" jsonschema:"required"`
+	// RoleSessionName is the session name for the assumed role.
+	RoleSessionName string `json:"roleSessionName,omitempty"`
+	// WebIdentityToken is the web identity token for OIDC-based role assumption.
+	WebIdentityToken string `json:"webIdentityToken,omitempty"`
+	// Duration is the duration in seconds for the assumed role session.
+	Duration int64 `json:"duration,omitempty" jsonschema:"minimum=0"`
 }
 
 func (role *AWSRole) Envs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) map[string]string {

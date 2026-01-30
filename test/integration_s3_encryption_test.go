@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 const (
@@ -34,7 +34,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -65,7 +65,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	// aws kms create-alias --alias-name alias/dedicated-test-key --target-key-id KEY_ID
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSECustomKeyFixturePath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSECustomKeyFixturePath)
 	helpers.CleanupTerraformFolder(t, testPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -138,6 +138,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
+
 	output := stdout + stderr
 
 	// verify that bucket encryption message is not printed
@@ -146,6 +147,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	tmpTerragruntConfigPath = helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
+
 	output = stdout + stderr
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
@@ -166,7 +168,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEKMSFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEKMSFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEKMSFixturePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -180,6 +182,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
+
 	output := stdout + stderr
 	// check that warning is printed
 	assert.Contains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
@@ -196,6 +199,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	// check that second warning is not printed
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, applyCommand(tmpTerragruntConfigPath, testPath))
 	require.NoError(t, err)
+
 	output = stdout + stderr
 	assert.NotContains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 }
@@ -205,21 +209,26 @@ func TestAwsSkipBackend(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, s3SSEAESFixturePath)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
+	testPath := filepath.Join(tmpEnvPath, s3SSEAESFixturePath)
 
-	// The bucket and table name here are intentionally invalid.
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSEAESFixturePath, "N/A", "N/A", config.DefaultTerragruntConfigPath)
+	// Fill placeholders in the config (bucket and table are intentionally invalid).
+	// Use config in working directory to ensure lock file is copied to correct location.
+	configPath := filepath.Join(testPath, config.DefaultTerragruntConfigPath)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath, configPath, "N/A", "N/A", helpers.TerraformRemoteStateS3Region)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" -backend=false")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --backend-bootstrap --non-interactive --working-dir "+testPath+" -backend=false")
 	require.Error(t, err)
 
-	lockFile := util.JoinPath(testPath, ".terraform.lock.hcl")
-	assert.False(t, util.FileExists(lockFile), "Lock file %s exists", lockFile)
+	dotTerraformDir := filepath.Join(testPath, ".terraform")
+	assert.False(t, util.FileExists(dotTerraformDir), ".terraform directory %s exists", dotTerraformDir)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --config "+tmpTerragruntConfigPath+" --working-dir "+testPath+" --disable-bucket-update -backend=false")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt init --non-interactive --working-dir "+testPath+" --disable-bucket-update -backend=false")
 	require.NoError(t, err)
 
-	assert.True(t, util.FileExists(lockFile), "Lock file %s does not exist", lockFile)
+	// .terraform is created in the cache directory, not the original config directory
+	cacheDir := helpers.FindCacheWorkingDir(t, testPath)
+	cacheDotTerraformDir := filepath.Join(cacheDir, ".terraform")
+	assert.True(t, util.FileExists(cacheDotTerraformDir), ".terraform directory %s does not exist", cacheDotTerraformDir)
 }
 
 func applyCommand(configPath, fixturePath string) string {

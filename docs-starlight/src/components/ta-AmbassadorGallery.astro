@@ -4,11 +4,21 @@ import '@styles/global.css';
 import Eyebrow from '@components/dv-Eyebrow.astro';
 import EmployeeCard from '@components/EmployeeCard.astro';
 
+import Amit from '@assets/ambassadors/amit-karni.jpg'
+import Alexander from '@assets/ambassadors/alexander-dovnar.jpg';
+import Alex from '@assets/ambassadors/alex-torres.jpg';
 import Axel from '@assets/ambassadors/axel-mendoza.jpg';
 import Dallas from '@assets/ambassadors/dallas-slaughter.jpg';
+import Ceyda from '@assets/ambassadors/ceyda-duzgec.jpg'
+import Gabor from '@assets/ambassadors/gabor-maghera.jpg'
 import Joshua from '@assets/ambassadors/joshua-ward.jpg';
 import Juan from '@assets/ambassadors/juan-reyes.jpg';
+import Julius from '@assets/ambassadors/julius-omoleye.jpg';
+import Lorelei from '@assets/ambassadors/lorelei-rupp.jpg';
 import Steven from '@assets/ambassadors/steven-tseng.jpg';
+import Sofiane from '@assets/ambassadors/sofiane-djerbi.jpg'
+import Srinivasulu from '@assets/ambassadors/srinivasulu-paranduru.jpg'
+import Yaroslav from '@assets/ambassadors/yaroslav-naumenko.jpg'
 ---
 
 <section class="flex justify-center items-center px-5 md:px-0">
@@ -54,7 +64,7 @@ import Steven from '@assets/ambassadors/steven-tseng.jpg';
         title="Founding Engineer"
         year="Founding Ambassador"
         github="https://github.com/slaughtr"
-        linkedin="https://linkedin.com/dallas-slaughter"
+        linkedin="https://www.linkedin.com/in/dallas-slaughter/"
         bio="Dallas loves to build things almost as much as he loves to break them, and has plenty of experience at both to share. Having spent years as a DevOps engineer, someone got the bright idea to let him write code again and he's having a blast. Always happy to help, or listen, or just be the void that gets screamed into."
       />
       <EmployeeCard
@@ -67,10 +77,96 @@ import Steven from '@assets/ambassadors/steven-tseng.jpg';
         bio="I'm a DevOps enthusiast who loves building meaningful, high-impact solutions. I enjoy turning big-picture ideas into reality by choosing the right tools for the job. Terragrunt is often the first tool I reach for. It helps turn IaC chaos into organized, scalable, and maintainable infrastructure."
       />
       <EmployeeCard
-        name="You"
-        title="Terragrunt Champion"
-        youCard={true}
+        name="Gabor Maghera"
+        image={Gabor}
+        title="Sr. Manager, Platform Engineering"
+        year="Founding Ambassador"
+        linkedin="https://www.linkedin.com/in/gabormaghera/"
+        bio="I am a Senior Platform Engineering Manager with deep roots in hands-on engineering, passionate about architecting and scaling infrastructure-as-code solutions for the enterprise. I champion a DevOps culture where every developer can contribute infrastructure changes, using unobtrusive methods and minimally invasive feedback gates to ensure safety and security."
       />
+      <EmployeeCard
+        name="Amit Karni"
+        image={Amit}
+        title="DevOps Tech Lead"
+        year="Ambassador since 2026"
+        linkedin="https://www.linkedin.com/in/amit-karni/"
+        medium="https://medium.com/@amitkarni3293"
+        bio="Shaping, running, and scaling production environments across AWS, Azure, and GCP from a DevOps Tech Lead, SRE, and platform engineering perspective. Big believer in DRY infrastructure. Terraform + Terragrunt is the backbone of how I build clean, scalable cloud environments. Here to help others get modular IaC right."
+      />
+      <EmployeeCard
+        name="Sofiane Djerbi"
+        image={Sofiane}
+        title="Cloud Platform Architect"
+        year="Ambassador since 2026"
+        linkedin="https://www.linkedin.com/in/sofianedjerbi/"
+        website="https://cafe-cloud.com/"
+        bio="I'm a Cloud Platform Architect who focuses on building self-service cloud platforms using only what teams actually need. I favor simple, proven designs over over-engineering, and build platforms that remain reliable, operable, and cost-aware as systems and teams grow."
+      />
+      <EmployeeCard
+        name="Ceyda Duzgec"
+        image={Ceyda}
+        title="Solution Architect"
+        year="Ambassador since 2026"
+        linkedin="https://www.linkedin.com/in/ceydaduzgec/"
+        bio="Ceyda is a Solution Architect at Coca-Cola İçecek with a background in Python and microservices. She has extensive experience with AWS, Kubernetes, and using Terraform and Terragrunt for large production workloads. She also volunteers for various technology organizations, including Kubernetes Community Days Istanbul, and enjoys giving public talks on cloud-native technologies. In her free time, she likes playing tennis, snowboarding, and running."
+      />
+      <EmployeeCard
+        name="Alexander Dovnar"
+        image={Alexander}
+        title="Principle DevOps engineer"
+        year="Ambassador since 2026"
+        github="https://github.com/DovnarAlexander"
+        linkedin="https://www.linkedin.com/in/dovnaralex/"
+        youtube="https://youtube.com/@devopskitchentalks"
+        bio="Alexander Dovnar is an engineer focusing on Clouds & Infrastructure as Code, especially Terraform and Terragrunt. He helps teams build and manage cloud infrastructure in a clean, scalable, and predictable way. Alexander works a lot with structuring IaC, simplifying complex setups, and making infrastructure easier to maintain over time. In addition to engineering, he is a public speaker and technical educator, sharing practical DevOps and IaC experience through talks, workshops, podcasts & writing."
+      />
+      <EmployeeCard
+        name="Srinivasulu Paranduru"
+        image={Srinivasulu}
+        title="AWS Solution & Devops Architect"
+        year="Ambassador since 2026"
+        github="https://github.com/srinivasuluparanduru"
+        linkedin="https://linkedin.com/in/srinivasuluparanduru"
+        bio="Multi Cloud Solution Architect,Lead Devops engineer with 20+ years of IT experience | Microsoft Certified Trainer | AWS Community Builder & User Group Leader | GDG Organizer | Speaker & Blogger"
+      />
+      <EmployeeCard
+        name="Lorelei Rupp"
+        image={Lorelei}
+        title="Senior Principal DevOps Engineer"
+        year="Ambassador since 2026"
+        linkedin="https://www.linkedin.com/in/loreleimccollum/"
+        bio="I have been a Software Engineer for 20 years, 10 of those specifically as a DevOps engineer. My passion is to automate everything and I have really enjoyed working with Terraform and Terragrunt over the years. I hate all manual changes and if you ask me to do something manually, I will push back and automate it. I am currently responsible for the IAC of many environments at my current job and without Terragrunt. I am not sure this would be possible. I am very excited to be a part of this community and help others on their IAC journey."
+      />
+      <EmployeeCard
+        name="Alex Torres"
+        image={Alex}
+        title="Senior Platform Engineer"
+        year="Ambassador since 2026"
+        github="https://github.com/Excoriate"
+        linkedin="https://www.linkedin.com/in/alextorresruiz/"
+        bio="Staff FullStack Engineer. Polyglot hands-on technical leader with strong expertise in Developer Experience, and IaC-at-Scale. I’ve spent years building platforms for massive companies (Warner Bros Discovery, TomTom), and I’ve learned that the best infrastructure is the kind developers barely notice, and the Platform Engineers love to maintain and scale."
+      />
+      <EmployeeCard
+        name="Julius Omoleye"
+        image={Julius}
+        title="Senior DevOps Engineer"
+        year="Ambassador since 2026"
+        github="https://github.com/geek0ps"
+        linkedin="https://linkedin.com/in/julius-omoleye"
+        medium="https://medium.com/@devineer"
+        bio="I am a Senior DevOps Engineer, AWS Network Architect, and Infrastructure Specialist with deep experience designing and operating scalable, secure cloud platforms using AWS, Kubernetes, and Infrastructure as Code."
+      />
+      <EmployeeCard
+        name="Yaroslav Naumenko"
+        image={Yaroslav}
+        title="Senior Lead Cloud Architect"
+        year="Ambassador since 2026"
+        github="https://github.com/cloudon-one"
+        linkedin="https://www.linkedin.com/in/ynaumenko/"
+        medium="https://blog.cloudon-one.com/"
+        bio="I'm a Sr. Lead Cloud Architect at <a href='https://www.coupa.com/' target='_blank'>Coupa Software</a>, where I build and manage enterprise GCP environments using Terragrunt, Terraform/Open Tofu, and GitOps across PCI-DSS, HIPAA, and FedRAMP regulated domains.<br><br>I'm passionate about helping teams adopt Terragrunt the right way—addressing skepticism, avoiding common pitfalls, and proving that the upfront complexity pays off in maintainability and scale.<br><br>I believe infrastructure in compliance-heavy environments should be systematic, auditable, and never manually touched twice."
+      />
+      <EmployeeCard youCard={true} />
     </div>
   </div>
 </section>

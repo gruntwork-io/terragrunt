@@ -6,12 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,11 +75,10 @@ func setupOptionsWithExperiment(experimentName string) *options.TerragruntOption
 	return opts
 }
 
-// setupWithAzureBackendExperiment enables Azure backend experiment and registers backends
-// This is needed for tests that expect the Azure backend to be available
+// setupWithAzureBackendExperiment enables Azure backend experiment
+// Azure backend is now registered by default so no additional setup is needed
 func setupWithAzureBackendExperiment() *options.TerragruntOptions {
-	opts := setupOptionsWithExperiment(experiment.AzureBackend)
-	remotestate.RegisterBackends(context.Background(), opts)
+	opts := options.NewTerragruntOptions()
 	return opts
 }
 

@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
 const defaultPermissions = int(0600)
 
-// WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
-// that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+// WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the tofu/terraform module in the same way
+// that terragrunt invokes the module, so that users can debug issues with the terragrunt config.
+func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
 	l.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
@@ -33,9 +33,14 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		return err
 	}
 
-	variables := append(required, optional...)
+	variables := slices.Concat(required, optional)
 
-	l.Debugf("The following variables were detected in the terraform module:")
+	tofuImpl := "tofu"
+	if opts.TofuImplementation != "" {
+		tofuImpl = string(opts.TofuImplementation)
+	}
+
+	l.Debugf("The following variables were detected in the %s module:", tofuImpl)
 	l.Debugf("%v", variables)
 
 	fileContents, err := terragruntDebugFileContents(l, opts, cfg, variables)
@@ -50,12 +55,13 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 		return errors.New(err)
 	}
 
-	l.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
-	l.Debugf("Run this command to replicate how terraform was invoked:")
+	l.Debugf("Variables passed to %s are located in \"%s\"", tofuImpl, fileName)
+	l.Debugf("Run this command to replicate how %s was invoked:", tofuImpl)
 	l.Debugf(
-		"\tterraform -chdir=\"%s\" %s -var-file=\"%s\" ",
+		"\t%s -chdir=\"%s\" %s -var-file=\"%s\" ",
+		tofuImpl,
 		opts.WorkingDir,
-		strings.Join(opts.TerraformCliArgs, " "),
+		strings.Join(opts.TerraformCliArgs.Slice(), " "),
 		fileName,
 	)
 
@@ -63,12 +69,12 @@ func WriteTerragruntDebugFile(l log.Logger, opts *options.TerragruntOptions, cfg
 }
 
 // terragruntDebugFileContents will return a tfvars file in json format of all the terragrunt rendered variables values
-// that should be set to invoke the terraform module in the same way as terragrunt. Note that this will only include the
+// that should be set to invoke the tofu/terraform module in the same way as terragrunt. Note that this will only include the
 // values of variables that are actually defined in the module.
 func terragruntDebugFileContents(
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	moduleVariables []string,
 ) ([]byte, error) {
 	envVars := map[string]string{}
@@ -81,11 +87,11 @@ func terragruntDebugFileContents(
 	for varName, varValue := range cfg.Inputs {
 		nameAsEnvVar := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
-		varIsDefined := util.ListContainsElement(moduleVariables, varName)
+		varIsDefined := slices.Contains(moduleVariables, varName)
 
 		// Only add to the file if the explicit env var does NOT exist and the variable is defined in the module.
 		// We must do this in order to avoid overriding the env var when the user follows up with a direct invocation to
-		// terraform using this file (due to the order in which terraform resolves config sources).
+		// tofu/terraform using this file (due to the order in which tofu/terraform resolves config sources).
 		switch {
 		case !varIsInEnv && varIsDefined:
 			jsonValuesByKey[varName] = varValue
@@ -96,7 +102,7 @@ func terragruntDebugFileContents(
 			)
 		case !varIsDefined:
 			l.Debugf(
-				"WARN: The variable %s was omitted because it is not defined in the terraform module.",
+				"WARN: The variable %s was omitted because it is not defined in the OpenTofu/Terraform module.",
 				varName,
 			)
 		}

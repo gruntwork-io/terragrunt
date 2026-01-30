@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
@@ -29,13 +29,13 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheWeakConstraint)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheWeakConstraint)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheWeakConstraint)
 	appPath := filepath.Join(rootPath, "app")
 
-	providerCacheDir := t.TempDir()
+	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 
 	t.Run("initial_setup_preserves_module_constraints", func(t *testing.T) {
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 
@@ -60,13 +60,13 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run terragrunt init and check that the lock file isn't updated
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
 		lockFilePostInit, err := os.ReadFile(filepath.Join(appPath, ".terraform.lock.hcl"))
 		require.NoError(t, err)
 		assert.Equal(t, string(lockFilePreInit), string(lockFilePostInit), "Lock file should not be updated")
 
 		// Run terragrunt init -upgrade to update the lock file
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init -upgrade --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init -upgrade --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
 
 		lockFilePostUpgrade, err := os.ReadFile(filepath.Join(appPath, ".terraform.lock.hcl"))
 		require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestTerragruntProviderCacheWeakConstraint(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath))
+		helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath))
 
 		constraintsValue := extractConstraintsFromLockFile(t, appPath, "cloudflare/cloudflare")
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
@@ -150,42 +151,42 @@ func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
 
-	git, err := cas.NewGitRunner()
+	g, err := git.NewGitRunner()
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	git = git.WithWorkDir(repoDir)
+	g = g.WithWorkDir(repoDir)
 
 	ctx := b.Context()
 
-	if err = git.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
+	if err = g.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", false, 1, "main"); err != nil {
 		b.Fatal(err)
 	}
 
 	b.Run("ls-remote", func(b *testing.B) {
-		git, err = cas.NewGitRunner()
+		g, err = git.NewGitRunner()
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		git = git.WithWorkDir(repoDir)
+		g = g.WithWorkDir(repoDir)
 
 		b.ResetTimer()
 
 		for b.Loop() {
-			_, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+			_, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
 		}
 	})
 
-	b.Run("ls-tree", func(b *testing.B) {
+	b.Run("ls-tree -r", func(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			_, err := git.LsTree(ctx, "HEAD", ".")
+			_, err := g.LsTreeRecursive(ctx, "HEAD")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -194,7 +195,7 @@ func BenchmarkGitOperations(b *testing.B) {
 
 	b.Run("cat-file", func(b *testing.B) {
 		// First get a valid hash
-		tree, err := git.LsTree(ctx, "HEAD", ".")
+		tree, err := g.LsTreeRecursive(ctx, "HEAD")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -218,7 +219,7 @@ func BenchmarkGitOperations(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			err := git.CatFile(ctx, hash, tmp)
+			err := g.CatFile(ctx, hash, tmp)
 			if err != nil {
 				b.Fatal(err)
 			}

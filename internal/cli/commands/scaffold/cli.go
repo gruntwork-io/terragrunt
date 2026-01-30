@@ -1,0 +1,118 @@
+// Package scaffold provides the command to scaffold a new Terragrunt module.
+package scaffold
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+const (
+	CommandName = "scaffold"
+
+	OutputFolderFlagName = "output-folder"
+	VarFlagName          = "var"
+	VarFileFlagName      = "var-file"
+	NoDependencyPrompt   = "no-dependency-prompt"
+)
+
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	// Start with shared scaffolding flags
+	scaffoldFlags := shared.NewScaffoldingFlags(opts, prefix)
+
+	// Add scaffold-specific flags
+	scaffoldFlags = append(scaffoldFlags,
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        OutputFolderFlagName,
+			Destination: &opts.ScaffoldOutputFolder,
+			Usage:       "Output folder for scaffold output.",
+		}),
+
+		flags.NewFlag(&clihelper.SliceFlag[string]{
+			Name:        VarFlagName,
+			EnvVars:     tgPrefix.EnvVars(VarFlagName),
+			Destination: &opts.ScaffoldVars,
+			Usage:       "Variables for usage in scaffolding.",
+		}),
+
+		flags.NewFlag(&clihelper.SliceFlag[string]{
+			Name:        VarFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(VarFileFlagName),
+			Destination: &opts.ScaffoldVarFiles,
+			Usage:       "Files with variables to be used in unit scaffolding.",
+		}),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoDependencyPrompt,
+			EnvVars:     tgPrefix.EnvVars(NoDependencyPrompt),
+			Destination: &opts.NoDependencyPrompt,
+			Usage:       "Do not prompt for confirmation to include dependencies.",
+		}),
+	)
+
+	return scaffoldFlags
+}
+
+func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
+	flags := NewFlags(opts, nil)
+	// Accept backend and feature flags for scaffold as well
+	flags = append(flags, shared.NewBackendFlags(opts, nil)...)
+	flags = append(flags, shared.NewFeatureFlags(opts, nil)...)
+
+	return &clihelper.Command{
+		Name:  CommandName,
+		Usage: "Scaffold a new Terragrunt module.",
+		Flags: flags,
+		Action: func(ctx context.Context, cliCtx *clihelper.Context) error {
+			var moduleURL, templateURL string
+
+			if val := cliCtx.Args().Get(0); val != "" {
+				moduleURL = val
+			}
+
+			if val := cliCtx.Args().Get(1); val != "" {
+				templateURL = val
+			}
+
+			if opts.ScaffoldRootFileName == "" {
+				opts.ScaffoldRootFileName = GetDefaultRootFileName(ctx, opts)
+			}
+
+			return Run(ctx, l, opts.OptionsFromContext(ctx), moduleURL, templateURL)
+		},
+	}
+}
+
+func GetDefaultRootFileName(ctx context.Context, opts *options.TerragruntOptions) string {
+	if err := opts.StrictControls.FilterByNames(controls.RootTerragruntHCL).SuppressWarning().Evaluate(ctx); err != nil {
+		return config.RecommendedParentConfigName
+	}
+
+	// Check to see if you can find the recommended parent config name first,
+	// if a user has it defined, go ahead and use it.
+	dir := opts.WorkingDir
+
+	prevDir := ""
+	for foldersToCheck := opts.MaxFoldersToCheck; dir != prevDir && dir != "" && foldersToCheck > 0; foldersToCheck-- {
+		prevDir = dir
+
+		_, err := os.Stat(filepath.Join(dir, config.RecommendedParentConfigName))
+		if err == nil {
+			return config.RecommendedParentConfigName
+		}
+
+		dir = filepath.Dir(dir)
+	}
+
+	return config.DefaultTerragruntConfigPath
+}

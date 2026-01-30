@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone
@@ -61,7 +63,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 	t.Run("clone with nonexistent branch fails gracefully", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 
 		c, err := cas.New(cas.Options{
 			StorePath: filepath.Join(tempDir, "store"),
@@ -74,14 +76,14 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		}, "https://github.com/gruntwork-io/terragrunt.git")
 		require.Error(t, err)
 
-		var wrappedErr *cas.WrappedError
+		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrNoMatchingReference)
+		assert.ErrorIs(t, wrappedErr.Err, git.ErrNoMatchingReference)
 	})
 
 	t.Run("clone with invalid repository fails gracefully", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 
 		c, err := cas.New(cas.Options{
 			StorePath: filepath.Join(tempDir, "store"),
@@ -93,9 +95,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		}, "https://github.com/yhakbar/nonexistent-repo.git")
 		require.Error(t, err)
 
-		var wrappedErr *cas.WrappedError
+		var wrappedErr *git.WrappedError
 		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, cas.ErrCommandSpawn)
+		assert.ErrorIs(t, wrappedErr.Err, git.ErrCommandSpawn)
 	})
 }
 
@@ -108,8 +110,10 @@ func TestIntegration_TreeStorage(t *testing.T) {
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
+
+		const testTag = "v0.98.0"
 
 		// First clone to populate store
 		c, err := cas.New(cas.Options{
@@ -117,15 +121,15 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, c.Clone(ctx, l, &cas.CloneOptions{
-			Dir: filepath.Join(tempDir, "repo"),
+			Dir:    filepath.Join(tempDir, "repo"),
+			Branch: testTag,
 		}, "https://github.com/gruntwork-io/terragrunt.git"))
 
-		// Get the commit hash
-		git, err := cas.NewGitRunner()
+		// Get the commit hash for the tag
+		g, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		git = git.WithWorkDir(filepath.Join(tempDir, "repo"))
-		results, err := git.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", "HEAD")
+		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", testTag)
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
@@ -142,7 +146,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse the tree data to confirm it's valid
-		tree, err := cas.ParseTree(string(treeData), "")
+		tree, err := git.ParseTree(treeData, "")
 		require.NoError(t, err)
 		assert.NotEmpty(t, tree.Entries(), "Tree should have entries")
 	})

@@ -1,21 +1,29 @@
 ---
 import { Image } from 'astro:assets';
+import { ArrowRight } from 'lucide-react';
 
+import ButtonLink from '@components/ui/ButtonLink';
 import GithubIcon from '@assets/icons/github-icon-secondary.svg';
 import InfoIcon from '@assets/icons/info.svg';
 import LinkedinIcon from '@assets/icons/linkedin-icon-secondary.svg';
-import YouPlaceholder from '@assets/you-placeholder.jpg'
+import MediumIcon from '@assets/icons/medium-icon.svg';
+import YouPlaceholder from '@assets/you-placeholder-2.jpg'
+import YoutubeIcon from '@assets/icons/youtube-icon.svg';
 import WebsiteIcon from '@assets/icons/website-icon-secondary.svg';
 
 import '@styles/global.css';
 
+const BecomeAnAmbassador = '/terragrunt-ambassador/contact';
+
 const {
-  name,
-  title,
+  name = 'You',
+  title = 'Terragrunt Champion',
   year,
   image,
   github = null,
   linkedin = null,
+  medium = null,
+  youtube = null,
   website = null,
   bio = null,
   youCard = false,
@@ -23,7 +31,7 @@ const {
 } = Astro.props;
 ---
 
-<div class={`p-6 rounded-lg ${youCard ? 'bg-bg-dark border-transparent' : 'bg-white border-gray-3 border-solid border-4 shadow-[0_0_0_2px_white]'} ${customClass}`}>
+<div class={`p-6 rounded-lg bg-white border-gray-3 border-4 shadow-[0_0_0_2px_white] ${youCard ? `border-dashed` : `border-solid`} ${customClass}`}>
   <div class="flex flex-col gap-4 text-toc-text">
     <div class="w-full overflow-hidden aspect-[1.18/1] bg-[#9175FF] flex justify-center flex-col">
       <Image src={ youCard ? YouPlaceholder : image } alt={`A picture of ${name}`} class="w-full h-auto" />
@@ -50,26 +58,41 @@ const {
       <div class="flex flex-row gap-2 justify-between items-center">
         {github && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={github} target="_blank" rel="noopener noreferrer">
+            <a href={github} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={GithubIcon} alt="Github" />
             </a>
           </div>
         )}
         {linkedin && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={linkedin} target="_blank" rel="noopener noreferrer">
+            <a href={linkedin} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={LinkedinIcon} alt="LinkedIn" />
+            </a>
+          </div>
+        )}
+        {medium && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={medium} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+              <Image src={MediumIcon} alt="Medium" />
+            </a>
+          </div>
+        )}
+        {youtube && (
+          <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+            <a href={youtube} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+              <Image src={YoutubeIcon} alt="YouTube" />
             </a>
           </div>
         )}
         {website && (
           <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-            <a href={website} target="_blank" rel="noopener noreferrer">
+            <a href={website} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
               <Image src={WebsiteIcon} alt="Website" />
             </a>
           </div>
         )}
       </div>
+
       <div>
         {bio && (
           <button class="modal-open bio-link cursor-pointer flex flex-row items-center bg-transparent gap-1 text-gray-1">
@@ -99,21 +122,35 @@ const {
                     <div class="flex flex-row gap-2 mt-4">
                       {github && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={github} target="_blank" rel="noopener noreferrer">
+                          <a href={github} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={GithubIcon} alt="Github" />
                           </a>
                         </div>
                       )}
                       {linkedin && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={linkedin} target="_blank" rel="noopener noreferrer">
+                          <a href={linkedin} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={LinkedinIcon} alt="LinkedIn" />
+                          </a>
+                        </div>
+                      )}
+                      {medium && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={medium} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+                            <Image src={MediumIcon} alt="Medium" />
+                          </a>
+                        </div>
+                      )}
+                      {youtube && (
+                        <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
+                          <a href={youtube} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
+                            <Image src={YoutubeIcon} alt="YouTube" />
                           </a>
                         </div>
                       )}
                       {website && (
                         <div class="flex flex-col items-center justify-center background-white w-6 h-6 overflow-hidden shadow rounded">
-                          <a href={website} target="_blank" rel="noopener noreferrer">
+                          <a href={website} target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-full h-full">
                             <Image src={WebsiteIcon} alt="Website" />
                           </a>
                         </div>
@@ -122,7 +159,7 @@ const {
                   </div>
                 </div>
                 <div>
-                  <p class="text-sm m-0">{bio}</p>
+                  <p class="text-sm m-0" set:html={bio}></p>
                 </div>
               </div>
             </div>
@@ -130,6 +167,12 @@ const {
         )}
       </div>
     </div>
+    {youCard && (
+      <ButtonLink href={BecomeAnAmbassador} variant="primary" buttonClassName='w-full'>
+        <span class="text-xs">Become an Ambassador</span>
+        <ArrowRight className="inline-block ml-1 transform translate-y-0.75 -translate-x-0.75 w-4 h-4" aria-hidden="true" />
+      </ButtonLink>
+    )}
   </div>
 </div>
 

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Report captures data for a report/summary.
@@ -22,13 +24,17 @@ type Report struct {
 
 // Run captures data for a run.
 type Run struct {
-	Started time.Time
-	Ended   time.Time
-	Reason  *Reason
-	Cause   *Cause
-	Path    string
-	Result  Result
-	mu      sync.RWMutex
+	Started             time.Time
+	Ended               time.Time
+	Reason              *Reason
+	Cause               *Cause
+	Path                string
+	Result              Result
+	DiscoveryWorkingDir string
+	Ref                 string
+	Cmd                 string
+	Args                []string
+	mu                  sync.RWMutex
 }
 
 // Result captures the result of a run.
@@ -129,7 +135,7 @@ var ErrRunAlreadyExists = errors.New("run already exists")
 
 // AddRun adds a run to the report.
 // If the run already exists, it returns the ErrRunAlreadyExists error.
-func (r *Report) AddRun(run *Run) error {
+func (r *Report) AddRun(l log.Logger, run *Run) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -138,6 +144,8 @@ func (r *Report) AddRun(run *Run) error {
 			return fmt.Errorf("%w: %s", ErrRunAlreadyExists, run.Path)
 		}
 	}
+
+	l.Debugf("Adding report run %s", run.Path)
 
 	r.Runs = append(r.Runs, run)
 
@@ -169,9 +177,18 @@ func (r *Report) GetRun(path string) (*Run, error) {
 // EnsureRun tries to get a run from the report.
 // If the run does not exist, it creates a new run and adds it to the report, then returns the run.
 // This is useful when a run is being ended that might not have been started due to exclusion, etc.
-func (r *Report) EnsureRun(path string) (*Run, error) {
+func (r *Report) EnsureRun(l log.Logger, path string, opts ...EndOption) (*Run, error) {
 	run, err := r.GetRun(path)
 	if err == nil {
+		l.Debugf("Report run %s already exists, returning existing run", path)
+
+		run.mu.Lock()
+		defer run.mu.Unlock()
+
+		for _, opt := range opts {
+			opt(run)
+		}
+
 		return run, nil
 	}
 
@@ -179,12 +196,18 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 		return run, err
 	}
 
+	l.Debugf("Report run %s not found, creating new run", path)
+
 	run, err = NewRun(path)
 	if err != nil {
 		return run, err
 	}
 
-	if err = r.AddRun(run); err != nil {
+	for _, opt := range opts {
+		opt(run)
+	}
+
+	if err = r.AddRun(l, run); err != nil {
 		return run, err
 	}
 
@@ -195,7 +218,7 @@ func (r *Report) EnsureRun(path string) (*Run, error) {
 // If the run does not exist, it returns the ErrRunNotFound error.
 // By default, the run is assumed to have succeeded. To change this, pass WithResult to the function.
 // If the run has already ended from an early exit, it does nothing.
-func (r *Report) EndRun(path string, endOptions ...EndOption) error {
+func (r *Report) EndRun(l log.Logger, path string, endOptions ...EndOption) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -230,6 +253,8 @@ func (r *Report) EndRun(path string, endOptions ...EndOption) error {
 	for _, endOption := range endOptions {
 		endOption(run)
 	}
+
+	l.Debugf("Ending report run %s with result %s", path, run.Result)
 
 	return nil
 }
@@ -295,6 +320,37 @@ func WithCauseAncestorExit(name string) EndOption {
 // reasons for causes.
 func WithCauseRunError(name string) EndOption {
 	return withCause(name)
+}
+
+// WithDiscoveryWorkingDir sets the discovery working directory for a run.
+// This is used to compute relative paths for units discovered in worktrees.
+func WithDiscoveryWorkingDir(workingDir string) EndOption {
+	return func(run *Run) {
+		run.DiscoveryWorkingDir = workingDir
+	}
+}
+
+// WithRef sets the worktree reference for a run.
+// This is typically a git commit, branch, or tag.
+func WithRef(ref string) EndOption {
+	return func(run *Run) {
+		run.Ref = ref
+	}
+}
+
+// WithCmd sets the tofu/terraform command for a run.
+// This is the main tofu/terraform command being executed (e.g., plan, apply).
+func WithCmd(cmd string) EndOption {
+	return func(run *Run) {
+		run.Cmd = cmd
+	}
+}
+
+// WithArgs sets the terraform CLI arguments for a run.
+func WithArgs(args []string) EndOption {
+	return func(run *Run) {
+		run.Args = args
+	}
 }
 
 // withCause sets the cause of a run to the name of a particular cause.

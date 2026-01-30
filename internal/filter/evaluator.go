@@ -1,9 +1,11 @@
 package filter
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 
+	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -25,6 +27,15 @@ const (
 	MaxTraversalDepth = 1000000
 )
 
+// EvaluationContext provides additional context for filter evaluation, such as Git worktree directories.
+type EvaluationContext struct {
+	// GitWorktrees maps Git references to temporary worktree directory paths.
+	// This is used by GitFilter expressions to access different Git references.
+	GitWorktrees map[string]string
+	// WorkingDir is the base working directory for resolving relative paths.
+	WorkingDir string
+}
+
 // Evaluate evaluates an expression against a list of components and returns the filtered components.
 // If logger is provided, it will be used for logging warnings during evaluation.
 func Evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
@@ -32,15 +43,10 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 		return nil, NewEvaluationError("expression is nil")
 	}
 
-	return evaluate(l, expr, components)
-}
-
-// evaluate is the internal recursive evaluation function.
-func evaluate(l log.Logger, expr Expression, components component.Components) (component.Components, error) {
 	switch node := expr.(type) {
-	case *PathFilter:
+	case *PathExpression:
 		return evaluatePathFilter(node, components)
-	case *AttributeFilter:
+	case *AttributeExpression:
 		return evaluateAttributeFilter(node, components)
 	case *PrefixExpression:
 		return evaluatePrefixExpression(l, node, components)
@@ -48,29 +54,29 @@ func evaluate(l log.Logger, expr Expression, components component.Components) (c
 		return evaluateInfixExpression(l, node, components)
 	case *GraphExpression:
 		return evaluateGraphExpression(l, node, components)
+	case *GitExpression:
+		return evaluateGitFilter(node, components)
 	default:
 		return nil, NewEvaluationError("unknown expression type")
 	}
 }
 
 // evaluatePathFilter evaluates a path filter using glob matching.
-func evaluatePathFilter(filter *PathFilter, components component.Components) (component.Components, error) {
+func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
 	g, err := filter.CompileGlob()
 	if err != nil {
 		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
 	}
 
-	var result component.Components
+	result := make(component.Components, 0, len(components))
 
 	for _, component := range components {
-		normalizedPath := component.Path()
-		if !filepath.IsAbs(normalizedPath) {
-			normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+		matches, err := doesComponentValueMatchGlob(component, component.Path(), filter.Value, g)
+		if err != nil {
+			return nil, err
 		}
 
-		normalizedPath = filepath.ToSlash(normalizedPath)
-
-		if g.Match(normalizedPath) {
+		if matches {
 			result = append(result, component)
 		}
 	}
@@ -79,7 +85,7 @@ func evaluatePathFilter(filter *PathFilter, components component.Components) (co
 }
 
 // evaluateAttributeFilter evaluates an attribute filter.
-func evaluateAttributeFilter(filter *AttributeFilter, components []component.Component) ([]component.Component, error) {
+func evaluateAttributeFilter(filter *AttributeExpression, components []component.Component) ([]component.Component, error) {
 	var result []component.Component
 
 	switch filter.Key {
@@ -136,18 +142,29 @@ func evaluateAttributeFilter(filter *AttributeFilter, components []component.Com
 		}
 
 		for _, c := range components {
-			for _, readFile := range c.Reading() {
-				normalizedPath := readFile
-				if !filepath.IsAbs(normalizedPath) {
-					normalizedPath = filepath.Join(filter.WorkingDir, normalizedPath)
+			if slices.ContainsFunc(c.Reading(), g.Match) {
+				result = append(result, c)
+
+				continue
+			}
+
+			discoveryCtx := c.DiscoveryContext()
+			if discoveryCtx == nil || discoveryCtx.WorkingDir == "" {
+				continue
+			}
+
+			relReading := make([]string, 0, len(c.Reading()))
+			for _, reading := range c.Reading() {
+				rel, err := filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
+				if err != nil {
+					return nil, NewEvaluationErrorWithCause(fmt.Sprintf("failed to get relative path for component %s reading: %s", c.Path(), reading), err)
 				}
 
-				normalizedPath = filepath.ToSlash(normalizedPath)
+				relReading = append(relReading, filepath.ToSlash(rel))
+			}
 
-				if g.Match(normalizedPath) {
-					result = append(result, c)
-					break
-				}
+			if slices.ContainsFunc(relReading, g.Match) {
+				result = append(result, c)
 			}
 		}
 	case AttributeSource:
@@ -174,25 +191,28 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 		return nil, NewEvaluationError("unknown prefix operator: " + expr.Operator)
 	}
 
-	toExclude, err := evaluate(l, expr.Right, components)
+	toExclude, err := Evaluate(l, expr.Right, components)
 	if err != nil {
 		return nil, err
 	}
 
-	excludeSet := make(map[string]struct{}, len(toExclude))
-	for _, c := range toExclude {
-		excludeSet[c.Path()] = struct{}{}
+	if len(toExclude) == 0 {
+		return components, nil
 	}
 
-	var result component.Components
+	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
+	// zeroed.
+	results := make(component.Components, 0, len(components)-len(toExclude))
 
 	for _, c := range components {
-		if _, ok := excludeSet[c.Path()]; !ok {
-			result = append(result, c)
+		if slices.Contains(toExclude, c) {
+			continue
 		}
+
+		results = append(results, c)
 	}
 
-	return result, nil
+	return results, nil
 }
 
 // evaluateInfixExpression evaluates an infix expression (intersection).
@@ -201,12 +221,12 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 		return nil, NewEvaluationError("unknown infix operator: " + expr.Operator)
 	}
 
-	leftResult, err := evaluate(l, expr.Left, components)
+	leftResult, err := Evaluate(l, expr.Left, components)
 	if err != nil {
 		return nil, err
 	}
 
-	rightResult, err := evaluate(l, expr.Right, leftResult)
+	rightResult, err := Evaluate(l, expr.Right, leftResult)
 	if err != nil {
 		return nil, err
 	}
@@ -216,10 +236,19 @@ func evaluateInfixExpression(l log.Logger, expr *InfixExpression, components com
 
 // evaluateGraphExpression evaluates a graph expression by traversing dependency/dependent graphs.
 func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components component.Components) (component.Components, error) {
-	targetMatches, err := evaluate(l, expr.Target, components)
+	targetMatches, err := Evaluate(l, expr.Target, components)
 	if err != nil {
 		return nil, err
 	}
+
+	// We want to avoid including target matches in the initial set if they were discovered via graph discovery.
+	// They should pop out of graph traversal if they were relevant.
+	//
+	// This is to ensure that we don't accidentally include matches when they would only be included by their
+	// relationship in the dependency/dependent graph of a specific target.
+	targetMatches = slices.DeleteFunc(targetMatches, func(c component.Component) bool {
+		return c.Origin() == component.OriginGraphDiscovery
+	})
 
 	if len(targetMatches) == 0 {
 		return component.Components{}, nil
@@ -233,19 +262,35 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 	}
 
-	visited := make(map[string]bool)
+	visited := make(map[string]int)
 
 	if expr.IncludeDependencies {
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
+		if expr.DependencyDepth > 0 {
+			depth = expr.DependencyDepth
+			warnOnLimit = false
+		}
+
 		for _, target := range targetMatches {
-			traverseDependencies(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, depth, warnOnLimit)
 		}
 	}
 
-	visited = make(map[string]bool)
+	visited = make(map[string]int)
 
 	if expr.IncludeDependents {
+		depth := MaxTraversalDepth
+		warnOnLimit := true
+
+		if expr.DependentDepth > 0 {
+			depth = expr.DependentDepth
+			warnOnLimit = false
+		}
+
 		for _, target := range targetMatches {
-			traverseDependents(l, target, resultSet, visited, MaxTraversalDepth)
+			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, depth, warnOnLimit)
 		}
 	}
 
@@ -257,20 +302,67 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 	return result, nil
 }
 
-// traverseDependencies recursively traverses the dependency graph downward (from a component to its dependencies).
-func traverseDependencies(
+// evaluateGitFilter evaluates a Git filter expression by comparing components between Git references.
+// It returns components that were added, removed, or changed between FromRef and ToRef.
+func evaluateGitFilter(filter *GitExpression, components component.Components) (component.Components, error) {
+	results := make(component.Components, 0, len(components))
+
+	for _, c := range components {
+		discoveryCtx := c.DiscoveryContext()
+		if discoveryCtx == nil || discoveryCtx.Ref == "" {
+			continue
+		}
+
+		if discoveryCtx.Ref == filter.FromRef || discoveryCtx.Ref == filter.ToRef {
+			results = append(results, c)
+		}
+	}
+
+	return results, nil
+}
+
+// graphDirection represents the direction of graph traversal.
+type graphDirection int
+
+const (
+	graphDirectionDependencies graphDirection = iota
+	graphDirectionDependents
+)
+
+func (d graphDirection) String() string {
+	switch d {
+	case graphDirectionDependencies:
+		return "dependencies"
+	case graphDirectionDependents:
+		return "dependents"
+	}
+
+	return "unknown"
+}
+
+// traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
+// The visited map tracks the maximum remaining depth at which each node was visited, allowing re-traversal
+// when a node is reached with more remaining depth (e.g., from a closer target).
+// The warnOnLimit flag controls whether to log a warning when depth is exhausted (used for safety limits only).
+func traverseGraph(
 	l log.Logger,
 	c component.Component,
 	resultSet map[string]component.Component,
-	visited map[string]bool,
-	maxDepth int,
+	visited map[string]int,
+	direction graphDirection,
+	remainingDepth int,
+	warnOnLimit bool,
 ) {
-	if maxDepth <= 0 {
-		if l != nil {
+	if remainingDepth <= 0 {
+		if l != nil && warnOnLimit {
+			directionName := direction.String()
+
 			l.Warnf(
-				"Maximum dependency traversal depth (%d) reached for component %s during filtering. Some dependencies may have been excluded from results.",
+				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
+				directionName,
 				MaxTraversalDepth,
 				c.Path(),
+				directionName,
 			)
 		}
 
@@ -278,51 +370,76 @@ func traverseDependencies(
 	}
 
 	path := c.Path()
-	if visited[path] {
+
+	if prevDepth, seen := visited[path]; seen && prevDepth >= remainingDepth {
 		return
 	}
 
-	visited[path] = true
+	visited[path] = remainingDepth
 
-	for _, dep := range c.Dependencies() {
-		depPath := dep.Path()
-		resultSet[depPath] = dep
+	var relatedComponents []component.Component
+	if direction == graphDirectionDependencies {
+		relatedComponents = c.Dependencies()
+	} else {
+		relatedComponents = c.Dependents()
+	}
 
-		traverseDependencies(l, dep, resultSet, visited, maxDepth-1)
+	for _, related := range relatedComponents {
+		relatedPath := related.Path()
+
+		// It's not clear why this isn't necessary. It might be in the future.
+		// Tests pass without it, however, so we'll leave it out for now.
+		//
+		// Needs more investigation.
+		//
+		// relatedCtx := related.DiscoveryContext()
+		// if relatedCtx != nil {
+		// 	origin := relatedCtx.Origin()
+		// 	if origin != component.OriginGraphDiscovery {
+		// 		l.Debugf(
+		// 			"Skipping %s %s in graph expression traversal: component was discovered via %s, not graph discovery",
+		// 			direction.String(),
+		// 			relatedPath,
+		// 			origin,
+		// 		)
+
+		// 		continue
+		// 	}
+		// }
+
+		resultSet[relatedPath] = related
+
+		traverseGraph(l, related, resultSet, visited, direction, remainingDepth-1, warnOnLimit)
 	}
 }
 
-// traverseDependents recursively traverses the dependent graph upward (from a component to its dependents).
-func traverseDependents(
-	l log.Logger,
-	c component.Component,
-	resultSet map[string]component.Component,
-	visited map[string]bool,
-	maxDepth int,
-) {
-	if maxDepth <= 0 {
-		if l != nil {
-			l.Warnf(
-				"Maximum dependent traversal depth (%d) reached for component %s during filtering. Some dependents may have been excluded from results.",
-				MaxTraversalDepth,
-				c.Path(),
-			)
+// doesComponentValueMatchGlob checks if a component matches a glob pattern.
+//
+// It does some logic to assess whether the original value that was compiled into a glob was an absolute path or not,
+// and uses that to determine how to match the component.Path() against the glob.
+//
+// If it's an absolute path, it matches the component.Path() against the glob as is.
+// If it's not an absolute path, it attempts to translate the component.Path() path into a relative path
+// using the discovery context's working directory, and then matches the relative path against the glob.
+//
+// If neither are true, it does a best effort match attempting to match the component.Path() against the value as is.
+func doesComponentValueMatchGlob(c component.Component, val, globVal string, glob glob.Glob) (bool, error) {
+	if filepath.IsAbs(globVal) {
+		return glob.Match(filepath.ToSlash(val)), nil
+	}
+
+	discoveryCtx := c.DiscoveryContext()
+	if discoveryCtx != nil &&
+		discoveryCtx.WorkingDir != "" {
+		relPath, err := filepath.Rel(discoveryCtx.WorkingDir, val)
+		if err != nil {
+			return false, NewEvaluationErrorWithCause("failed to get relative path for component value: "+val, err)
 		}
 
-		return
+		relPath = filepath.ToSlash(relPath)
+
+		return glob.Match(relPath), nil
 	}
 
-	path := c.Path()
-	if visited[path] {
-		return
-	}
-
-	visited[path] = true
-
-	for _, dependent := range c.Dependents() {
-		depPath := dependent.Path()
-		resultSet[depPath] = dependent
-
-		traverseDependents(l, dependent, resultSet, visited, maxDepth-1)
-	}
+	return glob.Match(filepath.ToSlash(val)), nil
 }

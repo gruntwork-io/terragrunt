@@ -17,8 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -276,19 +276,19 @@ func AssumeIamRole(
 }
 
 // GetAWSCallerIdentity gets the caller identity from AWS
-func GetAWSCallerIdentity(ctx context.Context, cfg aws.Config) (*sts.GetCallerIdentityOutput, error) {
-	stsClient := sts.NewFromConfig(cfg)
+func GetAWSCallerIdentity(ctx context.Context, cfg *aws.Config) (*sts.GetCallerIdentityOutput, error) {
+	stsClient := sts.NewFromConfig(*cfg)
 	return stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 }
 
 // ValidateAwsConfig validates that the AWS config has valid credentials
-func ValidateAwsConfig(ctx context.Context, cfg aws.Config) error {
+func ValidateAwsConfig(ctx context.Context, cfg *aws.Config) error {
 	_, err := GetAWSCallerIdentity(ctx, cfg)
 	return err
 }
 
 // GetAWSPartition gets the AWS partition from the caller identity
-func GetAWSPartition(ctx context.Context, cfg aws.Config) (string, error) {
+func GetAWSPartition(ctx context.Context, cfg *aws.Config) (string, error) {
 	result, err := GetAWSCallerIdentity(ctx, cfg)
 	if err != nil {
 		return "", err
@@ -310,8 +310,8 @@ func GetAWSPartition(ctx context.Context, cfg aws.Config) (string, error) {
 }
 
 // GetAWSAccountAlias gets the AWS account alias
-func GetAWSAccountAlias(ctx context.Context, cfg aws.Config) (string, error) {
-	iamClient := iam.NewFromConfig(cfg)
+func GetAWSAccountAlias(ctx context.Context, cfg *aws.Config) (string, error) {
+	iamClient := iam.NewFromConfig(*cfg)
 
 	result, err := iamClient.ListAccountAliases(ctx, &iam.ListAccountAliasesInput{})
 	if err != nil {
@@ -326,7 +326,7 @@ func GetAWSAccountAlias(ctx context.Context, cfg aws.Config) (string, error) {
 }
 
 // GetAWSAccountID gets the AWS account ID from the caller identity
-func GetAWSAccountID(ctx context.Context, cfg aws.Config) (string, error) {
+func GetAWSAccountID(ctx context.Context, cfg *aws.Config) (string, error) {
 	result, err := GetAWSCallerIdentity(ctx, cfg)
 	if err != nil {
 		return "", err
@@ -336,7 +336,7 @@ func GetAWSAccountID(ctx context.Context, cfg aws.Config) (string, error) {
 }
 
 // GetAWSIdentityArn gets the AWS identity ARN from the caller identity
-func GetAWSIdentityArn(ctx context.Context, cfg aws.Config) (string, error) {
+func GetAWSIdentityArn(ctx context.Context, cfg *aws.Config) (string, error) {
 	result, err := GetAWSCallerIdentity(ctx, cfg)
 	if err != nil {
 		return "", err
@@ -346,7 +346,7 @@ func GetAWSIdentityArn(ctx context.Context, cfg aws.Config) (string, error) {
 }
 
 // GetAWSUserID gets the AWS user ID from the caller identity
-func GetAWSUserID(ctx context.Context, cfg aws.Config) (string, error) {
+func GetAWSUserID(ctx context.Context, cfg *aws.Config) (string, error) {
 	result, err := GetAWSCallerIdentity(ctx, cfg)
 	if err != nil {
 		return "", err
@@ -369,6 +369,7 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 		aws.ToBool(config.RestrictPublicBuckets), nil
 }
 
+//nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
 func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
@@ -411,6 +412,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 	}
 }
 
+//nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
 func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
 	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)

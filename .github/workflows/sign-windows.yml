@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download Windows build artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: ${{ inputs.artifact_pattern }}
           path: artifacts/
@@ -42,7 +42,7 @@ jobs:
         run: .github/scripts/release/prepare-windows-artifacts.ps1 -ArtifactsDirectory artifacts -BinDirectory bin
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
         with:
           go-version-file: go.mod
 
@@ -73,7 +73,7 @@ jobs:
 
       # Upload Windows binaries (signed amd64 + unsigned 386)
       - name: Upload Windows Binaries
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ inputs.upload_artifact_name }}
           path: |

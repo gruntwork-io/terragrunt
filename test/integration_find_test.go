@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,16 +54,16 @@ func TestFindHidden(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected string
-		hidden   bool
+		noHidden bool
 	}{
 		{
-			name:     "visible",
-			expected: "stack\nunit\n",
+			name:     "default (includes hidden)",
+			expected: ".hide/unit\nstack\nunit\n",
 		},
 		{
-			name:     "hidden",
-			hidden:   true,
-			expected: ".hide/unit\nstack\nunit\n",
+			name:     "no-hidden flag excludes hidden",
+			noHidden: true,
+			expected: "stack\nunit\n",
 		},
 	}
 
@@ -75,8 +75,8 @@ func TestFindHidden(t *testing.T) {
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
-			if tc.hidden {
-				cmd += " --hidden"
+			if tc.noHidden {
+				cmd += " --no-hidden"
 			}
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -181,16 +181,14 @@ func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) 
 func TestFindExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(`This functionality will break once the filter flag experiment is generally available.
-We don't automatically discover external dependencies when going through discovery via the filter flag.`)
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -198,7 +196,10 @@ We don't automatically discover external dependencies when going through discove
 	normalizedStdout := filepath.ToSlash(stdout)
 	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -207,10 +208,6 @@ We don't automatically discover external dependencies when going through discove
 
 func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("This only works when the filter flag experiment is enabled until it is generally available.")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 
@@ -296,7 +293,7 @@ func TestFindExclude(t *testing.T) {
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
 
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, config.Path)
 					if strings.Contains(tc.args, "--exclude") {
@@ -381,7 +378,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
 
-			var paths []string
+			paths := make([]string, 0, len(configs))
 			for _, config := range configs {
 				// Normalize path separators for cross-platform compatibility
 				paths = append(paths, filepath.ToSlash(config.Path))

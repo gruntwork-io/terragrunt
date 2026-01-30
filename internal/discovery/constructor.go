@@ -4,25 +4,25 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
 
 // DiscoveryCommandOptions contains options for discovery commands like find and list.
 type DiscoveryCommandOptions struct {
-	WorkingDir       string
-	QueueConstructAs string
-	FilterQueries    []string
-	Experiments      experiment.Experiments
-	NoHidden         bool
-	Dependencies     bool
-	External         bool
-	Exclude          bool
-	Include          bool
-	Reading          bool
+	WorkingDir        string
+	QueueConstructAs  string
+	FilterQueries     []string
+	Experiments       experiment.Experiments
+	NoHidden          bool
+	Exclude           bool
+	Include           bool
+	Reading           bool
+	WithRequiresParse bool
+	WithRelationships bool
 }
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
@@ -40,7 +40,7 @@ type StackGenerateOptions struct {
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
-func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
+func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir).
 		WithSuppressParseErrors().
 		WithBreakCycles()
@@ -49,12 +49,12 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		d = d.WithNoHidden()
 	}
 
-	if opts.Dependencies || opts.External {
-		d = d.WithDiscoverDependencies()
+	if opts.WithRequiresParse {
+		d = d.WithRequiresParse()
 	}
 
-	if opts.External {
-		d = d.WithDiscoverExternalDependencies()
+	if opts.WithRelationships {
+		d = d.WithRelationships()
 	}
 
 	if opts.Exclude {
@@ -71,11 +71,11 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 
 	if opts.QueueConstructAs != "" {
 		d = d.WithParseExclude()
-		d = d.WithDiscoverDependencies()
 
 		parser := shellwords.NewParser()
 
-		args, err := parser.Parse(opts.QueueConstructAs)
+		// Normalize Windows paths before parsing - shellwords treats backslashes as escape characters
+		args, err := parser.Parse(filepath.ToSlash(opts.QueueConstructAs))
 		if err != nil {
 			return nil, err
 		}
@@ -88,62 +88,51 @@ func NewForDiscoveryCommand(opts DiscoveryCommandOptions) (*Discovery, error) {
 		}
 
 		d = d.WithDiscoveryContext(&component.DiscoveryContext{
-			Cmd:  cmd,
-			Args: args,
+			WorkingDir: opts.WorkingDir,
+			Cmd:        cmd,
+			Args:       args,
 		})
 	}
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
-
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters)
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters)
 	}
 
 	return d, nil
 }
 
 // NewForHCLCommand creates a Discovery configured for HCL commands (hcl validate/format).
-func NewForHCLCommand(opts HCLCommandOptions) (*Discovery, error) {
+func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
-
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters)
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters)
 	}
 
 	return d, nil
 }
 
 // NewForStackGenerate creates a Discovery configured for `stack generate`.
-func NewForStackGenerate(opts StackGenerateOptions) (*Discovery, error) {
+func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		d = d.WithFilterFlagEnabled()
-
-		if len(opts.FilterQueries) > 0 {
-			filters, err := filter.ParseFilterQueries(opts.FilterQueries, opts.WorkingDir)
-			if err != nil {
-				return nil, err
-			}
-
-			d = d.WithFilters(filters.RestrictToStacks())
+	if len(opts.FilterQueries) > 0 {
+		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
+		if err != nil {
+			return nil, err
 		}
+
+		d = d.WithFilters(filters.RestrictToStacks())
 	}
 
 	return d, nil
@@ -154,14 +143,11 @@ func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
 	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
 	discovery := &Discovery{
-		workingDir: dir,
-		includeDirs: []string{
-			config.StackDir,
-			filepath.Join(config.StackDir, "**"),
-		},
 		numWorkers:         numWorkers,
-		useDefaultExcludes: true,
 		maxDependencyDepth: defaultMaxDependencyDepth,
+		discoveryContext: &component.DiscoveryContext{
+			WorkingDir: dir,
+		},
 	}
 
 	for _, opt := range opts {

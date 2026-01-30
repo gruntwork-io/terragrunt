@@ -8,9 +8,21 @@ sidebar:
 
 import InstallTabs from '@components/InstallTabs.astro'
 import { Code } from '@astrojs/starlight/components'
-export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest');
-export const data = await response.json();
-export const version = data.tag_name || 'v0.72.5';
+import { getLatestRelease } from '@lib/github';
+export const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+export const version = releaseData?.tag_name || 'v0.99.0';
+
+## Quick Install
+
+The quickest way to install Terragrunt on Linux or macOS:
+
+```bash
+curl -sL https://terragrunt.gruntwork.io/install | bash
+```
+
+:::tip[Script Options]
+Run `curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --help` to see all options, or [view the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs-starlight/public/install).
+:::
 
 ## Download from releases page
 
@@ -32,6 +44,25 @@ To verify the integrity of the file, do the following:
 3. Download the `SHA256SUMS` file from the releases page.
 4. Find the expected checksum for the binary you downloaded.
 5. If the checksums match, the binary is intact and has not been tampered with.
+6. Optionally, verify the GPG signature:
+
+```bash
+# Import Gruntwork's public key (first time only)
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import
+
+# Verify signature
+gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+```
+
+7. Alternatively, verify with Cosign:
+
+```bash
+cosign verify-blob SHA256SUMS \
+  --signature SHA256SUMS.sig \
+  --certificate SHA256SUMS.pem \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
+```
 
 ### Convenience Scripts
 
@@ -71,7 +102,7 @@ If you  want the latest version, the recommended installation option is to [down
   emerge -a app-admin/terragrunt-bin
   ```
 
-* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): 
+* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)):
 
   ```bash
   pkg install terragrunt

@@ -6,18 +6,18 @@ on:
 jobs:
   license-check:
     name: License Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     env:
       MISE_PROFILE: cicd
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
         with:
-          version: 2025.8.16
+          version: 2026.1.9
           experimental: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload License Check Report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: license-check-report-ubuntu
           path: license-check.log

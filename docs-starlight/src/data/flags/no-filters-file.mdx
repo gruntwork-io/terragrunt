@@ -1,0 +1,19 @@
+---
+name: no-filters-file
+description: Disable automatic reading of .terragrunt-filters file
+type: bool
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `--no-filters-file` flag disables automatic reading of the `.terragrunt-filters` file. By default, Terragrunt automatically reads filter queries from any `.terragrunt-filters` file in the current working directory. Use this flag to disable that automatic behavior.
+
+## Usage
+
+```bash
+# Disable automatic .terragrunt-filters reading
+terragrunt find --no-filters-file
+
+# Use with run --all
+terragrunt run --all --no-filters-file -- plan
+```

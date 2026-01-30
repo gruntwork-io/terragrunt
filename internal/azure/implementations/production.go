@@ -20,7 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // StorageAccountServiceImpl is the production implementation of StorageAccountService

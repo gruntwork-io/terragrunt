@@ -5,11 +5,11 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
@@ -21,8 +21,8 @@ var _ = strict.Control(new(DeprecatedEnvVar))
 
 // DeprecatedEnvVar is strict control for deprecated environment variables.
 type DeprecatedEnvVar struct {
-	deprecatedFlag cli.Flag
-	newFlag        cli.Flag
+	deprecatedFlag clihelper.Flag
+	newFlag        clihelper.Flag
 	*Control
 	ErrorFmt   string
 	WarningFmt string
@@ -31,10 +31,10 @@ type DeprecatedEnvVar struct {
 // NewDeprecatedEnvVar returns a new `DeprecatedEnvVar` instance.
 // Since we don't know which env vars can be used at the time of definition,
 // we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
-func NewDeprecatedEnvVar(deprecatedFlag, newFlag cli.Flag, newValue string) *DeprecatedEnvVar {
+func NewDeprecatedEnvVar(deprecatedFlag, newFlag clihelper.Flag, newValue string) *DeprecatedEnvVar {
 	var (
-		deprecatedName = util.FirstElement(util.RemoveEmptyElements(deprecatedFlag.GetEnvVars()))
-		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
+		deprecatedName = util.FirstNonEmpty(deprecatedFlag.GetEnvVars())
+		newName        = util.FirstNonEmpty(newFlag.GetEnvVars())
 	)
 
 	if newValue != "" {

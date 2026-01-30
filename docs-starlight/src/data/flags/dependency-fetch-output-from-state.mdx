@@ -11,6 +11,10 @@ import { Aside } from '@astrojs/starlight/components';
 
 This flag modifies how Terragrunt retrieves output values from dependent units. When enabled, Terragrunt will read the outputs directly from the state file instead of running `terraform output` or `tofu output`.
 
+<Aside type="note">
+This flag is equivalent to enabling the `dependency-fetch-output-from-state` experiment. You can also enable this feature using `--experiment dependency-fetch-output-from-state` or `--experiment-mode`. For more information, see the [Experiments documentation](/docs/reference/experiments#dependency-fetch-output-from-state).
+</Aside>
+
 The main benefit this flag provides is performance. Reading directly from state is typically faster than executing the OpenTofu/Terraform binary to get the same outputs.
 
 The limitation of this approach is that it is only supported by the S3 and Azure Storage backends, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.

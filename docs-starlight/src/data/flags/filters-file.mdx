@@ -1,0 +1,44 @@
+---
+name: filters-file
+description: Path to a file containing filter queries, one per line
+type: string
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The `--filters-file` flag allows you to specify a custom file path containing filter queries. By default, Terragrunt automatically reads filter queries from any `.terragrunt-filters` file in the current working directory. Use this flag to specify a different file path.
+
+## Usage
+
+```bash
+# Use a custom filters file
+terragrunt find --filters-file custom-filters.txt
+
+# Use a filters file in a different directory
+terragrunt find --filters-file /path/to/filters.txt
+
+# Use with run --all
+terragrunt run --all --filters-file prod-filters.txt -- plan
+```
+
+## File Format
+
+The filters file should contain one filter query per line. Empty lines and lines starting with `#` are ignored:
+
+```text
+# Production environment filters
+type=unit
+./prod/**
+
+# Exclude test units
+!name=test-*
+```
+
+## Disabling Automatic File Reading
+
+To disable automatic reading of `.terragrunt-filters`, use the `--no-filters-file` flag:
+
+```bash
+# Disable automatic .terragrunt-filters reading
+terragrunt find --no-filters-file
+```

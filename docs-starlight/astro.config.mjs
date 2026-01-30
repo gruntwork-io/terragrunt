@@ -9,6 +9,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@astrojs/react";
 
 import starlightLinksValidator from "starlight-links-validator";
+import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 // Check if we're in Vercel environment
@@ -55,7 +56,6 @@ export const sidebar = [
             },
           },
           { label: "Global Flags", slug: "docs/reference/cli/global-flags" },
-          { label: "Rules", slug: "docs/reference/cli/rules" },
         ],
       },
       { label: "Strict Controls", slug: "docs/reference/strict-controls" },
@@ -83,8 +83,13 @@ export const sidebar = [
     collapsed: true,
   },
   {
+    label: "Process",
+    autogenerate: { directory: "07-process", collapsed: true },
+    collapsed: true,
+  },
+  {
     label: "Migrate",
-    autogenerate: { directory: "07-migrate", collapsed: true },
+    autogenerate: { directory: "08-migrate", collapsed: true },
     collapsed: true,
   },
 ];
@@ -95,11 +100,11 @@ export default defineConfig({
   output: isVercel ? "server" : "static",
   adapter: isVercel
     ? vercel({
-        imageService: true,
-        isr: {
-          expiration: 60 * 60 * 24, // 24 hours
-        },
-      })
+      imageService: true,
+      isr: {
+        expiration: 60 * 60 * 24, // 24 hours
+      },
+    })
     : undefined,
   integrations: [
     // We use React for the shadcn/ui components.
@@ -183,7 +188,7 @@ export default defineConfig({
       },
       social: [
         {
-          href: "https://discord.gg/SPu4Degs5f",
+          href: "/community/invite",
           icon: "discord",
           label: "Discord",
         },
@@ -202,8 +207,14 @@ export default defineConfig({
             "/docs/reference/cli/commands/run/#*",
             "/docs/reference/cli/commands/list#*",
             "/docs/reference/cli/commands/list/#*",
+            "/docs/reference/cli/commands/find#*",
+            "/docs/reference/cli/commands/find/#*",
+
+            // Used as a redirect to the Terragrunt Discord server
+            "/community/invite",
           ],
         }),
+        starlightLlmsTxt()
       ],
     }),
     d2({
@@ -279,6 +290,12 @@ export default defineConfig({
     "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL
     "/docs/features/log-formatting": "/docs/reference/logging/formatting/",
     "/docs/reference/lock-file-handling/": "/docs/reference/lock-files/",
+
+    // Restructured docs
+    "/docs/reference/cli/rules": "/docs/process/cli-rules/",
+
+    // Redirects for external resources
+    "/community/invite": "https://discord.gg/4XJgJ6yK",
   },
   vite: {
     plugins: [tailwindcss()],

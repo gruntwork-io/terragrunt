@@ -2,24 +2,19 @@ package gcs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/jwt"
-	"google.golang.org/api/impersonate"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -28,8 +23,6 @@ const (
 
 	gcpMaxRetries          = 3
 	gcpSleepBetweenRetries = 10 * time.Second
-
-	tokenURL = "https://oauth2.googleapis.com/token"
 )
 
 type Client struct {
@@ -38,68 +31,15 @@ type Client struct {
 }
 
 // NewClient inits GCS client.
-func NewClient(ctx context.Context, config *ExtendedRemoteStateConfigGCS) (*Client, error) {
-	var opts []option.ClientOption
+func NewClient(
+	ctx context.Context,
+	l log.Logger,
+	config *ExtendedRemoteStateConfigGCS,
+	opts *options.TerragruntOptions,
+) (*Client, error) {
+	gcpConfig := config.GetGCPSessionConfig()
 
-	gcsConfig := config.RemoteStateConfigGCS
-
-	if gcsConfig.Credentials != "" {
-		opts = append(opts, option.WithCredentialsFile(gcsConfig.Credentials))
-	} else if gcsConfig.AccessToken != "" {
-		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: gcsConfig.AccessToken,
-		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
-	} else if oauthAccessToken := os.Getenv("GOOGLE_OAUTH_ACCESS_TOKEN"); oauthAccessToken != "" {
-		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: oauthAccessToken,
-		})
-		opts = append(opts, option.WithTokenSource(tokenSource))
-	} else if os.Getenv("GOOGLE_CREDENTIALS") != "" {
-		var account = struct {
-			PrivateKeyID string `json:"private_key_id"`
-			PrivateKey   string `json:"private_key"`
-			ClientEmail  string `json:"client_email"`
-			ClientID     string `json:"client_id"`
-		}{}
-
-		// to mirror how Terraform works, we have to accept either the file path or the contents
-		creds := os.Getenv("GOOGLE_CREDENTIALS")
-
-		contents, err := util.FileOrData(creds)
-		if err != nil {
-			return nil, errors.Errorf("Error loading credentials: %w", err)
-		}
-
-		if err := json.Unmarshal([]byte(contents), &account); err != nil {
-			return nil, errors.Errorf("Error parsing credentials '%s': %w", contents, err)
-		}
-
-		conf := jwt.Config{
-			Email:      account.ClientEmail,
-			PrivateKey: []byte(account.PrivateKey),
-			// We need the FullControl scope to be able to add metadata such as labels
-			Scopes:   []string{storage.ScopeFullControl},
-			TokenURL: tokenURL,
-		}
-
-		opts = append(opts, option.WithHTTPClient(conf.Client(ctx)))
-	}
-
-	if gcsConfig.ImpersonateServiceAccount != "" {
-		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
-			TargetPrincipal: gcsConfig.ImpersonateServiceAccount,
-			Scopes:          []string{storage.ScopeFullControl},
-			Delegates:       gcsConfig.ImpersonateServiceAccountDelegates,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		opts = append(opts, option.WithTokenSource(ts))
-	}
-
-	gcsClient, err := storage.NewClient(ctx, opts...)
+	gcsClient, err := gcphelper.CreateGCSClient(ctx, l, gcpConfig, opts)
 	if err != nil {
 		return nil, err
 	}

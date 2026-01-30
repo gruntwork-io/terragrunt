@@ -1,10 +1,17 @@
 package component
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -14,21 +21,43 @@ const (
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
 	cfg              *config.TerragruntConfig
-	path             string
-	reading          []string
 	discoveryContext *DiscoveryContext
+	Execution        *UnitExecution
+	path             string
+	configFile       string
+	reading          []string
 	dependencies     Components
 	dependents       Components
-	external         bool
 	mu               sync.RWMutex
+	external         bool
+	excluded         bool
+}
+
+// UnitExecution holds execution-specific fields for running a unit.
+// This is nil during discovery phase and populated when preparing for execution.
+type UnitExecution struct {
+	TerragruntOptions *options.TerragruntOptions
+	Logger            log.Logger
+	FlagExcluded      bool
 }
 
 // NewUnit creates a new Unit component with the given path.
 func NewUnit(path string) *Unit {
 	return &Unit{
-		path:         path,
-		dependencies: make(Components, 0),
-		dependents:   make(Components, 0),
+		path:             path,
+		configFile:       config.DefaultTerragruntConfigPath,
+		discoveryContext: &DiscoveryContext{},
+		dependencies:     make(Components, 0),
+		dependents:       make(Components, 0),
+	}
+}
+
+// NewUnitExecution creates a new UnitExecution with the given options.
+func NewUnitExecution(l log.Logger, opts *options.TerragruntOptions, excluded bool) *UnitExecution {
+	return &UnitExecution{
+		TerragruntOptions: opts,
+		Logger:            l,
+		FlagExcluded:      excluded,
 	}
 }
 
@@ -47,6 +76,13 @@ func (u *Unit) WithConfig(cfg *config.TerragruntConfig) *Unit {
 	return u
 }
 
+// WithDiscoveryContext sets the discovery context for this unit.
+func (u *Unit) WithDiscoveryContext(ctx *DiscoveryContext) *Unit {
+	u.discoveryContext = ctx
+
+	return u
+}
+
 // Config returns the parsed Terragrunt configuration for this unit.
 func (u *Unit) Config() *config.TerragruntConfig {
 	return u.cfg
@@ -55,6 +91,16 @@ func (u *Unit) Config() *config.TerragruntConfig {
 // StoreConfig stores the parsed Terragrunt configuration for this unit.
 func (u *Unit) StoreConfig(cfg *config.TerragruntConfig) {
 	u.cfg = cfg
+}
+
+// ConfigFile returns the discovered config filename for this unit.
+func (u *Unit) ConfigFile() string {
+	return u.configFile
+}
+
+// SetConfigFile sets the discovered config filename for this unit.
+func (u *Unit) SetConfigFile(filename string) {
+	u.configFile = filename
 }
 
 // Kind returns the kind of component (always Unit for Unit).
@@ -80,6 +126,16 @@ func (u *Unit) External() bool {
 // SetExternal marks the component as external.
 func (u *Unit) SetExternal() {
 	u.external = true
+}
+
+// Excluded returns whether the unit was excluded during discovery/filtering.
+func (u *Unit) Excluded() bool {
+	return u.excluded
+}
+
+// SetExcluded marks the unit as excluded during discovery/filtering.
+func (u *Unit) SetExcluded(excluded bool) {
+	u.excluded = excluded
 }
 
 // Reading returns the list of files being read by this component.
@@ -109,6 +165,15 @@ func (u *Unit) DiscoveryContext() *DiscoveryContext {
 // SetDiscoveryContext sets the discovery context for this component.
 func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
 	u.discoveryContext = ctx
+}
+
+// Origin returns the origin of the discovery context for this component.
+func (u *Unit) Origin() Origin {
+	if u.discoveryContext == nil {
+		return OriginUnknown
+	}
+
+	return u.discoveryContext.Origin()
 }
 
 // lock locks the Unit.
@@ -187,4 +252,142 @@ func (u *Unit) Dependents() Components {
 	defer u.rUnlock()
 
 	return u.dependents
+}
+
+// String renders this unit as a human-readable string for debugging.
+//
+// Example output:
+//
+//	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
+func (u *Unit) String() string {
+	// Snapshot values under read lock to avoid data races
+	u.rLock()
+	defer u.rUnlock()
+
+	path := u.DisplayPath()
+	deps := make([]string, 0, len(u.dependencies))
+
+	for _, dep := range u.dependencies {
+		deps = append(deps, dep.DisplayPath())
+	}
+
+	excluded := false
+	assumeApplied := false
+
+	if u.Execution != nil {
+		excluded = u.Execution.FlagExcluded
+	}
+
+	return fmt.Sprintf(
+		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
+		path, excluded, assumeApplied, strings.Join(deps, ", "),
+	)
+}
+
+// AbsolutePath returns the absolute path of the unit.
+// If path conversion fails, returns the original path and logs a warning if a logger is available.
+func (u *Unit) AbsolutePath() string {
+	absPath, err := filepath.Abs(u.path)
+	if err != nil {
+		if u.Execution != nil && u.Execution.Logger != nil {
+			u.Execution.Logger.Warnf("Failed to convert unit path %q to absolute path: %v", u.path, err)
+		}
+
+		return u.path
+	}
+
+	return absPath
+}
+
+// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
+// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
+func (u *Unit) DisplayPath() string {
+	if u.discoveryContext == nil || u.discoveryContext.WorkingDir == "" {
+		return u.path
+	}
+
+	if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
+		return rel
+	}
+
+	return u.path
+}
+
+// FindInPaths returns true if the unit is located in one of the target directories.
+// Paths are normalized before comparison to handle absolute/relative path mismatches.
+func (u *Unit) FindInPaths(targetDirs []string) bool {
+	cleanUnitPath := util.CleanPath(u.path)
+
+	for _, dir := range targetDirs {
+		cleanDir := util.CleanPath(dir)
+		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// PlanFile returns plan file location if output folder is set.
+// Requires Execution to be populated.
+func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
+	if u.Execution == nil || u.Execution.TerragruntOptions == nil {
+		return ""
+	}
+
+	planFile := u.OutputFile(opts)
+
+	planCommand := u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan ||
+		u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+
+	// if JSON output enabled and no PlanFile specified, save plan in working dir
+	if planCommand && planFile == "" && u.Execution.TerragruntOptions.JSONOutputFolder != "" {
+		planFile = tf.TerraformPlanFile
+	}
+
+	return planFile
+}
+
+// OutputFile returns plan file location if output folder is set.
+func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
+	return u.planFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+}
+
+// OutputJSONFile returns plan JSON file location if JSON output folder is set.
+func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
+	return u.planFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+}
+
+// planFilePath computes the path for plan output files.
+func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
+	}
+
+	// Use discoveryContext.WorkingDir as base (always populated).
+	// This is critical for git-based filters where units are discovered in temporary worktrees.
+	// Using opts.RootWorkingDir would cause relative paths to escape the outputFolder.
+	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
+	if err != nil {
+		relPath = u.path
+	}
+
+	dir := filepath.Join(outputFolder, relPath)
+
+	if !filepath.IsAbs(dir) {
+		base := opts.RootWorkingDir
+		if !filepath.IsAbs(base) {
+			if absBase, err := filepath.Abs(base); err == nil {
+				base = absBase
+			}
+		}
+
+		dir = filepath.Join(base, dir)
+
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		}
+	}
+
+	return filepath.Join(dir, fileName)
 }

@@ -3,6 +3,6 @@ terraform {
   # after execution of terragrunt
   after_hook "after_hook_1" {
     commands = ["apply", "plan"]
-    execute = ["touch","file.out"]
+    execute = ["touch","${get_terragrunt_dir()}/file.out"]
   }
 }

@@ -16,12 +16,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
         with:
-          version: 2025.8.16
+          version: 2026.1.9
           experimental: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
@@ -34,16 +34,24 @@ jobs:
         shell: bash
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
       - name: Go Mod Cache
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+
+      - name: Terragrunt Provider Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ runner.os == 'Linux' && '~/.cache/terragrunt' || '~/Library/Caches/terragrunt' }}
+          key: ${{ runner.os }}-terragrunt-provider-cache-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-terragrunt-provider-cache-
 
       - name: Run Tests
         id: run-tests
@@ -54,15 +62,18 @@ jobs:
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use shorter temp path on macOS to avoid path length issues with Git worktrees.
+          # Default /var/folders/.../T/ paths are too long for Git's path resolution.
+          TMPDIR: ${{ matrix.os == 'macos' && '/tmp' || '' }}
 
       - name: Upload Report (${{ matrix.os }})
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: test-report-${{ matrix.os }}
           path: result.xml
 
       - name: Display Test Results (${{ matrix.os }})
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6
         if: always()
         with:
           report_paths: result.xml

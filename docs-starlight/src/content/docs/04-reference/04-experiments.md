@@ -71,6 +71,8 @@ The following experiments are available:
 - [cas](#cas)
 - [azure-backend](#azure-backend)
 - [filter-flag](#filter-flag)
+- [iac-engine](#iac-engine)
+- [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
 
 ### symlinks
 
@@ -196,13 +198,13 @@ To transition the `filter-flag` feature to a stable release, the following must 
 - [x] Integrate with the `find` command
 - [x] Integrate with the `list` command
 - [x] Integrate with the `run` command
-- [ ] Add support for git-based filtering ([ref...ref] syntax)
-- [ ] Add support for dependency/dependent traversal (... syntax)
-- [ ] Add support for `--filters-file` flag
-- [ ] Add support for `--filter-allow-destroy` flag
-- [ ] Add support for `--filter-affected` shorthand
-- [ ] Comprehensive integration testing across all commands
-- [ ] Deprecate legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.)
+- [x] Add support for git-based filtering ([ref...ref] syntax)
+- [x] Add support for dependency/dependent traversal (... syntax)
+- [x] Add support for `--filters-file` flag
+- [x] Add support for `--filter-allow-destroy` flag
+- [x] Add support for `--filter-affected` shorthand
+- [x] Comprehensive integration testing across all commands
+- [ ] Backport legacy queue control flags (queue-exclude-dir, queue-include-dir, etc.) into equivalent filter patterns as aliases.
 
 **Future Deprecations:**
 
@@ -217,6 +219,75 @@ When this experiment stabilizes, the following queue control flags will be depre
 - `--queue-strict-include`
 
 The current plan is to continue to support the flags as aliases for particular `--filter` patterns.
+
+### `iac-engine`
+
+Support for Terragrunt IaC engines.
+
+#### `iac-engine` - What it does
+
+Enables usage of [Terragrunt IaC engines](/docs/features/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
+
+IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
+
+You can disable engine usage on a per-command basis using the [`--no-engine`](/docs/reference/cli/commands/run#no-engine) flag, even when the experiment is enabled globally.
+
+#### `iac-engine` - How to provide feedback
+
+Provide your feedback on the [Terragrunt IaC Engines](https://github.com/gruntwork-io/terragrunt/discussions/5202) GitHub discussion.
+
+#### `iac-engine` - Criteria for stabilization
+
+To transition the `iac-engine` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] API stability and backward compatibility guarantees
+- [ ] Comprehensive integration testing across all supported operations
+- [ ] Documentation of engine development and integration process
+- [ ] Performance benchmarks and optimization
+- [ ] Security review of engine execution and isolation mechanisms
+- [ ] Community feedback on real-world usage and edge cases
+
+### `dependency-fetch-output-from-state`
+
+Support for fetching dependency outputs directly from state files.
+
+#### `dependency-fetch-output-from-state` - What it does
+
+By default, Terragrunt retrieves dependency outputs by running `tofu output` or `terraform output` commands, which requires initializing the dependency unit and can be slow. When this experiment is enabled, Terragrunt will attempt to fetch dependency outputs directly from the remote state file, bypassing the need to initialize the dependency and significantly speeding up dependency processing.
+
+**Current Backend Support:**
+
+- ✅ S3 backend: Fully supported
+- ⚠️ Other backends: Falls back to the normal method (using `tofu/terraform output`)
+
+When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
+
+**Disabling the feature:**
+
+You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag, even when the experiment is enabled:
+
+```bash
+terragrunt run --all --experiment-mode --no-dependency-fetch-output-from-state -- plan
+```
+
+#### `dependency-fetch-output-from-state` - How to provide feedback
+
+Provide your feedback in the dedicated [GitHub discussion](https://github.com/gruntwork-io/terragrunt/discussions/5200) page. When reporting issues or providing feedback, please include:
+
+- The backend type you're using
+- Any performance improvements you've observed
+- Any issues or edge cases you've encountered
+
+#### `dependency-fetch-output-from-state` - Criteria for stabilization
+
+To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Add support for additional backends (e.g., GCS, etc.)
+- [ ] Comprehensive integration testing across different backend types
+- [ ] Performance benchmarking to validate speed improvements
+- [ ] Error handling and edge case testing
+- [ ] Documentation of supported backends and limitations
+- [ ] Community feedback on real-world usage
 
 ## Completed Experiments
 

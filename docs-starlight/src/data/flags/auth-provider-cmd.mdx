@@ -7,30 +7,15 @@ env:
   - TG_AUTH_PROVIDER_CMD
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Code } from '@astrojs/starlight/components';
+
+import authProviderCmdSchema from '../../../public/schemas/auth-provider-cmd/v1/schema.json?raw';
 
 The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/hcl/functions#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/hcl/functions#run_cmd) where it may be useful to be authenticated before calling the function.
 
 The output must be valid JSON of the following schema:
 
-```json
-{
-  "awsCredentials": {
-    "ACCESS_KEY_ID": "",
-    "SECRET_ACCESS_KEY": "",
-    "SESSION_TOKEN": ""
-  },
-  "awsRole": {
-    "roleARN": "",
-    "sessionName": "",
-    "duration": 0,
-    "webIdentityToken": ""
-  },
-  "envs": {
-    "ANY_KEY": ""
-  }
-}
-```
+<Code title="auth-provider-cmd/v1/schema.json" lang="json" code={authProviderCmdSchema} />
 
 This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
 

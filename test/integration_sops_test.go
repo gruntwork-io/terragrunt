@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +34,7 @@ func TestSOPSDecryptedCorrectly(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -68,7 +67,7 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
@@ -112,14 +111,9 @@ func TestSOPSDecryptedCorrectlyRunAll(t *testing.T) {
 func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
 	t.Parallel()
 
-	// Skip if filter-flag experiment is not enabled
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("Skipping filter flag tests - TG_EXPERIMENT_MODE not enabled")
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSops)
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
@@ -166,10 +160,10 @@ func TestSOPSTerragruntLogSopsErrors(t *testing.T) {
 	// create temporary directory for plan files
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsErrors)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSopsErrors)
+	testPath := filepath.Join(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+testPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+testPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
@@ -181,14 +175,19 @@ func TestSOPSDecryptOnMissing(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureSopsMissing)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsMissing)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --log-level trace --working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply --log-level debug --non-interactive --working-dir "+rootPath,
+	)
 	require.Error(t, err)
 
 	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
-	assert.Regexp(t, `\./missing\.yaml:.+no such file`, errorOut)
+	// Check for the missing file error components separately since they may be split across log lines
+	assert.Contains(t, errorOut, "missing.yaml", "Error should reference the missing SOPS file")
+	assert.Contains(t, errorOut, "no such file", "Error should indicate file does not exist")
 }

@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -49,10 +51,28 @@ import (
 //
 // Errors can occur during stack file listing, value reading, stack config parsing, output reading,
 // or when converting the final output structure to cty.Value format.
-func StackOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (cty.Value, error) {
+func StackOutput(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (cty.Value, error) {
 	l.Debugf("Generating output from %s", opts.WorkingDir)
 
-	foundFiles, err := generate.ListStackFilesMaybeWithDiscovery(ctx, l, opts, opts.WorkingDir)
+	// Create worktrees internally if filter-flag experiment is enabled and git filters are present
+	wts, err := buildWorktreesIfNeeded(ctx, l, opts)
+	if err != nil {
+		return cty.NilVal, errors.Errorf("failed to create worktrees: %w", err)
+	}
+
+	if wts != nil {
+		defer func() {
+			if cleanupErr := wts.Cleanup(ctx, l); cleanupErr != nil {
+				l.Errorf("failed to cleanup worktrees: %v", cleanupErr)
+			}
+		}()
+	}
+
+	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -237,4 +257,24 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	}
 
 	return nested, nil
+}
+
+// buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
+// Returns nil worktrees if the experiment is not enabled or no git filters are present.
+func buildWorktreesIfNeeded(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*worktrees.Worktrees, error) {
+	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse filters: %w", err)
+	}
+
+	gitFilters := filters.UniqueGitFilters()
+	if len(gitFilters) == 0 {
+		return nil, nil
+	}
+
+	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 }

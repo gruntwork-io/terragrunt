@@ -22,9 +22,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 )
 
 // BackendName is the name of the Azure backend

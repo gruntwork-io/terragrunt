@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,8 +11,9 @@ import (
 )
 
 const (
-	testFixtureListBasic = "fixtures/list/basic"
-	testFixtureListDag   = "fixtures/list/dag"
+	testFixtureListBasic  = "fixtures/list/basic"
+	testFixtureListDag    = "fixtures/list/dag"
+	testFixtureListHidden = "fixtures/find/hidden"
 )
 
 func TestListCommand(t *testing.T) {
@@ -134,7 +136,8 @@ unit  units/live/prod/vpc
 
 			helpers.CleanupTerraformFolder(t, tc.workingDir)
 
-			args := []string{"terragrunt", "--no-color"}
+			args := make([]string, 0, 2+len(tc.args)+2)
+			args = append(args, "terragrunt", "--no-color")
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", tc.workingDir)
 
@@ -189,7 +192,8 @@ unit  unit3
 
 			helpers.CleanupTerraformFolder(t, testFixtureFindExclude)
 
-			args := []string{"terragrunt", "--no-color"}
+			args := make([]string, 0, 2+len(tc.args)+2)
+			args = append(args, "terragrunt", "--no-color")
 			args = append(args, tc.args...)
 			args = append(args, "--working-dir", testFixtureFindExclude)
 
@@ -197,6 +201,48 @@ unit  unit3
 			require.NoError(t, err)
 			require.Empty(t, stderr)
 			assert.Equal(t, tc.expectedOutput, stdout)
+		})
+	}
+}
+
+func TestListHidden(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		expected string
+		noHidden bool
+	}{
+		{
+			name:     "default (includes hidden)",
+			expected: ".hide/unit  stack       unit        \n",
+		},
+		{
+			name:     "no-hidden flag excludes hidden",
+			noHidden: true,
+			expected: "stack  unit   \n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureListHidden)
+
+			cmd := "terragrunt list --no-color --working-dir " + testFixtureListHidden
+
+			if tc.noHidden {
+				cmd += " --no-hidden"
+			}
+
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			assert.Empty(t, stderr)
+			// Normalize path separators in the output for cross-platform compatibility
+			normalizedStdout := filepath.ToSlash(stdout)
+			assert.Equal(t, tc.expected, normalizedStdout)
 		})
 	}
 }

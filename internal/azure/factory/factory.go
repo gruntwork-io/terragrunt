@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/implementations"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 

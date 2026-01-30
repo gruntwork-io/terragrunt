@@ -7,7 +7,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

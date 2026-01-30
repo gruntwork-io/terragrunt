@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface

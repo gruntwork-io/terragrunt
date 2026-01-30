@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 Terragrunt supports operating in a mode referred to as "Strict Mode".
 
@@ -109,7 +109,9 @@ The following strict mode controls are available:
 Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
 
 <Aside type="tip">
-Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+  Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their
+  tradeoffs, and other performance tips, read the dedicated [Performance
+  documentation](/docs/troubleshooting/performance).
 </Aside>
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
@@ -176,7 +178,7 @@ Without the strict control enabled, to match units in all subdirectories a glob 
 With the strict control enabled, the pattern `**/*` will match all subdirectories with a depth of at least one
 as indicated by the `/` character. The glob pattern `**` will now match all subdirectories regardless of depth.
 
-With the following directory layout, glob behavior for * characters with the strict control enabled is:
+With the following directory layout, glob behavior for \* characters with the strict control enabled is:
 
 ```
 └── units
@@ -192,6 +194,52 @@ and unit-b.
 
 The `**` double wildcard indicates any character including `/`, this allows
 matching multiple directory depths e.g. `units/**` matches unit-a, unit-b, and unit-c.
+
+### queue-exclude-external
+
+Throw an error when using the deprecated `--queue-exclude-external` flag.
+
+**Reason**: External dependencies are now excluded by default. The `--queue-exclude-external` flag is no longer needed and has been deprecated. Use `--queue-include-external` if you need to include external dependencies.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-exclude-external
+WARN  The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.
+```
+
+### disable-command-validation
+
+Throw an error when using the deprecated `--disable-command-validation` flag.
+
+**Reason**: Command validation has been removed entirely from Terragrunt. The `run` command now accepts any command and passes it through to the underlying OpenTofu/Terraform binary. The `--disable-command-validation` flag is no longer needed and does nothing.
+
+### no-destroy-dependencies-check
+
+Throw an error when using the deprecated `--no-destroy-dependencies-check` flag.
+
+**Reason**: The `--no-destroy-dependencies-check` flag is deprecated and no longer affects Terragrunt's behavior. Dependency checks are now disabled by default during destroy operations. Use `--destroy-dependencies-check` to explicitly enable dependency checks when needed.
+
+### legacy-internal-tflint
+
+Force the use of external tflint binary.
+
+**Reason**: The embedded version of tflint has been held back by upstream's adoption of the BUSL license. As a result, the embedded version is horribly out of date, and we are deprecating it for removal in a future version of Terragrunt. You may use `--terragrunt-external-tflint` in your `tflint` hook to opt in to the use of an external tflint binary, or enable this strict control.
+
+### deprecated-hidden-flag
+
+Throw an error when using the deprecated `--hidden` flag.
+
+**Reason**: Hidden directories are now included by default in `find` and `list` command results. The `--hidden` flag is no longer needed and has been deprecated. Use `--no-hidden` if you need to exclude hidden directories.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt find --hidden
+WARN  The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.
+```
 
 ## Control Categories
 
@@ -217,6 +265,9 @@ Throw an error when using the deprecated flags.
 **Controls**:
 
 - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+- [queue-exclude-external](#queue-exclude-external)
+- [no-destroy-dependencies-check](#no-destroy-dependencies-check)
+- [deprecated-hidden-flag](#deprecated-hidden-flag)
 
 ### deprecated-env-vars
 

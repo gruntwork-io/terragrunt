@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,13 +18,13 @@ func TestParseTreeEntry(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    cas.TreeEntry
+		want    git.TreeEntry
 		wantErr bool
 	}{
 		{
 			name:  "regular file",
 			input: "100644 blob a1b2c3d4 README.md",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "a1b2c3d4",
@@ -32,7 +34,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "executable file",
 			input: "100755 blob e5f6g7h8 scripts/test.sh",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100755",
 				Type: "blob",
 				Hash: "e5f6g7h8",
@@ -42,7 +44,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "directory",
 			input: "040000 tree i9j0k1l2 src",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "040000",
 				Type: "tree",
 				Hash: "i9j0k1l2",
@@ -52,7 +54,7 @@ func TestParseTreeEntry(t *testing.T) {
 		{
 			name:  "path with spaces",
 			input: "100644 blob m3n4o5p6 path with spaces.txt",
-			want: cas.TreeEntry{
+			want: git.TreeEntry{
 				Mode: "100644",
 				Type: "blob",
 				Hash: "m3n4o5p6",
@@ -70,7 +72,7 @@ func TestParseTreeEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cas.ParseTreeEntry(tt.input)
+			got, err := git.ParseTreeEntry(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -87,32 +89,32 @@ func TestParseTree(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    string
 		path     string
 		wantPath string
+		input    []byte
 		wantLen  int
 		wantErr  bool
 	}{
 		{
 			name: "multiple entries",
-			input: `100644 blob a1b2c3d4 README.md
+			input: []byte(`100644 blob a1b2c3d4 README.md
 100755 blob e5f6g7h8 scripts/test.sh
-040000 tree i9j0k1l2 src`,
+040000 tree i9j0k1l2 src`),
 			path:     "test-repo",
 			wantLen:  3,
 			wantPath: "test-repo",
 		},
 		{
 			name:     "empty input",
-			input:    "",
+			input:    []byte(""),
 			path:     "empty-repo",
 			wantLen:  0,
 			wantPath: "empty-repo",
 		},
 		{
 			name: "invalid entry",
-			input: `100644 blob a1b2c3d4 README.md
-invalid format`,
+			input: []byte(`100644 blob a1b2c3d4 README.md
+invalid format`),
 			path:    "invalid-repo",
 			wantErr: true,
 		},
@@ -122,7 +124,7 @@ invalid format`,
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cas.ParseTree(tt.input, tt.path)
+			got, err := git.ParseTree(tt.input, tt.path)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -141,7 +143,7 @@ func TestLinkTree(t *testing.T) {
 	tests := []struct {
 		name       string
 		setupStore func(t *testing.T) (*cas.Store, string)
-		treeData   string
+		treeData   []byte
 		wantFiles  []struct {
 			path    string
 			hash    string
@@ -155,7 +157,7 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
 				content := cas.NewContent(store)
 
@@ -173,9 +175,9 @@ func TestLinkTree(t *testing.T) {
 
 				return store, testHash
 			},
-			treeData: `100644 blob a1b2c3d4 README.md
+			treeData: []byte(`100644 blob a1b2c3d4 README.md
 100755 blob a1b2c3d4 scripts/test.sh
-040000 tree i9j0k1l2 src`,
+040000 tree i9j0k1l2 src`),
 			wantFiles: []struct {
 				path    string
 				hash    string
@@ -211,11 +213,12 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
+
 				return store, ""
 			},
-			treeData: "",
+			treeData: []byte(""),
 			wantFiles: []struct {
 				path    string
 				hash    string
@@ -228,11 +231,12 @@ func TestLinkTree(t *testing.T) {
 			setupStore: func(t *testing.T) (*cas.Store, string) {
 				t.Helper()
 
-				storeDir := t.TempDir()
+				storeDir := helpers.TmpDirWOSymlinks(t)
 				store := cas.NewStore(storeDir)
+
 				return store, ""
 			},
-			treeData: `100644 blob missing123 README.md`,
+			treeData: []byte(`100644 blob missing123 README.md`),
 			wantErr:  true,
 		},
 	}
@@ -245,14 +249,14 @@ func TestLinkTree(t *testing.T) {
 			store, _ := tt.setupStore(t)
 
 			// Parse the tree
-			tree, err := cas.ParseTree(tt.treeData, "test-repo")
+			tree, err := git.ParseTree(tt.treeData, "test-repo")
 			require.NoError(t, err)
 
 			// Create target directory
-			targetDir := t.TempDir()
+			targetDir := helpers.TmpDirWOSymlinks(t)
 
 			// Link the tree
-			err = tree.LinkTree(t.Context(), store, targetDir)
+			err = cas.LinkTree(t.Context(), store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

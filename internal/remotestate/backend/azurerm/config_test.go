@@ -1,34 +1,23 @@
 package azurerm_test
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// setupOptionsWithExperiment creates TerragruntOptions with specified experiment enabled
-func setupOptionsWithExperiment(experimentName string) *options.TerragruntOptions {
-	opts := options.NewTerragruntOptions()
-	opts.Experiments.EnableExperiment(experimentName)
-
-	return opts
-}
-
-// setupWithAzureBackendExperiment enables Azure backend experiment and registers backends
-// This is needed for tests that expect the Azure backend to be available
+// setupWithAzureBackendExperiment returns options for Azure backend tests
+// Azure backend is now registered by default so no additional setup is needed
 func setupWithAzureBackendExperiment() *options.TerragruntOptions {
-	opts := setupOptionsWithExperiment(experiment.AzureBackend)
-	remotestate.RegisterBackends(context.Background(), opts)
+	opts := options.NewTerragruntOptions()
 
 	return opts
 }

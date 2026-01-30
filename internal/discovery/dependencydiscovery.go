@@ -3,38 +3,36 @@ package discovery
 import (
 	"context"
 	"runtime"
+	"slices"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
 )
 
 // DependencyDiscovery is the configuration for a DependencyDiscovery.
 type DependencyDiscovery struct {
-	discoveryContext     *component.DiscoveryContext
-	components           *component.ThreadSafeComponents
-	externalDependencies *component.ThreadSafeComponents
-	mu                   *sync.RWMutex
-	seenComponents       map[string]struct{}
-	workingDir           string
-	parserOptions        []hclparse.Option
-	maxDepth             int
-	numWorkers           int
-	discoverExternal     bool
-	suppressParseErrors  bool
+	components          *component.ThreadSafeComponents
+	report              *report.Report
+	mu                  *sync.RWMutex
+	seenComponents      map[string]struct{}
+	parserOptions       []hclparse.Option
+	maxDepth            int
+	numWorkers          int
+	suppressParseErrors bool
 }
 
 func NewDependencyDiscovery(components *component.ThreadSafeComponents) *DependencyDiscovery {
 	return &DependencyDiscovery{
-		components:           components,
-		externalDependencies: component.NewThreadSafeComponents(component.Components{}),
-		mu:                   &sync.RWMutex{},
-		seenComponents:       make(map[string]struct{}),
-		numWorkers:           runtime.NumCPU(),
+		components:     components,
+		mu:             &sync.RWMutex{},
+		seenComponents: make(map[string]struct{}),
+		numWorkers:     runtime.NumCPU(),
 	}
 }
 
@@ -57,33 +55,20 @@ func (dd *DependencyDiscovery) WithSuppressParseErrors() *DependencyDiscovery {
 	return dd
 }
 
-// WithDiscoverExternalDependencies sets the discoverExternal flag to true,
-// which determines whether to discover and include external dependencies in the final results.
-func (dd *DependencyDiscovery) WithDiscoverExternalDependencies() *DependencyDiscovery {
-	dd.discoverExternal = true
-
-	return dd
-}
-
 // WithParserOptions sets custom HCL parser options for dependency discovery.
 func (dd *DependencyDiscovery) WithParserOptions(options []hclparse.Option) *DependencyDiscovery {
 	dd.parserOptions = options
 	return dd
 }
 
-func (dd *DependencyDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *DependencyDiscovery {
-	dd.discoveryContext = discoveryContext
+// WithReport sets the report for recording excluded external dependencies.
+func (dd *DependencyDiscovery) WithReport(r *report.Report) *DependencyDiscovery {
+	dd.report = r
 
 	return dd
 }
 
-// WithWorkingDir sets the working directory for determining if dependencies are external.
-func (dd *DependencyDiscovery) WithWorkingDir(workingDir string) *DependencyDiscovery {
-	dd.workingDir = workingDir
-	return dd
-}
-
-func (dd *DependencyDiscovery) DiscoverAllDependencies(
+func (dd *DependencyDiscovery) Discover(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -105,7 +90,7 @@ func (dd *DependencyDiscovery) DiscoverAllDependencies(
 		}
 
 		g.Go(func() error {
-			err := dd.DiscoverDependencies(ctx, l, opts, c, dd.maxDepth)
+			err := dd.discoverDependencies(ctx, l, opts, c, dd.maxDepth)
 			if err != nil {
 				mu.Lock()
 
@@ -129,7 +114,25 @@ func (dd *DependencyDiscovery) DiscoverAllDependencies(
 	return nil
 }
 
-func (dd *DependencyDiscovery) DiscoverDependencies(
+// markSeen marks a component path as seen.
+func (dd *DependencyDiscovery) markSeen(path string) {
+	dd.mu.Lock()
+	defer dd.mu.Unlock()
+
+	dd.seenComponents[path] = struct{}{}
+}
+
+// isSeen checks if a component path has been seen.
+func (dd *DependencyDiscovery) isSeen(path string) bool {
+	dd.mu.RLock()
+	defer dd.mu.RUnlock()
+
+	_, seen := dd.seenComponents[path]
+
+	return seen
+}
+
+func (dd *DependencyDiscovery) discoverDependencies(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -180,12 +183,22 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 
 	for _, depPath := range depPaths {
 		g.Go(func() error {
-			depComponent := dd.dependencyToDiscover(dComponent, depPath)
+			depComponent, err := dd.dependencyToDiscover(dComponent, depPath)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+
+				mu.Unlock()
+
+				return nil
+			}
+
 			if depComponent == nil {
 				return nil
 			}
 
-			err := dd.DiscoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
+			err = dd.discoverDependencies(ctx, l, opts, depComponent, depthRemaining-1)
 			if err != nil {
 				mu.Lock()
 
@@ -217,50 +230,32 @@ func (dd *DependencyDiscovery) DiscoverDependencies(
 func (dd *DependencyDiscovery) dependencyToDiscover(
 	dComponent component.Component,
 	depPath string,
-) component.Component {
+) (component.Component, error) {
+	dDiscoveryCtx := dComponent.DiscoveryContext()
+	if dDiscoveryCtx == nil {
+		return nil, NewMissingDiscoveryContextError(dComponent.Path())
+	}
+
+	if dDiscoveryCtx.WorkingDir == "" {
+		return nil, NewMissingWorkingDirectoryError(dComponent.Path())
+	}
+
 	if dd.isSeen(depPath) {
 		c := dd.components.FindByPath(depPath)
 		if c != nil {
 			dComponent.AddDependency(c)
 		}
 
-		return nil
+		return nil, nil
 	}
+
+	dd.markSeen(depPath)
 
 	c := dd.components.FindByPath(depPath)
 	if c != nil {
-		dd.markSeen(depPath)
 		dComponent.AddDependency(c)
 
-		return c
-	}
-
-	isExternal := isExternal(dd.workingDir, depPath)
-
-	// If the dependency is external and discovery is disabled, we add the dependency to our external dependencies
-	// set, ensure that we link it to the correct component, and mark it as seen.
-	if isExternal && !dd.discoverExternal {
-		existingDep := dd.externalDependencies.FindByPath(depPath)
-		if existingDep != nil {
-			dComponent.AddDependency(existingDep)
-			dd.markSeen(depPath)
-
-			return nil
-		}
-
-		depComponent := component.NewUnit(depPath)
-		depComponent.SetExternal()
-
-		if dd.discoveryContext != nil {
-			depComponent.SetDiscoveryContext(dd.discoveryContext)
-		}
-
-		existingDep, _ = dd.externalDependencies.EnsureComponent(depComponent)
-		dComponent.AddDependency(existingDep)
-
-		dd.markSeen(depPath)
-
-		return nil
+		return c, nil
 	}
 
 	// Create new component for further discovery
@@ -268,53 +263,41 @@ func (dd *DependencyDiscovery) dependencyToDiscover(
 	// TODO: This will need to change in the future to handle stacks.
 	depComponent := component.NewUnit(depPath)
 
-	if isExternal {
+	// Always use the parent component's discovery context
+	if isExternal(dDiscoveryCtx.WorkingDir, depPath) {
 		depComponent.SetExternal()
-	}
-
-	if dd.discoveryContext != nil {
-		depComponent.SetDiscoveryContext(dd.discoveryContext)
 	}
 
 	dComponent.AddDependency(depComponent)
 
-	dependencyToDiscover, _ := dd.components.EnsureComponent(depComponent)
+	dependencyToDiscover, created := dd.components.EnsureComponent(depComponent)
+	if created {
+		copiedDiscoveryCtx := dDiscoveryCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-	dd.markSeen(depPath)
+		// To be conservative, we're going to assume that users _never_ want to
+		// destroy components discovered as a consequence of graph discovery on top of
+		// Git discovery.
+		//
+		// e.g. --filter '...[HEAD^...HEAD]...' --filter-allow-destroy
+		//
+		// We're going to assume that the user's intent is to only destroy component(s) that were
+		// discovered as being removed in HEAD relative to HEAD^, and that what they want is to
+		// simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		//
+		// The dependency/dependents haven't been removed between the Git references, so what the user
+		// probably wants is to simply plan/apply the components discovered as a consequence of graph discovery
+		// from the removed component(s).
+		if copiedDiscoveryCtx.Ref != "" {
+			updatedArgs := slices.DeleteFunc(copiedDiscoveryCtx.Args, func(arg string) bool {
+				return arg == "-destroy"
+			})
 
-	return dependencyToDiscover
-}
+			copiedDiscoveryCtx.Args = updatedArgs
+		}
 
-// FindComponentByPath searches for a component by path in both main components
-// and external dependencies. Returns the component if found, nil otherwise.
-func (dd *DependencyDiscovery) FindComponentByPath(path string) component.Component {
-	c := dd.components.FindByPath(path)
-	if c != nil {
-		return c
+		depComponent.SetDiscoveryContext(copiedDiscoveryCtx)
 	}
 
-	return dd.externalDependencies.FindByPath(path)
-}
-
-// ExternalDependencies returns the external dependencies discovered during dependency discovery.
-func (dd *DependencyDiscovery) ExternalDependencies() component.Components {
-	return dd.externalDependencies.ToComponents()
-}
-
-// markSeen marks a component path as seen.
-func (dd *DependencyDiscovery) markSeen(path string) {
-	dd.mu.Lock()
-	defer dd.mu.Unlock()
-
-	dd.seenComponents[path] = struct{}{}
-}
-
-// isSeen checks if a component path has been seen.
-func (dd *DependencyDiscovery) isSeen(path string) bool {
-	dd.mu.RLock()
-	defer dd.mu.RUnlock()
-
-	_, seen := dd.seenComponents[path]
-
-	return seen
+	return dependencyToDiscover, nil
 }

@@ -7,9 +7,9 @@ import (
 	"path"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const BackendName = "s3"
@@ -65,7 +65,12 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 // Bootstrap the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Bootstrap(
+	ctx context.Context,
+	l log.Logger,
+	backendConfig backend.Config,
+	opts *options.TerragruntOptions,
+) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
@@ -83,7 +88,10 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	defer mu.Unlock()
 
 	if backend.IsConfigInited(s3Cfg) {
-		l.Debugf("%s bucket %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), bucketName)
+		l.Debugf(
+			"%s bucket %s has already been confirmed to be initialized, skipping initialization checks",
+			backend.Name(), bucketName,
+		)
 
 		return nil
 	}

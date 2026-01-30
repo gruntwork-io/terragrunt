@@ -1,69 +1,95 @@
 # Terragrunt Copilot Instructions
 
-Keep agents productive and PR-ready by following the patterns documented in `docs-starlight/src/content/docs/05-community/01-contributing.mdx`.
+Keep agents productive and PR-ready by following patterns in `docs-starlight/src/content/docs/05-community/01-contributing.mdx`.
 
-## Architecture map
-- `main.go` wires CLI startup, log configuration, and panic handling.
-- `cli/` registers commands (`run`, `stack`, `exec`, etc.) and wraps `options.TerragruntOptions`.
-- `config/` parses `terragrunt.hcl` via HCL v2 helpers (`config/hclparse`, `cty` utilities) and owns remoting/state metadata.
-- `configstack/` builds dependency-aware module graphs; `runner_pool_stack.go` is the experimental parallel executor.
-- `engine/` hosts the pluggable gRPC IaC runtime and download/cache logic.
-- `internal/` holds shared services:
-  - `internal/errors` — wrap all errors with `errors.New(err)` or `errors.Errorf(fmt, args...)` for stack traces.
-  - `internal/remotestate/backend/` — pluggable backends (S3, GCS, Azure) implementing the `Backend` interface.
-  - `internal/azure/` — interface-based Azure services (`interfaces/`, `implementations/`, `factory/`). See `internal/azure/README.md`.
-  - `internal/cache`, `internal/locks`, `internal/providercache` — caching and locking primitives.
-
-## Contribution workflow highlights
-1. **Start with an issue or RFC** so the change has buy-in (`.github/ISSUE_TEMPLATE/02-rfc.yml`).
-2. **Docs-first**: update Starlight content in `docs-starlight/` before code. Run `markdownlint --disable MD013 MD024 -- docs-starlight/src/content` locally.
-3. **Tests-first**: add failing tests, then implement. Prefer focused `go test ./path/...` and include the command + output in the PR description (link to a Gist per the guideline).
-4. **Keep configs immutable**: create new `config.TerragruntConfig` instances instead of mutating parsed structs.
-5. **Error discipline**: wrap new failures with `errors.New(err)` or `errors.Errorf(...)` from `internal/errors`; expose typed errors for callers.
-6. **Logging**: emit through `pkg/log`, passing the module-specific logger supplied by options.
-
-## Daily dev loop
-```bash
-go run main.go plan                   # quick manual smoke
-go test ./config/... ./configstack/... ./cli/...   # unit suites
-go test ./test -run 'TestAws*'        # scoped integration (set GOFLAGS tags as needed)
-golangci-lint run                     # default lint (Makefile target: make run-lint)
-golangci-lint run -c .strict.golangci.yml --new-from-rev origin/main ./...  # strict lint
-make fmtcheck && gofmt -w <files>     # formatting gate
+## Architecture Overview
+```
+main.go                    → CLI startup, panic handling, log setup
+cli/                       → Commands (run, stack, exec) via urfave/cli wrapper
+  cli/commands/            → Each command in its own package
+options/                   → TerragruntOptions: immutable config, always use Clone()
+config/                    → HCL v2 parsing for terragrunt.hcl (hclparse/, cty helpers)
+internal/
+  errors/                  → ALWAYS wrap: errors.New(err) or errors.Errorf(fmt, args...)
+  remotestate/backend/     → Backend interface: S3, GCS, azurerm
+  azure/                   → Interface-based DI (interfaces/ → implementations/ → factory/)
+  cache/, locks/           → Caching and locking primitives
+pkg/log/                   → Logging: pass Logger from options, never use pkg-level log.*
+engine/                    → Pluggable gRPC IaC runtime
 ```
 
-Windows-specific work requires long-path support and a bash shell (CI scripts live in `.github/scripts/windows-setup.ps1`).
+## Critical Patterns
 
-## Integration test matrix
-- AWS: prefix tests with `TestAws*`, enable via `GOFLAGS='-tags=aws'` and configure credentials.
-- GCP: prefix `TestGcp*`, require JSON service key (`GCLOUD_SERVICE_KEY`, `GOOGLE_CLOUD_PROJECT`, etc.).
-- Azure: configure `TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT` and run `GOFLAGS='-tags=azure' go test -v ./test/integration_azure_test.go`. See `test/helpers/azuretest/README.md` for isolation config.
-- Race tests live in `test/race_test.go` (prefix `WithRacing`); CI runs them with `-race`.
+**Options are immutable** — always clone before modification:
+```go
+newOpts := opts.Clone()  // or opts.CloneWithConfigPath(l, path)
+```
 
-## Lint triage & mechanical fixes
-- Run `golangci-lint run` locally; focus first on mechanical linters (`wsl`, `goimports`, `perfsprint`, `mnd`, `ineffassign`, `unused`) that can be resolved without semantic changes.
-- **`wsl` (whitespace/cuddling)**: add empty lines between assignments/returns and the following control block.
-- **`perfsprint`**: replace `fmt.Sprintf("%s", value)` with `value`; use `strings.Builder` for string concatenation in loops.
-- **`mnd`**: lift repeated literals into named `const` values near their usage.
-- **`paralleltest` / `tparallel` / `thelper`**: mark subtests with `t.Parallel()` unless they use `t.Setenv()`. If parallel isn't possible, add `//nolint:paralleltest` with a reason comment.
-- **`contextcheck`, `errcheck`, `errorlint`**: ensure returned contexts/errors are propagated—wrap new errors with `internal/errors` helpers and bubble them up.
-- **`unparam`**: unused function parameters should be replaced with `_` (e.g., `func foo(_ log.Logger)`).
-- After mechanical edits, run `golangci-lint run --fix --disable-all --enable=goimports --enable=gofmt` to let auto-fixable linters clean imports/formatting.
+**Error wrapping** — use `internal/errors` for stack traces:
+```go
+import "github.com/gruntwork-io/terragrunt/internal/errors"
+return errors.Errorf("failed to %s: %w", action, err)
+```
 
-## Azure backend patterns
-The Azure remote state backend (`internal/remotestate/backend/azurerm/`) follows interface-based dependency injection:
-- **Interfaces** in `internal/azure/interfaces/` define contracts (`StorageAccountService`, `BlobService`, `RBACService`).
-- **Implementations** in `internal/azure/implementations/` provide production Azure SDK wrappers.
-- **Factory** in `internal/azure/factory/` creates services via `AzureServiceFactory`.
-- When adding Azure features: define interface methods first, implement in `implementations/`, wire via factory.
-- SAS token auth is data-plane only; management operations require Azure AD or service principal.
-- For cognitive complexity issues, extract helper functions (see `extractStorageClientConfig`, `resolveSubscriptionID` patterns).
+**Logging** — pass logger through, never use global:
+```go
+func doThing(l log.Logger, opts *options.TerragruntOptions) {
+    l.Debugf("processing %s", opts.WorkingDir)
+}
+```
 
-## Ready-to-merge checklist
-- Docs updated alongside code, with markdown lint clean.
-- New/updated tests pass locally; capture output for reviewer.
-- `gofmt`, default lint, and strict lint (for touched files) are green.
-- No raw `fmt`/`log` usage; errors are wrapped; options cloned before mutation.
-- Large downloads or cache changes respect `internal/cache` and provider cache helpers.
+**Backend interface** (`internal/remotestate/backend/backend.go`):
+```go
+type Backend interface {
+    Name() string
+    NeedsBootstrap(ctx, l, config, opts) (bool, error)
+    Bootstrap(ctx, l, config, opts) error
+    // ... Delete, Migrate, GetTFInitArgs
+}
+```
 
-Following these guardrails keeps generated patches in line with maintainer expectations and speeds up review.
+## Dev Commands
+```bash
+go run main.go plan                                    # smoke test
+go test ./config/... ./cli/...                         # unit tests
+GOFLAGS='-tags=aws' go test ./test -run 'TestAws.*'    # AWS integration
+GOFLAGS='-tags=azure' go test ./test -run 'TestAzure.*' # Azure integration
+make run-lint                                          # golangci-lint
+make run-strict-lint                                   # strict lint (changed files only)
+make fmtcheck                                          # format check
+make generate-mocks                                    # regenerate mocks (go generate ./...)
+```
+
+## Test Conventions
+- **Parallel tests**: always add `t.Parallel()` unless using `t.Setenv()`
+- **Integration tests**: prefix `TestAws*`, `TestGcp*`, `TestAzure*` with build tags
+- **Azure isolation**: see `test/helpers/azuretest/README.md` for parallel-safe config
+- If parallel isn't possible: `//nolint:paralleltest` with reason comment
+
+## Lint Quick Fixes
+| Linter | Fix |
+|--------|-----|
+| `wsl` | Empty line before `if`/`for`/`switch` after assignment |
+| `perfsprint` | `fmt.Sprintf("%s", v)` → `v`; use `strings.Builder` in loops |
+| `mnd` | Magic numbers → named `const` |
+| `unparam` | Unused params → `_` (e.g., `func foo(_ log.Logger)`) |
+| `errorlint` | Use `errors.Is()`/`errors.As()`, wrap with `%w` |
+
+Auto-fix: `golangci-lint run --fix --disable-all --enable=goimports,gofmt`
+
+## Azure Backend Development
+Location: `internal/remotestate/backend/azurerm/` + `internal/azure/`
+
+1. Define interface in `internal/azure/interfaces/` (e.g., `StorageAccountService`)
+2. Implement in `internal/azure/implementations/`
+3. Wire via factory in `internal/azure/factory/`
+4. Backend uses DI: receives services via `BackendConfig`
+
+Key files: `internal/azure/README.md`, `internal/azure/CONFIGURATION.md`
+
+## PR Checklist
+- [ ] Docs in `docs-starlight/` updated; `markdownlint` clean
+- [ ] Tests added/updated; `go test` output in PR description
+- [ ] `make fmtcheck && make run-lint` pass
+- [ ] Strict lint on changed files: `make run-strict-lint`
+- [ ] Errors wrapped with `internal/errors`; options cloned, not mutated

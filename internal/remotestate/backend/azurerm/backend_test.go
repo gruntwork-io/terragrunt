@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	testing_pkg "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm/testing"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/stretchr/testify/assert"

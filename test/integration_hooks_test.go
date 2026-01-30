@@ -9,9 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/info/print"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/info/print"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +40,7 @@ func TestTerragruntHookIfParameter(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureTerragruntHookIfParameter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTerragruntHookIfParameter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureTerragruntHookIfParameter)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureTerragruntHookIfParameter)
 
 	var (
 		stdout bytes.Buffer
@@ -63,7 +62,7 @@ func TestTerragruntBeforeHook(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeOnlyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeOnlyPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeOnlyPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeOnlyPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -77,7 +76,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceNoBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceNoSourceNoBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceNoSourceNoBackend)
 
 	var (
 		stdout bytes.Buffer
@@ -92,8 +91,8 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	// With source always being "." (current directory), init-from-module executes once
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command should execute once")
 }
 
 func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
@@ -101,7 +100,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
 
 	var (
 		stdout bytes.Buffer
@@ -137,11 +136,11 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksAllPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAllPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAllPath)
-	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAllPath)
+	beforeOnlyPath := filepath.Join(rootPath, "before-only")
+	afterOnlyPath := filepath.Join(rootPath, "after-only")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
@@ -155,11 +154,11 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksAllPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAllPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAllPath)
-	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAllPath)
+	beforeOnlyPath := filepath.Join(rootPath, "before-only")
+	afterOnlyPath := filepath.Join(rootPath, "after-only")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
@@ -174,7 +173,7 @@ func TestTerragruntHookWorkingDir(t *testing.T) {
 	fixturePath := "fixtures/hooks/working_dir"
 	helpers.CleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, fixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+	rootPath := filepath.Join(tmpEnvPath, fixturePath)
 
 	helpers.RunTerragrunt(t, "terragrunt validate --non-interactive --working-dir "+rootPath)
 }
@@ -184,7 +183,7 @@ func TestTerragruntAfterHook(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksAfterOnlyPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksAfterOnlyPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAfterOnlyPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksAfterOnlyPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -198,7 +197,7 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -230,7 +229,7 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksSkipOnErrorPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksSkipOnErrorPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksSkipOnErrorPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksSkipOnErrorPath)
 
 	var (
 		stdout bytes.Buffer
@@ -259,7 +258,7 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksPath)
 
 	var (
 		stdout bytes.Buffer
@@ -286,7 +285,7 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksPath)
 	tfPath := filepath.Join(rootPath, "tf.sh")
 
 	var (
@@ -310,7 +309,7 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksOneArgActionPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksOneArgActionPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksOneArgActionPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksOneArgActionPath)
 
 	var (
 		stdout bytes.Buffer
@@ -332,7 +331,7 @@ func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksEmptyStringCommandPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksEmptyStringCommandPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksEmptyStringCommandPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksEmptyStringCommandPath)
 
 	var (
 		stdout bytes.Buffer
@@ -352,7 +351,7 @@ func TestTerragruntEmptyCommandListHook(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksEmptyCommandListPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksEmptyCommandListPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksEmptyCommandListPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksEmptyCommandListPath)
 
 	var (
 		stdout bytes.Buffer
@@ -372,7 +371,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksInterpolationsPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksInterpolationsPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInterpolationsPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInterpolationsPath)
 
 	var (
 		stdout bytes.Buffer
@@ -399,7 +398,7 @@ func TestTerragruntInfo(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
 
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}

@@ -55,6 +55,27 @@ const (
 	// DoubleStar enables the use of the `**` glob pattern as a way to match files in subdirectories.
 	// and will log a warning when using **/*
 	DoubleStar = "double-star"
+
+	// QueueExcludeExternal is the control that prevents the use of the deprecated `--queue-exclude-external` flag.
+	QueueExcludeExternal = "queue-exclude-external"
+
+	// QueueStrictInclude is the control that prevents the use of the deprecated `--queue-strict-include` flag.
+	QueueStrictInclude = "queue-strict-include"
+
+	// UnitsThatInclude is the control that prevents the use of the deprecated `--units-that-include` flag.
+	UnitsThatInclude = "units-that-include"
+
+	// DisableCommandValidation is the control that prevents the use of the deprecated `--disable-command-validation` flag.
+	DisableCommandValidation = "disable-command-validation"
+
+	// NoDestroyDependenciesCheck is the control that prevents the use of the deprecated `--no-destroy-dependencies-check` flag.
+	NoDestroyDependenciesCheck = "no-destroy-dependencies-check"
+
+	// InternalTFLint is the control that prevents the use of the deprecated embedded version of tflint.
+	InternalTFLint = "legacy-internal-tflint"
+
+	// DeprecatedHiddenFlag is the control that prevents the use of the deprecated `--hidden` flag.
+	DeprecatedHiddenFlag = "deprecated-hidden-flag"
 )
 
 //nolint:lll
@@ -208,6 +229,56 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one."),
 			Warning:     "Using `**` to select all files in a directory and its subdirectories is enabled. **/* now matches subdirectories with at least a depth of one.",
+			Status:      strict.CompletedStatus,
+		},
+		&Control{
+			Name:        QueueExcludeExternal,
+			Description: "Prevents the use of the deprecated `--queue-exclude-external` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--queue-exclude-external` flag is no longer supported. External dependencies are now excluded by default. Use --queue-include-external to include them."),
+			Warning:     "The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.",
+		},
+		&Control{
+			Name:        QueueStrictInclude,
+			Description: "Prevents the use of the deprecated `--queue-strict-include` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--queue-strict-include` flag is no longer supported. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior."),
+			Warning:     "The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.",
+		},
+		&Control{
+			Name:        UnitsThatInclude,
+			Description: "Prevents the use of the deprecated `--units-that-include` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--units-that-include` flag is no longer supported. Use `--filter='reading=<path>'` to include units that include or read the specified configuration."),
+			Warning:     "The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.",
+		},
+		&Control{
+			Name:        DisableCommandValidation,
+			Description: "Prevents the use of the deprecated `--disable-command-validation` flag. Command validation has been removed entirely.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--disable-command-validation` flag is no longer supported. Command validation has been removed entirely, and you can pass any command to `terragrunt run`."),
+			Warning:     "The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely, and you can pass any command to `terragrunt run`.",
+		},
+		&Control{
+			Name:        NoDestroyDependenciesCheck,
+			Description: "Prevents the use of the deprecated `--no-destroy-dependencies-check` flag. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--no-destroy-dependencies-check` flag is no longer supported. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations."),
+			Warning:     "The `--no-destroy-dependencies-check` flag is deprecated and will be removed in a future version of Terragrunt. This flag is now ignored. Use `--destroy-dependencies-check` to enable dependency checks during destroy operations.",
+		},
+		&Control{
+			Name:        InternalTFLint,
+			Description: "Prevents the use of the deprecated embedded version of tflint, instead treating `tflint` as a normal hook.",
+			Category:    stageCategory,
+			Error:       errors.New("The embedded version of tflint is no longer supported. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally."),
+			Warning:     "The embedded version of tflint is deprecated and will be removed in a future version of Terragrunt. Use the `--terragrunt-external-tflint` flag in your hook to opt in to running tflint externally and avoid this warning.",
+		},
+		&Control{
+			Name:        DeprecatedHiddenFlag,
+			Description: "Prevents the use of the deprecated `--hidden` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them."),
+			Warning:     "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
 		},
 	}
 

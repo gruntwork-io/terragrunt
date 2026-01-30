@@ -3,12 +3,12 @@ package remotestate
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -92,7 +92,7 @@ func (cfg *Config) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOp
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
 
-	return codegen.WriteToFile(l, opts, opts.WorkingDir, codegenConfig)
+	return codegen.WriteToFile(l, opts, opts.WorkingDir, &codegenConfig)
 }
 
 type ConfigFileGenerate struct {

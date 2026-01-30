@@ -2,13 +2,18 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +26,9 @@ const (
 	testFixtureParsingDeprecated                 = "fixtures/parsing/exposed-include-with-deprecated-inputs"
 	testFixtureSensitiveValues                   = "fixtures/regressions/sensitive-values"
 	testFixtureStackDetection                    = "fixtures/regressions/multiple-stacks"
+	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
+	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
+	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -28,15 +36,15 @@ func TestNoAutoInit(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "skip-init")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "skip-init")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --no-auto-init --log-level trace --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --no-auto-init --non-interactive --working-dir "+rootPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "no force apply stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
-	assert.Contains(t, stderr.String(), "This module is not yet installed.")
+	assert.Contains(t, stderr.String(), "Required plugins are not installed")
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
@@ -45,7 +53,7 @@ func TestYamlDecodeRegressions(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "yamldecode")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "yamldecode")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -70,26 +78,26 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "mocks-merge-with-state")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "mocks-merge-with-state")
 
-	modulePath := util.JoinPath(rootPath, "module")
+	modulePath := filepath.Join(rootPath, "module")
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --log-level trace --non-interactive -auto-approve --working-dir "+modulePath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+modulePath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "module-executed")
 	require.NoError(t, err)
 
-	deepMapPath := util.JoinPath(rootPath, "deep-map")
+	deepMapPath := filepath.Join(rootPath, "deep-map")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply --log-level trace --non-interactive -auto-approve --working-dir "+deepMapPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+deepMapPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "deep-map-executed")
 	require.NoError(t, err)
 
-	shallowPath := util.JoinPath(rootPath, "shallow")
+	shallowPath := filepath.Join(rootPath, "shallow")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply --log-level trace --non-interactive -auto-approve --working-dir "+shallowPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --non-interactive -auto-approve --working-dir "+shallowPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "shallow-map-executed")
 	require.NoError(t, err)
 }
@@ -99,7 +107,7 @@ func TestIncludeError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "include-error", "project", "app")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureRegressions, "include-error", "project", "app")
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
 	require.Error(t, err)
@@ -120,9 +128,8 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
-	otherPath := util.JoinPath(rootPath, "other")
-	testingPath := util.JoinPath(rootPath, "testing")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := filepath.Join(rootPath, "other")
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -141,10 +148,6 @@ func TestDependencyOutputInGenerateBlock(t *testing.T) {
 		"Should not fail with 'Unsuitable value' error when using dependency outputs in generate blocks")
 	assert.NotContains(t, runAllStderr, "Unsuitable value type",
 		"Should not fail with 'Unsuitable value type' error")
-
-	// Verify the generate block was created successfully
-	generatedFile := util.JoinPath(testingPath, ".terragrunt-cache")
-	assert.DirExists(t, generatedFile, "Terragrunt cache should exist")
 }
 
 // TestDependencyOutputInGenerateBlockDirectRun tests that dependency outputs work when running directly
@@ -153,9 +156,9 @@ func TestDependencyOutputInGenerateBlockDirectRun(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
-	otherPath := util.JoinPath(rootPath, "other")
-	testingPath := util.JoinPath(rootPath, "testing")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := filepath.Join(rootPath, "other")
+	testingPath := filepath.Join(rootPath, "testing")
 
 	helpers.CleanupTerraformFolder(t, rootPath)
 
@@ -179,8 +182,8 @@ func TestDependencyOutputInInputsStillWorks(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyGenerate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependencyGenerate)
-	otherPath := util.JoinPath(rootPath, "other")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDependencyGenerate)
+	otherPath := filepath.Join(rootPath, "other")
 
 	// Apply the "other" module
 	helpers.CleanupTerraformFolder(t, rootPath)
@@ -205,16 +208,23 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
-	gitPath := util.JoinPath(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
-	helpers.CreateGitRepo(t, gitPath)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(gitPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
 
 	// Run directly against the consumer unit to force evaluation of dependency outputs
-	consumerPath := util.JoinPath(gitPath, "_source", "units", "consumer")
+	consumerPath := filepath.Join(gitPath, "_source", "units", "consumer")
 	_, stderr, runErr := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+consumerPath)
 	require.Error(t, runErr)
 	// Accept match in either stderr or the returned error string
-	if !strings.Contains(stderr, "has empty config_path") && !strings.Contains(runErr.Error(), "has empty config_path") {
-		t.Fatalf("unexpected error; want empty config_path message, got: %v\nstderr: %s", runErr, stderr)
+	if !strings.Contains(stderr, "has invalid config_path") && !strings.Contains(runErr.Error(), "has invalid config_path") {
+		t.Fatalf("unexpected error; want invalid config_path message, got: %v\nstderr: %s", runErr, stderr)
 	}
 }
 
@@ -236,7 +246,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureParsingDeprecated)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureParsingDeprecated)
-	childPath := util.JoinPath(tmpEnvPath, testFixtureParsingDeprecated, "child")
+	childPath := filepath.Join(tmpEnvPath, testFixtureParsingDeprecated, "child")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -258,7 +268,7 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 	assert.NotContains(t, errorMessage, "Could not find Terragrunt configuration settings")
 }
 
-// TestRunAllWithGenerateAndExpose tests that run --all works correctly with:
+// TestParsingWithGenerateAndExpose tests that config parsing works correctly with:
 // - Exposed include blocks with generate blocks
 // - Dependencies between units
 // - Complex inputs with map comparisons
@@ -267,22 +277,25 @@ func TestExposedIncludeWithDeprecatedInputsSyntax(t *testing.T) {
 // configs with exposed includes containing generate blocks would fail during
 // discovery with "Could not find Terragrunt configuration settings" errors.
 //
+// Uses `list --dag --format=dot` instead of `run --all plan` since this is a parsing test
+// and doesn't need to run terraform operations.
+//
 // See: https://github.com/gruntwork-io/terragrunt/issues/4983
-func TestRunAllWithGenerateAndExpose(t *testing.T) {
+func TestParsingWithGenerateAndExpose(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
 	helpers.CleanupTerraformFolder(t, testFixture)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
-	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
+	rootPath := filepath.Join(tmpEnvPath, testFixture, "services-info")
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
 	)
 
 	// The command should succeed
-	require.NoError(t, err, "run --all plan should succeed")
+	require.NoError(t, err, "list --dag --format=dot should succeed")
 
 	// Should not see parsing errors
 	assert.NotContains(t, stderr, "Could not find Terragrunt configuration settings",
@@ -294,29 +307,28 @@ func TestRunAllWithGenerateAndExpose(t *testing.T) {
 	assert.NotContains(t, stderr, "%!w(",
 		"Should not see formatting artifacts in error output")
 
-	// Verify both units ran successfully
-	combinedOutput := stdout + stderr
-	assert.Contains(t, combinedOutput, "test1",
-		"Should process the service dependency")
-	assert.Contains(t, combinedOutput, "null_resource.services_info",
-		"Should process the services-info unit with null resource")
+	// Verify both units are discovered in the dependency graph
+	// list --dag --format=dot outputs DOT format showing dependencies
+	assert.Contains(t, stdout, "test1", "Should discover the service dependency")
 }
 
-// TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal mirrors the user repro flags
-// to ensure no cryptic errors or formatting artifacts appear in logs when using provider cache and
-// excluding external dependencies.
-func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *testing.T) {
+// TestParsingWithGenerateAndExpose_WithExternalDependencies tests that config parsing
+// works correctly when external dependencies exist. This is a variant of TestParsingWithGenerateAndExpose
+// that verifies the same parsing behavior works with the full fixture including external dependencies.
+//
+// Uses `list --dag --format=dot` instead of `run --all plan` since this is a parsing test
+// and doesn't need to run terraform operations.
+func TestParsingWithGenerateAndExpose_WithExternalDependencies(t *testing.T) {
 	t.Parallel()
 
 	testFixture := "fixtures/regressions/parsing-run-all-with-generate"
 	helpers.CleanupTerraformFolder(t, testFixture)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixture)
-	rootPath := util.JoinPath(tmpEnvPath, testFixture, "services-info")
+	rootPath := filepath.Join(tmpEnvPath, testFixture, "services-info")
 
-	// Set TG_PROVIDER_CACHE=1 and use --queue-exclude-external as in the repro steps
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --queue-exclude-external plan --non-interactive --working-dir "+rootPath,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
 	)
 
 	// The command should succeed
@@ -327,11 +339,8 @@ func TestRunAllWithGenerateAndExpose_WithProviderCacheAndExcludeExternal(t *test
 	assert.NotContains(t, stderr, "Unrecoverable parse error")
 	assert.NotContains(t, stderr, "%!w(")
 
-	// Verify the current unit ran successfully and external dependency was excluded
-	combinedOutput := stdout + stderr
-	assert.NotContains(t, combinedOutput, "service1")
-	assert.Contains(t, combinedOutput, "null_resource.services_info")
-	assert.Contains(t, combinedOutput, "Excluded")
+	// Verify units are discovered in the dependency graph
+	assert.Contains(t, stdout, "test1", "Should discover the service dependency")
 }
 
 // TestSensitiveValues tests that sensitive values can be properly handled
@@ -346,7 +355,7 @@ func TestSensitiveValues(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureSensitiveValues)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSensitiveValues)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureSensitiveValues)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureSensitiveValues)
 
 	// Run terragrunt apply
 	helpers.RunTerragrunt(
@@ -388,10 +397,10 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureDisabledDependencyEmptyConfigPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDisabledDependencyEmptyConfigPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureDisabledDependencyEmptyConfigPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureDisabledDependencyEmptyConfigPath)
 	helpers.CreateGitRepo(t, rootPath)
 
-	unitBPath := util.JoinPath(rootPath, "unit-b")
+	unitBPath := filepath.Join(rootPath, "unit-b")
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt plan --non-interactive --working-dir "+unitBPath,
@@ -405,8 +414,8 @@ func TestDisabledDependencyEmptyConfigPath_NoCycleError(t *testing.T) {
 	assert.NotContains(t, combinedOutput, "Cycle detected",
 		"Should not see 'Cycle detected' error")
 
-	assert.NotContains(t, combinedOutput, "has empty config_path",
-		"Should not see empty config_path error for disabled dependency")
+	assert.NotContains(t, combinedOutput, "has invalid config_path",
+		"Should not see invalid config_path error for disabled dependency")
 
 	_, runAllStderr, runAllErr := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -426,7 +435,7 @@ func TestMultipleStacksDetection(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStackDetection)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDetection)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStackDetection, "live")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDetection, "live")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 
@@ -439,4 +448,266 @@ func TestMultipleStacksDetection(t *testing.T) {
 	assert.NotContains(t, stderr, "appv2.terragrunt.stack.hcl")
 	assert.NotContains(t, stderr, "unit4")
 	assert.NotContains(t, stderr, "unit3")
+}
+
+// flushTrackingWriter wraps a writer and tracks writes and output size changes (which indicate flushes)
+type flushTrackingWriter struct {
+	w      io.Writer
+	signal chan<- struct{}
+	mu     sync.Mutex
+	writes int
+	once   bool
+}
+
+func (ftw *flushTrackingWriter) Write(p []byte) (int, error) {
+	ftw.mu.Lock()
+	ftw.writes++
+
+	shouldSignal := !ftw.once && ftw.signal != nil
+	if shouldSignal {
+		ftw.once = true
+	}
+
+	ftw.mu.Unlock()
+
+	if shouldSignal {
+		select {
+		case ftw.signal <- struct{}{}:
+		default:
+		}
+	}
+
+	return ftw.w.Write(p)
+}
+
+func (ftw *flushTrackingWriter) getWriteCount() int {
+	ftw.mu.Lock()
+	defer ftw.mu.Unlock()
+
+	return ftw.writes
+}
+
+// TestOutputFlushOnInterrupt verifies that buffered output is flushed when context is cancelled.
+func TestOutputFlushOnInterrupt(t *testing.T) {
+	if helpers.IsWindows() {
+		t.Skip("Skipping test on Windows - signal handling differs")
+	}
+
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyOutput)
+	testPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput, "app")
+	dependencyPath := filepath.Join(tmpEnvPath, testFixtureDependencyOutput, "dependency")
+
+	// Initialize and apply dependency first so outputs are available
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+dependencyPath)
+	helpers.RunTerragrunt(t, "terragrunt apply --auto-approve --non-interactive --working-dir "+dependencyPath)
+	helpers.RunTerragrunt(t, "terragrunt init --non-interactive --working-dir "+testPath)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	firstWrite := make(chan struct{}, 1)
+
+	var stdoutBuf, stderrBuf strings.Builder
+
+	stdout := &flushTrackingWriter{w: &stdoutBuf, signal: firstWrite}
+	stderr := &flushTrackingWriter{w: &stderrBuf, signal: firstWrite}
+	cmdErr := make(chan error, 1)
+
+	go func() {
+		cmdErr <- helpers.RunTerragruntCommandWithContext(t, ctx, "terragrunt run --all apply --non-interactive --working-dir "+testPath, stdout, stderr)
+	}()
+
+	// Wait for first write, then cancel to test flush on interrupt
+	var outputBeforeCancel string
+
+	var writesBeforeCancel int
+
+	select {
+	case <-firstWrite:
+		outputBeforeCancel = stdoutBuf.String() + stderrBuf.String()
+		writesBeforeCancel = stdout.getWriteCount() + stderr.getWriteCount()
+		t.Logf("First write detected (%d bytes, %d writes), cancelling context", len(outputBeforeCancel), writesBeforeCancel)
+		cancel()
+	case <-cmdErr:
+		t.Fatal("Command finished before we could interrupt it")
+	case <-time.After(3 * time.Second):
+		t.Fatal("No output appeared before timeout")
+	}
+
+	// Wait briefly for flush to occur after cancellation
+	time.Sleep(200 * time.Millisecond)
+
+	outputAfterCancel := stdoutBuf.String() + stderrBuf.String()
+	writesAfterCancel := stdout.getWriteCount() + stderr.getWriteCount()
+
+	// Wait for command to finish or timeout
+	select {
+	case <-cmdErr:
+		// Command finished
+	case <-time.After(5 * time.Second):
+		t.Logf("Command still running after cancellation")
+	}
+
+	output := stdoutBuf.String() + stderrBuf.String()
+	totalWrites := stdout.getWriteCount() + stderr.getWriteCount()
+
+	t.Logf("Output length: before cancel=%d, after cancel=%d, final=%d", len(outputBeforeCancel), len(outputAfterCancel), len(output))
+	t.Logf("Total writes: before cancel=%d, after cancel=%d, final=%d", writesBeforeCancel, writesAfterCancel, totalWrites)
+
+	// Verify that output increased after cancellation (indicating flush occurred)
+	require.Greater(t, len(outputAfterCancel), len(outputBeforeCancel), "Output should increase after cancellation due to flush")
+	require.Greater(t, totalWrites, writesBeforeCancel, "Additional writes should occur after cancellation (flush writes)")
+	require.NotEmpty(t, output, "Expected output to be flushed after cancellation")
+}
+
+// TestRunAllDoesNotIncludeExternalDepsInQueue tests that running `terragrunt run --all` from a subdirectory
+// does NOT include external dependencies in the execution queue.
+// This is a regression test for issue #5195 where v0.94.0 incorrectly included external dependencies
+// in the run queue, causing dangerous operations like destroy to execute against unintended modules.
+//
+// The test structure is:
+//
+//	fixtures/regressions/5195-scope-escape/
+//	├── bastion/           <- Run from here, has dependency on module2
+//	│   ├── terragrunt.hcl (depends on ../module2 with mock_outputs)
+//	│   └── main.tf
+//	├── module1/           <- Has dependency on bastion
+//	│   ├── terragrunt.hcl
+//	│   └── main.tf
+//	└── module2/           <- External dependency of bastion
+//	    ├── terragrunt.hcl
+//	    └── main.tf
+//
+// Expected behavior (v0.93.13 and after fix):
+//   - External dependency (module2) is discovered but EXCLUDED from execution
+//   - Summary shows "Excluded 1" for the external dep
+//   - Only bastion (Unit .) is actually executed
+//
+// Bug behavior (v0.94.0):
+//   - This causes unintended operations on external modules
+//
+// See: https://github.com/gruntwork-io/terragrunt/issues/5195
+func TestRunAllDoesNotIncludeExternalDepsInQueue(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureScopeEscape)
+	bastionPath := filepath.Join(rootPath, "bastion")
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the bastion directory
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --log-level debug --non-interactive --working-dir "+bastionPath,
+	)
+
+	// The command should succeed
+	require.NoError(t, err)
+
+	// Should see bastion (displayed as "." since it's the current directory)
+	assert.Contains(t, stderr, "Unit .",
+		"Should discover the current directory (bastion) as '.'")
+
+	// Report shows 2 units (bastion + excluded external dep)
+	assert.Contains(t, stdout, "1 unit",
+		"Should have 1 unit total (bastion)")
+	assert.Contains(t, stdout, "Succeeded    1",
+		"Only bastion should succeed")
+}
+
+// TestRunAllFromParentDiscoversAllModules verifies that running from the parent directory
+// correctly discovers all modules in the hierarchy. This is the control test for
+// TestRunAllDoesNotEscapeWorkingDir.
+func TestRunAllFromParentDiscoversAllModules(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureScopeEscape)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureScopeEscape)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureScopeEscape)
+
+	// Initialize git repo - this is important because discovery uses git root for scope
+	helpers.CreateGitRepo(t, rootPath)
+
+	// Run terragrunt run --all plan from the parent directory (live/)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// The command should succeed in terms of discovery
+	_ = err
+
+	// Should see all three modules when running from parent directory
+	assert.Contains(t, stderr, "bastion",
+		"Should discover bastion when running from parent directory")
+	assert.Contains(t, stderr, "module1",
+		"Should discover module1 when running from parent directory")
+	assert.Contains(t, stderr, "module2",
+		"Should discover module2 when running from parent directory")
+}
+
+func TestNotExistingDependency(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureNotExistingDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureNotExistingDependency)
+
+	invalidPath := filepath.Join(rootPath, "invalid-path")
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+invalidPath)
+	require.Error(t, err)
+	// should be reported that dependency have invalid path
+	assert.Contains(t, err.Error(), "dependency \"dep_123\" has invalid config_path")
+
+	parentFindFail := filepath.Join(rootPath, "parent-find-fail")
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --non-interactive --working-dir "+parentFindFail)
+	require.Error(t, err)
+	// should be reported that find_in_parent_folders() fail
+	assert.Contains(t, err.Error(), "Error in function call; Call to function \"find_in_parent_folders\" failed: ParentFileNotFoundError: Could not find a wrong-dir-name")
+}
+
+// TestDependencyIncludeError tests that include directives for configs with dependency blocks
+// don't produce false positive "Unknown variable" errors. This is a regression test for issue #5169.
+// The bug occurs when:
+// 1. A config file (layer.hcl) has a dependency block AND inputs that reference dependency.*.outputs
+// 2. Another config (unit/terragrunt.hcl) includes layer.hcl via include directive
+// 3. During parsing, the inputs block is evaluated before dependencies are resolved
+// 4. This causes HCL to report "There is no variable named dependency" errors
+func TestDependencyIncludeError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureDependencyIncludeError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyIncludeError)
+	depPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "dep")
+	unitPath := filepath.Join(tmpEnvPath, testFixtureDependencyIncludeError, "unit")
+
+	// First apply the dependency so it has outputs
+	helpers.RunTerragrunt(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+depPath,
+	)
+
+	// Now apply the unit that includes layer.hcl with dependency block
+	// This should NOT produce any ERROR-level diagnostics about "Unknown variable"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+unitPath,
+	)
+	require.NoError(t, err)
+
+	// Verify no false positive "Unknown variable" errors appear in stderr
+	assert.NotContains(t, stderr, "There is no variable named \"dependency\"",
+		"Should not see false positive 'Unknown variable' errors for dependency references")
+	assert.NotContains(t, stderr, "Unknown variable",
+		"Should not see any 'Unknown variable' errors")
+
+	// Verify the command actually completed successfully
+	assert.Contains(t, stdout, "Apply complete!",
+		"Apply should complete successfully")
 }

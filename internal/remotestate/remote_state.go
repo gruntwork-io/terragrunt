@@ -7,124 +7,46 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// Initialize backends with only the stable ones by default
 var backends = backend.Backends{
 	s3.NewBackend(),
 	gcs.NewBackend(),
-}
-
-// Init function runs when the remotestate package is loaded
-func init() {
-	// Register the RegisterBackends function as a hook to be called when options
-	// are finalized in the cli package
-	options.RegisterHook(RegisterBackends)
-}
-
-// RegisterBackends conditionally registers all backends based on experiment flags
-func RegisterBackends(ctx context.Context, opts *options.TerragruntOptions) {
-	// Register experimental backends if enabled
-	if opts.Experiments.Evaluate(experiment.AzureBackend) {
-		backends = append(backends, azurerm.NewBackendWithContext(ctx, nil))
-	}
+	azurerm.NewBackend(nil),
 }
 
 // RemoteState is the configuration for Terraform remote state.
 type RemoteState struct {
-	// Put map first
-	Encryption map[string]any `mapstructure:"encryption"`
-	// Put pointers together
-	Generate *ConfigGenerate `mapstructure:"generate"`
-	backend  backend.Backend
-	// Struct after pointers
-	BackendConfig backend.Config `mapstructure:"config"`
-	// String field
-	BackendName string `mapstructure:"backend"`
-	// Bool fields at the end
-	DisableInit                   bool `mapstructure:"disable_init"`
-	DisableDependencyOptimization bool `mapstructure:"disable_dependency_optimization"`
-	// Add padding to optimize struct size
-	_ [6]byte // padding to align to 8-byte boundary
+	*Config `mapstructure:",squash"`
+	backend backend.Backend
 }
 
 // New creates a new `RemoteState` instance.
 func New(config *Config) *RemoteState {
 	remote := &RemoteState{
-		BackendConfig:                 config.BackendConfig,
-		Generate:                      config.Generate,
-		Encryption:                    config.Encryption,
-		BackendName:                   config.BackendName,
-		DisableInit:                   config.DisableInit,
-		DisableDependencyOptimization: config.DisableDependencyOptimization,
-		backend:                       backend.NewCommonBackend(config.BackendName),
+		Config:  config,
+		backend: backend.NewCommonBackend(config.BackendName),
 	}
 
 	if backend := backends.Get(config.BackendName); backend != nil {
 		remote.backend = backend
-	} else if config.BackendName == azurerm.BackendName {
-		// If Azure backend was requested but not registered (experiment not enabled), provide a helpful error
-		remote.backend = &experimentalAzureBackend{config.BackendName}
 	}
 
 	return remote
 }
 
-// experimentalAzureBackend is a placeholder backend that returns an informative error
-// when the Azure backend is used without enabling the experiment
-type experimentalAzureBackend struct {
-	name string
+// String implements `fmt.Stringer` interface.
+func (remote *RemoteState) String() string {
+	return remote.Config.String()
 }
 
-func (b *experimentalAzureBackend) Name() string {
-	return b.name
-}
-
-func (b *experimentalAzureBackend) GetTFInitArgs(config backend.Config) map[string]any {
-	return map[string]any{}
-}
-
-func (b *experimentalAzureBackend) Bootstrap(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) error {
-	return azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) NeedsBootstrap(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	return false, azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) IsVersionControlEnabled(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) (bool, error) {
-	return false, azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) Delete(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) error {
-	return azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) DeleteBucket(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) error {
-	return azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) DeleteStorageAccount(ctx context.Context, l log.Logger, config backend.Config, opts *options.TerragruntOptions) error {
-	return azureBackendExperimentError()
-}
-
-func (b *experimentalAzureBackend) Migrate(ctx context.Context, l log.Logger, srcConfig backend.Config, dstConfig backend.Config, opts *options.TerragruntOptions) error {
-	return azureBackendExperimentError()
-}
-
-func azureBackendExperimentError() error {
-	return errors.New("Azure backend is an experimental feature. Enable it with --experiment azure-backend flag or TG_EXPERIMENT=azure-backend environment variable")
-}
-
-// IsVersionControlEnabled checks if versioning is enabled for the remote state.
 func (remote *RemoteState) IsVersionControlEnabled(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (bool, error) {
 	l.Debugf("Checking if version control is enabled for the %s backend", remote.BackendName)
 
@@ -208,7 +130,7 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 
 	config := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	backendConfigArgs := make([]string, 0, len(config))
+	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
@@ -218,17 +140,11 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	return backendConfigArgs
 }
 
+// GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
 func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	// Convert RemoteState to Config and delegate
-	config := &Config{
-		BackendName: remote.BackendName,
-		Generate:    remote.Generate,
-		Encryption:  remote.Encryption,
-	}
-
-	return config.GenerateOpenTofuCode(l, opts, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(l, opts, backendConfig)
 }
 
 func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
@@ -265,12 +181,4 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
 	return tf.RunCommand(ctx, l, opts, args...)
-}
-
-// UpdateBackend updates the backend for this RemoteState if a matching backend is now available.
-// This is useful when experiment flags are changed after the RemoteState was initially created.
-func (remote *RemoteState) UpdateBackend() {
-	if backend := backends.Get(remote.BackendName); backend != nil {
-		remote.backend = backend
-	}
 }

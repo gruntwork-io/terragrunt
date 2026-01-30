@@ -3,9 +3,9 @@ package filter_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -24,48 +24,74 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		component.NewUnit("./apps/subdir/nested"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
-		filter   *filter.PathFilter
+		filter   *filter.PathExpression
 		expected []component.Component
 	}{
 		{
 			name:   "exact path match",
-			filter: &filter.PathFilter{Value: "./apps/app1"},
+			filter: &filter.PathExpression{Value: "./apps/app1"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with single wildcard",
-			filter: &filter.PathFilter{Value: "./apps/*"},
+			filter: &filter.PathExpression{Value: "./apps/*"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with single wildcard and partial match",
-			filter: &filter.PathFilter{Value: "./apps/app*"},
+			filter: &filter.PathExpression{Value: "./apps/app*"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:   "glob with recursive wildcard",
-			filter: &filter.PathFilter{Value: "./apps/**"},
+			filter: &filter.PathExpression{Value: "./apps/**"},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
-				component.NewUnit("./apps/subdir/nested"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/subdir/nested").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name:     "no matches",
-			filter:   &filter.PathFilter{Value: "./nonexistent/*"},
+			filter:   &filter.PathExpression{Value: "./nonexistent/*"},
 			expected: []component.Component{},
 		},
 	}
@@ -96,19 +122,19 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "name filter single match",
-			filter: &filter.AttributeFilter{Key: "name", Value: "db"},
+			filter: &filter.AttributeExpression{Key: "name", Value: "db"},
 			expected: []component.Component{
 				component.NewUnit("./libs/db"),
 			},
 		},
 		{
 			name:   "name filter multiple matches",
-			filter: &filter.AttributeFilter{Key: "name", Value: "app"},
+			filter: &filter.AttributeExpression{Key: "name", Value: "app"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -116,12 +142,12 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:     "name filter no matches",
-			filter:   &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+			filter:   &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "type filter unit",
-			filter: &filter.AttributeFilter{Key: "type", Value: "unit"},
+			filter: &filter.AttributeExpression{Key: "type", Value: "unit"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -131,7 +157,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:   "type filter stack",
-			filter: &filter.AttributeFilter{Key: "type", Value: "stack"},
+			filter: &filter.AttributeExpression{Key: "type", Value: "stack"},
 			expected: []component.Component{
 				component.NewStack("./libs/api"),
 			},
@@ -157,7 +183,7 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 		component.NewUnit("./apps/app"),
 	}
 
-	attrFilter := &filter.AttributeFilter{Key: "invalid", Value: "foo"}
+	attrFilter := &filter.AttributeExpression{Key: "invalid", Value: "foo"}
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 
@@ -180,19 +206,19 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "exact file path match - single match",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "database.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "database.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./libs/db").WithReading("database.hcl"),
 			},
 		},
 		{
 			name:   "exact file path match - multiple matches",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "shared.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "shared.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -201,12 +227,12 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:     "exact file path match - no matches",
-			filter:   &filter.AttributeFilter{Key: "reading", Value: "nonexistent.hcl"},
+			filter:   &filter.AttributeExpression{Key: "reading", Value: "nonexistent.hcl"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with single wildcard - *.hcl",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "*.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -216,7 +242,7 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with prefix - shared*",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "shared*"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "shared*"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -225,19 +251,19 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with double wildcard - **/variables.hcl",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "**/variables.hcl"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "**/variables.hcl"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
 			},
 		},
 		{
 			name:     "empty Reading slice - no matches",
-			filter:   &filter.AttributeFilter{Key: "reading", Value: "*.hcl"},
+			filter:   &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with question mark - config.???l",
-			filter: &filter.AttributeFilter{Key: "reading", Value: "config.???l"},
+			filter: &filter.AttributeExpression{Key: "reading", Value: "config.???l"},
 			expected: []component.Component{
 				component.NewUnit("./apps/app3").WithReading("config.yaml", "settings.json"),
 			},
@@ -287,26 +313,26 @@ func TestEvaluate_AttributeFilter_Source(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *filter.AttributeFilter
+		filter   *filter.AttributeExpression
 		expected []component.Component
 	}{
 		{
 			name:   "glob pattern with single wildcard - github.com/acme/*",
-			filter: &filter.AttributeFilter{Key: "source", Value: "github.com/acme/*"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "github.com/acme/*"},
 			expected: []component.Component{
 				components[0],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - git::git@github.com:acme/**",
-			filter: &filter.AttributeFilter{Key: "source", Value: "git::git@github.com:acme/**"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "git::git@github.com:acme/**"},
 			expected: []component.Component{
 				components[1],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - **github.com**",
-			filter: &filter.AttributeFilter{Key: "source", Value: "**github.com**"},
+			filter: &filter.AttributeExpression{Key: "source", Value: "**github.com**"},
 			expected: []component.Component{
 				components[0],
 				components[1],
@@ -334,7 +360,7 @@ func TestEvaluate_AttributeFilter_Reading_ComponentAddedOnlyOnce(t *testing.T) {
 	}
 
 	// This glob should match multiple files in the Reading slice, but component should only be added once
-	attrFilter := &filter.AttributeFilter{Key: "reading", Value: "shared*"}
+	attrFilter := &filter.AttributeExpression{Key: "reading", Value: "shared*"}
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 	require.NoError(t, err)
@@ -354,6 +380,12 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 		component.NewUnit("./libs/db"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     *filter.PrefixExpression
@@ -363,41 +395,55 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by name",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "exclude by path",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/legacy"},
+				Right:    &filter.PathExpression{Value: "./apps/legacy"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "exclude by glob",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathFilter{Value: "./apps/*"},
+				Right:    &filter.PathExpression{Value: "./apps/*"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./libs/db"),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "exclude all (double negation effect)",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "type", Value: "unit"},
+				Right:    &filter.AttributeExpression{Key: "type", Value: "unit"},
 			},
 			expected: []component.Component{},
 		},
@@ -405,7 +451,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude nothing",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "nonexistent"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			},
 			expected: components,
 		},
@@ -434,6 +480,12 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		component.NewUnit("./libs/api"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     *filter.InfixExpression
@@ -442,40 +494,44 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection of path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "intersection with no overlap",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "db"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "db"},
 			},
 			expected: []component.Component{},
 		},
 		{
 			name: "intersection of exact path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/app1"},
+				Left:     &filter.PathExpression{Value: "./apps/app1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "intersection of empty results",
 			expr: &filter.InfixExpression{
-				Left:     &filter.AttributeFilter{Key: "name", Value: "nonexistent1"},
+				Left:     &filter.AttributeExpression{Key: "name", Value: "nonexistent1"},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{},
 		},
@@ -505,6 +561,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		component.NewUnit("./special/unit"),
 	}
 
+	for _, c := range components {
+		c.SetDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		})
+	}
+
 	tests := []struct {
 		name     string
 		expr     filter.Expression
@@ -513,16 +575,20 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		{
 			name: "intersection with negation (refinement)",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathFilter{Value: "./apps/*"},
+				Left:     &filter.PathExpression{Value: "./apps/*"},
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "legacy"},
+					Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
-				component.NewUnit("./apps/app2"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
@@ -530,32 +596,44 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			expr: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+					Left:     &filter.PathExpression{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+					Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 				},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app2"),
-				component.NewUnit("./apps/legacy"),
-				component.NewUnit("./libs/db"),
-				component.NewUnit("./libs/api"),
-				component.NewUnit("./special/unit"),
+				component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
+				component.NewUnit("./special/unit").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 		{
 			name: "chained intersections (multiple refinements)",
 			expr: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
-					Left:     &filter.PathFilter{Value: "./apps/*"},
+					Left:     &filter.PathExpression{Value: "./apps/*"},
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeFilter{Key: "name", Value: "legacy"}},
+					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeExpression{Key: "name", Value: "legacy"}},
 				},
 				Operator: "|",
-				Right:    &filter.AttributeFilter{Key: "name", Value: "app1"},
+				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
 			},
 			expected: []component.Component{
-				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+					WorkingDir: ".",
+				}),
 			},
 		},
 	}
@@ -590,7 +668,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("empty components list", func(t *testing.T) {
 		t.Parallel()
 
-		expr := &filter.AttributeFilter{Key: "name", Value: "foo"}
+		expr := &filter.AttributeExpression{Key: "name", Value: "foo"}
 		l := log.New()
 		result, err := filter.Evaluate(l, expr, []component.Component{})
 
@@ -602,7 +680,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 		t.Parallel()
 
 		components := []component.Component{component.NewUnit("./app")}
-		expr := &filter.PathFilter{Value: "[invalid-glob"}
+		expr := &filter.PathExpression{Value: "[invalid-glob"}
 		l := log.New()
 		result, err := filter.Evaluate(l, expr, components)
 
@@ -616,70 +694,142 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 	t.Parallel()
 
 	// Create a component graph: vpc -> db -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	app := component.NewUnit("./app")
-
-	// Set up dependencies: app depends on db, db depends on vpc
-	app.AddDependency(db)
-	db.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, app}
 
 	tests := []struct {
-		name     string
 		expr     *filter.GraphExpression
-		expected []component.Component
+		setup    func() []component.Component
+		name     string
+		expected []string
 	}{
 		{
 			name: "dependency traversal - app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{app, db, vpc},
+			expected: []string{"./app", "./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "dependent traversal - ...vpc",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "vpc", WorkingDir: "."},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
 				IncludeDependencies: false,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{vpc, db, app},
+			expected: []string{"./vpc", "./db", "./app"},
+			setup: func() []component.Component {
+				vpc := component.NewUnit("./vpc")
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "both directions - ...db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
 			},
-			expected: []component.Component{db, vpc, app},
+			expected: []string{"./db", "./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target - ^app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{db, vpc},
+			expected: []string{"./db", "./vpc"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				dbCtx := &component.DiscoveryContext{}
+				dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+				app := component.NewUnit("./app")
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 		{
 			name: "exclude target with dependents - ...^db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeFilter{Key: "name", Value: "db", WorkingDir: "."},
+				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
 			},
-			expected: []component.Component{vpc, app},
+			expected: []string{"./vpc", "./app"},
+			setup: func() []component.Component {
+				vpcCtx := &component.DiscoveryContext{}
+				vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+				db := component.NewUnit("./db")
+
+				appCtx := &component.DiscoveryContext{}
+				appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+				app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+				app.AddDependency(db)
+				db.AddDependency(vpc)
+
+				return []component.Component{vpc, db, app}
+			},
 		},
 	}
 
@@ -687,10 +837,25 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			components := tt.setup()
+
+			expected := make([]component.Component, 0, len(tt.expected))
+
+			expectedMap := make(map[string]bool)
+			for _, path := range tt.expected {
+				expectedMap[path] = true
+			}
+
+			for _, c := range components {
+				if expectedMap[c.Path()] {
+					expected = append(expected, c)
+				}
+			}
+
 			l := log.New()
 			result, err := filter.Evaluate(l, tt.expr, components)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.expected, result)
+			assert.ElementsMatch(t, expected, result)
 		})
 	}
 }
@@ -700,23 +865,33 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 
 	// Create a more complex graph:
 	// vpc -> [db, cache] -> app
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	cache := component.NewUnit("./cache")
-	app := component.NewUnit("./app")
-
-	app.AddDependency(db)
-	app.AddDependency(cache)
-	db.AddDependency(vpc)
-	cache.AddDependency(vpc)
-
-	components := []component.Component{vpc, db, cache, app}
 
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
 
+		vpcCtx := &component.DiscoveryContext{}
+		vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
+
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "app", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -731,8 +906,29 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
 
+		vpc := component.NewUnit("./vpc")
+
+		dbCtx := &component.DiscoveryContext{}
+		dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+		cacheCtx := &component.DiscoveryContext{}
+		cacheCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		cache := component.NewUnit("./cache").WithDiscoveryContext(cacheCtx)
+
+		appCtx := &component.DiscoveryContext{}
+		appCtx.SuggestOrigin(component.OriginGraphDiscovery)
+		app := component.NewUnit("./app").WithDiscoveryContext(appCtx)
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		components := []component.Component{vpc, db, cache, app}
+
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "vpc", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -757,7 +953,7 @@ func TestEvaluate_GraphExpression_EmptyResults(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "nonexistent", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
 			IncludeDependencies: true,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -783,7 +979,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -799,7 +995,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "isolated", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -818,7 +1014,10 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 	// Create a circular dependency: a -> b -> a
 	// The traversal should not infinite loop
 	a := component.NewUnit("./a")
-	b := component.NewUnit("./b")
+
+	bCtx := &component.DiscoveryContext{}
+	bCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b := component.NewUnit("./b").WithDiscoveryContext(bCtx)
 
 	a.AddDependency(b)
 	b.AddDependency(a)
@@ -829,7 +1028,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -847,7 +1046,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeFilter{Key: "name", Value: "a", WorkingDir: "."},
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -865,9 +1064,21 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	t.Parallel()
 
-	vpc := component.NewUnit("./vpc")
-	db := component.NewUnit("./db")
-	app := component.NewUnit("./app")
+	vpcCtx := &component.DiscoveryContext{
+		WorkingDir: ".",
+	}
+	vpcCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	vpc := component.NewUnit("./vpc").WithDiscoveryContext(vpcCtx)
+
+	dbCtx := &component.DiscoveryContext{
+		WorkingDir: ".",
+	}
+	dbCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	db := component.NewUnit("./db").WithDiscoveryContext(dbCtx)
+
+	app := component.NewUnit("./app").WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	})
 
 	app.AddDependency(db)
 	db.AddDependency(vpc)
@@ -878,7 +1089,7 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.PathFilter{Value: "./app", WorkingDir: "."},
+			Target:              &filter.PathExpression{Value: "./app"},
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -888,5 +1099,835 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		result, err := filter.Evaluate(l, expr, components)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []component.Component{app, db, vpc}, result)
+	})
+}
+
+func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
+	t.Parallel()
+
+	// Create a component graph: a -> b -> c -> d
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+
+	// Set up dependencies: d depends on c, c depends on b, b depends on a
+	d.AddDependency(c)
+	c.AddDependency(b)
+	b.AddDependency(a)
+
+	components := []component.Component{a, b, c, d}
+
+	t.Run("depth 1 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c}, result)
+	})
+
+	t.Run("depth 2 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b}, result)
+	})
+
+	t.Run("depth 1 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b}, result)
+	})
+
+	t.Run("depth 2 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b, c}, result)
+	})
+
+	t.Run("unlimited depth (0) traverses all", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     0,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b, a}, result)
+	})
+}
+
+func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
+	t.Parallel()
+
+	// Graph structure:
+	//   targetA (2 hops from shared) --> intermediate --> shared --> deep1 --> deep2
+	//   targetB (1 hop from shared) --> shared
+	//
+	// With depth=2:
+	//   - From targetA: can reach intermediate, shared (2 hops)
+	//   - From targetB: can reach shared, deep1 (2 hops)
+	//   - Result should include deep1 even though targetA reaches shared first with less remaining depth
+
+	ctx := &component.DiscoveryContext{WorkingDir: "."}
+
+	targetA := component.NewUnit("./targetA").WithDiscoveryContext(ctx)
+	targetB := component.NewUnit("./targetB").WithDiscoveryContext(ctx)
+	intermediate := component.NewUnit("./intermediate").WithDiscoveryContext(ctx)
+	shared := component.NewUnit("./shared").WithDiscoveryContext(ctx)
+	deep1 := component.NewUnit("./deep1").WithDiscoveryContext(ctx)
+	deep2 := component.NewUnit("./deep2").WithDiscoveryContext(ctx)
+
+	// Set up dependencies
+	targetA.AddDependency(intermediate)
+	intermediate.AddDependency(shared)
+	targetB.AddDependency(shared)
+	shared.AddDependency(deep1)
+	deep1.AddDependency(deep2)
+
+	components := []component.Component{targetA, targetB, intermediate, shared, deep1, deep2}
+
+	t.Run("multiple targets with shared dependency at different distances", func(t *testing.T) {
+		t.Parallel()
+
+		// Match both targetA and targetB using glob
+		expr := &filter.GraphExpression{
+			Target:              &filter.PathExpression{Value: "./target*"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		// Should include: targetA, targetB, intermediate (1 hop from A), shared (2 hops from A, 1 from B), deep1 (2 hops from B)
+		// Should NOT include: deep2 (3 hops from B, too deep)
+		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
+	})
+}
+
+func TestEvaluate_GitFilter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		fromRef   string
+		toRef     string
+		setup     func() []component.Component
+		expected  []component.Component
+		wantError bool
+	}{
+		{
+			name:    "components without DiscoveryContext are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				return []component.Component{
+					component.NewUnit("./apps/app1"),
+					component.NewUnit("./apps/app2"),
+					component.NewUnit("./libs/db"),
+				}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "components with empty Ref are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
+				return []component.Component{app1, app2}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "components with Ref matching FromRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
+		{
+			name:    "components with Ref matching ToRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
+		{
+			name:    "components with Ref matching either FromRef or ToRef are included",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
+				api := component.NewUnit("./libs/api")
+				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+				return []component.Component{app1, app2, db, api}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./apps/app2"),
+				component.NewUnit("./libs/api"),
+			},
+		},
+		{
+			name:    "components with Ref not matching either are filtered out",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
+				app2 := component.NewUnit("./apps/app2")
+				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "develop"})
+
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "release"})
+
+				return []component.Component{app1, app2, db}
+			},
+			expected: []component.Component{},
+		},
+		{
+			name:    "mixed components with and without DiscoveryContext",
+			fromRef: "main",
+			toRef:   "HEAD",
+			setup: func() []component.Component {
+				app1 := component.NewUnit("./apps/app1")
+				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
+				app2 := component.NewUnit("./apps/app2")
+				// No DiscoveryContext set
+
+				db := component.NewUnit("./libs/db")
+				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
+				api := component.NewUnit("./libs/api")
+				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
+				return []component.Component{app1, app2, db, api}
+			},
+			expected: []component.Component{
+				component.NewUnit("./apps/app1"),
+				component.NewUnit("./libs/db"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gitFilter := filter.NewGitExpression(tt.fromRef, tt.toRef)
+			components := tt.setup()
+
+			l := log.New()
+			result, err := filter.Evaluate(l, gitFilter, components)
+
+			if tt.wantError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				require.NoError(t, err)
+
+				resultPaths := make([]string, len(result))
+				for i, c := range result {
+					resultPaths[i] = c.Path()
+				}
+
+				expectedPaths := make([]string, len(tt.expected))
+				for i, c := range tt.expected {
+					expectedPaths[i] = c.Path()
+				}
+
+				assert.ElementsMatch(t, expectedPaths, resultPaths)
+			}
+		})
+	}
+}
+
+func TestEvaluate_GitFilterString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		filter   *filter.GitExpression
+		expected string
+	}{
+		{
+			name:     "two references",
+			filter:   filter.NewGitExpression("main", "HEAD"),
+			expected: "[main...HEAD]",
+		},
+		{
+			name:     "commit SHA references",
+			filter:   filter.NewGitExpression("abc123", "def456"),
+			expected: "[abc123...def456]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.filter.String())
+		})
+	}
+}
+
+func TestGitFilter_RequiresDiscovery(t *testing.T) {
+	t.Parallel()
+
+	gitFilter := filter.NewGitExpression("main", "HEAD")
+
+	expr, requires := gitFilter.RequiresDiscovery()
+	assert.True(t, requires)
+	assert.Equal(t, gitFilter, expr)
+}
+
+func TestGitFilter_RequiresParse(t *testing.T) {
+	t.Parallel()
+
+	gitFilter := filter.NewGitExpression("main", "HEAD")
+
+	expr, requires := gitFilter.RequiresParse()
+	assert.False(t, requires)
+	assert.Nil(t, expr)
+}
+
+// TestEvaluate_GraphExpressionWithGitExpressionTarget tests evaluating GraphExpressions
+// where the target is a GitExpression.
+//
+// e.g.
+// `... [main...commit] ...`
+func TestEvaluate_GraphExpressionWithGitExpressionTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dependencies of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./vpc"},
+			resultPaths,
+			"Should include db (git-matched) and vpc (its dependency)",
+		)
+	})
+
+	t.Run("dependents of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched) and app (its dependent)",
+		)
+	})
+
+	t.Run("both directions of git-changed component", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include db (git-matched), vpc (dependency), and app (dependent)",
+		)
+	})
+
+	t.Run("no components match git filter - returns empty", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		assert.Empty(t, result, "Should return empty when no components match git filter")
+	})
+
+	t.Run("multiple git-changed components with shared dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		cache := component.NewUnit("./cache")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		app.AddDependency(cache)
+		db.AddDependency(vpc)
+		cache.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		discoveryCtx = &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		cache.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, cache, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./cache", "./app"},
+			resultPaths,
+			"Should include all components connected to git-changed components",
+		)
+	})
+
+	t.Run("exclude target with git expression", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       true,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc"},
+			resultPaths,
+			"Should include only vpc (dependency), excluding db (target)",
+		)
+	})
+
+	t.Run("git-changed component with Ref matching FromRef", func(t *testing.T) {
+		t.Parallel()
+
+		vpc := component.NewUnit("./vpc")
+		db := component.NewUnit("./db")
+		app := component.NewUnit("./app")
+
+		app.AddDependency(db)
+		db.AddDependency(vpc)
+
+		discoveryCtx := &component.DiscoveryContext{Ref: "main"}
+		discoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+
+		db.SetDiscoveryContext(discoveryCtx)
+
+		graphDiscoveryCtx := &component.DiscoveryContext{}
+		graphDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+
+		vpc.SetDiscoveryContext(graphDiscoveryCtx)
+		app.SetDiscoveryContext(graphDiscoveryCtx)
+
+		components := []component.Component{vpc, db, app}
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, c := range result {
+			resultPaths[i] = c.Path()
+		}
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./vpc", "./db", "./app"},
+			resultPaths,
+			"Should include components when Ref matches FromRef",
+		)
+	})
+}
+
+// TestEvaluate_GraphExpressionWithGitTarget_DependencyChain tests that dependency
+// traversal works correctly through a chain when the starting component is git-matched.
+func TestEvaluate_GraphExpressionWithGitTarget_DependencyChain(t *testing.T) {
+	t.Parallel()
+
+	// Create a longer chain: a -> b -> c -> d -> e
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+	e := component.NewUnit("./e")
+
+	a.AddDependency(b)
+	b.AddDependency(c)
+	c.AddDependency(d)
+	d.AddDependency(e)
+
+	aDiscoveryCtx := &component.DiscoveryContext{}
+	aDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	a.SetDiscoveryContext(aDiscoveryCtx)
+
+	bDiscoveryCtx := &component.DiscoveryContext{}
+	bDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	b.SetDiscoveryContext(bDiscoveryCtx)
+
+	cDiscoveryCtx := &component.DiscoveryContext{Ref: "HEAD"}
+	cDiscoveryCtx.SuggestOrigin(component.OriginWorktreeDiscovery)
+	c.SetDiscoveryContext(cDiscoveryCtx)
+
+	dDiscoveryCtx := &component.DiscoveryContext{}
+	dDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	d.SetDiscoveryContext(dDiscoveryCtx)
+
+	eDiscoveryCtx := &component.DiscoveryContext{}
+	eDiscoveryCtx.SuggestOrigin(component.OriginGraphDiscovery)
+	e.SetDiscoveryContext(eDiscoveryCtx)
+
+	components := []component.Component{a, b, c, d, e}
+
+	t.Run("dependencies traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		assert.ElementsMatch(t, []string{"./c", "./d", "./e"}, resultPaths)
+	})
+
+	t.Run("dependents traverse the full chain", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(t, []string{"./a", "./b", "./c"}, resultPaths)
+	})
+
+	t.Run("both directions traverse the full graph", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              filter.NewGitExpression("main", "HEAD"),
+			IncludeDependencies: true,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		resultPaths := make([]string, len(result))
+		for i, comp := range result {
+			resultPaths[i] = comp.Path()
+		}
+
+		t.Logf("Result paths: %v", resultPaths)
+
+		assert.ElementsMatch(
+			t,
+			[]string{"./a", "./b", "./c", "./d", "./e"},
+			resultPaths,
+		)
 	})
 }
