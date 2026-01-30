@@ -62,13 +62,11 @@ const (
 )
 
 const (
-	ReasonRetrySucceeded  Reason = "retry succeeded"
-	ReasonErrorIgnored    Reason = "error ignored"
-	ReasonRunError        Reason = "run error"
-	ReasonExcludeDir      Reason = "--queue-exclude-dir"
-	ReasonExcludeBlock    Reason = "exclude block"
-	ReasonExcludeExternal Reason = "--queue-exclude-external"
-	ReasonAncestorError   Reason = "ancestor error"
+	ReasonRetrySucceeded Reason = "retry succeeded"
+	ReasonErrorIgnored   Reason = "error ignored"
+	ReasonRunError       Reason = "run error"
+	ReasonExcludeBlock   Reason = "exclude block"
+	ReasonAncestorError  Reason = "ancestor error"
 )
 
 // NewReport creates a new report.

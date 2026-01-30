@@ -12,12 +12,6 @@ const (
 	// FormatJSON outputs the discovered components in JSON format.
 	FormatJSON = "json"
 
-	// SortAlpha sorts the discovered components in alphabetical order.
-	SortAlpha = "alpha"
-
-	// SortDAG sorts the discovered components in a topological sort order.
-	SortDAG = "dag"
-
 	// ModeNormal is the default mode for the find command.
 	ModeNormal = "normal"
 

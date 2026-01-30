@@ -70,11 +70,6 @@ var TerraformCommandsThatDoNotNeedInit = []string{
 
 var ModuleRegex = regexp.MustCompile(`module[[:blank:]]+".+"`)
 
-const (
-	TerraformExtensionGlob = "*.tf"
-	TofuExtensionGlob      = "*.tofu"
-)
-
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}

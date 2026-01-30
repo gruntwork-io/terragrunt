@@ -16,7 +16,6 @@ const (
 	CommandName = "exec"
 
 	InDownloadDirFlagName = "in-download-dir"
-	TFPathFlagName        = "tf-path"
 )
 
 func NewFlags(l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) clihelper.Flags {
