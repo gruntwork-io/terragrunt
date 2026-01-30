@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   stale:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
-      - uses: actions/stale@v10
+      - uses: actions/stale@997185467fa4f803885201cee163a9f38240193d # v10
         with:
           stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs. Thank you for raising this issue.'
           stale-pr-message: 'This pull request has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs. Thank you for submitting this pull request.'

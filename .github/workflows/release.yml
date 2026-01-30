@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Get version
         id: version
@@ -55,7 +55,7 @@ jobs:
         run: .github/scripts/release/check-release-exists.sh
 
       - name: Download pre-built signed binaries
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: all-signed-binaries
           path: bin/
@@ -82,7 +82,7 @@ jobs:
           gpg --armor --export "${GPG_FINGERPRINT}" > bin/terragrunt-signing-key.asc
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3
 
       - name: Sign SHA256SUMS
         env:
