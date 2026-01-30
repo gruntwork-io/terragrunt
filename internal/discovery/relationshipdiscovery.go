@@ -30,6 +30,8 @@ type RelationshipDiscovery struct {
 	maxDepth int
 	// numWorkers is the number of workers to use to discover relationships
 	numWorkers int
+	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
+	suppressParseErrors bool
 }
 
 // NewRelationshipDiscovery creates a new RelationshipDiscovery with the given configuration.
@@ -62,6 +64,12 @@ func (rd *RelationshipDiscovery) WithParserOptions(parserOptions []hclparse.Opti
 // WithDiscoveryContext sets the discovery context for the relationship discovery.
 func (rd *RelationshipDiscovery) WithDiscoveryContext(discoveryContext *component.DiscoveryContext) *RelationshipDiscovery {
 	rd.discoveryContext = discoveryContext
+	return rd
+}
+
+// WithSuppressParseErrors sets the SuppressParseErrors flag to true.
+func (rd *RelationshipDiscovery) WithSuppressParseErrors() *RelationshipDiscovery {
+	rd.suppressParseErrors = true
 	return rd
 }
 
@@ -144,7 +152,7 @@ func (rd *RelationshipDiscovery) discoverRelationships(
 
 	cfg := unit.Config()
 	if cfg == nil {
-		err := Parse(c, ctx, l, opts, true, rd.parserOptions)
+		err := Parse(c, ctx, l, opts, rd.suppressParseErrors, rd.parserOptions)
 		if err != nil {
 			return errors.New(err)
 		}

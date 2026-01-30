@@ -38,6 +38,7 @@ var knownBadFiles = []string{
 	"fixtures/parsing/exposed-include-with-deprecated-inputs/compcommon.hcl",
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
+	"fixtures/stacks/errors/unknown-value/units/bad-unit/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",

@@ -1085,6 +1085,10 @@ func (d *Discovery) Discover(
 			WithNumWorkers(d.numWorkers).
 			WithDiscoveryContext(d.discoveryContext)
 
+		if d.suppressParseErrors {
+			relationshipDiscovery = relationshipDiscovery.WithSuppressParseErrors()
+		}
+
 		if len(d.parserOptions) > 0 {
 			relationshipDiscovery = relationshipDiscovery.WithParserOptions(d.parserOptions)
 		}

@@ -39,6 +39,7 @@ const (
 	testFixtureStackValidationUnitPath         = "fixtures/stacks/errors/validation-unit"
 	testFixtureStackValidationStackPath        = "fixtures/stacks/errors/validation-stack"
 	testFixtureStackIncorrectSource            = "fixtures/stacks/errors/incorrect-source"
+	testFixtureStacksUnknownValueError         = "fixtures/stacks/errors/unknown-value"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -195,6 +196,23 @@ func TestStacksGenerateLocalsError(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
+}
+
+func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnknownValueError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnknownValueError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnknownValueError, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// Command should fail with parsing error, not silently skip the unit
+	require.Error(t, err)
+	assert.Contains(t, stderr, "missing_var")
 }
 
 func TestStacksGenerateRemote(t *testing.T) {
