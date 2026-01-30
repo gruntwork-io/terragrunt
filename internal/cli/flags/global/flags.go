@@ -40,6 +40,11 @@ const (
 	ExperimentModeFlagName = "experiment-mode"
 	ExperimentFlagName     = "experiment"
 
+	// Tips related flags.
+
+	NoTipsFlagName = "no-tips"
+	NoTipFlagName  = "no-tip"
+
 	// App flags.
 
 	HelpFlagName    = "help"
@@ -197,6 +202,28 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), terragruntPrefixControl)),
+
+		// Tips Mode flags.
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:    NoTipsFlagName,
+			EnvVars: tgPrefix.EnvVars(NoTipsFlagName),
+			Usage:   "Disable all tips from being displayed.",
+			Setter: func(v bool) error {
+				if v {
+					opts.Tips.DisableAll()
+				}
+
+				return nil
+			},
+		}),
+
+		flags.NewFlag(&clihelper.SliceFlag[string]{
+			Name:    NoTipFlagName,
+			EnvVars: tgPrefix.EnvVars(NoTipFlagName),
+			Usage:   "Disable specific tips from being displayed.",
+			Setter:  opts.Tips.DisableTip,
+		}),
 
 		// Strict Mode flags.
 
