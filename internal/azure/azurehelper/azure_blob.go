@@ -429,15 +429,35 @@ func (c *BlobServiceClient) UploadBlob(ctx context.Context, l log.Logger, contai
 	return nil
 }
 
+// UploadBlobFromReader uploads a blob by streaming data from a reader.
+// This avoids loading the entire blob into memory.
+func (c *BlobServiceClient) UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error {
+	if containerName == "" || blobName == "" {
+		return errors.Errorf("container name and blob key are required")
+	}
+
+	container := c.client.ServiceClient().NewContainerClient(containerName)
+	blockBlob := container.NewBlockBlobClient(blobName)
+
+	// UploadStream handles chunking and streaming automatically
+	_, err := blockBlob.UploadStream(ctx, reader, nil)
+	if err != nil {
+		return errors.Errorf("error uploading blob from stream: %w", err)
+	}
+
+	return nil
+}
+
 // CopyBlobToContainer copies a blob from one container to another, potentially across storage accounts.
-func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *BlobServiceClient,
+// Uses streaming to avoid loading the entire blob into memory.
+func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient *BlobServiceClient,
 	dstContainer, dstKey string,
-) (err error) {
+) error {
 	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
 		return errors.Errorf("container names and blob keys are required")
 	}
 
-	// Get source blob data
+	// Get source blob data as a stream
 	input := &GetObjectInput{
 		Container: &srcContainer,
 		Key:       &srcKey,
@@ -448,27 +468,19 @@ func (c *BlobServiceClient) CopyBlobToContainer(ctx context.Context, srcContaine
 		return errors.Errorf("error reading source blob: %w", err)
 	}
 
-	// Using named return value with defer to handle errors properly
+	// Ensure the source blob body is closed after we're done
 	defer func() {
-		if closeErr := srcBlobOutput.Body.Close(); closeErr != nil && err == nil {
-			// Only set the close error if we don't already have an error
-			err = errors.Errorf("failed to close blob: %w", closeErr)
-		}
+		_ = srcBlobOutput.Body.Close()
 	}()
 
-	// Read the blob content
-	blobData, err := io.ReadAll(srcBlobOutput.Body)
-	if err != nil {
-		return errors.Errorf("error reading blob data: %w", err)
-	}
+	logInfo(l, "Streaming blob copy from %s/%s to %s/%s", srcContainer, srcKey, dstContainer, dstKey)
 
-	// Create a logger for the upload operation to avoid nil pointer dereference
-	logger := log.Default()
-
-	// Upload to the destination
-	if err := dstClient.UploadBlob(ctx, logger, dstContainer, dstKey, blobData); err != nil {
+	// Stream directly to the destination without loading into memory
+	if err := dstClient.UploadBlobFromReader(ctx, l, dstContainer, dstKey, srcBlobOutput.Body); err != nil {
 		return errors.Errorf("error copying blob to destination: %w", err)
 	}
+
+	logInfo(l, "Successfully copied blob from %s/%s to %s/%s", srcContainer, srcKey, dstContainer, dstKey)
 
 	return nil
 }

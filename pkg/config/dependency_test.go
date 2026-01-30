@@ -10,8 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
@@ -161,7 +165,6 @@ dependency "vpc" {
 	assert.Len(t, decoded.Dependencies, 2)
 }
 
-<<<<<<< HEAD:config/dependency_test.go
 func TestDirectStateAccessAzurerm(t *testing.T) {
 	t.Parallel()
 
@@ -300,7 +303,8 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 	}
 
 	return data, nil
-=======
+}
+
 // TestDisabledDependencyWithNullConfigPath verifies that disabled dependencies
 // with null config_path don't panic during parsing (they bypass validation).
 func TestDisabledDependencyWithNullConfigPath(t *testing.T) {
@@ -359,5 +363,4 @@ dependency "enabled" {
 
 	// Only enabled dependency should be in the paths
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
->>>>>>> main:pkg/config/dependency_test.go
 }

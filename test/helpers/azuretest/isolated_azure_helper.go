@@ -194,13 +194,8 @@ func generateUniqueTestID(testName string) string {
 			cleanBuilder.WriteRune(r)
 
 			lastWasHyphen = false
-		case r == '-' || r == '_' || r == ' ':
-			if cleanBuilder.Len() > 0 && !lastWasHyphen {
-				cleanBuilder.WriteRune('-')
-
-				lastWasHyphen = true
-			}
 		default:
+			// Replace any non-alphanumeric character (hyphens, underscores, spaces, etc.) with a hyphen
 			if cleanBuilder.Len() > 0 && !lastWasHyphen {
 				cleanBuilder.WriteRune('-')
 
@@ -569,18 +564,28 @@ func generateIsolatedStorageAccountName(testName, testID string) string {
 	cleanName = strings.ReplaceAll(cleanName, "test", "")
 
 	// Extract unique portion of test ID (without dashes)
+	// Use 8 chars to ensure uniqueness even when tests run at the same second
 	idPart := strings.ReplaceAll(testID, "-", "")
 	if len(idPart) > resourceIDTrimLength {
 		idPart = idPart[:resourceIDTrimLength]
 	}
 
 	// Format: tg<clean-name><id-part>
-	accountName := fmt.Sprintf("tg%s%s", cleanName, idPart)
-
 	// Storage account names must be 3-24 characters
-	if len(accountName) > AzureStorageAccountMaxLength {
-		accountName = accountName[:AzureStorageAccountMaxLength]
+	// Reserve: 2 chars for "tg" prefix + 8 chars for unique ID = 10 chars
+	// Leaves 14 chars for the test name portion
+	const (
+		prefixLen      = 2                                                        // "tg"
+		reservedIDLen  = 8                                                        // unique ID suffix
+		maxTestNameLen = AzureStorageAccountMaxLength - prefixLen - reservedIDLen // 14
+	)
+
+	// Truncate test name to ensure the unique ID is always included
+	if len(cleanName) > maxTestNameLen {
+		cleanName = cleanName[:maxTestNameLen]
 	}
+
+	accountName := fmt.Sprintf("tg%s%s", cleanName, idPart)
 
 	return accountName
 }

@@ -503,6 +503,7 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 				"storage_account_name": "teststorageaccount",
 				"container_name":       "test-container",
 				"key":                  "test/terraform.tfstate",
+				"subscription_id":      "00000000-0000-0000-0000-000000000000",
 				"use_azuread_auth":     false, // Azure AD auth is now required
 				"use_msi":              false,
 			},

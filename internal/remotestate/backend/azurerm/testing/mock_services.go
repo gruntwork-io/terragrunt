@@ -4,6 +4,7 @@ package testing
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/factory"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
@@ -185,7 +186,8 @@ type MockBlobService struct {
 	DeleteContainerFunc            func(ctx context.Context, l log.Logger, containerName string) error
 	DeleteBlobIfNecessaryFunc      func(ctx context.Context, l log.Logger, containerName string, blobName string) error
 	UploadBlobFunc                 func(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error
-	CopyBlobToContainerFunc        func(ctx context.Context, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error
+	UploadBlobFromReaderFunc       func(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error
+	CopyBlobToContainerFunc        func(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error
 }
 
 func (m *MockBlobService) GetObject(ctx context.Context, input *types.GetObjectInput) (*types.GetObjectOutput, error) {
@@ -236,9 +238,17 @@ func (m *MockBlobService) UploadBlob(ctx context.Context, l log.Logger, containe
 	return nil
 }
 
-func (m *MockBlobService) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
+func (m *MockBlobService) UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error {
+	if m.UploadBlobFromReaderFunc != nil {
+		return m.UploadBlobFromReaderFunc(ctx, l, containerName, blobName, reader)
+	}
+
+	return nil
+}
+
+func (m *MockBlobService) CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
 	if m.CopyBlobToContainerFunc != nil {
-		return m.CopyBlobToContainerFunc(ctx, srcContainer, srcKey, dstClient, dstContainer, dstKey)
+		return m.CopyBlobToContainerFunc(ctx, l, srcContainer, srcKey, dstClient, dstContainer, dstKey)
 	}
 
 	return nil

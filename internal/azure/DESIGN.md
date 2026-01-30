@@ -7,7 +7,7 @@ This document explains the design decisions and architecture of the Azure Storag
 The Azure backend (`internal/remotestate/backend/azurerm/`) provides remote state storage using Azure Blob Storage. It supports:
 
 - Storage account and container auto-creation
-- Azure AD authentication (default and required)
+- Azure AD authentication (default) — also supports Managed Identity (MSI), service principal, and SAS token
 - RBAC role assignment for data plane operations
 - State migration between containers
 - Telemetry and error handling
@@ -107,14 +107,14 @@ Errors flow through multiple layers:
 3. **Backend errors** - User-friendly messages
 
 ```go
-// Error classification enables smart retry decisions
-type ErrorClassification string
+// Error classification enables smart retry decisions (see internal/azure/errorutil/errors.go)
+type ErrorClass string
 
 const (
-    ErrorClassTransient     ErrorClassification = "transient"
-    ErrorClassConfiguration ErrorClassification = "configuration"
-    ErrorClassPermissions   ErrorClassification = "permissions"
-    ErrorClassNotFound      ErrorClassification = "not_found"
+    ErrorClassTransient     ErrorClass = "transient"
+    ErrorClassConfiguration ErrorClass = "configuration"
+    ErrorClassPermission    ErrorClass = "permission"
+    ErrorClassNotFound      ErrorClass = "not_found"
 )
 ```
 

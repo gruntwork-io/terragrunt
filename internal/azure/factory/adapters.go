@@ -265,8 +265,13 @@ func (b *blobServiceAdapter) UploadBlob(ctx context.Context, l log.Logger, conta
 	return b.client.UploadBlob(ctx, l, containerName, blobName, data)
 }
 
+// UploadBlobFromReader uploads a blob by streaming data from a reader
+func (b *blobServiceAdapter) UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error {
+	return b.client.UploadBlobFromReader(ctx, l, containerName, blobName, reader)
+}
+
 // CopyBlobToContainer copies a blob to another container
-func (b *blobServiceAdapter) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
+func (b *blobServiceAdapter) CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
 	// This is a more complex operation that would need to be implemented
 	// For now, return a placeholder implementation that indicates it's not implemented
 	return errors.New("CopyBlobToContainer is not yet implemented in the adapter")

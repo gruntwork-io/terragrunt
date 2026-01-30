@@ -110,9 +110,14 @@ func (b *BlobServiceImpl) UploadBlob(ctx context.Context, l log.Logger, containe
 	return b.client.UploadBlob(ctx, l, containerName, blobName, data)
 }
 
-// CopyBlobToContainer copies a blob from one container to another
-func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
-	// First, get the source blob
+// UploadBlobFromReader uploads a blob by streaming data from a reader
+func (b *BlobServiceImpl) UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error {
+	return b.client.UploadBlobFromReader(ctx, l, containerName, blobName, reader)
+}
+
+// CopyBlobToContainer copies a blob from one container to another using streaming
+func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
+	// Get source blob content
 	input := &types.GetObjectInput{
 		ContainerName: srcContainer,
 		BlobName:      srcKey,
@@ -123,11 +128,8 @@ func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, srcContainer,
 		return fmt.Errorf("failed to get source blob: %w", err)
 	}
 
-	// Create a logger for the upload operation
-	logger := log.Default()
-
-	// Upload the blob to the destination
-	err = dstClient.UploadBlob(ctx, logger, dstContainer, dstKey, output.Content)
+	// Upload the content to the destination
+	err = dstClient.UploadBlob(ctx, l, dstContainer, dstKey, output.Content)
 	if err != nil {
 		return fmt.Errorf("failed to upload blob to destination: %w", err)
 	}

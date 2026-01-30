@@ -197,6 +197,17 @@ func (f *AzureServiceFactory) isExpired(key string) bool {
 	return time.Since(timestamp) > time.Duration(f.config.CacheTimeout)*time.Second
 }
 
+// getCachedRBACService returns a cached RBAC service if caching is enabled and not expired.
+func (f *AzureServiceFactory) getCachedRBACService(cacheKey string) interfaces.RBACService {
+	if f.config.EnableCaching && !f.isExpired(cacheKey) {
+		if service, exists := f.rbacServiceCache[cacheKey]; exists {
+			return service
+		}
+	}
+
+	return nil
+}
+
 // GetStorageAccountService creates and returns a StorageAccountService instance
 func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.StorageAccountService, error) {
 	f.cacheMutex.RLock()
@@ -368,6 +379,19 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 	return service, nil
 }
 
+// getSubscriptionIDFromConfig extracts subscription ID from config, trying both key formats.
+func getSubscriptionIDFromConfig(config map[string]interface{}) string {
+	if subscriptionID, ok := config["subscription_id"].(string); ok && subscriptionID != "" {
+		return subscriptionID
+	}
+
+	if subscriptionID, ok := config["subscriptionId"].(string); ok {
+		return subscriptionID
+	}
+
+	return ""
+}
+
 // GetRBACService creates and returns an RBACService instance
 func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.RBACService, error) {
 	f.cacheMutex.RLock()
@@ -382,11 +406,9 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 	cacheKey := f.getCacheKey(config)
 
 	// Check cache if enabled
-	if f.config.EnableCaching && !f.isExpired(cacheKey) {
-		if service, exists := f.rbacServiceCache[cacheKey]; exists {
-			f.cacheMutex.RUnlock()
-			return service, nil
-		}
+	if service := f.getCachedRBACService(cacheKey); service != nil {
+		f.cacheMutex.RUnlock()
+		return service, nil
 	}
 
 	f.cacheMutex.RUnlock()
@@ -395,20 +417,12 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 	defer f.cacheMutex.Unlock()
 
 	// Check again after getting write lock (double-check pattern)
-	if f.config.EnableCaching && !f.isExpired(cacheKey) {
-		if service, exists := f.rbacServiceCache[cacheKey]; exists {
-			return service, nil
-		}
+	if service := f.getCachedRBACService(cacheKey); service != nil {
+		return service, nil
 	}
 
 	// Create RBAC service using the production implementation
-	// Extract subscription ID from config
-	subscriptionID, ok := config["subscription_id"].(string)
-	if !ok || subscriptionID == "" {
-		// Try alternate key format
-		subscriptionID, _ = config["subscriptionId"].(string)
-	}
-
+	subscriptionID := getSubscriptionIDFromConfig(config)
 	if subscriptionID == "" {
 		return nil, errors.Errorf("subscription_id is required for RBAC operations")
 	}
@@ -484,6 +498,11 @@ func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l lo
 	authResult, err := azureauth.GetTokenCredential(ctx, l, azureAuthConfig)
 	if err != nil {
 		return nil, errors.Errorf("failed to get token credential: %w", err)
+	}
+
+	// SAS token authentication is not supported for AuthenticationService (requires credential)
+	if authResult.Method == azureauth.AuthMethodSasToken || authResult.Credential == nil {
+		return nil, errors.Errorf("sas_token authentication is not supported; use Azure AD, MSI, or a service principal instead")
 	}
 
 	// Convert azureauth.AuthConfig to interfaces.AuthenticationConfig

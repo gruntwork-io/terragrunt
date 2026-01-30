@@ -3,6 +3,7 @@ package interfaces
 
 import (
 	"context"
+	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
@@ -69,7 +70,8 @@ type BlobService interface {
 	// Blob Management
 	DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error
 	UploadBlob(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error
-	CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient BlobService, dstContainer, dstKey string) error
+	UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error
+	CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient BlobService, dstContainer, dstKey string) error
 }
 
 // ResourceGroupService defines the interface for Azure Resource Group operations

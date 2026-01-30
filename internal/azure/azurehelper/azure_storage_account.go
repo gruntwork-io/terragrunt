@@ -854,7 +854,7 @@ func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context,
 	return c.syncVersioningState(ctx, l, config.EnableVersioning)
 }
 
-// DeleteStorageAccount deletes a storage account
+// DeleteStorageAccount deletes a storage account and waits for deletion to complete
 func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.Logger) error {
 	logInfo(l, "Deleting storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
@@ -875,9 +875,44 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 		return errors.Errorf("error deleting storage account: %w", err)
 	}
 
-	logInfo(l, "Successfully deleted storage account %s", c.storageAccountName)
+	// Wait for deletion to complete by polling GetProperties until 404
+	logInfo(l, "Waiting for storage account %s deletion to complete...", c.storageAccountName)
 
-	return nil
+	const (
+		initialDelay = 2 * time.Second
+		maxDelay     = 30 * time.Second
+		maxAttempts  = 30
+	)
+
+	delay := initialDelay
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		select {
+		case <-ctx.Done():
+			return errors.Errorf("context cancelled while waiting for storage account deletion: %w", ctx.Err())
+		case <-time.After(delay):
+		}
+
+		_, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) && respErr.StatusCode == httpStatusNotFound {
+				logInfo(l, "Successfully deleted storage account %s", c.storageAccountName)
+				return nil
+			}
+
+			// Log transient errors but continue polling
+			logInfo(l, "Error checking storage account deletion status (attempt %d/%d): %v", attempt, maxAttempts, err)
+		}
+
+		// Exponential backoff with cap
+		delay = time.Duration(float64(delay) * 1.5)
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
+
+	return errors.Errorf("timed out waiting for storage account %s to be deleted", c.storageAccountName)
 }
 
 // EnsureResourceGroup creates a resource group if it doesn't exist

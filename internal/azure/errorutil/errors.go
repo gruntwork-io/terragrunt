@@ -165,7 +165,13 @@ func IsPermissionError(err error) bool {
 		return false
 	}
 
-	// Convert to string for pattern matching
+	// Check if it's already an AzureError with permission classification
+	var azErr *AzureError
+	if errors.As(err, &azErr) && azErr.Classification == ErrorClassPermission {
+		return true
+	}
+
+	// Fallback to string-based pattern matching
 	errStr := strings.ToLower(err.Error())
 
 	return strings.Contains(errStr, "unauthorized") ||
@@ -318,7 +324,13 @@ func ClassifyError(err error) ErrorClass {
 		return ErrorClassUnknown
 	}
 
-	// First try to use structured error analysis
+	// First check if the error is already a classified AzureError
+	var azErr *AzureError
+	if errors.As(err, &azErr) && azErr.Classification != "" && azErr.Classification != ErrorClassUnknown {
+		return azErr.Classification
+	}
+
+	// Try to use structured error analysis from Azure SDK response
 	if azureErr := ConvertAzureError(err); azureErr != nil {
 		if class, ok := classifyByStatusCode(azureErr.StatusCode); ok {
 			return class

@@ -527,6 +527,11 @@ func ValidateAuthConfig(config *AuthConfig) error {
 	case AuthMethodAzureAD, AuthMethodMSI, AuthMethodEnvironment, AuthMethodCLI:
 	}
 
+	// Validate subscription_id is set for methods that require Azure Resource Manager operations
+	if config.SubscriptionID == "" && config.Method != AuthMethodSasToken {
+		errs = append(errs, errors.Errorf("subscription_id is required"))
+	}
+
 	if len(errs) > 0 {
 		// Combine all errors into a single error message
 		var builder strings.Builder
@@ -552,11 +557,11 @@ func (r *AuthResult) CreateStorageClientOptions() *azcore.ClientOptions {
 // GetEndpointSuffix returns the Azure storage endpoint suffix based on the cloud environment
 func GetEndpointSuffix(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
-	case "usgovernment", "usgov":
+	case "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "core.usgovcloudapi.net"
-	case "china":
+	case "china", "azurechina", "azurechinacloud":
 		return "core.chinacloudapi.cn"
-	case "german", "germany":
+	case "german", "germany", "azuregerman", "azuregermanycloud", "azuregermancloud":
 		return "core.cloudapi.de"
 	default:
 		return "core.windows.net" // Default to public cloud
@@ -566,11 +571,11 @@ func GetEndpointSuffix(cloudEnv string) string {
 // GetArmEndpoint returns the Azure Resource Manager endpoint based on the cloud environment
 func GetArmEndpoint(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
-	case "usgovernment", "usgov":
+	case "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "https://management.usgovcloudapi.net"
-	case "china":
+	case "china", "azurechina", "azurechinacloud":
 		return "https://management.chinacloudapi.cn"
-	case "german", "germany":
+	case "german", "germany", "azuregerman", "azuregermanycloud", "azuregermancloud":
 		return "https://management.microsoftazure.de"
 	default:
 		return "https://management.azure.com" // Default to public cloud
