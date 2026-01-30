@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -63,21 +62,16 @@ func Evaluate(l log.Logger, expr Expression, components component.Components) (c
 
 // evaluatePathFilter evaluates a path filter using glob matching.
 func evaluatePathFilter(filter *PathExpression, components component.Components) (component.Components, error) {
-	g, err := filter.CompileGlob()
-	if err != nil {
-		return nil, NewEvaluationErrorWithCause("failed to compile glob pattern: "+filter.Value, err)
-	}
-
 	result := make(component.Components, 0, len(components))
 
-	for _, component := range components {
-		matches, err := doesComponentValueMatchGlob(component, component.Path(), filter.Value, g)
+	for _, c := range components {
+		matches, err := matchPath(c, filter)
 		if err != nil {
-			return nil, err
+			return nil, NewEvaluationErrorWithCause("failed to match path pattern: "+filter.Value, err)
 		}
 
 		if matches {
-			result = append(result, component)
+			result = append(result, c)
 		}
 	}
 
@@ -411,35 +405,4 @@ func traverseGraph(
 
 		traverseGraph(l, related, resultSet, visited, direction, remainingDepth-1, warnOnLimit)
 	}
-}
-
-// doesComponentValueMatchGlob checks if a component matches a glob pattern.
-//
-// It does some logic to assess whether the original value that was compiled into a glob was an absolute path or not,
-// and uses that to determine how to match the component.Path() against the glob.
-//
-// If it's an absolute path, it matches the component.Path() against the glob as is.
-// If it's not an absolute path, it attempts to translate the component.Path() path into a relative path
-// using the discovery context's working directory, and then matches the relative path against the glob.
-//
-// If neither are true, it does a best effort match attempting to match the component.Path() against the value as is.
-func doesComponentValueMatchGlob(c component.Component, val, globVal string, glob glob.Glob) (bool, error) {
-	if filepath.IsAbs(globVal) {
-		return glob.Match(filepath.ToSlash(val)), nil
-	}
-
-	discoveryCtx := c.DiscoveryContext()
-	if discoveryCtx != nil &&
-		discoveryCtx.WorkingDir != "" {
-		relPath, err := filepath.Rel(discoveryCtx.WorkingDir, val)
-		if err != nil {
-			return false, NewEvaluationErrorWithCause("failed to get relative path for component value: "+val, err)
-		}
-
-		relPath = filepath.ToSlash(relPath)
-
-		return glob.Match(relPath), nil
-	}
-
-	return glob.Match(filepath.ToSlash(val)), nil
 }
