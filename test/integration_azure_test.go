@@ -436,9 +436,9 @@ func TestAzureRMBootstrapBackend(t *testing.T) {
 
 	// Copy fixture and set up paths
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackend)
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
-	rootConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackend)
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
+	rootConfigPath := filepath.Join(rootPath, "terragrunt.hcl")
 
 	// Generate unique container name for this test
 	containerName := "delete-backend-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
@@ -535,12 +535,12 @@ func TestAzureOutputFromRemoteState(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureOutputFromRemoteState)
 
 	// CopyEnvironment copies the contents of the source directory to a subfolder structure in tmpEnvPath
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureOutputFromRemoteState)
 	// So the environment path should be constructed accordingly
-	environmentPath := util.JoinPath(rootPath, "env1")
+	environmentPath := filepath.Join(rootPath, "env1")
 
 	azureCfg := getAzureStorageTestConfig(t)
-	rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+	rootTerragruntConfigPath := filepath.Join(rootPath, "root.hcl")
 	// Generate truly unique container name to prevent parallel test conflicts
 	containerName := "output-remote-state-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
 
@@ -1630,10 +1630,10 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureAzureBackendMigrate)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureBackendMigrate)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureBackendMigrate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureBackendMigrate)
 
-	unit1Path := util.JoinPath(rootPath, "unit1")
-	unit2Path := util.JoinPath(rootPath, "unit2")
+	unit1Path := filepath.Join(rootPath, "unit1")
+	unit2Path := filepath.Join(rootPath, "unit2")
 
 	// Common Azure parameters for placeholder replacement using dynamic resources
 	azureParams := map[string]string{
@@ -1644,11 +1644,11 @@ func TestAzureBackendMigrationWithUnits(t *testing.T) {
 	}
 
 	// Fill in placeholders for unit1 config
-	unit1ConfigPath := util.JoinPath(unit1Path, "terragrunt.hcl")
+	unit1ConfigPath := filepath.Join(unit1Path, "terragrunt.hcl")
 	copyTerragruntConfigAndFillProviderPlaceholders(t, unit1ConfigPath, unit1ConfigPath, azureParams, azureCtx.Location)
 
 	// Fill in placeholders for unit2 config
-	unit2ConfigPath := util.JoinPath(unit2Path, "terragrunt.hcl")
+	unit2ConfigPath := filepath.Join(unit2Path, "terragrunt.hcl")
 	copyTerragruntConfigAndFillProviderPlaceholders(t, unit2ConfigPath, unit2ConfigPath, azureParams, azureCtx.Location)
 
 	// Wait for RBAC permissions to fully propagate before running terraform commands
@@ -1794,8 +1794,8 @@ func TestAzureOutputFromDependency(t *testing.T) {
 
 	// Copy fixture
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAzureOutputFromDependency)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureAzureOutputFromDependency)
-	commonConfigPath := util.JoinPath(rootPath, "common.hcl")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAzureOutputFromDependency)
+	commonConfigPath := filepath.Join(rootPath, "common.hcl")
 
 	// Generate unique container name
 	containerName := "output-dep-" + strings.ToLower(fmt.Sprintf("%x", time.Now().UnixNano()))[0:8]
@@ -1911,8 +1911,8 @@ func TestAzureParallelStateInit(t *testing.T) {
 	}
 
 	// Copy and fill placeholders in root.hcl
-	originalRootConfigPath := util.JoinPath(testFixtureAzureParallelStateInit, "root.hcl")
-	tmpRootConfigFile := util.JoinPath(tmpEnvPath, "root.hcl")
+	originalRootConfigPath := filepath.Join(testFixtureAzureParallelStateInit, "root.hcl")
+	tmpRootConfigFile := filepath.Join(tmpEnvPath, "root.hcl")
 
 	// Generate a unique container name for this test
 	containerName := fmt.Sprintf("parallel-init-%s", strings.ToLower(helpers.UniqueID()))
