@@ -6,8 +6,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/factory"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // AzureBackendDependencies holds the injected Azure service dependencies
@@ -47,17 +47,6 @@ func NewAzureBackendDependencies(
 		BlobService:           blobService,
 		ResourceGroupService:  resourceGroupService,
 	}, nil
-}
-
-// NewMockAzureBackendDependencies creates a new set of mock Azure backend dependencies for testing
-func NewMockAzureBackendDependencies() *AzureBackendDependencies {
-	// For testing, mock implementations should be created directly rather than through a factory
-	return &AzureBackendDependencies{
-		// Replace these with appropriate mock implementations
-		StorageAccountService: nil, // TODO: Add proper mock implementation
-		BlobService:           nil, // TODO: Add proper mock implementation
-		ResourceGroupService:  nil, // TODO: Add proper mock implementation,
-	}
 }
 
 // Example of how to update the Backend struct to use dependency injection

@@ -63,6 +63,7 @@ func isSensitiveKey(key string) bool {
 // isConnectionString checks if a value looks like an Azure connection string with sensitive data.
 func isConnectionString(value string) bool {
 	valueLower := strings.ToLower(value)
+
 	return strings.Contains(value, ";") &&
 		(strings.Contains(valueLower, strings.ToLower(accountKeyPrefix)) ||
 			strings.Contains(valueLower, strings.ToLower(sharedAccessKeyPrefix)))

@@ -251,8 +251,11 @@ func CalculateDelay(attempt int, config RetryConfig) time.Duration {
 		jitterRange := duration / JitterDivisor // 25% jitter
 		// Generate random jitter between 0 and jitterRange using proper random number generator
 		jitterMu.Lock()
+
 		jitterMultiplier := jitterRand.Float64() // 0.0 to 1.0
+
 		jitterMu.Unlock()
+
 		jitter := time.Duration(float64(jitterRange) * jitterMultiplier)
 		duration += jitter
 	}

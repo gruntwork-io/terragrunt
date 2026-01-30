@@ -339,11 +339,9 @@ func WrapError(err error, message string, opts ...ErrorOption) error {
 		return nil
 	}
 
-	// Start with options that come from the error itself
-	options := []ErrorOption{
-		WithCause(err),
-		WithClassification(ClassifyError(err)),
-	}
+	// Start with options that come from the error itself, with capacity for additional options
+	options := make([]ErrorOption, 0, 2+len(opts))
+	options = append(options, WithCause(err), WithClassification(ClassifyError(err)))
 
 	// Add any additional options
 	options = append(options, opts...)

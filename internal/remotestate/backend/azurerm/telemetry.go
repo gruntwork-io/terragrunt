@@ -14,8 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureutil"
 	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // TelemetryCollectorSettings defines settings for the telemetry collector
@@ -677,40 +677,25 @@ func (atc *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err
 	// opType is already the correct OperationType, no conversion needed
 	operation := opType
 
-	// Convert ErrorMetrics to AzureErrorMetrics
-	azureMetrics := AzureErrorMetrics{
-		ErrorType:      metrics.ErrorType,
-		Classification: metrics.Classification,
-		Operation:      operation,
-		ResourceType:   metrics.ResourceType,
-		ResourceName:   metrics.ResourceName,
-		SubscriptionID: metrics.SubscriptionID,
-		Location:       metrics.Location,
-		ErrorMessage:   metrics.ErrorMessage,
-		StatusCode:     metrics.StatusCode,
-		RetryAttempts:  metrics.RetryAttempts,
-		IsRetryable:    metrics.IsRetryable,
+	// Build error details from metrics - only using fields we need for logging
+	errorDetails := fmt.Sprintf("Error Type: %s, Classification: %s, Operation: %s",
+		metrics.ErrorType, metrics.Classification, operation)
+
+	if metrics.ResourceType != "" {
+		errorDetails += ", Resource Type: " + metrics.ResourceType
+	}
+
+	if metrics.ResourceName != "" {
+		errorDetails += ", Resource Name: " + metrics.ResourceName
+	}
+
+	if metrics.StatusCode != 0 {
+		errorDetails += ", Status Code: " + strconv.Itoa(metrics.StatusCode)
 	}
 
 	if atc.telemeter != nil {
 		// Count the error occurrence
 		atc.telemeter.Count(ctx, "azure_backend_errors", 1)
-	}
-
-	// Log the error details
-	errorDetails := fmt.Sprintf("Error Type: %s, Classification: %s, Operation: %s",
-		azureMetrics.ErrorType, azureMetrics.Classification, azureMetrics.Operation)
-
-	if azureMetrics.ResourceType != "" {
-		errorDetails += ", Resource Type: " + azureMetrics.ResourceType
-	}
-
-	if azureMetrics.ResourceName != "" {
-		errorDetails += ", Resource Name: " + azureMetrics.ResourceName
-	}
-
-	if azureMetrics.StatusCode != 0 {
-		errorDetails += ", Status Code: " + strconv.Itoa(azureMetrics.StatusCode)
 	}
 
 	atc.logger.Errorf("Azure backend error: %v (%s)", err, errorDetails)

@@ -21,8 +21,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
@@ -465,6 +465,8 @@ func (c *StorageAccountClient) DisableStorageAccountVersioning(ctx context.Conte
 }
 
 // CreateStorageAccountIfNecessary creates a storage account if it doesn't exist
+//
+//nolint:gocritic // hugeParam: Refactoring to pointer would change the public API contract
 func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
 	// Use provided location or default
 	location := config.Location

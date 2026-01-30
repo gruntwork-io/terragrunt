@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
 

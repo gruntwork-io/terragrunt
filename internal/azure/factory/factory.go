@@ -14,8 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/implementations"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Options for configuring the enhanced service factory
@@ -443,10 +443,70 @@ func (f *AzureServiceFactory) GetRBACService(ctx context.Context, l log.Logger, 
 }
 
 // GetAuthenticationService creates and returns an AuthenticationService instance.
-// TODO: Implement AuthenticationService to support runtime credential management.
-// See: https://github.com/gruntwork-io/terragrunt/issues/XXXX
 func (f *AzureServiceFactory) GetAuthenticationService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.AuthenticationService, error) {
-	return nil, errors.Errorf("AuthenticationService not implemented")
+	f.cacheMutex.RLock()
+
+	// Check if a custom service is registered
+	if f.customAuthService != nil {
+		f.cacheMutex.RUnlock()
+		return f.customAuthService, nil
+	}
+
+	// Generate cache key
+	cacheKey := f.getCacheKey(config)
+
+	// Check cache if enabled
+	if f.config.EnableCaching && !f.isExpired(cacheKey) {
+		if service, exists := f.authServiceCache[cacheKey]; exists {
+			f.cacheMutex.RUnlock()
+			return service, nil
+		}
+	}
+
+	f.cacheMutex.RUnlock()
+
+	f.cacheMutex.Lock()
+	defer f.cacheMutex.Unlock()
+
+	// Check again after getting write lock (double-check pattern)
+	if f.config.EnableCaching && !f.isExpired(cacheKey) {
+		if service, exists := f.authServiceCache[cacheKey]; exists {
+			return service, nil
+		}
+	}
+
+	// Create credential using azureauth
+	azureAuthConfig, err := azureauth.GetAuthConfig(ctx, l, config)
+	if err != nil {
+		return nil, errors.Errorf("failed to get auth config: %w", err)
+	}
+
+	authResult, err := azureauth.GetTokenCredential(ctx, l, azureAuthConfig)
+	if err != nil {
+		return nil, errors.Errorf("failed to get token credential: %w", err)
+	}
+
+	// Convert azureauth.AuthConfig to interfaces.AuthenticationConfig
+	authConfig := &interfaces.AuthenticationConfig{
+		Method:             string(azureAuthConfig.Method),
+		CloudEnvironment:   azureAuthConfig.CloudEnvironment,
+		SubscriptionID:     azureAuthConfig.SubscriptionID,
+		TenantID:           azureAuthConfig.TenantID,
+		ClientID:           azureAuthConfig.ClientID,
+		ClientSecret:       azureAuthConfig.ClientSecret,
+		UseManagedIdentity: azureAuthConfig.Method == azureauth.AuthMethodMSI,
+	}
+
+	// Create authentication service using the implementation
+	service := implementations.NewAuthenticationService(authResult.Credential, authConfig)
+
+	// Cache the service if caching is enabled
+	if f.config.EnableCaching {
+		f.authServiceCache[cacheKey] = service
+		f.cacheTimestamps[cacheKey] = time.Now()
+	}
+
+	return service, nil
 }
 
 // RegisterStorageAccountService registers a custom StorageAccountService implementation

@@ -596,15 +596,15 @@ func getBoolValue(config map[string]interface{}, key string, defaultValue bool) 
 }
 
 // Helper function to get the first non-empty value from environment variables.
-// The defaultValue is returned if none of the environment variables are set.
-func getFirstEnvValue(defaultValue string, keys ...string) string {
+// Returns empty string if none of the environment variables are set.
+func getFirstEnvValue(_ string, keys ...string) string {
 	for _, key := range keys {
 		if val := os.Getenv(key); val != "" {
 			return val
 		}
 	}
 
-	return defaultValue
+	return ""
 }
 
 // GetAzureStorageURL generates the storage account URL based on the configuration

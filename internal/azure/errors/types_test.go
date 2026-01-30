@@ -261,7 +261,6 @@ func TestAzureErrorClassification(t *testing.T) {
 			t.Parallel()
 
 			err := &azureerrors.AzureError{
-				Message:        "Test error",
 				Classification: tc.classification,
 			}
 

@@ -621,10 +621,10 @@ type AuthenticationServiceImpl struct {
 }
 
 // NewAuthenticationService creates a new AuthenticationService implementation
-func NewAuthenticationService(credential azcore.TokenCredential, config interfaces.AuthenticationConfig) interfaces.AuthenticationService {
+func NewAuthenticationService(credential azcore.TokenCredential, config *interfaces.AuthenticationConfig) interfaces.AuthenticationService {
 	return &AuthenticationServiceImpl{
 		credential: credential,
-		config:     config,
+		config:     *config,
 	}
 }
 
@@ -987,12 +987,12 @@ func (c *ProductionServiceContainer) GetAuthenticationService(ctx context.Contex
 	}
 
 	// Get credential from config
-	cred, err := createAuthenticationCredential(authConfig)
+	cred, err := createAuthenticationCredential(&authConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	service := NewAuthenticationService(cred, authConfig)
+	service := NewAuthenticationService(cred, &authConfig)
 
 	return service, nil
 }
@@ -1278,7 +1278,7 @@ func createRBACClient(config map[string]interface{}) (azcore.TokenCredential, er
 }
 
 // Helper function to create an authentication credential
-func createAuthenticationCredential(config interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
+func createAuthenticationCredential(config *interfaces.AuthenticationConfig) (azcore.TokenCredential, error) {
 	// Use the shared credential helper
 	return createCredentialFromConfig(config.TenantID, config.ClientID, config.ClientSecret, config.UseManagedIdentity)
 }

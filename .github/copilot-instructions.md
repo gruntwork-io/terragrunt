@@ -63,7 +63,7 @@ make generate-mocks                                    # regenerate mocks (go ge
 ## Test Conventions
 - **Parallel tests**: always add `t.Parallel()` unless using `t.Setenv()`
 - **Integration tests**: prefix `TestAws*`, `TestGcp*`, `TestAzure*` with build tags
-- **Azure isolation**: see `test/helpers/azuretest/README.md` for parallel-safe config
+- **Azure isolation**: use parallel-safe config for Azure tests
 - If parallel isn't possible: `//nolint:paralleltest` with reason comment
 
 ## Lint Quick Fixes
@@ -84,8 +84,6 @@ Location: `internal/remotestate/backend/azurerm/` + `internal/azure/`
 2. Implement in `internal/azure/implementations/`
 3. Wire via factory in `internal/azure/factory/`
 4. Backend uses DI: receives services via `BackendConfig`
-
-Key files: `internal/azure/README.md`, `internal/azure/CONFIGURATION.md`
 
 ## PR Checklist
 - [ ] Docs in `docs-starlight/` updated; `markdownlint` clean
