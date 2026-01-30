@@ -113,33 +113,6 @@ func CloneUnitOptions(
 	return clonedOpts, clonedLogger, nil
 }
 
-// ShouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
-// neither a Terraform source nor any Terraform/OpenTofu files in its directory.
-// Returns true if the unit should be skipped, false otherwise.
-func ShouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
-	terragruntConfig := unit.Config()
-
-	// If the unit has a Terraform source configured, don't skip it
-	if terragruntConfig != nil && terragruntConfig.Terraform != nil &&
-		terragruntConfig.Terraform.Source != nil && *terragruntConfig.Terraform.Source != "" {
-		return false, nil
-	}
-
-	// Check if the directory contains any Terraform/OpenTofu files
-	hasFiles, err := util.DirContainsTFFiles(dir)
-	if err != nil {
-		return false, err
-	}
-
-	if !hasFiles {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", dir)
-
-		return true, nil
-	}
-
-	return false, nil
-}
-
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
 // This replaces the old UnitResolver pattern with a simpler direct conversion.
 func resolveUnitsFromDiscovery(
@@ -164,7 +137,7 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Build canonical config path and update unit path
-		canonicalConfigPath, canonicalDir, err := BuildCanonicalConfigPath(unit, basePath)
+		canonicalConfigPath, _, err := BuildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
@@ -194,16 +167,6 @@ func resolveUnitsFromDiscovery(
 					unitOpts.Source = unitSource
 				}
 			}
-		}
-
-		// Skip units without Terraform configuration
-		skip, err := ShouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
-		if err != nil {
-			return nil, err
-		}
-
-		if skip {
-			continue
 		}
 
 		// Transfer discovery context command and args to unit options if available
