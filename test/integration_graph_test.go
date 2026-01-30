@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,28 +53,33 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
+			reportFile := filepath.Join(fixturePath, "report.json")
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s", tmpModulePath, tmpEnvPath))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s --report-file %s --report-format json", tmpModulePath, tmpEnvPath, reportFile))
 			require.NoError(t, err)
 
-			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
+			require.FileExists(t, reportFile)
+			runs, err := report.ParseJSONRunsFromFile(reportFile)
+			require.NoError(t, err)
 
+			expectedNames := make([]string, 0, len(tc.expectedModules))
 			for _, modulePath := range tc.expectedModules {
-				modulePath = filepath.Join(fixturePath, modulePath)
+				absPath := filepath.Join(fixturePath, modulePath)
+				relPath, relErr := filepath.Rel(tmpEnvPath, absPath)
+				require.NoError(t, relErr)
 
-				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
-				require.NoError(t, err)
-
-				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
+				expectedNames = append(expectedNames, relPath)
 			}
 
+			assert.ElementsMatch(t, expectedNames, runs.Names(), "Expected modules to match report")
+
+			reportNames := runs.Names()
+
 			for _, modulePath := range tc.notExpectedModules {
-				modulePath = filepath.Join(fixturePath, modulePath)
-
-				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
-				require.NoError(t, err)
-
-				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				absPath := filepath.Join(fixturePath, modulePath)
+				notExpectedName, relErr := filepath.Rel(tmpEnvPath, absPath)
+				require.NoError(t, relErr)
+				assert.NotContains(t, reportNames, notExpectedName, "Expected module %s must not be in report", notExpectedName)
 			}
 		})
 	}
@@ -109,28 +115,33 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
+			reportFile := filepath.Join(fixturePath, "report.json")
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args, tmpModulePath, tmpEnvPath))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt "+tc.args+" --report-file %s --report-format json", tmpModulePath, tmpEnvPath, reportFile))
 			require.NoError(t, err)
 
-			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
+			require.FileExists(t, reportFile)
+			runs, err := report.ParseJSONRunsFromFile(reportFile)
+			require.NoError(t, err)
 
+			expectedNames := make([]string, 0, len(tc.expectedModules))
 			for _, modulePath := range tc.expectedModules {
-				modulePath = filepath.Join(fixturePath, modulePath)
+				absPath := filepath.Join(fixturePath, modulePath)
+				relPath, relErr := filepath.Rel(tmpEnvPath, absPath)
+				require.NoError(t, relErr)
 
-				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
-				require.NoError(t, err)
-
-				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
+				expectedNames = append(expectedNames, relPath)
 			}
 
+			assert.ElementsMatch(t, expectedNames, runs.Names(), "Expected modules to match report")
+
+			reportNames := runs.Names()
+
 			for _, modulePath := range tc.notExpectedModules {
-				modulePath = filepath.Join(fixturePath, modulePath)
-
-				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
-				require.NoError(t, err)
-
-				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				absPath := filepath.Join(fixturePath, modulePath)
+				notExpectedName, relErr := filepath.Rel(tmpEnvPath, absPath)
+				require.NoError(t, relErr)
+				assert.NotContains(t, reportNames, notExpectedName, "Expected module %s must not be in report", notExpectedName)
 			}
 		})
 	}
