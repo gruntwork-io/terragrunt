@@ -14,8 +14,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -224,7 +224,7 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	}
 
 	// Skip summary when JSON output is requested via -json flag
-	if opts.TerraformCliArgs.Normalize(clihelper.SingleDashFlag).Contains(tf.FlagNameJSON) {
+	if opts.TerraformCliArgs.Normalize(iacargs.SingleDashFlag).Contains(tf.FlagNameJSON) {
 		return true
 	}
 

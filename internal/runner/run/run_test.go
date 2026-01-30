@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -420,7 +420,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
+	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
@@ -517,7 +517,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 				t,
 				tt.want,
 				run.ShouldCopyLockFile(
-					clihelper.NewIacArgs(tt.args.args...),
+					iacargs.New(tt.args.args...),
 					tt.args.terraformConfig,
 				),
 				"shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)

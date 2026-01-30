@@ -16,9 +16,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -320,7 +320,7 @@ func runTerragruntWithConfig(
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func ShouldCopyLockFile(args *clihelper.IacArgs, terraformConfig *runcfg.TerraformConfig) bool {
+func ShouldCopyLockFile(args *iacargs.IacArgs, terraformConfig *runcfg.TerraformConfig) bool {
 	// If the user has explicitly set NoCopyTerraformLockFile to true, then we should not copy the lock file on any command
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	if terraformConfig != nil && terraformConfig.NoCopyTerraformLockFile {
@@ -455,7 +455,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 		return l, nil, err
 	}
 
-	initOptions.TerraformCliArgs = clihelper.NewIacArgs().SetCommand(tf.CommandNameInit)
+	initOptions.TerraformCliArgs = iacargs.New().SetCommand(tf.CommandNameInit)
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true

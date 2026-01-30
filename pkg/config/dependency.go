@@ -17,8 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -780,7 +780,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx context.Context, pctx *Parsin
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentUnits = false
 	targetOptions.TerraformCommand = "output"
-	targetOptions.TerraformCliArgs = clihelper.NewIacArgs().SetCommand("output").AppendFlag("-json")
+	targetOptions.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
 	// DownloadDir needs to be the dependency's default download directory
 	// because that's where the dependency's state was created when it was applied.

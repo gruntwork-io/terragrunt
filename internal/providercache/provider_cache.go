@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -369,7 +370,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.TerraformCliArgs = clihelper.NewIacArgs(args...)
+	cloneOpts.TerraformCliArgs = iacargs.New(args...)
 	cloneOpts.Env = envs
 
 	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs.Slice()...)

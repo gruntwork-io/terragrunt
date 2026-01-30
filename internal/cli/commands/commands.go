@@ -34,6 +34,7 @@ import (
 	versioncmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -307,7 +308,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.TerraformCommand = cmdName
-	opts.TerraformCliArgs = clihelper.NewIacArgs(args...)
+	opts.TerraformCliArgs = iacargs.New(args...)
 
 	opts.Env = env.Parse(os.Environ())
 
