@@ -654,7 +654,9 @@ func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(testFixtureHooksBeforeAfterAndErrorMergePath, qaMyAppRelPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAfterAndErrorMergePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAfterAndErrorMergePath)
+	childPath := filepath.Join(rootPath, qaMyAppRelPath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -697,7 +699,9 @@ func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -705,9 +709,9 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, testFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, testFixturePath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, rootPath))
 
 	var expectedS3Tags = map[string]string{
 		"owner": "terragrunt integration test",
@@ -726,7 +730,8 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/with-target-prefix-input")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	examplePath := filepath.Join(tmpEnvPath, testFixtureRegressions, "accesslogging-bucket/with-target-prefix-input")
 	helpers.CleanupTerraformFolder(t, examplePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -789,7 +794,8 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/no-target-prefix-input")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	examplePath := filepath.Join(tmpEnvPath, testFixtureRegressions, "accesslogging-bucket/no-target-prefix-input")
 	helpers.CleanupTerraformFolder(t, examplePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -1497,7 +1503,8 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "s3")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "s3")
 
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -1926,14 +1933,16 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
 	require.NoError(t, err)
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadIamRole)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadIamRole)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// Execution outputs to be verified
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
 	// Invoke terragrunt and verify used IAM role
-	err = helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureReadIamRole, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+rootPath, &stdout, &stderr)
 
 	// Since are used not existing AWS accounts, for validation are used success and error outputs
 	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
@@ -1941,19 +1950,21 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	// Check that output contains value defined in IAM role
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
-	assert.True(t, util.FileNotExists(filepath.Join(testFixtureReadIamRole, identityArn+".txt")))
+	assert.True(t, util.FileNotExists(filepath.Join(rootPath, identityArn+".txt")))
 }
 
 func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeFixturePath, includeShallowFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeFixturePath)
+	childPath := filepath.Join(rootPath, includeShallowFixturePath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, rootPath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
@@ -1962,13 +1973,15 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeFixturePath, includeNoMergeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeFixturePath)
+	childPath := filepath.Join(rootPath, includeNoMergeFixturePath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	// We deliberately pick an s3 bucket name that is invalid, as we don't expect to create this s3 bucket.
 	s3BucketName := "__INVALID_NAME__"
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, rootPath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)

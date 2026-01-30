@@ -127,7 +127,9 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	// aws kms create-key --description "Test key for Terragrunt integration tests"
 	// aws kms create-alias --alias-name alias/dedicated-test-key --target-key-id KEY_ID
 
-	helpers.CleanupTerraformFolder(t, s3SSBasicEncryptionFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, s3SSBasicEncryptionFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, s3SSBasicEncryptionFixturePath)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -135,7 +137,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
 
@@ -144,7 +146,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	// verify that bucket encryption message is not printed
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
-	tmpTerragruntConfigPath = helpers.CreateTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath = helpers.CreateTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --backend-bootstrap --non-interactive --working-dir "+filepath.Dir(tmpTerragruntConfigPath))
 	require.NoError(t, err)
 

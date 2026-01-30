@@ -95,6 +95,14 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
+	// Exclude OpenTofu/Terraform/Terragrunt cache directories
+	// that may have been created when manually running in the fixtures directory.
+	excludeFromCopy := []string{
+		"**/.terraform/**",
+		"**/.terragrunt-cache/**",
+		"**/terragrunt-debug.tfvars.json",
+	}
+
 	require.NoError(
 		t,
 		util.CopyFolderContents(
@@ -103,7 +111,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
 			includeInCopy,
-			nil,
+			excludeFromCopy,
 		),
 	)
 

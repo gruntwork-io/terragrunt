@@ -170,19 +170,23 @@ func TestTerragruntDestroyOrderWithQueueIgnoreErrors(t *testing.T) {
 func TestPreventDestroyOverride(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePreventDestroyOverride)
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/prevent-destroy-override")
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyOverride)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+testFixturePreventDestroyOverride, os.Stdout, os.Stderr))
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyOverride, os.Stdout, os.Stderr))
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
 }
 
 func TestPreventDestroyNotSet(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePreventDestroyNotSet)
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/prevent-destroy-not-set")
+	rootPath := filepath.Join(tmpEnvPath, testFixturePreventDestroyNotSet)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
-	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr))
-	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+testFixturePreventDestroyNotSet, os.Stdout, os.Stderr)
+	require.NoError(t, helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr))
+	err := helpers.RunTerragruntCommand(t, "terragrunt destroy -auto-approve --working-dir "+rootPath, os.Stdout, os.Stderr)
 
 	if assert.Error(t, err) {
 		var target run.ModuleIsProtected
@@ -309,6 +313,9 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
+	rootPath := filepath.Join(tmpEnvPath, testFixtureLocalIncludePreventDestroyDependencies)
+
 	// Populate module paths.
 	moduleNames := []string{
 		"module-a",
@@ -318,11 +325,11 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	modulePaths := make(map[string]string, len(moduleNames))
 	for _, moduleName := range moduleNames {
-		modulePaths[moduleName] = filepath.Join(testFixtureLocalIncludePreventDestroyDependencies, moduleName)
+		modulePaths[moduleName] = filepath.Join(rootPath, moduleName)
 	}
 
 	// Cleanup all modules directories.
-	helpers.CleanupTerraformFolder(t, testFixtureLocalIncludePreventDestroyDependencies)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	for _, modulePath := range modulePaths {
 		helpers.CleanupTerraformFolder(t, modulePath)
@@ -334,7 +341,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	)
 
 	// Apply and destroy all modules.
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &applyAllStdout, &applyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run --all apply stdout")
 	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run --all apply stderr")
 
@@ -347,7 +354,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		destroyAllStderr bytes.Buffer
 	)
 
-	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+testFixtureLocalIncludePreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt run --all destroy --non-interactive --working-dir "+rootPath, &destroyAllStdout, &destroyAllStderr)
 	helpers.LogBufferContentsLineByLine(t, destroyAllStdout, "run --all destroy stdout")
 	helpers.LogBufferContentsLineByLine(t, destroyAllStderr, "run --all destroy stderr")
 

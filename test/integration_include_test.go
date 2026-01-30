@@ -173,7 +173,9 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeDeepFixturePath, "child")
+	tmpEnvPath := helpers.CopyEnvironment(t, includeDeepFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeDeepFixturePath)
+	childPath := filepath.Join(rootPath, "child")
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
@@ -211,7 +213,10 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 	t.Parallel()
 
-	files, err := os.ReadDir(includeMultipleFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeMultipleFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeMultipleFixturePath)
+
+	files, err := os.ReadDir(rootPath)
 	require.NoError(t, err)
 
 	testCases := []string{}
@@ -226,7 +231,7 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 		t.Run(filepath.Base(tc), func(t *testing.T) {
 			t.Parallel()
 
-			childPath := filepath.Join(includeMultipleFixturePath, tc, includeDeepFixtureChildPath)
+			childPath := filepath.Join(rootPath, tc, includeDeepFixtureChildPath)
 			helpers.CleanupTerraformFolder(t, childPath)
 			helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+childPath)
 

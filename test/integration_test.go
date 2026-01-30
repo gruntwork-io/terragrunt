@@ -1251,7 +1251,8 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 func TestInvalidSource(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := testFixtureNotExistingSource
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureNotExistingSource)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -1438,7 +1439,8 @@ func TestRunCommand(t *testing.T) {
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := testFixtureMissingDependence
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/missing-dependencies")
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureMissingDependence)
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2575,8 +2577,9 @@ func TestReadTerragruntConfigFromDependency(t *testing.T) {
 func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "with_default")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	helpers.CleanupTerraformFolder(t, filepath.Join(tmpEnvPath, testFixtureReadConfig))
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_default")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2598,8 +2601,9 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "with_original_terragrunt_dir")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
+	helpers.CleanupTerraformFolder(t, filepath.Join(tmpEnvPath, testFixtureReadConfig))
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_original_terragrunt_dir")
 
 	rootPathAbs, err := filepath.Abs(rootPath)
 	require.NoError(t, err)
@@ -2687,8 +2691,9 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 func TestReadTerragruntConfigFull(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadConfig)
-	rootPath := filepath.Join(testFixtureReadConfig, "full")
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures")
+	helpers.CleanupTerraformFolder(t, filepath.Join(tmpEnvPath, testFixtureReadConfig))
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "full")
 
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
@@ -2872,7 +2877,8 @@ func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "skip")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "skip")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+generateTestCase)
@@ -2882,7 +2888,8 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2909,7 +2916,8 @@ func TestTerragruntGenerateAttr(t *testing.T) {
 func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite_terragrunt")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2922,7 +2930,8 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_error")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "overwrite_terragrunt_error")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2940,7 +2949,8 @@ func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "nested", "child_inherit")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "nested", "child_inherit")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2955,7 +2965,8 @@ func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "nested", "child_overwrite")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "nested", "child_overwrite")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2970,7 +2981,8 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "disable-signature")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "disable-signature")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -2994,7 +3006,8 @@ func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_error")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_error")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3014,7 +3027,8 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_includes_error")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_includes_error")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3034,7 +3048,8 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "same_name_pair_error")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "same_name_pair_error")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3055,7 +3070,8 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 func TestTerragruntGenerateBlockDisable(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "disable")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "disable")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3069,7 +3085,8 @@ func TestTerragruntGenerateBlockDisable(t *testing.T) {
 func TestTerragruntGenerateBlockEnable(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "generate-block", "enable")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "generate-block", "enable")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3083,7 +3100,8 @@ func TestTerragruntGenerateBlockEnable(t *testing.T) {
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "base")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "base")
 
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3096,7 +3114,8 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "overwrite")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "overwrite")
 
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -3110,7 +3129,8 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "error")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "error")
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
 
@@ -3129,7 +3149,8 @@ func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "skip")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "skip")
 
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
