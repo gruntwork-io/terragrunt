@@ -17,8 +17,6 @@ import (
 const (
 	configLockTableKey                 = "lock_table"
 	configDynamoDBTableKey             = "dynamodb_table"
-	configEncryptKey                   = "encrypt"
-	configKeyKey                       = "key"
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
