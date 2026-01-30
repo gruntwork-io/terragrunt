@@ -27,11 +27,12 @@ Run `curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --help` to se
 ## Download from releases page
 
 1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
-2. Download the binary for your operating system: e.g., if you're on a Mac, download `terragrunt_darwin_amd64`; if you're on Windows, download `terragrunt_windows_amd64.exe`, etc.
-3. Optionally, follow the instructions below on [verifying the checksum](#verifying-the-checksum).
-4. Rename the downloaded file to `terragrunt`.
-5. Add execute permissions to the binary: e.g., On Linux and Mac: `chmod u+x terragrunt`.
-6. Put the binary somewhere on your `PATH`: e.g., On Linux and Mac: `mv terragrunt /usr/local/bin/terragrunt`.
+2. Download the archive for your operating system: e.g., if you're on a Mac, download `terragrunt_darwin_amd64.tar.gz`; if you're on Windows, download `terragrunt_windows_amd64.exe.zip`, etc.
+3. Download `SHA256SUMS` and optionally `SHA256SUMS.gpgsig` for signature verification.
+4. Verify the checksum and optionally the signature (see [Verifying the checksum](#verifying-the-checksum) below).
+5. Extract the archive: e.g., `tar -xzf terragrunt_darwin_amd64.tar.gz` or unzip on Windows.
+6. Add execute permissions to the binary (Linux/Mac): `chmod u+x terragrunt`.
+7. Put the binary somewhere on your `PATH`: e.g., On Linux and Mac: `mv terragrunt /usr/local/bin/terragrunt`.
 
 ### Verifying the checksum
 
@@ -54,6 +55,21 @@ curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import
 gpg --verify SHA256SUMS.gpgsig SHA256SUMS
 ```
 
+:::caution[Verify Key Fingerprint]
+After importing the key, verify its fingerprint matches exactly:
+
+```bash
+gpg --fingerprint 577774ACA847CC49
+```
+
+Expected output:
+```
+pub   ed25519 2026-01-12 [SC]
+      68C8 0F86 DF98 E710 C0F2  2E2E 5777 74AC A847 CC49
+uid           [ unknown] Gruntwork (Code Signing Key) <security@gruntwork.io>
+```
+:::
+
 7. Alternatively, verify with Cosign:
 
 ```bash
@@ -67,6 +83,10 @@ cosign verify-blob SHA256SUMS \
 ### Convenience Scripts
 
 <InstallTabs version={version} />
+
+:::note
+These scripts automatically verify the SHA256 checksum and GPG signature before completing.
+:::
 
 ## Install via a package manager
 
@@ -138,13 +158,7 @@ Colleagues and CI/CD pipelines can then install the associated tool manager, and
 
 Note that the tools Terragrunt integrates with, such as OpenTofu and Terraform, can also be managed by these tool managers, so you can also pin the versions of those tools in the same file.
 
-Also note that the asdf plugin that `asdf` relies on is maintained by a third party:
-
-https://github.com/ohmer/asdf-terragrunt
-
-Gruntwork makes no guarantees about the safety or reliability of third-party plugins.
-
-The asdf plugin relied upon by `mise` is maintained by Gruntwork, as requested by the community:
+The asdf-terragrunt plugin used by both `mise` and `asdf` is maintained by Gruntwork:
 
 https://github.com/gruntwork-io/asdf-terragrunt
 
@@ -183,12 +197,12 @@ terragrunt --install-autocomplete
 
 Once the autocomplete support is installed, you will need to restart your shell.
 
+## Gruntwork Pipelines
+
+Gruntwork offers a commercial CI/CD solution for Terragrunt called [Pipelines](https://www.gruntwork.io/platform/pipelines). Pipelines is a fully managed CI/CD service that is designed to work seamlessly with Terragrunt. It provides an out of the box solution for running Terragrunt in CI/CD without the need to setup and maintain your own CI/CD infrastructure.
+
 ## Terragrunt GitHub Action
 
 Terragrunt is also available as a GitHub Action.
 
 Instructions on how to use it can be found at [https://github.com/gruntwork-io/terragrunt-action](https://github.com/gruntwork-io/terragrunt-action).
-
-## Gruntwork Pipelines
-
-Gruntwork offers a commercial CI/CD solution for Terragrunt called [Pipelines](https://www.gruntwork.io/platform/pipelines). Pipelines is a fully managed CI/CD service that is designed to work seamlessly with Terragrunt. It provides an out of the box solution for running Terragrunt in CI/CD without the need to setup and maintain your own CI/CD infrastructure.
