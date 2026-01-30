@@ -14,12 +14,6 @@ func (e Error) Error() string {
 }
 
 const (
-	// ErrTempDir is returned when failing to create or close a temporary directory
-	ErrTempDir Error = "failed to create or manage temporary directory"
-	// ErrCreateDir is returned when failing to create a directory
-	ErrCreateDir Error = "failed to create directory"
-	// ErrReadFile is returned when failing to read a file
-	ErrReadFile Error = "failed to read file"
 	// ErrParseTree is returned when failing to parse git tree output
 	ErrParseTree Error = "failed to parse git tree output"
 	// ErrParseDiff is returned when failing to parse git diff output

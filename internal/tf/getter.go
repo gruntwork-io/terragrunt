@@ -186,7 +186,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
-	return errors.New(errors.New("GetFile is not implemented for the Terraform Registry Getter"))
+	return errors.New("GetFile is not implemented for the Terraform Registry Getter")
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.

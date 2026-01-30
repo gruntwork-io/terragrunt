@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -14,10 +15,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -96,39 +94,6 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 
 	return CleanPath(absPath), nil
-}
-
-func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
-	basePath, err := CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var errs []error
-
-	compiledGlobs := map[string]glob.Glob{}
-
-	for _, globPath := range globPaths {
-		canGlobPath, err := CanonicalPath(globPath, basePath)
-		if err != nil {
-			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlob, err := glob.Compile(canGlobPath, '/')
-		if err != nil {
-			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlobs[globPath] = compiledGlob
-	}
-
-	if len(errs) > 0 {
-		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
-	}
-
-	return compiledGlobs, nil
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.

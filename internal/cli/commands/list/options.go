@@ -18,9 +18,6 @@ const (
 	// FormatDot outputs the discovered configurations in GraphViz DOT format.
 	FormatDot = "dot"
 
-	// SortAlpha sorts the discovered configurations in alphabetical order.
-	SortAlpha = "alpha"
-
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
 

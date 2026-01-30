@@ -72,18 +72,10 @@ const (
 	// `--graph` related flags.
 	GraphRootFlagName = "graph-root"
 
-	// Backend and feature flags (shared with backend commands) - use shared package constants
-	BackendBootstrapFlagName        = shared.BackendBootstrapFlagName
-	BackendRequireBootstrapFlagName = shared.BackendRequireBootstrapFlagName
-	DisableBucketUpdateFlagName     = shared.DisableBucketUpdateFlagName
-	FeatureFlagName                 = shared.FeatureFlagName
-
 	// Config and download flags - use shared package constants
-	ConfigFlagName      = shared.ConfigFlagName
-	DownloadDirFlagName = shared.DownloadDirFlagName
+	ConfigFlagName = shared.ConfigFlagName
 
 	// Auth and IAM flags - use shared package constants
-	AuthProviderCmdFlagName               = shared.AuthProviderCmdFlagName
 	InputsDebugFlagName                   = shared.InputsDebugFlagName
 	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
 	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName

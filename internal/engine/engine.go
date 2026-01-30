@@ -53,6 +53,13 @@ const (
 	terraformCommandContextKey engineClientsKey = iota
 	locksContextKey            engineLocksKey   = iota
 	latestVersionsContextKey   engineLocksKey   = iota
+
+	dirPerm = 0755
+
+	errMsgEngineClientsFetch = "failed to fetch engine clients from context"
+	errMsgEngineClientsCast  = "failed to cast engine clients from context"
+	errMsgVersionsCacheFetch = "failed to fetch engine versions cache from context"
+	errMsgVersionsCacheCast  = "failed to cast engine versions cache from context"
 )
 
 type (
@@ -403,12 +410,12 @@ func isArchiveByHeader(l log.Logger, filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsCast)
 	}
 
 	return result, nil
@@ -418,12 +425,12 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(locksContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsCast)
 	}
 
 	return result, nil
@@ -432,12 +439,12 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
 	val := ctx.Value(latestVersionsContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine versions cache from context"))
+		return nil, errors.New(errMsgVersionsCacheFetch)
 	}
 
 	result, ok := val.(*cache.Cache[string])
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine versions cache from context"))
+		return nil, errors.New(errMsgVersionsCacheCast)
 	}
 
 	return result, nil
@@ -979,7 +986,6 @@ func extract(l log.Logger, zipFile, destDir string) error {
 		}
 	}()
 
-	const dirPerm = 0755
 	if err = os.MkdirAll(destDir, dirPerm); err != nil {
 		return errors.New(err)
 	}
@@ -1002,7 +1008,6 @@ func extract(l log.Logger, zipFile, destDir string) error {
 			continue
 		}
 
-		const dirPerm = 0755
 		if err := os.MkdirAll(filepath.Dir(fPath), dirPerm); err != nil {
 			return errors.New(err)
 		}
