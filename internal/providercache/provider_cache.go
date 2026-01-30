@@ -417,6 +417,11 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 					return cmdErr
 				}
 
+				err = errWriter.Flush()
+				if err != nil {
+					l.Warnf("Failed to flush stderr: %v", err)
+				}
+
 				return util.FatalError{Underlying: cmdErr}
 			}
 
