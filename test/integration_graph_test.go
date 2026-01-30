@@ -16,7 +16,7 @@ const (
 	testFixtureGraph = "fixtures/graph"
 )
 
-func TestTerragruntDestroyGraph(t *testing.T) {
+func TestTerragruntDestroyGraph(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
 	testCases := []struct {
@@ -46,16 +46,24 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
+	for _, tc := range testCases { //nolint:paralleltest
 		t.Run(tc.path, func(t *testing.T) {
-			t.Parallel()
-
+			// Run subtests sequentially to avoid timeout
 			tmpEnvPath := prepareGraphFixture(t)
 			fixturePath := filepath.Join(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := filepath.Join(fixturePath, tc.path)
 			reportFile := filepath.Join(fixturePath, "report.json")
 
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run --graph destroy --non-interactive --working-dir %s --graph-root %s --report-file %s --report-format json", tmpModulePath, tmpEnvPath, reportFile))
+			_, _, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				fmt.Sprintf(
+					"terragrunt run --graph destroy --non-interactive --working-dir %s "+
+						"--graph-root %s --report-file %s --report-format json",
+					tmpModulePath,
+					tmpEnvPath,
+					reportFile,
+				),
+			)
 			require.NoError(t, err)
 
 			require.FileExists(t, reportFile)
