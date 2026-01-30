@@ -21,7 +21,19 @@ try {
     Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
     Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS.gpgsig" -OutFile "SHA256SUMS.gpgsig" -UseBasicParsing
 
-    # Verify checksum
+    # First: Verify GPG signature of checksum file (requires gpg installed)
+    Write-Host "Importing Gruntwork signing key..."
+    Invoke-WebRequest -Uri "https://gruntwork.io/.well-known/pgp-key.txt" -OutFile "pgp-key.txt" -UseBasicParsing
+    gpg --import pgp-key.txt 2>$null
+    Write-Host "Verifying GPG signature of SHA256SUMS..."
+    gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "GPG signature verification failed"
+        exit 1
+    }
+    Write-Host "GPG signature verified!"
+
+    # Second: Verify checksum of binary against trusted SHA256SUMS
     $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
     $expectedChecksum = (Get-Content "SHA256SUMS" | ForEach-Object { $parts = $_ -split '\s+'; if ($parts[1] -eq $binaryName) { return $parts[0].ToLower() } } | Select-Object -First 1)
     if ($actualChecksum -ne $expectedChecksum) {
@@ -29,17 +41,6 @@ try {
         exit 1
     }
     Write-Host "Checksum verified!"
-
-    # Verify GPG signature (requires gpg installed)
-    Write-Host "Importing Gruntwork signing key..."
-    Invoke-WebRequest -Uri "https://gruntwork.io/.well-known/pgp-key.txt" -OutFile "pgp-key.txt" -UseBasicParsing
-    gpg --import pgp-key.txt 2>$null
-    Write-Host "Verifying GPG signature..."
-    gpg --verify SHA256SUMS.gpgsig SHA256SUMS
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "GPG signature verification failed"
-        exit 1
-    }
     Write-Host "Terragrunt $version downloaded and verified successfully"
 }
 catch {
@@ -72,7 +73,16 @@ curl -sL "\$BASE_URL/\$BINARY_NAME" -o "\$BINARY_NAME"
 curl -sL "\$BASE_URL/SHA256SUMS" -o SHA256SUMS
 curl -sL "\$BASE_URL/SHA256SUMS.gpgsig" -o SHA256SUMS.gpgsig
 
-# Verify checksum
+# First: Import Gruntwork signing key and verify GPG signature of checksum file
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import 2>/dev/null
+if gpg --verify SHA256SUMS.gpgsig SHA256SUMS 2>/dev/null; then
+  echo "GPG signature verified!"
+else
+  echo "GPG signature verification failed!"
+  exit 1
+fi
+
+# Second: Verify checksum of binary against trusted SHA256SUMS
 CHECKSUM="\$(${os == 'linux' ? 'sha256sum' : 'shasum -a 256'} "\$BINARY_NAME" | awk '{print \$1}')"
 EXPECTED_CHECKSUM="\$(awk -v binary="\$BINARY_NAME" '\$2 == binary {print \$1; exit}' SHA256SUMS)"
 
@@ -81,15 +91,6 @@ if [ "\$CHECKSUM" != "\$EXPECTED_CHECKSUM" ]; then
   exit 1
 fi
 echo "Checksum verified!"
-
-# Import Gruntwork signing key and verify GPG signature
-curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import 2>/dev/null
-if gpg --verify SHA256SUMS.gpgsig SHA256SUMS 2>/dev/null; then
-  echo "GPG signature verified!"
-else
-  echo "GPG signature verification failed!"
-  exit 1
-fi
 
 echo "Terragrunt \$VERSION downloaded and verified successfully"`}
   frame='terminal'
