@@ -7,3 +7,5 @@ awscli = "2.28.15"
 "go:golang.org/x/tools/gopls" = "v0.20.0"
 tflint = "0.50.3"
 terraform = "1.14.1"
+pipx = { version = "1.8.0", os = ["macos", "linux"] }
+"pipx:codespell" = { version = "2.4.1", os = ["macos", "linux"] }
