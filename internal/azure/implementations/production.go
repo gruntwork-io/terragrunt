@@ -19,8 +19,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // StorageAccountServiceImpl is the production implementation of StorageAccountService
@@ -855,6 +855,19 @@ func NewProductionServiceContainer(config map[string]interface{}) interfaces.Azu
 
 // GetStorageAccountService returns a production storage account service
 func (c *ProductionServiceContainer) GetStorageAccountService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.StorageAccountService, error) {
+	// Check if a custom service is registered first (check both new and legacy keys)
+	if c.HasService("storage") {
+		if svc, ok := c.cache["storage"].(interfaces.StorageAccountService); ok {
+			return svc, nil
+		}
+	}
+
+	if c.HasService("storageaccount") {
+		if svc, ok := c.cache["storageaccount"].(interfaces.StorageAccountService); ok {
+			return svc, nil
+		}
+	}
+
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
@@ -869,6 +882,25 @@ func (c *ProductionServiceContainer) GetStorageAccountService(ctx context.Contex
 
 // GetBlobService returns a production blob service
 func (c *ProductionServiceContainer) GetBlobService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.BlobService, error) {
+	// Check if a custom service is registered first (check both new and legacy keys)
+	if c.HasService("blob") {
+		if svc, ok := c.cache["blob"].(interfaces.BlobService); ok {
+			return svc, nil
+		}
+	}
+
+	if c.HasService("auth") {
+		if svc, ok := c.cache["auth"].(interfaces.BlobService); ok {
+			return svc, nil
+		}
+	}
+
+	if c.HasService("authentication") {
+		if svc, ok := c.cache["authentication"].(interfaces.BlobService); ok {
+			return svc, nil
+		}
+	}
+
 	// Merge container config with service config
 	mergedConfig := mergeConfig(c.config, config)
 
