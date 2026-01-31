@@ -550,6 +550,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	// because the absolute paths will differ (worktree vs original directory).
 	// We resolve paths to handle symlinks (e.g., /var -> /private/var on macOS).
 	targetRelSuffix := ""
+
 	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
 		resolvedWorkingDir := resolvePath(targetDCtx.WorkingDir)
 		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
@@ -722,11 +723,14 @@ func (p *GraphPhase) discoverDependentsUpstream(
 				// Compare paths: first try exact match, then try relative suffix match
 				// for worktree scenarios where target is in a different directory.
 				resolvedDep := resolvePath(dep)
-				if resolvedDep == resolvedTargetPath {
+
+				switch {
+				case resolvedDep == resolvedTargetPath:
 					// Direct match - link to the existing depComponent
 					canonicalCandidate.AddDependency(depComponent)
+
 					dependsOnTarget = true
-				} else if targetRelSuffix != "" {
+				case targetRelSuffix != "":
 					// Compare relative suffixes when target is from a worktree.
 					// Use resolved paths to handle symlinks consistently.
 					depRelSuffix := strings.TrimPrefix(resolvedDep, resolvedDiscoveryWorkingDir)
@@ -735,11 +739,12 @@ func (p *GraphPhase) discoverDependentsUpstream(
 						// Link to the actual target component instead of the path-based component,
 						// so that the dependent relationship is properly established.
 						canonicalCandidate.AddDependency(target)
+
 						dependsOnTarget = true
 					} else {
 						canonicalCandidate.AddDependency(depComponent)
 					}
-				} else {
+				default:
 					canonicalCandidate.AddDependency(depComponent)
 				}
 			}
