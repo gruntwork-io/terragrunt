@@ -1,4 +1,4 @@
-package v2_test
+package discovery_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	v2 "github.com/gruntwork-io/terragrunt/internal/discovery/v2"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -117,7 +117,7 @@ func runWorktreeDiscovery(
 		filters = append(filters, f)
 	}
 
-	discovery := v2.New(tmpDir).
+	discovery := discovery.New(tmpDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w).
 		WithFilters(filters)
@@ -297,7 +297,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				Args:       tt.args,
 			}
 
-			discovery := v2.New(tmpDir).
+			discovery := discovery.New(tmpDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w)
 
@@ -575,7 +575,7 @@ unit "unit_to_be_untouched" {
 		Cmd:        "plan",
 	}
 
-	discovery := v2.New(tmpDir).
+	discovery := discovery.New(tmpDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
@@ -922,7 +922,7 @@ locals {
 				WorkingDir: tmpDir,
 			}
 
-			discovery := v2.New(tmpDir).
+			discovery := discovery.New(tmpDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w).
 				WithFilters(filters)
@@ -1016,7 +1016,7 @@ locals {
 		WorkingDir: basicDir,
 	}
 
-	discovery := v2.New(basicDir).
+	discovery := discovery.New(basicDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w).
 		WithFilters(filters)
@@ -1203,7 +1203,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				WorkingDir: basicDir,
 			}
 
-			discovery := v2.New(basicDir).
+			discovery := discovery.New(basicDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w).
 				WithFilters(filters)

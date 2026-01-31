@@ -1,4 +1,4 @@
-package v2_test
+package discovery_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	v2 "github.com/gruntwork-io/terragrunt/internal/discovery/v2"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -51,7 +51,7 @@ func TestFilesystemPhase_BasicDiscovery(t *testing.T) {
 	ctx := t.Context()
 
 	// Run filesystem phase via full discovery
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
 	components, err := d.Discover(ctx, l, opts)
@@ -91,7 +91,7 @@ func TestFilesystemPhase_SkipsIgnorableDirs(t *testing.T) {
 
 	ctx := t.Context()
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
 	components, err := d.Discover(ctx, l, opts)
@@ -128,7 +128,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 	t.Run("without noHidden", func(t *testing.T) {
 		t.Parallel()
 
-		d := v2.New(tmpDir).
+		d := discovery.New(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
 		components, err := d.Discover(ctx, l, opts)
@@ -139,7 +139,7 @@ func TestFilesystemPhase_WithNoHidden(t *testing.T) {
 	t.Run("with noHidden", func(t *testing.T) {
 		t.Parallel()
 
-		d := v2.New(tmpDir).
+		d := discovery.New(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithNoHidden()
 
@@ -185,7 +185,7 @@ locals {
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters).
 		WithReadFiles()
@@ -245,7 +245,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -325,7 +325,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -376,7 +376,7 @@ dependency "db" {
 	ctx := t.Context()
 
 	// Use WithRelationships to enable relationship phase
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithRelationships()
 
@@ -761,7 +761,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 

@@ -1,4 +1,4 @@
-package v2_test
+package discovery_test
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	v2 "github.com/gruntwork-io/terragrunt/internal/discovery/v2"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,11 +42,11 @@ func TestNewWorktreePhase(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			phase := v2.NewWorktreePhase(nil, tt.numWorkers)
+			phase := discovery.NewWorktreePhase(nil, tt.numWorkers)
 
 			assert.NotNil(t, phase)
 			assert.Equal(t, "worktree", phase.Name())
-			assert.Equal(t, v2.PhaseWorktree, phase.Kind())
+			assert.Equal(t, discovery.PhaseWorktree, phase.Kind())
 
 			if tt.expectedNumWorkers > 0 {
 				assert.Equal(t, tt.expectedNumWorkers, phase.NumWorkers())
@@ -67,10 +67,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 
 		tmpDir := t.TempDir()
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "Same empty directory should produce same hash")
@@ -86,10 +86,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "file.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "file.txt"), content, 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "Directories with same files should produce same hash")
@@ -102,12 +102,12 @@ func TestGenerateDirSHA256(t *testing.T) {
 
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content1"), 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
 
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("content2"), 0644))
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2, "Modified file should produce different hash")
@@ -123,10 +123,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir1, "original.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "renamed.txt"), content, 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2, "File rename (different path) should produce different hash")
@@ -145,10 +145,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.MkdirAll(subDir, 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(subDir, "file.txt"), content, 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2, "File move to subdirectory should produce different hash")
@@ -168,10 +168,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		manifestContent := []byte("/path/to/something\n/another/path")
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, ".terragrunt-stack-manifest"), manifestContent, 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, ".terragrunt-stack-manifest should be ignored in hash calculation")
@@ -190,10 +190,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "b.txt"), []byte("b"), 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(tmpDir2, "a.txt"), []byte("a"), 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "File creation order should not affect hash")
@@ -202,7 +202,7 @@ func TestGenerateDirSHA256(t *testing.T) {
 	t.Run("nonexistent_directory_returns_error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := v2.GenerateDirSHA256("/nonexistent/path/to/directory")
+		_, err := discovery.GenerateDirSHA256("/nonexistent/path/to/directory")
 		require.Error(t, err)
 	})
 
@@ -223,10 +223,10 @@ func TestGenerateDirSHA256(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(subDir1, "file.txt"), content, 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(subDir2, "file.txt"), content, 0644))
 
-		hash1, err := v2.GenerateDirSHA256(tmpDir1)
+		hash1, err := discovery.GenerateDirSHA256(tmpDir1)
 		require.NoError(t, err)
 
-		hash2, err := v2.GenerateDirSHA256(tmpDir2)
+		hash2, err := discovery.GenerateDirSHA256(tmpDir2)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2, "Nested directories with same structure should produce same hash")
@@ -250,7 +250,7 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/db", "/worktree-to"),
 		}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Len(t, pairs, 2, "Should match 2 component pairs")
 
@@ -277,7 +277,7 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/new-unit", "/worktree-to"),
 		}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Empty(t, pairs, "Added-only components should not produce pairs")
 	})
@@ -291,7 +291,7 @@ func TestMatchComponentPairs(t *testing.T) {
 
 		toComponents := component.Components{}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Empty(t, pairs, "Removed-only components should not produce pairs")
 	})
@@ -307,7 +307,7 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/new-name", "/worktree-to"),
 		}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Empty(t, pairs, "Renamed components (different paths) should not match")
 	})
@@ -325,7 +325,7 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/added", "/worktree-to"),
 		}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Len(t, pairs, 1, "Should only match the shared component")
 		assert.Equal(t, "/shared", getRelativePath(pairs[0].FromComponent))
@@ -335,7 +335,7 @@ func TestMatchComponentPairs(t *testing.T) {
 	t.Run("handles_empty_inputs", func(t *testing.T) {
 		t.Parallel()
 
-		pairs := v2.MatchComponentPairs(component.Components{}, component.Components{})
+		pairs := discovery.MatchComponentPairs(component.Components{}, component.Components{})
 
 		assert.Empty(t, pairs, "Empty inputs should produce empty pairs")
 	})
@@ -353,7 +353,7 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/apps/backend", "/worktree-to"),
 		}
 
-		pairs := v2.MatchComponentPairs(fromComponents, toComponents)
+		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
 
 		assert.Len(t, pairs, 2, "Should match 2 nested component pairs")
 	})
@@ -367,7 +367,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 		name             string
 		cmd              string
 		args             []string
-		kind             v2.WorktreeKind
+		kind             discovery.WorktreeKind
 		expectError      bool
 		expectDestroyArg bool
 	}{
@@ -376,7 +376,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_plan_adds_destroy",
 			cmd:              "plan",
 			args:             []string{},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: true,
 		},
@@ -384,7 +384,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_apply_adds_destroy",
 			cmd:              "apply",
 			args:             []string{},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: true,
 		},
@@ -392,7 +392,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_plan_with_other_args_adds_destroy",
 			cmd:              "plan",
 			args:             []string{"-out", "plan.out"},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: true,
 		},
@@ -400,7 +400,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_plan_with_destroy_already_present_errors",
 			cmd:              "plan",
 			args:             []string{"-destroy"},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,
 		},
@@ -408,7 +408,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_empty_command_allowed",
 			cmd:              "",
 			args:             []string{},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: false,
 		},
@@ -416,7 +416,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_unsupported_command_errors",
 			cmd:              "destroy",
 			args:             []string{},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,
 		},
@@ -424,7 +424,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "from_worktree_output_command_errors",
 			cmd:              "output",
 			args:             []string{},
-			kind:             v2.FromWorktreeKind,
+			kind:             discovery.FromWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,
 		},
@@ -433,7 +433,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_plan_no_destroy",
 			cmd:              "plan",
 			args:             []string{},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: false,
 		},
@@ -441,7 +441,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_apply_no_destroy",
 			cmd:              "apply",
 			args:             []string{},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: false,
 		},
@@ -449,7 +449,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_plan_with_other_args",
 			cmd:              "plan",
 			args:             []string{"-out", "plan.out"},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: false,
 		},
@@ -457,7 +457,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_plan_with_destroy_already_present_errors",
 			cmd:              "plan",
 			args:             []string{"-destroy"},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,
 		},
@@ -465,7 +465,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_empty_command_allowed",
 			cmd:              "",
 			args:             []string{},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      false,
 			expectDestroyArg: false,
 		},
@@ -473,7 +473,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 			name:             "to_worktree_unsupported_command_errors",
 			cmd:              "destroy",
 			args:             []string{},
-			kind:             v2.ToWorktreeKind,
+			kind:             discovery.ToWorktreeKind,
 			expectError:      true,
 			expectDestroyArg: false,
 		},
@@ -488,7 +488,7 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 				Args: tt.args,
 			}
 
-			result, err := v2.TranslateDiscoveryContextArgsForWorktree(dc, tt.kind)
+			result, err := discovery.TranslateDiscoveryContextArgsForWorktree(dc, tt.kind)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -516,9 +516,9 @@ func TestTranslateDiscoveryContextArgsForWorktree(t *testing.T) {
 func TestWorktreeKind(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, v2.FromWorktreeKind, v2.WorktreeKind(0))
-	assert.Equal(t, v2.ToWorktreeKind, v2.WorktreeKind(1))
-	assert.NotEqual(t, v2.FromWorktreeKind, v2.ToWorktreeKind)
+	assert.Equal(t, discovery.FromWorktreeKind, discovery.WorktreeKind(0))
+	assert.Equal(t, discovery.ToWorktreeKind, discovery.WorktreeKind(1))
+	assert.NotEqual(t, discovery.FromWorktreeKind, discovery.ToWorktreeKind)
 }
 
 // Helper function to create a test component with discovery context.

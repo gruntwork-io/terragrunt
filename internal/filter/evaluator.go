@@ -194,12 +194,21 @@ func evaluatePrefixExpression(l log.Logger, expr *PrefixExpression, components c
 		return components, nil
 	}
 
+	// Build a set of paths to exclude for efficient lookup.
+	// We compare by path rather than object identity because graph traversal
+	// may return component instances from Dependencies()/Dependents() that are
+	// different objects than those in the input list.
+	excludePaths := make(map[string]struct{}, len(toExclude))
+	for _, c := range toExclude {
+		excludePaths[c.Path()] = struct{}{}
+	}
+
 	// We don't use slices.DeleteFunc here because we don't want the members of the original components slice to be
 	// zeroed.
 	results := make(component.Components, 0, len(components)-len(toExclude))
 
 	for _, c := range components {
-		if slices.Contains(toExclude, c) {
+		if _, excluded := excludePaths[c.Path()]; excluded {
 			continue
 		}
 
@@ -235,14 +244,12 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		return nil, err
 	}
 
-	// We want to avoid including target matches in the initial set if they were discovered via graph discovery.
-	// They should pop out of graph traversal if they were relevant.
-	//
-	// This is to ensure that we don't accidentally include matches when they would only be included by their
-	// relationship in the dependency/dependent graph of a specific target.
-	targetMatches = slices.DeleteFunc(targetMatches, func(c component.Component) bool {
-		return c.Origin() == component.OriginGraphDiscovery
-	})
+	// NOTE: We previously filtered out components with OriginGraphDiscovery here to avoid
+	// including components that were only discovered via graph relationships. However, this
+	// caused issues with intersection filters like "service... | !^db..." where db is
+	// discovered via the first filter and then needs to be used as a target in the second.
+	// The discovery phase already handles this logic properly, so we don't need to filter
+	// by origin here during filter evaluation.
 
 	if len(targetMatches) == 0 {
 		return component.Components{}, nil

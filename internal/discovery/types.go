@@ -1,4 +1,4 @@
-package v2
+package discovery
 
 import (
 	"context"
@@ -139,6 +139,9 @@ type Discovery struct {
 
 	// gitRoot is the git repository root, used as boundary for dependent discovery.
 	gitRoot string
+
+	// graphTarget is the target path for graph filtering (prune to target + dependents).
+	graphTarget string
 
 	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
 	configFilenames []string

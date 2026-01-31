@@ -1,4 +1,4 @@
-package v2_test
+package discovery_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	v2 "github.com/gruntwork-io/terragrunt/internal/discovery/v2"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -237,7 +237,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 	ctx := t.Context()
 
 	// Test: discover all components
-	d := v2.New(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
+	d := discovery.New(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
 		WorkingDir: tmpDir,
 	})
 
@@ -275,7 +275,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -315,7 +315,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"!./bar"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -360,7 +360,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*", "!./apps/baz"})
 	require.NoError(t, err)
 
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -381,15 +381,15 @@ func TestPhaseKind_String(t *testing.T) {
 
 	tests := []struct {
 		expected string
-		kind     v2.PhaseKind
+		kind     discovery.PhaseKind
 	}{
-		{expected: "filesystem", kind: v2.PhaseFilesystem},
-		{expected: "worktree", kind: v2.PhaseWorktree},
-		{expected: "parse", kind: v2.PhaseParse},
-		{expected: "graph", kind: v2.PhaseGraph},
-		{expected: "relationship", kind: v2.PhaseRelationship},
-		{expected: "final", kind: v2.PhaseFinal},
-		{expected: "unknown", kind: v2.PhaseKind(999)},
+		{expected: "filesystem", kind: discovery.PhaseFilesystem},
+		{expected: "worktree", kind: discovery.PhaseWorktree},
+		{expected: "parse", kind: discovery.PhaseParse},
+		{expected: "graph", kind: discovery.PhaseGraph},
+		{expected: "relationship", kind: discovery.PhaseRelationship},
+		{expected: "final", kind: discovery.PhaseFinal},
+		{expected: "unknown", kind: discovery.PhaseKind(999)},
 	}
 
 	for _, tt := range tests {
@@ -483,7 +483,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	ctx := t.Context()
 
 	// Discover components with ReadFiles enabled to populate Reading field
-	d := v2.New(tmpDir).
+	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 

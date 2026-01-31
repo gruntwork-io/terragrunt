@@ -1,4 +1,4 @@
-// Package v2 provides a channel-based phased discovery architecture for Terragrunt components.
+// Package discovery provides a channel-based phased discovery architecture for Terragrunt components.
 //
 // # Overview
 //
@@ -79,4 +79,4 @@
 // [component.ThreadSafeComponents] provides concurrent component access during graph traversal.
 // A custom stringSet (RWMutex-based) tracks seen components during traversal.
 // [errgroup] with configurable worker limits (default 4, max 8) handles concurrent operations.
-package v2
+package discovery

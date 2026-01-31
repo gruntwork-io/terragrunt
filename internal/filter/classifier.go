@@ -173,6 +173,11 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 	case *PrefixExpression:
 		if node.Operator == "!" {
 			c.negatedExprs = append(c.negatedExprs, node.Right)
+			// Also track if the negated expression requires parsing.
+			// For example, "!reading=shared.hcl" still needs parsing to evaluate the reading attribute.
+			if _, requiresParse := node.Right.RequiresParse(); requiresParse {
+				c.parseExprs = append(c.parseExprs, node.Right)
+			}
 		} else {
 			// Unknown prefix operator, analyze inner expression
 			c.analyzeExpression(node.Right, filterIndex)
@@ -204,20 +209,31 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
 
-	if c.matchesFilesystemExpression(comp) {
+	matchesFilesystem := c.matchesFilesystemExpression(comp)
+	matchesGit := c.matchesGitExpression(comp)
+
+	// If there are parse-required expressions and parsing hasn't happened yet,
+	// components matching filesystem/git expressions should be candidates, not discovered.
+	// This is necessary for intersection filters like "./apps/** | reading=shared.hcl"
+	// where we need parsing to verify the second part of the filter.
+	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
+		if matchesFilesystem || matchesGit {
+			return StatusCandidate, CandidacyReasonRequiresParse, -1
+		}
+
+		return StatusCandidate, CandidacyReasonRequiresParse, -1
+	}
+
+	if matchesFilesystem {
 		return StatusDiscovered, CandidacyReasonNone, -1
 	}
 
-	if c.matchesGitExpression(comp) {
+	if matchesGit {
 		return StatusDiscovered, CandidacyReasonNone, -1
 	}
 
 	if graphIdx := c.matchesGraphExpressionTarget(comp); graphIdx >= 0 {
 		return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
-	}
-
-	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
-		return StatusCandidate, CandidacyReasonRequiresParse, -1
 	}
 
 	if c.HasDependentFilters() && !ctx.ParseDataAvailable {

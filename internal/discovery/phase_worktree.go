@@ -1,4 +1,4 @@
-package v2
+package discovery
 
 import (
 	"context"
@@ -334,7 +334,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, 2)
+		errs = make([]error, 0, 2) //nolint:mnd
 	)
 
 	discoveryGroup.Go(func() error {

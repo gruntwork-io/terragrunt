@@ -1,4 +1,4 @@
-package v2_test
+package discovery_test
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	v2 "github.com/gruntwork-io/terragrunt/internal/discovery/v2"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -51,7 +50,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithSuppressParseErrors()
 						components, err := d.Discover(b.Context(), l, opts)
@@ -79,7 +78,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithRequiresParse().
 							WithSuppressParseErrors()
@@ -108,7 +107,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithParseExclude().
 							WithSuppressParseErrors()
@@ -137,7 +136,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithRelationships().
 							WithSuppressParseErrors()
@@ -170,7 +169,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithFilters(filters).
 							WithSuppressParseErrors()
@@ -203,7 +202,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithFilters(filters).
 							WithSuppressParseErrors()
@@ -236,7 +235,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithFilters(filters).
 							WithSuppressParseErrors()
@@ -271,7 +270,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithFilters(filters).
 							WithBreakCycles().
@@ -310,7 +309,7 @@ func BenchmarkDiscoveryV1vsV2(b *testing.B) {
 					b.ResetTimer()
 
 					for b.Loop() {
-						d := v2.New(fixture.RootDir).
+						d := discovery.New(fixture.RootDir).
 							WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: fixture.RootDir}).
 							WithFilters(filters).
 							WithRequiresParse().
