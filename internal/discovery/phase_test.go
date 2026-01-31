@@ -274,7 +274,7 @@ dependency "vpc" {
 
 // TestGraphPhase_DependentDiscoveryRequiresRelationships tests that dependent discovery
 // requires relationships to be built first. This is a behavioral test documenting the
-// current v2 implementation's requirements for dependent traversal.
+// current implementation's requirements for dependent traversal.
 func TestGraphPhase_DependentDiscoveryRequiresRelationships(t *testing.T) {
 	t.Parallel()
 
@@ -319,7 +319,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Using dependent filter (...vpc) without pre-built relationships
-	// Currently, the v2 implementation requires relationships to be built
+	// Currently, the implementation requires relationships to be built
 	// before dependent traversal can work (unlike dependency traversal which
 	// parses configs on-the-fly)
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})

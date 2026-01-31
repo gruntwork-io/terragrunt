@@ -80,7 +80,7 @@ func createUnit(t *testing.T, baseDir, unitName, content string) string {
 	return unitDir
 }
 
-// runWorktreeDiscovery runs v2 discovery with worktree phase enabled.
+// runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,
 	tmpDir string,

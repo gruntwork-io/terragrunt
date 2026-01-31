@@ -123,7 +123,7 @@ type Phase interface {
 	Run(ctx context.Context, input *PhaseInput) PhaseOutput
 }
 
-// Discovery is the main configuration for v2 discovery.
+// Discovery is the main configuration for discovery.
 type Discovery struct {
 	// discoveryContext is the context in which the discovery is happening.
 	discoveryContext *component.DiscoveryContext

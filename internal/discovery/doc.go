@@ -65,7 +65,7 @@
 //
 // # Example Usage
 //
-//	d := v2.New(workingDir).
+//	d := discovery.New(workingDir).
 //		WithFilters(filters).
 //		WithDiscoveryContext(discoveryContext).
 //		WithRelationships().

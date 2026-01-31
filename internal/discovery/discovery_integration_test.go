@@ -541,7 +541,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 }
 
 // TestDiscovery_WithReadFiles tests that reading field is populated when using reading filters.
-// The v2 implementation requires a filter that triggers parsing to populate the reading field.
+// The implementation requires a filter that triggers parsing to populate the reading field.
 func TestDiscovery_WithReadFiles(t *testing.T) {
 	t.Parallel()
 
