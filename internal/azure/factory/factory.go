@@ -157,30 +157,99 @@ func (f *AzureServiceFactory) Reset(ctx context.Context, l log.Logger) error {
 	return f.Cleanup(ctx, l)
 }
 
-// getCacheKey generates a cache key from the configuration
+// getConfigString safely extracts a string value from a config map.
+func getConfigString(config map[string]interface{}, key string) string {
+	if v, ok := config[key].(string); ok {
+		return v
+	}
+
+	return ""
+}
+
+// getConfigBool safely extracts a bool value from a config map.
+func getConfigBool(config map[string]interface{}, key string) bool {
+	if v, ok := config[key].(bool); ok {
+		return v
+	}
+
+	return false
+}
+
+// hashMultiplier is the multiplier used for the simple hash algorithm.
+const hashMultiplier = 31
+
+// determineAuthType determines the authentication type and secret hash from config.
+// For secret-based auth (SAS token, access key, client secret), returns a hashed
+// representation of the secret to avoid credential mixups while preventing
+// sensitive values from being logged.
+func determineAuthType(config map[string]interface{}) (authType, secretHash string) {
+	if sasToken := getConfigString(config, "sas_token"); sasToken != "" {
+		return "sas", hashSecret(sasToken)
+	}
+
+	if accessKey := getConfigString(config, "access_key"); accessKey != "" {
+		return "access_key", hashSecret(accessKey)
+	}
+
+	if getConfigBool(config, "use_msi") {
+		return "msi", ""
+	}
+
+	if getConfigBool(config, "use_azuread_auth") {
+		return "azuread", ""
+	}
+
+	if clientSecret := getConfigString(config, "client_secret"); clientSecret != "" {
+		return "client_secret", hashSecret(clientSecret)
+	}
+
+	return "default", ""
+}
+
+// getCacheKey generates a cache key from the configuration including authentication context.
+// For secret-based auth (SAS token, access key), a hashed representation is used to avoid
+// credential mixups while preventing sensitive values from being logged.
 func (f *AzureServiceFactory) getCacheKey(config map[string]interface{}) string {
-	// Create a simple cache key based on key configuration parameters
-	// Empty strings are acceptable defaults for missing config values
-	var storageAccount, subscriptionID, resourceGroup string
+	// Core resource identifiers
+	storageAccount := getConfigString(config, "storage_account_name")
+	subscriptionID := getConfigString(config, "subscription_id")
+	resourceGroup := getConfigString(config, "resource_group_name")
+	containerName := getConfigString(config, "container_name")
 
-	if v, ok := config["storage_account_name"].(string); ok {
-		storageAccount = v
-	}
-
-	if v, ok := config["subscription_id"].(string); ok {
-		subscriptionID = v
-	}
-
-	if v, ok := config["resource_group_name"].(string); ok {
-		resourceGroup = v
-	}
+	// Authentication context
+	authType, secretHash := determineAuthType(config)
+	tenantID := getConfigString(config, "tenant_id")
+	clientID := getConfigString(config, "client_id")
 
 	// Use structured format with URL encoding to prevent collisions
-	// e.g., "a-b" + "-" + "c" vs "a" + "-" + "b-c"
-	return fmt.Sprintf("sa:%s|sub:%s|rg:%s",
+	// Include all identity and container context to avoid credential mixups
+	return fmt.Sprintf("sa:%s|sub:%s|rg:%s|cn:%s|auth:%s|tid:%s|cid:%s|sh:%s",
 		url.QueryEscape(storageAccount),
 		url.QueryEscape(subscriptionID),
-		url.QueryEscape(resourceGroup))
+		url.QueryEscape(resourceGroup),
+		url.QueryEscape(containerName),
+		url.QueryEscape(authType),
+		url.QueryEscape(tenantID),
+		url.QueryEscape(clientID),
+		url.QueryEscape(secretHash))
+}
+
+// hashSecret returns a truncated hash of a secret for cache key differentiation.
+// This allows distinguishing different credentials without exposing the actual values.
+func hashSecret(secret string) string {
+	if secret == "" {
+		return ""
+	}
+
+	// Use a simple hash based on the secret's characters
+	// This is sufficient for cache key differentiation and avoids cryptographic overhead
+	h := 0
+	for _, c := range secret {
+		h = hashMultiplier*h + int(c)
+	}
+
+	// Return a hex representation truncated to 8 characters
+	return fmt.Sprintf("%08x", uint32(h))
 }
 
 // isExpired checks if a cache entry is expired
@@ -353,13 +422,10 @@ func (f *AzureServiceFactory) GetResourceGroupService(ctx context.Context, l log
 		}
 	}
 
-	// Extract the subscription ID from config
-	subscriptionID, ok := config["subscription_id"].(string)
-	if !ok || subscriptionID == "" {
-		return nil, errors.Errorf("subscription_id is required in the configuration")
-	}
+	// Extract the subscription ID from config (may be empty; helper can resolve from auth/env)
+	subscriptionID, _ := config["subscription_id"].(string)
 
-	// Create a new resource group client
+	// Create a new resource group client (helper may resolve subscription from auth/env if empty)
 	resourceGroupClient, err := azurehelper.CreateResourceGroupClient(ctx, l, subscriptionID)
 	if err != nil {
 		return nil, errors.Errorf("failed to create resource group client: %w", err)

@@ -1389,7 +1389,6 @@ func (backend *Backend) prepareServiceConfig(azureCfg *ExtendedRemoteStateConfig
 		"account_tier":             azureCfg.StorageAccountConfig.AccountTier,
 		"access_tier":              azureCfg.StorageAccountConfig.AccessTier,
 		"replication_type":         azureCfg.StorageAccountConfig.ReplicationType,
-		"versioning_enabled":       azureCfg.StorageAccountConfig.EnableVersioning,
 		"allow_blob_public_access": !azureCfg.DisableBlobPublicAccess && azureCfg.StorageAccountConfig.AllowBlobPublicAccess,
 		"tags":                     azureCfg.StorageAccountConfig.StorageAccountTags,
 	}
@@ -1789,18 +1788,8 @@ func (backend *Backend) promptForStorageAccountDeletion(ctx context.Context, l l
 
 // GetBlobServiceFromConfig creates a blob service from the config
 func (backend *Backend) GetBlobServiceFromConfig(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm) (interfaces.BlobService, error) {
-	// Convert config to map for service container
-	config := map[string]interface{}{
-		"storage_account_name": azureCfg.RemoteStateConfigAzurerm.StorageAccountName,
-		"container_name":       azureCfg.RemoteStateConfigAzurerm.ContainerName,
-		"resource_group_name":  azureCfg.RemoteStateConfigAzurerm.ResourceGroupName,
-		"subscription_id":      azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-		"tenant_id":            azureCfg.RemoteStateConfigAzurerm.TenantID,
-		"client_id":            azureCfg.RemoteStateConfigAzurerm.ClientID,
-		"client_secret":        azureCfg.RemoteStateConfigAzurerm.ClientSecret,
-		"use_azuread_auth":     azureCfg.RemoteStateConfigAzurerm.UseAzureADAuth,
-		"use_msi":              azureCfg.RemoteStateConfigAzurerm.UseMsi,
-	}
+	// Use prepareBlobServiceConfig to ensure sas_token, MSI/AzureAD flags, and other auth fields are included
+	config := backend.prepareBlobServiceConfig(azureCfg, nil)
 
 	return backend.serviceContainer.GetBlobService(ctx, l, config)
 }

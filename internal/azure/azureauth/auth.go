@@ -527,8 +527,9 @@ func ValidateAuthConfig(config *AuthConfig) error {
 	case AuthMethodAzureAD, AuthMethodMSI, AuthMethodEnvironment, AuthMethodCLI:
 	}
 
-	// Validate subscription_id is set for methods that require Azure Resource Manager operations
-	if config.SubscriptionID == "" && config.Method != AuthMethodSasToken {
+	// Validate subscription_id is set for all authentication methods (including AuthMethodSasToken)
+	// per documentation requirements
+	if config.SubscriptionID == "" {
 		errs = append(errs, errors.Errorf("subscription_id is required"))
 	}
 

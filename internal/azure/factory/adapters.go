@@ -45,6 +45,10 @@ func (s *storageAccountServiceAdapter) GetStorageAccountName() string {
 
 // CreateStorageAccount creates a new storage account using the new types config
 func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error {
+	if cfg == nil {
+		return errors.New("nil StorageAccountConfig provided")
+	}
+
 	// Convert the types.StorageAccountConfig to azurehelper.StorageAccountConfig
 	azureConfig := azurehelper.StorageAccountConfig{
 		StorageAccountName:    cfg.Name,
@@ -270,11 +274,26 @@ func (b *blobServiceAdapter) UploadBlobFromReader(ctx context.Context, l log.Log
 	return b.client.UploadBlobFromReader(ctx, l, containerName, blobName, reader)
 }
 
-// CopyBlobToContainer copies a blob to another container
+// CopyBlobToContainer copies a blob to another container by streaming from source to destination
 func (b *blobServiceAdapter) CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient interfaces.BlobService, dstContainer, dstKey string) error {
-	// This is a more complex operation that would need to be implemented
-	// For now, return a placeholder implementation that indicates it's not implemented
-	return errors.New("CopyBlobToContainer is not yet implemented in the adapter")
+	// Get source blob content
+	input := &types.GetObjectInput{
+		ContainerName: srcContainer,
+		BlobName:      srcKey,
+	}
+
+	output, err := b.GetObject(ctx, input)
+	if err != nil {
+		return errors.New("failed to get source blob: " + err.Error())
+	}
+
+	// Upload the content to the destination
+	err = dstClient.UploadBlob(ctx, l, dstContainer, dstKey, output.Content)
+	if err != nil {
+		return errors.New("failed to upload blob to destination: " + err.Error())
+	}
+
+	return nil
 }
 
 // resourceGroupServiceAdapter implements interfaces.ResourceGroupService
