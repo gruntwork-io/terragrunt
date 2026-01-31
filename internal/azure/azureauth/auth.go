@@ -74,13 +74,14 @@ const (
 //	- AZURE_CLIENT_SECRET, ARM_CLIENT_SECRET: Sets ClientSecret
 //	- AZURE_TENANT_ID, ARM_TENANT_ID: Sets TenantID
 //	- AZURE_ENVIRONMENT, ARM_ENVIRONMENT: Sets CloudEnvironment
-//	- MSI_ENDPOINT: Sets MSIEndpoint
 //
 // Cloud Environment Support:
 //   - "public" or "AzurePublicCloud": Azure Public Cloud (default)
 //   - "government" or "AzureUSGovernmentCloud": Azure US Government Cloud
 //   - "china" or "AzureChinaCloud": Azure China Cloud
-//   - "german" or "AzureGermanCloud": Azure German Cloud (deprecated)
+//
+// Note: Microsoft Cloud Deutschland (German cloud) was deprecated and shut down
+// on October 29, 2021. Use Azure Public Cloud for workloads in Germany.
 //
 // Examples:
 //
@@ -107,12 +108,11 @@ const (
 //	    UseMSI:         true,
 //	}
 //
-//	// Custom MSI Configuration
+//	// Custom MSI Configuration (User-Assigned Identity)
 //	config := AuthConfig{
 //	    Method:         AuthMethodMSI,
 //	    SubscriptionID: "12345678-1234-1234-1234-123456789abc",
 //	    UseMSI:         true,
-//	    MSIEndpoint:    "http://custom-msi-endpoint:50342/oauth2/token",
 //	    MSIResourceID:  "/subscriptions/sub-id/resourcegroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/my-identity",
 //	}
 //
@@ -197,13 +197,6 @@ type AuthConfig struct {
 	// Optional for other authentication methods.
 	SasToken string
 
-	// MSIEndpoint specifies a custom MSI endpoint URL.
-	// Optional for: AuthMethodMSI
-	// When empty, uses the default Azure Instance Metadata Service endpoint.
-	// Format: Full URL (e.g., "http://custom-endpoint:50342/oauth2/token")
-	// Used for custom MSI configurations or testing scenarios.
-	MSIEndpoint string
-
 	// MSIResourceID specifies the resource ID of a user-assigned managed identity.
 	// Optional for: AuthMethodMSI
 	// When empty, uses the system-assigned managed identity.
@@ -216,7 +209,7 @@ type AuthConfig struct {
 	// - "public" or "AzurePublicCloud": Azure Public Cloud (default)
 	// - "government" or "AzureUSGovernmentCloud": Azure US Government Cloud
 	// - "china" or "AzureChinaCloud": Azure China Cloud
-	// - "german" or "AzureGermanCloud": Azure German Cloud (deprecated)
+	// Note: Microsoft Cloud Deutschland (German cloud) was deprecated in October 2021.
 	// Environment variables: AZURE_ENVIRONMENT, ARM_ENVIRONMENT
 	// Default: "public" (Azure Public Cloud)
 	CloudEnvironment string
@@ -606,28 +599,26 @@ func (r *AuthResult) CreateStorageClientOptions() *azcore.ClientOptions {
 }
 
 // GetEndpointSuffix returns the Azure storage endpoint suffix based on the cloud environment
+// Note: Microsoft Cloud Deutschland (German cloud) was deprecated in October 2021 and is not supported.
 func GetEndpointSuffix(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
 	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "core.usgovcloudapi.net"
 	case "china", "azurechina", "azurechinacloud":
 		return "core.chinacloudapi.cn"
-	case "german", "germany", "azuregerman", "azuregermanycloud", "azuregermancloud":
-		return "core.cloudapi.de"
 	default:
 		return "core.windows.net" // Default to public cloud
 	}
 }
 
 // GetArmEndpoint returns the Azure Resource Manager endpoint based on the cloud environment
+// Note: Microsoft Cloud Deutschland (German cloud) was deprecated in October 2021 and is not supported.
 func GetArmEndpoint(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
 	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "https://management.usgovcloudapi.net"
 	case "china", "azurechina", "azurechinacloud":
 		return "https://management.chinacloudapi.cn"
-	case "german", "germany", "azuregerman", "azuregermanycloud", "azuregermancloud":
-		return "https://management.microsoftazure.de"
 	default:
 		return "https://management.azure.com" // Default to public cloud
 	}
