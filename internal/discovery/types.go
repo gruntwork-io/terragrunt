@@ -173,6 +173,9 @@ type Discovery struct {
 	// parseExclude determines whether to parse exclude configurations.
 	parseExclude bool
 
+	// parseIncludes determines whether to parse for include configurations.
+	parseIncludes bool
+
 	// readFiles determines whether to parse for reading files.
 	readFiles bool
 

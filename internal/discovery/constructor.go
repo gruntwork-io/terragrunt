@@ -61,6 +61,10 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 		d = d.WithParseExclude()
 	}
 
+	if opts.Include {
+		d = d.WithParseIncludes()
+	}
+
 	if opts.Reading {
 		d = d.WithReadFiles()
 	}

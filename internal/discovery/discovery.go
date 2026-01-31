@@ -114,6 +114,14 @@ func (d *Discovery) WithParseExclude() *Discovery {
 	return d
 }
 
+// WithParseIncludes enables parsing for include configurations.
+func (d *Discovery) WithParseIncludes() *Discovery {
+	d.parseIncludes = true
+	d.requiresParse = true
+
+	return d
+}
+
 // WithReadFiles enables parsing for file reading information.
 func (d *Discovery) WithReadFiles() *Discovery {
 	d.readFiles = true

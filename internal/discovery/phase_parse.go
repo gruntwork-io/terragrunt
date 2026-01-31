@@ -93,9 +93,9 @@ func (p *ParsePhase) runParsing(
 		}
 	}
 
-	// When readFiles or parseExclude is enabled, also parse discovered components
-	// to populate the Reading field or Exclude configuration even without filters
-	if discovery.readFiles || discovery.parseExclude {
+	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
+	// to populate the Reading field, Exclude configuration, or ProcessedIncludes even without filters
+	if discovery.readFiles || discovery.parseExclude || discovery.parseIncludes {
 		for _, c := range input.Components {
 			componentsToParse = append(componentsToParse, DiscoveryResult{
 				Component: c,
