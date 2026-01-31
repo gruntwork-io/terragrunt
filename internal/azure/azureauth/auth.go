@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -349,6 +350,22 @@ func GetAuthConfig(
 		StorageAccountName: getStringValue(config, "storage_account_name"),
 	}
 
+	// Extract cloud environment from config or environment variables
+	cloudEnv := getStringValue(config, "cloud_environment")
+	if cloudEnv == "" {
+		envCloudEnv := getFirstEnvValue("", "AZURE_ENVIRONMENT", "ARM_ENVIRONMENT")
+		if envCloudEnv != "" {
+			cloudEnv = envCloudEnv
+			authConfig.UseEnvironment = true
+
+			logDebug(l, "Using cloud environment '%s' from environment variables", cloudEnv)
+		}
+	} else {
+		logDebug(l, "Using cloud environment '%s' from configuration", cloudEnv)
+	}
+
+	authConfig.CloudEnvironment = cloudEnv
+
 	// Try to detect auth method based on configuration
 	switch {
 	case authConfig.UseAzureAD:
@@ -432,16 +449,24 @@ func GetTokenCredential(
 		err        error
 	)
 
+	// Get cloud configuration for sovereign cloud support
+	cloudConfig := cloudConfigForEnvironment(config.CloudEnvironment)
+	clientOpts := azcore.ClientOptions{Cloud: cloudConfig}
+
 	switch config.Method {
 	case AuthMethodAzureAD:
 		logDebug(l, "Creating Azure AD credential")
 
-		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: clientOpts,
+		})
 
 	case AuthMethodMSI:
 		logDebug(l, "Creating MSI credential")
 
-		opts := &azidentity.ManagedIdentityCredentialOptions{}
+		opts := &azidentity.ManagedIdentityCredentialOptions{
+			ClientOptions: clientOpts,
+		}
 
 		if config.MSIResourceID != "" {
 			opts.ID = azidentity.ResourceID(config.MSIResourceID)
@@ -456,15 +481,20 @@ func GetTokenCredential(
 			config.TenantID,
 			config.ClientID,
 			config.ClientSecret,
-			&azidentity.ClientSecretCredentialOptions{},
+			&azidentity.ClientSecretCredentialOptions{
+				ClientOptions: clientOpts,
+			},
 		)
 
 	case AuthMethodEnvironment:
 		logDebug(l, "Creating credential from environment variables")
 
-		credential, err = azidentity.NewEnvironmentCredential(nil)
+		credential, err = azidentity.NewEnvironmentCredential(&azidentity.EnvironmentCredentialOptions{
+			ClientOptions: clientOpts,
+		})
 
 	case AuthMethodCLI:
+		// Note: AzureCLICredential does not have ClientOptions, relies on CLI configuration
 		logDebug(l, "Creating Azure CLI credential")
 
 		credential, err = azidentity.NewAzureCLICredential(nil)
@@ -498,6 +528,20 @@ func GetTokenCredential(
 	}, nil
 }
 
+// cloudConfigForEnvironment returns the Azure cloud configuration for the given environment name.
+// This maps environment aliases to the appropriate cloud.Configuration for sovereign clouds.
+func cloudConfigForEnvironment(cloudEnv string) cloud.Configuration {
+	switch strings.ToLower(cloudEnv) {
+	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
+		return cloud.AzureGovernment
+	case "china", "azurechina", "azurechinacloud":
+		return cloud.AzureChina
+	default:
+		// Default to public cloud (includes empty string, "public", "azurepublic", etc.)
+		return cloud.AzurePublic
+	}
+}
+
 // ValidateAuthConfig validates the auth config and returns any errors
 func ValidateAuthConfig(config *AuthConfig) error {
 	var errs []error
@@ -525,6 +569,8 @@ func ValidateAuthConfig(config *AuthConfig) error {
 		}
 	// No additional validation required for these authentication methods.
 	case AuthMethodAzureAD, AuthMethodMSI, AuthMethodEnvironment, AuthMethodCLI:
+	default:
+		errs = append(errs, errors.Errorf("unsupported authentication method: %s", config.Method))
 	}
 
 	// Validate subscription_id is set for all authentication methods (including AuthMethodSasToken)
@@ -558,7 +604,7 @@ func (r *AuthResult) CreateStorageClientOptions() *azcore.ClientOptions {
 // GetEndpointSuffix returns the Azure storage endpoint suffix based on the cloud environment
 func GetEndpointSuffix(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
-	case "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
+	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "core.usgovcloudapi.net"
 	case "china", "azurechina", "azurechinacloud":
 		return "core.chinacloudapi.cn"
@@ -572,7 +618,7 @@ func GetEndpointSuffix(cloudEnv string) string {
 // GetArmEndpoint returns the Azure Resource Manager endpoint based on the cloud environment
 func GetArmEndpoint(cloudEnv string) string {
 	switch strings.ToLower(cloudEnv) {
-	case "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
+	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
 		return "https://management.usgovcloudapi.net"
 	case "china", "azurechina", "azurechinacloud":
 		return "https://management.chinacloudapi.cn"

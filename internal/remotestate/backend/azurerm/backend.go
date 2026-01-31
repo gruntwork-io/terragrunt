@@ -1324,10 +1324,12 @@ func (backend *Backend) configureRBACIfNeeded(ctx context.Context, l log.Logger,
 
 	storageAccountName := azureCfg.RemoteStateConfigAzurerm.StorageAccountName
 
-	// Get the RBAC service from the container with the subscription ID
-	rbacService, err := backend.serviceContainer.GetRBACService(ctx, l, map[string]interface{}{
-		"subscriptionId": azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
-	})
+	// Get the RBAC service from the container with the full auth config
+	// to preserve tenant/client/secret/MSI settings when creating the RBAC service
+	rbacConfig := backend.prepareServiceConfig(azureCfg, nil)
+	rbacConfig["subscriptionId"] = azureCfg.RemoteStateConfigAzurerm.SubscriptionID
+
+	rbacService, err := backend.serviceContainer.GetRBACService(ctx, l, rbacConfig)
 	if err != nil {
 		l.Warnf("Failed to get RBAC service: %v", err)
 		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{

@@ -212,7 +212,12 @@ func determineAuthType(config map[string]interface{}) (authType, secretHash stri
 func (f *AzureServiceFactory) getCacheKey(config map[string]interface{}) string {
 	// Core resource identifiers
 	storageAccount := getConfigString(config, "storage_account_name")
+	// Support both "subscription_id" and "subscriptionId" key names to prevent cache collisions
 	subscriptionID := getConfigString(config, "subscription_id")
+	if subscriptionID == "" {
+		subscriptionID = getConfigString(config, "subscriptionId")
+	}
+
 	resourceGroup := getConfigString(config, "resource_group_name")
 	containerName := getConfigString(config, "container_name")
 

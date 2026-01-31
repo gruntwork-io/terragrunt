@@ -3,13 +3,13 @@ package factory
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -46,7 +46,7 @@ func (s *storageAccountServiceAdapter) GetStorageAccountName() string {
 // CreateStorageAccount creates a new storage account using the new types config
 func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context, cfg *types.StorageAccountConfig) error {
 	if cfg == nil {
-		return errors.New("nil StorageAccountConfig provided")
+		return errors.Errorf("nil StorageAccountConfig provided")
 	}
 
 	// Convert the types.StorageAccountConfig to azurehelper.StorageAccountConfig
@@ -212,6 +212,10 @@ type blobServiceAdapter struct {
 
 // GetObject gets a blob using the new types
 func (b *blobServiceAdapter) GetObject(ctx context.Context, input *types.GetObjectInput) (*types.GetObjectOutput, error) {
+	if input == nil {
+		return nil, errors.Errorf("GetObject: input is nil")
+	}
+
 	// Convert types to azurehelper types
 	azureInput := &azurehelper.GetObjectInput{
 		Container: &input.ContainerName,
@@ -284,13 +288,13 @@ func (b *blobServiceAdapter) CopyBlobToContainer(ctx context.Context, l log.Logg
 
 	output, err := b.GetObject(ctx, input)
 	if err != nil {
-		return errors.New("failed to get source blob: " + err.Error())
+		return errors.Errorf("failed to get source blob: %w", err)
 	}
 
 	// Upload the content to the destination
 	err = dstClient.UploadBlob(ctx, l, dstContainer, dstKey, output.Content)
 	if err != nil {
-		return errors.New("failed to upload blob to destination: " + err.Error())
+		return errors.Errorf("failed to upload blob to destination: %w", err)
 	}
 
 	return nil
