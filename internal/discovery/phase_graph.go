@@ -302,7 +302,10 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		if discovery.gitRoot != "" {
-			startDir := filepath.Dir(c.Path())
+			// Use the discovery's workingDir as the starting point for dependent discovery.
+			// This is important when the target was discovered from a worktree - dependents
+			// exist in the original working directory, not in the worktree.
+			startDir := discovery.workingDir
 			l.Debugf("Starting upstream dependent discovery from %s to gitRoot %s", startDir, discovery.gitRoot)
 
 			visitedDirs := newStringSet()
@@ -543,6 +546,18 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 	resolvedTargetPath := resolvePath(target.Path())
 
+	// When the target is from a worktree, we need to compare using relative suffixes
+	// because the absolute paths will differ (worktree vs original directory).
+	// We resolve paths to handle symlinks (e.g., /var -> /private/var on macOS).
+	targetRelSuffix := ""
+	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
+		resolvedWorkingDir := resolvePath(targetDCtx.WorkingDir)
+		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
+	}
+
+	// Resolve discovery.workingDir for consistent path comparison.
+	resolvedDiscoveryWorkingDir := resolvePath(discovery.workingDir)
+
 	var (
 		errs  []error
 		errMu sync.Mutex
@@ -676,13 +691,13 @@ func (p *GraphPhase) discoverDependentsUpstream(
 				if dCtx != nil {
 					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-					// Remove -destroy flag for graph-discovered components
-					if copiedCtx.Ref != "" {
-						updatedArgs := slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-							return arg == "-destroy"
-						})
-						copiedCtx.Args = updatedArgs
-					}
+					// Clear the Ref and related args for graph-discovered components.
+					// They shouldn't inherit the git ref from the target, as this would
+					// cause them to match git filters and become targets themselves.
+					copiedCtx.Ref = ""
+					copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+						return arg == "-destroy"
+					})
 
 					canonicalCandidate.SetDiscoveryContext(copiedCtx)
 				}
@@ -704,10 +719,28 @@ func (p *GraphPhase) discoverDependentsUpstream(
 					}
 				}
 
-				canonicalCandidate.AddDependency(depComponent)
-
-				if resolvePath(dep) == resolvedTargetPath {
+				// Compare paths: first try exact match, then try relative suffix match
+				// for worktree scenarios where target is in a different directory.
+				resolvedDep := resolvePath(dep)
+				if resolvedDep == resolvedTargetPath {
+					// Direct match - link to the existing depComponent
+					canonicalCandidate.AddDependency(depComponent)
 					dependsOnTarget = true
+				} else if targetRelSuffix != "" {
+					// Compare relative suffixes when target is from a worktree.
+					// Use resolved paths to handle symlinks consistently.
+					depRelSuffix := strings.TrimPrefix(resolvedDep, resolvedDiscoveryWorkingDir)
+					if depRelSuffix == targetRelSuffix {
+						// The dependency path matches the target's relative suffix.
+						// Link to the actual target component instead of the path-based component,
+						// so that the dependent relationship is properly established.
+						canonicalCandidate.AddDependency(target)
+						dependsOnTarget = true
+					} else {
+						canonicalCandidate.AddDependency(depComponent)
+					}
+				} else {
+					canonicalCandidate.AddDependency(depComponent)
 				}
 			}
 
@@ -833,11 +866,13 @@ func (p *GraphPhase) resolveDependency(
 	if created {
 		copiedCtx := parentCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
 
-		if copiedCtx.Ref != "" {
-			copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-				return arg == "-destroy"
-			})
-		}
+		// Clear the Ref and related args for graph-discovered dependencies.
+		// They shouldn't inherit the git ref from the parent, as this would
+		// cause them to match git filters and become targets themselves.
+		copiedCtx.Ref = ""
+		copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+			return arg == "-destroy"
+		})
 
 		depComponent.SetDiscoveryContext(copiedCtx)
 	}
