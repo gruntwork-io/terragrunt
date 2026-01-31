@@ -593,9 +593,21 @@ func ValidateAuthConfig(config *AuthConfig) error {
 	return nil
 }
 
-// CreateStorageClientOptions creates Azure Storage client options from the auth result
+// CreateStorageClientOptions creates Azure Storage client options from the auth result.
+// It configures the ClientOptions with the appropriate cloud configuration based on
+// the CloudEnvironment setting in the AuthConfig, ensuring storage clients use the
+// correct sovereign cloud endpoints (e.g., Azure Government, Azure China).
 func (r *AuthResult) CreateStorageClientOptions() *azcore.ClientOptions {
-	return &azcore.ClientOptions{}
+	if r == nil || r.Config == nil {
+		return &azcore.ClientOptions{}
+	}
+
+	// Use the same cloud configuration mapping as GetTokenCredential
+	cloudConfig := cloudConfigForEnvironment(r.Config.CloudEnvironment)
+
+	return &azcore.ClientOptions{
+		Cloud: cloudConfig,
+	}
 }
 
 // GetEndpointSuffix returns the Azure storage endpoint suffix based on the cloud environment
