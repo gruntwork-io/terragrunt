@@ -199,8 +199,9 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 //  3. Check if component matches any graph expression target -> CANDIDATE (GraphTarget)
 //  4. Check if parse expressions exist and component not yet classified -> CANDIDATE (RequiresParse)
 //  5. Check if dependent filters exist (component might be a dependent) -> CANDIDATE (PotentialDependent)
-//  6. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
-//  7. If no positive filters exist -> DISCOVERED (include-by-default)
+//  6. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
+//  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
+//  8. If no positive filters exist -> DISCOVERED (include-by-default)
 func (c *Classifier) Classify(comp component.Component, ctx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(comp)
 	hasPositiveMatch := c.matchesAnyPositive(comp, ctx)
@@ -212,10 +213,6 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 	matchesFilesystem := c.matchesFilesystemExpression(comp)
 	matchesGit := c.matchesGitExpression(comp)
 
-	// If there are parse-required expressions and parsing hasn't happened yet,
-	// components matching filesystem/git expressions should be candidates, not discovered.
-	// This is necessary for intersection filters like "./apps/** | reading=shared.hcl"
-	// where we need parsing to verify the second part of the filter.
 	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
 		if matchesFilesystem || matchesGit {
 			return StatusCandidate, CandidacyReasonRequiresParse, -1
@@ -238,6 +235,10 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 
 	if c.HasDependentFilters() && !ctx.ParseDataAvailable {
 		return StatusCandidate, CandidacyReasonPotentialDependent, -1
+	}
+
+	if len(c.negatedExprs) > 0 && !hasNegativeMatch {
+		return StatusDiscovered, CandidacyReasonNone, -1
 	}
 
 	if c.hasPositiveFilters {
