@@ -209,13 +209,13 @@ func (d *Discovery) Discover(
 	d.classifier = classifier
 
 	discovered, candidates, phaseErrs := d.runFilesystemPhase(ctx, l, opts)
-	if len(phaseErrs) > 0 {
+	if len(phaseErrs) > 0 && !d.suppressParseErrors {
 		return nil, errors.Join(phaseErrs...)
 	}
 
 	if d.requiresParse || classifier.HasParseRequiredFilters() {
 		discovered, candidates, phaseErrs = d.runParsePhase(ctx, l, opts, discovered, candidates)
-		if len(phaseErrs) > 0 {
+		if len(phaseErrs) > 0 && !d.suppressParseErrors {
 			return nil, errors.Join(phaseErrs...)
 		}
 	}
@@ -229,7 +229,7 @@ func (d *Discovery) Discover(
 		}
 
 		discovered, _, phaseErrs = d.runGraphPhase(ctx, l, opts, discovered, candidates)
-		if len(phaseErrs) > 0 {
+		if len(phaseErrs) > 0 && !d.suppressParseErrors {
 			return nil, errors.Join(phaseErrs...)
 		}
 	}
