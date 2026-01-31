@@ -444,6 +444,10 @@ func GetTokenCredential(
 	l log.Logger,
 	config *AuthConfig,
 ) (*AuthResult, error) {
+	if config == nil {
+		return nil, errors.Errorf("nil AuthConfig provided to GetTokenCredential")
+	}
+
 	var (
 		credential azcore.TokenCredential
 		err        error
