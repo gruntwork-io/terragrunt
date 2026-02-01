@@ -12,51 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/sync/errgroup"
 )
-
-// stringSet is a thread-safe set of strings using map and RWMutex.
-// This is more performant than sync.Map for string keys with simple bool values.
-type stringSet struct {
-	m  map[string]struct{}
-	mu sync.RWMutex
-}
-
-// newStringSet creates a new stringSet.
-func newStringSet() *stringSet {
-	return &stringSet{
-		m: make(map[string]struct{}),
-	}
-}
-
-// LoadOrStore returns true if the key was already present (loaded),
-// false if the key was newly stored.
-func (s *stringSet) LoadOrStore(key string) (loaded bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.m[key]; ok {
-		return true
-	}
-
-	s.m[key] = struct{}{}
-
-	return false
-}
-
-// Load returns whether the key exists in the set.
-func (s *stringSet) Load(key string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.m[key]
-
-	return ok
-}
 
 // GraphPhase traverses dependency/dependent relationships based on graph expressions.
 type GraphPhase struct {
@@ -881,61 +840,4 @@ func (p *GraphPhase) resolveDependency(
 	}
 
 	return addedComponent, nil
-}
-
-// extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
-func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
-	if cfg == nil {
-		return nil, nil
-	}
-
-	maxDedupLen := len(cfg.TerragruntDependencies)
-	if cfg.Dependencies != nil {
-		maxDedupLen += len(cfg.Dependencies.Paths)
-	}
-
-	deduped := make(map[string]struct{}, maxDedupLen)
-
-	errs := make([]error, 0, maxDedupLen)
-
-	for _, dependency := range cfg.TerragruntDependencies {
-		if dependency.Enabled != nil && !*dependency.Enabled {
-			continue
-		}
-
-		if dependency.ConfigPath.Type() != cty.String {
-			errs = append(errs, errors.New("dependency config path is not a string"))
-			continue
-		}
-
-		depPath := dependency.ConfigPath.AsString()
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
-		}
-
-		depPath = util.ResolvePath(depPath)
-		deduped[depPath] = struct{}{}
-	}
-
-	if cfg.Dependencies != nil {
-		for _, dependency := range cfg.Dependencies.Paths {
-			if !filepath.IsAbs(dependency) {
-				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
-			}
-
-			dependency = util.ResolvePath(dependency)
-			deduped[dependency] = struct{}{}
-		}
-	}
-
-	depPaths := make([]string, 0, len(deduped))
-	for depPath := range deduped {
-		depPaths = append(depPaths, depPath)
-	}
-
-	if len(errs) > 0 {
-		return depPaths, errors.Join(errs...)
-	}
-
-	return depPaths, nil
 }

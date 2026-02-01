@@ -128,26 +128,16 @@ func analyzeExpressionCandidacy(expr Expression, info *CandidacyInfo) {
 // Returns nil if the expression contains no graph expressions.
 func GetGraphTargets(expr Expression) []Expression {
 	var targets []Expression
-	collectGraphTargets(expr, &targets)
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok {
+			targets = append(targets, graphExpr.Target)
+		}
+
+		return true
+	})
 
 	return targets
-}
-
-// collectGraphTargets recursively collects graph expression targets.
-func collectGraphTargets(expr Expression, targets *[]Expression) {
-	switch node := expr.(type) {
-	case *GraphExpression:
-		*targets = append(*targets, node.Target)
-		// Also check for nested graph expressions in the target
-		collectGraphTargets(node.Target, targets)
-
-	case *PrefixExpression:
-		collectGraphTargets(node.Right, targets)
-
-	case *InfixExpression:
-		collectGraphTargets(node.Left, targets)
-		collectGraphTargets(node.Right, targets)
-	}
 }
 
 // IsNegated returns true if the expression starts with a negation operator.
@@ -165,23 +155,14 @@ func IsNegated(expr Expression) bool {
 // GetGraphExpressions returns all graph expressions within an expression tree.
 func GetGraphExpressions(expr Expression) []*GraphExpression {
 	var graphExprs []*GraphExpression
-	collectGraphExpressions(expr, &graphExprs)
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok {
+			graphExprs = append(graphExprs, graphExpr)
+		}
+
+		return true
+	})
 
 	return graphExprs
-}
-
-// collectGraphExpressions recursively collects graph expressions.
-func collectGraphExpressions(expr Expression, graphExprs *[]*GraphExpression) {
-	switch node := expr.(type) {
-	case *GraphExpression:
-		*graphExprs = append(*graphExprs, node)
-		collectGraphExpressions(node.Target, graphExprs)
-
-	case *PrefixExpression:
-		collectGraphExpressions(node.Right, graphExprs)
-
-	case *InfixExpression:
-		collectGraphExpressions(node.Left, graphExprs)
-		collectGraphExpressions(node.Right, graphExprs)
-	}
 }
