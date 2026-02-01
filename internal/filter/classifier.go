@@ -193,15 +193,19 @@ func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
 // Classify determines whether a component should be discovered, is a candidate,
 // or should be excluded based on the analyzed filters.
 //
+// Returns the classification status, the reason for candidacy (if applicable),
+// and the index of the matching graph expression (-1 if not a graph target match).
+//
 // Classification algorithm:
 //  1. Check if component ONLY matches negated filters -> EXCLUDED
-//  2. Check if component matches any positive filesystem filter -> DISCOVERED
-//  3. Check if component matches any graph expression target -> CANDIDATE (GraphTarget)
-//  4. Check if parse expressions exist and component not yet classified -> CANDIDATE (RequiresParse)
-//  5. Check if dependent filters exist (component might be a dependent) -> CANDIDATE (PotentialDependent)
-//  6. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
-//  7. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
-//  8. If no positive filters exist -> DISCOVERED (include-by-default)
+//  2. Check if parse expressions exist and parse data unavailable -> CANDIDATE (RequiresParse)
+//  3. Check if component matches any positive filesystem filter -> DISCOVERED
+//  4. Check if component matches any git expression -> DISCOVERED
+//  5. Check if component matches any graph expression target -> CANDIDATE (GraphTarget, returns index)
+//  6. Check if dependent filters exist and parse data unavailable -> CANDIDATE (PotentialDependent)
+//  7. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
+//  8. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
+//  9. If no positive filters exist -> DISCOVERED (include-by-default)
 func (c *Classifier) Classify(comp component.Component, ctx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(comp)
 	hasPositiveMatch := c.matchesAnyPositive(comp, ctx)

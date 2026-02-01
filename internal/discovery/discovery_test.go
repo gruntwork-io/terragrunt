@@ -125,6 +125,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 		filterStrings []string
 		expectStatus  filter.ClassificationStatus
 		expectReason  filter.CandidacyReason
+		expectIndex   int
 	}{
 		{
 			name:          "no filters - include by default",
@@ -133,6 +134,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusDiscovered,
 			expectReason:  filter.CandidacyReasonNone,
+			expectIndex:   -1,
 		},
 		{
 			name:          "matching path filter",
@@ -141,6 +143,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusDiscovered,
 			expectReason:  filter.CandidacyReasonNone,
+			expectIndex:   -1,
 		},
 		{
 			name:          "non-matching path filter - exclude by default",
@@ -149,6 +152,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusExcluded,
 			expectReason:  filter.CandidacyReasonNone,
+			expectIndex:   -1,
 		},
 		{
 			name:          "negated filter only - exclude component",
@@ -157,6 +161,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusExcluded,
 			expectReason:  filter.CandidacyReasonNone,
+			expectIndex:   -1,
 		},
 		{
 			name:          "negated filter only - include other",
@@ -165,6 +170,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusDiscovered,
 			expectReason:  filter.CandidacyReasonNone,
+			expectIndex:   -1,
 		},
 		{
 			name:          "graph expression target - candidate",
@@ -173,6 +179,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusCandidate,
 			expectReason:  filter.CandidacyReasonGraphTarget,
+			expectIndex:   0,
 		},
 		{
 			name:          "parse required filter - candidate",
@@ -181,6 +188,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			workingDir:    "/project",
 			expectStatus:  filter.StatusCandidate,
 			expectReason:  filter.CandidacyReasonRequiresParse,
+			expectIndex:   -1,
 		},
 	}
 
@@ -203,10 +211,11 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			})
 
 			ctx := filter.ClassificationContext{}
-			status, reason, _ := classifier.Classify(c, ctx)
+			status, reason, index := classifier.Classify(c, ctx)
 
 			assert.Equal(t, tt.expectStatus, status, "status mismatch")
 			assert.Equal(t, tt.expectReason, reason, "reason mismatch")
+			assert.Equal(t, tt.expectIndex, index, "index mismatch")
 		})
 	}
 }
