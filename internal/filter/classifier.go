@@ -214,10 +214,6 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 	matchesGit := c.matchesGitExpression(comp)
 
 	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
-		if matchesFilesystem || matchesGit {
-			return StatusCandidate, CandidacyReasonRequiresParse, -1
-		}
-
 		return StatusCandidate, CandidacyReasonRequiresParse, -1
 	}
 
