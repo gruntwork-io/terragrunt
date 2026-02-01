@@ -631,10 +631,10 @@ func buildDependentsIndex(components component.Components) map[string][]string {
 	dependentUnits := make(map[string][]string)
 
 	for _, c := range components {
-		cPath := resolvePath(c.Path())
+		cPath := util.ResolvePath(c.Path())
 
 		for _, dep := range c.Dependencies() {
-			depPath := resolvePath(dep.Path())
+			depPath := util.ResolvePath(dep.Path())
 			dependentUnits[depPath] = util.RemoveDuplicates(append(dependentUnits[depPath], cPath))
 		}
 	}
@@ -697,7 +697,7 @@ func filterByAllowSet(components component.Components, allowed map[string]struct
 	filtered := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		resolvedPath := resolvePath(c.Path())
+		resolvedPath := util.ResolvePath(c.Path())
 		if _, ok := allowed[resolvedPath]; ok {
 			filtered = append(filtered, c)
 		}

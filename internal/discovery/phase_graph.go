@@ -546,7 +546,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	resolvedTargetPath := resolvePath(target.Path())
+	resolvedTargetPath := util.ResolvePath(target.Path())
 
 	// When the target is from a worktree, we need to compare using relative suffixes
 	// because the absolute paths will differ (worktree vs original directory).
@@ -554,12 +554,12 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	targetRelSuffix := ""
 
 	if targetDCtx := target.DiscoveryContext(); targetDCtx != nil && targetDCtx.WorkingDir != "" {
-		resolvedWorkingDir := resolvePath(targetDCtx.WorkingDir)
+		resolvedWorkingDir := util.ResolvePath(targetDCtx.WorkingDir)
 		targetRelSuffix = strings.TrimPrefix(resolvedTargetPath, resolvedWorkingDir)
 	}
 
 	// Resolve discovery.workingDir for consistent path comparison.
-	resolvedDiscoveryWorkingDir := resolvePath(discovery.workingDir)
+	resolvedDiscoveryWorkingDir := util.ResolvePath(discovery.workingDir)
 
 	var (
 		errs  []error
@@ -724,7 +724,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 				// Compare paths: first try exact match, then try relative suffix match
 				// for worktree scenarios where target is in a different directory.
-				resolvedDep := resolvePath(dep)
+				resolvedDep := util.ResolvePath(dep)
 
 				switch {
 				case resolvedDep == resolvedTargetPath:
@@ -913,7 +913,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPath = resolvePath(depPath)
+		depPath = util.ResolvePath(depPath)
 		deduped[depPath] = struct{}{}
 	}
 
@@ -923,7 +923,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			dependency = resolvePath(dependency)
+			dependency = util.ResolvePath(dependency)
 			deduped[dependency] = struct{}{}
 		}
 	}

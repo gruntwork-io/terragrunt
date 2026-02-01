@@ -28,17 +28,6 @@ const (
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
 
-// resolvePath resolves symlinks in a path for consistent comparison across platforms.
-// On macOS, /var is a symlink to /private/var, so paths must be resolved.
-func resolvePath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
-}
-
 // isExternal checks if a component path is outside the given working directory.
 // A path is considered external if it's not within or equal to the working directory.
 // We conservatively evaluate paths as external if we cannot determine their absolute path.

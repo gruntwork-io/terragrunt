@@ -275,7 +275,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependencies, depth, warnOnLimit)
+			traverseGraph(l, target, resultSet, visited, GraphDirectionDependencies, depth, warnOnLimit)
 		}
 	}
 
@@ -291,7 +291,7 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, graphDirectionDependents, depth, warnOnLimit)
+			traverseGraph(l, target, resultSet, visited, GraphDirectionDependents, depth, warnOnLimit)
 		}
 	}
 
@@ -322,25 +322,6 @@ func evaluateGitFilter(filter *GitExpression, components component.Components) (
 	return results, nil
 }
 
-// graphDirection represents the direction of graph traversal.
-type graphDirection int
-
-const (
-	graphDirectionDependencies graphDirection = iota
-	graphDirectionDependents
-)
-
-func (d graphDirection) String() string {
-	switch d {
-	case graphDirectionDependencies:
-		return "dependencies"
-	case graphDirectionDependents:
-		return "dependents"
-	}
-
-	return "unknown"
-}
-
 // traverseGraph recursively traverses the graph in the specified direction (dependencies or dependents).
 // The visited map tracks the maximum remaining depth at which each node was visited, allowing re-traversal
 // when a node is reached with more remaining depth (e.g., from a closer target).
@@ -350,7 +331,7 @@ func traverseGraph(
 	c component.Component,
 	resultSet map[string]component.Component,
 	visited map[string]int,
-	direction graphDirection,
+	direction GraphDirection,
 	remainingDepth int,
 	warnOnLimit bool,
 ) {
@@ -379,7 +360,7 @@ func traverseGraph(
 	visited[path] = remainingDepth
 
 	var relatedComponents []component.Component
-	if direction == graphDirectionDependencies {
+	if direction == GraphDirectionDependencies {
 		relatedComponents = c.Dependencies()
 	} else {
 		relatedComponents = c.Dependents()
