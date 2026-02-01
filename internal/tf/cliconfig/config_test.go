@@ -2,13 +2,10 @@ package cliconfig_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,11 +18,8 @@ func TestConfig(t *testing.T) {
 		exclude = []string{"registry.opentofu.org/*/*"}
 	)
 
-	tempCacheDir := helpers.TmpDirWOSymlinks(t)
-	// Normalize paths to forward slashes for consistent comparison across platforms
-	normalizedTempCacheDir := filepath.Clean(tempCacheDir)
-	// replace backslashes with double forward slashes to match windows HCL representation
-	normalizedTempCacheDir = strings.ReplaceAll(normalizedTempCacheDir, "\\", "//")
+	// Use a fixed path for the cache dir since we're using an in-memory filesystem
+	tempCacheDir := "/tmp/provider-cache"
 	testCases := []struct {
 		expectedHCL                 string
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod
@@ -51,7 +45,7 @@ provider_installation {
    "filesystem_mirror" {
     include = ["registry.terraform.io/*/*"]
     exclude = ["registry.opentofu.org/*/*"]
-    path    = "` + normalizedTempCacheDir + `"
+    path    = "/tmp/provider-cache"
   }
    "network_mirror" {
     include = ["registry.terraform.io/*/*"]
@@ -85,7 +79,7 @@ disable_checkpoint_signature = false
 provider_installation {
 }
 
-plugin_cache_dir             = "` + normalizedTempCacheDir + `"
+plugin_cache_dir             = "/tmp/provider-cache"
 disable_checkpoint           = false
 disable_checkpoint_signature = false
 `,
@@ -96,8 +90,9 @@ disable_checkpoint_signature = false
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			tempDir := helpers.TmpDirWOSymlinks(t)
-			configFile := filepath.Join(tempDir, ".terraformrc")
+			// Use an in-memory filesystem for faster, isolated tests
+			memFs := afero.NewMemMapFs()
+			configFile := "/config/.terraformrc"
 
 			for _, host := range tc.hosts {
 				tc.config.AddHost(host.Name, host.Services)
@@ -105,14 +100,16 @@ disable_checkpoint_signature = false
 
 			tc.config.AddProviderInstallationMethods(tc.providerInstallationMethods...)
 
+			// Inject filesystem via options - same Save() method as production
+			tc.config.WithOptions(cliconfig.WithFs(memFs))
+
 			err := tc.config.Save(configFile)
 			require.NoError(t, err)
 
-			hclBytes, err := os.ReadFile(configFile)
+			hclBytes, err := afero.ReadFile(memFs, configFile)
 			require.NoError(t, err)
 
-			// Normalize the actual output paths to forward slashes for comparison
-			actualHCL := filepath.ToSlash(string(hclBytes))
+			actualHCL := string(hclBytes)
 			assert.Equal(t, tc.expectedHCL, actualHCL)
 		})
 	}

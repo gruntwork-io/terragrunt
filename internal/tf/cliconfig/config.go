@@ -2,12 +2,11 @@
 package cliconfig
 
 import (
-	"os"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	svchost "github.com/hashicorp/terraform-svchost"
+	"github.com/spf13/afero"
 )
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
@@ -28,16 +27,51 @@ type ConfigCredentialsHelper struct {
 	Args []string `hcl:"args"`
 }
 
+// ConfigOption configures a Config.
+type ConfigOption func(*Config) *Config
+
+// WithFs sets the filesystem for file operations.
+// If not set, defaults to the real OS filesystem.
+func WithFs(fs afero.Fs) ConfigOption {
+	return func(cfg *Config) *Config {
+		cfg.fs = fs
+		return cfg
+	}
+}
+
 // Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
 // The main purpose of which is to create a local config that will inherit the default user CLI config and adding new sections to force Terraform to send requests through the Terragrunt Cache server and use the provider cache directory.
 type Config struct {
-	CredentialsHelpers         *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
-	ProviderInstallation       *ProviderInstallation    `hcl:"provider_installation,block"`
-	PluginCacheDir             string                   `hcl:"plugin_cache_dir"`
-	Credentials                []ConfigCredentials      `hcl:"credentials,block"`
-	Hosts                      []ConfigHost             `hcl:"host,block"`
-	DisableCheckpoint          bool                     `hcl:"disable_checkpoint"`
-	DisableCheckpointSignature bool                     `hcl:"disable_checkpoint_signature"`
+	CredentialsHelpers   *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
+	ProviderInstallation *ProviderInstallation    `hcl:"provider_installation,block"`
+
+	// fs is the filesystem for saving config. Unexported to skip HCL encoding.
+	// Defaults to afero.NewOsFs() if nil.
+	fs afero.Fs
+
+	PluginCacheDir             string              `hcl:"plugin_cache_dir"`
+	Credentials                []ConfigCredentials `hcl:"credentials,block"`
+	Hosts                      []ConfigHost        `hcl:"host,block"`
+	DisableCheckpoint          bool                `hcl:"disable_checkpoint"`
+	DisableCheckpointSignature bool                `hcl:"disable_checkpoint_signature"`
+}
+
+// WithOptions applies options to the Config.
+func (cfg *Config) WithOptions(opts ...ConfigOption) *Config {
+	for _, opt := range opts {
+		cfg = opt(cfg)
+	}
+
+	return cfg
+}
+
+// FS returns the configured filesystem or defaults to OsFs.
+func (cfg *Config) FS() afero.Fs {
+	if cfg.fs != nil {
+		return cfg.fs
+	}
+
+	return afero.NewOsFs()
 }
 
 func (cfg *Config) Clone() *Config {
@@ -61,6 +95,7 @@ func (cfg *Config) Clone() *Config {
 		CredentialsHelpers:         cfg.CredentialsHelpers,
 		Hosts:                      hosts,
 		ProviderInstallation:       providerInstallation,
+		fs:                         cfg.fs,
 	}
 }
 
@@ -99,13 +134,13 @@ func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstalla
 	cfg.ProviderInstallation.Methods = cfg.ProviderInstallation.Methods.Merge(newMethods...)
 }
 
-// Save marshalls and saves CLI config with the given config path.
+// Save marshalls and saves CLI config to the given path.
 func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
 	const ownerWriteGlobalReadPerms = 0644
-	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(ownerWriteGlobalReadPerms)); err != nil {
+	if err := afero.WriteFile(cfg.FS(), configPath, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 		return errors.New(err)
 	}
 

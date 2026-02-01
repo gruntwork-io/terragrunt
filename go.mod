@@ -94,6 +94,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mattn/go-shellwords v1.0.12
+	github.com/spf13/afero v1.15.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/wI2L/jsondiff v0.7.0
 	github.com/xeipuuv/gojsonschema v1.2.0

@@ -10,12 +10,13 @@ import (
 
 // LoadUserConfig loads the user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
-func LoadUserConfig() (*Config, error) {
-	return loadUserConfig(cliconfig.LoadConfig)
+func LoadUserConfig(opts ...ConfigOption) (*Config, error) {
+	return loadUserConfig(cliconfig.LoadConfig, opts...)
 }
 
 func loadUserConfig(
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
+	opts ...ConfigOption,
 ) (*Config, error) {
 	cfg, diag := loadConfigFn()
 	if diag.HasErrors() {
@@ -29,7 +30,7 @@ func loadUserConfig(
 		credentials         = getUserCredentials(cfg)
 	)
 
-	return &Config{
+	config := &Config{
 		DisableCheckpoint:          cfg.DisableCheckpoint,
 		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
 		PluginCacheDir:             cfg.PluginCacheDir,
@@ -37,7 +38,9 @@ func loadUserConfig(
 		CredentialsHelpers:         credentialsHelpers,
 		ProviderInstallation:       &ProviderInstallation{Methods: installationMethods},
 		Hosts:                      hosts,
-	}, nil
+	}
+
+	return config.WithOptions(opts...), nil
 }
 
 func UserProviderDir() (string, error) {
