@@ -106,8 +106,8 @@ func TestDiscovery_BasicWithHiddenDirectories(t *testing.T) {
 	}
 }
 
-// TestDiscovery_StackHiddenAllowed tests that .terragrunt-stack directories are discovered even with NoHidden.
-func TestDiscovery_StackHiddenAllowed(t *testing.T) {
+// TestDiscovery_StackHiddenDiscovered tests that .terragrunt-stack directories are discovered by default.
+func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -122,7 +122,7 @@ func TestDiscovery_StackHiddenAllowed(t *testing.T) {
 
 	ctx := t.Context()
 
-	// Even with NoHidden, .terragrunt-stack contents should be discovered
+	// By default, .terragrunt-stack contents should be discovered
 	d := discovery.New(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 

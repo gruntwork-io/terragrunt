@@ -298,10 +298,11 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 
 	// This test is kind of wild. I don't know if it's worth keeping.
-	// Removing it for now to avoid blocking the merge of #5469
+	// Removing it for now to avoid blocking the merge of #5477
 	// which is more important.
+	// TODO: Re-evaluate this test after #5477 is merged. See https://github.com/gruntwork-io/terragrunt/pull/5477
 
-	t.Skip("Skipping this test to avoid blocking the merge of #5469")
+	t.Skip("Skipping this test to avoid blocking the merge of #5477. See https://github.com/gruntwork-io/terragrunt/pull/5477")
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")

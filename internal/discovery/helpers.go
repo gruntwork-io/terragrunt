@@ -72,7 +72,7 @@ func isExternal(workingDir string, componentPath string) bool {
 		return true
 	}
 
-	return strings.HasPrefix(relPath, "..")
+	return relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator))
 }
 
 // skipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's

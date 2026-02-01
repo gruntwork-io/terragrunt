@@ -428,13 +428,19 @@ func (p *WorktreePhase) walkChangedStack(
 		shaGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
 
 		shaGroup.Go(func() error {
-			fromSHA, err = GenerateDirSHA256(pair.FromComponent.Path())
-			return err
+			var localErr error
+
+			fromSHA, localErr = GenerateDirSHA256(pair.FromComponent.Path())
+
+			return localErr
 		})
 
 		shaGroup.Go(func() error {
-			toSHA, err = GenerateDirSHA256(pair.ToComponent.Path())
-			return err
+			var localErr error
+
+			toSHA, localErr = GenerateDirSHA256(pair.ToComponent.Path())
+
+			return localErr
 		})
 
 		if err := shaGroup.Wait(); err != nil {

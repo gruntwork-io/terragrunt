@@ -782,26 +782,22 @@ func (p *GraphPhase) discoverDependentsUpstream(
 				return walkCtx.Err()
 			}
 
-			g.Go(func() error {
-				freshVisitedDirs := newStringSet()
+			freshVisitedDirs := newStringSet()
 
-				l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
+			l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
 
-				err := p.discoverDependentsUpstream(
-					walkCtx, l, opts, discovery, dependent,
-					threadSafeComponents, seenComponents, freshVisitedDirs, discovered,
-					filepath.Dir(dependent.Path()), depthRemaining-1,
-				)
-				if err != nil {
-					errMu.Lock()
+			err := p.discoverDependentsUpstream(
+				walkCtx, l, opts, discovery, dependent,
+				threadSafeComponents, seenComponents, freshVisitedDirs, discovered,
+				filepath.Dir(dependent.Path()), depthRemaining-1,
+			)
+			if err != nil {
+				errMu.Lock()
 
-					errs = append(errs, err)
+				errs = append(errs, err)
 
-					errMu.Unlock()
-				}
-
-				return nil
-			})
+				errMu.Unlock()
+			}
 		}
 
 		return nil
