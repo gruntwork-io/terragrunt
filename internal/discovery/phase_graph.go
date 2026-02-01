@@ -149,8 +149,10 @@ func (p *GraphPhase) runGraphDiscovery(
 		return
 	}
 
-	allComponents := input.Components
-	allComponents = append(allComponents, resultsToComponents(input.Candidates)...)
+	candidateComponents := resultsToComponents(input.Candidates)
+	allComponents := make([]component.Component, 0, len(input.Components)+len(candidateComponents))
+	allComponents = append(allComponents, input.Components...)
+	allComponents = append(allComponents, candidateComponents...)
 	threadSafeComponents := component.NewThreadSafeComponents(allComponents)
 
 	graphTargetCandidates := make([]DiscoveryResult, 0, len(input.Candidates))
