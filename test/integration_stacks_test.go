@@ -1638,6 +1638,7 @@ func TestStackTerragruntDir(t *testing.T) {
 		"terragrunt apply --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
+
 	expectedTerragruntDir := filepath.Join(rootPath, "tennant_1")
 	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = "%s"`, expectedTerragruntDir))
 }
