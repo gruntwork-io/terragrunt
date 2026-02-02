@@ -725,13 +725,14 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
-			Err:            errors.Errorf("command failed with exit code %d", resultCode),
-			Output:         output,
-			WorkingDir:     opts.WorkingDir,
-			RootWorkingDir: opts.RootWorkingDir,
-			Command:        runOptions.Command,
-			Args:           runOptions.Args,
-			DisableSummary: opts.LogDisableErrorSummary,
+			Err:             errors.Errorf("command failed with exit code %d", resultCode),
+			Output:          output,
+			WorkingDir:      opts.WorkingDir,
+			RootWorkingDir:  opts.RootWorkingDir,
+			LogShowAbsPaths: opts.LogShowAbsPaths,
+			Command:         runOptions.Command,
+			Args:            runOptions.Args,
+			DisableSummary:  opts.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)

@@ -126,12 +126,13 @@ func RunCommandWithOutput(
 
 		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
 			err = util.ProcessExecutionError{
-				Err:            err,
-				Args:           args,
-				Command:        command,
-				WorkingDir:     cmd.Dir,
-				RootWorkingDir: opts.RootWorkingDir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				Err:             err,
+				Args:            args,
+				Command:         command,
+				WorkingDir:      cmd.Dir,
+				RootWorkingDir:  opts.RootWorkingDir,
+				LogShowAbsPaths: opts.LogShowAbsPaths,
+				DisableSummary:  opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -142,13 +143,14 @@ func RunCommandWithOutput(
 
 		if err := cmd.Wait(); err != nil {
 			err = util.ProcessExecutionError{
-				Err:            err,
-				Args:           args,
-				Command:        command,
-				Output:         output,
-				WorkingDir:     cmd.Dir,
-				RootWorkingDir: opts.RootWorkingDir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				Err:             err,
+				Args:            args,
+				Command:         command,
+				Output:          output,
+				WorkingDir:      cmd.Dir,
+				RootWorkingDir:  opts.RootWorkingDir,
+				LogShowAbsPaths: opts.LogShowAbsPaths,
+				DisableSummary:  opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

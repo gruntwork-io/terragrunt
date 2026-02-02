@@ -117,7 +117,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 				kind:         unitKind,
 			}
 
-			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile))
+			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile, opts.LogShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
 				"stack_file":  sourceFile,
@@ -150,7 +150,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 				kind:         stackKind,
 			}
 
-			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile))
+			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile, opts.LogShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
 				"stack_file":   sourceFile,
@@ -614,7 +614,7 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, op
 			evaluatedLocals,
 		)
 		if evalErr != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntStackConfigPath))
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntStackConfigPath, opts.LogShowAbsPaths))
 
 			return errors.New(evalErr)
 		}

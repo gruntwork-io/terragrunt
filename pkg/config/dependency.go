@@ -311,7 +311,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !pctx.SkipOutputsResolution {
-			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, depPath))
+			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, depPath, pctx.TerragruntOptions.LogShowAbsPaths))
 		}
 
 		depCtx := pctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithDiagnosticsSuppressed(l)
@@ -717,7 +717,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 	locks.Lock(targetConfig)
 	defer locks.Unlock(targetConfig)
 
-	l.Debugf("Getting output of dependency %s for config %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, targetConfig), util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath))
+	l.Debugf("Getting output of dependency %s for config %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, targetConfig, pctx.TerragruntOptions.LogShowAbsPaths), util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath, pctx.TerragruntOptions.LogShowAbsPaths))
 
 	jsonCache := cache.ContextCache[[]byte](ctx, JSONOutputCacheContextKey)
 	if jsonBytes, found := jsonCache.Get(ctx, targetConfig); found {

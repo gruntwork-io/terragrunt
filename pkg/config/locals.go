@@ -70,7 +70,7 @@ func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger
 			evaluatedLocals,
 		)
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath))
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath, pctx.TerragruntOptions.LogShowAbsPaths))
 			return evaluatedLocals, err
 		}
 	}

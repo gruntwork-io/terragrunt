@@ -306,8 +306,8 @@ func downloadSource(
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
-		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL),
-		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir))
+		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 
