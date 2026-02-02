@@ -1535,3 +1535,135 @@ dependency "db" {
 	assert.ElementsMatch(t, []string{dbDir, apiDir, webDir}, units, "...db should find db and all its dependents")
 	assert.NotContains(t, units, unrelatedDir, "unrelated should not be included")
 }
+
+// TestDiscovery_NegatedGraphFilters tests that negated graph expressions correctly
+// trigger the graph discovery phase and produce the expected results.
+//
+// Example with dependency chain: app -> db -> vpc (app depends on db, db depends on vpc)
+//   - `!...db` should exclude db and everything that depends on db (db and app)
+//   - `!db...` should exclude db and everything db depends on (db and vpc)
+func TestDiscovery_NegatedGraphFilters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		filters       []string
+		expectedPaths []string
+		excludedPaths []string
+	}{
+		{
+			name:          "negated dependent filter excludes target and dependents",
+			filters:       []string{"!...db"},
+			expectedPaths: []string{"vpc"},
+			excludedPaths: []string{"db", "app"},
+		},
+		{
+			name:          "negated dependency filter excludes target and dependencies",
+			filters:       []string{"!db..."},
+			expectedPaths: []string{"app"},
+			excludedPaths: []string{"db", "vpc"},
+		},
+		{
+			name:          "positive filter with negated graph filter",
+			filters:       []string{"app...", "!vpc"},
+			expectedPaths: []string{"app", "db"},
+			excludedPaths: []string{"vpc"},
+		},
+		{
+			name:          "negated bidirectional filter",
+			filters:       []string{"!...db..."},
+			expectedPaths: []string{},
+			excludedPaths: []string{"app", "db", "vpc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			runner, err := git.NewGitRunner()
+			require.NoError(t, err)
+
+			runner = runner.WithWorkDir(tmpDir)
+
+			err = runner.Init(t.Context())
+			require.NoError(t, err)
+
+			vpcDir := filepath.Join(tmpDir, "vpc")
+			dbDir := filepath.Join(tmpDir, "db")
+			appDir := filepath.Join(tmpDir, "app")
+
+			testDirs := []string{vpcDir, dbDir, appDir}
+			for _, dir := range testDirs {
+				err := os.MkdirAll(dir, 0755)
+				require.NoError(t, err)
+			}
+
+			testFiles := map[string]string{
+				filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+				filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+				filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+			}
+
+			for path, content := range testFiles {
+				err := os.WriteFile(path, []byte(content), 0644)
+				require.NoError(t, err)
+			}
+
+			l := logger.CreateLogger()
+			opts := &options.TerragruntOptions{
+				WorkingDir:     tmpDir,
+				RootWorkingDir: tmpDir,
+			}
+
+			ctx := t.Context()
+
+			filters, err := filter.ParseFilterQueries(l, tt.filters)
+			require.NoError(t, err)
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+				WithFilters(filters)
+
+			components, err := d.Discover(ctx, l, opts)
+			require.NoError(t, err)
+
+			paths := components.Filter(component.UnitKind).Paths()
+
+			for _, expected := range tt.expectedPaths {
+				expectedPath := filepath.Join(tmpDir, expected)
+				assert.Contains(
+					t,
+					paths,
+					expectedPath,
+					"expected %s to be included for filters %v",
+					expected,
+					tt.filters,
+				)
+			}
+
+			for _, excluded := range tt.excludedPaths {
+				excludedPath := filepath.Join(tmpDir, excluded)
+
+				assert.NotContains(
+					t,
+					paths,
+					excludedPath,
+					"expected %s to be excluded for filters %v",
+					excluded,
+					tt.filters,
+				)
+			}
+		})
+	}
+}

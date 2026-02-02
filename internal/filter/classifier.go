@@ -156,7 +156,14 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 	hasNegativeMatch := c.matchesAnyNegated(comp)
 	hasPositiveMatch := c.matchesAnyPositive(comp, ctx)
 
+	// Before excluding due to negation, check if the component matches a negated graph expression target.
+	// If so, we need to process it through the graph phase to discover dependencies/dependents
+	// that should also be excluded. The final filter evaluation will handle the actual exclusion.
 	if hasNegativeMatch && !hasPositiveMatch {
+		if graphIdx := c.matchesNegatedGraphExpressionTarget(comp); graphIdx >= 0 {
+			return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
+		}
+
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
 
@@ -326,11 +333,32 @@ func (c *Classifier) matchesFilesystemExpression(comp component.Component) bool 
 	})
 }
 
-// matchesGraphExpressionTarget checks if the component matches any graph expression target.
+// matchesGraphExpressionTarget checks if the component matches any non-negated graph expression target.
 // Returns the index of the matching graph expression, or -1 if no match.
+// Negated graph expressions are handled separately by matchesNegatedGraphExpressionTarget.
 func (c *Classifier) matchesGraphExpressionTarget(comp component.Component) int {
 	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
+		if info.IsNegated {
+			return false
+		}
+
 		match, _ := MatchComponent(comp, info.Target)
+
+		return match
+	})
+}
+
+// matchesNegatedGraphExpressionTarget checks if the component matches any negated graph expression target.
+// Returns the index of the matching graph expression, or -1 if no match.
+// This is used to identify components that need graph traversal even when they would otherwise be excluded.
+func (c *Classifier) matchesNegatedGraphExpressionTarget(comp component.Component) int {
+	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
+		if !info.IsNegated {
+			return false
+		}
+
+		match, _ := MatchComponent(comp, info.Target)
+
 		return match
 	})
 }

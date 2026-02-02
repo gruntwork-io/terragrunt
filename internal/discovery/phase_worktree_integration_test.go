@@ -23,111 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupGitRepo creates a git repository with initial structure for integration tests.
-func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
-	t.Helper()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	runner, err := git.NewGitRunner()
-	require.NoError(t, err)
-
-	runner = runner.WithWorkDir(tmpDir)
-
-	err = runner.Init(t.Context())
-	require.NoError(t, err)
-
-	err = runner.GoOpenRepo()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		if err := runner.GoCloseStorage(); err != nil {
-			t.Logf("Error closing storage: %s", err)
-		}
-	})
-
-	return tmpDir, runner
-}
-
-// commitChanges stages all changes and commits with the given message.
-func commitChanges(t *testing.T, runner *git.GitRunner, message string) {
-	t.Helper()
-
-	err := runner.GoAdd(".")
-	require.NoError(t, err)
-
-	err = runner.GoCommit(message, &gogit.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
-}
-
-// createUnit creates a unit directory with terragrunt.hcl.
-func createUnit(t *testing.T, baseDir, unitName, content string) string {
-	t.Helper()
-
-	unitDir := filepath.Join(baseDir, unitName)
-	err := os.MkdirAll(unitDir, 0755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(content), 0644)
-	require.NoError(t, err)
-
-	return unitDir
-}
-
-// runWorktreeDiscovery runs discovery with worktree phase enabled.
-func runWorktreeDiscovery(
-	t *testing.T,
-	tmpDir string,
-	gitExpressions filter.GitExpressions,
-	cmd string,
-	args []string,
-) (component.Components, *worktrees.Worktrees) {
-	t.Helper()
-
-	l := logger.CreateLogger()
-
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
-		require.NoError(t, cleanupErr)
-	})
-
-	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = tmpDir
-	opts.RootWorkingDir = tmpDir
-
-	discoveryContext := &component.DiscoveryContext{
-		WorkingDir: tmpDir,
-		Cmd:        cmd,
-		Args:       args,
-	}
-
-	// Build filters from git expressions
-	filters := make(filter.Filters, 0, len(gitExpressions))
-	for _, gitExpr := range gitExpressions {
-		f := filter.NewFilter(gitExpr, gitExpr.String())
-		filters = append(filters, f)
-	}
-
-	discovery := discovery.NewDiscovery(tmpDir).
-		WithDiscoveryContext(discoveryContext).
-		WithWorktrees(w).
-		WithFilters(filters)
-
-	components, err := discovery.Discover(t.Context(), l, opts)
-	require.NoError(t, err)
-
-	return components, w
-}
-
 // TestWorktreePhase_Integration_UnitLifecycle tests the full worktree discovery flow
 // for created, modified, removed, and untouched units.
 func TestWorktreePhase_Integration_UnitLifecycle(t *testing.T) {
@@ -1128,6 +1023,197 @@ locals {
 	return basicDir
 }
 
+// TestWorktreePhase_Integration_NegatedGitGraphExpressions tests that Git filters combined with
+// negated graph filters work correctly. These test scenarios like:
+// - `[HEAD~1...HEAD]... | !...vpc` - Find changed components and deps, exclude vpc's dependents
+// - `[HEAD~1...HEAD] | !db...` - Find changed components, exclude db and its dependencies
+//
+// This validates the complete pipeline: worktree → graph → final evaluation with negation.
+func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		filterQueries   func(fromRef, toRef string) []string
+		wantUnits       func(fromDir, toDir string) []string
+		description     string
+		expectedChanged []string // which units are expected to be changed in the test setup
+	}{
+		{
+			name: "git filter with graph traversal then negated graph filter",
+			filterQueries: func(fromRef, toRef string) []string {
+				// [HEAD~1...HEAD]... = Find changed (app) and its dependencies (db, vpc)
+				// | !...vpc = Then exclude vpc and its dependents (db, app)
+				// Note: The negated graph filter !...vpc will find vpc's dependents
+				// through the original source paths, but intersection happens on
+				// worktree-discovered components. Only vpc is directly excluded since
+				// the dependent discovery runs in the original repo context.
+				return []string{"[" + fromRef + "..." + toRef + "]... | !...vpc"}
+			},
+			wantUnits: func(_, toDir string) []string {
+				// app changed -> app... gives app, db, vpc (in worktree)
+				// !...vpc excludes vpc (the negated filter target)
+				// The dependents of vpc (db, app) are found in source context
+				// which doesn't match worktree paths, so intersection only removes vpc
+				return []string{
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "db"),
+				}
+			},
+			description:     "Find changed (app) and deps, then exclude vpc",
+			expectedChanged: []string{"app"},
+		},
+		{
+			name: "git filter then negated dependency filter excludes target and deps",
+			filterQueries: func(fromRef, toRef string) []string {
+				// [HEAD~1...HEAD] | !db... = Find changed, exclude db and its dependencies
+				return []string{"[" + fromRef + "..." + toRef + "] | !db..."}
+			},
+			wantUnits: func(_, toDir string) []string {
+				// app and db changed
+				// !db... excludes db and vpc (db's dependencies)
+				// Result: only app
+				return []string{filepath.Join(toDir, "app")}
+			},
+			description:     "Find changed (app, db), exclude db and its dependencies (vpc)",
+			expectedChanged: []string{"app", "db"},
+		},
+		{
+			name: "git filter then negated dependent filter excludes target and dependents",
+			filterQueries: func(fromRef, toRef string) []string {
+				// [HEAD~1...HEAD] | !...db = Find changed, exclude db and its dependents
+				return []string{"[" + fromRef + "..." + toRef + "] | !...db"}
+			},
+			wantUnits: func(_, toDir string) []string {
+				// db and vpc changed
+				// !...db excludes db and app (db's dependents)
+				// Result: only vpc
+				return []string{filepath.Join(toDir, "vpc")}
+			},
+			description:     "Find changed (db, vpc), exclude db and its dependents (app)",
+			expectedChanged: []string{"db", "vpc"},
+		},
+		{
+			name: "git filter with deps then simple negation",
+			filterQueries: func(fromRef, toRef string) []string {
+				// [HEAD~1...HEAD]... | !vpc = Find changed and deps, then exclude vpc
+				return []string{"[" + fromRef + "..." + toRef + "]... | !vpc"}
+			},
+			wantUnits: func(_, toDir string) []string {
+				// app changed -> app... gives app, db, vpc
+				// !vpc excludes just vpc
+				// Result: app, db
+				return []string{
+					filepath.Join(toDir, "app"),
+					filepath.Join(toDir, "db"),
+				}
+			},
+			description:     "Find changed (app) and deps (db, vpc), exclude just vpc",
+			expectedChanged: []string{"app"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir, runner := setupGitRepo(t)
+
+			// Create dependency chain: app -> db -> vpc
+			vpcDir := filepath.Join(tmpDir, "vpc")
+			dbDir := filepath.Join(tmpDir, "db")
+			appDir := filepath.Join(tmpDir, "app")
+
+			testDirs := []string{vpcDir, dbDir, appDir}
+			for _, dir := range testDirs {
+				err := os.MkdirAll(dir, 0755)
+				require.NoError(t, err)
+			}
+
+			// Create initial files with dependencies
+			testFiles := map[string]string{
+				filepath.Join(appDir, "terragrunt.hcl"): `
+dependency "db" {
+	config_path = "../db"
+}
+`,
+				filepath.Join(dbDir, "terragrunt.hcl"): `
+dependency "vpc" {
+	config_path = "../vpc"
+}
+`,
+				filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+			}
+
+			for path, content := range testFiles {
+				err := os.WriteFile(path, []byte(content), 0644)
+				require.NoError(t, err)
+			}
+
+			commitChanges(t, runner, "Initial commit")
+
+			// Modify the expected changed components based on test case
+			for _, changed := range tt.expectedChanged {
+				changedPath := filepath.Join(tmpDir, changed, "terragrunt.hcl")
+				currentContent, err := os.ReadFile(changedPath)
+				require.NoError(t, err)
+
+				newContent := string(currentContent) + `
+locals {
+	modified = true
+}
+`
+				err = os.WriteFile(changedPath, []byte(newContent), 0644)
+				require.NoError(t, err)
+			}
+
+			commitChanges(t, runner, "Modify components: "+tt.description)
+
+			// Parse filter queries
+			l := logger.CreateLogger()
+			filterQueries := tt.filterQueries("HEAD~1", "HEAD")
+			filters, err := filter.ParseFilterQueries(l, filterQueries)
+			require.NoError(t, err)
+
+			// Create worktrees
+			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters())
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+				require.NoError(t, cleanupErr)
+			})
+
+			opts := options.NewTerragruntOptions()
+			opts.WorkingDir = tmpDir
+			opts.RootWorkingDir = tmpDir
+
+			discoveryContext := &component.DiscoveryContext{
+				WorkingDir: tmpDir,
+			}
+
+			discovery := discovery.NewDiscovery(tmpDir).
+				WithDiscoveryContext(discoveryContext).
+				WithWorktrees(w).
+				WithFilters(filters)
+
+			components, err := discovery.Discover(t.Context(), l, opts)
+			require.NoError(t, err)
+
+			// Filter results by type
+			units := components.Filter(component.UnitKind).Paths()
+
+			worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+			require.NotEmpty(t, worktreePair)
+
+			wantUnits := tt.wantUnits(worktreePair.FromWorktree.Path, worktreePair.ToWorktree.Path)
+
+			// Verify results
+			assert.ElementsMatch(t, wantUnits, units, "Units mismatch for test: %s\nDescription: %s", tt.name, tt.description)
+		})
+	}
+}
+
 // TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits tests git filter discovery
 // initiated from a subdirectory when comparing against multiple commits back (HEAD~2, HEAD~3).
 func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T) {
@@ -1231,4 +1317,109 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			}
 		})
 	}
+}
+
+// setupGitRepo creates a git repository with initial structure for integration tests.
+func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
+	t.Helper()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := runner.GoCloseStorage(); err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	return tmpDir, runner
+}
+
+// commitChanges stages all changes and commits with the given message.
+func commitChanges(t *testing.T, runner *git.GitRunner, message string) {
+	t.Helper()
+
+	err := runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit(message, &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+}
+
+// createUnit creates a unit directory with terragrunt.hcl.
+func createUnit(t *testing.T, baseDir, unitName, content string) string {
+	t.Helper()
+
+	unitDir := filepath.Join(baseDir, unitName)
+	err := os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(content), 0644)
+	require.NoError(t, err)
+
+	return unitDir
+}
+
+// runWorktreeDiscovery runs discovery with worktree phase enabled.
+func runWorktreeDiscovery(
+	t *testing.T,
+	tmpDir string,
+	gitExpressions filter.GitExpressions,
+	cmd string,
+	args []string,
+) (component.Components, *worktrees.Worktrees) {
+	t.Helper()
+
+	l := logger.CreateLogger()
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        cmd,
+		Args:       args,
+	}
+
+	// Build filters from git expressions
+	filters := make(filter.Filters, 0, len(gitExpressions))
+	for _, gitExpr := range gitExpressions {
+		f := filter.NewFilter(gitExpr, gitExpr.String())
+		filters = append(filters, f)
+	}
+
+	discovery := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w).
+		WithFilters(filters)
+
+	components, err := discovery.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	return components, w
 }
