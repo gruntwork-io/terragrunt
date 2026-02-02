@@ -18,6 +18,13 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+    - name: "Mount tmpfs on /tmp for faster I/O"
+      if: runner.os == 'Linux'
+      run: |
+        sudo mount -t tmpfs -o size=4G,mode=1777 tmpfs /tmp
+        echo "tmpfs mounted on /tmp:"
+        df -h /tmp
+
     - name: Set up mise
       uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
       with:
@@ -52,19 +59,19 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
     - name: Go Mod Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
     - name: golangci-lint Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
 
     - name: Lint
       run: make run-lint
