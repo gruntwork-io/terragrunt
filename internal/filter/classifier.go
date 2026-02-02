@@ -87,6 +87,8 @@ type GraphExpressionInfo struct {
 	IncludeDependents bool
 	// ExcludeTarget indicates if the target itself should be excluded from results (^ prefix).
 	ExcludeTarget bool
+	// IsNegated indicates if this graph expression is within a negation (e.g., !...db).
+	IsNegated bool
 	// DependencyDepth is the maximum depth for dependency traversal.
 	DependencyDepth int
 	// DependentDepth is the maximum depth for dependent traversal.
@@ -132,62 +134,6 @@ func (c *Classifier) Analyze(filters Filters) error {
 	}
 
 	return nil
-}
-
-// analyzeExpression recursively analyzes an expression and categorizes it.
-func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
-	switch node := expr.(type) {
-	case *PathExpression:
-		c.filesystemExprs = append(c.filesystemExprs, node)
-		c.hasPositiveFilters = true
-
-	case *AttributeExpression:
-		if _, requiresParse := node.RequiresParse(); requiresParse {
-			c.parseExprs = append(c.parseExprs, node)
-		} else {
-			c.filesystemExprs = append(c.filesystemExprs, node)
-		}
-
-		c.hasPositiveFilters = true
-
-	case *GraphExpression:
-		info := &GraphExpressionInfo{
-			Target:              node.Target,
-			FullExpression:      node,
-			Index:               filterIndex,
-			IncludeDependencies: node.IncludeDependencies,
-			IncludeDependents:   node.IncludeDependents,
-			ExcludeTarget:       node.ExcludeTarget,
-			DependencyDepth:     node.DependencyDepth,
-			DependentDepth:      node.DependentDepth,
-		}
-		c.graphExprs = append(c.graphExprs, info)
-		c.hasPositiveFilters = true
-
-	case *GitExpression:
-		// Git expressions are handled by the worktree phase, but we need to track them
-		// so components discovered in worktrees can be matched during classification.
-		c.gitExprs = append(c.gitExprs, node)
-		c.hasPositiveFilters = true
-
-	case *PrefixExpression:
-		if node.Operator == "!" {
-			c.negatedExprs = append(c.negatedExprs, node.Right)
-			// Also track if the negated expression requires parsing.
-			// For example, "!reading=shared.hcl" still needs parsing to evaluate the reading attribute.
-			if _, requiresParse := node.Right.RequiresParse(); requiresParse {
-				c.parseExprs = append(c.parseExprs, node.Right)
-			}
-		} else {
-			// Unknown prefix operator, analyze inner expression
-			c.analyzeExpression(node.Right, filterIndex)
-		}
-
-	case *InfixExpression:
-		// For infix expressions (intersection with |), analyze both sides
-		c.analyzeExpression(node.Left, filterIndex)
-		c.analyzeExpression(node.Right, filterIndex)
-	}
 }
 
 // Classify determines whether a component should be discovered, is a candidate,
@@ -246,6 +192,85 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 	}
 
 	return StatusDiscovered, CandidacyReasonNone, -1
+}
+
+// analyzeExpression recursively analyzes an expression and categorizes it.
+func (c *Classifier) analyzeExpression(expr Expression, filterIndex int) {
+	switch node := expr.(type) {
+	case *PathExpression:
+		c.filesystemExprs = append(c.filesystemExprs, node)
+		c.hasPositiveFilters = true
+
+	case *AttributeExpression:
+		if _, requiresParse := node.RequiresParse(); requiresParse {
+			c.parseExprs = append(c.parseExprs, node)
+		} else {
+			c.filesystemExprs = append(c.filesystemExprs, node)
+		}
+
+		c.hasPositiveFilters = true
+
+	case *GraphExpression:
+		info := &GraphExpressionInfo{
+			Target:              node.Target,
+			FullExpression:      node,
+			Index:               filterIndex,
+			IncludeDependencies: node.IncludeDependencies,
+			IncludeDependents:   node.IncludeDependents,
+			ExcludeTarget:       node.ExcludeTarget,
+			DependencyDepth:     node.DependencyDepth,
+			DependentDepth:      node.DependentDepth,
+		}
+		c.graphExprs = append(c.graphExprs, info)
+		c.hasPositiveFilters = true
+
+	case *GitExpression:
+		c.gitExprs = append(c.gitExprs, node)
+		c.hasPositiveFilters = true
+
+	case *PrefixExpression:
+		// Right now, the only prefix operator is "!".
+		// If we encounter an unknown operator, just analyze the inner expression.
+		if node.Operator != "!" {
+			c.analyzeExpression(node.Right, filterIndex)
+			break
+		}
+
+		c.negatedExprs = append(c.negatedExprs, node.Right)
+		if _, requiresParse := node.Right.RequiresParse(); requiresParse {
+			c.parseExprs = append(c.parseExprs, node.Right)
+		}
+
+		c.extractNegatedGraphExpressions(node.Right, filterIndex)
+
+	case *InfixExpression:
+		c.analyzeExpression(node.Left, filterIndex)
+		c.analyzeExpression(node.Right, filterIndex)
+	}
+}
+
+// extractNegatedGraphExpressions walks through a negated expression and extracts
+// any graph expressions found within it. This ensures that filters like "!...db"
+// or "!db..." trigger the graph discovery phase.
+func (c *Classifier) extractNegatedGraphExpressions(expr Expression, filterIndex int) {
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok {
+			info := &GraphExpressionInfo{
+				Target:              graphExpr.Target,
+				FullExpression:      graphExpr,
+				Index:               filterIndex,
+				IncludeDependencies: graphExpr.IncludeDependencies,
+				IncludeDependents:   graphExpr.IncludeDependents,
+				ExcludeTarget:       graphExpr.ExcludeTarget,
+				DependencyDepth:     graphExpr.DependencyDepth,
+				DependentDepth:      graphExpr.DependentDepth,
+				IsNegated:           true,
+			}
+			c.graphExprs = append(c.graphExprs, info)
+		}
+
+		return true
+	})
 }
 
 // matchesAnyNegated checks if the component matches any negated expression.
@@ -334,13 +359,9 @@ func (c *Classifier) HasGraphFilters() bool {
 // This is used to determine if pre-graph dependency building is needed to populate
 // reverse links before dependent discovery can work.
 func (c *Classifier) HasDependentFilters() bool {
-	for _, expr := range c.graphExprs {
-		if expr.IncludeDependents {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(c.graphExprs, func(expr *GraphExpressionInfo) bool {
+		return expr.IncludeDependents
+	})
 }
 
 // ParseExpressions returns the expressions that require parsing.
