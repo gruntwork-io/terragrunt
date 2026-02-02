@@ -20,15 +20,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// New creates a new Discovery instance with the given working directory.
-func New(workingDir string) *Discovery {
-	return &Discovery{
-		workingDir:         workingDir,
-		maxDependencyDepth: defaultMaxDependencyDepth,
-		numWorkers:         defaultDiscoveryWorkers,
-	}
-}
-
 // WithDiscoveryContext sets the discovery context.
 func (d *Discovery) WithDiscoveryContext(ctx *component.DiscoveryContext) *Discovery {
 	d.discoveryContext = ctx

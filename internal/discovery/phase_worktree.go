@@ -229,7 +229,7 @@ func (p *WorktreePhase) discoverInWorktree(
 		return nil, err
 	}
 
-	subDiscovery := New(wt.Path).
+	subDiscovery := NewDiscovery(wt.Path).
 		WithFilters(filters).
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
@@ -338,7 +338,7 @@ func (p *WorktreePhase) walkChangedStack(
 	)
 
 	discoveryGroup.Go(func() error {
-		fromDiscovery := New(fromStack.Path()).
+		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
 			WithFilters(filter.Filters{}).
 			WithNumWorkers(p.numWorkers)
@@ -366,7 +366,7 @@ func (p *WorktreePhase) walkChangedStack(
 	})
 
 	discoveryGroup.Go(func() error {
-		toDiscovery := New(toStack.Path()).
+		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
 			WithFilters(filter.Filters{}).
 			WithNumWorkers(p.numWorkers)

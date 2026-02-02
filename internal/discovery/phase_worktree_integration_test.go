@@ -117,7 +117,7 @@ func runWorktreeDiscovery(
 		filters = append(filters, f)
 	}
 
-	discovery := discovery.New(tmpDir).
+	discovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w).
 		WithFilters(filters)
@@ -297,7 +297,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				Args:       tt.args,
 			}
 
-			discovery := discovery.New(tmpDir).
+			discovery := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w)
 
@@ -575,7 +575,7 @@ unit "unit_to_be_untouched" {
 		Cmd:        "plan",
 	}
 
-	discovery := discovery.New(tmpDir).
+	discovery := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
@@ -922,7 +922,7 @@ locals {
 				WorkingDir: tmpDir,
 			}
 
-			discovery := discovery.New(tmpDir).
+			discovery := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w).
 				WithFilters(filters)
@@ -1016,7 +1016,7 @@ locals {
 		WorkingDir: basicDir,
 	}
 
-	discovery := discovery.New(basicDir).
+	discovery := discovery.NewDiscovery(basicDir).
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w).
 		WithFilters(filters)
@@ -1203,7 +1203,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 				WorkingDir: basicDir,
 			}
 
-			discovery := discovery.New(basicDir).
+			discovery := discovery.NewDiscovery(basicDir).
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w).
 				WithFilters(filters)

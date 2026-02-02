@@ -94,7 +94,7 @@ dependency "vpc" {
 			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
 			require.NoError(t, err)
 
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
@@ -176,7 +176,7 @@ dependency "vpc" {
 		filters, err := filter.ParseFilterQueries(l, []string{"app..."})
 		require.NoError(t, err)
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
@@ -235,7 +235,7 @@ dependency "db" {
 		filters, err := filter.ParseFilterQueries(l, []string{"app..."})
 		require.NoError(t, err)
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
@@ -300,7 +300,7 @@ dependency "vpc" {
 		filters, err := filter.ParseFilterQueries(l, []string{"app...", "!vpc"})
 		require.NoError(t, err)
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters)
 
@@ -484,7 +484,7 @@ locals {
 			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
 			require.NoError(t, err)
 
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters).
 				WithReadFiles()
@@ -536,7 +536,7 @@ locals {
 	filters, err := filter.ParseFilterQueries(l, filterQueries)
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters).
 		WithReadFiles()
@@ -739,7 +739,7 @@ unit "test" {
 			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
 			require.NoError(t, err)
 
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
@@ -833,7 +833,7 @@ func TestDiscovery_FilterEdgeCases(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
@@ -919,7 +919,7 @@ func TestDiscovery_FilterErrorHandling(t *testing.T) {
 			require.NoError(t, err) // Parsing should succeed for evaluation error test cases
 
 			// Create discovery with filters
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
@@ -987,7 +987,7 @@ dependency "external" {
 		filters, err := filter.ParseFilterQueries(l, []string{"{./**}... | external=true"})
 		require.NoError(t, err)
 
-		d := discovery.New(internalDir).
+		d := discovery.NewDiscovery(internalDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
@@ -1004,7 +1004,7 @@ dependency "external" {
 		filters, err := filter.ParseFilterQueries(l, []string{"{./**}... | external=false"})
 		require.NoError(t, err)
 
-		d := discovery.New(internalDir).
+		d := discovery.NewDiscovery(internalDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
@@ -1075,7 +1075,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -1138,7 +1138,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...^vpc"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -1210,7 +1210,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"^app..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -1280,7 +1280,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...db..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -1358,7 +1358,7 @@ dependency "vpc" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
 	require.NoError(t, err)
 
-	d := discovery.New(appDir).
+	d := discovery.NewDiscovery(appDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: appDir}).
 		WithFilters(filters)
 
@@ -1446,7 +1446,7 @@ dependency "api" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
 	require.NoError(t, err)
 
-	d := discovery.New(infraDir).
+	d := discovery.NewDiscovery(infraDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: infraDir}).
 		WithFilters(filters)
 
@@ -1522,7 +1522,7 @@ dependency "db" {
 	filters, err := filter.ParseFilterQueries(l, []string{"...db"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 

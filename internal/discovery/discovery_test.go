@@ -246,7 +246,7 @@ func TestDiscovery_SimpleFilesystem(t *testing.T) {
 	ctx := t.Context()
 
 	// Test: discover all components
-	d := discovery.New(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
+	d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
 		WorkingDir: tmpDir,
 	})
 
@@ -284,7 +284,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -324,7 +324,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"!./bar"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -369,7 +369,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*", "!./apps/baz"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{
 			WorkingDir: tmpDir,
 		}).
@@ -492,7 +492,7 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	ctx := t.Context()
 
 	// Discover components with ReadFiles enabled to populate Reading field
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReadFiles()
 

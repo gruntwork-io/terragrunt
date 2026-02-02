@@ -86,7 +86,7 @@ func TestDiscovery_BasicWithHiddenDirectories(t *testing.T) {
 
 			ctx := t.Context()
 
-			d := discovery.New(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
+			d := discovery.NewDiscovery(tmpDir).WithDiscoveryContext(&component.DiscoveryContext{
 				WorkingDir: tmpDir,
 			})
 
@@ -123,7 +123,7 @@ func TestDiscovery_StackHiddenDiscovered(t *testing.T) {
 	ctx := t.Context()
 
 	// By default, .terragrunt-stack contents should be discovered
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
 
 	components, err := d.Discover(ctx, l, opts)
@@ -193,7 +193,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 	t.Run("discovery with relationships", func(t *testing.T) {
 		t.Parallel()
 
-		d := discovery.New(internalDir).
+		d := discovery.NewDiscovery(internalDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithRelationships()
 
@@ -241,7 +241,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 		filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 		require.NoError(t, err)
 
-		d := discovery.New(internalDir).
+		d := discovery.NewDiscovery(internalDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 			WithFilters(filters)
 
@@ -310,7 +310,7 @@ dependency "foo" {
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -375,7 +375,7 @@ dependency "foo" {
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -440,7 +440,7 @@ exclude {
 
 	// WithParseExclude sets requiresParse=true which triggers the parse phase,
 	// allowing exclude blocks to be parsed and accessible on the units.
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseExclude()
 
@@ -512,7 +512,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 	t.Run("discover only custom config filename", func(t *testing.T) {
 		t.Parallel()
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithConfigFilenames([]string{"custom.hcl"})
 
@@ -527,7 +527,7 @@ func TestDiscovery_WithCustomConfigFilenames(t *testing.T) {
 	t.Run("discover both standard and custom config filenames", func(t *testing.T) {
 		t.Parallel()
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithConfigFilenames([]string{"terragrunt.hcl", "custom.hcl"})
 
@@ -584,7 +584,7 @@ func TestDiscovery_WithReadFiles(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters).
 		WithReadFiles()
@@ -673,7 +673,7 @@ inputs = {
 
 	ctx := t.Context()
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -763,7 +763,7 @@ func TestDiscovery_IncludeExcludeFilterSemantics(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
-			d := discovery.New(tmpDir).
+			d := discovery.NewDiscovery(tmpDir).
 				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 				WithFilters(filters)
 
@@ -793,7 +793,7 @@ func TestDiscovery_HiddenIncludedByIncludeDirs(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"./.hidden/**"})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
@@ -840,7 +840,7 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
 
-	d := discovery.New(internalDir).
+	d := discovery.NewDiscovery(internalDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: internalDir}).
 		WithFilters(filters)
 
@@ -918,7 +918,7 @@ dependency "foo" {
 	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters).
 		WithBreakCycles()
@@ -951,7 +951,7 @@ func TestDiscovery_WithNumWorkers(t *testing.T) {
 
 	ctx := t.Context()
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithNumWorkers(2)
 
@@ -1014,7 +1014,7 @@ dependency "d" {
 		filters, err := filter.ParseFilterQueries(l, []string{"a..."})
 		require.NoError(t, err)
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters).
 			WithMaxDependencyDepth(100)
@@ -1035,7 +1035,7 @@ dependency "d" {
 		filters, err := filter.ParseFilterQueries(l, []string{"a..."})
 		require.NoError(t, err)
 
-		d := discovery.New(tmpDir).
+		d := discovery.NewDiscovery(tmpDir).
 			WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 			WithFilters(filters).
 			WithMaxDependencyDepth(1)
@@ -1078,7 +1078,7 @@ terraform {
 
 	ctx := t.Context()
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithParseExclude().
 		WithSuppressParseErrors()
@@ -1109,7 +1109,7 @@ func TestDiscovery_WithReport(t *testing.T) {
 	ctx := t.Context()
 
 	// Test that discovery works with a nil report (should not panic)
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithReport(nil)
 
@@ -1161,7 +1161,7 @@ dependency "db" {
 	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
 	require.NoError(t, err)
 
-	d := discovery.New(tmpDir).
+	d := discovery.NewDiscovery(tmpDir).
 		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
 		WithFilters(filters)
 
