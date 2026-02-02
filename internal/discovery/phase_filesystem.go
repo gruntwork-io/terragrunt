@@ -20,9 +20,7 @@ type FilesystemPhase struct {
 
 // NewFilesystemPhase creates a new FilesystemPhase.
 func NewFilesystemPhase(numWorkers int) *FilesystemPhase {
-	if numWorkers <= 0 {
-		numWorkers = defaultDiscoveryWorkers
-	}
+	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
 
 	return &FilesystemPhase{
 		numWorkers: numWorkers,

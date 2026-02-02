@@ -25,9 +25,7 @@ type ParsePhase struct {
 
 // NewParsePhase creates a new ParsePhase.
 func NewParsePhase(numWorkers int) *ParsePhase {
-	if numWorkers <= 0 {
-		numWorkers = defaultDiscoveryWorkers
-	}
+	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
 
 	return &ParsePhase{
 		numWorkers: numWorkers,

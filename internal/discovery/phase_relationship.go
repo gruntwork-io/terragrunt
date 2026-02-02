@@ -24,9 +24,7 @@ type RelationshipPhase struct {
 
 // NewRelationshipPhase creates a new RelationshipPhase.
 func NewRelationshipPhase(numWorkers, maxDepth int) *RelationshipPhase {
-	if numWorkers <= 0 {
-		numWorkers = defaultDiscoveryWorkers
-	}
+	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
 
 	if maxDepth <= 0 {
 		maxDepth = defaultMaxDependencyDepth

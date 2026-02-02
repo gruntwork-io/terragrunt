@@ -27,9 +27,7 @@ type GraphPhase struct {
 
 // NewGraphPhase creates a new GraphPhase.
 func NewGraphPhase(numWorkers, maxDepth int) *GraphPhase {
-	if numWorkers <= 0 {
-		numWorkers = defaultDiscoveryWorkers
-	}
+	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
 
 	if maxDepth <= 0 {
 		maxDepth = defaultMaxDependencyDepth
