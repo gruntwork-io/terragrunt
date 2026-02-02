@@ -39,6 +39,13 @@ func WithFS(fs vfs.FS) ConfigOption {
 	}
 }
 
+// NewConfig creates a new Config with default values.
+func NewConfig() *Config {
+	return &Config{
+		fs: vfs.NewOSFS(),
+	}
+}
+
 // Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
 // The main purpose of which is to create a local config that will inherit the default user CLI config and adding new sections to force Terraform to send requests through the Terragrunt Cache server and use the provider cache directory.
 type Config struct {
@@ -65,13 +72,51 @@ func (cfg *Config) WithOptions(opts ...ConfigOption) *Config {
 	return cfg
 }
 
-// FS returns the configured filesystem or defaults to OsFs.
+// FS returns the configured filesystem.
 func (cfg *Config) FS() vfs.FS {
-	if cfg.fs != nil {
-		return cfg.fs
-	}
+	return cfg.fs
+}
 
-	return vfs.NewOSFS()
+// WithDisableCheckpoint sets DisableCheckpoint to true and returns the Config for chaining.
+func (cfg *Config) WithDisableCheckpoint() *Config {
+	cfg.DisableCheckpoint = true
+	return cfg
+}
+
+// WithDisableCheckpointSignature sets DisableCheckpointSignature to true and returns the Config for chaining.
+func (cfg *Config) WithDisableCheckpointSignature() *Config {
+	cfg.DisableCheckpointSignature = true
+	return cfg
+}
+
+// WithPluginCacheDir sets PluginCacheDir and returns the Config for chaining.
+func (cfg *Config) WithPluginCacheDir(dir string) *Config {
+	cfg.PluginCacheDir = dir
+	return cfg
+}
+
+// WithCredentials sets Credentials and returns the Config for chaining.
+func (cfg *Config) WithCredentials(credentials []ConfigCredentials) *Config {
+	cfg.Credentials = credentials
+	return cfg
+}
+
+// WithCredentialsHelpers sets CredentialsHelpers and returns the Config for chaining.
+func (cfg *Config) WithCredentialsHelpers(helpers *ConfigCredentialsHelper) *Config {
+	cfg.CredentialsHelpers = helpers
+	return cfg
+}
+
+// WithHosts sets Hosts and returns the Config for chaining.
+func (cfg *Config) WithHosts(hosts []ConfigHost) *Config {
+	cfg.Hosts = hosts
+	return cfg
+}
+
+// WithProviderInstallation sets ProviderInstallation and returns the Config for chaining.
+func (cfg *Config) WithProviderInstallation(installation *ProviderInstallation) *Config {
+	cfg.ProviderInstallation = installation
+	return cfg
 }
 
 func (cfg *Config) Clone() *Config {

@@ -62,6 +62,7 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive %q: %w", src, err)
 	}
+
 	defer func() {
 		if closeErr := zipReader.Close(); closeErr != nil {
 			l.Warnf("Error closing zip archive %q: %v", src, closeErr)
@@ -132,6 +133,7 @@ func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) err
 	if err != nil {
 		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
 	}
+
 	defer func() {
 		if closeErr := rc.Close(); closeErr != nil {
 			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
@@ -164,6 +166,7 @@ func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File,
 	if err != nil {
 		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
 	}
+
 	defer func() {
 		if closeErr := rc.Close(); closeErr != nil {
 			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
@@ -176,6 +179,7 @@ func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File,
 	if err != nil {
 		return fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
+
 	defer func() {
 		if closeErr := outFile.Close(); closeErr != nil {
 			l.Warnf("Error closing file %q: %v", destPath, closeErr)

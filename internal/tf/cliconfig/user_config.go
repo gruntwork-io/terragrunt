@@ -23,21 +23,19 @@ func loadUserConfig(
 		return nil, diag.Err()
 	}
 
-	var (
-		installationMethods = getUserProviderInstallationMethods(cfg)
-		hosts               = getUserHosts(cfg)
-		credentialsHelpers  = getUserCredentialsHelpers(cfg)
-		credentials         = getUserCredentials(cfg)
-	)
+	config := NewConfig().
+		WithPluginCacheDir(cfg.PluginCacheDir).
+		WithCredentials(getUserCredentials(cfg)).
+		WithCredentialsHelpers(getUserCredentialsHelpers(cfg)).
+		WithProviderInstallation(&ProviderInstallation{Methods: getUserProviderInstallationMethods(cfg)}).
+		WithHosts(getUserHosts(cfg))
 
-	config := &Config{
-		DisableCheckpoint:          cfg.DisableCheckpoint,
-		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
-		PluginCacheDir:             cfg.PluginCacheDir,
-		Credentials:                credentials,
-		CredentialsHelpers:         credentialsHelpers,
-		ProviderInstallation:       &ProviderInstallation{Methods: installationMethods},
-		Hosts:                      hosts,
+	if cfg.DisableCheckpoint {
+		config.WithDisableCheckpoint()
+	}
+
+	if cfg.DisableCheckpointSignature {
+		config.WithDisableCheckpointSignature()
 	}
 
 	return config.WithOptions(opts...), nil

@@ -21,10 +21,10 @@ func TestConfig(t *testing.T) {
 	// Use a fixed path for the cache dir since we're using an in-memory filesystem
 	tempCacheDir := "/tmp/provider-cache"
 	testCases := []struct {
+		config                      *cliconfig.Config
 		expectedHCL                 string
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod
 		hosts                       []cliconfig.ConfigHost
-		config                      cliconfig.Config
 	}{
 		{
 			providerInstallationMethods: []cliconfig.ProviderInstallationMethod{
@@ -35,10 +35,9 @@ func TestConfig(t *testing.T) {
 			hosts: []cliconfig.ConfigHost{
 				{Name: "registry.terraform.io", Services: map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
 			},
-			config: cliconfig.Config{
-				DisableCheckpoint: true,
-				PluginCacheDir:    "path/to/plugin/cache/dir1",
-			},
+			config: cliconfig.NewConfig().
+				WithDisableCheckpoint().
+				WithPluginCacheDir("path/to/plugin/cache/dir1"),
 			expectedHCL: `
 provider_installation {
 
@@ -71,10 +70,8 @@ disable_checkpoint_signature = false
 `,
 		},
 		{
-			config: cliconfig.Config{
-				DisableCheckpoint: false,
-				PluginCacheDir:    tempCacheDir,
-			},
+			config: cliconfig.NewConfig().
+				WithPluginCacheDir(tempCacheDir),
 			expectedHCL: `
 provider_installation {
 }
