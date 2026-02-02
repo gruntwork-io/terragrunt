@@ -1034,10 +1034,15 @@ func RunTerragruntCommandWithContext(
 
 	t.Log(args)
 
-	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
+	// Wrap writers with SyncWriter to prevent race conditions when multiple
+	// goroutines write concurrently (e.g., during "run --all" operations).
+	syncWriter := util.NewSyncWriter(writer)
+	syncErrWriter := util.NewSyncWriter(errwriter)
+
+	opts := options.NewTerragruntOptionsWithWriters(syncWriter, syncErrWriter)
 
 	l := log.New(
-		log.WithOutput(errwriter),
+		log.WithOutput(syncErrWriter),
 		log.WithLevel(options.DefaultLogLevel),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)
