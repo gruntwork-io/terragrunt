@@ -159,7 +159,13 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 }
 
 func (cache *ProviderCache) ArchivePath() string {
-	if vfs.FileExists(cache.ProviderService.FS(), cache.archivePath) {
+	exists, err := vfs.FileExists(cache.ProviderService.FS(), cache.archivePath)
+	if err != nil {
+		cache.logger.Warnf("Error checking archive path %s: %v", cache.archivePath, err)
+		return ""
+	}
+
+	if exists {
 		return cache.archivePath
 	}
 
@@ -272,7 +278,12 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	fs := cache.ProviderService.FS()
 
-	if vfs.FileExists(fs, cache.packageDir) {
+	exists, err := vfs.FileExists(fs, cache.packageDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if exists {
 		return nil
 	}
 
@@ -280,7 +291,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.New(err)
 	}
 
-	if vfs.FileExists(fs, cache.userProviderDir) {
+	userProviderExists, err := vfs.FileExists(fs, cache.userProviderDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if userProviderExists {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
 		if err := vfs.Symlink(fs, cache.userProviderDir, cache.packageDir); err != nil {
@@ -296,7 +312,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.Errorf("not found provider download url")
 	}
 
-	if vfs.FileExists(fs, cache.DownloadURL) {
+	downloadURLExists, err := vfs.FileExists(fs, cache.DownloadURL)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if downloadURLExists {
 		cache.archivePath = cache.DownloadURL
 	} else {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
@@ -355,11 +376,18 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 func (cache *ProviderCache) removeArchive() error {
 	fs := cache.ProviderService.FS()
 
-	if cache.archiveCached && vfs.FileExists(fs, cache.archivePath) {
-		cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
-
-		if err := fs.Remove(cache.archivePath); err != nil {
+	if cache.archiveCached {
+		exists, err := vfs.FileExists(fs, cache.archivePath)
+		if err != nil {
 			return errors.New(err)
+		}
+
+		if exists {
+			cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
+
+			if err := fs.Remove(cache.archivePath); err != nil {
+				return errors.New(err)
+			}
 		}
 	}
 

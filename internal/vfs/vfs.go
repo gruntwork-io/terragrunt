@@ -29,9 +29,19 @@ func NewMemMapFS() FS {
 }
 
 // FileExists checks if a path exists using the given filesystem.
-func FileExists(fs FS, path string) bool {
+// Returns (true, nil) if the file exists, (false, nil) if it does not exist,
+// and (false, error) for other errors (e.g., permission denied).
+func FileExists(fs FS, path string) (bool, error) {
 	_, err := fs.Stat(path)
-	return err == nil
+	if err == nil {
+		return true, nil
+	}
+
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	return false, err
 }
 
 // WriteFile writes data to a file on the given filesystem.

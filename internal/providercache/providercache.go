@@ -388,7 +388,14 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 	// Use VFS for directory operations
 	fs := cache.getFS()
-	if cfgDir := filepath.Dir(filename); !vfs.FileExists(fs, cfgDir) {
+	cfgDir := filepath.Dir(filename)
+
+	cfgDirExists, err := vfs.FileExists(fs, cfgDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if !cfgDirExists {
 		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.New(err)
 		}
