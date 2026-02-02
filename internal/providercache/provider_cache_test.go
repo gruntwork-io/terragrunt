@@ -270,27 +270,23 @@ func TestProviderCache(t *testing.T) {
 	}
 }
 
-func TestProviderCacheWithProviderCacheDir(t *testing.T) {
-	// testing.T can Setenv, but can't Unsetenv
-	unsetEnv := func(t *testing.T, v string) {
-		t.Helper()
+func TestProviderCacheHomeless(t *testing.T) {
+	cacheDir := helpers.TmpDirWOSymlinks(t)
 
-		// let testing.T do the recovery and work around t.Parallel()
-		t.Setenv(v, "")
-		require.NoError(t, os.Unsetenv(v))
-	}
+	t.Setenv("HOME", "")
+	require.NoError(t, os.Unsetenv("HOME"))
 
-	t.Run("Homeless", func(t *testing.T) { //nolint:paralleltest
-		cacheDir := helpers.TmpDirWOSymlinks(t)
+	t.Setenv("XDG_CACHE_HOME", "")
+	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-		unsetEnv(t, "HOME")
-		unsetEnv(t, "XDG_CACHE_HOME")
-
-		_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
-			ProviderCacheDir: cacheDir,
-		})
-		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
+	_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
+		ProviderCacheDir: cacheDir,
 	})
+	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
+}
+
+func TestProviderCacheWithProviderCacheDir(t *testing.T) {
+	t.Parallel()
 
 	t.Run("NoNewDirectoriesAtHOME", func(t *testing.T) {
 		t.Parallel()
@@ -298,7 +294,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		// Use in-memory filesystem to isolate file operations from the real filesystem.
 		// This ensures InitServer doesn't create any directories on the real filesystem
 		// since all file operations are routed through the VFS.
-		memFs := vfs.NewMemMapFs()
+		memFs := vfs.NewMemMapFS()
 		cacheDir := "/test/provider-cache"
 
 		_, err := providercache.InitServer(
@@ -319,7 +315,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 	t.Run("InitServerWithVFS", func(t *testing.T) {
 		t.Parallel()
 
-		memFs := vfs.NewMemMapFs()
+		memFs := vfs.NewMemMapFS()
 		cacheDir := "/vfs/provider-cache"
 
 		server, err := providercache.InitServer(

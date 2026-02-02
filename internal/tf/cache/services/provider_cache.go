@@ -419,7 +419,7 @@ func (service *ProviderService) getFS() vfs.FS {
 		return service.fs
 	}
 
-	return vfs.NewOsFs()
+	return vfs.NewOSFS()
 }
 
 func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger, opts ...ProviderServiceOption) *ProviderService {

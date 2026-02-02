@@ -71,7 +71,7 @@ func (cfg *Config) FS() vfs.FS {
 		return cfg.fs
 	}
 
-	return vfs.NewOsFs()
+	return vfs.NewOSFS()
 }
 
 func (cfg *Config) Clone() *Config {

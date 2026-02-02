@@ -99,7 +99,7 @@ func (cache *ProviderCache) getFS() vfs.FS {
 		return cache.fs
 	}
 
-	return vfs.NewOsFs()
+	return vfs.NewOSFS()
 }
 
 func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option) (*ProviderCache, error) {

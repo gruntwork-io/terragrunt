@@ -91,7 +91,7 @@ disable_checkpoint_signature = false
 			t.Parallel()
 
 			// Use an in-memory filesystem for faster, isolated tests
-			memFs := vfs.NewMemMapFs()
+			memFs := vfs.NewMemMapFS()
 			configFile := "/config/.terraformrc"
 
 			for _, host := range tc.hosts {
