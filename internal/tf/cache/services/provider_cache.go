@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/errgroup"
 )
@@ -40,9 +39,6 @@ const (
 
 	providerCacheWarmUpChBufferSize = 100
 )
-
-// Borrow the "unpack a zip cache into a target directory" logic from go-getter
-var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
 
@@ -318,13 +314,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := unzip.Decompress(
+	if err := vfs.Unzip(
+		fs,
 		cache.packageDir,
 		cache.archivePath,
-		true,
 		unzipFileMode,
 	); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	auth, err := cache.AuthenticatePackage(ctx)
