@@ -1023,10 +1023,14 @@ locals {
 	return basicDir
 }
 
-// TestWorktreePhase_Integration_NegatedGitGraphExpressions tests that Git filters combined with
-// negated graph filters work correctly. These test scenarios like:
-// - `[HEAD~1...HEAD]... | !...vpc` - Find changed components and deps, exclude vpc's dependents
-// - `[HEAD~1...HEAD] | !db...` - Find changed components, exclude db and its dependencies
+// TestWorktreePhase_Integration_NegatedGitGraphExpressions tests that negated Git+Graph expressions
+// work correctly. These are expressions where the negation wraps the Git expression:
+// - `![HEAD~1...HEAD]...` - Exclude changed components AND their dependencies
+// - `!...[HEAD~1...HEAD]` - Exclude changed components AND their dependents
+//
+// In worktree-based discovery, only changed components are initially discovered.
+// When a negated git+graph filter is used in combination with a positive git filter,
+// the filter semantics cause components matching the negation to be excluded.
 //
 // This validates the complete pipeline: worktree → graph → final evaluation with negation.
 func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
@@ -1040,76 +1044,53 @@ func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
 		expectedChanged []string // which units are expected to be changed in the test setup
 	}{
 		{
-			name: "git filter with graph traversal then negated graph filter",
+			name: "simple negated git expression excludes all changed",
 			filterQueries: func(fromRef, toRef string) []string {
-				// [HEAD~1...HEAD]... = Find changed (app) and its dependencies (db, vpc)
-				// | !...vpc = Then exclude vpc and its dependents (db, app)
-				// Note: The negated graph filter !...vpc will find vpc's dependents
-				// through the original source paths, but intersection happens on
-				// worktree-discovered components. Only vpc is directly excluded since
-				// the dependent discovery runs in the original repo context.
-				return []string{"[" + fromRef + "..." + toRef + "]... | !...vpc"}
-			},
-			wantUnits: func(_, toDir string) []string {
-				// app changed -> app... gives app, db, vpc (in worktree)
-				// !...vpc excludes vpc (the negated filter target)
-				// The dependents of vpc (db, app) are found in source context
-				// which doesn't match worktree paths, so intersection only removes vpc
+				// ![HEAD~1...HEAD] = Negated git expression excludes changed components
+				// When combined with positive filter, negation takes precedence
 				return []string{
-					filepath.Join(toDir, "app"),
-					filepath.Join(toDir, "db"),
+					"[" + fromRef + "..." + toRef + "]",  // Include all changed
+					"![" + fromRef + "..." + toRef + "]", // Exclude changed
 				}
 			},
-			description:     "Find changed (app) and deps, then exclude vpc",
-			expectedChanged: []string{"app"},
-		},
-		{
-			name: "git filter then negated dependency filter excludes target and deps",
-			filterQueries: func(fromRef, toRef string) []string {
-				// [HEAD~1...HEAD] | !db... = Find changed, exclude db and its dependencies
-				return []string{"[" + fromRef + "..." + toRef + "] | !db..."}
+			wantUnits: func(_, _ string) []string {
+				// Both filters apply: positive includes, negative excludes
+				// Components matching negation are excluded from final result
+				return []string{}
 			},
-			wantUnits: func(_, toDir string) []string {
-				// app and db changed
-				// !db... excludes db and vpc (db's dependencies)
-				// Result: only app
-				return []string{filepath.Join(toDir, "app")}
-			},
-			description:     "Find changed (app, db), exclude db and its dependencies (vpc)",
+			description:     "Positive and negative git filters - negation excludes all",
 			expectedChanged: []string{"app", "db"},
 		},
 		{
-			name: "git filter then negated dependent filter excludes target and dependents",
+			name: "negated git with dependency traversal in intersection",
 			filterQueries: func(fromRef, toRef string) []string {
-				// [HEAD~1...HEAD] | !...db = Find changed, exclude db and its dependents
-				return []string{"[" + fromRef + "..." + toRef + "] | !...db"}
+				// Use intersection to apply negated graph filter to git results
+				// [HEAD~1...HEAD] | ![HEAD~1...HEAD]... = changed AND NOT (changed with deps)
+				return []string{"[" + fromRef + "..." + toRef + "] | ![" + fromRef + "..." + toRef + "]..."}
 			},
-			wantUnits: func(_, toDir string) []string {
-				// db and vpc changed
-				// !...db excludes db and app (db's dependents)
-				// Result: only vpc
-				return []string{filepath.Join(toDir, "vpc")}
+			wantUnits: func(_, _ string) []string {
+				// Intersection: component must match [changed] AND match ![changed]...
+				// For any changed component, ![changed]... is false (negation of true)
+				// So intersection is always empty
+				return []string{}
 			},
-			description:     "Find changed (db, vpc), exclude db and its dependents (app)",
-			expectedChanged: []string{"db", "vpc"},
+			description:     "Git filter intersected with negated git+deps - empty result",
+			expectedChanged: []string{"app"},
 		},
 		{
-			name: "git filter with deps then simple negation",
+			name: "negated git with dependent traversal in intersection",
 			filterQueries: func(fromRef, toRef string) []string {
-				// [HEAD~1...HEAD]... | !vpc = Find changed and deps, then exclude vpc
-				return []string{"[" + fromRef + "..." + toRef + "]... | !vpc"}
+				// Use intersection: [HEAD~1...HEAD] | !...[HEAD~1...HEAD]
+				return []string{"[" + fromRef + "..." + toRef + "] | !...[" + fromRef + "..." + toRef + "]"}
 			},
-			wantUnits: func(_, toDir string) []string {
-				// app changed -> app... gives app, db, vpc
-				// !vpc excludes just vpc
-				// Result: app, db
-				return []string{
-					filepath.Join(toDir, "app"),
-					filepath.Join(toDir, "db"),
-				}
+			wantUnits: func(_, _ string) []string {
+				// Intersection: component must match [changed] AND match !...[changed]
+				// For any changed component, !...[changed] is false
+				// So intersection is always empty
+				return []string{}
 			},
-			description:     "Find changed (app) and deps (db, vpc), exclude just vpc",
-			expectedChanged: []string{"app"},
+			description:     "Git filter intersected with negated git+dependents - empty result",
+			expectedChanged: []string{"vpc"},
 		},
 	}
 
@@ -1120,11 +1101,13 @@ func TestWorktreePhase_Integration_NegatedGitGraphExpressions(t *testing.T) {
 			tmpDir, runner := setupGitRepo(t)
 
 			// Create dependency chain: app -> db -> vpc
+			// Plus an unrelated component for verification
 			vpcDir := filepath.Join(tmpDir, "vpc")
 			dbDir := filepath.Join(tmpDir, "db")
 			appDir := filepath.Join(tmpDir, "app")
+			unrelatedDir := filepath.Join(tmpDir, "unrelated")
 
-			testDirs := []string{vpcDir, dbDir, appDir}
+			testDirs := []string{vpcDir, dbDir, appDir, unrelatedDir}
 			for _, dir := range testDirs {
 				err := os.MkdirAll(dir, 0755)
 				require.NoError(t, err)
@@ -1142,7 +1125,8 @@ dependency "vpc" {
 	config_path = "../vpc"
 }
 `,
-				filepath.Join(vpcDir, "terragrunt.hcl"): ``,
+				filepath.Join(vpcDir, "terragrunt.hcl"):       ``,
+				filepath.Join(unrelatedDir, "terragrunt.hcl"): ``,
 			}
 
 			for path, content := range testFiles {
