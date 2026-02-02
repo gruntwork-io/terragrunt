@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1637,7 +1638,8 @@ func TestStackTerragruntDir(t *testing.T) {
 		"terragrunt apply --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
-	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
+	expectedTerragruntDir := filepath.Join(rootPath, "tennant_1")
+	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = "%s"`, expectedTerragruntDir))
 }
 
 func TestStackOriginalTerragruntDir(t *testing.T) {

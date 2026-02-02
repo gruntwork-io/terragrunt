@@ -75,6 +75,7 @@ func GetExitCode(err error) (int, error) {
 type ProcessExecutionError struct {
 	Err            error
 	WorkingDir     string
+	RootWorkingDir string
 	Command        string
 	Args           []string
 	Output         CmdOutput
@@ -86,16 +87,18 @@ func (err ProcessExecutionError) Error() string { //nolint:gocritic
 		strings.Join(append([]string{err.Command}, err.Args...), " "),
 	)
 
+	workingDirForLog := RelPathForLog(err.RootWorkingDir, err.WorkingDir)
+
 	if err.DisableSummary {
 		return fmt.Sprintf("Failed to execute \"%s\" in %s",
 			commandStr,
-			err.WorkingDir,
+			workingDirForLog,
 		)
 	}
 
 	return fmt.Sprintf("Failed to execute \"%s\" in %s\n%s\n%v",
 		commandStr,
-		err.WorkingDir,
+		workingDirForLog,
 		err.Output.Stderr.String(),
 		err.Err,
 	)

@@ -130,6 +130,7 @@ func RunCommandWithOutput(
 				Args:           args,
 				Command:        command,
 				WorkingDir:     cmd.Dir,
+				RootWorkingDir: opts.RootWorkingDir,
 				DisableSummary: opts.LogDisableErrorSummary,
 			}
 
@@ -146,6 +147,7 @@ func RunCommandWithOutput(
 				Command:        command,
 				Output:         output,
 				WorkingDir:     cmd.Dir,
+				RootWorkingDir: opts.RootWorkingDir,
 				DisableSummary: opts.LogDisableErrorSummary,
 			}
 

@@ -11,6 +11,7 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -69,7 +70,7 @@ func EvaluateLocalsBlock(ctx context.Context, pctx *ParsingContext, l log.Logger
 			evaluatedLocals,
 		)
 		if err != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", pctx.TerragruntOptions.TerragruntConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath))
 			return evaluatedLocals, err
 		}
 	}

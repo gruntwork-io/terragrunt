@@ -57,7 +57,7 @@ func (runner *UnitRunner) runTerragrunt(
 		return nil
 	}
 
-	runner.Unit.Execution.Logger.Debugf("Running %s", runner.Unit.Path())
+	runner.Unit.Execution.Logger.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path()))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.

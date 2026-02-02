@@ -728,6 +728,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			Err:            errors.Errorf("command failed with exit code %d", resultCode),
 			Output:         output,
 			WorkingDir:     opts.WorkingDir,
+			RootWorkingDir: opts.RootWorkingDir,
 			Command:        runOptions.Command,
 			Args:           runOptions.Args,
 			DisableSummary: opts.LogDisableErrorSummary,
