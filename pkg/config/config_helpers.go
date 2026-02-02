@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/getsops/sops/v3/cmd/sops/formats"
@@ -55,10 +57,14 @@ type RunCmdCacheEntry struct {
 	Stdout string
 	// Stderr is the raw stderr of the command.
 	Stderr string
+	// replayedToRealWriter indicates whether output has been replayed to a real (non-Discard) writer.
+	replayedToRealWriter bool
+	// mu protects replayedToRealWriter for concurrent access.
+	mu sync.Mutex
 }
 
 // Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
-func (e RunCmdCacheEntry) Value() string {
+func (e *RunCmdCacheEntry) Value() string {
 	return strings.TrimSuffix(e.Stdout, "\n")
 }
 
@@ -492,7 +498,7 @@ func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache := cache.ContextCache[RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
+	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
 
 	if len(args) == 0 {
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
@@ -541,15 +547,27 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	if !disableCache {
 		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
 		if foundInCache {
-			// Replay stdout/stderr to current writers (enables output during final parse)
+			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
 			// This is needed because the command may have first run during discovery phase
-			// with io.Discard writers, so we need to replay the output now that we have real writers.
-			if !suppressOutput && cachedEntry.Stdout != "" {
-				_, _ = pctx.TerragruntOptions.Writer.Write([]byte(cachedEntry.Stdout))
-			}
+			// with io.Discard writers, so we need to replay the output during execution phase.
+			// We track whether we've replayed to a real writer to avoid duplicate output.
+			isRealWriter := pctx.TerragruntOptions.Writer != io.Discard
 
-			if cachedEntry.Stderr != "" {
-				_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(cachedEntry.Stderr))
+			cachedEntry.mu.Lock()
+			shouldReplay := isRealWriter && !cachedEntry.replayedToRealWriter
+			if shouldReplay {
+				cachedEntry.replayedToRealWriter = true
+			}
+			cachedEntry.mu.Unlock()
+
+			if shouldReplay {
+				if !suppressOutput && cachedEntry.Stdout != "" {
+					_, _ = pctx.TerragruntOptions.Writer.Write([]byte(cachedEntry.Stdout))
+				}
+
+				if cachedEntry.Stderr != "" {
+					_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(cachedEntry.Stderr))
+				}
 			}
 
 			if suppressOutput {
@@ -578,7 +596,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	if !disableCache {
-		entry := RunCmdCacheEntry{
+		entry := &RunCmdCacheEntry{
 			Stdout: cmdOutput.Stdout.String(),
 			Stderr: cmdOutput.Stderr.String(),
 		}

@@ -6,9 +6,12 @@ terraform {
 }
 
 locals {
-  scripts_dir = "${get_terragrunt_dir()}/../scripts"
-  # This run_cmd should emit output that is visible during stack runs
-  marker      = run_cmd("${local.scripts_dir}/emit_output.sh")
+  # Use the directory containing root.hcl (found via find_in_parent_folders) to construct
+  # a consistent path regardless of which unit includes this file.
+  root_dir = dirname(find_in_parent_folders("root.hcl"))
+  # This run_cmd should emit output that is visible during stack runs.
+  # We use --terragrunt-global-cache to ensure both units share the same cache entry.
+  marker = run_cmd("--terragrunt-global-cache", "${local.root_dir}/scripts/emit_output.sh")
 }
 
 inputs = {

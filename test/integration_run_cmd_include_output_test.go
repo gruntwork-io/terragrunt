@@ -34,10 +34,22 @@ func TestRunCmdOutputFromIncludedFileInStack(t *testing.T) {
 
 	combinedOutput := strings.Join([]string{stdout, stderr}, "\n")
 
-	// The run_cmd output marker should be visible in the combined output
+	// The run_cmd output marker should appear exactly once as direct output.
 	// Before the fix, this output was suppressed because the command ran during
 	// discovery phase with io.Discard writers, and the cached result was reused
 	// during the execution phase without replaying the output.
-	assert.Contains(t, combinedOutput, runCmdOutputMarker,
-		"run_cmd output from included file should be visible in stack run output")
+	//
+	// The marker also appears in Terraform plan output (as the marker_value variable),
+	// so we count only occurrences that are NOT inside quotes (direct run_cmd output).
+	// Direct output: "RUN_CMD_OUTPUT_MARKER_12345\n"
+	// Terraform output: `+ marker_value = "RUN_CMD_OUTPUT_MARKER_12345"`
+	directOutputMarker := runCmdOutputMarker + "\n"
+	count := strings.Count(combinedOutput, directOutputMarker)
+	assert.Equal(
+		t,
+		1,
+		count,
+		"run_cmd output from included file should appear exactly once, got %d occurrences",
+		count,
+	)
 }
