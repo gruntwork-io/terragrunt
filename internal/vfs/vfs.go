@@ -37,3 +37,14 @@ func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
+
+// Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
+// which is supported by both OsFs and MemMapFs.
+func Symlink(fs FS, oldname, newname string) error {
+	linker, ok := fs.(afero.Linker)
+	if !ok {
+		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: afero.ErrNoSymlink}
+	}
+
+	return linker.SymlinkIfPossible(oldname, newname)
+}

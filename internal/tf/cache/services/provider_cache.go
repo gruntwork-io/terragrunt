@@ -163,7 +163,7 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 }
 
 func (cache *ProviderCache) ArchivePath() string {
-	if vfs.FileExists(cache.ProviderService.getFS(), cache.archivePath) {
+	if vfs.FileExists(cache.ProviderService.FS(), cache.archivePath) {
 		return cache.archivePath
 	}
 
@@ -274,7 +274,7 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 // 1. Checks if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
 // 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
-	fs := cache.ProviderService.getFS()
+	fs := cache.ProviderService.FS()
 
 	if vfs.FileExists(fs, cache.packageDir) {
 		return nil
@@ -287,8 +287,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if vfs.FileExists(fs, cache.userProviderDir) {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
-		// os.Symlink is not VFS-compatible (afero MemMapFs doesn't support symlinks)
-		if err := os.Symlink(cache.userProviderDir, cache.packageDir); err != nil {
+		if err := vfs.Symlink(fs, cache.userProviderDir, cache.packageDir); err != nil {
 			return errors.New(err)
 		}
 
@@ -319,7 +318,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := unzip.Decompress(cache.packageDir, cache.archivePath, true, unzipFileMode); err != nil {
+	if err := unzip.Decompress(
+		cache.packageDir,
+		cache.archivePath,
+		true,
+		unzipFileMode,
+	); err != nil {
 		return errors.New(err)
 	}
 
@@ -352,7 +356,7 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 }
 
 func (cache *ProviderCache) removeArchive() error {
-	fs := cache.ProviderService.getFS()
+	fs := cache.ProviderService.FS()
 
 	if cache.archiveCached && vfs.FileExists(fs, cache.archivePath) {
 		cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
@@ -368,7 +372,7 @@ func (cache *ProviderCache) removeArchive() error {
 func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile, error) {
 	lockfile := util.NewLockfile(cache.lockfilePath)
 
-	if err := cache.ProviderService.getFS().MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
+	if err := cache.ProviderService.FS().MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -397,7 +401,7 @@ type ProviderService struct {
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
 
-	// fs is the filesystem for file operations. Defaults to vfs.NewOsFs() if nil.
+	// fs is the filesystem for file operations. Defaults to vfs.NewOSFS() if nil.
 	fs vfs.FS
 
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
@@ -413,29 +417,32 @@ type ProviderService struct {
 	cacheReadyMu   sync.RWMutex
 }
 
-// getFS returns the configured filesystem or defaults to OsFs.
-func (service *ProviderService) getFS() vfs.FS {
-	if service.fs != nil {
-		return service.fs
-	}
-
+// FS returns the configured filesystem or defaults to OsFs.
+func (service *ProviderService) FS() vfs.FS {
 	return vfs.NewOSFS()
 }
 
-func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger, opts ...ProviderServiceOption) *ProviderService {
+func NewProviderService(
+	cacheDir,
+	userCacheDir string,
+	credsSource *cliconfig.CredentialsSource,
+	l log.Logger,
+	opts ...ProviderServiceOption,
+) *ProviderService {
 	service := &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
-		logger:                logger,
+		logger:                l,
+		fs:                    vfs.NewOSFS(),
 	}
 
 	for _, opt := range opts {
 		opt(service)
 	}
 
-	logger.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
+	l.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
 
 	return service
 }
@@ -554,7 +561,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 
 	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
 
-	if err := service.getFS().MkdirAll(service.cacheDir, os.ModePerm); err != nil {
+	if err := service.FS().MkdirAll(service.cacheDir, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
 
@@ -623,8 +630,8 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
-		service.getFS().Remove(cache.packageDir)  //nolint:errcheck
-		service.getFS().Remove(cache.archivePath) //nolint:errcheck
+		service.FS().Remove(cache.packageDir)  //nolint:errcheck
+		service.FS().Remove(cache.archivePath) //nolint:errcheck
 
 		return cache.err
 	}
