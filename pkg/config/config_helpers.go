@@ -57,10 +57,8 @@ type RunCmdCacheEntry struct {
 	Stdout string
 	// Stderr is the raw stderr of the command.
 	Stderr string
-	// replayedToRealWriter indicates whether output has been replayed to a real (non-Discard) writer.
-	replayedToRealWriter bool
-	// mu protects replayedToRealWriter for concurrent access.
-	mu sync.Mutex
+	// replayOnce ensures output is replayed exactly once to a real (non-Discard) writer.
+	replayOnce sync.Once
 }
 
 // Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
@@ -550,24 +548,17 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
 			// This is needed because the command may have first run during discovery phase
 			// with io.Discard writers, so we need to replay the output during execution phase.
-			// We track whether we've replayed to a real writer to avoid duplicate output.
-			isRealWriter := pctx.TerragruntOptions.Writer != io.Discard
+			// We only call Do() when we have a real writer, so it won't fire during discovery.
+			if pctx.TerragruntOptions.Writer != io.Discard {
+				cachedEntry.replayOnce.Do(func() {
+					if !suppressOutput && cachedEntry.Stdout != "" {
+						_, _ = pctx.TerragruntOptions.Writer.Write([]byte(cachedEntry.Stdout))
+					}
 
-			cachedEntry.mu.Lock()
-			shouldReplay := isRealWriter && !cachedEntry.replayedToRealWriter
-			if shouldReplay {
-				cachedEntry.replayedToRealWriter = true
-			}
-			cachedEntry.mu.Unlock()
-
-			if shouldReplay {
-				if !suppressOutput && cachedEntry.Stdout != "" {
-					_, _ = pctx.TerragruntOptions.Writer.Write([]byte(cachedEntry.Stdout))
-				}
-
-				if cachedEntry.Stderr != "" {
-					_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(cachedEntry.Stderr))
-				}
+					if cachedEntry.Stderr != "" {
+						_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(cachedEntry.Stderr))
+					}
+				})
 			}
 
 			if suppressOutput {
