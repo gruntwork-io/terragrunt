@@ -29,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -74,13 +75,34 @@ var (
 	}
 )
 
+// Option configures a ProviderCache.
+type Option func(*ProviderCache)
+
+// WithFs sets the filesystem for file operations.
+// If not set, defaults to the real OS filesystem.
+func WithFs(fs afero.Fs) Option {
+	return func(pc *ProviderCache) {
+		pc.fs = fs
+	}
+}
+
 type ProviderCache struct {
 	*cache.Server
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
+	fs              afero.Fs
 }
 
-func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, error) {
+// getFs returns the configured filesystem or defaults to OsFs.
+func (cache *ProviderCache) getFs() afero.Fs {
+	if cache.fs != nil {
+		return cache.fs
+	}
+
+	return afero.NewOsFs()
+}
+
+func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option) (*ProviderCache, error) {
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if opts.ProviderCacheDir == "" {
@@ -105,7 +127,14 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", APIKeyAuth, opts.ProviderCacheToken)
 	}
 
-	cliCfg, err := cliconfig.LoadUserConfig()
+	// Create ProviderCache first to apply options and get fs
+	providerCache := &ProviderCache{}
+	for _, opt := range pcOpts {
+		opt(providerCache)
+	}
+
+	// Pass filesystem to LoadUserConfig
+	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFs(providerCache.getFs()))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +152,7 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 		return nil, errors.Errorf("creating provider handlers failed: %w", err)
 	}
 
-	cache := cache.NewServer(
+	cacheServer := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
 		cache.WithToken(opts.ProviderCacheToken),
@@ -134,11 +163,11 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 		cache.WithLogger(l),
 	)
 
-	return &ProviderCache{
-		Server:          cache,
-		cliCfg:          cliCfg,
-		providerService: providerService,
-	}, nil
+	providerCache.Server = cacheServer
+	providerCache.cliCfg = cliCfg
+	providerCache.providerService = providerService
+
+	return providerCache, nil
 }
 
 // TerraformCommandHook warms up the providers cache, creates `.terraform.lock.hcl` and runs the `tofu/terraform init`
@@ -357,8 +386,10 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
-	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
-		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
+	// Use VFS for directory operations
+	fs := cache.getFs()
+	if cfgDir := filepath.Dir(filename); !fileExists(fs, cfgDir) {
+		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.New(err)
 		}
 	}
@@ -371,6 +402,12 @@ func isRegistryTimeoutError(output []byte) bool {
 	return slices.ContainsFunc(registryTimeoutPatterns, func(pattern *regexp.Regexp) bool {
 		return pattern.Match(output)
 	})
+}
+
+// fileExists checks if a path exists using the given filesystem.
+func fileExists(fs afero.Fs, path string) bool {
+	_, err := fs.Stat(path)
+	return err == nil
 }
 
 func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
