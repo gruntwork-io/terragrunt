@@ -388,7 +388,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 	// Use VFS for directory operations
 	fs := cache.getFS()
-	if cfgDir := filepath.Dir(filename); !fileExists(fs, cfgDir) {
+	if cfgDir := filepath.Dir(filename); !vfs.FileExists(fs, cfgDir) {
 		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.New(err)
 		}
@@ -402,11 +402,6 @@ func isRegistryTimeoutError(output []byte) bool {
 	return slices.ContainsFunc(registryTimeoutPatterns, func(pattern *regexp.Regexp) bool {
 		return pattern.Match(output)
 	})
-}
-
-// fileExists checks if a path exists using the given filesystem.
-func fileExists(fs vfs.FS, path string) bool {
-	return vfs.FileExists(fs, path)
 }
 
 func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
