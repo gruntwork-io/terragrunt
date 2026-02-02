@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
 )
 
@@ -56,24 +57,25 @@ func Symlink(fs FS, oldname, newname string) error {
 
 // Unzip extracts a zip archive from src to dst directory on the given filesystem.
 // The umask parameter is applied to file permissions (use 0 to preserve original permissions).
-func Unzip(fs FS, dst, src string, umask os.FileMode) error {
+func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 	zipReader, err := zip.OpenReader(src)
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive %q: %w", src, err)
 	}
+	defer func() {
+		if closeErr := zipReader.Close(); closeErr != nil {
+			l.Warnf("Error closing zip archive %q: %v", src, closeErr)
+		}
+	}()
 
 	if err := fs.MkdirAll(dst, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", dst, err)
 	}
 
 	for _, zipFile := range zipReader.File {
-		if err := extractZipFile(fs, dst, zipFile, umask); err != nil {
+		if err := extractZipFile(l, fs, dst, zipFile, umask); err != nil {
 			return fmt.Errorf("failed to extract file %q: %w", zipFile.Name, err)
 		}
-	}
-
-	if err := zipReader.Close(); err != nil {
-		return fmt.Errorf("failed to close zip archive %q: %w", src, err)
 	}
 
 	return nil
@@ -98,7 +100,7 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // extractZipFile extracts a single file from a zip archive.
-func extractZipFile(fs FS, dst string, zipFile *zip.File, umask os.FileMode) error {
+func extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode) error {
 	destPath, err := sanitizeZipPath(dst, zipFile.Name)
 	if err != nil {
 		return err
@@ -117,28 +119,28 @@ func extractZipFile(fs FS, dst string, zipFile *zip.File, umask os.FileMode) err
 
 	// Handle symlinks
 	if fileInfo.Mode()&os.ModeSymlink != 0 {
-		return extractSymlink(fs, destPath, zipFile)
+		return extractSymlink(l, fs, destPath, zipFile)
 	}
 
 	// Handle regular files
-	return extractRegularFile(fs, destPath, zipFile, umask)
+	return extractRegularFile(l, fs, destPath, zipFile, umask)
 }
 
 // extractSymlink extracts a symlink from a zip file.
-func extractSymlink(fs FS, destPath string, zipFile *zip.File) error {
+func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) error {
 	rc, err := zipFile.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
 	}
+	defer func() {
+		if closeErr := rc.Close(); closeErr != nil {
+			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
+		}
+	}()
 
-	// Read the symlink target from the file content
 	targetBytes, err := io.ReadAll(rc)
 	if err != nil {
 		return fmt.Errorf("failed to read file %q: %w", zipFile.Name, err)
-	}
-
-	if err := rc.Close(); err != nil {
-		return fmt.Errorf("failed to close file %q: %w", zipFile.Name, err)
 	}
 
 	target := string(targetBytes)
@@ -152,7 +154,7 @@ func extractSymlink(fs FS, destPath string, zipFile *zip.File) error {
 }
 
 // extractRegularFile extracts a regular file from a zip file.
-func extractRegularFile(fs FS, destPath string, zipFile *zip.File, umask os.FileMode) error {
+func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File, umask os.FileMode) error {
 	// Ensure parent directory exists
 	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
@@ -162,6 +164,11 @@ func extractRegularFile(fs FS, destPath string, zipFile *zip.File, umask os.File
 	if err != nil {
 		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
 	}
+	defer func() {
+		if closeErr := rc.Close(); closeErr != nil {
+			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
+		}
+	}()
 
 	mode := applyUmask(zipFile.FileInfo().Mode(), umask)
 
@@ -169,17 +176,14 @@ func extractRegularFile(fs FS, destPath string, zipFile *zip.File, umask os.File
 	if err != nil {
 		return fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
+	defer func() {
+		if closeErr := outFile.Close(); closeErr != nil {
+			l.Warnf("Error closing file %q: %v", destPath, closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(outFile, rc); err != nil {
 		return fmt.Errorf("failed to copy file %q: %w", zipFile.Name, err)
-	}
-
-	if err := rc.Close(); err != nil {
-		return fmt.Errorf("failed to close file %q: %w", zipFile.Name, err)
-	}
-
-	if err := outFile.Close(); err != nil {
-		return fmt.Errorf("failed to close file %q: %w", destPath, err)
 	}
 
 	return nil
