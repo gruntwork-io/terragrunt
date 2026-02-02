@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
-	"github.com/spf13/afero"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +91,7 @@ disable_checkpoint_signature = false
 			t.Parallel()
 
 			// Use an in-memory filesystem for faster, isolated tests
-			memFs := afero.NewMemMapFs()
+			memFs := vfs.NewMemMapFs()
 			configFile := "/config/.terraformrc"
 
 			for _, host := range tc.hosts {
@@ -101,12 +101,12 @@ disable_checkpoint_signature = false
 			tc.config.AddProviderInstallationMethods(tc.providerInstallationMethods...)
 
 			// Inject filesystem via options - same Save() method as production
-			tc.config.WithOptions(cliconfig.WithFs(memFs))
+			tc.config.WithOptions(cliconfig.WithFS(memFs))
 
 			err := tc.config.Save(configFile)
 			require.NoError(t, err)
 
-			hclBytes, err := afero.ReadFile(memFs, configFile)
+			hclBytes, err := vfs.ReadFile(memFs, configFile)
 			require.NoError(t, err)
 
 			actualHCL := string(hclBytes)

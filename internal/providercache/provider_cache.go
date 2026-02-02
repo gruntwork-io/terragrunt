@@ -27,9 +27,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/spf13/afero"
 )
 
 const (
@@ -78,9 +78,9 @@ var (
 // Option configures a ProviderCache.
 type Option func(*ProviderCache)
 
-// WithFs sets the filesystem for file operations.
+// WithFS sets the filesystem for file operations.
 // If not set, defaults to the real OS filesystem.
-func WithFs(fs afero.Fs) Option {
+func WithFS(fs vfs.FS) Option {
 	return func(pc *ProviderCache) {
 		pc.fs = fs
 	}
@@ -90,16 +90,16 @@ type ProviderCache struct {
 	*cache.Server
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
-	fs              afero.Fs
+	fs              vfs.FS
 }
 
-// getFs returns the configured filesystem or defaults to OsFs.
-func (cache *ProviderCache) getFs() afero.Fs {
+// getFS returns the configured filesystem or defaults to OsFs.
+func (cache *ProviderCache) getFS() vfs.FS {
 	if cache.fs != nil {
 		return cache.fs
 	}
 
-	return afero.NewOsFs()
+	return vfs.NewOsFs()
 }
 
 func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option) (*ProviderCache, error) {
@@ -134,7 +134,7 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option)
 	}
 
 	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFs(providerCache.getFs()))
+	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(providerCache.getFS()))
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option)
 		return nil, err
 	}
 
-	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l)
+	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(providerCache.getFS()))
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, opts.ProviderCacheRegistryNames)
@@ -387,7 +387,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	)
 
 	// Use VFS for directory operations
-	fs := cache.getFs()
+	fs := cache.getFS()
 	if cfgDir := filepath.Dir(filename); !fileExists(fs, cfgDir) {
 		if err := fs.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.New(err)
@@ -405,9 +405,8 @@ func isRegistryTimeoutError(output []byte) bool {
 }
 
 // fileExists checks if a path exists using the given filesystem.
-func fileExists(fs afero.Fs, path string) bool {
-	_, err := fs.Stat(path)
-	return err == nil
+func fileExists(fs vfs.FS, path string) bool {
+	return vfs.FileExists(fs, path)
 }
 
 func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {

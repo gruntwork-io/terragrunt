@@ -3,10 +3,10 @@ package cliconfig
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/spf13/afero"
 )
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
@@ -30,9 +30,9 @@ type ConfigCredentialsHelper struct {
 // ConfigOption configures a Config.
 type ConfigOption func(*Config) *Config
 
-// WithFs sets the filesystem for file operations.
+// WithFS sets the filesystem for file operations.
 // If not set, defaults to the real OS filesystem.
-func WithFs(fs afero.Fs) ConfigOption {
+func WithFS(fs vfs.FS) ConfigOption {
 	return func(cfg *Config) *Config {
 		cfg.fs = fs
 		return cfg
@@ -46,8 +46,8 @@ type Config struct {
 	ProviderInstallation *ProviderInstallation    `hcl:"provider_installation,block"`
 
 	// fs is the filesystem for saving config. Unexported to skip HCL encoding.
-	// Defaults to afero.NewOsFs() if nil.
-	fs afero.Fs
+	// Defaults to vfs.NewOsFs() if nil.
+	fs vfs.FS
 
 	PluginCacheDir             string              `hcl:"plugin_cache_dir"`
 	Credentials                []ConfigCredentials `hcl:"credentials,block"`
@@ -66,12 +66,12 @@ func (cfg *Config) WithOptions(opts ...ConfigOption) *Config {
 }
 
 // FS returns the configured filesystem or defaults to OsFs.
-func (cfg *Config) FS() afero.Fs {
+func (cfg *Config) FS() vfs.FS {
 	if cfg.fs != nil {
 		return cfg.fs
 	}
 
-	return afero.NewOsFs()
+	return vfs.NewOsFs()
 }
 
 func (cfg *Config) Clone() *Config {
@@ -140,7 +140,7 @@ func (cfg *Config) Save(configPath string) error {
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
 	const ownerWriteGlobalReadPerms = 0644
-	if err := afero.WriteFile(cfg.FS(), configPath, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
+	if err := vfs.WriteFile(cfg.FS(), configPath, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 		return errors.New(err)
 	}
 
