@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/files"
+	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -1544,27 +1545,122 @@ func TestStackNestedOutputs(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
+		"terragrunt stack output --format json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var result map[string]any
+	err = json.Unmarshal([]byte(stdout), &result)
+	require.NoError(t, err)
+
+	// Level 0: Direct units at top level
+	assert.Contains(t, result, "app_1", "app_1 should exist at top level")
+	assert.Contains(t, result, "app_2", "app_2 should exist at top level")
+	app1Outputs := result["app_1"].(map[string]any)
+	app2Outputs := result["app_2"].(map[string]any)
+	assert.Equal(t, "app_1", app1Outputs["data"], "app_1 should have correct data value")
+	assert.Equal(t, "app_2", app2Outputs["data"], "app_2 should have correct data value")
+
+	// Level 1: root_stack_1 contains app_1 and app_2
+	assert.Contains(t, result, "root_stack_1", "root_stack_1 should exist at top level")
+	rootStack1Outputs := result["root_stack_1"].(map[string]any)
+	assert.Contains(t, rootStack1Outputs, "app_3", "root_stack_1 should contain app_3")
+	assert.Contains(t, rootStack1Outputs, "app_4", "root_stack_1 should contain app_4")
+	assert.Equal(t, "app_3", rootStack1Outputs["app_3"].(map[string]any)["data"], "root_stack_1.app_3 should have correct data value")
+	assert.Equal(t, "app_4", rootStack1Outputs["app_4"].(map[string]any)["data"], "root_stack_1.app_4 should have correct data value")
+
+	// Level 2: root_stack_2 contains stack_v2 which contains app_1 and app_2
+	assert.Contains(t, result, "root_stack_2", "root_stack_2 should exist at top level")
+	rootStack2Outputs := result["root_stack_2"].(map[string]any)
+	assert.Contains(t, rootStack2Outputs, "stack_v2", "root_stack_2 should contain stack_v2")
+	stackV2Outputs := rootStack2Outputs["stack_v2"].(map[string]any)
+	assert.Contains(t, stackV2Outputs, "app_3", "root_stack_2.stack_v2 should contain app_3")
+	assert.Contains(t, stackV2Outputs, "app_4", "root_stack_2.stack_v2 should contain app_4")
+	assert.Equal(t, "app_3", stackV2Outputs["app_3"].(map[string]any)["data"], "root_stack_2.stack_v2.app_3 should have correct data value")
+	assert.Equal(t, "app_4", stackV2Outputs["app_4"].(map[string]any)["data"], "root_stack_2.stack_v2.app_4 should have correct data value")
+
+	// Level 3: root_stack_3 contains stack_v3 which contains stack_v2 which contains app_1 and app_2
+	assert.Contains(t, result, "root_stack_3", "root_stack_3 should exist at top level")
+	rootStack3Outputs := result["root_stack_3"].(map[string]any)
+	assert.Contains(t, rootStack3Outputs, "stack_v3", "root_stack_3 should contain stack_v3")
+	stackV3Outputs := rootStack3Outputs["stack_v3"].(map[string]any)
+	assert.Contains(t, stackV3Outputs, "stack_v2", "root_stack_3.stack_v3 should contain stack_v2")
+	stackV2NestedOutputs := stackV3Outputs["stack_v2"].(map[string]any)
+	assert.Contains(t, stackV2NestedOutputs, "app_3", "root_stack_3.stack_v3.stack_v2 should contain app_3")
+	assert.Contains(t, stackV2NestedOutputs, "app_4", "root_stack_3.stack_v3.stack_v2 should contain app_4")
+	assert.Equal(t, "app_3", stackV2NestedOutputs["app_3"].(map[string]any)["data"], "root_stack_3.stack_v3.stack_v2.app_3 should have correct data value")
+	assert.Equal(t, "app_4", stackV2NestedOutputs["app_4"].(map[string]any)["data"], "root_stack_3.stack_v3.stack_v2.app_4 should have correct data value")
+
+	// Regression check: stack_v2 should NOT exist at top level
+	_, stackV2Exists := result["stack_v2"]
+	assert.False(t, stackV2Exists, "stack_v2 should NOT exist at top level")
+
+	// Test HCL format output
+	hclStdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
 		"terragrunt stack output --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
 	// Parse the HCL output
 	parser := hclparse.NewParser()
-	hclFile, diags := parser.ParseHCL([]byte(stdout), "test.hcl")
+	hclFile, diags := parser.ParseHCL([]byte(hclStdout), "test.hcl")
 	require.False(t, diags.HasErrors(), "Failed to parse HCL: %s", diags.Error())
-
-	require.Nil(t, diags)
 	require.NotNil(t, hclFile)
 
+	// Level 0: Check top-level attributes
 	topLevelAttrs, _ := hclFile.Body.JustAttributes()
-	_, app1Exists := topLevelAttrs["app_1"]
-	assert.True(t, app1Exists, "app_1 block should exist")
+	assert.Contains(t, topLevelAttrs, "app_1", "app_1 should exist at top level in HCL output")
+	assert.Contains(t, topLevelAttrs, "app_2", "app_2 should exist at top level in HCL output")
+	assert.Contains(t, topLevelAttrs, "root_stack_1", "root_stack_1 should exist at top level in HCL output")
+	assert.Contains(t, topLevelAttrs, "root_stack_2", "root_stack_2 should exist at top level in HCL output")
+	assert.Contains(t, topLevelAttrs, "root_stack_3", "root_stack_3 should exist at top level in HCL output")
 
-	_, app2Exists := topLevelAttrs["app_2"]
-	assert.True(t, app2Exists, "app_2 block should exist")
+	// Regression check: stack_v2 should NOT exist at top level in HCL output
+	_, stackV2ExistsHCL := topLevelAttrs["stack_v2"]
+	assert.False(t, stackV2ExistsHCL, "stack_v2 should NOT exist at top level in HCL output")
 
-	_, stackV2Exists := topLevelAttrs["stack_v2"]
-	assert.True(t, stackV2Exists, "stack_v2 block should exist")
+	// Level 1: Verify root_stack_1 contains app_1 and app_2
+	rootStack1Attr, exists := topLevelAttrs["root_stack_1"]
+	require.True(t, exists, "root_stack_1 attribute should exist in HCL output")
+	rootStack1Value, rootStack1Diags := rootStack1Attr.Expr.Value(&hcl.EvalContext{})
+	require.False(t, rootStack1Diags.HasErrors(), "Failed to evaluate root_stack_1 in HCL output: %s", rootStack1Diags.Error())
+	require.True(t, rootStack1Value.Type().IsObjectType(), "root_stack_1 should be an object in HCL output")
+	rootStack1Map := rootStack1Value.AsValueMap()
+	assert.Contains(t, rootStack1Map, "app_3", "root_stack_1 should contain app_3 in HCL output")
+	assert.Contains(t, rootStack1Map, "app_4", "root_stack_1 should contain app_4 in HCL output")
+
+	// Level 2: Verify root_stack_2.stack_v2 contains app_1 and app_2
+	rootStack2Attr, exists := topLevelAttrs["root_stack_2"]
+	require.True(t, exists, "root_stack_2 attribute should exist in HCL output")
+	rootStack2Value, rootStack2Diags := rootStack2Attr.Expr.Value(&hcl.EvalContext{})
+	require.False(t, rootStack2Diags.HasErrors(), "Failed to evaluate root_stack_2 in HCL output: %s", rootStack2Diags.Error())
+	require.True(t, rootStack2Value.Type().IsObjectType(), "root_stack_2 should be an object in HCL output")
+	rootStack2Map := rootStack2Value.AsValueMap()
+	stackV2Value, exists := rootStack2Map["stack_v2"]
+	require.True(t, exists, "root_stack_2 should contain stack_v2 in HCL output")
+	require.True(t, stackV2Value.Type().IsObjectType(), "root_stack_2.stack_v2 should be an object in HCL output")
+	stackV2Map := stackV2Value.AsValueMap()
+	assert.Contains(t, stackV2Map, "app_3", "root_stack_2.stack_v2 should contain app_3 in HCL output")
+	assert.Contains(t, stackV2Map, "app_4", "root_stack_2.stack_v2 should contain app_4 in HCL output")
+
+	// Level 3: Verify root_stack_3.stack_v3.stack_v2 contains app_1 and app_2
+	rootStack3Attr, exists := topLevelAttrs["root_stack_3"]
+	require.True(t, exists, "root_stack_3 attribute should exist in HCL output")
+	rootStack3Value, rootStack3Diags := rootStack3Attr.Expr.Value(&hcl.EvalContext{})
+	require.False(t, rootStack3Diags.HasErrors(), "Failed to evaluate root_stack_3 in HCL output: %s", rootStack3Diags.Error())
+	require.True(t, rootStack3Value.Type().IsObjectType(), "root_stack_3 should be an object in HCL output")
+	rootStack3Map := rootStack3Value.AsValueMap()
+	stackV3Value, exists := rootStack3Map["stack_v3"]
+	require.True(t, exists, "root_stack_3 should contain stack_v3 in HCL output")
+	require.True(t, stackV3Value.Type().IsObjectType(), "root_stack_3.stack_v3 should be an object in HCL output")
+	stackV3Map := stackV3Value.AsValueMap()
+	stackV2NestedValue, exists := stackV3Map["stack_v2"]
+	require.True(t, exists, "root_stack_3.stack_v3 should contain stack_v2 in HCL output")
+	require.True(t, stackV2NestedValue.Type().IsObjectType(), "root_stack_3.stack_v3.stack_v2 should be an object in HCL output")
+	stackV2NestedMap := stackV2NestedValue.AsValueMap()
+	assert.Contains(t, stackV2NestedMap, "app_3", "root_stack_3.stack_v3.stack_v2 should contain app_3 in HCL output")
+	assert.Contains(t, stackV2NestedMap, "app_4", "root_stack_3.stack_v3.stack_v2 should contain app_4 in HCL output")
 }
 
 func TestStacksNoValidation(t *testing.T) {
