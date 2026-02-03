@@ -24,15 +24,6 @@ const (
 
 	// maxCycleRemovalAttempts is the maximum number of cycle removal attempts.
 	maxCycleRemovalAttempts = 100
-
-	// filesystemPhaseGoroutineLimit is the limit for the filesystem phase errgroup.
-	// Two goroutines: one walker, one processor.
-	filesystemPhaseGoroutineLimit = 2
-
-	// channelBufferMultiplier determines channel buffer size as a multiple of numWorkers.
-	// A multiplier of 4 provides sufficient buffering to prevent blocking while
-	// avoiding excessive memory usage.
-	channelBufferMultiplier = 4
 )
 
 // ResultCollector provides thread-safe collection of discovery results.

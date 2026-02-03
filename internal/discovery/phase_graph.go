@@ -432,6 +432,22 @@ func (p *GraphPhase) discoverDependents(
 	return nil
 }
 
+// upstreamDiscoveryState holds shared state for processing upstream candidates.
+// Created once per discoverDependentsUpstream call and reused across candidates.
+type upstreamDiscoveryState struct {
+	opts                        *options.TerragruntOptions
+	discovery                   *Discovery
+	target                      component.Component
+	threadSafeComponents        *component.ThreadSafeComponents
+	seenComponents              *stringSet
+	checkedForTarget            *stringSet
+	resolvedTargetPath          string
+	targetRelSuffix             string
+	resolvedDiscoveryWorkingDir string
+	errs                        *[]error
+	errMu                       *sync.Mutex
+}
+
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
 // from the target component's directory to gitRoot (or filesystem root if gitRoot is empty).
 // At each directory level, it walks down to find terragrunt configs and checks if they
@@ -482,261 +498,85 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	// Resolve discovery.workingDir for consistent path comparison.
 	resolvedDiscoveryWorkingDir := util.ResolvePath(discovery.workingDir)
 
-	var (
-		errs  []error
-		errMu sync.Mutex
-	)
+	var candidates []component.Component
 
-	g, walkCtx := errgroup.WithContext(ctx)
-	g.SetLimit(p.numWorkers)
+	walkFn := filepath.WalkDir
+	if opts != nil && opts.Experiments.Evaluate(experiment.Symlinks) {
+		walkFn = util.WalkDirWithSymlinks
+	}
 
-	// Internal channels for the producer-consumer pattern within this function
-	candidates := make(chan component.Component, p.numWorkers*channelBufferMultiplier)
-	discoveredDependents := make(chan component.Component, p.numWorkers*channelBufferMultiplier)
-
-	g.Go(func() error {
-		defer close(candidates)
-
-		walkFn := filepath.WalkDir
-		if opts != nil && opts.Experiments.Evaluate(experiment.Symlinks) {
-			walkFn = util.WalkDirWithSymlinks
+	err := walkFn(currentDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		err := walkFn(currentDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if d.IsDir() {
+			if loaded := visitedDirs.LoadOrStore(path); loaded {
+				return filepath.SkipDir
+			}
+
+			if err := skipDirIfIgnorable(path); err != nil {
 				return err
 			}
 
-			select {
-			case <-walkCtx.Done():
-				return walkCtx.Err()
-			default:
-			}
-
-			if d.IsDir() {
-				if loaded := visitedDirs.LoadOrStore(path); loaded {
-					return filepath.SkipDir
-				}
-
-				if err := skipDirIfIgnorable(path); err != nil {
-					return err
-				}
-
-				return nil
-			}
-
-			base := filepath.Base(path)
-			if !slices.Contains(discovery.configFilenames, base) {
-				return nil
-			}
-
-			candidate := createComponentFromPath(path, discovery.configFilenames, discovery.discoveryContext)
-			if candidate == nil {
-				return nil
-			}
-
-			select {
-			case <-walkCtx.Done():
-				return walkCtx.Err()
-			case candidates <- candidate:
-			}
-
 			return nil
-		})
-		if err != nil {
-			errMu.Lock()
+		}
 
-			errs = append(errs, err)
+		base := filepath.Base(path)
+		if !slices.Contains(discovery.configFilenames, base) {
+			return nil
+		}
 
-			errMu.Unlock()
+		candidate := createComponentFromPath(path, discovery.configFilenames, discovery.discoveryContext)
+		if candidate != nil {
+			candidates = append(candidates, candidate)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
-	checkedForTarget := newStringSet()
+	var (
+		discoveredDependents []component.Component
+		dependentsMu         sync.Mutex
+		errs                 []error
+		errMu                sync.Mutex
+	)
 
-	g.Go(func() error {
-		defer close(discoveredDependents)
+	state := &upstreamDiscoveryState{
+		opts:                        opts,
+		discovery:                   discovery,
+		target:                      target,
+		threadSafeComponents:        threadSafeComponents,
+		seenComponents:              seenComponents,
+		checkedForTarget:            newStringSet(),
+		resolvedTargetPath:          resolvedTargetPath,
+		targetRelSuffix:             targetRelSuffix,
+		resolvedDiscoveryWorkingDir: resolvedDiscoveryWorkingDir,
+		errs:                        &errs,
+		errMu:                       &errMu,
+	}
 
-		for candidate := range candidates {
-			if loaded := checkedForTarget.LoadOrStore(candidate.Path()); loaded {
-				continue
-			}
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(p.numWorkers)
 
-			if seenComponents.Load(candidate.Path()) {
-				continue
-			}
-
-			if _, ok := candidate.(*component.Stack); ok {
-				continue
-			}
-
-			if candidate.Path() == target.Path() {
-				continue
-			}
-
-			unit, ok := candidate.(*component.Unit)
-			if !ok {
-				continue
-			}
-
-			cfg := unit.Config()
-			if cfg == nil {
-				err := parseComponent(walkCtx, l, candidate, opts, discovery.suppressParseErrors, discovery.parserOptions)
-				if err != nil {
-					if !discovery.suppressParseErrors {
-						errMu.Lock()
-
-						errs = append(errs, err)
-
-						errMu.Unlock()
-					}
-
-					continue
-				}
-
-				cfg = unit.Config()
-			}
-
-			deps, err := extractDependencyPaths(cfg, candidate)
-			if err != nil {
-				errMu.Lock()
-
-				errs = append(errs, err)
-
-				errMu.Unlock()
-
-				continue
-			}
-
-			canonicalCandidate, created := threadSafeComponents.EnsureComponent(candidate)
-			if created {
-				dCtx := target.DiscoveryContext()
-				if dCtx != nil {
-					copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
-
-					// Clear the Ref and related args for graph-discovered components.
-					// They shouldn't inherit the git ref from the target, as this would
-					// cause them to match git filters and become targets themselves.
-					copiedCtx.Ref = ""
-					copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
-						return arg == "-destroy"
-					})
-
-					canonicalCandidate.SetDiscoveryContext(copiedCtx)
-				}
-			}
-
-			dependsOnTarget := false
-
-			for _, dep := range deps {
-				depComponent := threadSafeComponents.FindByPath(dep)
-				if depComponent == nil {
-					depComponent = component.NewUnit(dep)
-					depComponent, _ = threadSafeComponents.EnsureComponent(depComponent)
-				}
-
-				parentCtx := canonicalCandidate.DiscoveryContext()
-				if parentCtx != nil && isExternal(parentCtx.WorkingDir, dep) {
-					if ext, ok := depComponent.(*component.Unit); ok {
-						ext.SetExternal()
-					}
-				}
-
-				// Compare paths: first try exact match, then try relative suffix match
-				// for worktree scenarios where target is in a different directory.
-				resolvedDep := util.ResolvePath(dep)
-
-				switch {
-				case resolvedDep == resolvedTargetPath:
-					// Direct match - link to the existing depComponent
-					canonicalCandidate.AddDependency(depComponent)
-
-					dependsOnTarget = true
-				case targetRelSuffix != "":
-					// Compare relative suffixes when target is from a worktree.
-					// Use resolved paths to handle symlinks consistently.
-					depRelSuffix := strings.TrimPrefix(resolvedDep, resolvedDiscoveryWorkingDir)
-					if depRelSuffix == targetRelSuffix {
-						// The dependency path matches the target's relative suffix.
-						// Link to the actual target component instead of the path-based component,
-						// so that the dependent relationship is properly established.
-						canonicalCandidate.AddDependency(target)
-
-						dependsOnTarget = true
-					} else {
-						canonicalCandidate.AddDependency(depComponent)
-					}
-				default:
-					canonicalCandidate.AddDependency(depComponent)
-				}
-			}
-
-			if dependsOnTarget {
-				select {
-				case <-walkCtx.Done():
-					return walkCtx.Err()
-				case discoveredDependents <- canonicalCandidate:
-				}
-			}
-		}
-
-		return nil
-	})
-
-	g.Go(func() error {
-		for dependent := range discoveredDependents {
-			if loaded := seenComponents.LoadOrStore(dependent.Path()); loaded {
-				continue
-			}
-
-			l.Debugf("Found dependent during upstream walk: %s (depends on target), adding to collector", dependent.Path())
-
-			collector.AddDiscovered(DiscoveryResult{
-				Component: dependent,
-				Status:    StatusDiscovered,
-				Reason:    CandidacyReasonNone,
-				Phase:     PhaseGraph,
-			})
-
-			l.Debugf("Successfully added %s to collector", dependent.Path())
-
-			freshVisitedDirs := newStringSet()
-
-			l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
-
-			err := p.discoverDependentsUpstream(
-				walkCtx, l, opts, discovery, dependent,
-				threadSafeComponents, seenComponents, freshVisitedDirs, collector,
-				filepath.Dir(dependent.Path()), depthRemaining-1,
-			)
-			if err != nil {
-				errMu.Lock()
-
-				errs = append(errs, err)
-
-				errMu.Unlock()
-			}
-		}
-
-		return nil
-	})
-
-	parentDir := filepath.Dir(currentDir)
-	if parentDir != currentDir && depthRemaining > 0 {
+	for _, candidate := range candidates {
 		g.Go(func() error {
-			err := p.discoverDependentsUpstream(
-				walkCtx, l, opts, discovery, target,
-				threadSafeComponents, seenComponents, visitedDirs, collector,
-				parentDir, depthRemaining-1,
-			)
-			if err != nil {
-				errMu.Lock()
+			dependent := p.processUpstreamCandidate(gCtx, l, state, candidate)
+			if dependent != nil {
+				dependentsMu.Lock()
 
-				errs = append(errs, err)
+				discoveredDependents = append(discoveredDependents, dependent)
 
-				errMu.Unlock()
+				dependentsMu.Unlock()
 			}
 
 			return nil
@@ -747,8 +587,179 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return err
 	}
 
+	for _, dependent := range discoveredDependents {
+		if loaded := seenComponents.LoadOrStore(dependent.Path()); loaded {
+			continue
+		}
+
+		l.Debugf("Found dependent during upstream walk: %s (depends on target), adding to collector", dependent.Path())
+
+		collector.AddDiscovered(DiscoveryResult{
+			Component: dependent,
+			Status:    StatusDiscovered,
+			Reason:    CandidacyReasonNone,
+			Phase:     PhaseGraph,
+		})
+
+		l.Debugf("Successfully added %s to collector", dependent.Path())
+
+		freshVisitedDirs := newStringSet()
+
+		l.Debugf("Recursively discovering dependents of %s from %s", dependent.Path(), filepath.Dir(dependent.Path()))
+
+		err := p.discoverDependentsUpstream(
+			ctx, l, opts, discovery, dependent,
+			threadSafeComponents, seenComponents, freshVisitedDirs, collector,
+			filepath.Dir(dependent.Path()), depthRemaining-1,
+		)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	parentDir := filepath.Dir(currentDir)
+	if parentDir != currentDir && depthRemaining > 0 {
+		err := p.discoverDependentsUpstream(
+			ctx, l, opts, discovery, target,
+			threadSafeComponents, seenComponents, visitedDirs, collector,
+			parentDir, depthRemaining-1,
+		)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if len(errs) > 0 {
 		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+// processUpstreamCandidate processes a single candidate to check if it depends on the target.
+// Returns the canonical component if it depends on the target, nil otherwise.
+// This function is designed to be called concurrently from multiple goroutines.
+func (p *GraphPhase) processUpstreamCandidate(
+	ctx context.Context,
+	l log.Logger,
+	state *upstreamDiscoveryState,
+	candidate component.Component,
+) component.Component {
+	if loaded := state.checkedForTarget.LoadOrStore(candidate.Path()); loaded {
+		return nil
+	}
+
+	if state.seenComponents.Load(candidate.Path()) {
+		return nil
+	}
+
+	if _, ok := candidate.(*component.Stack); ok {
+		return nil
+	}
+
+	if candidate.Path() == state.target.Path() {
+		return nil
+	}
+
+	unit, ok := candidate.(*component.Unit)
+	if !ok {
+		return nil
+	}
+
+	cfg := unit.Config()
+	if cfg == nil {
+		err := parseComponent(ctx, l, candidate, state.opts, state.discovery.suppressParseErrors, state.discovery.parserOptions)
+		if err != nil {
+			if !state.discovery.suppressParseErrors {
+				state.errMu.Lock()
+
+				*state.errs = append(*state.errs, err)
+
+				state.errMu.Unlock()
+			}
+
+			return nil
+		}
+
+		cfg = unit.Config()
+	}
+
+	deps, err := extractDependencyPaths(cfg, candidate)
+	if err != nil {
+		state.errMu.Lock()
+
+		*state.errs = append(*state.errs, err)
+
+		state.errMu.Unlock()
+
+		return nil
+	}
+
+	canonicalCandidate, created := state.threadSafeComponents.EnsureComponent(candidate)
+	if created {
+		dCtx := state.target.DiscoveryContext()
+		if dCtx != nil {
+			copiedCtx := dCtx.CopyWithNewOrigin(component.OriginGraphDiscovery)
+
+			// Clear the Ref and related args for graph-discovered components.
+			// They shouldn't inherit the git ref from the target, as this would
+			// cause them to match git filters and become targets themselves.
+			copiedCtx.Ref = ""
+			copiedCtx.Args = slices.DeleteFunc(copiedCtx.Args, func(arg string) bool {
+				return arg == "-destroy"
+			})
+
+			canonicalCandidate.SetDiscoveryContext(copiedCtx)
+		}
+	}
+
+	dependsOnTarget := false
+
+	for _, dep := range deps {
+		depComponent := state.threadSafeComponents.FindByPath(dep)
+		if depComponent == nil {
+			depComponent = component.NewUnit(dep)
+			depComponent, _ = state.threadSafeComponents.EnsureComponent(depComponent)
+		}
+
+		parentCtx := canonicalCandidate.DiscoveryContext()
+		if parentCtx != nil && isExternal(parentCtx.WorkingDir, dep) {
+			if ext, ok := depComponent.(*component.Unit); ok {
+				ext.SetExternal()
+			}
+		}
+
+		// Compare paths: first try exact match, then try relative suffix match
+		// for worktree scenarios where target is in a different directory.
+		resolvedDep := util.ResolvePath(dep)
+
+		switch {
+		case resolvedDep == state.resolvedTargetPath:
+			// Direct match - link to the existing depComponent
+			canonicalCandidate.AddDependency(depComponent)
+
+			dependsOnTarget = true
+		case state.targetRelSuffix != "":
+			// Compare relative suffixes when target is from a worktree.
+			// Use resolved paths to handle symlinks consistently.
+			depRelSuffix := strings.TrimPrefix(resolvedDep, state.resolvedDiscoveryWorkingDir)
+			if depRelSuffix == state.targetRelSuffix {
+				// The dependency path matches the target's relative suffix.
+				// Link to the actual target component instead of the path-based component,
+				// so that the dependent relationship is properly established.
+				canonicalCandidate.AddDependency(state.target)
+
+				dependsOnTarget = true
+			} else {
+				canonicalCandidate.AddDependency(depComponent)
+			}
+		default:
+			canonicalCandidate.AddDependency(depComponent)
+		}
+	}
+
+	if dependsOnTarget {
+		return canonicalCandidate
 	}
 
 	return nil

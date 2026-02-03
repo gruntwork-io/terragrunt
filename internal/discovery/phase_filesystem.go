@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/sync/errgroup"
 )
 
 // FilesystemPhase walks directories to discover Terragrunt configurations.
@@ -77,72 +76,43 @@ func (p *FilesystemPhase) runDiscovery(
 		filenames = DefaultConfigFilenames
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(filesystemPhaseGoroutineLimit)
+	walkFn := filepath.WalkDir
+	if input.Opts != nil && input.Opts.Experiments.Evaluate(experiment.Symlinks) {
+		walkFn = util.WalkDirWithSymlinks
+	}
 
-	// Internal channel for producer-consumer pattern during filesystem walk
-	filePaths := make(chan string, p.numWorkers*channelBufferMultiplier)
-
-	g.Go(func() error {
-		defer close(filePaths)
-
-		walkFn := filepath.WalkDir
-		if input.Opts != nil && input.Opts.Experiments.Evaluate(experiment.Symlinks) {
-			walkFn = util.WalkDirWithSymlinks
+	err := walkFn(discoveryContext.WorkingDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		return walkFn(discoveryContext.WorkingDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
+		if d.IsDir() {
+			return p.skipDirIfIgnorable(discovery, path)
+		}
 
-			if d.IsDir() {
-				return p.skipDirIfIgnorable(discovery, path)
-			}
-
-			select {
-			case filePaths <- path:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
+		result := p.processFile(l, input, path, filenames)
+		if result == nil {
 			return nil
-		})
-	})
+		}
 
-	g.Go(func() error {
-		for path := range filePaths {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			result := p.processFile(l, input, path, filenames)
-			if result == nil {
-				continue
-			}
-
-			switch result.Status {
-			case StatusDiscovered:
-				collector.AddDiscovered(*result)
-			case StatusCandidate:
-				collector.AddCandidate(*result)
-			case StatusExcluded:
-				// Excluded components are not added
-			}
+		switch result.Status {
+		case StatusDiscovered:
+			collector.AddDiscovered(*result)
+		case StatusCandidate:
+			collector.AddCandidate(*result)
+		case StatusExcluded:
+			// Excluded components are not added
 		}
 
 		return nil
 	})
-
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		collector.AddError(err)
 	}
 }
