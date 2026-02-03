@@ -5,10 +5,12 @@ package vfs
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -66,9 +68,46 @@ func Symlink(fs FS, oldname, newname string) error {
 	return linker.SymlinkIfPossible(oldname, newname)
 }
 
+// ZipDecompressor handles zip archive extraction with configurable limits.
+type ZipDecompressor struct {
+	// FileSizeLimit limits total decompressed size in bytes. Zero means no limit.
+	FileSizeLimit int64
+	// FilesLimit limits the number of files. Zero means no limit.
+	FilesLimit int
+}
+
+// ZipDecompressorOption is a functional option for configuring ZipDecompressor.
+type ZipDecompressorOption func(*ZipDecompressor)
+
+// WithFileSizeLimit sets the maximum total decompressed size in bytes.
+// Zero means no limit.
+func WithFileSizeLimit(limit int64) ZipDecompressorOption {
+	return func(z *ZipDecompressor) {
+		z.FileSizeLimit = limit
+	}
+}
+
+// WithFilesLimit sets the maximum number of files that can be extracted.
+// Zero means no limit.
+func WithFilesLimit(limit int) ZipDecompressorOption {
+	return func(z *ZipDecompressor) {
+		z.FilesLimit = limit
+	}
+}
+
+// NewZipDecompressor creates a new ZipDecompressor with the given options.
+func NewZipDecompressor(opts ...ZipDecompressorOption) *ZipDecompressor {
+	z := &ZipDecompressor{}
+	for _, opt := range opts {
+		opt(z)
+	}
+
+	return z
+}
+
 // Unzip extracts a zip archive from src to dst directory on the given filesystem.
 // The umask parameter is applied to file permissions (use 0 to preserve original permissions).
-func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
+func (z *ZipDecompressor) Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 	file, err := fs.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive %q: %w", src, err)
@@ -109,8 +148,18 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 		return fmt.Errorf("failed to create directory %q: %w", dst, err)
 	}
 
+	if z.FilesLimit > 0 && len(zipReader.File) > z.FilesLimit {
+		return fmt.Errorf(
+			"zip archive contains %d files, exceeds limit of %d",
+			len(zipReader.File),
+			z.FilesLimit,
+		)
+	}
+
+	var totalSize int64
+
 	for _, zipFile := range zipReader.File {
-		if err := extractZipFile(l, fs, dst, zipFile, umask); err != nil {
+		if err := z.extractZipFile(l, fs, dst, zipFile, umask, &totalSize); err != nil {
 			return fmt.Errorf("failed to extract file %q: %w", zipFile.Name, err)
 		}
 	}
@@ -118,9 +167,22 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 	return nil
 }
 
+// containsDotDot checks if a path contains ".." as a path component.
+// This is more precise than strings.Contains(name, "..") which would
+// reject legitimate files like "file..txt".
+func containsDotDot(v string) bool {
+	if !strings.Contains(v, "..") {
+		return false
+	}
+
+	return slices.Contains(strings.FieldsFunc(v, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}), "..")
+}
+
 // sanitizeZipPath validates and sanitizes a zip entry path to prevent ZipSlip attacks.
 func sanitizeZipPath(dst, name string) (string, error) {
-	if strings.Contains(name, "..") {
+	if containsDotDot(name) {
 		return "", fmt.Errorf("illegal file path in zip: %s", name)
 	}
 
@@ -134,7 +196,7 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // extractZipFile extracts a single file from a zip archive.
-func extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode) error {
+func (z *ZipDecompressor) extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64) error {
 	destPath, err := sanitizeZipPath(dst, zipFile.Name)
 	if err != nil {
 		return err
@@ -151,14 +213,33 @@ func extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os
 	}
 
 	if fileInfo.Mode()&os.ModeSymlink != 0 {
-		return extractSymlink(l, fs, destPath, zipFile)
+		return extractSymlink(l, fs, dst, destPath, zipFile)
 	}
 
-	return extractRegularFile(l, fs, destPath, zipFile, umask)
+	return z.extractRegularFile(l, fs, destPath, zipFile, umask, totalSize)
+}
+
+// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
+func validateSymlinkTarget(dst, linkPath, target string) error {
+	// Resolve the target relative to the link's directory
+	absTarget := target
+	if !filepath.IsAbs(target) {
+		absTarget = filepath.Join(filepath.Dir(linkPath), target)
+	}
+
+	absTarget = filepath.Clean(absTarget)
+	cleanDst := filepath.Clean(dst)
+
+	// Ensure it stays within dst
+	if !strings.HasPrefix(absTarget, cleanDst+string(os.PathSeparator)) && absTarget != cleanDst {
+		return fmt.Errorf("symlink target escapes destination: %s -> %s", linkPath, target)
+	}
+
+	return nil
 }
 
 // extractSymlink extracts a symlink from a zip file.
-func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) error {
+func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File) error {
 	rc, err := zipFile.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
@@ -177,6 +258,11 @@ func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) err
 
 	target := string(targetBytes)
 
+	// Validate symlink target doesn't escape destination
+	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
+		return err
+	}
+
 	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
@@ -185,7 +271,14 @@ func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) err
 }
 
 // extractRegularFile extracts a regular file from a zip file.
-func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File, umask os.FileMode) error {
+func (z *ZipDecompressor) extractRegularFile(
+	l log.Logger,
+	fs FS,
+	destPath string,
+	zipFile *zip.File,
+	umask os.FileMode,
+	totalSize *int64,
+) error {
 	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
@@ -208,17 +301,61 @@ func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File,
 		return fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
 
-	defer func() {
+	var reader io.Reader = rc
+
+	if z.FileSizeLimit > 0 {
+		reader = &limitedReader{
+			reader:    rc,
+			remaining: z.FileSizeLimit - *totalSize,
+			totalSize: totalSize,
+		}
+	}
+
+	written, err := io.Copy(outFile, reader)
+	if err != nil {
 		if closeErr := outFile.Close(); closeErr != nil {
 			l.Warnf("Error closing file %q: %v", destPath, closeErr)
 		}
-	}()
 
-	if _, err := io.Copy(outFile, rc); err != nil {
+		if removeErr := fs.Remove(destPath); removeErr != nil {
+			l.Warnf("Error removing partial file %q: %v", destPath, removeErr)
+		}
+
 		return fmt.Errorf("failed to copy file %q: %w", zipFile.Name, err)
 	}
 
+	if err := outFile.Close(); err != nil {
+		l.Warnf("Error closing file %q: %v", destPath, err)
+	}
+
+	// Update total size for limit tracking
+	if z.FileSizeLimit > 0 {
+		*totalSize += written
+	}
+
 	return nil
+}
+
+// limitedReader wraps a reader and enforces a size limit.
+type limitedReader struct {
+	reader    io.Reader
+	totalSize *int64
+	remaining int64
+}
+
+func (r *limitedReader) Read(p []byte) (int, error) {
+	if r.remaining <= 0 {
+		return 0, errors.New("decompressed size exceeds limit")
+	}
+
+	if int64(len(p)) > r.remaining {
+		p = p[:r.remaining]
+	}
+
+	n, err := r.reader.Read(p)
+	r.remaining -= int64(n)
+
+	return n, err
 }
 
 // applyUmask applies a umask to a file mode.

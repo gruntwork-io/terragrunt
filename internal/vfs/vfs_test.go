@@ -229,7 +229,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -248,7 +248,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -271,7 +271,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -295,7 +295,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "illegal file path")
@@ -330,7 +330,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "illegal file path")
@@ -347,7 +347,7 @@ func TestUnzip(t *testing.T) {
 		zipData := createZipArchiveWithMode(t, "executable.sh", []byte("#!/bin/bash"), 0755)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
-		err := vfs.Unzip(l, fs, dstPath, zipPath, 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
 
 		require.NoError(t, err)
 
@@ -367,7 +367,7 @@ func TestUnzip(t *testing.T) {
 		zipData := createZipArchiveWithMode(t, "file.txt", []byte("content"), 0666)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
-		err := vfs.Unzip(l, fs, dstPath, zipPath, 0022)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0022)
 
 		require.NoError(t, err)
 
@@ -381,7 +381,7 @@ func TestUnzip(t *testing.T) {
 
 		fs := vfs.NewMemMapFS()
 
-		err := vfs.Unzip(l, fs, "/dst", "/nonexistent.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/nonexistent.zip", 0)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to open zip archive")
@@ -393,7 +393,7 @@ func TestUnzip(t *testing.T) {
 		fs := vfs.NewMemMapFS()
 		require.NoError(t, vfs.WriteFile(fs, "/invalid.zip", []byte("not a zip file"), 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/invalid.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/invalid.zip", 0)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read zip archive")
@@ -409,7 +409,7 @@ func TestUnzip(t *testing.T) {
 		})
 		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
 
-		err := vfs.Unzip(l, fs, "/dst", "/archive.zip", 0)
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
 
 		require.NoError(t, err)
 
@@ -431,7 +431,7 @@ func TestUnzipWithSymlinks(t *testing.T) {
 	zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "link.txt", "target.txt")
 	require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
-	err := vfs.Unzip(l, fs, dstPath, zipPath, 0)
+	err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
 
 	require.NoError(t, err)
 
@@ -574,6 +574,326 @@ func createZipArchiveWithSymlink(t *testing.T, targetName string, targetContent 
 	require.NoError(t, err)
 
 	_, err = linkFile.Write([]byte(linkTarget))
+	require.NoError(t, err)
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+func TestContainsDotDot(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("allows file with double dots in name", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"file..txt": []byte("content with dots"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		data, err := vfs.ReadFile(fs, "/dst/file..txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("content with dots"), data)
+	})
+
+	t.Run("allows file with multiple dots", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"my..file..name.txt": []byte("multiple dots"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		data, err := vfs.ReadFile(fs, "/dst/my..file..name.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("multiple dots"), data)
+	})
+
+	t.Run("blocks path with dotdot component", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveUnsafe(t, map[string][]byte{
+			"../evil.txt": []byte("malicious"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "illegal file path")
+	})
+
+	t.Run("blocks nested dotdot path", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchiveUnsafe(t, map[string][]byte{
+			"subdir/../../../evil.txt": []byte("malicious"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "illegal file path")
+	})
+}
+
+func TestUnzipFilesLimit(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("allows extraction within file limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"file1.txt": []byte("content1"),
+			"file2.txt": []byte("content2"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(5)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		exists, err := vfs.FileExists(fs, "/dst/file1.txt")
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("rejects extraction exceeding file limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"file1.txt": []byte("content1"),
+			"file2.txt": []byte("content2"),
+			"file3.txt": []byte("content3"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFilesLimit(2)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds limit")
+	})
+
+	t.Run("no limit when FilesLimit is zero", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"file1.txt": []byte("content1"),
+			"file2.txt": []byte("content2"),
+			"file3.txt": []byte("content3"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+	})
+}
+
+func TestUnzipFileSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("allows extraction within size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"small.txt": []byte("small content"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(1000)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+
+		data, err := vfs.ReadFile(fs, "/dst/small.txt")
+		require.NoError(t, err)
+		assert.Equal(t, []byte("small content"), data)
+	})
+
+	t.Run("rejects extraction exceeding size limit", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		// Create content that exceeds 10 bytes
+		zipData := createZipArchive(t, map[string][]byte{
+			"large.txt": []byte("this content is definitely more than 10 bytes"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(10)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds limit")
+	})
+
+	t.Run("cumulative size limit across files", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		// Each file is 10 bytes, total 30 bytes
+		zipData := createZipArchive(t, map[string][]byte{
+			"file1.txt": []byte("0123456789"),
+			"file2.txt": []byte("0123456789"),
+			"file3.txt": []byte("0123456789"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor(vfs.WithFileSizeLimit(25)).Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds limit")
+	})
+
+	t.Run("no limit when FileSizeLimit is zero", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewMemMapFS()
+		zipData := createZipArchive(t, map[string][]byte{
+			"file.txt": []byte("content that would exceed any small limit"),
+		})
+		require.NoError(t, vfs.WriteFile(fs, "/archive.zip", zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, "/dst", "/archive.zip", 0)
+
+		require.NoError(t, err)
+	})
+}
+
+func TestUnzipSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	t.Run("allows symlink to file within destination", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		tempDir := t.TempDir()
+		zipPath := filepath.Join(tempDir, "archive.zip")
+		dstPath := filepath.Join(tempDir, "dst")
+
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "link.txt", "target.txt")
+		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
+
+		require.NoError(t, err)
+
+		linkData, err := vfs.ReadFile(fs, filepath.Join(dstPath, "link.txt"))
+		require.NoError(t, err)
+		assert.Equal(t, []byte("target content"), linkData)
+	})
+
+	t.Run("rejects symlink escaping destination with absolute path", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		tempDir := t.TempDir()
+		zipPath := filepath.Join(tempDir, "archive.zip")
+		dstPath := filepath.Join(tempDir, "dst")
+
+		// Create symlink pointing to absolute path outside destination
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "evil_link.txt", "/etc/passwd")
+		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "symlink target escapes destination")
+	})
+
+	t.Run("rejects symlink escaping destination with relative path", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		tempDir := t.TempDir()
+		zipPath := filepath.Join(tempDir, "archive.zip")
+		dstPath := filepath.Join(tempDir, "dst")
+
+		// Create symlink pointing outside destination with ..
+		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd")
+		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "symlink target escapes destination")
+	})
+
+	t.Run("allows symlink within nested directory", func(t *testing.T) {
+		t.Parallel()
+
+		fs := vfs.NewOSFS()
+		tempDir := t.TempDir()
+		zipPath := filepath.Join(tempDir, "archive.zip")
+		dstPath := filepath.Join(tempDir, "dst")
+
+		// Create symlink in subdirectory pointing to file in same directory
+		zipData := createZipArchiveWithNestedSymlink(t)
+		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
+
+		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
+
+		require.NoError(t, err)
+	})
+}
+
+// createZipArchiveWithNestedSymlink creates a zip with a symlink in a subdirectory.
+func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	// Create target file in subdir
+	targetHeader := &zip.FileHeader{
+		Name:   "subdir/target.txt",
+		Method: zip.Deflate,
+	}
+	targetHeader.SetMode(0644)
+
+	f, err := w.CreateHeader(targetHeader)
+	require.NoError(t, err)
+
+	_, err = f.Write([]byte("target content"))
+	require.NoError(t, err)
+
+	// Create symlink in same subdir pointing to target
+	linkHeader := &zip.FileHeader{
+		Name:   "subdir/link.txt",
+		Method: zip.Deflate,
+	}
+	linkHeader.SetMode(os.ModeSymlink | 0777)
+
+	linkFile, err := w.CreateHeader(linkHeader)
+	require.NoError(t, err)
+
+	_, err = linkFile.Write([]byte("target.txt"))
 	require.NoError(t, err)
 
 	require.NoError(t, w.Close())

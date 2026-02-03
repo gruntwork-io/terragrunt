@@ -335,7 +335,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := vfs.Unzip(
+	if err := vfs.NewZipDecompressor().Unzip(
 		cache.logger,
 		fs,
 		cache.packageDir,
