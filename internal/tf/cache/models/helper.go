@@ -7,9 +7,28 @@ import (
 )
 
 func resolveRelativeReference(base *url.URL, link string) string {
-	if link != "" && !strings.HasPrefix(link, base.Scheme) {
-		link = base.ResolveReference(&url.URL{Path: path.Join(base.Path, link)}).String()
+	if link == "" {
+		return link
 	}
 
-	return link
+	if strings.Contains(link, "://") {
+		return link
+	}
+
+	if strings.HasPrefix(link, "/") {
+		return (&url.URL{
+			Scheme: base.Scheme,
+			Host:   base.Host,
+			Path:   link,
+		}).String()
+	}
+
+	return base.ResolveReference(
+		&url.URL{
+			Path: path.Join(
+				base.Path,
+				link,
+			),
+		},
+	).String()
 }
