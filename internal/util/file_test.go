@@ -170,7 +170,8 @@ func TestFileManifest(t *testing.T) {
 	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := util.NewFileManifest(logger.CreateLogger(), dir, ".terragrunt-test-manifest")
+	l := logger.CreateLogger()
+	manifest := util.NewFileManifest(dir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -184,7 +185,7 @@ func TestFileManifest(t *testing.T) {
 	// Close the manifest file handle before cleaning
 	require.NoError(t, manifest.Close())
 
-	assert.NoError(t, manifest.Clean())
+	assert.NoError(t, manifest.Clean(l))
 	// test if the files have been deleted
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
