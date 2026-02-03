@@ -571,7 +571,16 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		}
 	}
 
-	cmdOutput, err := shell.RunCommandWithOutput(ctx, l, pctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		pctx.TerragruntOptions,
+		currentPath,
+		true,
+		false,
+		args[0],
+		args[1:]...,
+	)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -584,20 +593,24 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		l.Debugf("run_cmd output: [%s]", value)
 	}
 
-	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
-	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	entry := &RunCmdCacheEntry{
+		Stdout: cmdOutput.Stdout.String(),
+		Stderr: cmdOutput.Stderr.String(),
+	}
+
+	if pctx.TerragruntOptions.Writer != io.Discard {
+		entry.replayOnce.Do(func() {
+			if !suppressOutput && entry.Stdout != "" {
+				_, _ = pctx.TerragruntOptions.Writer.Write([]byte(entry.Stdout))
+			}
+
+			if entry.Stderr != "" {
+				_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(entry.Stderr))
+			}
+		})
+	}
+
 	if !disableCache {
-		entry := &RunCmdCacheEntry{
-			Stdout: cmdOutput.Stdout.String(),
-			Stderr: cmdOutput.Stderr.String(),
-		}
-
-		// If the output was already written to a real (non-Discard) writer, mark replayOnce
-		// as done so subsequent cache hits don't replay the output again.
-		if pctx.TerragruntOptions.Writer != io.Discard {
-			entry.replayOnce.Do(func() {})
-		}
-
 		runCommandCache.Put(ctx, cacheKey, entry)
 	}
 
