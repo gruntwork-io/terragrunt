@@ -541,6 +541,10 @@ func cloudConfigForEnvironment(cloudEnv string) cloud.Configuration {
 
 // ValidateAuthConfig validates the auth config and returns any errors
 func ValidateAuthConfig(config *AuthConfig) error {
+	if config == nil {
+		return errors.Errorf("auth config is required")
+	}
+
 	var errs []error
 
 	switch config.Method {
