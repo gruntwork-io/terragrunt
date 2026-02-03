@@ -429,17 +429,17 @@ func (p *GraphPhase) discoverDependents(
 // upstreamDiscoveryState holds shared state for processing upstream candidates.
 // Created once per discoverDependentsUpstream call and reused across candidates.
 type upstreamDiscoveryState struct {
+	target                      component.Component
 	opts                        *options.TerragruntOptions
 	discovery                   *Discovery
-	target                      component.Component
 	threadSafeComponents        *component.ThreadSafeComponents
 	seenComponents              *stringSet
 	checkedForTarget            *stringSet
+	errs                        *[]error
+	errMu                       *sync.Mutex
 	resolvedTargetPath          string
 	targetRelSuffix             string
 	resolvedDiscoveryWorkingDir string
-	errs                        *[]error
-	errMu                       *sync.Mutex
 }
 
 // discoverDependentsUpstream discovers dependents by walking up the filesystem
