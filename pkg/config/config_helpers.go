@@ -591,6 +591,13 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			Stdout: cmdOutput.Stdout.String(),
 			Stderr: cmdOutput.Stderr.String(),
 		}
+
+		// If the output was already written to a real (non-Discard) writer, mark replayOnce
+		// as done so subsequent cache hits don't replay the output again.
+		if pctx.TerragruntOptions.Writer != io.Discard {
+			entry.replayOnce.Do(func() {})
+		}
+
 		runCommandCache.Put(ctx, cacheKey, entry)
 	}
 
