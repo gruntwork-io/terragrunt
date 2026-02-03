@@ -69,7 +69,6 @@ func Symlink(fs FS, oldname, newname string) error {
 // Unzip extracts a zip archive from src to dst directory on the given filesystem.
 // The umask parameter is applied to file permissions (use 0 to preserve original permissions).
 func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
-	// Open the archive using the provided filesystem
 	file, err := fs.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive %q: %w", src, err)
@@ -81,7 +80,6 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 		}
 	}()
 
-	// Get file size for zip.NewReader
 	fileInfo, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to stat zip archive %q: %w", src, err)
@@ -89,12 +87,10 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 
 	size := fileInfo.Size()
 
-	// Get an io.ReaderAt for zip.NewReader
 	var readerAt io.ReaderAt
 	if ra, ok := file.(io.ReaderAt); ok {
 		readerAt = ra
 	} else {
-		// Fallback: read entire file into memory
 		data, err := io.ReadAll(file)
 		if err != nil {
 			return fmt.Errorf("failed to read zip archive %q: %w", src, err)
@@ -104,7 +100,6 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 		size = int64(len(data))
 	}
 
-	// Create zip reader
 	zipReader, err := zip.NewReader(readerAt, size)
 	if err != nil {
 		return fmt.Errorf("failed to read zip archive %q: %w", src, err)
@@ -125,15 +120,12 @@ func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
 
 // sanitizeZipPath validates and sanitizes a zip entry path to prevent ZipSlip attacks.
 func sanitizeZipPath(dst, name string) (string, error) {
-	// Check for path traversal attempts
 	if strings.Contains(name, "..") {
 		return "", fmt.Errorf("illegal file path in zip: %s", name)
 	}
 
-	// Clean and join the path
 	destPath := filepath.Join(dst, filepath.Clean(name))
 
-	// Verify the path is within the destination directory
 	if !strings.HasPrefix(destPath, filepath.Clean(dst)+string(os.PathSeparator)) {
 		return "", fmt.Errorf("illegal destination path in zip: %s", destPath)
 	}
@@ -150,7 +142,6 @@ func extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os
 
 	fileInfo := zipFile.FileInfo()
 
-	// Handle directories
 	if fileInfo.IsDir() {
 		if err := fs.MkdirAll(destPath, applyUmask(fileInfo.Mode(), umask)); err != nil {
 			return fmt.Errorf("failed to create directory %q: %w", destPath, err)
@@ -159,12 +150,10 @@ func extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os
 		return nil
 	}
 
-	// Handle symlinks
 	if fileInfo.Mode()&os.ModeSymlink != 0 {
 		return extractSymlink(l, fs, destPath, zipFile)
 	}
 
-	// Handle regular files
 	return extractRegularFile(l, fs, destPath, zipFile, umask)
 }
 
@@ -188,7 +177,6 @@ func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) err
 
 	target := string(targetBytes)
 
-	// Ensure parent directory exists
 	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
@@ -198,7 +186,6 @@ func extractSymlink(l log.Logger, fs FS, destPath string, zipFile *zip.File) err
 
 // extractRegularFile extracts a regular file from a zip file.
 func extractRegularFile(l log.Logger, fs FS, destPath string, zipFile *zip.File, umask os.FileMode) error {
-	// Ensure parent directory exists
 	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
 	}
