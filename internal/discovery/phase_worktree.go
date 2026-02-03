@@ -60,30 +60,18 @@ func (p *WorktreePhase) NumWorkers() int {
 
 // Run executes the worktree discovery phase.
 func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
-	collector := NewResultCollector()
+	results := NewPhaseResults()
 
-	p.runDiscovery(ctx, l, input, collector)
-
-	return collector.Results()
-}
-
-// runDiscovery performs the actual worktree discovery.
-func (p *WorktreePhase) runDiscovery(
-	ctx context.Context,
-	l log.Logger,
-	input *PhaseInput,
-	collector *ResultCollector,
-) {
 	discovery := input.Discovery
 	if discovery == nil || discovery.worktrees == nil {
 		l.Debug("No worktrees provided, skipping worktree discovery")
-		return
+		return results, nil
 	}
 
 	w := discovery.worktrees
 	if len(w.WorktreePairs) == 0 {
 		l.Debug("No worktree pairs available, skipping worktree discovery")
-		return
+		return results, nil
 	}
 
 	discoveredComponents := component.NewThreadSafeComponents(component.Components{})
@@ -145,8 +133,7 @@ func (p *WorktreePhase) runDiscovery(
 	})
 
 	if err := discoveryGroup.Wait(); err != nil {
-		collector.AddError(err)
-		return
+		return nil, err
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
@@ -167,13 +154,15 @@ func (p *WorktreePhase) runDiscovery(
 
 		switch result.Status {
 		case StatusDiscovered:
-			collector.AddDiscovered(result)
+			results.AddDiscovered(result)
 		case StatusCandidate:
-			collector.AddCandidate(result)
+			results.AddCandidate(result)
 		case StatusExcluded:
 			// Excluded components are not added
 		}
 	}
+
+	return results, nil
 }
 
 // discoverInWorktree discovers components in a single worktree.

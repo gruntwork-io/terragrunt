@@ -39,30 +39,16 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 
 // Run executes the filesystem discovery phase.
 func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
-	collector := NewResultCollector()
+	results := NewPhaseResults()
 
-	p.runDiscovery(ctx, l, input, collector)
-
-	return collector.Results()
-}
-
-// runDiscovery performs the actual filesystem discovery.
-func (p *FilesystemPhase) runDiscovery(
-	ctx context.Context,
-	l log.Logger,
-	input *PhaseInput,
-	collector *ResultCollector,
-) {
 	discovery := input.Discovery
 	if discovery == nil {
-		collector.AddError(NewClassificationError("", "discovery configuration is nil"))
-		return
+		return nil, NewClassificationError("", "discovery configuration is nil")
 	}
 
 	discoveryContext := discovery.discoveryContext
 	if discoveryContext == nil || discoveryContext.WorkingDir == "" {
-		collector.AddError(NewClassificationError("", "discovery context or working directory is nil"))
-		return
+		return nil, NewClassificationError("", "discovery context or working directory is nil")
 	}
 
 	filenames := discovery.configFilenames
@@ -97,18 +83,17 @@ func (p *FilesystemPhase) runDiscovery(
 
 		switch result.Status {
 		case StatusDiscovered:
-			collector.AddDiscovered(*result)
+			results.AddDiscovered(*result)
 		case StatusCandidate:
-			collector.AddCandidate(*result)
+			results.AddCandidate(*result)
 		case StatusExcluded:
 			// Excluded components are not added
 		}
 
 		return nil
 	})
-	if err != nil {
-		collector.AddError(err)
-	}
+
+	return results, err
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.

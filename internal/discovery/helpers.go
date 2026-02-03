@@ -26,62 +26,6 @@ const (
 	maxCycleRemovalAttempts = 100
 )
 
-// ResultCollector provides thread-safe collection of discovery results.
-// It is used by phases to gather discovered components, candidates, and errors
-// during concurrent processing.
-type ResultCollector struct {
-	discovered []DiscoveryResult
-	candidates []DiscoveryResult
-	errors     []error
-	mu         sync.Mutex
-}
-
-// NewResultCollector creates a new ResultCollector.
-func NewResultCollector() *ResultCollector {
-	return &ResultCollector{}
-}
-
-// AddDiscovered adds a discovered result to the collector.
-func (rc *ResultCollector) AddDiscovered(result DiscoveryResult) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
-	rc.discovered = append(rc.discovered, result)
-}
-
-// AddCandidate adds a candidate result to the collector.
-func (rc *ResultCollector) AddCandidate(result DiscoveryResult) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
-	rc.candidates = append(rc.candidates, result)
-}
-
-// AddError adds an error to the collector.
-func (rc *ResultCollector) AddError(err error) {
-	if err == nil {
-		return
-	}
-
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
-	rc.errors = append(rc.errors, err)
-}
-
-// Results returns the collected discovered, candidates, and joined error.
-// While this is typically called after all concurrent work is complete,
-// the lock is retained for defensive thread-safety.
-func (rc *ResultCollector) Results() (*PhaseResults, error) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
-	return &PhaseResults{
-		Discovered: rc.discovered,
-		Candidates: rc.candidates,
-	}, errors.Join(rc.errors...)
-}
-
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
 

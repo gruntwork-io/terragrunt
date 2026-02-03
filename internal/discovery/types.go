@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -92,11 +93,35 @@ type DiscoveryResult struct {
 }
 
 // PhaseResults contains the results from running a discovery phase.
+// It provides thread-safe methods for collecting results during concurrent processing.
 type PhaseResults struct {
 	// Discovered contains components definitively included in results.
 	Discovered []DiscoveryResult
 	// Candidates contains components that might be included pending further evaluation.
 	Candidates []DiscoveryResult
+	// mu protects concurrent access to Discovered and Candidates.
+	mu sync.Mutex
+}
+
+// NewPhaseResults creates a new PhaseResults.
+func NewPhaseResults() *PhaseResults {
+	return &PhaseResults{}
+}
+
+// AddDiscovered adds a discovered result to the results in a thread-safe manner.
+func (pr *PhaseResults) AddDiscovered(result DiscoveryResult) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	pr.Discovered = append(pr.Discovered, result)
+}
+
+// AddCandidate adds a candidate result to the results in a thread-safe manner.
+func (pr *PhaseResults) AddCandidate(result DiscoveryResult) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	pr.Candidates = append(pr.Candidates, result)
 }
 
 // PhaseInput provides input data to a discovery phase.

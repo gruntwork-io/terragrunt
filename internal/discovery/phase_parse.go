@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"path/filepath"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -44,20 +45,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 
 // Run executes the parse phase.
 func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
-	collector := NewResultCollector()
-
-	p.runParsing(ctx, l, input, collector)
-
-	return collector.Results()
-}
-
-// runParsing performs the actual parsing.
-func (p *ParsePhase) runParsing(
-	ctx context.Context,
-	l log.Logger,
-	input *PhaseInput,
-	collector *ResultCollector,
-) {
+	results := NewPhaseResults()
 	discovery := input.Discovery
 
 	componentsToParse := make([]DiscoveryResult, 0, len(input.Candidates))
@@ -68,7 +56,7 @@ func (p *ParsePhase) runParsing(
 			continue
 		}
 
-		collector.AddCandidate(candidate)
+		results.AddCandidate(candidate)
 	}
 
 	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
@@ -85,8 +73,13 @@ func (p *ParsePhase) runParsing(
 	}
 
 	if len(componentsToParse) == 0 {
-		return
+		return results, nil
 	}
+
+	var (
+		errs  []error
+		errMu sync.Mutex
+	)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(p.numWorkers)
@@ -95,7 +88,11 @@ func (p *ParsePhase) runParsing(
 		g.Go(func() error {
 			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate, input.Classifier)
 			if err != nil {
-				collector.AddError(err)
+				errMu.Lock()
+
+				errs = append(errs, err)
+
+				errMu.Unlock()
 				// Return nil to continue processing other components
 				return nil //nolint:nilerr
 			}
@@ -106,9 +103,9 @@ func (p *ParsePhase) runParsing(
 
 			switch result.Status {
 			case StatusDiscovered:
-				collector.AddDiscovered(*result)
+				results.AddDiscovered(*result)
 			case StatusCandidate:
-				collector.AddCandidate(*result)
+				results.AddCandidate(*result)
 			case StatusExcluded:
 				// Excluded components are not added
 			}
@@ -118,8 +115,14 @@ func (p *ParsePhase) runParsing(
 	}
 
 	if err := g.Wait(); err != nil {
-		collector.AddError(err)
+		errs = append(errs, err)
 	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return results, nil
 }
 
 // parseAndReclassify parses a component and reclassifies it based on filter evaluation.

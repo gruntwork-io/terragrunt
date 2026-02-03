@@ -48,11 +48,11 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 
 // Run executes the relationship discovery phase.
 func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
-	collector := NewResultCollector()
+	results := NewPhaseResults()
 
-	p.runRelationshipDiscovery(ctx, l, input, collector)
+	err := p.runRelationshipDiscovery(ctx, l, input, results)
 
-	return collector.Results()
+	return results, err
 }
 
 // runRelationshipDiscovery performs the actual relationship discovery.
@@ -60,11 +60,11 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	input *PhaseInput,
-	collector *ResultCollector,
-) {
+	_ *PhaseResults,
+) error {
 	discovery := input.Discovery
 	if discovery == nil || !discovery.discoverRelationships {
-		return
+		return nil
 	}
 
 	interTransientComponents := component.NewThreadSafeComponents(component.Components{})
@@ -115,12 +115,14 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	}
 
 	if err := g.Wait(); err != nil {
-		collector.AddError(err)
+		errs = append(errs, err)
 	}
 
 	if len(errs) > 0 {
-		collector.AddError(errors.Join(errs...))
+		return errors.Join(errs...)
 	}
+
+	return nil
 }
 
 // discoverRelationships discovers dependencies for a single component.
