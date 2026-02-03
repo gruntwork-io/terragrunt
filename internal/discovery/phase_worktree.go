@@ -261,7 +261,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	stackDiff := w.Stacks()
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2))
+	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
 
 	var (
 		mu   sync.Mutex
@@ -471,12 +471,28 @@ func MatchComponentPairs(
 	componentPairs := make([]ComponentPair, 0, max(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
+		if fromComponent.DiscoveryContext() == nil {
+			panic(
+				"fromComponent.DiscoveryContext() is nil in MatchComponentPairs. " +
+					"This should never happen. Please report this as a bug with the exact " +
+					"setup you were using that caused this.",
+			)
+		}
+
 		fromComponentSuffix := strings.TrimPrefix(
 			fromComponent.Path(),
 			fromComponent.DiscoveryContext().WorkingDir,
 		)
 
 		for _, toComponent := range toComponents {
+			if toComponent.DiscoveryContext() == nil {
+				panic(
+					"toComponent.DiscoveryContext() is nil in MatchComponentPairs. " +
+						"This should never happen. Please report this as a bug with the exact " +
+						"setup you were using that caused this.",
+				)
+			}
+
 			toComponentSuffix := strings.TrimPrefix(
 				toComponent.Path(),
 				toComponent.DiscoveryContext().WorkingDir,

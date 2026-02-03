@@ -173,7 +173,7 @@ func (p *ParsePhase) parseAndReclassify(
 		return &candidate, nil
 	}
 
-	if err := parseComponent(c, ctx, l, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
+	if err := parseComponent(ctx, c, l, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 			return nil, nil
@@ -222,8 +222,8 @@ func (p *ParsePhase) parseAndReclassify(
 
 // parseComponent parses a Terragrunt configuration.
 func parseComponent(
-	c component.Component,
 	ctx context.Context,
+	c component.Component,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	suppressParseErrors bool,
@@ -278,15 +278,15 @@ func parseComponent(
 	}
 
 	if suppressParseErrors {
-		opts := parsingCtx.ParserOptions
-		opts = append(opts, hclparse.WithDiagnosticsHandler(func(
+		parserOpts := parsingCtx.ParserOptions
+		parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
 			file *hcl.File,
 			hclDiags hcl.Diagnostics,
 		) (hcl.Diagnostics, error) {
 			l.Debugf("Suppressed parsing errors %v", hclDiags)
 			return nil, nil
 		}))
-		parsingCtx = parsingCtx.WithParseOption(opts)
+		parsingCtx = parsingCtx.WithParseOption(parserOpts)
 	}
 
 	cfg, err := config.PartialParseConfigFile(ctx, parsingCtx, l, parseOpts.TerragruntConfigPath, nil)

@@ -87,7 +87,7 @@ func (p *FilesystemPhase) runDiscovery(
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(p.numWorkers)
+	g.SetLimit(2) //nolint:mnd
 
 	filePaths := make(chan string, p.numWorkers*channelBufferMultiplier)
 

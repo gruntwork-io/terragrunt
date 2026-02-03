@@ -309,7 +309,7 @@ func (p *GraphPhase) discoverDependencies(
 
 	cfg := unit.Config()
 	if cfg == nil {
-		err := parseComponent(c, ctx, l, opts, discovery.suppressParseErrors, discovery.parserOptions)
+		err := parseComponent(ctx, c, l, opts, discovery.suppressParseErrors, discovery.parserOptions)
 		if err != nil {
 			return err
 		}
@@ -618,7 +618,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 			cfg := unit.Config()
 			if cfg == nil {
-				err := parseComponent(candidate, walkCtx, l, opts, discovery.suppressParseErrors, discovery.parserOptions)
+				err := parseComponent(walkCtx, candidate, l, opts, discovery.suppressParseErrors, discovery.parserOptions)
 				if err != nil {
 					if !discovery.suppressParseErrors {
 						errMu.Lock()
