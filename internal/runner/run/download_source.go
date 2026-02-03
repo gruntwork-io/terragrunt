@@ -271,8 +271,8 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.Run
 			"gcs":   &getter.GCSGetter{},
 			"hg":    &getter.HgGetter{},
 			"s3":    &getter.S3Getter{},
-			"http":  &getter.HttpGetter{},
-			"https": &getter.HttpGetter{},
+			"http":  &getter.HttpGetter{Netrc: true},
+			"https": &getter.HttpGetter{Netrc: true},
 		}
 
 		// Load in custom getters that are only supported in Terragrunt
