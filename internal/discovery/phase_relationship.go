@@ -47,18 +47,12 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 }
 
 // Run executes the relationship discovery phase.
-func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
+func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
 	collector := NewResultCollector()
 
 	p.runRelationshipDiscovery(ctx, l, input, collector)
 
-	discovered, candidates, errs := collector.Results()
-
-	return PhaseOutput{
-		Discovered: discovered,
-		Candidates: candidates,
-		Errors:     errs,
-	}
+	return collector.Results()
 }
 
 // runRelationshipDiscovery performs the actual relationship discovery.

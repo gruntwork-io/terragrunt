@@ -43,18 +43,12 @@ func (p *ParsePhase) Kind() PhaseKind {
 }
 
 // Run executes the parse phase.
-func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
+func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
 	collector := NewResultCollector()
 
 	p.runParsing(ctx, l, input, collector)
 
-	discovered, candidates, errs := collector.Results()
-
-	return PhaseOutput{
-		Discovered: discovered,
-		Candidates: candidates,
-		Errors:     errs,
-	}
+	return collector.Results()
 }
 
 // runParsing performs the actual parsing.

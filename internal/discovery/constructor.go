@@ -146,5 +146,9 @@ func NewDiscovery(dir string) *Discovery {
 		numWorkers:         numWorkers,
 		maxDependencyDepth: defaultMaxDependencyDepth,
 		workingDir:         dir,
+		configFilenames:    DefaultConfigFilenames,
+		discoveryContext: &component.DiscoveryContext{
+			WorkingDir: dir,
+		},
 	}
 }

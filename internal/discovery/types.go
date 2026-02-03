@@ -91,6 +91,14 @@ type DiscoveryResult struct {
 	GraphExpressionIndex int
 }
 
+// PhaseResults contains the results from running a discovery phase.
+type PhaseResults struct {
+	// Discovered contains components definitively included in results.
+	Discovered []DiscoveryResult
+	// Candidates contains components that might be included pending further evaluation.
+	Candidates []DiscoveryResult
+}
+
 // PhaseInput provides input data to a discovery phase.
 type PhaseInput struct {
 	Opts       *options.TerragruntOptions
@@ -100,24 +108,14 @@ type PhaseInput struct {
 	Candidates []DiscoveryResult
 }
 
-// PhaseOutput provides output from a discovery phase.
-type PhaseOutput struct {
-	// Discovered contains components definitively included in results.
-	Discovered []DiscoveryResult
-	// Candidates contains components that might be included pending further evaluation.
-	Candidates []DiscoveryResult
-	// Errors contains any errors that occurred during the phase.
-	Errors []error
-}
-
 // Phase defines the interface for a discovery phase.
 type Phase interface {
 	// Name returns the human-readable name of the phase.
 	Name() string
 	// Kind returns the PhaseKind identifier.
 	Kind() PhaseKind
-	// Run executes the phase with the given input and returns output channels.
-	Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput
+	// Run executes the phase with the given input and returns the result and any error.
+	Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error)
 }
 
 // Discovery is the main configuration for discovery.

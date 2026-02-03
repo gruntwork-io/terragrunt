@@ -23,16 +23,6 @@ func (d *Discovery) Discover(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
-	if len(d.configFilenames) == 0 {
-		d.configFilenames = DefaultConfigFilenames
-	}
-
-	if d.discoveryContext == nil {
-		d.discoveryContext = &component.DiscoveryContext{
-			WorkingDir: d.workingDir,
-		}
-	}
-
 	classifier := filter.NewClassifier()
 	if err := classifier.Analyze(d.filters); err != nil {
 		return nil, err
@@ -40,16 +30,20 @@ func (d *Discovery) Discover(
 
 	d.classifier = classifier
 
-	discovered, candidates, phaseErrs := d.runFilesystemPhase(ctx, l, opts)
-	if len(phaseErrs) > 0 && !d.suppressParseErrors {
-		return nil, errors.Join(phaseErrs...)
+	results, err := d.runFilesystemPhase(ctx, l, opts)
+	if err != nil && !d.suppressParseErrors {
+		return nil, err
 	}
 
+	discovered, candidates := results.Discovered, results.Candidates
+
 	if d.requiresParse || classifier.HasParseRequiredFilters() {
-		discovered, candidates, phaseErrs = d.runParsePhase(ctx, l, opts, discovered, candidates)
-		if len(phaseErrs) > 0 && !d.suppressParseErrors {
-			return nil, errors.Join(phaseErrs...)
+		results, err = d.runParsePhase(ctx, l, opts, discovered, candidates)
+		if err != nil && !d.suppressParseErrors {
+			return nil, err
 		}
+
+		discovered, candidates = results.Discovered, results.Candidates
 	}
 
 	if classifier.HasGraphFilters() {
@@ -60,18 +54,20 @@ func (d *Discovery) Discover(
 			}
 		}
 
-		discovered, _, phaseErrs = d.runGraphPhase(ctx, l, opts, discovered, candidates)
-		if len(phaseErrs) > 0 && !d.suppressParseErrors {
-			return nil, errors.Join(phaseErrs...)
+		results, err = d.runGraphPhase(ctx, l, opts, discovered, candidates)
+		if err != nil && !d.suppressParseErrors {
+			return nil, err
 		}
+
+		discovered = results.Discovered
 	}
 
 	components := resultsToComponents(discovered)
 
 	if d.discoverRelationships {
-		components, phaseErrs = d.runRelationshipPhase(ctx, l, opts, components)
-		if len(phaseErrs) > 0 && !d.suppressParseErrors {
-			return components, errors.Join(phaseErrs...)
+		components, err = d.runRelationshipPhase(ctx, l, opts, components)
+		if err != nil && !d.suppressParseErrors {
+			return components, err
 		}
 	}
 
@@ -113,7 +109,7 @@ func (d *Discovery) runFilesystemPhase(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-) ([]DiscoveryResult, []DiscoveryResult, []error) {
+) (*PhaseResults, error) {
 	var (
 		allDiscovered []DiscoveryResult
 		allCandidates []DiscoveryResult
@@ -130,7 +126,7 @@ func (d *Discovery) runFilesystemPhase(
 
 	g.Go(func() error {
 		phase := NewFilesystemPhase(d.numWorkers)
-		output := phase.Run(ctx, l, &PhaseInput{
+		result, err := phase.Run(ctx, l, &PhaseInput{
 			Opts:       opts,
 			Classifier: d.classifier,
 			Discovery:  d,
@@ -138,9 +134,14 @@ func (d *Discovery) runFilesystemPhase(
 
 		mu.Lock()
 
-		allDiscovered = append(allDiscovered, output.Discovered...)
-		allCandidates = append(allCandidates, output.Candidates...)
-		allErrors = append(allErrors, output.Errors...)
+		if result != nil {
+			allDiscovered = append(allDiscovered, result.Discovered...)
+			allCandidates = append(allCandidates, result.Candidates...)
+		}
+
+		if err != nil {
+			allErrors = append(allErrors, err)
+		}
 
 		mu.Unlock()
 
@@ -150,7 +151,7 @@ func (d *Discovery) runFilesystemPhase(
 	if len(d.gitExpressions) > 0 && d.worktrees != nil {
 		g.Go(func() error {
 			phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
-			output := phase.Run(ctx, l, &PhaseInput{
+			result, err := phase.Run(ctx, l, &PhaseInput{
 				Opts:       opts,
 				Classifier: d.classifier,
 				Discovery:  d,
@@ -158,9 +159,14 @@ func (d *Discovery) runFilesystemPhase(
 
 			mu.Lock()
 
-			allDiscovered = append(allDiscovered, output.Discovered...)
-			allCandidates = append(allCandidates, output.Candidates...)
-			allErrors = append(allErrors, output.Errors...)
+			if result != nil {
+				allDiscovered = append(allDiscovered, result.Discovered...)
+				allCandidates = append(allCandidates, result.Candidates...)
+			}
+
+			if err != nil {
+				allErrors = append(allErrors, err)
+			}
 
 			mu.Unlock()
 
@@ -175,7 +181,10 @@ func (d *Discovery) runFilesystemPhase(
 	allDiscovered = deduplicateResults(allDiscovered)
 	allCandidates = deduplicateResults(allCandidates)
 
-	return allDiscovered, allCandidates, allErrors
+	return &PhaseResults{
+		Discovered: allDiscovered,
+		Candidates: allCandidates,
+	}, errors.Join(allErrors...)
 }
 
 // runParsePhase runs the parse phase for candidates that require parsing.
@@ -185,9 +194,9 @@ func (d *Discovery) runParsePhase(
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
-) ([]DiscoveryResult, []DiscoveryResult, []error) {
+) (*PhaseResults, error) {
 	phase := NewParsePhase(d.numWorkers)
-	output := phase.Run(ctx, l, &PhaseInput{
+	result, err := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -196,10 +205,21 @@ func (d *Discovery) runParsePhase(
 	})
 
 	allDiscovered := discovered
-	allDiscovered = append(allDiscovered, output.Discovered...)
+	if result != nil {
+		allDiscovered = append(allDiscovered, result.Discovered...)
+	}
+
 	allDiscovered = deduplicateResults(allDiscovered)
 
-	return allDiscovered, output.Candidates, output.Errors
+	var resultCandidates []DiscoveryResult
+	if result != nil {
+		resultCandidates = result.Candidates
+	}
+
+	return &PhaseResults{
+		Discovered: allDiscovered,
+		Candidates: resultCandidates,
+	}, err
 }
 
 // runGraphPhase runs the graph traversal phase.
@@ -209,19 +229,22 @@ func (d *Discovery) runGraphPhase(
 	opts *options.TerragruntOptions,
 	discovered []DiscoveryResult,
 	candidates []DiscoveryResult,
-) ([]DiscoveryResult, []DiscoveryResult, []error) {
+) (*PhaseResults, error) {
 	if d.classifier.HasDependentFilters() {
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
 		buildErrs := d.buildDependencyGraph(ctx, l, opts, allComponents)
 		if len(buildErrs) > 0 && !d.suppressParseErrors {
-			return discovered, candidates, buildErrs
+			return &PhaseResults{
+				Discovered: discovered,
+				Candidates: candidates,
+			}, errors.Join(buildErrs...)
 		}
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
-	output := phase.Run(ctx, l, &PhaseInput{
+	result, err := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -230,10 +253,21 @@ func (d *Discovery) runGraphPhase(
 	})
 
 	allDiscovered := discovered
-	allDiscovered = append(allDiscovered, output.Discovered...)
+	if result != nil {
+		allDiscovered = append(allDiscovered, result.Discovered...)
+	}
+
 	allDiscovered = deduplicateResults(allDiscovered)
 
-	return allDiscovered, output.Candidates, output.Errors
+	var resultCandidates []DiscoveryResult
+	if result != nil {
+		resultCandidates = result.Candidates
+	}
+
+	return &PhaseResults{
+		Discovered: allDiscovered,
+		Candidates: resultCandidates,
+	}, err
 }
 
 // runRelationshipPhase runs the relationship discovery phase.
@@ -242,15 +276,15 @@ func (d *Discovery) runRelationshipPhase(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	components component.Components,
-) (component.Components, []error) {
+) (component.Components, error) {
 	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	output := phase.Run(ctx, l, &PhaseInput{
+	_, err := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: components,
 		Discovery:  d,
 	})
 
-	return components, output.Errors
+	return components, err
 }
 
 // buildDependencyGraph parses all components and builds bidirectional dependency links.

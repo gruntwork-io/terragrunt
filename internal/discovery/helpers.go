@@ -69,14 +69,17 @@ func (rc *ResultCollector) AddError(err error) {
 	rc.errors = append(rc.errors, err)
 }
 
-// Results returns the collected discovered, candidates, and errors.
+// Results returns the collected discovered, candidates, and joined error.
 // While this is typically called after all concurrent work is complete,
 // the lock is retained for defensive thread-safety.
-func (rc *ResultCollector) Results() ([]DiscoveryResult, []DiscoveryResult, []error) {
+func (rc *ResultCollector) Results() (*PhaseResults, error) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
-	return rc.discovered, rc.candidates, rc.errors
+	return &PhaseResults{
+		Discovered: rc.discovered,
+		Candidates: rc.candidates,
+	}, errors.Join(rc.errors...)
 }
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.

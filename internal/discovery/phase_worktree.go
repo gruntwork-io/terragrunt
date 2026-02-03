@@ -59,18 +59,12 @@ func (p *WorktreePhase) NumWorkers() int {
 }
 
 // Run executes the worktree discovery phase.
-func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
+func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
 	collector := NewResultCollector()
 
 	p.runDiscovery(ctx, l, input, collector)
 
-	discovered, candidates, errs := collector.Results()
-
-	return PhaseOutput{
-		Discovered: discovered,
-		Candidates: candidates,
-		Errors:     errs,
-	}
+	return collector.Results()
 }
 
 // runDiscovery performs the actual worktree discovery.

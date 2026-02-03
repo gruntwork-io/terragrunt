@@ -50,18 +50,12 @@ func (p *GraphPhase) Kind() PhaseKind {
 }
 
 // Run executes the graph discovery phase.
-func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
+func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error) {
 	collector := NewResultCollector()
 
 	p.runGraphDiscovery(ctx, l, input, collector)
 
-	discovered, candidates, errs := collector.Results()
-
-	return PhaseOutput{
-		Discovered: discovered,
-		Candidates: candidates,
-		Errors:     errs,
-	}
+	return collector.Results()
 }
 
 // runGraphDiscovery performs the actual graph traversal.
