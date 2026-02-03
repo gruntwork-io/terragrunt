@@ -24,6 +24,15 @@ const (
 
 	// maxCycleRemovalAttempts is the maximum number of cycle removal attempts.
 	maxCycleRemovalAttempts = 100
+
+	// filesystemPhaseGoroutineLimit is the limit for the filesystem phase errgroup.
+	// Two goroutines: one walker, one processor.
+	filesystemPhaseGoroutineLimit = 2
+
+	// channelBufferMultiplier determines channel buffer size as a multiple of numWorkers.
+	// A multiplier of 4 provides sufficient buffering to prevent blocking while
+	// avoiding excessive memory usage.
+	channelBufferMultiplier = 4
 )
 
 // ResultCollector provides thread-safe collection of discovery results.
@@ -70,7 +79,8 @@ func (rc *ResultCollector) AddError(err error) {
 }
 
 // Results returns the collected discovered, candidates, and errors.
-// This should only be called after all concurrent work is complete.
+// While this is typically called after all concurrent work is complete,
+// the lock is retained for defensive thread-safety.
 func (rc *ResultCollector) Results() ([]DiscoveryResult, []DiscoveryResult, []error) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()

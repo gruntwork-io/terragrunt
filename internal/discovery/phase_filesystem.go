@@ -78,10 +78,10 @@ func (p *FilesystemPhase) runDiscovery(
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(2) //nolint:mnd
+	g.SetLimit(filesystemPhaseGoroutineLimit)
 
 	// Internal channel for producer-consumer pattern during filesystem walk
-	filePaths := make(chan string, p.numWorkers*4) //nolint:mnd
+	filePaths := make(chan string, p.numWorkers*channelBufferMultiplier)
 
 	g.Go(func() error {
 		defer close(filePaths)

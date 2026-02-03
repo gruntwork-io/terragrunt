@@ -147,7 +147,13 @@ func (p *ParsePhase) parseAndReclassify(
 	if err := parseComponent(ctx, l, c, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
-			return nil, nil
+
+			return &DiscoveryResult{
+				Component: c,
+				Status:    StatusExcluded,
+				Reason:    CandidacyReasonNone,
+				Phase:     PhaseParse,
+			}, nil
 		}
 
 		return nil, err

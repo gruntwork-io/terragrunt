@@ -281,7 +281,7 @@ func (d *Discovery) runFilesystemPhase(
 	)
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(2) //nolint:mnd
+	g.SetLimit(filesystemPhaseGoroutineLimit)
 
 	g.Go(func() error {
 		phase := NewFilesystemPhase(d.numWorkers)
@@ -583,10 +583,12 @@ func canonicalizeGraphTarget(baseDir, target string) (string, error) {
 	}
 
 	// Resolve symlinks for consistent path comparison (important on macOS where /var -> /private/var)
+	// EvalSymlinks can fail for: non-existent paths (expected during discovery),
+	// broken symlinks, or permission issues. In all cases, falling back to the
+	// absolute path is acceptable - the path will be validated later when used.
 	resolved, evalErr := filepath.EvalSymlinks(abs)
 	if evalErr != nil {
-		// If symlink resolution fails (e.g., path doesn't exist yet), return the absolute path
-		return abs, nil //nolint:nilerr // intentionally return nil error when EvalSymlinks fails
+		return abs, nil //nolint:nilerr
 	}
 
 	return resolved, nil

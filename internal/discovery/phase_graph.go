@@ -491,8 +491,8 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	g.SetLimit(p.numWorkers)
 
 	// Internal channels for the producer-consumer pattern within this function
-	candidates := make(chan component.Component, p.numWorkers*4)           //nolint:mnd
-	discoveredDependents := make(chan component.Component, p.numWorkers*4) //nolint:mnd
+	candidates := make(chan component.Component, p.numWorkers*channelBufferMultiplier)
+	discoveredDependents := make(chan component.Component, p.numWorkers*channelBufferMultiplier)
 
 	g.Go(func() error {
 		defer close(candidates)
