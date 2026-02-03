@@ -143,7 +143,7 @@ jobs:
       - name: "Mount tmpfs on /tmp for faster I/O"
         if: runner.os == 'Linux'
         run: |
-          sudo mount -t tmpfs -o size=4G,mode=1777 tmpfs /tmp
+          sudo mount -t tmpfs -o size=12G,mode=1777 tmpfs /tmp
           echo "tmpfs mounted on /tmp:"
           df -h /tmp
 
@@ -217,6 +217,8 @@ jobs:
             ${{ steps.go-cache-paths.outputs.go-build }}
             ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-build-
 
       - name: Terragrunt Provider Cache
         if: runner.os == 'Linux'

@@ -19,6 +19,7 @@ jobs:
         with:
           version: 2026.1.9
           experimental: true
+          cache: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,9 +39,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-build-
 
+      - name: Pre-commit Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pre-commit-
+
       - name: Run pre-commit hooks
         env:
-          GOPROXY: direct
+          GOPROXY: https://proxy.golang.org,direct
           GOOS: linux
           GOARCH: amd64
         run: |

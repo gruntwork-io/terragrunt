@@ -13,7 +13,7 @@ jobs:
         # Windows doesn't get to be linted continuously because it annoyingly requires
         # that all files use \r\n line endings.
         # os: [ubuntu, macos, windows]
-        os: [ubuntu]
+        os: [ubuntu, macos]
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -21,7 +21,7 @@ jobs:
     - name: "Mount tmpfs on /tmp for faster I/O"
       if: runner.os == 'Linux'
       run: |
-        sudo mount -t tmpfs -o size=4G,mode=1777 tmpfs /tmp
+        sudo mount -t tmpfs -o size=12G,mode=1777 tmpfs /tmp
         echo "tmpfs mounted on /tmp:"
         df -h /tmp
 
@@ -30,6 +30,7 @@ jobs:
       with:
         version: 2026.1.9
         experimental: true
+        cache: true
       env:
         # Adding token here to reduce the likelihood of hitting rate limit issues.
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,4 +81,6 @@ jobs:
           ${{ runner.os }}-golangci-lint-
 
     - name: Lint
+      env:
+        GOLANGCI_LINT_CACHE: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
       run: make run-lint
