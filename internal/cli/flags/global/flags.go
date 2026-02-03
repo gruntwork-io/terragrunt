@@ -251,8 +251,9 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			Setter: func(val string) error {
 				return opts.StrictControls.EnableControl(val)
 			},
-			Action: func(_ context.Context, _ *clihelper.Context, _ []string) error {
+			Action: func(_ context.Context, _ *clihelper.Context, vals []string) error {
 				opts.StrictControls.LogEnabled(l)
+				opts.StrictControls.LogCompletedControls(l, vals)
 
 				return nil
 			},
