@@ -38,6 +38,12 @@ const (
 	maxRetriesFetchFile = 5
 
 	providerCacheWarmUpChBufferSize = 100
+
+	// DefaultProviderFileSizeLimit is the maximum total decompressed size for provider archives (1 GB)
+	DefaultProviderFileSizeLimit = 1 << 30 // 1 GiB
+
+	// DefaultProviderFilesLimit is the maximum number of files in a provider archive
+	DefaultProviderFilesLimit = 100
 )
 
 type ProviderCaches []*ProviderCache
@@ -335,7 +341,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := vfs.NewZipDecompressor().Unzip(
+	if err := vfs.NewZipDecompressor(
+		vfs.WithFileSizeLimit(DefaultProviderFileSizeLimit),
+		vfs.WithFilesLimit(DefaultProviderFilesLimit),
+	).Unzip(
 		cache.logger,
 		fs,
 		cache.packageDir,
