@@ -13,7 +13,7 @@ jobs:
         # Windows doesn't get to be linted continuously because it annoyingly requires
         # that all files use \r\n line endings.
         # os: [ubuntu, macos, windows]
-        os: [ubuntu, macos]
+        os: [ubuntu]
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -60,18 +60,24 @@ jobs:
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
         key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-go-build-
 
     - name: Go Mod Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
         key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-go-mod-
 
     - name: golangci-lint Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-golangci-lint-
 
     - name: Lint
       run: make run-lint
