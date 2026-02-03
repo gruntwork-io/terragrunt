@@ -283,7 +283,11 @@ func (c *Classifier) extractNegatedGraphExpressions(expr Expression, filterIndex
 // matchesAnyNegated checks if the component matches any negated expression.
 func (c *Classifier) matchesAnyNegated(comp component.Component) bool {
 	return slices.ContainsFunc(c.negatedExprs, func(expr Expression) bool {
-		match, _ := MatchComponent(comp, expr)
+		match, err := MatchComponent(comp, expr)
+		if err != nil {
+			c.logger.Warnf("Error matching component %s against negated expression: %v", comp.Path(), err)
+		}
+
 		return match
 	})
 }
@@ -307,7 +311,11 @@ func (c *Classifier) matchesAnyPositive(comp component.Component, ctx Classifica
 	}
 
 	return slices.ContainsFunc(c.parseExprs, func(expr Expression) bool {
-		match, _ := MatchComponent(comp, expr)
+		match, err := MatchComponent(comp, expr)
+		if err != nil {
+			c.logger.Warnf("Error matching component %s against parse expression: %v", comp.Path(), err)
+		}
+
 		return match
 	})
 }
@@ -328,7 +336,11 @@ func (c *Classifier) matchesGitExpression(comp component.Component) bool {
 // matchesFilesystemExpression checks if the component matches any filesystem-evaluable expression.
 func (c *Classifier) matchesFilesystemExpression(comp component.Component) bool {
 	return slices.ContainsFunc(c.filesystemExprs, func(expr Expression) bool {
-		match, _ := MatchComponent(comp, expr)
+		match, err := MatchComponent(comp, expr)
+		if err != nil {
+			c.logger.Warnf("Error matching component %s against filesystem expression: %v", comp.Path(), err)
+		}
+
 		return match
 	})
 }
@@ -342,7 +354,10 @@ func (c *Classifier) matchesGraphExpressionTarget(comp component.Component) int 
 			return false
 		}
 
-		match, _ := MatchComponent(comp, info.Target)
+		match, err := MatchComponent(comp, info.Target)
+		if err != nil {
+			c.logger.Warnf("Error matching component %s against graph expression target: %v", comp.Path(), err)
+		}
 
 		return match
 	})
@@ -357,7 +372,10 @@ func (c *Classifier) matchesNegatedGraphExpressionTarget(comp component.Componen
 			return false
 		}
 
-		match, _ := MatchComponent(comp, info.Target)
+		match, err := MatchComponent(comp, info.Target)
+		if err != nil {
+			c.logger.Warnf("Error matching component %s against negated graph expression target: %v", comp.Path(), err)
+		}
 
 		return match
 	})
