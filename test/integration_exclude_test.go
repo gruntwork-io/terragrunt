@@ -225,3 +225,81 @@ func TestExcludeNoRunIndependentOfActions(t *testing.T) {
 	assert.Contains(t, stderr, "Early exit in terragrunt unit")
 	assert.Contains(t, stderr, "due to exclude block with no_run = true")
 }
+
+// TestExcludeNoRunFalse tests that when no_run is explicitly set to false,
+// the unit should still run even if the action matches.
+// This tests the fix for https://github.com/gruntwork-io/terragrunt/issues/5497
+func TestExcludeNoRunFalse(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeNoRun)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-false-unit")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	// When no_run = false is explicitly set, the unit should run (no early exit)
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+	assert.NotContains(t, stderr, "due to exclude block with no_run = true")
+}
+
+// TestExcludeNoRunFalseRunAll tests that when no_run = false is set,
+// the unit is still excluded in run --all mode based on `if` and `actions`.
+// no_run only affects single unit runs, not run --all behavior.
+func TestExcludeNoRunFalseRunAll(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeNoRun)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	// In run --all mode, no_run = false doesn't prevent exclusion
+	// The unit should still be excluded based on if = true and actions = ["plan", "apply"]
+	assert.Contains(t, stderr, "Unit normal-unit")
+	assert.NotContains(t, stderr, "Unit no-run-false-unit")
+}
+
+// TestExcludeNoRunNotSet tests that when no_run is not specified in the exclude block,
+// it defaults to false and the unit runs in single-unit mode (no early exit).
+// This verifies the fix for https://github.com/gruntwork-io/terragrunt/issues/5497
+func TestExcludeNoRunNotSet(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeNoRun)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-not-set-unit")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	// When no_run is not specified (defaults to false), the unit should run (no early exit)
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+	assert.NotContains(t, stderr, "due to exclude block with no_run = true")
+}
+
+// TestExcludeRunAllIgnoresNoRun tests that run --all mode ignores the no_run setting
+// and only uses `if` and `actions` to determine exclusion.
+// This is an explicit test showing run --all behavior is independent of no_run.
+func TestExcludeRunAllIgnoresNoRun(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeNoRun)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
+	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+
+	require.NoError(t, err)
+	// run --all excludes units via queue filter based on `if` and `actions`, ignoring `no_run`
+	// Both no-run-unit (no_run=true) and no-run-false-unit (no_run=false) should be excluded
+	// because both have if=true and actions that include "plan"
+	assert.Contains(t, stderr, "Unit normal-unit")
+	assert.NotContains(t, stderr, "Unit no-run-unit")
+	assert.NotContains(t, stderr, "Unit no-run-false-unit")
+	// Verify exclusion is via queue filter, not early exit (no "Early exit" message)
+	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+}
