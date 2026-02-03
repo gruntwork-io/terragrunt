@@ -67,17 +67,9 @@ func RunCommandWithOutput(
 	}, func(ctx context.Context) error {
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
-		// Wrap shared writers with SyncWriter to prevent race conditions when
-		// multiple commands run in parallel (e.g., during "run --all" operations).
-		//
-		// This is largely only relevant when the writers is a byte slice, etc.
-		// Like it is in tests.
-		//
-		// When writing to these writers in production, we'll write to stdout/stderr
-		// directly, which the OS will synchronize for us.
 		var (
-			cmdStderr = io.MultiWriter(util.NewSyncWriter(opts.ErrWriter), &output.Stderr)
-			cmdStdout = io.MultiWriter(util.NewSyncWriter(opts.Writer), &output.Stdout)
+			cmdStderr = io.MultiWriter(opts.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
