@@ -22,6 +22,14 @@ type RelationshipPhase struct {
 	maxDepth int
 }
 
+// relationshipTraversalState consolidates state for relationship discovery.
+type relationshipTraversalState struct {
+	opts                     *options.TerragruntOptions
+	discovery                *Discovery
+	allComponents            *component.Components
+	interTransientComponents *component.ThreadSafeComponents
+}
+
 // NewRelationshipPhase creates a new RelationshipPhase.
 func NewRelationshipPhase(numWorkers, maxDepth int) *RelationshipPhase {
 	numWorkers = max(numWorkers, defaultDiscoveryWorkers)
@@ -69,6 +77,13 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 
 	interTransientComponents := component.NewThreadSafeComponents(component.Components{})
 
+	state := &relationshipTraversalState{
+		opts:                     input.Opts,
+		discovery:                discovery,
+		allComponents:            &input.Components,
+		interTransientComponents: interTransientComponents,
+	}
+
 	var (
 		errs  = make([]error, 0, len(input.Components))
 		errMu sync.Mutex
@@ -91,17 +106,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		})
 
 		g.Go(func() error {
-			err := p.discoverRelationships(
-				ctx,
-				l,
-				input.Opts,
-				discovery,
-				c,
-				&input.Components,
-				interTransientComponents,
-				terminalComponents,
-				p.maxDepth,
-			)
+			err := p.discoverRelationships(ctx, l, state, c, terminalComponents, p.maxDepth)
 			if err != nil {
 				errMu.Lock()
 
@@ -129,11 +134,8 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 func (p *RelationshipPhase) discoverRelationships(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
-	discovery *Discovery,
+	state *relationshipTraversalState,
 	c component.Component,
-	allComponents *component.Components,
-	interTransientComponents *component.ThreadSafeComponents,
 	terminalComponents component.Components,
 	depthRemaining int,
 ) error {
@@ -152,14 +154,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	cfg := unit.Config()
 	if cfg == nil {
-		err := parseComponent(
-			ctx,
-			l,
-			c,
-			opts,
-			discovery.suppressParseErrors,
-			discovery.parserOptions,
-		)
+		err := parseComponent(ctx, l, c, state.opts, state.discovery)
 		if err != nil {
 			return err
 		}
@@ -179,7 +174,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	depsToDiscover := make(component.Components, 0, len(paths))
 
 	for _, path := range paths {
-		dep, created := p.dependencyToDiscover(c, path, allComponents, interTransientComponents, discovery)
+		dep, created := p.dependencyToDiscover(c, path, state.allComponents, state.interTransientComponents, state.discovery)
 
 		terminalComponents = slices.DeleteFunc(terminalComponents, func(tc component.Component) bool {
 			return tc != nil && tc.Path() == dep.Path()
@@ -208,11 +203,7 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
-			err := p.discoverRelationships(
-				ctx, l, opts, discovery, dep,
-				allComponents, interTransientComponents,
-				terminalComponents, depthRemaining-1,
-			)
+			err := p.discoverRelationships(ctx, l, state, dep, terminalComponents, depthRemaining-1)
 			if err != nil {
 				errMu.Lock()
 

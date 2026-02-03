@@ -26,6 +26,14 @@ const (
 	MaxTraversalDepth = 1000000
 )
 
+// graphTraversalParams consolidates parameters for filter graph traversal.
+type graphTraversalParams struct {
+	resultSet   map[string]component.Component
+	visited     map[string]int
+	direction   GraphDirection
+	warnOnLimit bool
+}
+
 // EvaluationContext provides additional context for filter evaluation, such as Git worktree directories.
 type EvaluationContext struct {
 	// GitWorktrees maps Git references to temporary worktree directory paths.
@@ -263,8 +271,6 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 		}
 	}
 
-	visited := make(map[string]int)
-
 	if expr.IncludeDependencies {
 		depth := MaxTraversalDepth
 		warnOnLimit := true
@@ -274,12 +280,17 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 			warnOnLimit = false
 		}
 
+		params := &graphTraversalParams{
+			resultSet:   resultSet,
+			visited:     make(map[string]int),
+			direction:   GraphDirectionDependencies,
+			warnOnLimit: warnOnLimit,
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, GraphDirectionDependencies, depth, warnOnLimit)
+			traverseGraph(l, target, params, depth)
 		}
 	}
-
-	visited = make(map[string]int)
 
 	if expr.IncludeDependents {
 		depth := MaxTraversalDepth
@@ -290,8 +301,15 @@ func evaluateGraphExpression(l log.Logger, expr *GraphExpression, components com
 			warnOnLimit = false
 		}
 
+		params := &graphTraversalParams{
+			resultSet:   resultSet,
+			visited:     make(map[string]int),
+			direction:   GraphDirectionDependents,
+			warnOnLimit: warnOnLimit,
+		}
+
 		for _, target := range targetMatches {
-			traverseGraph(l, target, resultSet, visited, GraphDirectionDependents, depth, warnOnLimit)
+			traverseGraph(l, target, params, depth)
 		}
 	}
 
@@ -329,15 +347,12 @@ func evaluateGitFilter(filter *GitExpression, components component.Components) (
 func traverseGraph(
 	l log.Logger,
 	c component.Component,
-	resultSet map[string]component.Component,
-	visited map[string]int,
-	direction GraphDirection,
+	params *graphTraversalParams,
 	remainingDepth int,
-	warnOnLimit bool,
 ) {
 	if remainingDepth <= 0 {
-		if l != nil && warnOnLimit {
-			directionName := direction.String()
+		if l != nil && params.warnOnLimit {
+			directionName := params.direction.String()
 
 			l.Warnf(
 				"Maximum %s traversal depth (%d) reached for component %s during filtering. Some %s may have been excluded from results.",
@@ -353,14 +368,14 @@ func traverseGraph(
 
 	path := c.Path()
 
-	if prevDepth, seen := visited[path]; seen && prevDepth >= remainingDepth {
+	if prevDepth, seen := params.visited[path]; seen && prevDepth >= remainingDepth {
 		return
 	}
 
-	visited[path] = remainingDepth
+	params.visited[path] = remainingDepth
 
 	var relatedComponents []component.Component
-	if direction == GraphDirectionDependencies {
+	if params.direction == GraphDirectionDependencies {
 		relatedComponents = c.Dependencies()
 	} else {
 		relatedComponents = c.Dependents()
@@ -389,8 +404,8 @@ func traverseGraph(
 		// 	}
 		// }
 
-		resultSet[relatedPath] = related
+		params.resultSet[relatedPath] = related
 
-		traverseGraph(l, related, resultSet, visited, direction, remainingDepth-1, warnOnLimit)
+		traverseGraph(l, related, params, remainingDepth-1)
 	}
 }

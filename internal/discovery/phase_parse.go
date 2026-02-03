@@ -86,7 +86,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 	for _, candidate := range componentsToParse {
 		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate, input.Classifier)
+			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate)
 			if err != nil {
 				errMu.Lock()
 
@@ -132,7 +132,6 @@ func (p *ParsePhase) parseAndReclassify(
 	opts *options.TerragruntOptions,
 	discovery *Discovery,
 	candidate DiscoveryResult,
-	classifier *filter.Classifier,
 ) (*DiscoveryResult, error) {
 	c := candidate.Component
 
@@ -141,7 +140,7 @@ func (p *ParsePhase) parseAndReclassify(
 		return &candidate, nil
 	}
 
-	if err := parseComponent(ctx, l, c, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
+	if err := parseComponent(ctx, l, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
@@ -156,8 +155,8 @@ func (p *ParsePhase) parseAndReclassify(
 		return nil, err
 	}
 
-	if classifier != nil {
-		for _, expr := range classifier.ParseExpressions() {
+	if discovery.classifier != nil {
+		for _, expr := range discovery.classifier.ParseExpressions() {
 			matched, err := filter.Evaluate(l, expr, component.Components{c})
 			if err != nil {
 				l.Debugf("Error evaluating parse expression for %s: %v", c.Path(), err)
@@ -175,7 +174,7 @@ func (p *ParsePhase) parseAndReclassify(
 		}
 
 		classCtx := filter.ClassificationContext{ParseDataAvailable: true}
-		status, reason, graphIdx := classifier.Classify(l, c, classCtx)
+		status, reason, graphIdx := discovery.classifier.Classify(l, c, classCtx)
 
 		return &DiscoveryResult{
 			Component:            c,
@@ -200,8 +199,7 @@ func parseComponent(
 	l log.Logger,
 	c component.Component,
 	opts *options.TerragruntOptions,
-	suppressParseErrors bool,
-	parserOptions []hclparse.Option,
+	discovery *Discovery,
 ) error {
 	parseOpts := opts.Clone()
 
@@ -247,11 +245,11 @@ func parseComponent(
 		config.RemoteStateBlock,
 	).WithSkipOutputsResolution()
 
-	if len(parserOptions) > 0 {
-		parsingCtx = parsingCtx.WithParseOption(parserOptions)
+	if len(discovery.parserOptions) > 0 {
+		parsingCtx = parsingCtx.WithParseOption(discovery.parserOptions)
 	}
 
-	if suppressParseErrors {
+	if discovery.suppressParseErrors {
 		parserOpts := parsingCtx.ParserOptions
 		parserOpts = append(parserOpts, hclparse.WithDiagnosticsHandler(func(
 			file *hcl.File,
@@ -265,7 +263,7 @@ func parseComponent(
 
 	cfg, err := config.PartialParseConfigFile(ctx, parsingCtx, l, parseOpts.TerragruntConfigPath, nil)
 	if err != nil {
-		if suppressParseErrors {
+		if discovery.suppressParseErrors {
 			var notFoundErr config.TerragruntConfigNotFoundError
 			if errors.As(err, &notFoundErr) {
 				l.Debugf("Skipping missing config during discovery: %s", parseOpts.TerragruntConfigPath)
@@ -273,7 +271,7 @@ func parseComponent(
 			}
 		}
 
-		if !suppressParseErrors || cfg == nil {
+		if !discovery.suppressParseErrors || cfg == nil {
 			return errors.New(err)
 		}
 
