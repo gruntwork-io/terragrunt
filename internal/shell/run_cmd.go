@@ -82,7 +82,7 @@ func RunCommandWithOutput(
 
 		if suppressStdout {
 			l.Debugf("Command output will be suppressed.")
-			// When suppressing stdout, still use the local output buffer only
+
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
