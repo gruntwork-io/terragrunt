@@ -483,7 +483,7 @@ func (d *Discovery) buildComponentDependencies(
 
 	cfg := unit.Config()
 	if cfg == nil {
-		err := parseComponent(ctx, c, l, opts, d.suppressParseErrors, d.parserOptions)
+		err := parseComponent(ctx, l, c, opts, d.suppressParseErrors, d.parserOptions)
 		if err != nil {
 			if d.suppressParseErrors {
 				l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)

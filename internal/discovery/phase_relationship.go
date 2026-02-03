@@ -173,8 +173,8 @@ func (p *RelationshipPhase) discoverRelationships(
 	if cfg == nil {
 		err := parseComponent(
 			ctx,
-			c,
 			l,
+			c,
 			opts,
 			discovery.suppressParseErrors,
 			discovery.parserOptions,

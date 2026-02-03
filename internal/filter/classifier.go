@@ -149,9 +149,9 @@ func (c *Classifier) Analyze(filters Filters) error {
 //  7. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
 //  8. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
 //  9. If no positive filters exist -> DISCOVERED (include-by-default)
-func (c *Classifier) Classify(l log.Logger, comp component.Component, ctx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
+func (c *Classifier) Classify(l log.Logger, comp component.Component, classCtx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
 	hasNegativeMatch := c.matchesAnyNegated(l, comp)
-	hasPositiveMatch := c.matchesAnyPositive(l, comp, ctx)
+	hasPositiveMatch := c.matchesAnyPositive(l, comp, classCtx)
 
 	// Before excluding due to negation, check if the component matches a negated graph expression target.
 	// If so, we need to process it through the graph phase to discover dependencies/dependents
@@ -167,7 +167,7 @@ func (c *Classifier) Classify(l log.Logger, comp component.Component, ctx Classi
 	matchesFilesystem := c.matchesFilesystemExpression(l, comp)
 	matchesGit := c.matchesGitExpression(comp)
 
-	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
+	if len(c.parseExprs) > 0 && !classCtx.ParseDataAvailable {
 		return StatusCandidate, CandidacyReasonRequiresParse, -1
 	}
 
@@ -183,7 +183,7 @@ func (c *Classifier) Classify(l log.Logger, comp component.Component, ctx Classi
 		return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
 	}
 
-	if c.HasDependentFilters() && !ctx.ParseDataAvailable {
+	if c.HasDependentFilters() && !classCtx.ParseDataAvailable {
 		return StatusCandidate, CandidacyReasonPotentialDependent, -1
 	}
 
@@ -290,7 +290,7 @@ func (c *Classifier) matchesAnyNegated(l log.Logger, comp component.Component) b
 }
 
 // matchesAnyPositive checks if the component matches any positive (non-negated) expression.
-func (c *Classifier) matchesAnyPositive(l log.Logger, comp component.Component, ctx ClassificationContext) bool {
+func (c *Classifier) matchesAnyPositive(l log.Logger, comp component.Component, classCtx ClassificationContext) bool {
 	if c.matchesFilesystemExpression(l, comp) {
 		return true
 	}
@@ -303,7 +303,7 @@ func (c *Classifier) matchesAnyPositive(l log.Logger, comp component.Component, 
 		return true
 	}
 
-	if !ctx.ParseDataAvailable || len(c.parseExprs) == 0 {
+	if !classCtx.ParseDataAvailable || len(c.parseExprs) == 0 {
 		return false
 	}
 

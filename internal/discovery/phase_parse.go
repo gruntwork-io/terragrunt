@@ -174,7 +174,7 @@ func (p *ParsePhase) parseAndReclassify(
 		return &candidate, nil
 	}
 
-	if err := parseComponent(ctx, c, l, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
+	if err := parseComponent(ctx, l, c, opts, discovery.suppressParseErrors, discovery.parserOptions); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 			return nil, nil
@@ -224,8 +224,8 @@ func (p *ParsePhase) parseAndReclassify(
 // parseComponent parses a Terragrunt configuration.
 func parseComponent(
 	ctx context.Context,
-	c component.Component,
 	l log.Logger,
+	c component.Component,
 	opts *options.TerragruntOptions,
 	suppressParseErrors bool,
 	parserOptions []hclparse.Option,
