@@ -41,7 +41,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
-	l.Debugf("Using .tflint.hcl file in %s", configFile)
+	l.Debugf("Using .tflint.hcl file in %s", util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths))
 
 	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
@@ -53,15 +53,21 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 		return err
 	}
 
-	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
+	l.Debugf(
+		"Initializing tflint in directory %s",
+		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+	)
 
 	tflintArgs := hookExecute[1:]
 
+	configFileRel := util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths)
+	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths)
+
 	// tflint init
-	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
+	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: initArgs})
@@ -71,8 +77,8 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	args := make([]string, 0, 5+len(variables)+len(tfVariables)+len(tflintArgs))
 	args = append(args,
 		"tflint",
-		"--config", configFile,
-		"--chdir", opts.WorkingDir,
+		"--config", configFileRel,
+		"--chdir", chdirRel,
 	)
 	args = append(args, variables...)
 	args = append(args, tfVariables...)
@@ -80,7 +86,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: args})
@@ -89,22 +95,6 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	l.Info("Tflint has run successfully. No issues found.")
 
 	return nil
-}
-
-// configFilePathArgument return configuration file specified in --config argument
-func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, arguments []string) (string, error) {
-	for i, arg := range arguments {
-		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1], nil
-		}
-	}
-	// find .tflint.hcl configuration in project files if it is not provided in arguments
-	projectConfigFile, err := findTflintConfigInProject(l, opts)
-	if err != nil {
-		return "", err
-	}
-
-	return projectConfigFile, nil
 }
 
 // InputsToTflintVar converts the inputs map to a list of tflint variables.
@@ -122,6 +112,38 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	}
 
 	return variables, nil
+}
+
+// Custom error types
+
+type ErrorRunningTflint struct {
+	args []string
+}
+
+func (err ErrorRunningTflint) Error() string {
+	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
+}
+
+type IssuesFound struct{}
+
+func (err IssuesFound) Error() string {
+	return "Tflint found issues in the project. Check for the tflint logs."
+}
+
+type UnknownError struct {
+	statusCode int
+}
+
+func (err UnknownError) Error() string {
+	return fmt.Sprintf("Unknown status code from tflint: %d", err.statusCode)
+}
+
+type ConfigNotFound struct {
+	cause string
+}
+
+func (err ConfigNotFound) Error() string {
+	return "Could not find .tflint.hcl config file in the parent folders: " + err.cause
 }
 
 // tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
@@ -208,7 +230,9 @@ func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (s
 	// parent folders we'll check
 	for range opts.MaxFoldersToCheck {
 		currentDir := filepath.Dir(previousDir)
-		l.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
+		l.Debugf("Finding .tflint.hcl file from %s and going to %s",
+			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.LogShowAbsPaths))
 
 		if currentDir == previousDir {
 			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
@@ -216,7 +240,7 @@ func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (s
 
 		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
 		if util.FileExists(fileToFind) {
-			l.Debugf("Found .tflint.hcl in %s", fileToFind)
+			l.Debugf("Found .tflint.hcl in %s", util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.LogShowAbsPaths))
 			return fileToFind, nil
 		}
 
@@ -228,34 +252,18 @@ func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (s
 	})
 }
 
-// Custom error types
+// configFilePathArgument return configuration file specified in --config argument
+func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, arguments []string) (string, error) {
+	for i, arg := range arguments {
+		if arg == "--config" && len(arguments) > i+1 {
+			return arguments[i+1], nil
+		}
+	}
+	// find .tflint.hcl configuration in project files if it is not provided in arguments
+	projectConfigFile, err := findTflintConfigInProject(l, opts)
+	if err != nil {
+		return "", err
+	}
 
-type ErrorRunningTflint struct {
-	args []string
-}
-
-func (err ErrorRunningTflint) Error() string {
-	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
-}
-
-type IssuesFound struct{}
-
-func (err IssuesFound) Error() string {
-	return "Tflint found issues in the project. Check for the tflint logs."
-}
-
-type UnknownError struct {
-	statusCode int
-}
-
-func (err UnknownError) Error() string {
-	return fmt.Sprintf("Unknown status code from tflint: %d", err.statusCode)
-}
-
-type ConfigNotFound struct {
-	cause string
-}
-
-func (err ConfigNotFound) Error() string {
-	return "Could not find .tflint.hcl config file in the parent folders: " + err.cause
+	return projectConfigFile, nil
 }
