@@ -68,12 +68,13 @@ const (
 //
 // Environment Variable Support:
 //
-//	The following environment variables are automatically detected:
+//	The following environment variables are automatically detected by GetAuthConfig:
 //	- AZURE_SUBSCRIPTION_ID, ARM_SUBSCRIPTION_ID: Sets SubscriptionID
 //	- AZURE_CLIENT_ID, ARM_CLIENT_ID: Sets ClientID
 //	- AZURE_CLIENT_SECRET, ARM_CLIENT_SECRET: Sets ClientSecret
 //	- AZURE_TENANT_ID, ARM_TENANT_ID: Sets TenantID
 //	- AZURE_ENVIRONMENT, ARM_ENVIRONMENT: Sets CloudEnvironment
+//	- AZURE_STORAGE_SAS_TOKEN, ARM_SAS_TOKEN: Sets SasToken
 //
 // Cloud Environment Support:
 //   - "public" or "AzurePublicCloud": Azure Public Cloud (default)
@@ -228,6 +229,15 @@ type AuthConfig struct {
 	// Set to false only when using non-Azure AD authentication methods.
 	UseAzureAD bool
 
+	// UseEnvironmentAuth indicates whether to use environment-based authentication.
+	// When true, uses Azure SDK's EnvironmentCredential for automatic credential
+	// discovery from environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET,
+	// AZURE_TENANT_ID, etc.). This delegates credential detection to the Azure SDK
+	// rather than explicit configuration.
+	// Config key: use_environment_auth
+	// Default: false
+	UseEnvironmentAuth bool
+
 	// UseEnvironment indicates whether the configuration was loaded from environment variables.
 	// This is informational and helps with debugging authentication issues.
 	// When true, indicates that configuration came from environment variables.
@@ -336,8 +346,9 @@ func GetAuthConfig(
 		SasToken:       getStringValue(config, "sas_token"),
 
 		// Extract boolean values
-		UseAzureAD: getBoolValue(config, "use_azuread_auth", false),
-		UseMSI:     getBoolValue(config, "use_msi", false),
+		UseAzureAD:         getBoolValue(config, "use_azuread_auth", false),
+		UseMSI:             getBoolValue(config, "use_msi", false),
+		UseEnvironmentAuth: getBoolValue(config, "use_environment_auth", false),
 
 		// Extract storage account name if present
 		StorageAccountName: getStringValue(config, "storage_account_name"),
@@ -361,6 +372,11 @@ func GetAuthConfig(
 
 	// Try to detect auth method based on configuration
 	switch {
+	case authConfig.UseEnvironmentAuth:
+		authConfig.Method = AuthMethodEnvironment
+		authConfig.UseEnvironment = true
+
+		logDebug(l, "Using environment-based authentication (Azure SDK auto-detection)")
 	case authConfig.UseAzureAD:
 		authConfig.Method = AuthMethodAzureAD
 
