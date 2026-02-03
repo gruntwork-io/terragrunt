@@ -490,7 +490,7 @@ func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filters)
 			require.NoError(t, err)
 
@@ -600,7 +600,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filters)
 			require.NoError(t, err)
 
@@ -611,7 +611,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			})
 
 			ctx := filter.ClassificationContext{}
-			status, reason, _ := classifier.Classify(c, ctx)
+			status, reason, _ := classifier.Classify(l, c, ctx)
 
 			assert.Equal(t, tt.expectStatus, status, "status mismatch")
 			assert.Equal(t, tt.expectReason, reason, "reason mismatch")
@@ -628,7 +628,7 @@ func TestClassifier_ParseExpressions(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"reading=config/*", "reading=shared.hcl"})
 	require.NoError(t, err)
 
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	err = classifier.Analyze(filters)
 	require.NoError(t, err)
 
@@ -645,7 +645,7 @@ func TestClassifier_NegatedExpressions(t *testing.T) {
 	filters, err := filter.ParseFilterQueries(l, []string{"!./foo", "!./bar", "./baz"})
 	require.NoError(t, err)
 
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	err = classifier.Analyze(filters)
 	require.NoError(t, err)
 
@@ -703,7 +703,7 @@ func TestClassifier_HasDependentFilters(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filters)
 			require.NoError(t, err)
 

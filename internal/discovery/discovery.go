@@ -192,7 +192,7 @@ func (d *Discovery) Discover(
 		}
 	}
 
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	if err := classifier.Analyze(d.filters); err != nil {
 		return nil, err
 	}
@@ -285,8 +285,7 @@ func (d *Discovery) runFilesystemPhase(
 
 	g.Go(func() error {
 		phase := NewFilesystemPhase(d.numWorkers)
-		output := phase.Run(ctx, &PhaseInput{
-			Logger:     l,
+		output := phase.Run(ctx, l, &PhaseInput{
 			Opts:       opts,
 			Classifier: d.classifier,
 			Discovery:  d,
@@ -308,8 +307,7 @@ func (d *Discovery) runFilesystemPhase(
 	if len(d.gitExpressions) > 0 && d.worktrees != nil {
 		g.Go(func() error {
 			phase := NewWorktreePhase(d.gitExpressions, d.numWorkers)
-			output := phase.Run(ctx, &PhaseInput{
-				Logger:     l,
+			output := phase.Run(ctx, l, &PhaseInput{
 				Opts:       opts,
 				Classifier: d.classifier,
 				Discovery:  d,
@@ -348,8 +346,7 @@ func (d *Discovery) runParsePhase(
 	candidates []DiscoveryResult,
 ) ([]DiscoveryResult, []DiscoveryResult, []error) {
 	phase := NewParsePhase(d.numWorkers)
-	output := phase.Run(ctx, &PhaseInput{
-		Logger:     l,
+	output := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -385,8 +382,7 @@ func (d *Discovery) runGraphPhase(
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
-	output := phase.Run(ctx, &PhaseInput{
-		Logger:     l,
+	output := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: resultsToComponents(discovered),
 		Candidates: candidates,
@@ -411,8 +407,7 @@ func (d *Discovery) runRelationshipPhase(
 	components component.Components,
 ) (component.Components, []error) {
 	phase := NewRelationshipPhase(d.numWorkers, d.maxDependencyDepth)
-	output := phase.Run(ctx, &PhaseInput{
-		Logger:     l,
+	output := phase.Run(ctx, l, &PhaseInput{
 		Opts:       opts,
 		Components: components,
 		Discovery:  d,

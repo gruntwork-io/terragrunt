@@ -43,7 +43,7 @@ func (p *ParsePhase) Kind() PhaseKind {
 }
 
 // Run executes the parse phase.
-func (p *ParsePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
+func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
 	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	errors := make(chan error, p.numWorkers)
@@ -55,7 +55,7 @@ func (p *ParsePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
 		defer close(errors)
 		defer close(done)
 
-		p.runParsing(ctx, input, discovered, candidates, errors)
+		p.runParsing(ctx, l, input, discovered, candidates, errors)
 	}()
 
 	return PhaseOutput{
@@ -69,6 +69,7 @@ func (p *ParsePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
 // runParsing performs the actual parsing.
 func (p *ParsePhase) runParsing(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	discovered chan<- DiscoveryResult,
 	candidates chan<- DiscoveryResult,
@@ -113,7 +114,7 @@ func (p *ParsePhase) runParsing(
 
 	for _, candidate := range componentsToParse {
 		g.Go(func() error {
-			result, err := p.parseAndReclassify(ctx, input.Logger, input.Opts, discovery, candidate, input.Classifier)
+			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate, input.Classifier)
 			if err != nil {
 				select {
 				case errors <- err:
@@ -201,7 +202,7 @@ func (p *ParsePhase) parseAndReclassify(
 		}
 
 		classCtx := filter.ClassificationContext{ParseDataAvailable: true}
-		status, reason, graphIdx := classifier.Classify(c, classCtx)
+		status, reason, graphIdx := classifier.Classify(l, c, classCtx)
 
 		return &DiscoveryResult{
 			Component:            c,

@@ -98,7 +98,6 @@ type GraphExpressionInfo struct {
 // Classifier analyzes filter expressions to efficiently classify components
 // as discovered, candidate, or excluded without full evaluation.
 type Classifier struct {
-	logger             log.Logger
 	filesystemExprs    []Expression
 	parseExprs         []Expression
 	graphExprs         []*GraphExpressionInfo
@@ -108,10 +107,8 @@ type Classifier struct {
 }
 
 // NewClassifier creates a new Classifier.
-func NewClassifier(l log.Logger) *Classifier {
-	return &Classifier{
-		logger: l,
-	}
+func NewClassifier() *Classifier {
+	return &Classifier{}
 }
 
 // Analyze categorizes all filter expressions for efficient component classification.
@@ -152,22 +149,22 @@ func (c *Classifier) Analyze(filters Filters) error {
 //  7. If negated expressions exist and component doesn't match any -> DISCOVERED (negation acts as inclusion)
 //  8. If positive filters exist but no match -> EXCLUDED (exclude-by-default)
 //  9. If no positive filters exist -> DISCOVERED (include-by-default)
-func (c *Classifier) Classify(comp component.Component, ctx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
-	hasNegativeMatch := c.matchesAnyNegated(comp)
-	hasPositiveMatch := c.matchesAnyPositive(comp, ctx)
+func (c *Classifier) Classify(l log.Logger, comp component.Component, ctx ClassificationContext) (ClassificationStatus, CandidacyReason, int) {
+	hasNegativeMatch := c.matchesAnyNegated(l, comp)
+	hasPositiveMatch := c.matchesAnyPositive(l, comp, ctx)
 
 	// Before excluding due to negation, check if the component matches a negated graph expression target.
 	// If so, we need to process it through the graph phase to discover dependencies/dependents
 	// that should also be excluded. The final filter evaluation will handle the actual exclusion.
 	if hasNegativeMatch && !hasPositiveMatch {
-		if graphIdx := c.matchesNegatedGraphExpressionTarget(comp); graphIdx >= 0 {
+		if graphIdx := c.matchesNegatedGraphExpressionTarget(l, comp); graphIdx >= 0 {
 			return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
 		}
 
 		return StatusExcluded, CandidacyReasonNone, -1
 	}
 
-	matchesFilesystem := c.matchesFilesystemExpression(comp)
+	matchesFilesystem := c.matchesFilesystemExpression(l, comp)
 	matchesGit := c.matchesGitExpression(comp)
 
 	if len(c.parseExprs) > 0 && !ctx.ParseDataAvailable {
@@ -182,7 +179,7 @@ func (c *Classifier) Classify(comp component.Component, ctx ClassificationContex
 		return StatusDiscovered, CandidacyReasonNone, -1
 	}
 
-	if graphIdx := c.matchesGraphExpressionTarget(comp); graphIdx >= 0 {
+	if graphIdx := c.matchesGraphExpressionTarget(l, comp); graphIdx >= 0 {
 		return StatusCandidate, CandidacyReasonGraphTarget, graphIdx
 	}
 
@@ -281,11 +278,11 @@ func (c *Classifier) extractNegatedGraphExpressions(expr Expression, filterIndex
 }
 
 // matchesAnyNegated checks if the component matches any negated expression.
-func (c *Classifier) matchesAnyNegated(comp component.Component) bool {
+func (c *Classifier) matchesAnyNegated(l log.Logger, comp component.Component) bool {
 	return slices.ContainsFunc(c.negatedExprs, func(expr Expression) bool {
 		match, err := MatchComponent(comp, expr)
 		if err != nil {
-			c.logger.Warnf("Error matching component %s against negated expression: %v", comp.Path(), err)
+			l.Warnf("Error matching component %s against negated expression: %v", comp.Path(), err)
 		}
 
 		return match
@@ -293,12 +290,12 @@ func (c *Classifier) matchesAnyNegated(comp component.Component) bool {
 }
 
 // matchesAnyPositive checks if the component matches any positive (non-negated) expression.
-func (c *Classifier) matchesAnyPositive(comp component.Component, ctx ClassificationContext) bool {
-	if c.matchesFilesystemExpression(comp) {
+func (c *Classifier) matchesAnyPositive(l log.Logger, comp component.Component, ctx ClassificationContext) bool {
+	if c.matchesFilesystemExpression(l, comp) {
 		return true
 	}
 
-	if c.matchesGraphExpressionTarget(comp) >= 0 {
+	if c.matchesGraphExpressionTarget(l, comp) >= 0 {
 		return true
 	}
 
@@ -313,7 +310,7 @@ func (c *Classifier) matchesAnyPositive(comp component.Component, ctx Classifica
 	return slices.ContainsFunc(c.parseExprs, func(expr Expression) bool {
 		match, err := MatchComponent(comp, expr)
 		if err != nil {
-			c.logger.Warnf("Error matching component %s against parse expression: %v", comp.Path(), err)
+			l.Warnf("Error matching component %s against parse expression: %v", comp.Path(), err)
 		}
 
 		return match
@@ -334,11 +331,11 @@ func (c *Classifier) matchesGitExpression(comp component.Component) bool {
 }
 
 // matchesFilesystemExpression checks if the component matches any filesystem-evaluable expression.
-func (c *Classifier) matchesFilesystemExpression(comp component.Component) bool {
+func (c *Classifier) matchesFilesystemExpression(l log.Logger, comp component.Component) bool {
 	return slices.ContainsFunc(c.filesystemExprs, func(expr Expression) bool {
 		match, err := MatchComponent(comp, expr)
 		if err != nil {
-			c.logger.Warnf("Error matching component %s against filesystem expression: %v", comp.Path(), err)
+			l.Warnf("Error matching component %s against filesystem expression: %v", comp.Path(), err)
 		}
 
 		return match
@@ -348,7 +345,7 @@ func (c *Classifier) matchesFilesystemExpression(comp component.Component) bool 
 // matchesGraphExpressionTarget checks if the component matches any non-negated graph expression target.
 // Returns the index of the matching graph expression, or -1 if no match.
 // Negated graph expressions are handled separately by matchesNegatedGraphExpressionTarget.
-func (c *Classifier) matchesGraphExpressionTarget(comp component.Component) int {
+func (c *Classifier) matchesGraphExpressionTarget(l log.Logger, comp component.Component) int {
 	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
 		if info.IsNegated {
 			return false
@@ -356,7 +353,7 @@ func (c *Classifier) matchesGraphExpressionTarget(comp component.Component) int 
 
 		match, err := MatchComponent(comp, info.Target)
 		if err != nil {
-			c.logger.Warnf("Error matching component %s against graph expression target: %v", comp.Path(), err)
+			l.Warnf("Error matching component %s against graph expression target: %v", comp.Path(), err)
 		}
 
 		return match
@@ -366,7 +363,7 @@ func (c *Classifier) matchesGraphExpressionTarget(comp component.Component) int 
 // matchesNegatedGraphExpressionTarget checks if the component matches any negated graph expression target.
 // Returns the index of the matching graph expression, or -1 if no match.
 // This is used to identify components that need graph traversal even when they would otherwise be excluded.
-func (c *Classifier) matchesNegatedGraphExpressionTarget(comp component.Component) int {
+func (c *Classifier) matchesNegatedGraphExpressionTarget(l log.Logger, comp component.Component) int {
 	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
 		if !info.IsNegated {
 			return false
@@ -374,7 +371,7 @@ func (c *Classifier) matchesNegatedGraphExpressionTarget(comp component.Componen
 
 		match, err := MatchComponent(comp, info.Target)
 		if err != nil {
-			c.logger.Warnf("Error matching component %s against negated graph expression target: %v", comp.Path(), err)
+			l.Warnf("Error matching component %s against negated graph expression target: %v", comp.Path(), err)
 		}
 
 		return match

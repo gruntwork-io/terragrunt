@@ -93,7 +93,6 @@ type DiscoveryResult struct {
 
 // PhaseInput provides input data to a discovery phase.
 type PhaseInput struct {
-	Logger     log.Logger
 	Opts       *options.TerragruntOptions
 	Classifier *filter.Classifier
 	Discovery  *Discovery
@@ -120,7 +119,7 @@ type Phase interface {
 	// Kind returns the PhaseKind identifier.
 	Kind() PhaseKind
 	// Run executes the phase with the given input and returns output channels.
-	Run(ctx context.Context, input *PhaseInput) PhaseOutput
+	Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput
 }
 
 // Discovery is the main configuration for discovery.

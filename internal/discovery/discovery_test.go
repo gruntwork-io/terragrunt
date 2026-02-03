@@ -100,7 +100,7 @@ func TestCandidacyClassifier_Analyze(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filters)
 			require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filters)
 			require.NoError(t, err)
 
@@ -211,7 +211,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			})
 
 			ctx := filter.ClassificationContext{}
-			status, reason, index := classifier.Classify(c, ctx)
+			status, reason, index := classifier.Classify(l, c, ctx)
 
 			assert.Equal(t, tt.expectStatus, status, "status mismatch")
 			assert.Equal(t, tt.expectReason, reason, "reason mismatch")

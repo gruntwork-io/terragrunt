@@ -47,7 +47,7 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 }
 
 // Run executes the relationship discovery phase.
-func (p *RelationshipPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
+func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
 	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	errChan := make(chan error, p.numWorkers)
@@ -59,7 +59,7 @@ func (p *RelationshipPhase) Run(ctx context.Context, input *PhaseInput) PhaseOut
 		defer close(errChan)
 		defer close(done)
 
-		p.runRelationshipDiscovery(ctx, input, errChan)
+		p.runRelationshipDiscovery(ctx, l, input, errChan)
 	}()
 
 	return PhaseOutput{
@@ -73,6 +73,7 @@ func (p *RelationshipPhase) Run(ctx context.Context, input *PhaseInput) PhaseOut
 // runRelationshipDiscovery performs the actual relationship discovery.
 func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	errChan chan<- error,
 ) {
@@ -107,7 +108,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 		g.Go(func() error {
 			err := p.discoverRelationships(
 				ctx,
-				input.Logger,
+				l,
 				input.Opts,
 				discovery,
 				c,

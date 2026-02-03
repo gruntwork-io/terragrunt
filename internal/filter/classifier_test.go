@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,8 +62,7 @@ func TestClassifier_NegatedGraphExpression_HasGraphFilters(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			l := logger.CreateLogger()
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filter.Filters{f})
 			require.NoError(t, err, "failed to analyze filter")
 
@@ -113,8 +111,7 @@ func TestClassifier_NegatedGraphExpression_IsNegatedFlag(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			l := logger.CreateLogger()
-			classifier := filter.NewClassifier(l)
+			classifier := filter.NewClassifier()
 			err = classifier.Analyze(filter.Filters{f})
 			require.NoError(t, err, "failed to analyze filter")
 
@@ -139,8 +136,7 @@ func TestClassifier_MixedNegatedAndNonNegatedGraphFilters(t *testing.T) {
 	barFilter, err := filter.Parse("!...bar")
 	require.NoError(t, err)
 
-	l := logger.CreateLogger()
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	err = classifier.Analyze(filter.Filters{fooFilter, barFilter})
 	require.NoError(t, err)
 
@@ -170,8 +166,7 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 
 	f := filter.NewFilter(negatedExpr, "!./db...")
 
-	l := logger.CreateLogger()
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	err := classifier.Analyze(filter.Filters{f})
 	require.NoError(t, err)
 
@@ -194,8 +189,7 @@ func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 
 	f := filter.NewFilter(negatedExpr, "!...db...")
 
-	l := logger.CreateLogger()
-	classifier := filter.NewClassifier(l)
+	classifier := filter.NewClassifier()
 	err := classifier.Analyze(filter.Filters{f})
 	require.NoError(t, err)
 

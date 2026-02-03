@@ -50,7 +50,7 @@ func (p *GraphPhase) Kind() PhaseKind {
 }
 
 // Run executes the graph discovery phase.
-func (p *GraphPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
+func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
 	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	errChan := make(chan error, p.numWorkers)
@@ -62,7 +62,7 @@ func (p *GraphPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
 		defer close(errChan)
 		defer close(done)
 
-		p.runGraphDiscovery(ctx, input, discovered, candidates, errChan)
+		p.runGraphDiscovery(ctx, l, input, discovered, candidates, errChan)
 	}()
 
 	return PhaseOutput{
@@ -76,6 +76,7 @@ func (p *GraphPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
 // runGraphDiscovery performs the actual graph traversal.
 func (p *GraphPhase) runGraphDiscovery(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	discovered chan<- DiscoveryResult,
 	candidates chan<- DiscoveryResult,
@@ -163,7 +164,7 @@ func (p *GraphPhase) runGraphDiscovery(
 			g.Go(func() error {
 				err := p.processGraphTarget(
 					ctx,
-					input.Logger,
+					l,
 					input.Opts,
 					discovery,
 					candidate,

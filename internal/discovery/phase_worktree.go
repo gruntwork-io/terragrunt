@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -58,7 +59,7 @@ func (p *WorktreePhase) NumWorkers() int {
 }
 
 // Run executes the worktree discovery phase.
-func (p *WorktreePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
+func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
 	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	errors := make(chan error, p.numWorkers)
@@ -70,7 +71,7 @@ func (p *WorktreePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput 
 		defer close(errors)
 		defer close(done)
 
-		p.runDiscovery(ctx, input, discovered, candidates, errors)
+		p.runDiscovery(ctx, l, input, discovered, candidates, errors)
 	}()
 
 	return PhaseOutput{
@@ -84,6 +85,7 @@ func (p *WorktreePhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput 
 // runDiscovery performs the actual worktree discovery.
 func (p *WorktreePhase) runDiscovery(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	discovered chan<- DiscoveryResult,
 	candidates chan<- DiscoveryResult,
@@ -91,13 +93,13 @@ func (p *WorktreePhase) runDiscovery(
 ) {
 	discovery := input.Discovery
 	if discovery == nil || discovery.worktrees == nil {
-		input.Logger.Debug("No worktrees provided, skipping worktree discovery")
+		l.Debug("No worktrees provided, skipping worktree discovery")
 		return
 	}
 
 	w := discovery.worktrees
 	if len(w.WorktreePairs) == 0 {
-		input.Logger.Debug("No worktree pairs available, skipping worktree discovery")
+		l.Debug("No worktree pairs available, skipping worktree discovery")
 		return
 	}
 
@@ -114,7 +116,7 @@ func (p *WorktreePhase) runDiscovery(
 
 			if len(fromFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, input, pair.FromWorktree, fromFilters, FromWorktreeKind)
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.FromWorktree, fromFilters, FromWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -129,7 +131,7 @@ func (p *WorktreePhase) runDiscovery(
 
 			if len(toFilters) > 0 {
 				fromToG.Go(func() error {
-					components, err := p.discoverInWorktree(fromToCtx, input, pair.ToWorktree, toFilters, ToWorktreeKind)
+					components, err := p.discoverInWorktree(fromToCtx, l, input, pair.ToWorktree, toFilters, ToWorktreeKind)
 					if err != nil {
 						return err
 					}
@@ -147,7 +149,7 @@ func (p *WorktreePhase) runDiscovery(
 	}
 
 	discoveryGroup.Go(func() error {
-		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, input, w)
+		components, err := p.discoverChangesInWorktreeStacks(discoveryCtx, l, input, w)
 		if err != nil {
 			return err
 		}
@@ -173,7 +175,7 @@ func (p *WorktreePhase) runDiscovery(
 
 		if input.Classifier != nil {
 			ctx := filter.ClassificationContext{}
-			status, reason, graphIdx = input.Classifier.Classify(c, ctx)
+			status, reason, graphIdx = input.Classifier.Classify(l, c, ctx)
 		}
 
 		result := DiscoveryResult{
@@ -206,6 +208,7 @@ func (p *WorktreePhase) runDiscovery(
 // discoverInWorktree discovers components in a single worktree.
 func (p *WorktreePhase) discoverInWorktree(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	wt worktrees.Worktree,
 	filters filter.Filters,
@@ -242,7 +245,7 @@ func (p *WorktreePhase) discoverInWorktree(
 		subDiscovery = subDiscovery.WithParserOptions(discovery.parserOptions)
 	}
 
-	components, err := subDiscovery.Discover(ctx, input.Logger, input.Opts)
+	components, err := subDiscovery.Discover(ctx, l, input.Opts)
 	if err != nil {
 		return components, err
 	}
@@ -253,6 +256,7 @@ func (p *WorktreePhase) discoverInWorktree(
 // discoverChangesInWorktreeStacks discovers changes in worktree stacks.
 func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 ) (component.Components, error) {
@@ -270,7 +274,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	for _, changed := range stackDiff.Changed {
 		g.Go(func() error {
-			components, err := p.walkChangedStack(ctx, input, changed.FromStack, changed.ToStack)
+			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
 			if err != nil {
 				mu.Lock()
 
@@ -303,6 +307,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 // walkChangedStack walks a changed stack and discovers components within it.
 func (p *WorktreePhase) walkChangedStack(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	fromStack *component.Stack,
 	toStack *component.Stack,
@@ -345,7 +350,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var fromDiscoveryErr error
 
-		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, input.Logger, input.Opts)
+		fromComponents, fromDiscoveryErr = fromDiscovery.Discover(discoveryCtx, l, input.Opts)
 		if fromDiscoveryErr != nil {
 			mu.Lock()
 
@@ -373,7 +378,7 @@ func (p *WorktreePhase) walkChangedStack(
 
 		var toDiscoveryErr error
 
-		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, input.Logger, input.Opts)
+		toComponents, toDiscoveryErr = toDiscovery.Discover(discoveryCtx, l, input.Opts)
 		if toDiscoveryErr != nil {
 			mu.Lock()
 

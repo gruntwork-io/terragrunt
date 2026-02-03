@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -38,7 +39,7 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 }
 
 // Run executes the filesystem discovery phase.
-func (p *FilesystemPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutput {
+func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
 	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
 	errors := make(chan error, p.numWorkers)
@@ -50,7 +51,7 @@ func (p *FilesystemPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutpu
 		defer close(errors)
 		defer close(done)
 
-		p.runDiscovery(ctx, input, discovered, candidates, errors)
+		p.runDiscovery(ctx, l, input, discovered, candidates, errors)
 	}()
 
 	return PhaseOutput{
@@ -64,6 +65,7 @@ func (p *FilesystemPhase) Run(ctx context.Context, input *PhaseInput) PhaseOutpu
 // runDiscovery performs the actual filesystem discovery.
 func (p *FilesystemPhase) runDiscovery(
 	ctx context.Context,
+	l log.Logger,
 	input *PhaseInput,
 	discovered chan<- DiscoveryResult,
 	candidates chan<- DiscoveryResult,
@@ -132,7 +134,7 @@ func (p *FilesystemPhase) runDiscovery(
 			default:
 			}
 
-			result := p.processFile(input, path, filenames)
+			result := p.processFile(l, input, path, filenames)
 			if result == nil {
 				continue
 			}
@@ -190,6 +192,7 @@ func (p *FilesystemPhase) skipDirIfIgnorable(discovery *Discovery, path string) 
 // processFile processes a single file to determine if it's a Terragrunt configuration
 // and classifies it as discovered, candidate, or excluded.
 func (p *FilesystemPhase) processFile(
+	l log.Logger,
 	input *PhaseInput,
 	path string,
 	filenames []string,
@@ -203,7 +206,7 @@ func (p *FilesystemPhase) processFile(
 
 	if input.Classifier != nil {
 		ctx := filter.ClassificationContext{}
-		status, reason, graphIdx := input.Classifier.Classify(c, ctx)
+		status, reason, graphIdx := input.Classifier.Classify(l, c, ctx)
 
 		return &DiscoveryResult{
 			Component:            c,
