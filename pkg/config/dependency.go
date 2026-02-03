@@ -1033,7 +1033,15 @@ func getTerragruntOutputJSONFromInitFolder(
 	jsonString := strings.TrimSpace(out.Stdout.String())
 	jsonBytes := []byte(jsonString)
 
-	l.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
+	l.Debugf(
+		"Retrieved output from %s as json: %s",
+		util.RelPathForLog(
+			pctx.TerragruntOptions.RootWorkingDir,
+			targetConfigPath,
+			pctx.TerragruntOptions.LogShowAbsPaths,
+		),
+		jsonString,
+	)
 
 	return jsonBytes, nil
 }
