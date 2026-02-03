@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path"
@@ -945,4 +947,54 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHTTPGetterNetrcAuthentication verifies that HTTP/HTTPS getters correctly authenticate
+// using ~/.netrc credentials when downloading OpenTofu/Terraform sources.
+func TestHTTPGetterNetrcAuthentication(t *testing.T) {
+	expectedUser := "testuser"
+	expectedPass := "testpassword"
+	fileContent := "# test tofu content"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != expectedUser || pass != expectedPass {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.Write([]byte(fileContent))
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	netrcContent := fmt.Sprintf("machine %s\nlogin %s\npassword %s\n",
+		serverURL.Host, expectedUser, expectedPass)
+
+	netrcFile := filepath.Join(t.TempDir(), ".netrc")
+	require.NoError(t, os.WriteFile(netrcFile, []byte(netrcContent), 0600))
+
+	t.Setenv("NETRC", netrcFile)
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}}
+
+	client := &getter.Client{
+		Src:  server.URL + "/module.tf",
+		Dst:  filepath.Join(t.TempDir(), "module.tf"),
+		Mode: getter.ClientModeFile,
+	}
+
+	updateFn := run.UpdateGetters(opts, cfg)
+	require.NoError(t, updateFn(client))
+
+	require.NoError(t, client.Get())
+
+	downloaded, err := os.ReadFile(client.Dst)
+	require.NoError(t, err)
+	assert.Equal(t, fileContent, string(downloaded))
 }
