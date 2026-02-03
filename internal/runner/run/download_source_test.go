@@ -629,6 +629,35 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 	}
 }
 
+// TestUpdateGettersHTTPNetrc verifies that HTTP/HTTPS getters have Netrc enabled
+// for authentication via ~/.netrc files.
+func TestUpdateGettersHTTPNetrc(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{},
+	}
+
+	client := &getter.Client{}
+
+	updateGettersFunc := run.UpdateGetters(terragruntOptions, cfg)
+	err = updateGettersFunc(client)
+	require.NoError(t, err)
+
+	// Verify HTTP getter has Netrc enabled
+	httpGetter, ok := client.Getters["http"].(*getter.HttpGetter)
+	require.True(t, ok, "HTTP getter should be of type HttpGetter")
+	assert.True(t, httpGetter.Netrc, "HTTP getter should have Netrc enabled for ~/.netrc authentication")
+
+	// Verify HTTPS getter has Netrc enabled
+	httpsGetter, ok := client.Getters["https"].(*getter.HttpGetter)
+	require.True(t, ok, "HTTPS getter should be of type HttpGetter")
+	assert.True(t, httpsGetter.Netrc, "HTTPS getter should have Netrc enabled for ~/.netrc authentication")
+}
+
 // TestDownloadWithNoSourceCreatesCache tests that when sourceURL is "." (no source specified),
 // DownloadTerraformSource creates cache and copies files from the working directory.
 // This tests the behavior when terragrunt.hcl doesn't have a terraform { source = "..." } block.
