@@ -38,6 +38,14 @@ jobs:
     - id: go-cache-paths
       shell: bash
       run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          # Use tmpfs-backed paths for faster cache I/O
+          echo "go-build=/tmp/cache/go-build" >> "$GITHUB_OUTPUT"
+          echo "go-mod=/tmp/cache/go-mod" >> "$GITHUB_OUTPUT"
+          echo "golangci-lint-cache=/tmp/cache/golangci-lint" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
         echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
@@ -48,11 +56,6 @@ jobs:
 
         if [ "$RUNNER_OS" == "macOS" ]; then
           echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -82,5 +85,7 @@ jobs:
 
     - name: Lint
       env:
+        GOCACHE: ${{ steps.go-cache-paths.outputs.go-build }}
+        GOMODCACHE: ${{ steps.go-cache-paths.outputs.go-mod }}
         GOLANGCI_LINT_CACHE: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
       run: make run-lint
