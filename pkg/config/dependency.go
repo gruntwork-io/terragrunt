@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,12 +19,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/gcphelper"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/hashicorp/go-getter"
@@ -657,7 +660,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) && !isGcsObjectNotFound(err) {
 			return nil, true, err
 		}
 
@@ -695,6 +698,17 @@ func isAwsS3NoSuchKey(err error) bool {
 	if err != nil {
 		errStr := err.Error()
 		return strings.Contains(errStr, "NoSuchKey") || strings.Contains(errStr, "NotFound")
+	}
+
+	return false
+}
+
+func isGcsObjectNotFound(err error) bool {
+	if err != nil {
+		errStr := err.Error()
+
+		return strings.Contains(errStr, "storage: object doesn't exist") ||
+			strings.Contains(errStr, "storage.ObjectNotExist")
 	}
 
 	return false
@@ -906,7 +920,8 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	shouldFetchFromState := pctx.TerragruntOptions.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.TerragruntOptions.NoDependencyFetchOutputFromState &&
-		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
+		(remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName ||
+			remoteStateTGConfig.RemoteState.BackendName == gcsbackend.BackendName)
 
 	if shouldFetchFromState {
 		return getTerragruntOutputJSONFromRemoteState(
@@ -1112,6 +1127,20 @@ func getTerragruntOutputJSONFromRemoteState(
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
+		case gcsbackend.BackendName:
+			jsonBytes, gcsGetErr := getTerragruntOutputJSONFromRemoteStateGCS(
+				ctx,
+				l,
+				targetTGOptions,
+				remoteState,
+			)
+			if gcsGetErr != nil {
+				return nil, gcsGetErr
+			}
+
+			l.Debugf("Retrieved output from %s as json: %s using gcs bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
+
+			return jsonBytes, nil
 		default:
 			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
@@ -1195,6 +1224,76 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 	}
 
 	jsonState := string(steateBody)
+	jsonMap := make(map[string]any)
+
+	err = json.Unmarshal([]byte(jsonState), &jsonMap)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonOutputs, err := json.Marshal(jsonMap["outputs"])
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateGCS pulls the output directly from a GCS bucket without calling Terraform
+func getTerragruntOutputJSONFromRemoteStateGCS(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+	gcsConfigExtended, err := gcsbackend.Config(remoteState.BackendConfig).ExtendedGCSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	bucketName := gcsConfigExtended.RemoteStateConfigGCS.Bucket
+
+	var keyPath string
+
+	// Use path if set, otherwise join prefix with default.tfstate
+	if gcsConfigExtended.RemoteStateConfigGCS.Path != "" {
+		keyPath = gcsConfigExtended.RemoteStateConfigGCS.Path
+	} else {
+		keyPath = path.Join(gcsConfigExtended.RemoteStateConfigGCS.Prefix, "default.tfstate")
+	}
+
+	l.Debugf("Fetching outputs directly from gs://%s/%s", bucketName, keyPath)
+
+	gcpConfig := gcsConfigExtended.GetGCPSessionConfig()
+
+	client, err := gcphelper.CreateGCSClient(ctx, l, gcpConfig, opts)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	defer func() {
+		err := client.Close()
+		if err != nil {
+			l.Warnf("Failed to close GCS client: %v", err)
+		}
+	}()
+
+	bucket := client.Bucket(bucketName)
+	obj := bucket.Object(keyPath)
+
+	reader, err := obj.NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		err := reader.Close()
+		if err != nil {
+			l.Warnf("Failed to close GCS reader: %v", err)
+		}
+	}()
+
+	stateBody, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonState := string(stateBody)
 	jsonMap := make(map[string]any)
 
 	err = json.Unmarshal([]byte(jsonState), &jsonMap)
