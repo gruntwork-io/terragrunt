@@ -100,16 +100,14 @@ type PhaseInput struct {
 	Candidates []DiscoveryResult
 }
 
-// PhaseOutput provides output channels from a discovery phase.
+// PhaseOutput provides output from a discovery phase.
 type PhaseOutput struct {
-	// Discovered receives components definitively included in results.
-	Discovered <-chan DiscoveryResult
-	// Candidates receives components that might be included pending further evaluation.
-	Candidates <-chan DiscoveryResult
-	// Done is closed when the phase completes.
-	Done <-chan struct{}
-	// Errors receives any errors that occur during the phase.
-	Errors <-chan error
+	// Discovered contains components definitively included in results.
+	Discovered []DiscoveryResult
+	// Candidates contains components that might be included pending further evaluation.
+	Candidates []DiscoveryResult
+	// Errors contains any errors that occurred during the phase.
+	Errors []error
 }
 
 // Phase defines the interface for a discovery phase.

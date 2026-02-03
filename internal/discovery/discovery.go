@@ -291,13 +291,11 @@ func (d *Discovery) runFilesystemPhase(
 			Discovery:  d,
 		})
 
-		discovered, candidates, errs := mergeResults(output)
-
 		mu.Lock()
 
-		allDiscovered = append(allDiscovered, discovered...)
-		allCandidates = append(allCandidates, candidates...)
-		allErrors = append(allErrors, errs...)
+		allDiscovered = append(allDiscovered, output.Discovered...)
+		allCandidates = append(allCandidates, output.Candidates...)
+		allErrors = append(allErrors, output.Errors...)
 
 		mu.Unlock()
 
@@ -313,13 +311,11 @@ func (d *Discovery) runFilesystemPhase(
 				Discovery:  d,
 			})
 
-			discovered, candidates, errs := mergeResults(output)
-
 			mu.Lock()
 
-			allDiscovered = append(allDiscovered, discovered...)
-			allCandidates = append(allCandidates, candidates...)
-			allErrors = append(allErrors, errs...)
+			allDiscovered = append(allDiscovered, output.Discovered...)
+			allCandidates = append(allCandidates, output.Candidates...)
+			allErrors = append(allErrors, output.Errors...)
 
 			mu.Unlock()
 
@@ -354,13 +350,11 @@ func (d *Discovery) runParsePhase(
 		Discovery:  d,
 	})
 
-	newDiscovered, newCandidates, errs := mergeResults(output)
-
 	allDiscovered := discovered
-	allDiscovered = append(allDiscovered, newDiscovered...)
+	allDiscovered = append(allDiscovered, output.Discovered...)
 	allDiscovered = deduplicateResults(allDiscovered)
 
-	return allDiscovered, newCandidates, errs
+	return allDiscovered, output.Candidates, output.Errors
 }
 
 // runGraphPhase runs the graph traversal phase.
@@ -390,13 +384,11 @@ func (d *Discovery) runGraphPhase(
 		Discovery:  d,
 	})
 
-	newDiscovered, newCandidates, errs := mergeResults(output)
-
 	allDiscovered := discovered
-	allDiscovered = append(allDiscovered, newDiscovered...)
+	allDiscovered = append(allDiscovered, output.Discovered...)
 	allDiscovered = deduplicateResults(allDiscovered)
 
-	return allDiscovered, newCandidates, errs
+	return allDiscovered, output.Candidates, output.Errors
 }
 
 // runRelationshipPhase runs the relationship discovery phase.
@@ -413,17 +405,7 @@ func (d *Discovery) runRelationshipPhase(
 		Discovery:  d,
 	})
 
-	var errs []error
-
-	<-output.Done
-
-	for err := range output.Errors {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return components, errs
+	return components, output.Errors
 }
 
 // buildDependencyGraph parses all components and builds bidirectional dependency links.

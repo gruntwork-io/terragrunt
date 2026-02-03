@@ -19,15 +19,68 @@ const (
 	// maxDiscoveryWorkers is the maximum number of workers (2x default to prevent excessive concurrency).
 	maxDiscoveryWorkers = defaultDiscoveryWorkers * 2
 
-	// channelBufferMultiplier is the channel buffer multiplier for worker pools.
-	channelBufferMultiplier = 4
-
 	// defaultMaxDependencyDepth is the default maximum dependency depth for discovery.
 	defaultMaxDependencyDepth = 1000
 
 	// maxCycleRemovalAttempts is the maximum number of cycle removal attempts.
 	maxCycleRemovalAttempts = 100
 )
+
+// ResultCollector provides thread-safe collection of discovery results.
+// It is used by phases to gather discovered components, candidates, and errors
+// during concurrent processing.
+type ResultCollector struct {
+	discovered []DiscoveryResult
+	candidates []DiscoveryResult
+	errors     []error
+	mu         sync.Mutex
+}
+
+// NewResultCollector creates a new ResultCollector with pre-allocated capacity.
+func NewResultCollector(capacity int) *ResultCollector {
+	return &ResultCollector{
+		discovered: make([]DiscoveryResult, 0, capacity),
+		candidates: make([]DiscoveryResult, 0, capacity),
+		errors:     make([]error, 0),
+	}
+}
+
+// AddDiscovered adds a discovered result to the collector.
+func (rc *ResultCollector) AddDiscovered(result DiscoveryResult) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	rc.discovered = append(rc.discovered, result)
+}
+
+// AddCandidate adds a candidate result to the collector.
+func (rc *ResultCollector) AddCandidate(result DiscoveryResult) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	rc.candidates = append(rc.candidates, result)
+}
+
+// AddError adds an error to the collector.
+func (rc *ResultCollector) AddError(err error) {
+	if err == nil {
+		return
+	}
+
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	rc.errors = append(rc.errors, err)
+}
+
+// Results returns the collected discovered, candidates, and errors.
+// This should only be called after all concurrent work is complete.
+func (rc *ResultCollector) Results() ([]DiscoveryResult, []DiscoveryResult, []error) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	return rc.discovered, rc.candidates, rc.errors
+}
 
 // DefaultConfigFilenames are the default Terragrunt config filenames used in discovery.
 var DefaultConfigFilenames = []string{config.DefaultTerragruntConfigPath, config.DefaultStackFile}
@@ -159,53 +212,6 @@ func createComponentFromPath(
 	}
 
 	return nil
-}
-
-// mergeResults merges discovered and candidate results from a phase output.
-func mergeResults(output PhaseOutput) ([]DiscoveryResult, []DiscoveryResult, []error) {
-	var (
-		discovered []DiscoveryResult
-		candidates []DiscoveryResult
-		errs       []error
-	)
-
-	// Drain all channels
-	done := false
-	for !done {
-		select {
-		case result, ok := <-output.Discovered:
-			if ok {
-				discovered = append(discovered, result)
-			}
-		case result, ok := <-output.Candidates:
-			if ok {
-				candidates = append(candidates, result)
-			}
-		case err, ok := <-output.Errors:
-			if ok && err != nil {
-				errs = append(errs, err)
-			}
-		case <-output.Done:
-			done = true
-		}
-	}
-
-	// Drain remaining items after done signal
-	for result := range output.Discovered {
-		discovered = append(discovered, result)
-	}
-
-	for result := range output.Candidates {
-		candidates = append(candidates, result)
-	}
-
-	for err := range output.Errors {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return discovered, candidates, errs
 }
 
 // deduplicateResults removes duplicate components from results by path.

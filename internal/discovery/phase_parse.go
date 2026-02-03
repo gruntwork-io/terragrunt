@@ -44,25 +44,16 @@ func (p *ParsePhase) Kind() PhaseKind {
 
 // Run executes the parse phase.
 func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	errors := make(chan error, p.numWorkers)
-	done := make(chan struct{})
+	collector := NewResultCollector(p.numWorkers * 4) //nolint:mnd
 
-	go func() {
-		defer close(discovered)
-		defer close(candidates)
-		defer close(errors)
-		defer close(done)
+	p.runParsing(ctx, l, input, collector)
 
-		p.runParsing(ctx, l, input, discovered, candidates, errors)
-	}()
+	discovered, candidates, errs := collector.Results()
 
 	return PhaseOutput{
 		Discovered: discovered,
 		Candidates: candidates,
-		Done:       done,
-		Errors:     errors,
+		Errors:     errs,
 	}
 }
 
@@ -71,9 +62,7 @@ func (p *ParsePhase) runParsing(
 	ctx context.Context,
 	l log.Logger,
 	input *PhaseInput,
-	discovered chan<- DiscoveryResult,
-	candidates chan<- DiscoveryResult,
-	errors chan<- error,
+	collector *ResultCollector,
 ) {
 	discovery := input.Discovery
 
@@ -85,11 +74,7 @@ func (p *ParsePhase) runParsing(
 			continue
 		}
 
-		select {
-		case candidates <- candidate:
-		case <-ctx.Done():
-			return
-		}
+		collector.AddCandidate(candidate)
 	}
 
 	// When readFiles, parseExclude, or parseIncludes is enabled, also parse discovered components
@@ -116,12 +101,8 @@ func (p *ParsePhase) runParsing(
 		g.Go(func() error {
 			result, err := p.parseAndReclassify(ctx, l, input.Opts, discovery, candidate, input.Classifier)
 			if err != nil {
-				select {
-				case errors <- err:
-				default:
-				}
+				collector.AddError(err)
 				// Return nil to continue processing other components
-				// Error is sent to channel for collection
 				return nil //nolint:nilerr
 			}
 
@@ -131,19 +112,11 @@ func (p *ParsePhase) runParsing(
 
 			switch result.Status {
 			case StatusDiscovered:
-				select {
-				case discovered <- *result:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+				collector.AddDiscovered(*result)
 			case StatusCandidate:
-				select {
-				case candidates <- *result:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+				collector.AddCandidate(*result)
 			case StatusExcluded:
-				// Excluded components are not sent to any channel
+				// Excluded components are not added
 			}
 
 			return nil
@@ -151,10 +124,7 @@ func (p *ParsePhase) runParsing(
 	}
 
 	if err := g.Wait(); err != nil {
-		select {
-		case errors <- err:
-		default:
-		}
+		collector.AddError(err)
 	}
 }
 

@@ -60,25 +60,16 @@ func (p *WorktreePhase) NumWorkers() int {
 
 // Run executes the worktree discovery phase.
 func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	errors := make(chan error, p.numWorkers)
-	done := make(chan struct{})
+	collector := NewResultCollector(p.numWorkers * 4) //nolint:mnd
 
-	go func() {
-		defer close(discovered)
-		defer close(candidates)
-		defer close(errors)
-		defer close(done)
+	p.runDiscovery(ctx, l, input, collector)
 
-		p.runDiscovery(ctx, l, input, discovered, candidates, errors)
-	}()
+	discovered, candidates, errs := collector.Results()
 
 	return PhaseOutput{
 		Discovered: discovered,
 		Candidates: candidates,
-		Done:       done,
-		Errors:     errors,
+		Errors:     errs,
 	}
 }
 
@@ -87,9 +78,7 @@ func (p *WorktreePhase) runDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	input *PhaseInput,
-	discovered chan<- DiscoveryResult,
-	candidates chan<- DiscoveryResult,
-	errors chan<- error,
+	collector *ResultCollector,
 ) {
 	discovery := input.Discovery
 	if discovery == nil || discovery.worktrees == nil {
@@ -162,11 +151,7 @@ func (p *WorktreePhase) runDiscovery(
 	})
 
 	if err := discoveryGroup.Wait(); err != nil {
-		select {
-		case errors <- err:
-		default:
-		}
-
+		collector.AddError(err)
 		return
 	}
 
@@ -174,8 +159,8 @@ func (p *WorktreePhase) runDiscovery(
 		status, reason, graphIdx := StatusDiscovered, CandidacyReasonNone, -1
 
 		if input.Classifier != nil {
-			ctx := filter.ClassificationContext{}
-			status, reason, graphIdx = input.Classifier.Classify(l, c, ctx)
+			classCtx := filter.ClassificationContext{}
+			status, reason, graphIdx = input.Classifier.Classify(l, c, classCtx)
 		}
 
 		result := DiscoveryResult{
@@ -188,19 +173,11 @@ func (p *WorktreePhase) runDiscovery(
 
 		switch result.Status {
 		case StatusDiscovered:
-			select {
-			case discovered <- result:
-			case <-ctx.Done():
-				return
-			}
+			collector.AddDiscovered(result)
 		case StatusCandidate:
-			select {
-			case candidates <- result:
-			case <-ctx.Done():
-				return
-			}
+			collector.AddCandidate(result)
 		case StatusExcluded:
-			// Excluded components are not sent to any channel
+			// Excluded components are not added
 		}
 	}
 }

@@ -40,25 +40,16 @@ func (p *FilesystemPhase) Kind() PhaseKind {
 
 // Run executes the filesystem discovery phase.
 func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	errors := make(chan error, p.numWorkers)
-	done := make(chan struct{})
+	collector := NewResultCollector(p.numWorkers * 4) //nolint:mnd
 
-	go func() {
-		defer close(discovered)
-		defer close(candidates)
-		defer close(errors)
-		defer close(done)
+	p.runDiscovery(ctx, l, input, collector)
 
-		p.runDiscovery(ctx, l, input, discovered, candidates, errors)
-	}()
+	discovered, candidates, errs := collector.Results()
 
 	return PhaseOutput{
 		Discovered: discovered,
 		Candidates: candidates,
-		Done:       done,
-		Errors:     errors,
+		Errors:     errs,
 	}
 }
 
@@ -67,19 +58,17 @@ func (p *FilesystemPhase) runDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	input *PhaseInput,
-	discovered chan<- DiscoveryResult,
-	candidates chan<- DiscoveryResult,
-	errors chan<- error,
+	collector *ResultCollector,
 ) {
 	discovery := input.Discovery
 	if discovery == nil {
-		errors <- NewClassificationError("", "discovery configuration is nil")
+		collector.AddError(NewClassificationError("", "discovery configuration is nil"))
 		return
 	}
 
 	discoveryContext := discovery.discoveryContext
 	if discoveryContext == nil || discoveryContext.WorkingDir == "" {
-		errors <- NewClassificationError("", "discovery context or working directory is nil")
+		collector.AddError(NewClassificationError("", "discovery context or working directory is nil"))
 		return
 	}
 
@@ -91,7 +80,8 @@ func (p *FilesystemPhase) runDiscovery(
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(2) //nolint:mnd
 
-	filePaths := make(chan string, p.numWorkers*channelBufferMultiplier)
+	// Internal channel for producer-consumer pattern during filesystem walk
+	filePaths := make(chan string, p.numWorkers*4) //nolint:mnd
 
 	g.Go(func() error {
 		defer close(filePaths)
@@ -139,26 +129,13 @@ func (p *FilesystemPhase) runDiscovery(
 				continue
 			}
 
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-				switch result.Status {
-				case StatusDiscovered:
-					select {
-					case discovered <- *result:
-					case <-ctx.Done():
-						return ctx.Err()
-					}
-				case StatusCandidate:
-					select {
-					case candidates <- *result:
-					case <-ctx.Done():
-						return ctx.Err()
-					}
-				case StatusExcluded:
-					// Excluded components are not sent to any channel
-				}
+			switch result.Status {
+			case StatusDiscovered:
+				collector.AddDiscovered(*result)
+			case StatusCandidate:
+				collector.AddCandidate(*result)
+			case StatusExcluded:
+				// Excluded components are not added
 			}
 		}
 
@@ -166,10 +143,7 @@ func (p *FilesystemPhase) runDiscovery(
 	})
 
 	if err := g.Wait(); err != nil {
-		select {
-		case errors <- err:
-		default:
-		}
+		collector.AddError(err)
 	}
 }
 

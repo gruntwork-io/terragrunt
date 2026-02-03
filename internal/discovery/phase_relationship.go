@@ -48,25 +48,16 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 
 // Run executes the relationship discovery phase.
 func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	discovered := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	candidates := make(chan DiscoveryResult, p.numWorkers*channelBufferMultiplier)
-	errChan := make(chan error, p.numWorkers)
-	done := make(chan struct{})
+	collector := NewResultCollector(0) // Relationship phase doesn't discover new components
 
-	go func() {
-		defer close(discovered)
-		defer close(candidates)
-		defer close(errChan)
-		defer close(done)
+	p.runRelationshipDiscovery(ctx, l, input, collector)
 
-		p.runRelationshipDiscovery(ctx, l, input, errChan)
-	}()
+	discovered, candidates, errs := collector.Results()
 
 	return PhaseOutput{
 		Discovered: discovered,
 		Candidates: candidates,
-		Done:       done,
-		Errors:     errChan,
+		Errors:     errs,
 	}
 }
 
@@ -75,7 +66,7 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	ctx context.Context,
 	l log.Logger,
 	input *PhaseInput,
-	errChan chan<- error,
+	collector *ResultCollector,
 ) {
 	discovery := input.Discovery
 	if discovery == nil || !discovery.discoverRelationships {
@@ -130,17 +121,11 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	}
 
 	if err := g.Wait(); err != nil {
-		select {
-		case errChan <- err:
-		default:
-		}
+		collector.AddError(err)
 	}
 
 	if len(errs) > 0 {
-		select {
-		case errChan <- errors.Join(errs...):
-		default:
-		}
+		collector.AddError(errors.Join(errs...))
 	}
 }
 
