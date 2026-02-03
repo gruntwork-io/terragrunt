@@ -48,7 +48,7 @@ func (p *RelationshipPhase) Kind() PhaseKind {
 
 // Run executes the relationship discovery phase.
 func (p *RelationshipPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	collector := NewResultCollector(0) // Relationship phase doesn't discover new components
+	collector := NewResultCollector()
 
 	p.runRelationshipDiscovery(ctx, l, input, collector)
 

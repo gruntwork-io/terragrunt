@@ -51,7 +51,7 @@ func (p *GraphPhase) Kind() PhaseKind {
 
 // Run executes the graph discovery phase.
 func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	collector := NewResultCollector(p.numWorkers * 4) //nolint:mnd
+	collector := NewResultCollector()
 
 	p.runGraphDiscovery(ctx, l, input, collector)
 

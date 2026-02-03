@@ -36,13 +36,9 @@ type ResultCollector struct {
 	mu         sync.Mutex
 }
 
-// NewResultCollector creates a new ResultCollector with pre-allocated capacity.
-func NewResultCollector(capacity int) *ResultCollector {
-	return &ResultCollector{
-		discovered: make([]DiscoveryResult, 0, capacity),
-		candidates: make([]DiscoveryResult, 0, capacity),
-		errors:     make([]error, 0),
-	}
+// NewResultCollector creates a new ResultCollector.
+func NewResultCollector() *ResultCollector {
+	return &ResultCollector{}
 }
 
 // AddDiscovered adds a discovered result to the collector.

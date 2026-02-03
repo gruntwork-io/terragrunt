@@ -60,7 +60,7 @@ func (p *WorktreePhase) NumWorkers() int {
 
 // Run executes the worktree discovery phase.
 func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) PhaseOutput {
-	collector := NewResultCollector(p.numWorkers * 4) //nolint:mnd
+	collector := NewResultCollector()
 
 	p.runDiscovery(ctx, l, input, collector)
 
