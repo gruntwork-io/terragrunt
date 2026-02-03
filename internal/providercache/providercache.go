@@ -75,17 +75,6 @@ var (
 	}
 )
 
-// Option configures a ProviderCache.
-type Option func(*ProviderCache)
-
-// WithFS sets the filesystem for file operations.
-// If not set, defaults to the real OS filesystem.
-func WithFS(fs vfs.FS) Option {
-	return func(pc *ProviderCache) {
-		pc.fs = fs
-	}
-}
-
 type ProviderCache struct {
 	*cache.Server
 	cliCfg          *cliconfig.Config
@@ -93,22 +82,35 @@ type ProviderCache struct {
 	fs              vfs.FS
 }
 
-// getFS returns the configured filesystem or defaults to OsFs.
-func (cache *ProviderCache) getFS() vfs.FS {
-	if cache.fs != nil {
-		return cache.fs
+// NewProviderCache creates a new ProviderCache with sensible defaults.
+// Use builder methods like WithFS() to customize the configuration.
+func NewProviderCache() *ProviderCache {
+	return &ProviderCache{
+		fs: vfs.NewOSFS(),
 	}
-
-	return vfs.NewOSFS()
 }
 
-func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option) (*ProviderCache, error) {
+// WithFS sets the filesystem for file operations and returns the ProviderCache
+// for method chaining. If not called, defaults to the real OS filesystem.
+func (pc *ProviderCache) WithFS(fs vfs.FS) *ProviderCache {
+	pc.fs = fs
+	return pc
+}
+
+// FS returns the configured filesystem.
+func (pc *ProviderCache) FS() vfs.FS {
+	return pc.fs
+}
+
+// Init initializes the ProviderCache with the given logger and options.
+// Call this after configuring the ProviderCache with builder methods.
+func (pc *ProviderCache) Init(l log.Logger, opts *options.TerragruntOptions) error {
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
@@ -116,7 +118,7 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option)
 
 	var err error
 	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
-		return nil, errors.New(err)
+		return errors.New(err)
 	}
 
 	if opts.ProviderCacheToken == "" {
@@ -127,29 +129,23 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option)
 		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", APIKeyAuth, opts.ProviderCacheToken)
 	}
 
-	// Create ProviderCache first to apply options and get fs
-	providerCache := &ProviderCache{}
-	for _, opt := range pcOpts {
-		opt(providerCache)
-	}
-
 	// Pass filesystem to LoadUserConfig
-	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(providerCache.getFS()))
+	cliCfg, err := cliconfig.LoadUserConfig(cliconfig.WithFS(pc.FS()))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	userProviderDir, err := cliconfig.UserProviderDir()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(providerCache.getFS()))
+	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, opts.ProviderCacheRegistryNames)
 	if err != nil {
-		return nil, errors.Errorf("creating provider handlers failed: %w", err)
+		return errors.Errorf("creating provider handlers failed: %w", err)
 	}
 
 	cacheServer := cache.NewServer(
@@ -163,18 +159,29 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions, pcOpts ...Option)
 		cache.WithLogger(l),
 	)
 
-	providerCache.Server = cacheServer
-	providerCache.cliCfg = cliCfg
-	providerCache.providerService = providerService
+	pc.Server = cacheServer
+	pc.cliCfg = cliCfg
+	pc.providerService = providerService
 
-	return providerCache, nil
+	return nil
+}
+
+// InitServer creates and initializes a new ProviderCache with the given logger and options.
+// This is a convenience function that combines NewProviderCache() and Init().
+func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, error) {
+	pc := NewProviderCache()
+	if err := pc.Init(l, opts); err != nil {
+		return nil, err
+	}
+
+	return pc, nil
 }
 
 // TerraformCommandHook warms up the providers cache, creates `.terraform.lock.hcl` and runs the `tofu/terraform init`
 // command with using this cache. Used as a hook function that is called after running the target tofu/terraform command.
 // For example, if the target command is `tofu plan`, it will be intercepted before it is run in the `/shell` package,
 // then control will be passed to this function to init the working directory using cached providers.
-func (cache *ProviderCache) TerraformCommandHook(
+func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -211,7 +218,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
 
-	if output, err := cache.warmUpCache(ctx, l, opts, cliConfigFilename, args, env); err != nil {
+	if output, err := pc.warmUpCache(ctx, l, opts, cliConfigFilename, args, env); err != nil {
 		return output, err
 	}
 
@@ -219,10 +226,10 @@ func (cache *ProviderCache) TerraformCommandHook(
 		return &util.CmdOutput{}, nil
 	}
 
-	return cache.runTerraformWithCache(ctx, l, opts, cliConfigFilename, args, env)
+	return pc.runTerraformWithCache(ctx, l, opts, cliConfigFilename, args, env)
 }
 
-func (cache *ProviderCache) warmUpCache(
+func (pc *ProviderCache) warmUpCache(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -236,7 +243,7 @@ func (cache *ProviderCache) warmUpCache(
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, cacheRequestID); err != nil {
+	if err := pc.createLocalCLIConfig(ctx, opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
 	}
 
@@ -251,7 +258,7 @@ func (cache *ProviderCache) warmUpCache(
 		}
 	}
 
-	caches, err := cache.providerService.WaitForCacheReady(cacheRequestID)
+	caches, err := pc.providerService.WaitForCacheReady(cacheRequestID)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +301,7 @@ func (cache *ProviderCache) warmUpCache(
 	return nil, err
 }
 
-func (cache *ProviderCache) runTerraformWithCache(
+func (pc *ProviderCache) runTerraformWithCache(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
@@ -303,7 +310,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	env map[string]string,
 ) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
-	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, ""); err != nil {
+	if err := pc.createLocalCLIConfig(ctx, opts, cliConfigFilename, ""); err != nil {
 		return nil, err
 	}
 
@@ -347,8 +354,8 @@ func (cache *ProviderCache) runTerraformWithCache(
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
-	cfg := cache.cliCfg.Clone()
+func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
+	cfg := pc.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
 	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
@@ -362,13 +369,13 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	for _, registryName := range filteredRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
-		apiURLs, err := cache.DiscoveryURL(ctx, registryName)
+		apiURLs, err := pc.DiscoveryURL(ctx, registryName)
 		if err != nil {
 			return err
 		}
 
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", pc.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": ResolveModulesURL(registryName, apiURLs.ModulesV1),
 		})
@@ -387,7 +394,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	)
 
 	// Use VFS for directory operations
-	fs := cache.getFS()
+	fs := pc.FS()
 	cfgDir := filepath.Dir(filename)
 
 	cfgDirExists, err := vfs.FileExists(fs, cfgDir)

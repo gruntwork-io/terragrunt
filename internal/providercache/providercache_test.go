@@ -297,12 +297,12 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/test/provider-cache"
 
-		_, err := providercache.InitServer(
+		server := providercache.NewProviderCache().WithFS(memFs)
+		err := server.Init(
 			logger.CreateLogger(),
 			&options.TerragruntOptions{
 				ProviderCacheDir: cacheDir,
 			},
-			providercache.WithFS(memFs),
 		)
 		require.NoError(t, err)
 
@@ -318,14 +318,14 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		memFs := vfs.NewMemMapFS()
 		cacheDir := "/vfs/provider-cache"
 
-		server, err := providercache.InitServer(
+		server := providercache.NewProviderCache().WithFS(memFs)
+		err := server.Init(
 			logger.CreateLogger(),
 			&options.TerragruntOptions{
 				ProviderCacheDir: cacheDir,
 			},
-			providercache.WithFS(memFs),
 		)
 		require.NoError(t, err)
-		require.NotNil(t, server, "InitServer should return a valid server when using VFS")
+		require.NotNil(t, server, "Init should return a valid server when using VFS")
 	})
 }

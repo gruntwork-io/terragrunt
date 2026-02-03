@@ -4,6 +4,7 @@ package vfs
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -68,16 +69,46 @@ func Symlink(fs FS, oldname, newname string) error {
 // Unzip extracts a zip archive from src to dst directory on the given filesystem.
 // The umask parameter is applied to file permissions (use 0 to preserve original permissions).
 func Unzip(l log.Logger, fs FS, dst, src string, umask os.FileMode) error {
-	zipReader, err := zip.OpenReader(src)
+	// Open the archive using the provided filesystem
+	file, err := fs.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open zip archive %q: %w", src, err)
 	}
 
 	defer func() {
-		if closeErr := zipReader.Close(); closeErr != nil {
+		if closeErr := file.Close(); closeErr != nil {
 			l.Warnf("Error closing zip archive %q: %v", src, closeErr)
 		}
 	}()
+
+	// Get file size for zip.NewReader
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat zip archive %q: %w", src, err)
+	}
+
+	size := fileInfo.Size()
+
+	// Get an io.ReaderAt for zip.NewReader
+	var readerAt io.ReaderAt
+	if ra, ok := file.(io.ReaderAt); ok {
+		readerAt = ra
+	} else {
+		// Fallback: read entire file into memory
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return fmt.Errorf("failed to read zip archive %q: %w", src, err)
+		}
+
+		readerAt = bytes.NewReader(data)
+		size = int64(len(data))
+	}
+
+	// Create zip reader
+	zipReader, err := zip.NewReader(readerAt, size)
+	if err != nil {
+		return fmt.Errorf("failed to read zip archive %q: %w", src, err)
+	}
 
 	if err := fs.MkdirAll(dst, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", dst, err)

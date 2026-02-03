@@ -426,7 +426,7 @@ type ProviderService struct {
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
 
-	// fs is the filesystem for file operations. Defaults to vfs.NewOSFS() if nil.
+	// fs is the filesystem for file operations.
 	fs vfs.FS
 
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
@@ -442,9 +442,9 @@ type ProviderService struct {
 	cacheReadyMu   sync.RWMutex
 }
 
-// FS returns the configured filesystem or defaults to OsFs.
+// FS returns the configured filesystem.
 func (service *ProviderService) FS() vfs.FS {
-	return vfs.NewOSFS()
+	return service.fs
 }
 
 func NewProviderService(
