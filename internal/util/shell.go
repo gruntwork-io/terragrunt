@@ -76,10 +76,10 @@ type ProcessExecutionError struct {
 	Err             error
 	WorkingDir      string
 	RootWorkingDir  string
-	LogShowAbsPaths bool
 	Command         string
 	Args            []string
 	Output          CmdOutput
+	LogShowAbsPaths bool
 	DisableSummary  bool
 }
 
