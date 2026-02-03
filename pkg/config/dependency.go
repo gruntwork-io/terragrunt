@@ -1015,7 +1015,15 @@ func getTerragruntOutputJSONFromInitFolder(
 		return nil, err
 	}
 
-	l.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
+	l.Debugf(
+		"Unit '%s' is already init-ed. "+
+			"Retrieving outputs directly from working directory.",
+		util.RelPathForLog(
+			pctx.TerragruntOptions.RootWorkingDir,
+			filepath.Dir(targetConfigPath),
+			pctx.TerragruntOptions.LogShowAbsPaths,
+		),
+	)
 
 	out, err := tf.RunCommandWithOutput(ctx, l, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
