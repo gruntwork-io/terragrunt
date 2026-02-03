@@ -23,6 +23,7 @@ const (
 	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixtures/hooks/before-after-and-error-merge"
 	testFixtureHooksSkipOnErrorPath                               = "fixtures/hooks/skip-on-error"
 	testFixtureErrorHooksPath                                     = "fixtures/hooks/error-hooks"
+	testFixtureErrorHooksSourceDownloadFail                       = "fixtures/hooks/error-hooks-source-download-fail"
 	testFixtureHooksOneArgActionPath                              = "fixtures/hooks/one-arg-action"
 	testFixtureHooksEmptyStringCommandPath                        = "fixtures/hooks/bad-arg-action/empty-string-command"
 	testFixtureHooksEmptyCommandListPath                          = "fixtures/hooks/bad-arg-action/empty-command-list"
@@ -302,6 +303,27 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	assert.Contains(t, output, "pattern_matching_hook")
 	assert.Contains(t, output, "catch_all_matching_hook")
 	assert.NotContains(t, output, "not_matching_hook")
+}
+
+func TestTerragruntErrorHookTriggeredOnSourceDownloadFail(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksSourceDownloadFail)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksSourceDownloadFail)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksSourceDownloadFail)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+rootPath+
+			" -- apply -auto-approve",
+	)
+	require.Error(t, err)
+
+	// Hook output goes to stdout, check both stdout and stderr
+	output := stdout + stderr
+	// Verify error hook for init-from-module is triggered when source download fails
+	assert.Contains(t, output, "ERROR_HOOK_TRIGGERED_ON_INIT_FROM_MODULE",
+		"Error hook for 'init-from-module' should be triggered when source download fails")
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {

@@ -109,6 +109,7 @@ The `terraform` block supports the following arguments:
   arguments as `before_hook`.
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
   error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
+  To handle errors during source download (when using the `source` attribute), use `init-from-module` in the `commands` list.
 
 In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:
@@ -123,7 +124,8 @@ supported:
   configurations](/docs/features/units) using `go-getter`; the other
   is [Auto-Init](/docs/features/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
-  configurations, use `init-from-module` for the command. If you wish to execute a hook when Terragrunt is using
+  configurations, use `init-from-module` for the command. This includes `error_hook` blocks to handle download failures.
+  If you wish to execute a hook when Terragrunt is using
   `tofu init`/`terraform init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command
   `init-from-module` will run after terragrunt clones the module, while an `after_hook` for the command `init` will run
   after terragrunt runs `tofu init`/`terraform init` on the cloned module.
@@ -204,6 +206,14 @@ terraform {
     on_errors = [
       ".*",
     ]
+  }
+
+  # Handle errors during source download (e.g., when the source URL is invalid or unreachable).
+  # Use "init-from-module" as the command to catch errors during the go-getter download phase.
+  error_hook "source_download_error" {
+    commands  = ["init-from-module"]
+    execute   = ["echo", "Source download failed"]
+    on_errors = [".*"]
   }
 
   # A special after hook to always run after the init-from-module step of the Terragrunt pipeline. In this case, we will
