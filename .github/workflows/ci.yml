@@ -37,16 +37,8 @@ jobs:
     secrets: inherit
 
   base_tests:
-    needs: [lint, go_mod_tidy_check]
+    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
     uses: ./.github/workflows/base-test.yml
-    permissions:
-      contents: read
-      checks: write
-    secrets: inherit
-
-  base_tests_macos:
-    needs: [lint]
-    uses: ./.github/workflows/base-test-macos.yml
     permissions:
       contents: read
       checks: write
