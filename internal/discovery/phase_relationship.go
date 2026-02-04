@@ -93,9 +93,9 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 	g.SetLimit(p.numWorkers)
 
 	for _, c := range input.Components {
-		// terminalComponents are components that, if encountered, indicate we can stop
+		// terminalTracker tracks components that, if encountered, indicate we can stop
 		// traversal, as they are terminal components in the dependency graph.
-		terminalComponents := slices.Collect(func(yield func(component.Component) bool) {
+		terminalTracker := newTerminalTracker(slices.Collect(func(yield func(component.Component) bool) {
 			for _, rc := range input.Components {
 				if rc != nil && rc != c {
 					if !yield(rc) {
@@ -103,10 +103,10 @@ func (p *RelationshipPhase) runRelationshipDiscovery(
 					}
 				}
 			}
-		})
+		}))
 
 		g.Go(func() error {
-			err := p.discoverRelationships(ctx, l, state, c, terminalComponents, p.maxDepth)
+			err := p.discoverRelationships(ctx, l, state, c, terminalTracker, p.maxDepth)
 			if err != nil {
 				errMu.Lock()
 
@@ -136,7 +136,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	l log.Logger,
 	state *relationshipTraversalState,
 	c component.Component,
-	terminalComponents component.Components,
+	tracker *terminalTracker,
 	depthRemaining int,
 ) error {
 	if depthRemaining <= 0 {
@@ -176,9 +176,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	for _, path := range paths {
 		dep, created := p.dependencyToDiscover(c, path, state.allComponents, state.interTransientComponents, state.discovery)
 
-		terminalComponents = slices.DeleteFunc(terminalComponents, func(tc component.Component) bool {
-			return tc != nil && tc.Path() == dep.Path()
-		})
+		tracker.remove(dep.Path())
 
 		if created {
 			depsToDiscover = append(depsToDiscover, dep)
@@ -189,7 +187,7 @@ func (p *RelationshipPhase) discoverRelationships(
 		return nil
 	}
 
-	if len(terminalComponents) == 0 {
+	if tracker.isEmpty() {
 		return nil
 	}
 
@@ -203,7 +201,14 @@ func (p *RelationshipPhase) discoverRelationships(
 
 	for _, dep := range depsToDiscover {
 		g.Go(func() error {
-			err := p.discoverRelationships(ctx, l, state, dep, terminalComponents, depthRemaining-1)
+			err := p.discoverRelationships(
+				ctx,
+				l,
+				state,
+				dep,
+				tracker,
+				depthRemaining-1,
+			)
 			if err != nil {
 				errMu.Lock()
 
@@ -262,4 +267,34 @@ func (p *RelationshipPhase) dependencyToDiscover(
 	c.AddDependency(dep)
 
 	return dep, created
+}
+
+// terminalTracker provides thread-safe tracking of terminal components.
+// Components are removed as they're discovered as dependencies.
+// When empty, relationship discovery can stop early.
+type terminalTracker struct {
+	components component.Components
+	mu         sync.RWMutex
+}
+
+func newTerminalTracker(components component.Components) *terminalTracker {
+	return &terminalTracker{
+		components: components,
+	}
+}
+
+func (t *terminalTracker) remove(path string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.components = slices.DeleteFunc(t.components, func(tc component.Component) bool {
+		return tc != nil && tc.Path() == path
+	})
+}
+
+func (t *terminalTracker) isEmpty() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	return len(t.components) == 0
 }
