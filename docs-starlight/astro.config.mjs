@@ -96,7 +96,8 @@ export const sidebar = [
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://terragrunt.gruntwork.io",
+  site: "https://docs.terragrunt.com",
+  base: "/",
   output: isVercel ? "server" : "static",
   adapter: isVercel
     ? vercel({
