@@ -10,7 +10,7 @@ import { Steps } from '@astrojs/starlight/components';
 
 ## Install Terragrunt
 
-If you haven't already installed Terragrunt, you can do so by following the instructions in the [Install Terragrunt](/docs/getting-started/install/) guide.
+If you haven't already installed Terragrunt, you can do so by following the instructions in the [Install Terragrunt](/getting-started/install/) guide.
 
 ## Add `terragrunt.hcl` to your project
 
@@ -24,7 +24,7 @@ This creates an empty Terragrunt configuration file in the directory where you a
 
 Depending on why you're looking to adopt Terragrunt, this may be all you need to do!
 
-With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
+With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/features/auto-init/).
 
 This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. The next section will give you a very gentle introduction to using Terragrunt, and show you how you can start to leverage Terragrunt to manage your OpenTofu/Terraform projects more effectively.
 
@@ -36,7 +36,7 @@ For the sake of this tutorial, a minimal set of OpenTofu configurations will be 
 
 This tutorial will assume the following:
 
-1. You have [OpenTofu](https://opentofu.org/docs/intro/install/) or [Terraform](https://developer.hashicorp.com/terraform/install) installed\*.
+1. You have [OpenTofu](https://opentofu.org/intro/install/) or [Terraform](https://developer.hashicorp.com/terraform/install) installed\*.
 2. You have a basic understanding of what OpenTofu/Terraform do.
 3. You are using a Unix-like operating system.
 
@@ -46,15 +46,15 @@ This tutorial will not assume the following:
 2. You have any experience with Terragrunt.
 3. You have any existing Terragrunt, OpenTofu or Terraform projects.
 
-\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [tf-path](/docs/reference/cli/commands/run#tf-path) docs to understand how Terragrunt determines which binary to use.
+\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [tf-path](/reference/cli/commands/run#tf-path) docs to understand how Terragrunt determines which binary to use.
 
-If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
+If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/getting-started/overview/).
 
-If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/docs/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
+If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
 
 Finally, note that all of the files created in this tutorial can be copied directly from the code block, none of them are partial files, so you don't have to worry about figuring out where to put the code. Just copy and paste!
 
-You can also see what to expect in your filesystem at each step [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/01-quick-start).
+You can also see what to expect in your filesystem at each step [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/01-quick-start).
 
 <Steps>
 
@@ -88,7 +88,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    18:44:27.033 STDOUT tofu: - Installed hashicorp/local v2.5.2 (signed, key ID 0C0AF313E5FD9F80)
    18:44:27.033 STDOUT tofu: Providers are signed by their developers.
    18:44:27.033 STDOUT tofu: If you'd like to know more about provider signing, you can read about it here:
-   18:44:27.033 STDOUT tofu: https://opentofu.org/docs/cli/plugins/signing/
+   18:44:27.033 STDOUT tofu: https://opentofu.org/cli/plugins/signing/
    18:44:27.034 STDOUT tofu: OpenTofu has created a lock file .terraform.lock.hcl to record the provider
    18:44:27.034 STDOUT tofu: selections it made above. Include this file in your version control repository
    18:44:27.034 STDOUT tofu: so that OpenTofu can guarantee to make the same selections by default when
@@ -224,7 +224,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
 4. **Use Terragrunt to manage your units**
 
-   Luckily, Terragrunt has a built-in feature to control the inputs passed to your OpenTofu/Terraform configurations. This feature is called (aptly enough) [inputs](/docs/reference/hcl/attributes/#inputs).
+   Luckily, Terragrunt has a built-in feature to control the inputs passed to your OpenTofu/Terraform configurations. This feature is called (aptly enough) [inputs](/reference/hcl/attributes/#inputs).
 
    Let's add inputs to both `terragrunt.hcl` files in the `foo` and `bar` directories:
 
@@ -418,10 +418,10 @@ You can also see what to expect in your filesystem at each step [here](https://g
      }
 
      For more info, see:
-     https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
+     https://docs.terragrunt.com/features/stacks/#unapplied-dependency-and-mock-outputs
 
      If you do not require outputs from your dependency, consider using the dependencies block instead:
-     https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+     https://docs.terragrunt.com/reference/config-blocks-and-attributes/#dependencies
    ```
 
    Oh no! We got an error. This happens because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependency for use in the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
@@ -432,7 +432,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
 7. **Use mocks to handle unavailable outputs**
 
-   In this scenario, most Terragrunt users leverage `mock_outputs` to handle unavailable outputs (see [limitations on accessing exposed config](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#limitations-on-accessing-exposed-config)). Given that it's expected that the `foo` unit won't be able to provide outputs until it's applied, you can use the `mock_outputs` block to provide a placeholder value for the `content` output during the `plan` phase.
+   In this scenario, most Terragrunt users leverage `mock_outputs` to handle unavailable outputs (see [limitations on accessing exposed config](https://docs.terragrunt.com/reference/config-blocks-and-attributes/#limitations-on-accessing-exposed-config)). Given that it's expected that the `foo` unit won't be able to provide outputs until it's applied, you can use the `mock_outputs` block to provide a placeholder value for the `content` output during the `plan` phase.
 
    ```hcl
    # bar/terragrunt.hcl
@@ -540,10 +540,10 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
-   The next step of the Getting Started guide is to follow the [Overview](/docs/getting-started/overview/) guide. This guide will introduce you to more advanced Terragrunt features, and show you how to use Terragrunt to manage your infrastructure across multiple environments in a real-world AWS account.
+   The next step of the Getting Started guide is to follow the [Overview](/getting-started/overview/) guide. This guide will introduce you to more advanced Terragrunt features, and show you how to use Terragrunt to manage your infrastructure across multiple environments in a real-world AWS account.
 
-   If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs/features/units) section of the documentation.
+   If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/features/units) section of the documentation.
 
-   If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](/community/invite) server, and become part of the Terragrunt community.
+   If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](/community/invite) server, and become part of the Terragrunt community.
 
 </Steps>

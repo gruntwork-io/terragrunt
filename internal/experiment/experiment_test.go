@@ -90,7 +90,7 @@ func TestValidateExperiments(t *testing.T) {
 				},
 			},
 			experimentNames: []string{testCompletedA},
-			expectedWarning: "The following experiment(s) are already completed: " + testCompletedA + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments",
+			expectedWarning: "The following experiment(s) are already completed: " + testCompletedA + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments",
 			expectedError:   nil,
 		},
 		{
@@ -105,7 +105,7 @@ func TestValidateExperiments(t *testing.T) {
 				},
 			},
 			experimentNames: []string{"invalid", testCompletedA},
-			expectedWarning: "The following experiment(s) are already completed: " + testCompletedA + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments",
+			expectedWarning: "The following experiment(s) are already completed: " + testCompletedA + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments",
 			expectedError:   experiment.NewInvalidExperimentNameError([]string{testOngoingA}),
 		},
 	}

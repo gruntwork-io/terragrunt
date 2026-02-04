@@ -12,7 +12,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
 ## OpenTofu/Terraform built-in functions
 
-All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
+All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/language/functions/) are supported in Terragrunt config files:
 
 ```hcl
 # terragrunt.hcl
@@ -118,7 +118,7 @@ locals {
 The `find_in_parent_folders` will search from the **child `terragrunt.hcl`** (`prod/mysql/terragrunt.hcl`) config,
 finding the `env.hcl` file in the `prod` directory.
 
-**NOTE:** This function has undocumented behavior that has since been deprecated. To learn more about this, see the [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl) guide.
+**NOTE:** This function has undocumented behavior that has since been deprecated. To learn more about this, see the [Migrating from root `terragrunt.hcl`](/migrate/migrating-from-root-terragrunt-hcl) guide.
 
 ## path_relative_to_include
 
@@ -302,7 +302,7 @@ remote_state {
 }
 ```
 
-Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
+Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 ## get_platform
 
@@ -386,7 +386,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 For example, imagine you have the following file structure:
 
@@ -455,7 +455,7 @@ terraform {
 
 ## get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file lives (regardless of what it's called). This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file lives (regardless of what it's called). This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the leaf of your terragrunt configurations.
 
@@ -529,7 +529,7 @@ configs via `read_terragrunt_config()`.
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -544,7 +544,7 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -560,7 +560,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -576,7 +576,7 @@ terraform {
 
 ## get_terraform_commands_that_need_parallelism
 
-`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -752,7 +752,7 @@ Parameters `--terragrunt-global-cache` and `--terragrunt-no-cache` are mutually 
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 ```
 
-**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
+**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
 **Use global cache for directory-independent commands:**
 
@@ -1011,7 +1011,7 @@ remote_state {
 
 ## mark_as_read
 
-`mark_as_read(file_path)` marks a file as read so that it can be picked up for inclusion by the [queue-include-units-reading](/docs/reference/cli/commands/run#queue-include-units-reading) flag.
+`mark_as_read(file_path)` marks a file as read so that it can be picked up for inclusion by the [queue-include-units-reading](/reference/cli/commands/run#queue-include-units-reading) flag.
 
 This is useful for situations when you want to mark a file as read, but are not reading it using a native Terragrunt HCL function.
 
@@ -1075,4 +1075,4 @@ In this example, the `v2.0.0` version of the module made a breaking change to re
 
 Instead of carefully coordinating the version update with the corresponding input change, users can set a feature flag to control opt-in of the new module version, and have Terragrunt dynamically adjust the input variable name based on the constraint check, that the module version is greater than or equal to `2.0.0`.
 
-The HCL function supports all the same constraints that you can use for version constraints in [terragrunt_version_constraint](/docs/reference/hcl/attributes/#terragrunt_version_constraint) and [terraform_version_constraint](/docs/reference/hcl/attributes/#terraform_version_constraint).
+The HCL function supports all the same constraints that you can use for version constraints in [terragrunt_version_constraint](/reference/hcl/attributes/#terragrunt_version_constraint) and [terraform_version_constraint](/reference/hcl/attributes/#terraform_version_constraint).

@@ -8,15 +8,15 @@ sidebar:
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format in the form of traces and metrics.
 
-OpenTelemetry tracing is typically used in Terragrunt to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
+OpenTelemetry tracing is typically used in Terragrunt to analyze performance. For more details on analyzing and optimizing performance, read the dedicated [Performance documentation](/troubleshooting/performance).
 
 ## High-level overview
 
 The following are concepts and technologies that are important to be aware of when using OpenTelemetry with Terragrunt.
 
 - [OpenTelemetry](https://opentelemetry.io/)
-- [Traces](https://opentelemetry.io/docs/concepts/signals/traces/)
-- [Metrics](https://opentelemetry.io/docs/concepts/signals/metrics/)
+- [Traces](https://opentelemetry.io/concepts/signals/traces/)
+- [Metrics](https://opentelemetry.io/concepts/signals/metrics/)
 - [Jaeger](https://www.jaegertracing.io/)
 
 Tracing configuration:
@@ -66,7 +66,7 @@ export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 
 ## Configurations to collect traces in Grafana Tempo
 
-- Start a Grafana Tempo instance [example](https://grafana.com/docs/tempo/latest/getting-started/docker-example/)
+- Start a Grafana Tempo instance [example](https://grafana.com/tempo/latest/getting-started/docker-example/)
 - Define environment variables for Terragrunt to report traces to Tempo:
 
 ```bash

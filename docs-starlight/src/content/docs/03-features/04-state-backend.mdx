@@ -10,7 +10,7 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 ## Motivation
 
-OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via various [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
+OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/state/remote.html) via various [backends](https://www.terraform.io/backends) that you normally configure in your `.tf` files as follows:
 
 ```hcl
 # main.tf
@@ -106,7 +106,7 @@ include "root" {
 
 The `include` block tells Terragrunt to use an identical Terragrunt configuration from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
-The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [tofu/terraform init](https://opentofu.org/docs/cli/commands/init/).
+The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [tofu/terraform init](https://opentofu.org/cli/commands/init/).
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
@@ -114,13 +114,13 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 - `path_relative_to_include()`: This function returns the relative path between the unit and the path specified in its `include` block. We typically use this in a root `root.hcl` file so that each unit stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` unit will have its `key` parameter resolve to `mysql/tofu.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/tofu.tfstate`.
 
-Read [Functions docs](/docs/reference/hcl/functions) for more info.
+Read [Functions docs](/reference/hcl/functions) for more info.
 
 ## Create remote state resources automatically
 
 The `generate` block is useful for allowing you to set up the remote state backend configuration automatically, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
-state? For example, when using the [s3 backend](https://opentofu.org/docs/language/settings/backends/s3/), OpenTofu/Terraform
+state? For example, when using the [s3 backend](https://opentofu.org/language/settings/backends/s3/), OpenTofu/Terraform
 expects the S3 bucket to already exist for it to upload the state objects.
 
 Ideally, you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
@@ -128,7 +128,7 @@ bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if y
 bucket?
 
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
-block](/docs/reference/hcl/blocks/#remote_state).
+block](/reference/hcl/blocks/#remote_state).
 
 > **NOTE**
 >
@@ -138,8 +138,8 @@ block](/docs/reference/hcl/blocks/#remote_state).
 
 The following backends are currently supported by `remote_state`:
 
-- [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
-- [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
+- [s3 backend](https://opentofu.org/language/settings/backends/s3)
+- [gcs backend](https://opentofu.org/language/settings/backends/gcs)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`. However, we may add
 support for additional backends to `remote_state` blocks, which may disrupt your environment. If you do not want support
@@ -147,19 +147,19 @@ for automated management of remote state resources, we recommend sticking to `ge
 
 When you run `terragrunt` with a `remote_state` configuration, it will automatically create the following resources if they don’t already exist:
 
-- **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
+- **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
 
-- **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and/or you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, Terragrunt will create them automatically if they don't already exist. They will be created with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, and the DynamoDB table will use the primary key `LockID`.
+- **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/language/settings/backends/s3) for remote state storage and/or you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, Terragrunt will create them automatically if they don't already exist. They will be created with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, and the DynamoDB table will use the primary key `LockID`.
 
   You may configure a custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
 
-- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don’t specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
+- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don’t specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
 
-  We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
+  We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/access-logs) to audit and track API operations performed against the state bucket.
 
   In addition, you can let Terragrunt label the bucket with custom labels that you specify in `remote_state.config.gcs_bucket_labels`.
 
@@ -267,7 +267,7 @@ remote_state {
 
  skip_bucket_versioning = true # use only if the object store does not support versioning
 
- enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/docs/uniform-bucket-level-access)
+ enable_bucket_policy_only = false # use only if uniform bucket-level access is needed (https://cloud.google.com/storage/uniform-bucket-level-access)
 
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
@@ -279,6 +279,6 @@ Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `e
 
 ## Further reading
 
-Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
+Managing your remote state like this is really valuable when you organize your units into a [stack](/features/stacks).
 
 Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state can interact with each other.

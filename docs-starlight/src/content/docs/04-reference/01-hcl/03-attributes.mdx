@@ -16,12 +16,12 @@ Think of attributes as the values used for Terragrunt configuration, such as the
 
 The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to OpenTofu/Terraform.
 Each entry of the map is passed to OpenTofu/Terraform using [the environment variable
-mechanism](https://opentofu.org/docs/language/values/variables/#environment-variables). This means that each input
+mechanism](https://opentofu.org/language/values/variables/#environment-variables). This means that each input
 will be set using the form `TF_VAR_variablename`, with the value in `json` encoded format.
 
 Note that because the values are being passed in with environment variables and `json`, the type information is lost
 when crossing the boundary between Terragrunt and OpenTofu/Terraform. You must specify the proper [type
-constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform in
+constraint](https://opentofu.org/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform in
 order for OpenTofu/Terraform to process the inputs as the right type.
 
 Example:
@@ -201,7 +201,7 @@ Follow the instructions below for whichever Git provider you use:
 
 - GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
 - GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
-- CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
+- CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/openid-connect-tokens/)
 
 Once you have configured your OpenID Connect Provider and configured the trust policy of your IAM role according to the above instructions, you
 can configure Terragrunt to use the Web Identity Token in the following manner.

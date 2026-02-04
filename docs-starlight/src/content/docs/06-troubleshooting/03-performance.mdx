@@ -16,7 +16,7 @@ However, given the nature of the problems that Terragrunt solves, there are some
 
 One of the most expensive things that OpenTofu/Terraform does, from a bandwidth and disk utilization perspective, is download and install providers. These are large binary files that are downloaded from the internet, and not cached across units by default.
 
-If you're using OpenTofu >= 1.10 and the latest version of Terragrunt, you'll use the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature by default.
+If you're using OpenTofu >= 1.10 and the latest version of Terragrunt, you'll use the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature by default.
 
 This feature automatically configures OpenTofu to use its built-in provider caching mechanism by setting the `TF_PLUGIN_CACHE_DIR` environment variable to a central location on the filesystem, allowing reuse of downloaded providers across multiple Terragrunt runs.
 
@@ -26,7 +26,7 @@ For most users at sensible scales, this is an automatic performance win that you
 
 At very large scales, you might find that the filesystem lock contention between OpenTofu processes to synchronize access to the provider cache directory is a bottleneck. You might also find that you can't use the provider cache directory because you are storing your provider cache in a shared NFS mount or are using Terraform or an older version of OpenTofu.
 
-In these scenarios, you can use the [Provider Cache Server](/docs/features/provider-cache-server) feature to improve performance.
+In these scenarios, you can use the [Provider Cache Server](/features/provider-cache-server) feature to improve performance.
 
 ### Provider Cache Server
 
@@ -40,7 +40,7 @@ terragrunt run --all plan --provider-cache
 
 The provider cache server is a single server that is used by all Terragrunt runs being performed in a given Terragrunt invocation. You will see the most benefit if you are using it in a command that will perform many OpenTofu/Terraform operations, like with the `--all` flag and the `--graph` flag.
 
-When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/docs/features/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
+When performing individual runs, like `terragrunt plan`, the provider cache server can be a net negative to performance, because starting and stopping the server might add more overhead than just downloading the providers (or using the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature). Whether this is the case depends on many factors, including network speed, the number of providers being downloaded, and whether or not the providers are already cached in the Terragrunt provider cache.
 
 When in doubt, [measure the performance](#measuring-performance) before and after enabling the provider cache server to see if it's a net win for your use case.
 
@@ -50,7 +50,7 @@ Under the hood, Terragrunt dependency blocks leverage the OpenTofu/Terraform `ou
 
 The OpenTofu/Terraform `output -json` command does a bit more work than simply fetching output values from state, and a significant portion of that slowdown is loading providers, which it doesn't really need in most cases.
 
-You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](https://terragrunt.gruntwork.io/docs/reference/experiments/#dependency-fetch-output-from-state) experiment. When the experiment is active, Terragrunt will resolve outputs by directly fetching the backend state file from S3 and parse it directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.
+You can significantly improve the performance of dependency blocks by using the [`dependency-fetch-output-from-state`](https://docs.terragrunt.com/reference/experiments/#dependency-fetch-output-from-state) experiment. When the experiment is active, Terragrunt will resolve outputs by directly fetching the backend state file from S3 and parse it directly, avoiding any overhead incurred by calling the `output -json` command of OpenTofu/Terraform.
 
 For example:
 
@@ -80,7 +80,7 @@ As an end user, you're advised to use the following tools to get a better unders
 
 #### OpenTelemetry
 
-Use [OpenTelemetry](/docs/troubleshooting/open-telemetry) to collect traces from Terragrunt runs so that you can analyze the performance of individual operations when using Terragrunt.
+Use [OpenTelemetry](/troubleshooting/open-telemetry) to collect traces from Terragrunt runs so that you can analyze the performance of individual operations when using Terragrunt.
 
 This can be useful both to identify bottlenecks in Terragrunt, and to understand when performance changes can be attributed to integrations with other tools, like OpenTofu or Terraform.
 

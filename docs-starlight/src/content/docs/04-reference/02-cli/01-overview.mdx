@@ -54,11 +54,11 @@ terragrunt plan
 
 Terragrunt doesn't always _just_ pass the command. It frequently does some additional processing to make it easier to manage infrastructure at scale.
 
-For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/docs/features/auto-init) to automatically run `init` when necessary.
+For example, in the previous `plan` command, you wouldn't have to explicitly run `init` like you would with `tofu`/ `terraform`. Terragrunt takes advantage of a feature called [Auto-init](/features/auto-init) to automatically run `init` when necessary.
 
 Using Terragrunt in this way is taking advantage of the **OpenTofu Shortcuts** that Terragrunt provides.
 
-<LinkCard title={openTofuShortcutsEntry.data.name} href={`/docs/reference/cli/commands/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
+<LinkCard title={openTofuShortcutsEntry.data.name} href={`/reference/cli/commands/${openTofuShortcutsEntry.id}`} description={openTofuShortcutsEntry.data.description} />
 
 Terragrunt also has some other commands that are unique to Terragrunt.
 
@@ -68,7 +68,7 @@ These are the main commands you will use with Terragrunt:
 
 {
     mainCommands.map((doc) => (
-        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -78,7 +78,7 @@ These are the commands that are used when working with OpenTofu/Terraform state 
 
 {
     backendCommands.map((doc) => (
-        <LinkCard title={"backend " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={"backend " + doc.data.name} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -88,7 +88,7 @@ These are the commands that are used when working with a `terragrunt.stack.hcl` 
 
 {
     stackCommands.map((doc) => (
-        <LinkCard title={"stack " + doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={"stack " + doc.data.name} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -98,7 +98,7 @@ These are the commands that are used when working with a Terragrunt catalog:
 
 {
     catalogCommands.map((doc) => (
-        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -108,7 +108,7 @@ These are the commands that are used to discover units in your Terragrunt projec
 
 {
     discoveryCommands.map((doc) => (
-        <LinkCard title={doc.data.name} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.name} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 
@@ -118,7 +118,7 @@ These are the commands that are used to interact directly with Terragrunt config
 
 {
     configurationCommands.map((doc) => (
-        <LinkCard title={doc.data.path.split('/').join(' ')} href={`/docs/reference/cli/commands/${doc.id}`} description={doc.data.description} />
+        <LinkCard title={doc.data.path.split('/').join(' ')} href={`/reference/cli/commands/${doc.id}`} description={doc.data.description} />
     ))
 }
 

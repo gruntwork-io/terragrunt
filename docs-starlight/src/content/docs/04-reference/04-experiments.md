@@ -23,7 +23,7 @@ Sometimes, the criteria for an experiment to be considered stable is unknown, as
 
 ## Controlling Experiment Mode
 
-The simplest way to enable experiment mode is to set the [experiment-mode](/docs/reference/experiments) flag.
+The simplest way to enable experiment mode is to set the [experiment-mode](/reference/experiments) flag.
 
 This will enable experiment mode for all Terragrunt commands, for all experiments (note that this isn't generally recommended, unless you are following Terragrunt development closely and are prepared for the possibility of breaking changes).
 
@@ -37,7 +37,7 @@ You can also use the environment variable, which can be more useful in CI/CD pip
 TG_EXPERIMENT_MODE='true' terragrunt plan
 ```
 
-Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/experiments)
+Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/reference/experiments)
 flag to a value that's specific to an experiment.
 This can allow you to experiment with a specific unstable feature that you think might be useful to you.
 
@@ -194,11 +194,11 @@ Support for Terragrunt IaC engines.
 
 #### `iac-engine` - What it does
 
-Enables usage of [Terragrunt IaC engines](/docs/features/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
+Enables usage of [Terragrunt IaC engines](/features/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
 
 IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
 
-You can disable engine usage on a per-command basis using the [`--no-engine`](/docs/reference/cli/commands/run#no-engine) flag, even when the experiment is enabled globally.
+You can disable engine usage on a per-command basis using the [`--no-engine`](/reference/cli/commands/run#no-engine) flag, even when the experiment is enabled globally.
 
 #### `iac-engine` - How to provide feedback
 

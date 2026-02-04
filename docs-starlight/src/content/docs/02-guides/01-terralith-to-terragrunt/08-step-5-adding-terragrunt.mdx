@@ -23,7 +23,7 @@ By the end of this step, your `live` directory will be dramatically leaner, pavi
 
 ## Tutorial
 
-Now that we've structured our project to segment environments into their own root modules (and their own state files), it's pretty simple to convert our root modules to Terragrunt units. In Terragrunt terminology, a [unit](https://terragrunt.gruntwork.io/docs/getting-started/terminology/#unit) is a single instance of infrastructure managed by Terragrunt. They're easy to manage, and they come with a lot of tooling to support common IaC needs, like code generation, authentication, error handling, and more.
+Now that we've structured our project to segment environments into their own root modules (and their own state files), it's pretty simple to convert our root modules to Terragrunt units. In Terragrunt terminology, a [unit](https://docs.terragrunt.com/getting-started/terminology/#unit) is a single instance of infrastructure managed by Terragrunt. They're easy to manage, and they come with a lot of tooling to support common IaC needs, like code generation, authentication, error handling, and more.
 
 The process of converting an OpenTofu root module to a Terragrunt unit simply involves adding an empty `terragrunt.hcl` file to each root module (that's all the `find` command below does). This allows Terragrunt to recognize the contents of the directory as a Terragrunt unit, and orchestrate infrastructure updates within it.
 
@@ -39,7 +39,7 @@ Group 1
 ...
 `} />
 
-We can also selectively run the plan for the `dev` environment by changing the working directory to `dev`, or using the [`--queue-include-dir`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#queue-include-dir) flag.
+We can also selectively run the plan for the `dev` environment by changing the working directory to `dev`, or using the [`--queue-include-dir`](https://docs.terragrunt.com/reference/cli-options/#queue-include-dir) flag.
 
 <Code title="live/dev" lang="bash" frame="terminal" code={`$ terragrunt plan`} />
 
@@ -111,7 +111,7 @@ inputs = {
 
 Note the use of `get_repo_root()`. This is a simple convenience function you can use to get the path to the root of your Git repository.
 
-You can use almost all of the same HCL functions you can use in OpenTofu, with some additional functions supplied by Terragrunt for tasks that are more useful in the context of Terragrunt (you can see the full list in the official Terragrunt [HCL functions](https://terragrunt.gruntwork.io/docs/reference/built-in-functions/) reference here).
+You can use almost all of the same HCL functions you can use in OpenTofu, with some additional functions supplied by Terragrunt for tasks that are more useful in the context of Terragrunt (you can see the full list in the official Terragrunt [HCL functions](https://docs.terragrunt.com/reference/built-in-functions/) reference here).
 
 <Code title="live" lang="bash" frame="terminal" code={`rm -f ./*/.auto.tfvars ./*/.auto.tfvars.example`} />
 

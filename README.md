@@ -10,10 +10,10 @@ Terragrunt is a flexible orchestration tool that allows Infrastructure as Code w
 
 Please see the following for more info, including install instructions and complete documentation:
 
-* [Terragrunt Website](https://terragrunt.gruntwork.io)
-* [Getting started with Terragrunt](https://terragrunt.gruntwork.io/docs/getting-started/quick-start/)
-* [Terragrunt Documentation](https://terragrunt.gruntwork.io/docs)
-* [Contributing to Terragrunt](https://terragrunt.gruntwork.io/docs/community/contributing)
+* [Terragrunt Website](https://terragrunt.com)
+* [Getting started with Terragrunt](https://docs.terragrunt.com/getting-started/quick-start/)
+* [Terragrunt Documentation](https://docs.terragrunt.com/)
+* [Contributing to Terragrunt](https://docs.terragrunt.com/community/contributing)
 * [Commercial Support](https://gruntwork.io/support/)
 
 ## Join the Discord!

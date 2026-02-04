@@ -27,7 +27,7 @@ gradually increase your confidence in the future compatibility of your Terragrun
 
 ## Controlling Strict Mode
 
-The simplest way to enable strict mode is to set the [strict-mode](/docs/reference/strict-controls) flag.
+The simplest way to enable strict mode is to set the [strict-mode](/reference/strict-controls) flag.
 
 This will enable strict mode for all Terragrunt commands, for all strict mode controls.
 
@@ -48,7 +48,7 @@ $ TG_STRICT_MODE='true' terragrunt run-all plan
 15:26:23.685 ERROR  The `run-all plan` command is no longer supported. Use `terragrunt run --all plan` instead.
 ```
 
-Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/docs/reference/strict-controls)
+Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/reference/strict-controls)
 flag to a value that's specific to a particular strict control.
 This can allow you to gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
@@ -111,7 +111,7 @@ Disable reading of dependency inputs to enhance dependency resolution performanc
 <Aside type="tip">
   Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their
   tradeoffs, and other performance tips, read the dedicated [Performance
-  documentation](/docs/troubleshooting/performance).
+  documentation](/troubleshooting/performance).
 </Aside>
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
@@ -122,7 +122,7 @@ Throw an error when users try to reference a root `terragrunt.hcl` file using `f
 
 This control will also try to find other scenarios where users may be using `terragrunt.hcl` as the root configuration, including when using commands like `scaffold` and `catalog`, which can generate a `terragrunt.hcl` file expecting a `terragrunt.hcl` file at the root of the project. Enabling this flag adjusts the defaults for those commands so that they expect a recommended `root.hcl` file by default, and will throw an error if a `terragrunt.hcl` file is explicitly set.
 
-**Reason**: Using a root `terragrunt.hcl` file was previously the recommended pattern to use with Terragrunt, but that is no longer the case. For more information see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl/).
+**Reason**: Using a root `terragrunt.hcl` file was previously the recommended pattern to use with Terragrunt, but that is no longer the case. For more information see [Migrating from root `terragrunt.hcl`](/migrate/migrating-from-root-terragrunt-hcl/).
 
 ### terragrunt-prefix-flags
 
@@ -161,18 +161,18 @@ Throw an error when using commands that were deprecated as part of the CLI redes
 - `terragrunt-info`
 - `validate-inputs`
 
-**Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/docs/migrate/cli-redesign/).
+**Reason**: These commands have been deprecated in favor of more consistent and intuitive commands as part of the CLI redesign. For more information, see the [CLI Redesign Migration Guide](/migrate/cli-redesign/).
 
 ### bare-include
 
 Throw an error when using a bare include.
 
-**Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
+**Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/migrate/bare-include/).
 
 ### double-star
 
-Opts in to a breaking change to `**` and `**/*` behavior in [queue-exclude-dir](/docs/reference/cli/commands/run#queue-exclude-dir)
-and [queue-include-dir](/docs/reference/cli/commands/run#queue-include-dir).
+Opts in to a breaking change to `**` and `**/*` behavior in [queue-exclude-dir](/reference/cli/commands/run#queue-exclude-dir)
+and [queue-include-dir](/reference/cli/commands/run#queue-include-dir).
 
 Without the strict control enabled, to match units in all subdirectories a glob pattern must end in `**/*`.
 With the strict control enabled, the pattern `**/*` will match all subdirectories with a depth of at least one
@@ -302,7 +302,7 @@ The following strict controls have been completed and are no longer needed:
 
 **Status**: Completed - Backend provisioning is no longer performed automatically by default.
 
-Terragrunt now requires explicit opt-in to bootstrap backend infrastructure. Use `terragrunt backend bootstrap` or pass `--backend-bootstrap` to a `run` command (e.g., `terragrunt run apply --backend-bootstrap`) to provision or update backend resources referenced by the [`remote_state`](/docs/reference/hcl/blocks/#remote_state) block.
+Terragrunt now requires explicit opt-in to bootstrap backend infrastructure. Use `terragrunt backend bootstrap` or pass `--backend-bootstrap` to a `run` command (e.g., `terragrunt run apply --backend-bootstrap`) to provision or update backend resources referenced by the [`remote_state`](/reference/hcl/blocks/#remote_state) block.
 
 This strict control is no longer necessary because the default behavior already requires explicit bootstrapping.
 

@@ -10,7 +10,7 @@ sidebar:
 
 As part of the redesign in [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445), several CLI adjustments have been made to improve user experience and consistency. This guide will help you understand the changes and how to adapt to them.
 
-Note that this guide is being written while deprecations are in effect, so some of the changes may not be breaking yet. We'll do our best to keep this guide up to date as the changes are finalized. To opt in to breaking changes early, you can use the relevant [strict control](/docs/reference/strict-controls/).
+Note that this guide is being written while deprecations are in effect, so some of the changes may not be breaking yet. We'll do our best to keep this guide up to date as the changes are finalized. To opt in to breaking changes early, you can use the relevant [strict control](/reference/strict-controls/).
 
 The high-level changes made as a part of that RFC that require migration for current users are as follows:
 
@@ -29,7 +29,7 @@ All of the changes you need to make to adopt to this new CLI design involve chan
 
 If you are currently using flags that are prefixed with `terragrunt-`, you will need to stop using that flag, and use a differently named one instead (usually the same exact flag with `terragrunt-` removed from the beginning, but not always).
 
-For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/docs/reference/cli/global-flags/#non-interactive) flag instead.
+For example, if you are using the `--terragrunt-non-interactive` flag, you will need to switch to the [`--non-interactive`](/reference/cli/global-flags/#non-interactive) flag instead.
 
 Before:
 
@@ -45,7 +45,7 @@ terragrunt plan --non-interactive
 
 Sometimes, the flag change might be slightly more involved than simply removing the `terragrunt-` prefix.
 
-For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--inputs-debug`](/docs/reference/cli/commands/run/#inputs-debug) flag instead.
+For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--inputs-debug`](/reference/cli/commands/run/#inputs-debug) flag instead.
 
 Before:
 
@@ -59,7 +59,7 @@ After:
 terragrunt plan --inputs-debug
 ```
 
-You can find the new flag names in the [CLI reference](/docs/reference/cli/) (including the deprecated flags they replace).
+You can find the new flag names in the [CLI reference](/reference/cli/) (including the deprecated flags they replace).
 
 ### CLI Flag Migration Table
 
@@ -129,7 +129,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 
 If you are currently using environment variables to configure Terragrunt, you will need to stop using that environment variable, and use a differently named one instead (usually the same exact environment variable with `TERRAGRUNT_` replaced with `TG_`, but not always).
 
-For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/docs/reference/cli/global-flags/#non-interactive) environment variable instead.
+For example, if you are using the `TERRAGRUNT_NON_INTERACTIVE` environment variable, you will need to switch to the [`TG_NON_INTERACTIVE`](/reference/cli/global-flags/#non-interactive) environment variable instead.
 
 Before:
 
@@ -145,7 +145,7 @@ export TG_NON_INTERACTIVE=true
 
 Sometimes, the environment variable change might be slightly more involved than simply replacing `TERRAGRUNT_` with `TG_`.
 
-For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_INPUTS_DEBUG`](/docs/reference/cli/commands/run/#inputs-debug) environment variable instead.
+For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_INPUTS_DEBUG`](/reference/cli/commands/run/#inputs-debug) environment variable instead.
 
 Before:
 
@@ -159,7 +159,7 @@ After:
 export TG_INPUTS_DEBUG=true
 ```
 
-You can find the new environment variable names in the [CLI reference](/docs/reference/cli/) (including the deprecated environment variables they replace).
+You can find the new environment variable names in the [CLI reference](/reference/cli/) (including the deprecated environment variables they replace).
 
 ### Use the new `run` command
 
@@ -239,7 +239,7 @@ terragrunt run --all plan
 
 Previously, Terragrunt only supported orchestrating the `tofu` and `terraform` binaries as the main program being executed when Terragrunt was invoked.
 
-With the introduction of the new [exec](/docs/reference/cli/commands/exec/) command, this is no longer the case. You can now orchestrate any program you want, and integrate it with Terragrunt's ability to fetch outputs, download OpenTofu/Terraform modules, set `inputs`, and more.
+With the introduction of the new [exec](/reference/cli/commands/exec/) command, this is no longer the case. You can now orchestrate any program you want, and integrate it with Terragrunt's ability to fetch outputs, download OpenTofu/Terraform modules, set `inputs`, and more.
 
 For example, if you want to use Terragrunt to list the contents of an AWS S3 bucket, you can do the following:
 
@@ -261,11 +261,11 @@ This offers a flexible way to integrate Terragrunt with other tools, besides jus
 
 ### Use the new `backend` capabilities
 
-Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/docs/reference/hcl/blocks#remote_state) block of a `terragrunt.hcl` file.
+Previously, Terragrunt would automatically provision any backend resources defined in the [remote_state](/reference/hcl/blocks#remote_state) block of a `terragrunt.hcl` file.
 
 This was a source of confusion for many users, as it was potentially performing additional actions that users did not intend without asking for it.
 
-As part of the CLI Redesign, Terragrunt now supports a dedicated [backend command](/docs/reference/cli/commands/backend/bootstrap/) to handle processes involved with interacting with OpenTofu/Terraform backends.
+As part of the CLI Redesign, Terragrunt now supports a dedicated [backend command](/reference/cli/commands/backend/bootstrap/) to handle processes involved with interacting with OpenTofu/Terraform backends.
 
 This includes the ability to bootstrap (provision) backend resources, migrate state between backend state files, and delete backend state files.
 
@@ -285,7 +285,7 @@ terragrunt plan --backend-bootstrap
 
 ### Use the new `find` and `list` commands
 
-The [find](/docs/reference/cli/commands/find/) and [list](/docs/reference/cli/commands/list/) commands have been introduced to help you discover configurations in your Terragrunt projects.
+The [find](/reference/cli/commands/find/) and [list](/reference/cli/commands/list/) commands have been introduced to help you discover configurations in your Terragrunt projects.
 
 The `find` command is useful when you want to perform programmatic discovery of a Terragrunt unit or configuration of that unit, and the `list` command is useful when you want to get a high-level overview of the Terragrunt units and configurations in your project.
 

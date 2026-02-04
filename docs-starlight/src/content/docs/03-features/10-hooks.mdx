@@ -47,7 +47,7 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 - If an error occurs during the `tofu apply` command, Terragrunt will output `Error Hook executed`.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
-block](/docs/reference/hcl/blocks#terraform).
+block](/reference/hcl/blocks#terraform).
 
 ## Hook Context
 
@@ -103,7 +103,7 @@ aws s3 ls "s3://$BUCKET_NAME"
 ```
 
 Note that the `TG_CTX_TF_PATH` environment variable is used here to ensure compatibility, regardless of the
-value of [tf-path](/docs/reference/cli/commands/run#tf-path). This can be a useful practice
+value of [tf-path](/reference/cli/commands/run#tf-path). This can be a useful practice
 if you are migrating between OpenTofu or Terraform.
 
 You will also have access to all the `inputs` set in the `terragrunt.hcl` file as environment variables prefixed
@@ -253,7 +253,7 @@ terraform {
 
 The `.tflint.hcl` should exist in the same folder as `terragrunt.hcl` or one of it's parents. If Terragrunt can't find
 a `.tflint.hcl` file, it won't execute tflint and return an error. All configurations should be in a `config` block in this
-file, as per [Tflint's docs](https://github.com/terraform-linters/tflint/blob/master/docs/user-guide/config.md).
+file, as per [Tflint's docs](https://github.com/terraform-linters/tflint/blob/master/user-guide/config.md).
 
 ```hcl
 # .tflint.hcl

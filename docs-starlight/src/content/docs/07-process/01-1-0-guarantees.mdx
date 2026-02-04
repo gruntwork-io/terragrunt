@@ -32,7 +32,7 @@ You may see deprecation warnings, and new HCL configurations will continue to be
 
 ### Run Report
 
-The [Run Report](/docs/features/run-report/) generated using the [`--report-file`](/docs/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by [`--report-schema-file`](/docs/reference/cli/commands/run/#report-schema-file). You can also find the schema at the URL listed in the `$id` field, e.g., https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json.
+The [Run Report](/features/run-report/) generated using the [`--report-file`](/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by [`--report-schema-file`](/reference/cli/commands/run/#report-schema-file). You can also find the schema at the URL listed in the `$id` field, e.g., https://docs.terragrunt.com/schemas/run/report/v3/schema.json.
 
 Any modifications made to the schema that break parsing of existing report files using a modern JSON parser will only be done on an opt-in basis for the duration of 1.x, and you will be able to use the `$id` field of the generated schema to confirm that you are parsing a file with an expected schema.
 
@@ -40,31 +40,31 @@ Note that no guarantee is made that new fields won’t be added to the generated
 
 ### Find
 
-The [find](/docs/reference/cli/commands/find/) command provides the ability to discover Terragrunt configurations programmatically. Maintaining a stable schema for `find` output is something you will be able to rely on. For the duration of 1.x, you will be able to expect the same output from any usage of the `find` command. You will never have a field in `find` output disappear, or for the general shape of the JSON schema to change.
+The [find](/reference/cli/commands/find/) command provides the ability to discover Terragrunt configurations programmatically. Maintaining a stable schema for `find` output is something you will be able to rely on. For the duration of 1.x, you will be able to expect the same output from any usage of the `find` command. You will never have a field in `find` output disappear, or for the general shape of the JSON schema to change.
 
 New opt-in flags that allow you to discover more about the configurations in your codebase might be introduced, and backwards compatibility of their behavior will be ensured for the duration of 1.x.
 
 ### OpenTofu/Terraform stdout/stderr
 
-There will be special consideration made to ensure that no onerous changes are made to OpenTofu/Terraform stdout/stderr forwarding. You should expect OpenTofu/Terraform stdout/stderr logs to be [enriched](/docs/reference/logging/) the same way when using the same logging configurations, and consistency in whether the output is forwarded to Terragrunt stdout/stderr.
+There will be special consideration made to ensure that no onerous changes are made to OpenTofu/Terraform stdout/stderr forwarding. You should expect OpenTofu/Terraform stdout/stderr logs to be [enriched](/reference/logging/) the same way when using the same logging configurations, and consistency in whether the output is forwarded to Terragrunt stdout/stderr.
 
 ## What compatibility guarantees aren’t being made in 1.0?
 
 ### Experimental Features
 
-Terragrunt supports the ability to utilize certain [experimental features](/docs/reference/experiments/) on an opt-in basis. These are features that will explicitly not be given any stability guarantees, and can change in any given release. Big new features in Terragrunt are very likely to be introduced as experiments and iterated on in collaboration with early adopters before they are stabilized, to ensure that they are feasible to support without breaking changes for the duration of 1.x.
+Terragrunt supports the ability to utilize certain [experimental features](/reference/experiments/) on an opt-in basis. These are features that will explicitly not be given any stability guarantees, and can change in any given release. Big new features in Terragrunt are very likely to be introduced as experiments and iterated on in collaboration with early adopters before they are stabilized, to ensure that they are feasible to support without breaking changes for the duration of 1.x.
 
 No guarantees are made regarding the stability of experimental features, or even that any given experiment will ever be generally available. Experiments give maintainers the opportunity to iterate quickly without the same stability guarantees made for the rest of Terragrunt.
 
 ### List
 
-The [list](/docs/reference/cli/commands/list/) command differs from the `find` command in that it is designed to be understood by humans (as opposed to being parsed programmatically in `find`), and as such, changes to how information is presented might be encountered during 1.x releases. These changes might be done to improve the legibility of results, or provide additional useful information by default without requiring complex invocations of the `list` command.
+The [list](/reference/cli/commands/list/) command differs from the `find` command in that it is designed to be understood by humans (as opposed to being parsed programmatically in `find`), and as such, changes to how information is presented might be encountered during 1.x releases. These changes might be done to improve the legibility of results, or provide additional useful information by default without requiring complex invocations of the `list` command.
 
 No guarantees that list output will have the same colors, or that list results will be displayed with the same general shape for the duration of 1.x. Any change made in this regard will be made carefully, however, and maintainers will do their best to ensure that they are communicated effectively and opt-in where possible.
 
 ### Catalog
 
-The [catalog](/docs/reference/cli/commands/catalog/) command has a Terminal User Interface (TUI), and is also designed to be understood and interacted with by humans on the terminal. Changes to how information is displayed in the catalog command is subject to change, and stability in the UI is not guaranteed in 1.x releases. You should be able to expect that you won't lose any capabilities in the catalog TUI, however.
+The [catalog](/reference/cli/commands/catalog/) command has a Terminal User Interface (TUI), and is also designed to be understood and interacted with by humans on the terminal. Changes to how information is displayed in the catalog command is subject to change, and stability in the UI is not guaranteed in 1.x releases. You should be able to expect that you won't lose any capabilities in the catalog TUI, however.
 
 New buttons and columns might appear in future 1.x releases, and you may have to navigate the TUI in different ways. Major changes to TUIs in Terragrunt will occur gradually over multiple releases as experimental features when possible.
 

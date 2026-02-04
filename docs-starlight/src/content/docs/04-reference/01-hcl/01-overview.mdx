@@ -24,7 +24,7 @@ dependencies {
 }
 ```
 
-The core of Terragrunt configuration is that of the [unit](/docs/getting-started/terminology#unit), which is canonically defined using `terragrunt.hcl` files.
+The core of Terragrunt configuration is that of the [unit](/getting-started/terminology#unit), which is canonically defined using `terragrunt.hcl` files.
 
 Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) defined in `terragrunt.hcl.json` files. Where `terragrunt.hcl` is mentioned in documentation, you can always use `terragrunt.hcl.json` instead.
 
@@ -42,13 +42,13 @@ When determining the configuration for a unit, Terragrunt figures out the path t
 
 Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
 
-- [Blocks](/docs/reference/hcl/blocks)
-- [Attributes](/docs/reference/hcl/attributes)
-- [Functions](/docs/reference/hcl/functions)
+- [Blocks](/reference/hcl/blocks)
+- [Attributes](/reference/hcl/attributes)
+- [Functions](/reference/hcl/functions)
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals](/docs/reference/hcl/blocks/#locals) and [dependency outputs](/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you cannot bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](/reference/hcl/blocks/#locals) and [dependency outputs](/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you cannot bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 
@@ -70,7 +70,7 @@ Currently terragrunt parses the config in the following order:
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in `locals`, `include`, or `dependencies` blocks).
 
-Note that the parsing order is slightly different when using the `--all` flag of the [`run`](/docs/reference/cli/commands/run) command. When using the `--all` flag, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
+Note that the parsing order is slightly different when using the `--all` flag of the [`run`](/reference/cli/commands/run) command. When using the `--all` flag, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 
 1. `include` block of all configurations in the tree
 
@@ -88,9 +88,9 @@ This allows Terragrunt to avoid resolving `dependency` on units that haven't bee
 
 ## Stacks
 
-When multiple units, each with their own `terragrunt.hcl` file exist in child directories of a single parent directory, that parent directory becomes a [stack](/docs/getting-started/terminology#stack).
+When multiple units, each with their own `terragrunt.hcl` file exist in child directories of a single parent directory, that parent directory becomes a [stack](/getting-started/terminology#stack).
 
-> **New to stacks?** For a comprehensive introduction to the concept, see our [Stacks](/docs/features/stacks) guide.
+> **New to stacks?** For a comprehensive introduction to the concept, see our [Stacks](/features/stacks) guide.
 
 ### What is a terragrunt.stack.hcl file?
 
@@ -227,21 +227,21 @@ unit "database" {
 
 For more information on these configuration blocks, see:
 
-- [unit](/docs/reference/hcl/blocks#unit)
-- [stack](/docs/reference/hcl/blocks#stack)
-- [locals](/docs/reference/hcl/blocks#locals)
+- [unit](/reference/hcl/blocks#unit)
+- [stack](/reference/hcl/blocks#stack)
+- [locals](/reference/hcl/blocks#locals)
 
-These special configurations are used by the [stack generate command](/docs/reference/cli/commands/stack/generate) (and all the other `stack` prefixed commands) to generate units programmatically, on demand. The units they generate are valid unit configurations, and can be read and used as if they were manually authored.
+These special configurations are used by the [stack generate command](/reference/cli/commands/stack/generate) (and all the other `stack` prefixed commands) to generate units programmatically, on demand. The units they generate are valid unit configurations, and can be read and used as if they were manually authored.
 
 ## Included Configurations
 
-When configurations are _included_ via the [include](/docs/reference/hcl/blocks#include) configuration block, Terragrunt expects configurations to be valid unit configurations.
+When configurations are _included_ via the [include](/reference/hcl/blocks#include) configuration block, Terragrunt expects configurations to be valid unit configurations.
 
 Generally speaking, any HCL file found in a Terragrunt project that isn't named `terragrunt.hcl`, `terragrunt.stack.hcl` or `.terraform.lock.hcl` is expected to be partial unit configurations that will be included by a Terragrunt unit.
 
 ## Formatting HCL files
 
-You can rewrite the HCL files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
+You can rewrite the HCL files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/configuration/style.html), along with other minor adjustments for readability.
 
 By default, this command will recursively search for hcl files and format all of them for a given stack. Consider the following file structure:
 

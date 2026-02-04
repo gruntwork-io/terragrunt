@@ -74,7 +74,7 @@ Now you have an **implicit stack**! The `root` directory contains all your units
 
 ### Working with Implicit Stacks
 
-Use the [`--all` flag](/docs/reference/cli/commands/run/#all) to run an OpenTofu/Terraform command on all units in the implicit stack in the current working directory:
+Use the [`--all` flag](/reference/cli/commands/run/#all) to run an OpenTofu/Terraform command on all units in the implicit stack in the current working directory:
 
 ```bash
 # Deploy all units discovered in the current working directory
@@ -90,7 +90,7 @@ terragrunt run --all destroy
 terragrunt run --all output
 ```
 
-You can also use the [`--graph` flag](/docs/reference/cli/commands/run/#graph) to run an OpenTofu/Terraform command on all units in the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of the unit in the current working directory.
+You can also use the [`--graph` flag](/reference/cli/commands/run/#graph) to run an OpenTofu/Terraform command on all units in the [DAG](/getting-started/terminology/#directed-acyclic-graph-dag) of the unit in the current working directory.
 
 ```bash
 # Run an OpenTofu/Terraform command on all units in the DAG of the unit in the current working directory
@@ -109,7 +109,7 @@ terragrunt run --graph apply
 
 - **Manual Management**: Each unit must be manually created and configured.
 - **No Reusability**: Patterns can't be easily shared across environments.
-- **Repetitive**: Similar configurations must be duplicated or referenced from [includes](/docs/features/includes).
+- **Repetitive**: Similar configurations must be duplicated or referenced from [includes](/features/includes).
 
 ## Explicit Stacks
 
@@ -383,7 +383,7 @@ inputs = {
 }
 ```
 
-Note that each `dependency` block results in a relevant status in the Terragrunt [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag). This means that when you run `run --all apply` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all the units referenced in `dependency` blocks have been applied. So for the above example, the order for the `run --all apply` command would be:
+Note that each `dependency` block results in a relevant status in the Terragrunt [DAG](/getting-started/terminology/#directed-acyclic-graph-dag). This means that when you run `run --all apply` on a config that has `dependency` blocks, Terragrunt will not attempt to deploy the config until all the units referenced in `dependency` blocks have been applied. So for the above example, the order for the `run --all apply` command would be:
 
 1. Deploy the VPC
 
@@ -393,7 +393,7 @@ Note that each `dependency` block results in a relevant status in the Terragrunt
 
 If any of the units failed to deploy, then Terragrunt will not attempt to deploy the units that depend on them.
 
-**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/docs/reference/hcl#configuration-parsing-order) for more information.
+**Note**: Not all blocks can access outputs passed by `dependency` blocks. See the section on [Configuration parsing order](/reference/hcl#configuration-parsing-order) for more information.
 
 ### Unapplied dependency and mock outputs
 
@@ -620,7 +620,7 @@ Take a look at RFC [#4067](https://github.com/gruntwork-io/terragrunt/issues/406
 
 When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack from the CLI.
 
-To do this, use the [`stack output`](/docs/reference/cli/commands/stack/output) command (not the [`stack run output`](/docs/reference/cli/commands/stack/run) command).
+To do this, use the [`stack output`](/reference/cli/commands/stack/output) command (not the [`stack run output`](/reference/cli/commands/stack/run) command).
 
 ```bash
 $ terragrunt stack output
@@ -697,7 +697,7 @@ dependencies {
 }
 ```
 
-Once you've specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/docs/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
+Once you've specified these dependencies in each `terragrunt.hcl` file, Terragrunt will be able to perform updates respecting the [DAG](/getting-started/terminology/#directed-acyclic-graph-dag) of dependencies.
 
 For the example at the start of this section, the order of runs for the `run --all apply` command would be:
 
@@ -745,7 +745,7 @@ The exception to this rule is during the `destroy` (and `plan -destroy`) command
 
 ## Testing multiple units locally
 
-If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
+If you are using Terragrunt to download [remote OpenTofu/Terraform modules](/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter to override that value:
 
 ```bash
 terragrunt run --all plan --source /source/modules
@@ -793,7 +793,7 @@ terragrunt run --all apply --parallelism 4
 
 ## Saving OpenTofu/Terraform plan output
 
-A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/docs/cli/commands/plan/).
+A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/cli/commands/plan/).
 
 Terragrunt provides special tooling in `run --all` execution to ensure that the saved plan for a `run --all` against a stack has
 a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.
@@ -913,13 +913,13 @@ cd root/us-east-1
 terragrunt run --all apply
 ```
 
-Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](/docs/reference/cli/commands/run#all)).
+Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run --all command](/reference/cli/commands/run#all)).
 
 Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run --all` command.
 
-In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#run-queue), you can also use flags like [--include-dir](/docs/reference/cli/commands/run#include-dir) and [--exclude-dir](/docs/reference/cli/commands/run#exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
+In addition to using your working directory to control what's included in a [run queue](/getting-started/terminology/#run-queue), you can also use flags like [--include-dir](/reference/cli/commands/run#include-dir) and [--exclude-dir](/reference/cli/commands/run#exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
-There are more flags that control the behavior of the `run` command, which you can find in the [`run` docs](/docs/reference/cli/commands/run).
+There are more flags that control the behavior of the `run` command, which you can find in the [`run` docs](/reference/cli/commands/run).
 
 ## Using Local State with Stacks
 
@@ -1070,9 +1070,9 @@ The current design of explicit stacks is that, when necessary, stacks can be nes
 
 Now that you understand both implicit and explicit stacks, you can:
 
-- [Learn about the detailed syntax](/docs/reference/hcl/blocks#unit) for `unit` and `stack` blocks
-- [Explore the stack commands](/docs/reference/cli/commands/stack/generate) for generating and managing stacks
-- [Understand how to pass values between units](/docs/features/stacks#passing-outputs-between-units)
+- [Learn about the detailed syntax](/reference/hcl/blocks#unit) for `unit` and `stack` blocks
+- [Explore the stack commands](/reference/cli/commands/stack/generate) for generating and managing stacks
+- [Understand how to pass values between units](/features/stacks#passing-outputs-between-units)
 
 <Aside type="tip">
 **Pro Tip**: Start with implicit stacks to get familiar with the concept, then gradually introduce explicit stacks for reusable patterns as your infrastructure grows.

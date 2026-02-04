@@ -27,9 +27,9 @@ The easiest way to get more information for debugging an error you are experienc
 terragrunt run --log-level debug -- plan
 ```
 
-Increasing the log level using the [`--log-level`](/docs/reference/cli/global-flags/#log-level) flag will output more information about what Terragrunt is doing and why. This is useful information for your debugging, and for sharing with others if you want their help in understanding what went wrong in your run.
+Increasing the log level using the [`--log-level`](/reference/cli/global-flags/#log-level) flag will output more information about what Terragrunt is doing and why. This is useful information for your debugging, and for sharing with others if you want their help in understanding what went wrong in your run.
 
-Terragrunt has a fairly sophisticated logging system, and it can be helpful to read through the documentation on [Logging](/docs/reference/logging/) to understand how it works.
+Terragrunt has a fairly sophisticated logging system, and it can be helpful to read through the documentation on [Logging](/reference/logging/) to understand how it works.
 
 ## Telemetry
 
@@ -71,7 +71,7 @@ This can be useful if you want to share traces with others, though you should be
 
 <Aside type="note" title="Learn More About OpenTelemetry">
 
-To learn more about Terragrunt's integration with OpenTelemetry, see the dedicated [OpenTelemetry documentation](/docs/troubleshooting/open-telemetry/).
+To learn more about Terragrunt's integration with OpenTelemetry, see the dedicated [OpenTelemetry documentation](/troubleshooting/open-telemetry/).
 
 </Aside>
 
@@ -79,7 +79,7 @@ To learn more about Terragrunt's integration with OpenTelemetry, see the dedicat
 
 Terragrunt and OpenTofu/Terraform usually play well together in helping you write scalable, reusable infrastructure. But how can you figure out what went wrong in the rare case that things _do_ go wrong?
 
-Terragrunt provides a way to configure its logging level through the [`--log-level`](https://terragrunt.gruntwork.io/docs/reference/cli/global-flags/#log-level) flag. Additionally, Terragrunt provides an [`--inputs-debug`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run/#inputs-debug) flag that can generate a `terragrunt-debug.tfvars.json` file to help you understand what inputs it is setting when calling OpenTofu/Terraform.
+Terragrunt provides a way to configure its logging level through the [`--log-level`](https://docs.terragrunt.com/reference/cli/global-flags/#log-level) flag. Additionally, Terragrunt provides an [`--inputs-debug`](https://docs.terragrunt.com/reference/cli/commands/run/#inputs-debug) flag that can generate a `terragrunt-debug.tfvars.json` file to help you understand what inputs it is setting when calling OpenTofu/Terraform.
 
 For example, you could use it like this to debug a `plan` that's producing unexpected outcomes.
 
@@ -191,4 +191,4 @@ If you're still having trouble, you may want to try adjusting the `TF_LOG` envir
 TF_LOG=debug terragrunt run -- plan
 ```
 
-You can learn more about OpenTofu/Terraform debug logging [here](https://opentofu.org/docs/internals/debugging/).
+You can learn more about OpenTofu/Terraform debug logging [here](https://opentofu.org/internals/debugging/).

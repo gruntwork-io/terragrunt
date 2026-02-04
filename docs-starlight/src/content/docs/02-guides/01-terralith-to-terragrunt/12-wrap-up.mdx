@@ -23,13 +23,13 @@ Along the way, you've practiced and mastered critical techniques that will serve
 
 If you'd like to continue practicing on your own, consider how you might continue experimenting with this configuration.
 
-- **Nested Stacks**: What if you wanted to manage both the `dev` and `prod` environments from a single, top-level file using the [Environment-based Stacks pattern](https://terragrunt.gruntwork.io/docs/features/stacks/#environment-based-stacks)? Think about how you would refactor your current setup to achieve this. Would you need to perform more state manipulation? If so, which techniques from this guide would you leverage to accomplish it safely?
+- **Nested Stacks**: What if you wanted to manage both the `dev` and `prod` environments from a single, top-level file using the [Environment-based Stacks pattern](https://docs.terragrunt.com/features/stacks/#environment-based-stacks)? Think about how you would refactor your current setup to achieve this. Would you need to perform more state manipulation? If so, which techniques from this guide would you leverage to accomplish it safely?
 
     <Aside type="tip">
       Review the state migration steps throughout this guide!
     </Aside>
 
-- **Integrating Terragrunt Into Your Build System**: In this guide, the artifact that's deployed to Lambda is manually packaged by you before provisioning any infrastructure. Terragrunt has special tooling in [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/) to automate manual tasks like this for you on-demand as you interact with your infrastructure. How would you integrate that into the configurations you've built so far?
+- **Integrating Terragrunt Into Your Build System**: In this guide, the artifact that's deployed to Lambda is manually packaged by you before provisioning any infrastructure. Terragrunt has special tooling in [hooks](https://docs.terragrunt.com/features/hooks/) to automate manual tasks like this for you on-demand as you interact with your infrastructure. How would you integrate that into the configurations you've built so far?
 
     <Aside type="tip">
       You might find an example of this in our [example catalog](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt)!
@@ -44,7 +44,7 @@ If you'd like to continue practicing on your own, consider how you might continu
 - **Automating Plan Assessments**: Throughout this guide, you engaged in careful manual evaluation of plans, and it was hinted early on that tools like [OPA](https://www.openpolicyagent.org/) provide a way to automatically assess the risk of plans. How would you integrate them into Terragrunt?
 
     <Aside type="tip">
-      You might find it useful to review the documentation on [hooks](https://terragrunt.gruntwork.io/docs/features/hooks/)!
+      You might find it useful to review the documentation on [hooks](https://docs.terragrunt.com/features/hooks/)!
     </Aside>
 
 This was a simple example, but if you're struggling with a Terralith, your use-case is almost definitely more complex! Gruntwork offers support for assisting customers transition out of Terraliths into maintainable, best practices IaC codebases.

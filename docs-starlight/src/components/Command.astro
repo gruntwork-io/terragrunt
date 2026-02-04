@@ -17,7 +17,7 @@ const { Content } = await render(command);
 {
   data?.experiment ? (
     <Aside type="tip" title={data?.experiment?.name}>
-      The <code dir="auto">{data?.name}</code> command is experimental, usage requires the <a href={"/docs/reference/experiments#"+data?.experiment?.control}><code dir="auto">--experiment {data?.experiment?.control}</code></a> flag.
+      The <code dir="auto">{data?.name}</code> command is experimental, usage requires the <a href={"/reference/experiments#"+data?.experiment?.control}><code dir="auto">--experiment {data?.experiment?.control}</code></a> flag.
     </Aside>
   ) : null
 }

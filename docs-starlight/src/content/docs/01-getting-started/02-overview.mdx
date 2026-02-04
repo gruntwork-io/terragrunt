@@ -10,19 +10,19 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 The following is a simple overview of the main features in Terragrunt.
 
-It includes configurations that are a bit more complex than the ones found in the [Quick Start](/docs/getting-started/quick-start/), but don't panic!
+It includes configurations that are a bit more complex than the ones found in the [Quick Start](/getting-started/quick-start/), but don't panic!
 
 We'll walk you through each one, and you don't need to understand everything right away. Knowing that these features are available as you start to use Terragrunt can give you a tool to reach for when you encounter common problems that typically require one or more of these solutions.
 
-This guide is geared towards users who have either already gone through the [Quick Start](/docs/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS infrastructure.
+This guide is geared towards users who have either already gone through the [Quick Start](/getting-started/quick-start/) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS infrastructure.
 
-If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/docs/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
+If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
 
 ## Following Along
 
-What follows isn't a tutorial in the same sense as the [Quick Start](/docs/getting-started/quick-start/), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
+What follows isn't a tutorial in the same sense as the [Quick Start](/getting-started/quick-start/), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
 
-The code samples provided here are available as individual "steps" [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview).
+The code samples provided here are available as individual "steps" [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/02-overview).
 
 {/* NOTE: We also test this continuously in `tests/integration_docs_aws_test.go` */}
 
@@ -177,13 +177,13 @@ You want to be mindful not to do too much with this configuration block, as it c
 
 The `terraform` block is used to indicate where to source the OpenTofu/Terraform module from (it's called `terraform` for historical reasons, but it controls behavior pertinent to both OpenTofu and Terraform).
 
-In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/docs/reference/hcl/blocks#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
+In this example, all it is doing is controlling where Terragrunt should fetch the OpenTofu/Terraform module from. The configuration block [can do a lot more](/reference/hcl/blocks#terraform), but the `source` attribute is the most common attribute you'll set on the `terraform` block.
 
 You'll notice that in the examples above, we were using `find` to locate the `.tf` files being generated and placed within the OpenTofu/Terraform module being downloaded here within the `.terragrunt-cache` directory. This is because Terragrunt aims to operate as an orchestrator, at a level of abstraction higher than OpenTofu/Terraform.
 
 Over the years supporting customers managing IaC at scale, the patterns that we've seen emerge for really successful organizations is to treat OpenTofu/Terraform modules as versioned, generic, well tested patterns of infrastructure, and to deploy them in as close to the exact same way as possible across all uses of them.
 
-Terragrunt supports this pattern by treating each [unit](/docs/getting-started/terminology/#unit) of Terragrunt configuration (a directory with a `terragrunt.hcl` file in it) as a hermetic container of infrastructure that can be reasoned about in isolation, and then composed together to form a larger system of one or more [stacks](/docs/getting-started/terminology/#stack) (each stack being a collection of units).
+Terragrunt supports this pattern by treating each [unit](/getting-started/terminology/#unit) of Terragrunt configuration (a directory with a `terragrunt.hcl` file in it) as a hermetic container of infrastructure that can be reasoned about in isolation, and then composed together to form a larger system of one or more [stacks](/getting-started/terminology/#stack) (each stack being a collection of units).
 
 To that end, the way that Terragrunt loads OpenTofu/Terraform configurations is to download them into a subdirectory of the `.terragrunt-cache` directory, and then to orchestrate OpenTofu/Terraform commands from that directory. This ensures that the OpenTofu/Terraform modules are treated as immutable, versioned, and hermetic, and that the OpenTofu/Terraform runs are reliably reproducible.
 
@@ -222,7 +222,7 @@ Under the hood, what happens here is that Terragrunt sets relevant `TF_VAR_` pre
 
 #### Further Reading
 
-You can learn more about all the configuration [blocks](/docs/reference/hcl/blocks) and [attributes](/docs/reference/hcl/attributes) available in Terragrunt in the docs.
+You can learn more about all the configuration [blocks](/reference/hcl/blocks) and [attributes](/reference/hcl/attributes) available in Terragrunt in the docs.
 
 ## Core Patterns
 
@@ -232,7 +232,7 @@ This statement above is kind of a lie:
 
 The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In an AWS project for example, you will probably use the same (or very similar) `provider` configuration across all your units, and you'll probably use the same `backend` configuration across all your units (with the only exception being the `key` for where in S3 your state should be stored).
 
-Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be [DRY (Don't Repeat Yourself)](/docs/getting-started/terminology#dont-repeat-yourself-dry).
+Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be [DRY (Don't Repeat Yourself)](/getting-started/terminology#dont-repeat-yourself-dry).
 
 ### The `include` block
 
@@ -500,7 +500,7 @@ Following this pattern, you can create as many units of infrastructure in your p
 
 Note that while this is the idiomatic approach for defining the `key` attribute for your `backend` configuration, it is not a requirement. You can set the `key` attribute to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
 
-Another completely valid approach, for example, is to utilize [get_repo_root](/docs/reference/hcl/functions#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
+Another completely valid approach, for example, is to utilize [get_repo_root](/reference/hcl/functions#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
 
 Just make sure to test your configuration carefully, and document your approach so that others can understand what you're doing.
 
@@ -537,7 +537,7 @@ This is a very useful mechanism, as it keeps each unit isolated, while allowing 
 
 ### The Directed Acyclic Graph (DAG)
 
-Dependencies also give Terragrunt a way to reason about the order in which units of infrastructure should be run. It uses what's called a [Directed Acyclic Graph (DAG)](/docs/getting-started/terminology/#directed-acyclic-graph-dag) to determine the order in which units should be run, and then runs them in that order.
+Dependencies also give Terragrunt a way to reason about the order in which units of infrastructure should be run. It uses what's called a [Directed Acyclic Graph (DAG)](/getting-started/terminology/#directed-acyclic-graph-dag) to determine the order in which units should be run, and then runs them in that order.
 
 For example, let's go ahead and destroy all the infrastructure that we've created so far:
 
@@ -821,7 +821,7 @@ This showcases three superpowers you gain when you leverage Terragrunt:
 
 1. **Automatic DAG Resolution**: No configuration file had to be updated or modified to ensure that the `ec2` unit was run after the `vpc` unit when provisioning the `us-west-2` stack. Terragrunt automatically resolved the dependency graph and ran the units in the correct order.
 2. **Dynamic Configuration**: The code you copied from the `us-east-1` directory to the `us-west-2` directory didn't need to be modified at all to provision resources in a different region (with the exception of naming the region in the `region.hcl` file). Terragrunt was able to dynamically resolve the correct configuration based on context, and apply it to the OpenTofu/Terraform modules as generic patterns of infrastructure.
-3. **Reduced Blast Radius**: By applying Terragrunt within the `us-west-2` directory, you were able to confidently target only the resources in that region, without affecting the resources in the `us-east-1` region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your [blast radius](/docs/getting-started/terminology/#blast-radius), and Terragrunt makes it easy to manage that blast radius effectively.
+3. **Reduced Blast Radius**: By applying Terragrunt within the `us-west-2` directory, you were able to confidently target only the resources in that region, without affecting the resources in the `us-east-1` region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your [blast radius](/getting-started/terminology/#blast-radius), and Terragrunt makes it easy to manage that blast radius effectively.
 
 ### Cleanup
 
@@ -1015,9 +1015,9 @@ You have to exercise your best judgment when deciding how much complexity to int
 
 Now that you’ve learned the basics of Terragrunt, here is some further reading to learn more:
 
-1. [Features](/docs/features/units): Learn about the core features Terragrunt supports.
+1. [Features](/features/units): Learn about the core features Terragrunt supports.
 
-2. [Documentation](/docs/reference/hcl): Check out the detailed Terragrunt reference documentation.
+2. [Documentation](/reference/hcl): Check out the detailed Terragrunt reference documentation.
 
 3. [_Fundamentals of DevOps and Software Delivery_](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
 

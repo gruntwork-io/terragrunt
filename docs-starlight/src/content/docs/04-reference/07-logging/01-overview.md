@@ -63,7 +63,7 @@ Here, we have three types of log messages:
 
 1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--log-level` flag.
 2. `STDOUT` messages from OpenTofu. These are messages that OpenTofu would normally print directly to the terminal, but instead, Terragrunt captures them and logs them as `STDOUT` log messages, along with timestamps and other metadata.
-3. `INFO` messages from Terragrunt [auto-init](/docs/features/auto-init). These were initially emitted by OpenTofu. However, the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
+3. `INFO` messages from Terragrunt [auto-init](/features/auto-init). These were initially emitted by OpenTofu. However, the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
 
 ## Enrichment
 
@@ -109,7 +109,7 @@ Group 1
 
 Here you see two different units being run by Terragrunt concurrently, and stdout/stderr for each being emitted in real time. This is really helpful when managing IaC at scale, as it lets you know exactly what each unit in your stack is doing, and how long it is taking.
 
-It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/docs/reference/logging/formatting#bare) preset described in [Log Formatting](/docs/reference/logging/formatting).
+It's easier to see the impact of this enrichment if we turn it off, so let's use the [bare](/reference/logging/formatting#bare) preset described in [Log Formatting](/reference/logging/formatting).
 
 ```bash
 $ terragrunt run --all --log-format bare plan

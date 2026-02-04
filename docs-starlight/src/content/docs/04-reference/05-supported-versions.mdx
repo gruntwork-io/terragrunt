@@ -30,7 +30,7 @@ compatibility is more relaxed than documented above. For example, we've found th
 above 0.19.0, and we've also found that terraform 0.11 works with any version above 0.19.18 as well.
 
 If you wish to use Terragrunt against an untested Terraform version, you can use the
-[terraform_version_constraint](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#terraform_version_constraint)
+[terraform_version_constraint](https://docs.terragrunt.com/reference/config-blocks-and-attributes/#terraform_version_constraint)
 (introduced in Terragrunt [v0.19.18](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.18)) attribute to
 relax the version constraint.
 
@@ -47,7 +47,7 @@ Version compatibility data is available via JSON API:
 **Example:**
 
 ```bash
-curl https://terragrunt.gruntwork.io/api/v1/compatibility?tool=opentofu
+curl https://docs.terragrunt.com/api/v1/compatibility?tool=opentofu
 ```
 
 **Response format:**

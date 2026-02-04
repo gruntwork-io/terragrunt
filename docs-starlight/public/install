@@ -12,9 +12,9 @@
 #   - arrays and readonly declarations
 #
 # Usage:
-#   curl -sL https://terragrunt.gruntwork.io/install | bash
-#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.72.5
-#   curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
+#   curl -sL https://docs.terragrunt.com/install | bash
+#   curl -sL https://docs.terragrunt.com/install | bash -s -- -v v0.72.5
+#   curl -sL https://docs.terragrunt.com/install | bash -s -- -d ~/bin
 #
 # Options:
 #   -v, --version VERSION    Install specific version (default: latest)
@@ -81,8 +81,8 @@ usage() {
 Terragrunt Installer
 
 Usage:
-  curl -sL https://terragrunt.gruntwork.io/install | bash
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- [OPTIONS]
+  curl -sL https://docs.terragrunt.com/install | bash
+  curl -sL https://docs.terragrunt.com/install | bash -s -- [OPTIONS]
 
 Options:
   -v, --version VERSION    Install specific version (default: latest)
@@ -98,19 +98,19 @@ Use --no-verify-sig to skip, or --verify-cosign to use Cosign instead of GPG.
 
 Examples:
   # Install latest version
-  curl -sL https://terragrunt.gruntwork.io/install | bash
+  curl -sL https://docs.terragrunt.com/install | bash
 
   # Install specific version
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -v v0.98.0
+  curl -sL https://docs.terragrunt.com/install | bash -s -- -v v0.98.0
 
   # Install to custom directory
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin
+  curl -sL https://docs.terragrunt.com/install | bash -s -- -d ~/bin
 
   # Install without signature verification
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --no-verify-sig
 
   # Install using Cosign instead of GPG
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --verify-cosign
 EOF
 }
 
@@ -432,9 +432,9 @@ Use --force to upgrade/downgrade to ${requested_version}"
     # Check write permissions
     [[ ! -w "$install_dir" ]] && abort "Cannot write to $install_dir
 Run with sudo:
-  curl -sL https://terragrunt.gruntwork.io/install | sudo bash
+  curl -sL https://docs.terragrunt.com/install | sudo bash
 Or specify a different directory:
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- -d ~/bin"
+  curl -sL https://docs.terragrunt.com/install | bash -s -- -d ~/bin"
 
     info "Installing to ${target_path}..."
     install -m 0755 "$binary_path" "$target_path"
@@ -502,7 +502,7 @@ Please install curl and try again."
     [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null && \
         abort "Neither sha256sum nor shasum found.
 Install one of these tools or skip checksum verification with:
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify"
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --no-verify"
 
     # Handle signature verification setup
     [[ "$SKIP_SIG_VERIFY" == true ]] && { VERIFY_SIG=""; return; }
@@ -512,9 +512,9 @@ Install one of these tools or skip checksum verification with:
         gpg)
             command -v gpg &>/dev/null || abort "GPG signature verification requires gpg but it is not installed.
 Install gpg or skip signature verification with:
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --no-verify-sig
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --no-verify-sig
 Or use Cosign instead:
-  curl -sL https://terragrunt.gruntwork.io/install | bash -s -- --verify-cosign"
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --verify-cosign"
             ;;
         cosign)
             command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed."
@@ -602,7 +602,7 @@ main() {
     fi
 
     echo "Run 'terragrunt --help' to get started."
-    echo "For documentation, visit: https://terragrunt.gruntwork.io/docs"
+    echo "For documentation, visit: https://docs.terragrunt.com/"
 }
 
 main "$@"

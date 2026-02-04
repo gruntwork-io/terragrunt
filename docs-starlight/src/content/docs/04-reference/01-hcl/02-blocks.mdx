@@ -11,7 +11,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Terragrunt HCL configuration uses [configuration blocks](https://github.com/hashicorp/hcl/blob/main/hclsyntax/spec.md#blocks) when there's a structural configuration that needs to be defined for Terragrunt.
 
-Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/docs/reference/hcl/attributes) are used to define values for those systems.
+Think of configuration blocks as a way to control different systems used by Terragrunt, whereas [attributes](/reference/hcl/attributes) are used to define values for those systems.
 
 ## terraform
 
@@ -22,7 +22,7 @@ before or after calling OpenTofu/Terraform.
 The `terraform` block supports the following arguments:
 
 - `source` (attribute): Specifies where to find OpenTofu/Terraform configuration files. This parameter supports the same syntax as the
-  [module source](https://opentofu.org/docs/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
+  [module source](https://opentofu.org/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
   for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
   parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
   relative paths work correctly between modules in that repo.
@@ -32,7 +32,7 @@ The `terraform` block supports the following arguments:
     `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
     module from the public Terraform registry, you can use the following as the source parameter:
     `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
-  - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
+  - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/cloud/registry/index.html)),
     you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
     This token can be any registry API token.
   - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
@@ -67,15 +67,15 @@ The `terraform` block supports the following arguments:
   *Note that using `include_in_copy` and `exclude_from_copy` are not mutually exclusive.*
   If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file *is* included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`.
 
-  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/docs/features/hooks) feature.*
+  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/features/hooks) feature.*
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
-  [Lock File Handling](/docs/reference/lock-files). This attribute allows you to disable the copy
+  [Lock File Handling](/reference/lock-files). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY](/docs/features/extra-arguments) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/features/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -121,8 +121,8 @@ supported:
   command will be the terragrunt config directory.
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
-  configurations](/docs/features/units) using `go-getter`; the other
-  is [Auto-Init](/docs/features/auto-init), which configures the backend and downloads
+  configurations](/features/units) using `go-getter`; the other
+  is [Auto-Init](/features/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. This includes `error_hook` blocks to handle download failures.
   If you wish to execute a hook when Terragrunt is using
@@ -306,12 +306,12 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/docs/features/state-backend/) use case overview.
+DRY](/features/state-backend/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
 - `backend` (attribute): Specifies which remote state backend will be configured. This should be one of the
-  [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
+  [available backends](https://opentofu.org/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
   have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
@@ -609,9 +609,9 @@ remote_state {
 
 ### encryption
 
-The encryption map needs a `key_provider` property, which can be set to any provider [supported by OpenTofu](https://opentofu.org/docs/language/state/encryption/#key-providers); including: `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`.
+The encryption map needs a `key_provider` property, which can be set to any provider [supported by OpenTofu](https://opentofu.org/language/state/encryption/#key-providers); including: `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`.
 
-Documentation for each provider type and its possible configuration can be found in the [OpenTofu docs](https://opentofu.org/docs/language/state/encryption/#key-providers).
+Documentation for each provider type and its possible configuration can be found in the [OpenTofu docs](https://opentofu.org/language/state/encryption/#key-providers).
 
 A `terragrunt.hcl` file configuring PBKDF2 encryption could look like this:
 
@@ -666,7 +666,7 @@ terraform {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/docs/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
+section](/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
@@ -1212,7 +1212,7 @@ Use this feature judiciously.
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
-section](/docs/features/stacks#dependencies-between-units) of the
+section](/features/stacks#dependencies-between-units) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
@@ -1423,7 +1423,7 @@ generate = local.common.generate
 ## engine
 
 The `engine` block is used to configure experimental Terragrunt engine configuration.
-More details in [engine section](https://terragrunt.gruntwork.io/docs/features/engine/).
+More details in [engine section](https://docs.terragrunt.com/features/engine/).
 
 ## feature
 
@@ -1431,7 +1431,7 @@ The `feature` block is used to configure feature flags in HCL for a specific Ter
 
 Each feature flag must include a default value.
 
-Feature flags can be overridden via the [`--feature`](/docs/reference/cli/commands/run#feature) CLI option.
+Feature flags can be overridden via the [`--feature`](/reference/cli/commands/run#feature) CLI option.
 
 ```hcl
 # terragrunt.hcl

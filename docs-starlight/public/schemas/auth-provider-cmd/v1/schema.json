@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://terragrunt.gruntwork.io/schemas/auth-provider-cmd/v1/schema.json",
+  "$id": "https://docs.terragrunt.com/schemas/auth-provider-cmd/v1/schema.json",
   "title": "Terragrunt Auth Provider Command Response Schema",
   "description": "Schema for the JSON response expected from an auth provider command",
   "type": "object",

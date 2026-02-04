@@ -69,7 +69,7 @@ Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, b
 
 1. You can specify a custom boilerplate template to use as the second argument of the `scaffold` command.
 2. You can define a custom boilerplate template in a `.boilerplate` subfolder of your module.
-3. You can define a default custom boilerplate template in the [catalog config](/docs/features/catalog).
+3. You can define a default custom boilerplate template in the [catalog config](/features/catalog).
 
 If you define input variables in your boilerplate template, Terragrunt will prompt users for the values. Those values can also be passed in via `--var` and `--var-file` arguments.
 There are also a set of variables that Terragrunt will automatically expose to your boilerplate templates for rendering:
@@ -82,7 +82,7 @@ The elements in the `requiredVariables` and `optionalVariables` lists are struct
 
 - `Name` - variable name
 - `Description` - variable description
-- `Type` - variable type (string, number, bool, list, map, object) [Type Constants](https://developer.hashicorp.com/packer/docs/templates/hcl_templates/variables#type-constraints)
+- `Type` - variable type (string, number, bool, list, map, object) [Type Constants](https://developer.hashicorp.com/packer/templates/hcl_templates/variables#type-constraints)
 - `DefaultValue` - variable default value
 - `DefaultValuePlaceholder` - default value placeholder (e.g. `""` for a string or `0` for a number)
 
@@ -96,7 +96,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   When the [root-terragrunt-hcl](/docs/reference/strict-controls#root-terragrunt-hcl) strict control is enabled, the default configuration file will change to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   When the [root-terragrunt-hcl](/reference/strict-controls#root-terragrunt-hcl) strict control is enabled, the default configuration file will change to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Convenience flags
 
@@ -106,7 +106,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   See the note above on the [root-terragrunt-hcl](/docs/reference/strict-controls#root-terragrunt-hcl) strict control for more information.
+   See the note above on the [root-terragrunt-hcl](/reference/strict-controls#root-terragrunt-hcl) strict control for more information.
 
 ## Examples
 

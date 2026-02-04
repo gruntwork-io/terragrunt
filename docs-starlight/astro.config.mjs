@@ -47,7 +47,7 @@ export const sidebar = [
         label: "CLI",
         collapsed: true,
         items: [
-          { label: "Overview", slug: "docs/reference/cli" },
+          { label: "Overview", slug: "reference/cli" },
           {
             label: "Commands",
             autogenerate: {
@@ -55,21 +55,21 @@ export const sidebar = [
               collapsed: true,
             },
           },
-          { label: "Global Flags", slug: "docs/reference/cli/global-flags" },
+          { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
       },
-      { label: "Strict Controls", slug: "docs/reference/strict-controls" },
-      { label: "Experiments", slug: "docs/reference/experiments" },
+      { label: "Strict Controls", slug: "reference/strict-controls" },
+      { label: "Experiments", slug: "reference/experiments" },
       {
         label: "Supported Versions",
-        slug: "docs/reference/supported-versions",
+        slug: "reference/supported-versions",
       },
-      { label: "Lock Files", slug: "docs/reference/lock-files" },
+      { label: "Lock Files", slug: "reference/lock-files" },
       {
         label: "Logging",
         autogenerate: { directory: "04-reference/07-logging", collapsed: true },
       },
-      { label: "Terragrunt Cache", slug: "docs/reference/terragrunt-cache" },
+      { label: "Terragrunt Cache", slug: "reference/terragrunt-cache" },
     ],
   },
   {
@@ -152,7 +152,7 @@ export default defineConfig({
           tag: 'meta',
           attrs: {
             property: 'og:url',
-            content: 'https://terragrunt.gruntwork.io',
+            content: 'https://docs.terragrunt.com',
           },
         },
         {
@@ -204,12 +204,12 @@ export default defineConfig({
 
             // Unfortunately, these have to be ignored, as they're referencing content
             // that is generated outside the contents of the markdown file.
-            "/docs/reference/cli/commands/run#*",
-            "/docs/reference/cli/commands/run/#*",
-            "/docs/reference/cli/commands/list#*",
-            "/docs/reference/cli/commands/list/#*",
-            "/docs/reference/cli/commands/find#*",
-            "/docs/reference/cli/commands/find/#*",
+            "/reference/cli/commands/run#*",
+            "/reference/cli/commands/run/#*",
+            "/reference/cli/commands/list#*",
+            "/reference/cli/commands/list/#*",
+            "/reference/cli/commands/find#*",
+            "/reference/cli/commands/find/#*",
 
             // Used as a redirect to the Terragrunt Discord server
             "/community/invite",
@@ -239,9 +239,16 @@ export default defineConfig({
     sitemap(),
   ],
   redirects: {
+    // Catch-all redirect from /docs/* to /*
+    "/docs/[...slug]": "/[...slug]",
+
+    // Root redirects
+    "/": "/getting-started/quick-start/",
+    "/docs/": "/getting-started/quick-start/",
+
     // Pages that have been rehomed.
-    "/docs/features/debugging/": "/docs/troubleshooting/debugging/",
-    "/docs/upgrade/upgrading_to_terragrunt_0.19.x/": "/docs/migrate/upgrading_to_terragrunt_0.19.x/",
+    "/features/debugging/": "/troubleshooting/debugging/",
+    "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
 
     // Redirects to external sites.
     "/contact/": "https://gruntwork.io/contact",
@@ -249,51 +256,50 @@ export default defineConfig({
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",
 
     // Restructured docs
-    "/docs/reference/configuration/": "/docs/reference/hcl/",
-    "/docs/reference/cli-options/": "/docs/reference/cli/",
-    "/docs/reference/built-in-functions/": "/docs/reference/hcl/functions/",
-    "/docs/reference/config-blocks-and-attributes/": "/docs/reference/hcl/blocks/",
-    "/docs/reference/strict-mode/": "/docs/reference/strict-controls/",
-    "/docs/reference/log-formatting/": "/docs/reference/logging/formatting/",
-    "/docs/features/aws-authentication/": "/docs/features/authentication/",
-    "/docs/reference/experiment-mode/": "/docs/reference/experiments/",
+    "/reference/configuration/": "/reference/hcl/",
+    "/reference/cli-options/": "/reference/cli/",
+    "/reference/built-in-functions/": "/reference/hcl/functions/",
+    "/reference/config-blocks-and-attributes/": "/reference/hcl/blocks/",
+    "/reference/strict-mode/": "/reference/strict-controls/",
+    "/reference/log-formatting/": "/reference/logging/formatting/",
+    "/features/aws-authentication/": "/features/authentication/",
+    "/reference/experiment-mode/": "/reference/experiments/",
 
     // Support old doc structure paths
-    "/docs/": "/docs/getting-started/quick-start/",
-    "/docs/getting-started/": "/docs/getting-started/quick-start/",
-    "/docs/features/": "/docs/features/units/",
-    "/docs/reference/": "/docs/reference/hcl/",
-    "/docs/troubleshooting/": "/docs/troubleshooting/debugging/",
-    "/docs/migrate/": "/docs/migrate/migrating-from-root-terragrunt-hcl/",
+    "/getting-started/": "/getting-started/quick-start/",
+    "/features/": "/features/units/",
+    "/reference/": "/reference/hcl/",
+    "/troubleshooting/": "/troubleshooting/debugging/",
+    "/migrate/": "/migrate/migrating-from-root-terragrunt-hcl/",
 
     // Support old community paths
-    "/docs/community/": "/docs/community/contributing/",
-    "/support/": "/docs/community/support/",
+    "/community/": "/community/contributing/",
+    "/support/": "/community/support/",
 
     // Support old feature paths
-    "/docs/features/inputs/": "/docs/features/units/",
-    "/docs/features/locals/": "/docs/features/units/",
-    "/docs/features/keep-your-terraform-code-dry/": "/docs/features/units/",
-    "/docs/features/execute-terraform-commands-on-multiple-units-at-once/": "/docs/features/stacks/",
-    "/docs/features/keep-your-terragrunt-architecture-dry/": "/docs/features/includes/",
-    "/docs/features/keep-your-remote-state-configuration-dry/": "/docs/features/state-backend/",
-    "/docs/features/keep-your-cli-flags-dry/": "/docs/features/extra-arguments/",
-    "/docs/features/aws-auth/": "/docs/features/aws-authentication/",
-    "/docs/features/work-with-multiple-aws-accounts/": "/docs/features/aws-authentication/",
-    "/docs/features/auto-retry/": "/docs/features/runtime-control/",
-    "/docs/features/provider-cache/": "/docs/features/provider-cache-server/",
-    "/docs/features/provider-caching/": "/docs/features/provider-cache-server/",
+    "/features/inputs/": "/features/units/",
+    "/features/locals/": "/features/units/",
+    "/features/keep-your-terraform-code-dry/": "/features/units/",
+    "/features/execute-terraform-commands-on-multiple-units-at-once/": "/features/stacks/",
+    "/features/keep-your-terragrunt-architecture-dry/": "/features/includes/",
+    "/features/keep-your-remote-state-configuration-dry/": "/features/state-backend/",
+    "/features/keep-your-cli-flags-dry/": "/features/extra-arguments/",
+    "/features/aws-auth/": "/features/aws-authentication/",
+    "/features/work-with-multiple-aws-accounts/": "/features/aws-authentication/",
+    "/features/auto-retry/": "/features/runtime-control/",
+    "/features/provider-cache/": "/features/provider-cache-server/",
+    "/features/provider-caching/": "/features/provider-cache-server/",
 
     // Additional redirects for 404ing URLs
-    "/docs/features/execute-terraform-commands-on-multiple-modules-at-once/": "/docs/features/stacks/",
-    "/docs/getting-started/configuration/": "/docs/reference/hcl/",
-    "/docs/features/before-and-after-hooks/": "/docs/features/hooks/",
-    "/docs/etting-started/configuration/": "/docs/reference/hcl/", // typo in original URL
-    "/docs/features/log-formatting": "/docs/reference/logging/formatting/",
-    "/docs/reference/lock-file-handling/": "/docs/reference/lock-files/",
+    "/features/execute-terraform-commands-on-multiple-modules-at-once/": "/features/stacks/",
+    "/getting-started/configuration/": "/reference/hcl/",
+    "/features/before-and-after-hooks/": "/features/hooks/",
+    "/etting-started/configuration/": "/reference/hcl/", // typo in original URL
+    "/features/log-formatting": "/reference/logging/formatting/",
+    "/reference/lock-file-handling/": "/reference/lock-files/",
 
     // Restructured docs
-    "/docs/reference/cli/rules": "/docs/process/cli-rules/",
+    "/reference/cli/rules": "/process/cli-rules/",
 
     // Redirects for external resources
     "/community/invite": "https://discord.gg/4XJgJ6yK",

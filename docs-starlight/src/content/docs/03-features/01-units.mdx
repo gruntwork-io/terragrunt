@@ -127,7 +127,7 @@ inputs = {
 }
 ```
 
-_(Note: the double slash (`//`) in the `source` parameter is intentional and required. It’s part of OpenTofu/Terraform’s Git syntax for [module sources](https://opentofu.org/docs/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
+_(Note: the double slash (`//`) in the `source` parameter is intentional and required. It’s part of OpenTofu/Terraform’s Git syntax for [module sources](https://opentofu.org/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
 
 And `prod/app/terragrunt.hcl` may look like this:
 
@@ -153,11 +153,11 @@ terragrunt apply
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
 
-1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the same syntax as the [module source](https://opentofu.org/docs/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the same syntax as the [module source](https://opentofu.org/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
 2. Copy all files from the current working directory into the temporary folder.
 
-3. Execute whatever OpenTofu/Terraform command you specified in that temporary folder (assuming you are performing a [run](/docs/getting-started/terminology/#run)).
+3. Execute whatever OpenTofu/Terraform command you specified in that temporary folder (assuming you are performing a [run](/getting-started/terminology/#run)).
 
 4. Set any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_`) before running your OpenTofu/Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
 
@@ -190,7 +190,7 @@ Terraform 0.14 introduced lock files. These should mostly "just work" with Terra
 is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into
 version control.
 
-See the [Lock File Handling docs](/docs/reference/lock-files) for more details.
+See the [Lock File Handling docs](/reference/lock-files) for more details.
 
 ## Terragrunt caching
 
@@ -238,7 +238,7 @@ In particular:
       }
     }
     ```
-    See the [get\_terragrunt\_dir()](/docs/reference/hcl/functions/#get_terragrunt_dir) documentation for more details.
+    See the [get\_terragrunt\_dir()](/reference/hcl/functions/#get_terragrunt_dir) documentation for more details.
 
 ## Using Terragrunt with private Git repos
 
@@ -262,7 +262,7 @@ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 
 In an ideal world, all that units do would be to run versioned, immutable OpenTofu/Terraform modules with environment-specific inputs.
 In the real world, however, certain scenarios arise when you have to inject additional configurations to the immutable OpenTofu/Terraform
-modules you use. This is where [generate blocks](/docs/reference/hcl/blocks#generate) prove useful.
+modules you use. This is where [generate blocks](/reference/hcl/blocks#generate) prove useful.
 When you define a `generate` block, Terragrunt will do the following before any run:
 1. Fetch any module referenced in a source URL in the `terraform` block into the `.terragrunt-cache` folder (if there is none, it will run in the current working directory).
 2. Generate the file specified in the `generate` block into the directory where Terragrunt will run OpenTofu/Terraform.
@@ -346,4 +346,4 @@ specified via the `path` parameter. It behaves exactly as if you had copy/pasted
 included file `generate` configuration into the child, but this approach is much easier to maintain\!
 ## Further Reading
 Note that if you're considering this solution because you're struggling with dynamic provider authentication in AWS,
-you may be interested in the dedicated documentation on [working with multiple AWS accounts](/docs/features/authentication).
+you may be interested in the dedicated documentation on [working with multiple AWS accounts](/features/authentication).

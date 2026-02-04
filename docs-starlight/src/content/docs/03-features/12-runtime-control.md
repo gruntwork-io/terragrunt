@@ -12,7 +12,7 @@ The following configuration blocks have been designed to work together in concer
 
 ## Feature Flags
 
-Defined using the [feature](/docs/reference/hcl/blocks#feature) configuration block, Terragrunt allows for the control of specific features at runtime using feature flags.
+Defined using the [feature](/reference/hcl/blocks#feature) configuration block, Terragrunt allows for the control of specific features at runtime using feature flags.
 
 For example:
 
@@ -49,7 +49,7 @@ Setting a different version of an OpenTofu/Terraform module in a lower environme
 
 ## Errors
 
-Defined using the [errors](/docs/reference/hcl/blocks#errors) configuration block, Terragrunt allows for fine-grained control of errors at runtime.
+Defined using the [errors](/reference/hcl/blocks#errors) configuration block, Terragrunt allows for fine-grained control of errors at runtime.
 
 For example:
 
@@ -137,7 +137,7 @@ This pattern allows for greater speed of integration with larger codebases, and 
 
 ## Excludes
 
-Defined using the [exclude](/docs/reference/hcl/blocks#exclude) configuration block, Terragrunt allows for the exclusion of specific units at runtime.
+Defined using the [exclude](/reference/hcl/blocks#exclude) configuration block, Terragrunt allows for the exclusion of specific units at runtime.
 
 For example:
 
@@ -157,7 +157,7 @@ exclude {
 
 In this example, the `exclude` block will prevent the `apply` command from running in a given unit on Fridays, Saturdays, and Sundays, as all good DevOps engineers know that deploying that close to a weekend is a recipe for disaster.
 
-While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/docs/getting-started/terminology/#run-queue).
+While a toy example, this demonstrates how you can use the `exclude` block to use dynamic information at runtime to control the [run queue](/getting-started/terminology/#run-queue).
 
 You can use this block to prevent certain units from running in certain environments, or to prevent certain commands from running in certain units.
 

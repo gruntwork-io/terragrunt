@@ -96,7 +96,7 @@ remote_state {
 
 When we were using `terraform.tfvars` files for Terragrunt configuration, we were piggybacking on the fact that
 Terraform [automatically loads variables from tfvars
-files](https://www.terraform.io/docs/configuration/variables.html#variable-definitions-tfvars-files) to set variables
+files](https://www.terraform.io/configuration/variables.html#variable-definitions-tfvars-files) to set variables
 for our modules:
 
 ```hcl

@@ -10,7 +10,7 @@ import FileTree from '@components/vendored/starlight/FileTree.astro';
 
 ## Motivation
 
-As covered in [Units](/docs/features/units) and [State Backend](/docs/features/state-backend),
+As covered in [Units](/features/units) and [State Backend](/features/state-backend),
 it quickly becomes important to define base Terragrunt configuration files that are included in units. This is to ensure
 that all units have a consistent configuration, and to avoid repeating the same configuration across multiple units.
 
@@ -93,7 +93,7 @@ For example, the `app/terragrunt.hcl` files may be identical across all three en
 adjustment to the `instance_type` parameter for each environment. These identical settings don't belong in the root
 `terragrunt.hcl` configuration because they are only relevant to the `app` configurations, and not `mysql` or `vpc`.
 
-To solve this, you can use [multiple include blocks](/docs/reference/hcl/blocks#include).
+To solve this, you can use [multiple include blocks](/reference/hcl/blocks#include).
 
 ## Using multiple includes
 
@@ -443,7 +443,7 @@ multiple files that were not touched at all in the commit. In our previous examp
 the `_env/app.hcl` file, we need to apply the change to all the modules that `include` that common environment
 configuration.
 
-The most comprehensive approach to managing this is to use the [--queue-include-units-reading](https://terragrunt.gruntwork.io/docs/reference/cli-options/#queue-include-units-reading)
+The most comprehensive approach to managing this is to use the [--queue-include-units-reading](https://docs.terragrunt.com/reference/cli-options/#queue-include-units-reading)
 flag. This flag will automatically add all units that read the file to the queue of units to be run. This includes
 both units that include the file, and units that read the file using something like `read_terragrunt_config` (make
 to read the documentation on this so that you know the limitations of this flag).

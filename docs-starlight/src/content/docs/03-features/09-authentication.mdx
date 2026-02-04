@@ -34,7 +34,7 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
    Worse yet, it requires that users repeat this process often, as the credentials you get back from the `assume-role` command expire. This is especially problematic if the OpenTofu/Terraform run is expected to take longer than the role assumption duration, and can expire mid-run.
 
-3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/docs/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/docs/language/settings/backends/s3/#assume-role-configuration).
+3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/language/settings/backends/s3/#assume-role-configuration).
 
    The downside to managing your role assumption with the AWS provider is that all runs have to be performed with the same IAM role. This can be problematic if you have different users who assume different roles, depending on their need for elevated access, and as a best practice, the role assumed by CI/CD pipelines should be different from the role assumed by developers.
 
@@ -44,7 +44,7 @@ To avoid these frustrating trade-offs, you can configure Terragrunt to assume an
 
 ## Configuring Terragrunt to assume an IAM role
 
-To tell Terragrunt to assume an IAM role, just set the [`--iam-assume-role`](/docs/reference/cli/commands/run#iam-assume-role) command line argument:
+To tell Terragrunt to assume an IAM role, just set the [`--iam-assume-role`](/reference/cli/commands/run#iam-assume-role) command line argument:
 
 ```bash
 terragrunt apply --iam-assume-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
@@ -71,7 +71,7 @@ Terragrunt will call the `sts assume-role` API on your behalf and expose the cre
 
 ## Leveraging OIDC role assumption
 
-In addition, you can combine the `--iam-assume-role` flag with the [`--iam-assume-role-web-identity-token`](/docs/reference/cli/commands/run#iam-assume-role-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
+In addition, you can combine the `--iam-assume-role` flag with the [`--iam-assume-role-web-identity-token`](/reference/cli/commands/run#iam-assume-role-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
 
 This is especially convenient in the context of CI/CD pipelines, as it's generally a best practice to assume roles there via OIDC.
 
@@ -110,7 +110,7 @@ This technique is especially useful in the following circumstances:
 - On a shared development repository, where you might want to use different roles for different developers, or even different roles for the same developer, depending on the task at hand.
 - In a setup where units in different accounts depend on each other, and you want to assume a different role for each account.
 
-The [`--auth-provider-cmd`](/docs/reference/cli/commands/run#auth-provider-cmd) flag allows you to specify a command that can be executed by Terragrunt to fetch credentials at runtime.
+The [`--auth-provider-cmd`](/reference/cli/commands/run#auth-provider-cmd) flag allows you to specify a command that can be executed by Terragrunt to fetch credentials at runtime.
 
 ```bash
 terragrunt apply --auth-provider-cmd /path/to/auth-script.sh
@@ -278,4 +278,4 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 }
 ```
 
-You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/docs/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
+You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
