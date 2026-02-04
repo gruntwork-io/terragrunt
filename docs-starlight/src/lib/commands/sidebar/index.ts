@@ -9,7 +9,7 @@ function createCommandSidebarItem(command: CollectionEntry<'commands'>): Sidebar
   const data = command.data;
   const sidebarItem = {
     label: data.name,
-    slug: `docs/reference/cli/commands/${data.path}`,
+    slug: `reference/cli/commands/${data.path}`,
     originalPath: data.path,
   } as SidebarItem & { originalPath: string };
 

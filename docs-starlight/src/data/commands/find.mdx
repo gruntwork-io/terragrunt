@@ -256,10 +256,10 @@ $ terragrunt find --reading --format=json
 ```
 
 This includes files read by Terragrunt helper functions such as:
-- [`read_terragrunt_config()`](/docs/reference/hcl/functions/#read_terragrunt_config) - Reading other Terragrunt configuration files
-- [`read_tfvars_file()`](/docs/reference/hcl/functions/#read_tfvars_file) - Reading Terraform variable files
-- [`sops_decrypt_file()`](/docs/reference/hcl/functions/#sops_decrypt_file) - Reading encrypted files via SOPS
-- [`mark_as_read()`](/docs/reference/hcl/functions/#mark_as_read) - Explicitly marking a file as read
+- [`read_terragrunt_config()`](/reference/hcl/functions/#read_terragrunt_config) - Reading other Terragrunt configuration files
+- [`read_tfvars_file()`](/reference/hcl/functions/#read_tfvars_file) - Reading Terraform variable files
+- [`sops_decrypt_file()`](/reference/hcl/functions/#sops_decrypt_file) - Reading encrypted files via SOPS
+- [`mark_as_read()`](/reference/hcl/functions/#mark_as_read) - Explicitly marking a file as read
 
 ## External Dependencies
 
@@ -377,6 +377,6 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
 
 <Aside type="tip" title="Learn More About Filtering">
 
-For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/features/filter).
 
 </Aside>
