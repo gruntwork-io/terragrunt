@@ -1,7 +1,7 @@
 ---
 title: Experiments
 description: Opt-in to experimental features before they're stable.
-slug: docs/reference/experiments
+slug: reference/experiments
 sidebar:
   order: 4
 ---

@@ -1,7 +1,7 @@
 ---
 title: Auto-init
 description: Learn how Terragrunt makes it so that you don't have to explicitly call `init` when using it.
-slug: docs/features/auto-init
+slug: features/auto-init
 sidebar:
   order: 11
 ---

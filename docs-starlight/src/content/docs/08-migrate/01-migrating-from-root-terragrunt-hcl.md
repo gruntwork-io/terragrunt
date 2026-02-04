@@ -1,7 +1,7 @@
 ---
 title: Migrating from root terragrunt.hcl
 description: Migrate from using a root `terragrunt.hcl` file.
-slug: docs/migrate/migrating-from-root-terragrunt-hcl
+slug: migrate/migrating-from-root-terragrunt-hcl
 sidebar:
   order: 1
 ---

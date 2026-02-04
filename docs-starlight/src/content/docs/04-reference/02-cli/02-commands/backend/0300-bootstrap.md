@@ -1,7 +1,7 @@
 ---
 title: bootstrap
 description: Interact with OpenTofu/Terraform backend infrastructure.
-slug: docs/reference/cli/commands/backend/bootstrap
+slug: reference/cli/commands/backend/bootstrap
 sidebar:
   order: 300
 ---

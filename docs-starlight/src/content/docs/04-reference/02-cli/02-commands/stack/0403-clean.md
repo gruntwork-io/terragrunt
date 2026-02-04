@@ -1,7 +1,7 @@
 ---
 title: clean
 description: Remove the auto-generated `.terragrunt-stack` directories created by `stack` commands.
-slug: docs/reference/cli/commands/stack/clean
+slug: reference/cli/commands/stack/clean
 sidebar:
   order: 402
 ---

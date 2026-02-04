@@ -1,7 +1,7 @@
 ---
 title: Terragrunt Cache
 description: Learn what the `.terragrunt-cache` directory is and how to manage it.
-slug: docs/reference/terragrunt-cache
+slug: reference/terragrunt-cache
 sidebar:
   order: 10
 ---

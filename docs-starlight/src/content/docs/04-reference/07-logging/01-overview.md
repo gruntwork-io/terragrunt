@@ -1,7 +1,7 @@
 ---
 title: Overview
 description: Learn how Terragrunt decides what to log, and when.
-slug: docs/reference/logging
+slug: reference/logging
 sidebar:
   order: 1
 ---

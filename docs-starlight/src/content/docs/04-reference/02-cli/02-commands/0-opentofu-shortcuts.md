@@ -1,7 +1,7 @@
 ---
 title: OpenTofu Shortcuts
 description: Interact with OpenTofu/Terraform backend infrastructure.
-slug: docs/reference/cli/commands/opentofu-shortcuts
+slug: reference/cli/commands/opentofu-shortcuts
 sidebar:
   order: 0
 ---

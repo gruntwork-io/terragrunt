@@ -1,7 +1,7 @@
 ---
 title: Terminology
 description: Quickly understand commonly use terms in Terragrunt.
-slug: docs/getting-started/terminology
+slug: getting-started/terminology
 sidebar:
   order: 4
 ---

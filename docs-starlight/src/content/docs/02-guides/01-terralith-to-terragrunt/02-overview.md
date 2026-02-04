@@ -1,7 +1,7 @@
 ---
 title: Overview
 description: Overview of the Terralith to Terragrunt guide
-slug: docs/guides/terralith-to-terragrunt/overview
+slug: guides/terralith-to-terragrunt/overview
 sidebar:
   order: 2
 ---

@@ -1,7 +1,7 @@
 ---
 title: delete
 description: Delete OpenTofu/Terraform state.
-slug: docs/reference/cli/commands/backend/delete
+slug: reference/cli/commands/backend/delete
 sidebar:
   order: 302
 ---

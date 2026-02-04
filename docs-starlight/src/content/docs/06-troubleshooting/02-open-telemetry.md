@@ -1,7 +1,7 @@
 ---
 title: OpenTelemetry
 description: Learn how to integrate Terragrunt with OpenTelemetry
-slug: docs/troubleshooting/open-telemetry
+slug: troubleshooting/open-telemetry
 sidebar:
   order: 2
 ---

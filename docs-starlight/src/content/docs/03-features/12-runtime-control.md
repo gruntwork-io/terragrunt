@@ -1,7 +1,7 @@
 ---
 title: Feature Flags, Errors and Excludes
 description: Learn how Terragrunt allows for runtime control using feature flags, error handling, and excludes.
-slug: docs/features/runtime-control
+slug: features/runtime-control
 sidebar:
   order: 12
 ---

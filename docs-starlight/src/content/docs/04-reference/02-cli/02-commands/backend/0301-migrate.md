@@ -1,7 +1,7 @@
 ---
 title: migrate
 description: Migrate OpenTofu/Terraform state from one location to another.
-slug: docs/reference/cli/commands/backend/migrate
+slug: reference/cli/commands/backend/migrate
 sidebar:
   order: 301
 ---

@@ -1,7 +1,7 @@
 ---
 title: CLI Redesign
 description: Migration guide to adopt changes from RFC #3445
-slug: docs/migrate/cli-redesign
+slug: migrate/cli-redesign
 sidebar:
   order: 3
 ---

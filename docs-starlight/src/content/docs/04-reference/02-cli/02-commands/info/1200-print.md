@@ -1,7 +1,7 @@
 ---
 title: print
 description: Print out a short description of Terragrunt context.
-slug: docs/reference/cli/commands/info/print
+slug: reference/cli/commands/info/print
 sidebar:
   order: 1200
 ---

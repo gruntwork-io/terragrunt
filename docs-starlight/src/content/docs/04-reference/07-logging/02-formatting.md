@@ -1,7 +1,7 @@
 ---
 title: Formatting
 description: Learn how to customize Terragrunt logging.
-slug: docs/reference/logging/formatting
+slug: reference/logging/formatting
 sidebar:
   order: 2
 ---

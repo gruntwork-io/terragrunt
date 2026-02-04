@@ -1,7 +1,7 @@
 ---
 title: validate
 description: Recursively find HashiCorp Configuration Language (HCL) files and validate them.
-slug: docs/reference/cli/commands/hcl/validate
+slug: reference/cli/commands/hcl/validate
 sidebar:
   order: 900
 ---

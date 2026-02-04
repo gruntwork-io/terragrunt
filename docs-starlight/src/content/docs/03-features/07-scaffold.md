@@ -1,7 +1,7 @@
 ---
 title: Scaffold
 description: Learn how to scaffold Terragrunt units.
-slug: docs/features/scaffold
+slug: features/scaffold
 sidebar:
   order: 7
 ---
