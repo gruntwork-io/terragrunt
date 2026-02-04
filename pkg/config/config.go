@@ -76,7 +76,6 @@ const (
 	MetadataCatalog                     = "catalog"
 	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
-	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
 	MetadataExclude                     = "exclude"
@@ -162,7 +161,6 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
 	FeatureFlags                FeatureFlags
-	DependentModulesPath        []*string
 	IsPartial                   bool
 }
 
