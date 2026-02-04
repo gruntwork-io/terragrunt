@@ -60,7 +60,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	tflintArgs := hookExecute[1:]
 
-	configFileRel := util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths)
+	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.LogShowAbsPaths)
 	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths)
 
 	// tflint init

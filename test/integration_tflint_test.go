@@ -93,7 +93,9 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Tflint has run successfully. No issues found")
-	assert.Contains(t, stderr, "--config ./.tflint.hcl")
+
+	expectedTflintHCLPath := filepath.Join("..", "..", "..", ".tflint.hcl")
+	assert.Contains(t, stderr, expectedTflintHCLPath)
 }
 
 func TestTflintInitSameModule(t *testing.T) {
