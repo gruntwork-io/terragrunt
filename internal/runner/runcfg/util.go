@@ -380,6 +380,10 @@ func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition b
 		return false
 	}
 
+	if noRun != nil && !*noRun {
+		return false
+	}
+
 	if noRun != nil && *noRun {
 		return IsActionListedInExclude(actions, command)
 	}
