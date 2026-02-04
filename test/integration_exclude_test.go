@@ -3,6 +3,7 @@ package test_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -17,27 +18,26 @@ const (
 
 // expectedResult defines the expected outcome for a unit in a test case.
 type expectedResult struct {
-	result string // "succeeded", "excluded", "early exit"
-	reason string // "exclude block", "", etc. (optional check)
+	result string
+	reason string
 }
 
 // excludeTestCase defines a single test case for the exclude block behavior.
 type excludeTestCase struct {
-	name          string                    // test case name
-	command       string                    // "plan", "apply", "output", or "run --all <cmd>"
-	runAll        bool                      // true for run --all mode
-	workingDir    string                    // subfolder for single mode, "" for run --all
-	featureFlags  []string                  // --feature flags to pass
-	expectedUnits map[string]expectedResult // expected results per unit (only for run --all mode)
-	// For single-unit mode: check stderr for early exit or successful run
-	expectEarlyExit bool // single-unit mode: expect "Early exit" message
-	expectRuns      bool // single-unit mode: expect unit to run (no early exit)
+	expectedUnits   map[string]expectedResult
+	name            string
+	command         string
+	workingDir      string
+	featureFlags    []string
+	runAll          bool
+	expectEarlyExit bool
+	expectRuns      bool
 }
 
 func TestExcludeBlockBehavior(t *testing.T) {
 	t.Parallel()
 
-	testCases := []excludeTestCase{
+	testCases := []*excludeTestCase{
 		// ========== Run --all Mode Tests ==========
 		{
 			name:    "run_all_basic_exclusion",
@@ -88,7 +88,6 @@ func TestExcludeBlockBehavior(t *testing.T) {
 			command: "plan",
 			runAll:  true,
 			expectedUnits: map[string]expectedResult{
-				// In run --all mode, no_run is ignored - exclusion is based on `if` and `actions`
 				"no-run-true":  {result: "excluded", reason: "exclude block"},
 				"no-run-false": {result: "excluded", reason: "exclude block"},
 				"normal-unit":  {result: "succeeded"},
@@ -161,16 +160,13 @@ func TestExcludeBlockBehavior(t *testing.T) {
 			command:    "apply -auto-approve",
 			runAll:     false,
 			workingDir: "action-mismatch",
-			// action-mismatch has no_run=true but only for "plan" action
-			// When running apply, the unit should run since action doesn't match
 			expectRuns: true,
 		},
 		{
-			name:       "single_conditional_no_run_excluded",
-			command:    "plan",
-			runAll:     false,
-			workingDir: "conditional-no-run",
-			// enable_unit defaults to false, so !enable_unit = true, which triggers exclusion
+			name:            "single_conditional_no_run_excluded",
+			command:         "plan",
+			runAll:          false,
+			workingDir:      "conditional-no-run",
 			expectEarlyExit: true,
 		},
 		{
@@ -179,8 +175,7 @@ func TestExcludeBlockBehavior(t *testing.T) {
 			runAll:       false,
 			workingDir:   "conditional-no-run",
 			featureFlags: []string{"enable_unit=true"},
-			// enable_unit=true, so !enable_unit = false, which disables exclusion
-			expectRuns: true,
+			expectRuns:   true,
 		},
 	}
 
@@ -188,7 +183,6 @@ func TestExcludeBlockBehavior(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Setup
 			cleanupTerraformFolder(t, testExcludeComprehensive)
 			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeComprehensive)
 
@@ -201,14 +195,11 @@ func TestExcludeBlockBehavior(t *testing.T) {
 
 			reportFile := filepath.Join(t.TempDir(), "report.json")
 
-			// Build command
 			cmd := buildExcludeTestCommand(tc, rootPath, reportFile)
 
-			// Execute
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
-			// Handle single-unit mode (no report generated, use stderr)
 			if !tc.runAll {
 				if tc.expectEarlyExit {
 					assert.Contains(t, stderr, "Early exit in terragrunt unit")
@@ -216,7 +207,6 @@ func TestExcludeBlockBehavior(t *testing.T) {
 				}
 
 				if tc.expectRuns {
-					// Verify the unit ran (no early exit message)
 					assert.NotContains(t, stderr, "Early exit in terragrunt unit")
 					assert.NotContains(t, stderr, "due to exclude block with no_run = true")
 				}
@@ -224,19 +214,56 @@ func TestExcludeBlockBehavior(t *testing.T) {
 				return
 			}
 
-			// Run --all mode: parse report and verify
 			runs, err := report.ParseJSONRunsFromFile(reportFile)
 			require.NoError(t, err, "Failed to parse report file")
 
-			// Verify each expected unit
 			for unitName, expected := range tc.expectedUnits {
 				run := runs.FindByName(unitName)
 				require.NotNil(t, run, "unit %s not found in report. Found: %v", unitName, runs.Names())
-				assert.Equal(t, expected.result, run.Result, "unit %s: expected result %q, got %q", unitName, expected.result, run.Result)
+				assert.Equal(
+					t,
+					expected.result,
+					run.Result,
+					"unit %s: expected result %q, got %q",
+					unitName,
+					expected.result,
+					run.Result,
+				)
 
-				if expected.reason != "" {
-					require.NotNil(t, run.Reason, "unit %s: expected reason %q but got nil", unitName, expected.reason)
-					assert.Equal(t, expected.reason, *run.Reason, "unit %s: expected reason %q, got %q", unitName, expected.reason, *run.Reason)
+				switch expected.result {
+				case "excluded":
+					require.NotEmpty(
+						t,
+						expected.reason,
+						"test bug: excluded unit %s must specify expected reason",
+						unitName,
+					)
+					require.NotNil(
+						t,
+						run.Reason,
+						"unit %s: expected reason %q but got nil",
+						unitName,
+						expected.reason,
+					)
+					assert.Equal(
+						t,
+						expected.reason,
+						*run.Reason,
+						"unit %s: expected reason %q, got %q",
+						unitName,
+						expected.reason,
+						*run.Reason,
+					)
+				case "succeeded":
+					assert.Nil(
+						t,
+						run.Reason,
+						"unit %s: succeeded units should not have a reason, got %v",
+						unitName,
+						run.Reason,
+					)
+				default:
+					t.Fatalf("Unexpected result %q for unit %s", expected.result, unitName)
 				}
 			}
 		})
@@ -244,31 +271,39 @@ func TestExcludeBlockBehavior(t *testing.T) {
 }
 
 // buildExcludeTestCommand constructs the terragrunt command for a test case.
-func buildExcludeTestCommand(tc excludeTestCase, rootPath, reportFile string) string {
-	var cmd string
-
+func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) string {
 	if tc.runAll {
-		// For run --all, terraform command/args go after "--"
-		cmd = fmt.Sprintf("terragrunt run --all --non-interactive --working-dir %s --report-file %s --report-format json",
-			rootPath, reportFile)
+		cmd := fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s "+
+				"--report-file %s --report-format json",
+			rootPath,
+			reportFile,
+		)
 
-		// Add feature flags before "--"
+		var cmdSB strings.Builder
 		for _, flag := range tc.featureFlags {
-			cmd += fmt.Sprintf(" --feature %s", flag)
+			cmdSB.WriteString(" --feature " + flag)
 		}
 
-		// Add terraform command after "--"
-		cmd += fmt.Sprintf(" -- %s", tc.command)
-	} else {
-		// Single unit mode - no report file
-		cmd = fmt.Sprintf("terragrunt %s --non-interactive --working-dir %s",
-			tc.command, rootPath)
+		cmd += cmdSB.String()
 
-		// Add feature flags
-		for _, flag := range tc.featureFlags {
-			cmd += fmt.Sprintf(" --feature %s", flag)
-		}
+		cmd += " -- " + tc.command
+
+		return cmd
 	}
+
+	cmd := fmt.Sprintf(
+		"terragrunt %s --non-interactive --working-dir %s",
+		tc.command,
+		rootPath,
+	)
+
+	var cmdSB strings.Builder
+	for _, flag := range tc.featureFlags {
+		cmdSB.WriteString(" --feature " + flag)
+	}
+
+	cmd += cmdSB.String()
 
 	return cmd
 }
