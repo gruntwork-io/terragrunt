@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
@@ -28,6 +29,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
+	// Configure report colors.
+	//
+	// This doesn't actually do anything for single-unit runs, but it's
+	// helpful to leave it in here for consistency, if we ever add
+	// support for run summaries in single-unit runs.
+	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+		r.WithDisableColor()
+	}
+
+	if opts.ReportFormat != "" {
+		r.WithFormat(opts.ReportFormat)
+	}
+
 	tgOpts := opts.OptionsFromContext(ctx)
 
 	if tgOpts.RunAll {
@@ -36,6 +50,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if tgOpts.Graph {
 		return graph.Run(ctx, l, tgOpts)
+	}
+
+	if opts.ReportSchemaFile != "" {
+		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+	}
+
+	if opts.ReportFile != "" {
+		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
 	}
 
 	if opts.TerraformCommand == "" {
