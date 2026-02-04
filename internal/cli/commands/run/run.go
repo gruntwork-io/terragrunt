@@ -100,7 +100,41 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
+	unitPath := util.CleanPath(opts.WorkingDir)
+
+	if _, err := r.EnsureRun(l, unitPath); err != nil {
+		return err
+	}
+
+	var runErr error
+
+	defer func() {
+		if runErr != nil {
+			if endErr := r.EndRun(
+				l,
+				unitPath,
+				report.WithResult(report.ResultFailed),
+				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(runErr.Error()),
+			); endErr != nil {
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+			}
+
+			return
+		}
+
+		if endErr := r.EndRun(
+			l,
+			unitPath,
+			report.WithResult(report.ResultSucceeded),
+		); endErr != nil {
+			l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+		}
+	}()
+
+	runErr = run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
+
+	return runErr
 }
 
 // isTerraformPath returns true if the TFPath ends with the default Terraform path.
