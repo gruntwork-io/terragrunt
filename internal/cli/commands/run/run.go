@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -100,7 +101,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	unitPath := util.CleanPath(opts.WorkingDir)
+	absWorkingDir, err := filepath.Abs(opts.RootWorkingDir)
+	if err != nil {
+		return err
+	}
+
+	unitPath := util.CleanPath(absWorkingDir)
 
 	if _, err := r.EnsureRun(l, unitPath); err != nil {
 		return err
