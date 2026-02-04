@@ -12,7 +12,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
 ## OpenTofu/Terraform built-in functions
 
-All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/language/functions/) are supported in Terragrunt config files:
+All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
 
 ```hcl
 # terragrunt.hcl
@@ -302,7 +302,7 @@ remote_state {
 }
 ```
 
-Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
+Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 ## get_platform
 
@@ -752,7 +752,7 @@ Parameters `--terragrunt-global-cache` and `--terragrunt-no-cache` are mutually 
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 ```
 
-**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
+**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
 **Use global cache for directory-independent commands:**
 

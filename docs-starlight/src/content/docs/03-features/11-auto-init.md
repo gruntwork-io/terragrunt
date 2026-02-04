@@ -8,7 +8,7 @@ sidebar:
 
 *Auto-Init* is a feature of Terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.
 
-When Auto-Init is enabled (the default), terragrunt will automatically call [`tofu init`](https://opentofu.org/cli/commands/init/)/[`terraform init`](https://www.terraform.io/commands/init.html) before other commands (e.g. `terragrunt plan`) when terragrunt detects that any of the following are true:
+When Auto-Init is enabled (the default), terragrunt will automatically call [`tofu init`](https://opentofu.org/docs/cli/commands/init/)/[`terraform init`](https://www.terraform.io/docs/commands/init.html) before other commands (e.g. `terragrunt plan`) when terragrunt detects that any of the following are true:
 
 - `init` has never been called.
 - `source` needs to be downloaded.

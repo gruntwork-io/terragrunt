@@ -34,7 +34,7 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
    Worse yet, it requires that users repeat this process often, as the credentials you get back from the `assume-role` command expire. This is especially problematic if the OpenTofu/Terraform run is expected to take longer than the role assumption duration, and can expire mid-run.
 
-3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/language/settings/backends/s3/#assume-role-configuration).
+3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/docs/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/docs/language/settings/backends/s3/#assume-role-configuration).
 
    The downside to managing your role assumption with the AWS provider is that all runs have to be performed with the same IAM role. This can be problematic if you have different users who assume different roles, depending on their need for elevated access, and as a best practice, the role assumed by CI/CD pipelines should be different from the role assumed by developers.
 

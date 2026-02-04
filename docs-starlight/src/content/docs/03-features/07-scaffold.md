@@ -82,7 +82,7 @@ The elements in the `requiredVariables` and `optionalVariables` lists are struct
 
 - `Name` - variable name
 - `Description` - variable description
-- `Type` - variable type (string, number, bool, list, map, object) [Type Constants](https://developer.hashicorp.com/packer/templates/hcl_templates/variables#type-constraints)
+- `Type` - variable type (string, number, bool, list, map, object) [Type Constants](https://developer.hashicorp.com/packer/docs/templates/hcl_templates/variables#type-constraints)
 - `DefaultValue` - variable default value
 - `DefaultValuePlaceholder` - default value placeholder (e.g. `""` for a string or `0` for a number)
 

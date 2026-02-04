@@ -27,7 +27,7 @@ If you are happy to install development dependencies with `mise`, you can instal
 If you would like to manually install all the development dependencies for this guide, you can install them here:
 
 - [Terragrunt](https://docs.terragrunt.com/getting-started/install/)
-- [OpenTofu](https://opentofu.org/intro/install/)
+- [OpenTofu](https://opentofu.org/docs/intro/install/)
 - [NodeJS](https://nodejs.org/en/download)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 

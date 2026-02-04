@@ -62,13 +62,13 @@ The design of `terragrunt.stack.hcl` files is to ensure that they function entir
 
 ### Module
 
-A module is an [OpenTofu/Terraform construct](https://opentofu.org/language/modules/) defined using a collection of OpenTofu/Terraform configurations ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
+A module is an [OpenTofu/Terraform construct](https://opentofu.org/docs/language/modules/) defined using a collection of OpenTofu/Terraform configurations ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
 
 Modules typically represent a generic pattern of infrastructure that can be instantiated multiple times, with different configurations exposed as variables.
 
 e.g. A module might represent a generic pattern for a VPC, a database, or a server. Note that this differs from a unit, which represents a single instance of a provisioned VPC, database, or server.
 
-Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/language/modules/sources/).
+Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/docs/language/modules/sources/).
 
 To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/reference/hcl/blocks#terraform).
 
@@ -88,7 +88,7 @@ Resources generally correspond to the smallest piece of infrastructure that can 
 
 ### State
 
-Terragrunt stores the current state of infrastructure in one or more OpenTofu/Terraform [state files](https://opentofu.org/language/state/).
+Terragrunt stores the current state of infrastructure in one or more OpenTofu/Terraform [state files](https://opentofu.org/docs/language/state/).
 
 State is an extremely important concept in the context of OpenTofu/Terraform, and it's helpful to read the relevant documentation there to understand what Terragrunt does to it.
 

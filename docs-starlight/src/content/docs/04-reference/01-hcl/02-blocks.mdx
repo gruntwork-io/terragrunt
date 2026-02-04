@@ -22,7 +22,7 @@ before or after calling OpenTofu/Terraform.
 The `terraform` block supports the following arguments:
 
 - `source` (attribute): Specifies where to find OpenTofu/Terraform configuration files. This parameter supports the same syntax as the
-  [module source](https://opentofu.org/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
+  [module source](https://opentofu.org/docs/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
   for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
   parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
   relative paths work correctly between modules in that repo.
@@ -32,7 +32,7 @@ The `terraform` block supports the following arguments:
     `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
     module from the public Terraform registry, you can use the following as the source parameter:
     `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
-  - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/cloud/registry/index.html)),
+  - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
     you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
     This token can be any registry API token.
   - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
@@ -311,7 +311,7 @@ DRY](/features/state-backend/) use case overview.
 The `remote_state` block supports the following arguments:
 
 - `backend` (attribute): Specifies which remote state backend will be configured. This should be one of the
-  [available backends](https://opentofu.org/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
+  [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
   have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
@@ -609,9 +609,9 @@ remote_state {
 
 ### encryption
 
-The encryption map needs a `key_provider` property, which can be set to any provider [supported by OpenTofu](https://opentofu.org/language/state/encryption/#key-providers); including: `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`.
+The encryption map needs a `key_provider` property, which can be set to any provider [supported by OpenTofu](https://opentofu.org/docs/language/state/encryption/#key-providers); including: `pbkdf2`, `aws_kms`, `gcp_kms`, or `openbao`.
 
-Documentation for each provider type and its possible configuration can be found in the [OpenTofu docs](https://opentofu.org/language/state/encryption/#key-providers).
+Documentation for each provider type and its possible configuration can be found in the [OpenTofu docs](https://opentofu.org/docs/language/state/encryption/#key-providers).
 
 A `terragrunt.hcl` file configuring PBKDF2 encryption could look like this:
 

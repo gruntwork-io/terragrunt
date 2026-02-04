@@ -793,7 +793,7 @@ terragrunt run --all apply --parallelism 4
 
 ## Saving OpenTofu/Terraform plan output
 
-A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/cli/commands/plan/).
+A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/docs/cli/commands/plan/).
 
 Terragrunt provides special tooling in `run --all` execution to ensure that the saved plan for a `run --all` against a stack has
 a corresponding entry for each unit in the stack in a directory structure that mirrors the stack structure.

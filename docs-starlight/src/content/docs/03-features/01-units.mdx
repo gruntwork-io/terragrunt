@@ -127,7 +127,7 @@ inputs = {
 }
 ```
 
-_(Note: the double slash (`//`) in the `source` parameter is intentional and required. It’s part of OpenTofu/Terraform’s Git syntax for [module sources](https://opentofu.org/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
+_(Note: the double slash (`//`) in the `source` parameter is intentional and required. It's part of OpenTofu/Terraform's Git syntax for [module sources](https://opentofu.org/docs/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
 
 And `prod/app/terragrunt.hcl` may look like this:
 
@@ -153,7 +153,7 @@ terragrunt apply
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
 
-1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the same syntax as the [module source](https://opentofu.org/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the same syntax as the [module source](https://opentofu.org/docs/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
 2. Copy all files from the current working directory into the temporary folder.
 
