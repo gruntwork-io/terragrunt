@@ -312,8 +312,4 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  tailwind: {
-    // We include this extra Tailwind config to support the shadcn/ui components.
-    configFile: './tailwind.config.mjs',
-  },
 });
