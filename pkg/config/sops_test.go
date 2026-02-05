@@ -4,6 +4,7 @@ package config_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -11,34 +12,31 @@ import (
 	"testing"
 	"time"
 
-	"github.com/getsops/sops/v3/decrypt"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
 
-// collectSecretFiles returns absolute paths to all secret.enc.json files in fixtureDir.
-func collectSecretFiles(t *testing.T, fixtureDir string) []string {
+// generateTestSecretFiles creates plain JSON files in a temp directory.
+// No SOPS encryption needed — the test injects sopsDecryptFn to read raw files.
+func generateTestSecretFiles(t *testing.T, count int) []string {
 	t.Helper()
 
-	entries, err := os.ReadDir(fixtureDir)
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	var files []string
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
+	for i := 1; i <= count; i++ {
+		unitDir := filepath.Join(dir, fmt.Sprintf("unit-%02d", i))
+		require.NoError(t, os.MkdirAll(unitDir, 0755))
 
-		secretFile := filepath.Join(fixtureDir, entry.Name(), "secret.enc.json")
-		if _, err := os.Stat(secretFile); err == nil {
-			files = append(files, secretFile)
-		}
+		secretFile := filepath.Join(unitDir, "secret.enc.json")
+		require.NoError(t, os.WriteFile(secretFile,
+			[]byte(fmt.Sprintf(`{"value":"secret-from-unit-%02d"}`, i)), 0644))
+
+		files = append(files, secretFile)
 	}
-
-	require.NotEmpty(t, files, "no secret files found in %s", fixtureDir)
 
 	return files
 }
@@ -101,19 +99,14 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 			}
 		}
 
-		return decrypt.File(path, format)
+		// Return raw file content — no real SOPS decryption needed for race detection.
+		return os.ReadFile(path)
 	})
 
-	fixtureDir, err := filepath.Abs("../../test/fixtures/sops-multi-unit")
-	require.NoError(t, err)
+	// Generate plain JSON files in temp dir (no SOPS encryption needed)
+	const numFiles = 10
 
-	allSecretFiles := collectSecretFiles(t, fixtureDir)
-
-	// Use a subset of files to keep test fast but still have enough concurrency
-	secretFiles := allSecretFiles
-	if len(secretFiles) > 10 {
-		secretFiles = secretFiles[:10]
-	}
+	secretFiles := generateTestSecretFiles(t, numFiles)
 
 	t.Logf("Using %d secret files to decrypt concurrently", len(secretFiles))
 

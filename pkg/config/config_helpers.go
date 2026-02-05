@@ -1299,6 +1299,11 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 // plain-text result of the decrypt operation.
 var sopsCache = cache.NewCache[string](sopsCacheName)
 
+// sopsDecryptFn is the function used to decrypt SOPS files.
+// Package-level variable to allow test injection of delays
+// that simulate network latency (e.g., AWS KMS calls).
+var sopsDecryptFn = decrypt.File //nolint:gochecknoglobals
+
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	var sourceFile string
@@ -1354,24 +1359,22 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 	// Track that this file was read during parsing
 	trackFileRead(pctx.FilesRead, path)
 
+	// Lock for entire cache-check-decrypt-store operation to prevent race conditions
+	// when multiple units are decrypted concurrently. This is necessary because:
+	// 1. Environment variables need to be temporarily set for SOPS authentication
+	// 2. The cache check and decrypt must be atomic to prevent duplicate work
+	// See https://github.com/gruntwork-io/terragrunt/issues/5515
+	locks.EnvLock.Lock()
+	defer locks.EnvLock.Unlock()
+
 	// Set environment variables from the TerragruntOptions.Env map.
 	// This is especially useful for integrations with things like the `auth-provider` flag,
 	// which can set environment variables that are used for decryption.
-	//
-	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
-	// for decryption, we have to rely on environment variables to pass these configurations.
-	// This can cause a race condition, so we have to be careful to avoid having anything else
-	// running concurrently that might interfere with the environment variables.
 	env := pctx.TerragruntOptions.Env
-	if len(env) > 0 {
-		locks.EnvLock.Lock()
-		defer locks.EnvLock.Unlock()
-
-		for k, v := range env {
-			if os.Getenv(k) == "" {
-				os.Setenv(k, v)      //nolint:errcheck
-				defer os.Unsetenv(k) //nolint:errcheck
-			}
+	for k, v := range env {
+		if os.Getenv(k) == "" {
+			os.Setenv(k, v)      //nolint:errcheck
+			defer os.Unsetenv(k) //nolint:errcheck
 		}
 	}
 
@@ -1379,7 +1382,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(path, format)
+	rawData, err := sopsDecryptFn(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
