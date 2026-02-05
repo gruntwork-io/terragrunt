@@ -307,7 +307,7 @@ export default defineConfig({
     "/reference/cli/rules": "/process/cli-rules/",
 
     // Redirects for external resources
-    "/community/invite": "https://discord.gg/4XJgJ6yK",
+    "/community/invite": "https://discord.com/invite/YENaT9h8jh",
   },
   vite: {
     plugins: [tailwindcss()],
