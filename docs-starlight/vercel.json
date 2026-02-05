@@ -1,5 +1,24 @@
 {
   "buildCommand": "bun run build",
   "installCommand": "bun install",
-  "framework": "astro"
+  "framework": "astro",
+  "headers": [
+    {
+      "source": "/pagefind/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://terragrunt.webflow.io"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type"
+        }
+      ]
+    }
+  ]
 }
