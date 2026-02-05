@@ -72,7 +72,7 @@ Notes:
 - Execution is in reverse order; first are destroyed "top" units and in the end `eks`
 - `lambda` units aren't affected at all
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+To learn more about how to use this flag, see the [Stacks](/features/stacks) feature documentation.
 
 <Aside type="caution">
 When running `graph destroy`, the execution order is reversed compared to other commands. Dependencies will be destroyed in reverse order to ensure resources are safely removed (dependents are destroyed before their dependencies).
@@ -83,5 +83,5 @@ Always verify the execution plan before running destructive commands.
 <Aside type="danger">
 External dependencies (units outside your current working directory) are not automatically included in graph runs.
 
-You must explicitly include them using [`--queue-include-external`](/docs/reference/cli/commands/run#queue-include-external) if they need to be part of the execution.
+You must explicitly include them using [`--queue-include-external`](/reference/cli/commands/run#queue-include-external) if they need to be part of the execution.
 </Aside>

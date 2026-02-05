@@ -210,8 +210,8 @@ func New() strict.Controls {
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
-			Error:       errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
-			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
+			Error:       errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl"),
+			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
 			Category:    stageCategory,
 		},
 
@@ -220,7 +220,7 @@ func New() strict.Controls {
 			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
-			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
+			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
 		},
 
 		&Control{

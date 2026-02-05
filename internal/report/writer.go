@@ -469,7 +469,7 @@ func generateReportSchema() *jsonschema.Schema {
 	schema := reflector.Reflect(&JSONRun{})
 	schema.Description = "Schema for Terragrunt run report"
 	schema.Title = "Terragrunt Run Report Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json"
+	schema.ID = "https://docs.terragrunt.com/schemas/run/report/v3/schema.json"
 
 	return &jsonschema.Schema{
 		Type:        "array",

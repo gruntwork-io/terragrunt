@@ -16,5 +16,5 @@ func NewCompletedExperimentsWarning(experimentsNames []string) *CompletedExperim
 }
 
 func (w CompletedExperimentsWarning) String() string {
-	return "The following experiment(s) are already completed: " + strings.Join(w.experimentsNames, ", ") + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments"
+	return "The following experiment(s) are already completed: " + strings.Join(w.experimentsNames, ", ") + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments"
 }

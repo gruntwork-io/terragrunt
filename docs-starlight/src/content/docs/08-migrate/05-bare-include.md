@@ -1,7 +1,7 @@
 ---
 title: Bare Include
 description: Migration guide to avoid using bare includes
-slug: docs/migrate/bare-include
+slug: migrate/bare-include
 sidebar:
   order: 5
 ---

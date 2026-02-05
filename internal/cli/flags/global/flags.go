@@ -181,7 +181,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:    ExperimentModeFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
-			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://docs.terragrunt.com/reference/experiment-mode .",
 			Setter: func(_ bool) error {
 				opts.Experiments.ExperimentMode()
 
@@ -193,7 +193,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:    ExperimentFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
-			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Usage:   "Enables specific experiments. For a list of available experiments, see https://docs.terragrunt.com/reference/experiment-mode .",
 			Setter:  opts.Experiments.EnableExperiment,
 			Action: func(_ context.Context, _ *clihelper.Context, _ []string) error {
 				opts.Experiments.NotifyCompletedExperiments(l)
