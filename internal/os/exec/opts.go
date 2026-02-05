@@ -39,3 +39,12 @@ func WithForwardSignalDelay(delay time.Duration) Option {
 		cmd.forwardSignalDelay = delay
 	}
 }
+
+// WithGracefulShutdownDelay sets the time to wait for a process to exit gracefully
+// after sending an interrupt signal before escalating to SIGKILL.
+// This allows processes like Terraform to clean up child processes (e.g., provider plugins).
+func WithGracefulShutdownDelay(delay time.Duration) Option {
+	return func(cmd *Cmd) {
+		cmd.WaitDelay = delay
+	}
+}

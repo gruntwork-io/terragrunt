@@ -16,6 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// DefaultGracefulShutdownDelay is the default time to wait for a process to exit
+// gracefully after sending an interrupt signal before escalating to SIGKILL.
+const DefaultGracefulShutdownDelay = 30 * time.Second
+
 // Cmd is a command type.
 type Cmd struct {
 	logger          log.Logger
@@ -39,6 +43,9 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	cmd.WaitDelay = DefaultGracefulShutdownDelay
+
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -46,6 +53,10 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 
 		if sig := signal.SignalFromContext(ctx); sig != nil {
 			return cmd.Process.Signal(sig)
+		}
+
+		if cmd.interruptSignal != nil {
+			return cmd.Process.Signal(cmd.interruptSignal)
 		}
 
 		return cmd.Process.Signal(os.Kill)
