@@ -1,6 +1,6 @@
 //go:build sops
 
-package config_test
+package config //nolint:testpackage // needs access to sopsDecryptFn, sopsCache internals
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
@@ -63,11 +63,11 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 	// Inject delay into decrypt function to simulate KMS network latency.
 	var envVarRaces atomic.Int32
 
-	origFn := config.GetSopsDecryptFn()
+	origFn := sopsDecryptFn
 
-	t.Cleanup(func() { config.SetSopsDecryptFn(origFn) })
+	t.Cleanup(func() { sopsDecryptFn = origFn })
 
-	config.SetSopsDecryptFn(func(path string, format string) ([]byte, error) {
+	sopsDecryptFn = func(path string, format string) ([]byte, error) {
 		// Check if WE are the goroutine that set the env var.
 		// The production code does os.Setenv BEFORE calling sopsDecryptFn,
 		// so if the env var is set here, we're the "setter" goroutine.
@@ -101,7 +101,7 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 
 		// Return raw file content — no real SOPS decryption needed for race detection.
 		return os.ReadFile(path)
-	})
+	}
 
 	// Generate plain JSON files in temp dir (no SOPS encryption needed)
 	const numFiles = 10
@@ -115,7 +115,7 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 
 	for iter := 0; iter < iterations; iter++ {
 		// Clear cache to force fresh decryption each iteration
-		config.ResetSopsCache()
+		sopsCache = cache.NewCache[string](sopsCacheName)
 
 		var wg sync.WaitGroup
 
@@ -141,11 +141,11 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 
 				l := logger.CreateLogger()
 				ctx := context.Background()
-				ctx = config.WithConfigValues(ctx)
-				_, pctx := config.NewParsingContext(ctx, l, opts)
+				ctx = WithConfigValues(ctx)
+				_, pctx := NewParsingContext(ctx, l, opts)
 
 				// Call production code end-to-end
-				config.SopsDecryptFile(ctx, pctx, l, []string{filePath})
+				sopsDecryptFile(ctx, pctx, l, []string{filePath})
 			}(i, sf)
 		}
 
