@@ -1,6 +1,6 @@
 //go:build sops
 
-package config //nolint:testpackage // needs access to sopsDecryptFn, sopsCache internals
+package config //nolint:testpackage // needs access to sopsCache internals
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 // generateTestSecretFiles creates plain JSON files in a temp directory.
-// No SOPS encryption needed — the test injects sopsDecryptFn to read raw files.
+// No SOPS encryption needed — the test injects a mock decryptFn to read raw files.
 func generateTestSecretFiles(t *testing.T, count int) []string {
 	t.Helper()
 
@@ -50,7 +50,7 @@ func generateTestSecretFiles(t *testing.T, count int) []string {
 // With KMS-based decryption, the network latency makes this race window large
 // enough to hit reliably.
 //
-// This test injects a delay into sopsDecryptFn to simulate KMS latency,
+// This test injects a delay into decryptFn to simulate KMS latency,
 // then detects when env vars disappear mid-operation.
 //
 // Without the fix (conditional lock): FAILS — env vars change mid-decrypt.
@@ -60,16 +60,12 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 
 	const testEnvKey = "SOPS_TEST_AUTH_TOKEN"
 
-	// Inject delay into decrypt function to simulate KMS network latency.
 	var envVarRaces atomic.Int32
 
-	origFn := sopsDecryptFn
-
-	t.Cleanup(func() { sopsDecryptFn = origFn })
-
-	sopsDecryptFn = func(path string, format string) ([]byte, error) {
+	// Mock decrypt function that simulates KMS latency and detects env var races.
+	mockDecryptFn := func(path string, format string) ([]byte, error) {
 		// Check if WE are the goroutine that set the env var.
-		// The production code does os.Setenv BEFORE calling sopsDecryptFn,
+		// The production code does os.Setenv BEFORE calling decryptFn,
 		// so if the env var is set here, we're the "setter" goroutine.
 		if os.Getenv(testEnvKey) != "" {
 			// Setter goroutine: short delay so our deferred os.Unsetenv
@@ -77,7 +73,7 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 		} else {
 			// Non-setter goroutine: longer delay to ensure we're still
-			// inside sopsDecryptFn when setters' deferred os.Unsetenv runs.
+			// inside decryptFn when setters' deferred os.Unsetenv runs.
 			// Poll the env var to detect the set→unset transition.
 			deadline := time.Now().Add(50 * time.Millisecond)
 			sawSet := false
@@ -144,8 +140,8 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) {
 				ctx = WithConfigValues(ctx)
 				_, pctx := NewParsingContext(ctx, l, opts)
 
-				// Call production code end-to-end
-				sopsDecryptFile(ctx, pctx, l, []string{filePath})
+				// Call sopsDecryptFileImpl directly with mock decryptFn
+				sopsDecryptFileImpl(ctx, pctx, filePath, "json", mockDecryptFn)
 			}(i, sf)
 		}
 

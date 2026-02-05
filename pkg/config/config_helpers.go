@@ -1299,11 +1299,6 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 // plain-text result of the decrypt operation.
 var sopsCache = cache.NewCache[string](sopsCacheName)
 
-// sopsDecryptFn is the function used to decrypt SOPS files.
-// Package-level variable to allow test injection of delays
-// that simulate network latency (e.g., AWS KMS calls).
-var sopsDecryptFn = decrypt.File //nolint:gochecknoglobals
-
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	var sourceFile string
@@ -1320,9 +1315,27 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_sops_decrypt_file", attrs, func(childCtx context.Context) error {
+		if len(params) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: len(params)})
+		}
+
+		format, err := getSopsFileFormat(sourceFile)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		path := sourceFile
+
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
+			path = filepath.Clean(path)
+		}
+
+		trackFileRead(pctx.FilesRead, path)
+
 		var innerErr error
 
-		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, params)
+		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, path, format, decrypt.File)
 
 		return innerErr
 	})
@@ -1331,34 +1344,7 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger, params []string) (string, error) {
-	numParams := len(params)
-
-	var sourceFile string
-
-	if numParams > 0 {
-		sourceFile = params[0]
-	}
-
-	if numParams != 1 {
-		return "", errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
-	}
-
-	format, err := getSopsFileFormat(sourceFile)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	path := sourceFile
-
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
-		path = filepath.Clean(path)
-	}
-
-	// Track that this file was read during parsing
-	trackFileRead(pctx.FilesRead, path)
-
+func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
 	// Lock for entire cache-check-decrypt-store operation to prevent race conditions
 	// when multiple units are decrypted concurrently. This is necessary because:
 	// 1. Environment variables need to be temporarily set for SOPS authentication
@@ -1382,7 +1368,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 		return val, nil
 	}
 
-	rawData, err := sopsDecryptFn(path, format)
+	rawData, err := decryptFn(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
@@ -1394,7 +1380,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 		return value, nil
 	}
 
-	return "", errors.New(InvalidSopsFormatError{SourceFilePath: sourceFile})
+	return "", errors.New(InvalidSopsFormatError{SourceFilePath: path})
 }
 
 // Mapping of SOPS format to string
