@@ -216,12 +216,6 @@ func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
 
 // TestSOPSDecryptedCorrectlyRunAllMultipleUnits tests that SOPS decryption works correctly
 // when multiple units with the same encrypted secret are processed in parallel via run --all.
-// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5515
-//
-// The test uses 48 units to maximize parallelism and increase the chance of triggering
-// any race conditions in the SOPS decryption code. All units share the same encrypted file
-// (copied from fixtures/sops/secrets.json) — the race bug causes DECRYPTION_FAILED, not
-// wrong values, so same-value testing still catches it.
 func TestSOPSDecryptedCorrectlyRunAllMultipleUnits(t *testing.T) {
 	t.Parallel()
 
