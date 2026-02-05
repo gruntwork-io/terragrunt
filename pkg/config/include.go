@@ -215,14 +215,35 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 		// TODO: Remove lint suppression
 		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
-			l.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy no merge: not merging config in for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 		case ShallowMerge:
-			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 
 			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
-			l.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 
 			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			if err != nil {
@@ -231,7 +252,12 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 
 			baseDependencyBlock = mergedDependencyBlock
 		default:
-			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
+			return nil, fmt.Errorf(
+				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
+					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
+					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
+				mergeStrategy,
+			)
 		}
 	}
 
