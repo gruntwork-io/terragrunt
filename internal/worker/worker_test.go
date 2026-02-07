@@ -83,6 +83,10 @@ func TestSomeTasksReturnErrors(t *testing.T) {
 	errs := wp.Wait()
 	require.Error(t, errs)
 
+	multiErr, ok := errs.(*errors.MultiError)
+	require.True(t, ok, "expected *errors.MultiError, got %T", errs)
+	require.Len(t, multiErr.WrappedErrors(), 5, "expected exactly 5 errors, got %d", len(multiErr.WrappedErrors()))
+
 	if atomic.LoadInt32(&successCount) != 5 {
 		t.Errorf("expected successCount to be 5, got %d", successCount)
 	}
