@@ -37,7 +37,20 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
 	if util.FileExists(sourceLockFilePath) {
-		l.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		l.Debugf(
+			"Copying lock file from %s to %s",
+			util.RelPathForLog(
+				opts.RootWorkingDir,
+				sourceLockFilePath,
+				opts.LogShowAbsPaths,
+			),
+			util.RelPathForLog(
+				opts.RootWorkingDir,
+				destinationLockFilePath,
+				opts.LogShowAbsPaths,
+			),
+		)
+
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 
@@ -377,6 +390,10 @@ func IsActionListedInExclude(actions []string, action string) bool {
 //   - command: the command/action to check
 func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition bool, command string) bool {
 	if !ifCondition {
+		return false
+	}
+
+	if noRun != nil && !*noRun {
 		return false
 	}
 

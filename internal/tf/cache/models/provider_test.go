@@ -44,6 +44,19 @@ func TestResolveRelativeReferences(t *testing.T) {
 				SHA256SumsSignatureURL: "https://releases.hashicorp.com/terraform-provider-local/2.5.1/terraform-provider-local_2.5.1_SHA256SUMS.72D7468F.sig",
 			},
 		},
+		{
+			"https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64",
+			models.ResponseBody{
+				DownloadURL:            "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip",
+				SHA256SumsURL:          "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS",
+				SHA256SumsSignatureURL: "/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig",
+			},
+			models.ResponseBody{
+				DownloadURL:            "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider.zip",
+				SHA256SumsURL:          "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS",
+				SHA256SumsSignatureURL: "https://registry.company.com/v1/providers/ns/name/1.0/download/linux/amd64/terraform-provider_SHA256SUMS.sig",
+			},
+		},
 	}
 
 	for i, tc := range testCases {
