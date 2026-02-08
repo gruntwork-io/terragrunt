@@ -735,7 +735,7 @@ terragrunt list --format=dot --dependencies --external | dot -Tsvg > graph.svg
 
 The example above generates the following graph:
 
-![terragrunt dag graph](../../../assets/img/collections/documentation/graph.png)
+![terragrunt dag graph](/img/collections/documentation/graph.png)
 
 Note that this graph shows the dependency relationship in the direction of the arrow, with the tip pointing to the dependency (e.g. `frontend-app` depends on `backend-app`).
 
@@ -1081,4 +1081,3 @@ Now that you understand both implicit and explicit stacks, you can:
 ## Learning more
 
 If you'd like more advanced examples on stacks, check out the [terragrunt-infrastructure-catalog-example repository](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks). These have full-featured examples of stacks that deploy real, stateful infrastructure in an AWS account.
-

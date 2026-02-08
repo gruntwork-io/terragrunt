@@ -140,7 +140,7 @@ time=12:33:08.513 level=debug msg=Running command: tofu --version
 
 *Unfortunately, it is not possible to display color in a Markdown document, but in the above output, `time=` is colored magenta, `level=` is colored light blue and `msg=` is colored green.*
 
-![screenshot](../../../../assets/img/screenshots/custom-log-format-1.jpg)
+![screenshot](/img/screenshots/custom-log-format-1.jpg)
 
 ## Options
 
@@ -303,5 +303,3 @@ The examples below replicate the preset formats specified with `--log-format`. T
 ```shell
 --log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
 ```
-
-
