@@ -28,6 +28,7 @@ var DefaultRetryableErrors = []string{
 	"(?s).*Client\\.Timeout exceeded while awaiting headers.*",
 	"(?s).*Could not download module.*The requested URL returned error: 429.*",
 	"(?s).*net/http: TLS.*handshake timeout.*",
+	"(?s).*could not query provider registry.*context deadline exceeded.*",
 }
 
 // defaultErrorsConfig builds a default ErrorsConfig using DefaultRetryableErrors

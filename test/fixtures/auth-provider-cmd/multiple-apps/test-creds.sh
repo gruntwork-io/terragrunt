@@ -2,7 +2,10 @@
 
 set -o pipefail
 
-. ${PWD}/creds.config
+# Use argument if provided, otherwise fallback to PWD
+CONFIG_DIR="${1:-${PWD}}"
+
+. ${CONFIG_DIR}/creds.config
 
 if [ "$access_key_id" != "$AWS_ACCESS_KEY_ID" ]; then
     exit 1

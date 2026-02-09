@@ -93,7 +93,7 @@ examples:
 
 flags:
   - list-format
-  - list-hidden
+  - list-no-hidden
   - list-dependencies
   - list-external
   - list-tree
@@ -272,7 +272,7 @@ This is because the default text format of `list` won't display dependency infor
 
 ### Hidden Configurations
 
-By default, Terragrunt excludes configurations in hidden directories (those starting with a dot). Use the `--hidden` flag to include these configurations in the output.
+By default, Terragrunt includes configurations in hidden directories (those starting with a dot) in the output. Use the `--no-hidden` flag to exclude these configurations.
 
 ## Working Directory
 
@@ -297,16 +297,6 @@ You can disable color output by using the global `--no-color` flag.
 
 ## Filtering Results
 
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt list --experiment filter-flag --filter 'foo'
-```
-</Aside>
-
 The `list` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for listing configurations that match specific criteria before running operations on them.
 
 ### Listing Affected Components
@@ -324,16 +314,16 @@ This is equivalent to `terragrunt list --filter '[main...HEAD]'` and automatical
 
 ```bash
 # Filter by name using glob patterns
-terragrunt list --experiment filter-flag --filter 'app*'
+terragrunt list --filter 'app*'
 
 # Filter by path
-terragrunt list --experiment filter-flag --filter './prod/**'
+terragrunt list --filter './prod/**'
 
 # Filter by type
-terragrunt list --experiment filter-flag --filter 'type=unit'
+terragrunt list --filter 'type=unit'
 
 # Combine filters with intersection
-terragrunt list --experiment filter-flag --filter './prod/** | type=unit'
+terragrunt list --filter './prod/** | type=unit'
 ```
 
 ### Advanced Filtering
@@ -342,13 +332,13 @@ The filter syntax supports negation, multiple filters, and complex queries:
 
 ```bash
 # Exclude specific configurations
-terragrunt list --experiment filter-flag --filter '!./test/**'
+terragrunt list --filter '!./test/**'
 
 # Multiple filters (OR logic)
-terragrunt list --experiment filter-flag --filter 'app1' --filter 'app2'
+terragrunt list --filter 'app1' --filter 'app2'
 
 # Complex queries with chaining
-terragrunt list --experiment filter-flag --filter './dev/** | type=unit | !name=unit1'
+terragrunt list --filter './dev/** | type=unit | !name=unit1'
 ```
 
 <Aside type="tip" title="Learn More About Filtering">

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -14,10 +15,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -96,39 +94,6 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 
 	return CleanPath(absPath), nil
-}
-
-func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
-	basePath, err := CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var errs []error
-
-	compiledGlobs := map[string]glob.Glob{}
-
-	for _, globPath := range globPaths {
-		canGlobPath, err := CanonicalPath(globPath, basePath)
-		if err != nil {
-			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlob, err := glob.Compile(canGlobPath, '/')
-		if err != nil {
-			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlobs[globPath] = compiledGlob
-	}
-
-	if len(errs) > 0 {
-		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
-	}
-
-	return compiledGlobs, nil
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
@@ -614,7 +579,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	// If destination exists, remove it first to avoid permission issues
 	// This is especially important when CAS creates read-only files
 	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil {
+		if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
 			return errors.New(err)
 		}
 	}
@@ -1191,6 +1156,31 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
 
 	return fullPath, nil
+}
+
+// RelPathForLog returns a relative path suitable for logging.
+// If the path cannot be made relative, it returns the original path.
+// Paths that don't start with ".." get a "./" prefix for clarity.
+// If showAbsPath is true, the original targetPath is returned unchanged.
+func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
+	if showAbsPath {
+		return targetPath
+	}
+
+	if relPath, err := filepath.Rel(basePath, targetPath); err == nil {
+		if relPath == "." {
+			return targetPath
+		}
+
+		// Add "./" prefix for paths within the base directory for clarity
+		if !strings.HasPrefix(relPath, "..") {
+			return "." + string(filepath.Separator) + relPath
+		}
+
+		return relPath
+	}
+
+	return targetPath
 }
 
 // MoveFile attempts to rename a file from source to destination, if this fails

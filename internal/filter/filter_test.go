@@ -345,7 +345,7 @@ func TestFilter_RealWorldScenarios(t *testing.T) {
 			result, err := filter.Apply(l, tt.filterString, repoComponents)
 			require.NoError(t, err)
 
-			var resultNames []string
+			resultNames := make([]string, 0, len(result))
 			for _, c := range result {
 				resultNames = append(resultNames, filepath.Base(c.Path()))
 			}

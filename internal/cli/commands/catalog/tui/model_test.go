@@ -126,15 +126,20 @@ func TestTUIFinalModel(t *testing.T) {
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
 
-	// Send 'q' to quit the application immediately
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("List of Modules"))
+	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
+
 	tm.Send(tea.KeyMsg{
 		Type:  tea.KeyRunes,
 		Runes: []rune("q"),
 	})
 
+	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
+
 	fm := tm.FinalModel(t)
 	finalModel, ok := fm.(tui.Model)
-	require.True(t, ok, "final model should be of type model")
+	require.True(t, ok, "final model should be of type tui.Model, got %T", fm)
 
 	// Verify the model has the expected state
 	assert.Equal(t, tui.ListState, finalModel.State)

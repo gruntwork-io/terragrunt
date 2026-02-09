@@ -75,6 +75,7 @@ func TestComponentsCycleCheck(t *testing.T) {
 				a := component.NewUnit("a")
 				b := component.NewUnit("b")
 				a.AddDependency(b)
+
 				return component.Components{a, b}
 			},
 			errorExpected: false,
@@ -86,6 +87,7 @@ func TestComponentsCycleCheck(t *testing.T) {
 				b := component.NewUnit("b")
 				a.AddDependency(b)
 				b.AddDependency(a)
+
 				return component.Components{a, b}
 			},
 			errorExpected: true,
@@ -96,9 +98,11 @@ func TestComponentsCycleCheck(t *testing.T) {
 				a := component.NewUnit("a")
 				b := component.NewUnit("b")
 				c := component.NewUnit("c")
+
 				a.AddDependency(b)
 				b.AddDependency(c)
 				c.AddDependency(a)
+
 				return component.Components{a, b, c}
 			},
 			errorExpected: true,
@@ -110,10 +114,12 @@ func TestComponentsCycleCheck(t *testing.T) {
 				b := component.NewUnit("b")
 				c := component.NewUnit("c")
 				d := component.NewUnit("d")
+
 				a.AddDependency(b)
 				a.AddDependency(c)
 				b.AddDependency(d)
 				c.AddDependency(d)
+
 				return component.Components{a, b, c, d}
 			},
 			errorExpected: false,

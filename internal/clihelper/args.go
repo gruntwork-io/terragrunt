@@ -33,10 +33,8 @@ func (args Args) String() string {
 
 // Split splits `args` into two slices separated by `sep`.
 func (args Args) Split(sep string) (Args, Args) {
-	for i := range args {
-		if args[i] == sep {
-			return args[:i], args[i+1:]
-		}
+	if i := slices.Index(args, sep); i >= 0 {
+		return args[:i], args[i+1:]
 	}
 
 	return args, nil
@@ -62,7 +60,7 @@ func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Second returns the first argument or a blank string.
+// Second returns the second argument or a blank string.
 func (args Args) Second() string {
 	return args.Get(1)
 }
@@ -79,24 +77,14 @@ func (args Args) Tail() Args {
 		return []string{}
 	}
 
-	tail := []string((args)[1:])
-	ret := make([]string, len(tail))
-	copy(ret, tail)
-
-	return ret
+	return slices.Clone(args[1:])
 }
 
 // Remove returns `args` with the `name` element removed.
 func (args Args) Remove(name string) Args {
-	result := make([]string, 0, len(args))
-
-	for _, arg := range args {
-		if arg != name {
-			result = append(result, arg)
-		}
-	}
-
-	return result
+	return slices.DeleteFunc(slices.Clone(args), func(arg string) bool {
+		return arg == name
+	})
 }
 
 // Len returns the length of the wrapped slice
@@ -111,10 +99,7 @@ func (args Args) Present() bool {
 
 // Slice returns a copy of the internal slice
 func (args Args) Slice() []string {
-	ret := make([]string, len(args))
-	copy(ret, args)
-
-	return ret
+	return slices.Clone(args)
 }
 
 // Normalize formats the arguments according to the given actions.
@@ -123,9 +108,9 @@ func (args Args) Slice() []string {
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
 //	`DoubleDashFlag` - converts all arguments containing single dashes to double dashes
 func (args Args) Normalize(acts ...NormalizeActsType) Args {
-	strArgs := make(Args, 0, len(args.Slice()))
+	result := make(Args, 0, len(args))
 
-	for _, arg := range args.Slice() {
+	for _, arg := range args {
 		for _, act := range acts {
 			switch act {
 			case SingleDashFlag:
@@ -139,10 +124,10 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 			}
 		}
 
-		strArgs = append(strArgs, arg)
+		result = append(result, arg)
 	}
 
-	return strArgs
+	return result
 }
 
 // CommandNameN returns the nth argument from `args` that starts without a dash `-`.

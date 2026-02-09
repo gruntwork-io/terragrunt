@@ -6,18 +6,6 @@ type: list(string)
 
 import {Aside} from '@astrojs/starlight/components';
 
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt find --experiment filter-flag --filter 'foo'
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-</Aside>
-
 <Aside type="note" title="Filter Behavior for HCL Format">
 The `--filter` flag works differently for `hcl fmt` compared to other commands. It filters on individual HCL files rather than units or stacks (which are directories). As a result, only path-based filter expressions are supported. Attribute-based filters like `type=unit` or `name=my-app` are not applicable to file-level operations.
 

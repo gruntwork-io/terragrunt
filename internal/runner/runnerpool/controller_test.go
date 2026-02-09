@@ -150,7 +150,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit A failed", "unit B did not run due to early exit", "unit C did not run due to early exit"} {
+	for _, want := range []string{"unit A failed", "Unit 'B' did not run", "Unit 'C' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
@@ -205,7 +205,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
@@ -243,10 +243,10 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 	for _, want := range []string{
 		"unit A failed",
-		"unit B did not run due to early exit",
-		"unit C did not run due to early exit",
-		"unit D did not run due to early exit",
-		"unit E did not run due to early exit",
+		"Unit 'B' did not run",
+		"Unit 'C' did not run",
+		"Unit 'D' did not run",
+		"Unit 'E' did not run",
 	} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -283,7 +283,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }

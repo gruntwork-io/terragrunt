@@ -149,7 +149,8 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 
 				setup(tmpDir, count)
 
-				args := []string{
+				args := make([]string, 0, 8+len(cacheType.args))
+				args = append(args,
 					"terragrunt",
 					"run",
 					"--all",
@@ -158,7 +159,7 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 					"--non-interactive",
 					"--working-dir",
 					tmpDir,
-				}
+				)
 
 				args = append(args, cacheType.args...)
 

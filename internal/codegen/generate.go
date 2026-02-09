@@ -97,7 +97,7 @@ type GenerateConfig struct {
 // - if ExistsError, return an error.
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
-func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string, config GenerateConfig) error {
+func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string, config *GenerateConfig) error {
 	// Figure out the target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {

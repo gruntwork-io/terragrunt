@@ -41,10 +41,9 @@ type Config struct {
 }
 
 func (cfg *Config) Clone() *Config {
-	var (
-		providerInstallation *ProviderInstallation
-		hosts                []ConfigHost
-	)
+	var providerInstallation *ProviderInstallation
+
+	hosts := make([]ConfigHost, 0, len(cfg.Hosts))
 
 	hosts = append(hosts, cfg.Hosts...)
 

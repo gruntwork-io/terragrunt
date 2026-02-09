@@ -1102,6 +1102,160 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 	})
 }
 
+func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
+	t.Parallel()
+
+	// Create a component graph: a -> b -> c -> d
+	a := component.NewUnit("./a")
+	b := component.NewUnit("./b")
+	c := component.NewUnit("./c")
+	d := component.NewUnit("./d")
+
+	// Set up dependencies: d depends on c, c depends on b, b depends on a
+	d.AddDependency(c)
+	c.AddDependency(b)
+	b.AddDependency(a)
+
+	components := []component.Component{a, b, c, d}
+
+	t.Run("depth 1 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c}, result)
+	})
+
+	t.Run("depth 2 dependency traversal from d", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b}, result)
+	})
+
+	t.Run("depth 1 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      1,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b}, result)
+	})
+
+	t.Run("depth 2 dependent traversal from a", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			IncludeDependencies: false,
+			IncludeDependents:   true,
+			ExcludeTarget:       false,
+			DependentDepth:      2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{a, b, c}, result)
+	})
+
+	t.Run("unlimited depth (0) traverses all", func(t *testing.T) {
+		t.Parallel()
+
+		expr := &filter.GraphExpression{
+			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     0,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []component.Component{d, c, b, a}, result)
+	})
+}
+
+func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
+	t.Parallel()
+
+	// Graph structure:
+	//   targetA (2 hops from shared) --> intermediate --> shared --> deep1 --> deep2
+	//   targetB (1 hop from shared) --> shared
+	//
+	// With depth=2:
+	//   - From targetA: can reach intermediate, shared (2 hops)
+	//   - From targetB: can reach shared, deep1 (2 hops)
+	//   - Result should include deep1 even though targetA reaches shared first with less remaining depth
+
+	ctx := &component.DiscoveryContext{WorkingDir: "."}
+
+	targetA := component.NewUnit("./targetA").WithDiscoveryContext(ctx)
+	targetB := component.NewUnit("./targetB").WithDiscoveryContext(ctx)
+	intermediate := component.NewUnit("./intermediate").WithDiscoveryContext(ctx)
+	shared := component.NewUnit("./shared").WithDiscoveryContext(ctx)
+	deep1 := component.NewUnit("./deep1").WithDiscoveryContext(ctx)
+	deep2 := component.NewUnit("./deep2").WithDiscoveryContext(ctx)
+
+	// Set up dependencies
+	targetA.AddDependency(intermediate)
+	intermediate.AddDependency(shared)
+	targetB.AddDependency(shared)
+	shared.AddDependency(deep1)
+	deep1.AddDependency(deep2)
+
+	components := []component.Component{targetA, targetB, intermediate, shared, deep1, deep2}
+
+	t.Run("multiple targets with shared dependency at different distances", func(t *testing.T) {
+		t.Parallel()
+
+		// Match both targetA and targetB using glob
+		expr := &filter.GraphExpression{
+			Target:              &filter.PathExpression{Value: "./target*"},
+			IncludeDependencies: true,
+			IncludeDependents:   false,
+			ExcludeTarget:       false,
+			DependencyDepth:     2,
+		}
+
+		l := log.New()
+		result, err := filter.Evaluate(l, expr, components)
+		require.NoError(t, err)
+
+		// Should include: targetA, targetB, intermediate (1 hop from A), shared (2 hops from A, 1 from B), deep1 (2 hops from B)
+		// Should NOT include: deep2 (3 hops from B, too deep)
+		assert.ElementsMatch(t, []component.Component{targetA, targetB, intermediate, shared, deep1}, result)
+	})
+}
+
 func TestEvaluate_GitFilter(t *testing.T) {
 	t.Parallel()
 
@@ -1133,8 +1287,10 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				return []component.Component{app1, app2}
 			},
 			expected: []component.Component{},
@@ -1146,10 +1302,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{
@@ -1164,10 +1323,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{
@@ -1182,12 +1344,16 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				api := component.NewUnit("./libs/api")
 				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				return []component.Component{app1, app2, db, api}
 			},
 			expected: []component.Component{
@@ -1203,10 +1369,13 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "feature"})
+
 				app2 := component.NewUnit("./apps/app2")
 				app2.SetDiscoveryContext(&component.DiscoveryContext{Ref: "develop"})
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "release"})
+
 				return []component.Component{app1, app2, db}
 			},
 			expected: []component.Component{},
@@ -1218,12 +1387,16 @@ func TestEvaluate_GitFilter(t *testing.T) {
 			setup: func() []component.Component {
 				app1 := component.NewUnit("./apps/app1")
 				app1.SetDiscoveryContext(&component.DiscoveryContext{Ref: "main"})
+
 				app2 := component.NewUnit("./apps/app2")
 				// No DiscoveryContext set
+
 				db := component.NewUnit("./libs/db")
 				db.SetDiscoveryContext(&component.DiscoveryContext{Ref: "HEAD"})
+
 				api := component.NewUnit("./libs/api")
 				api.SetDiscoveryContext(&component.DiscoveryContext{Ref: ""})
+
 				return []component.Component{app1, app2, db, api}
 			},
 			expected: []component.Component{

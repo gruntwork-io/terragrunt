@@ -16,7 +16,7 @@ import (
 // regardless of their position among the others registered commands and flags.
 //
 // For example, CLI command:
-// `terragrunt run --all apply --log-level trace --auto-approve --non-interactive`
+// `terragrunt run --all apply --auto-approve --non-interactive`
 // The `App` will runs the registered command `run --all`, define the registered flags `--log-level`,
 // `--non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
 // ctx.Args().Slice()

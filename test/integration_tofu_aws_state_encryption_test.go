@@ -77,8 +77,8 @@ func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt_rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --log-level trace --working-dir %s --json-out %s", mainPath, jsonOut))
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json -w --non-interactive --working-dir %s --json-out %s", mainPath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -191,8 +191,8 @@ func TestTofuRenderJSONConfigWithEncryptionExp(t *testing.T) {
 	mainPath := filepath.Join(workDir, "main")
 	jsonOut := filepath.Join(mainPath, "terragrunt.rendered.json")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --log-level trace --working-dir "+workDir+" -- apply -auto-approve")
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json  -w --non-interactive --log-level trace --working-dir %s --out %s", mainPath, jsonOut))
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+workDir+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt render --json  -w --non-interactive --working-dir %s --out %s", mainPath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)

@@ -73,36 +73,42 @@ func GetExitCode(err error) (int, error) {
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err            error
-	WorkingDir     string
-	Command        string
-	Args           []string
-	Output         CmdOutput
-	DisableSummary bool
+	Err             error
+	WorkingDir      string
+	RootWorkingDir  string
+	Command         string
+	Args            []string
+	Output          CmdOutput
+	LogShowAbsPaths bool
+	DisableSummary  bool
 }
 
-func (err ProcessExecutionError) Error() string {
+func (err ProcessExecutionError) Error() string { //nolint:gocritic
+	commandStr := strings.TrimSpace(
+		strings.Join(append([]string{err.Command}, err.Args...), " "),
+	)
+
+	workingDirForLog := RelPathForLog(err.RootWorkingDir, err.WorkingDir, err.LogShowAbsPaths)
+
 	if err.DisableSummary {
-		return fmt.Sprintf("Failed to execute \"%s %s\" in %s",
-			err.Command,
-			strings.Join(err.Args, " "),
-			err.WorkingDir,
+		return fmt.Sprintf("Failed to execute \"%s\" in %s",
+			commandStr,
+			workingDirForLog,
 		)
 	}
 
-	return fmt.Sprintf("Failed to execute \"%s %s\" in %s\n%s\n%v",
-		err.Command,
-		strings.Join(err.Args, " "),
-		err.WorkingDir,
+	return fmt.Sprintf("Failed to execute \"%s\" in %s\n%s\n%v",
+		commandStr,
+		workingDirForLog,
 		err.Output.Stderr.String(),
 		err.Err,
 	)
 }
 
-func (err ProcessExecutionError) ExitStatus() (int, error) {
+func (err ProcessExecutionError) ExitStatus() (int, error) { //nolint:gocritic
 	return GetExitCode(err.Err)
 }
 
-func (err ProcessExecutionError) Unwrap() error {
+func (err ProcessExecutionError) Unwrap() error { //nolint:gocritic
 	return err.Err
 }

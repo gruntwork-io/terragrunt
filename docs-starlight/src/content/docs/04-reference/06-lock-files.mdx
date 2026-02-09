@@ -6,7 +6,7 @@ sidebar:
   order: 6
 ---
 
-import FileTree from '@components/vendored/starlight/FileTree.astro';
+import FileTree from "@components/vendored/starlight/FileTree.astro";
 
 ## How to use lock files with Terragrunt
 
@@ -23,7 +23,7 @@ Everything else with OpenTofu/Terraform and Terragrunt should work as expected. 
 ### What's a lock file?
 
 [Terraform 0.14 added support for a
-*lock file*](https://www.hashicorp.com/blog/terraform-0-14-introduces-a-dependency-lock-file-for-providers)
+_lock file_](https://www.hashicorp.com/blog/terraform-0-14-introduces-a-dependency-lock-file-for-providers)
 which gets created or updated every time you run `tofu init`/`terraform init`. The file is typically generated into your working
 directory (i.e., the folder in which you ran `tofu init`/`terraform init`) and is called `.terraform.lock.hcl`.
 It captures the versions of all the OpenTofu/Terraform providers you're using. Normally, you want to check this file into
@@ -78,7 +78,6 @@ To solve this problem, since version v0.27.0, Terragrunt implements the followin
    `.terragrunt-cache/xxx/vpc`), it will copy that lock file back to your working directory (e.g., to `/live/stage/vpc`).
    That way, you can commit the lock file (or the changes to the lock file) to version control as usual.
 
-\<!-- markdownlint-disable MD026 -->
 ### Check the lock file in!
 
 After running Terragrunt on each of your modules, you should check your lock files in! That means your folder structure

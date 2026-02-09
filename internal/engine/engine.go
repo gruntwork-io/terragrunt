@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -52,6 +53,13 @@ const (
 	terraformCommandContextKey engineClientsKey = iota
 	locksContextKey            engineLocksKey   = iota
 	latestVersionsContextKey   engineLocksKey   = iota
+
+	dirPerm = 0755
+
+	errMsgEngineClientsFetch = "failed to fetch engine clients from context"
+	errMsgEngineClientsCast  = "failed to cast engine clients from context"
+	errMsgVersionsCacheFetch = "failed to fetch engine versions cache from context"
+	errMsgVersionsCacheCast  = "failed to cast engine versions cache from context"
 )
 
 type (
@@ -145,10 +153,21 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	}
 
 	e := opts.Engine
+	if e == nil {
+		return nil
+	}
 
 	if util.FileExists(e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
+	}
+
+	// If source is empty, we cannot download the engine
+	// This indicates an engine block was configured but source was not provided
+	if e.Source == "" {
+		return errors.Errorf(
+			"engine block is configured but source is empty. Please provide an engine source or remove the engine block",
+		)
 	}
 
 	// identify engine version if not specified
@@ -252,7 +271,7 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 		return val, nil
 	}
 
-	githubClient := github.NewGitHubAPIClient()
+	githubClient := github.NewGitHubAPIClient(github.WithGithubComDefaultAuth())
 
 	tag, err := githubClient.GetLatestReleaseTag(ctx, repository)
 	if err != nil {
@@ -391,12 +410,12 @@ func isArchiveByHeader(l log.Logger, filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsCast)
 	}
 
 	return result, nil
@@ -406,12 +425,12 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(locksContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsFetch)
 	}
 
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errMsgEngineClientsCast)
 	}
 
 	return result, nil
@@ -420,16 +439,21 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
 	val := ctx.Value(latestVersionsContextKey)
 	if val == nil {
-		return nil, errors.New(errors.New("failed to fetch engine versions cache from context"))
+		return nil, errors.New(errMsgVersionsCacheFetch)
 	}
 
 	result, ok := val.(*cache.Cache[string])
 	if !ok {
-		return nil, errors.New(errors.New("failed to cast engine versions cache from context"))
+		return nil, errors.New(errMsgVersionsCacheCast)
 	}
 
 	return result, nil
 }
+
+const (
+	gracefulExitTimeout    = 5 * time.Second
+	pluginExitPollInterval = 50 * time.Millisecond
+)
 
 // Shutdown shuts down the experimental engine.
 func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
@@ -458,8 +482,14 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
-		// kill grpc client
-		instance.client.Kill()
+
+		// Wait for plugin to exit gracefully before force-killing.
+		// The shutdown RPC has already told the plugin to exit, so it should
+		// be cleaning up and exiting on its own. Give it time to finish.
+		if !waitForPluginExit(instance.client, gracefulExitTimeout) {
+			l.Debugf("Plugin did not exit gracefully within timeout, force killing")
+			instance.client.Kill()
+		}
 
 		return true
 	})
@@ -467,19 +497,71 @@ func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	return nil
 }
 
+// waitForPluginExit waits for the plugin process to exit, returning true if it exited
+// within the timeout, false otherwise.
+func waitForPluginExit(client *plugin.Client, timeout time.Duration) bool {
+	done := make(chan struct{})
+
+	go func() {
+		// Client.Exited() returns true when the plugin process has exited
+		for !client.Exited() {
+			time.Sleep(pluginExitPollInterval)
+		}
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+// logEngineMessage logs a message from the engine at the appropriate log level.
+func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
+	switch logLevel {
+	case proto.LogLevel_LOG_LEVEL_DEBUG:
+		l.Debug(content)
+	case proto.LogLevel_LOG_LEVEL_INFO:
+		l.Info(content)
+	case proto.LogLevel_LOG_LEVEL_WARN:
+		l.Warn(content)
+	case proto.LogLevel_LOG_LEVEL_ERROR:
+		l.Error(content)
+	case proto.LogLevel_LOG_LEVEL_UNSPECIFIED:
+		// Treat unspecified as debug level
+		l.Debug(content)
+	}
+}
+
 // createEngine create engine for working directory
-func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	path, err := engineDir(terragruntOptions)
+func createEngine(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) (*proto.EngineClient, *plugin.Client, error) {
+	if opts.Engine == nil {
+		return nil, nil, errors.Errorf("engine options are nil")
+	}
+
+	// If source is empty, we cannot determine the engine file path
+	if opts.Engine.Source == "" {
+		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
+	}
+
+	path, err := engineDir(opts)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
 
-	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
-	localChecksumFile := filepath.Join(path, engineChecksumName(terragruntOptions.Engine))
-	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
+	localEnginePath := filepath.Join(path, engineFileName(opts.Engine))
+	localChecksumFile := filepath.Join(path, engineChecksumName(opts.Engine))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.Engine))
 
 	// validate engine before loading if verification is not disabled
-	skipCheck := terragruntOptions.EngineSkipChecksumCheck
+	skipCheck := opts.EngineSkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
@@ -491,7 +573,7 @@ func createEngine(ctx context.Context, l log.Logger, terragruntOptions *options.
 
 	l.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := terragruntOptions.EngineLogLevel
+	engineLogLevel := opts.EngineLogLevel
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()
 		// update log level if it is different from info
@@ -600,15 +682,35 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			break
 		}
 
-		if err = processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
-			return nil, errors.New(err)
+		responseType := runResp.GetResponse()
+		if responseType == nil {
+			continue
 		}
 
-		if err = processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
-			return nil, errors.New(err)
+		switch resp := responseType.(type) {
+		case *proto.RunResponse_Stdout:
+			if resp.Stdout != nil {
+				if err = processStream(resp.Stdout.GetContent(), &stdoutLineBuf, stdout); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_Stderr:
+			if resp.Stderr != nil {
+				if err = processStream(resp.Stderr.GetContent(), &stderrLineBuf, stderr); err != nil {
+					return nil, errors.New(err)
+				}
+			}
+		case *proto.RunResponse_ExitResult:
+			if resp.ExitResult != nil {
+				resultCode = int(resp.ExitResult.GetCode())
+			}
+		case *proto.RunResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
 		}
-
-		resultCode = int(runResp.GetResultCode())
 	}
 
 	if err = flushBuffer(&stdoutLineBuf, stdout); err != nil {
@@ -623,12 +725,14 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
-			Err:            errors.Errorf("command failed with exit code %d", resultCode),
-			Output:         output,
-			WorkingDir:     opts.WorkingDir,
-			Command:        runOptions.Command,
-			Args:           runOptions.Args,
-			DisableSummary: opts.LogDisableErrorSummary,
+			Err:             errors.Errorf("command failed with exit code %d", resultCode),
+			Output:          output,
+			WorkingDir:      opts.WorkingDir,
+			RootWorkingDir:  opts.RootWorkingDir,
+			LogShowAbsPaths: opts.LogShowAbsPaths,
+			Command:         runOptions.Command,
+			Args:            runOptions.Args,
+			DisableSummary:  opts.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)
@@ -640,7 +744,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 // processStream handles the character buffering and line printing for a given stream
 func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	for _, ch := range data {
-		lineBuf.WriteByte(byte(ch))
+		lineBuf.WriteRune(ch)
 
 		if ch == '\n' {
 			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
@@ -697,16 +801,35 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine init failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, output.GetResultCode())
+		//nolint:dupl // Similar structure to shutdown response handling, but different protobuf types
+		switch resp := output.GetResponse().(type) {
+		case *proto.InitResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.InitResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.InitResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine init failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineInitFailed, exitCode)
+				}
+			}
+		case *proto.InitResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
 		}
 
-		return &OutputLine{
-			Stderr: output.GetStderr(),
-			Stdout: output.GetStdout(),
-		}, nil
+		return outputLine, nil
 	})
 }
 
@@ -740,16 +863,40 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 			return nil, nil
 		}
 
-		if output.GetResultCode() != 0 {
-			l.Errorf("Engine shutdown failed with error: %s", output.GetStderr())
+		outputLine := &OutputLine{}
 
-			return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, output.GetResultCode())
+		responseType := output.GetResponse()
+		if responseType == nil {
+			return outputLine, nil
 		}
 
-		return &OutputLine{
-			Stdout: output.GetStdout(),
-			Stderr: output.GetStderr(),
-		}, nil
+		//nolint:dupl // Similar structure to init response handling, but different protobuf types
+		switch resp := responseType.(type) {
+		case *proto.ShutdownResponse_Stdout:
+			if resp.Stdout != nil {
+				outputLine.Stdout = resp.Stdout.GetContent()
+			}
+		case *proto.ShutdownResponse_Stderr:
+			if resp.Stderr != nil {
+				outputLine.Stderr = resp.Stderr.GetContent()
+			}
+		case *proto.ShutdownResponse_ExitResult:
+			if resp.ExitResult != nil {
+				exitCode := int(resp.ExitResult.GetCode())
+				if exitCode != 0 {
+					l.Errorf("Engine shutdown failed with exit code %d", exitCode)
+					return nil, errors.Errorf("%w with exit code %d", ErrEngineShutdownFailed, exitCode)
+				}
+			}
+		case *proto.ShutdownResponse_Log:
+			if resp.Log != nil {
+				if logContent := resp.Log.GetContent(); logContent != "" {
+					logEngineMessage(l, resp.Log.GetLevel(), logContent)
+				}
+			}
+		}
+
+		return outputLine, nil
 	})
 }
 
@@ -841,7 +988,6 @@ func extract(l log.Logger, zipFile, destDir string) error {
 		}
 	}()
 
-	const dirPerm = 0755
 	if err = os.MkdirAll(destDir, dirPerm); err != nil {
 		return errors.New(err)
 	}
@@ -864,7 +1010,6 @@ func extract(l log.Logger, zipFile, destDir string) error {
 			continue
 		}
 
-		const dirPerm = 0755
 		if err := os.MkdirAll(filepath.Dir(fPath), dirPerm); err != nil {
 			return errors.New(err)
 		}

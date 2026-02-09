@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runfn"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -47,12 +50,14 @@ func (runner *UnitRunner) runTerragrunt(
 	ctx context.Context,
 	opts *options.TerragruntOptions,
 	r *report.Report,
+	cfg *runcfg.RunConfig,
+	credsGetter *creds.Getter,
 ) error {
 	if runner.Unit.Execution == nil || runner.Unit.Execution.Logger == nil {
 		return nil
 	}
 
-	runner.Unit.Execution.Logger.Debugf("Running %s", runner.Unit.Path())
+	runner.Unit.Execution.Logger.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
@@ -64,10 +69,17 @@ func (runner *UnitRunner) runTerragrunt(
 		unitPath := runner.Unit.AbsolutePath()
 		unitPath = util.CleanPath(unitPath)
 
-		// Pass the discovery working directory for worktree scenarios
+		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
-		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil && discoveryCtx.WorkingDir != "" {
-			ensureOpts = append(ensureOpts, report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir))
+
+		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil {
+			ensureOpts = append(
+				ensureOpts,
+				report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+				report.WithRef(discoveryCtx.Ref),
+				report.WithCmd(discoveryCtx.Cmd),
+				report.WithArgs(discoveryCtx.Args),
+			)
 		}
 
 		if _, err := r.EnsureRun(runner.Unit.Execution.Logger, unitPath, ensureOpts...); err != nil {
@@ -82,13 +94,13 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := runfn.Run(ctx, runner.Unit.Execution.Logger, opts, r)
+	runErr := run.Run(ctx, runner.Unit.Execution.Logger, opts, r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key
-	// Get the exit code from the unit-scoped map (stored with empty string key in run_cmd.go)
+	// (matches key used in run_cmd.go via filepath.Dir(opts.OriginalTerragruntConfigPath))
 	if globalExitCode != nil {
 		unitPath := filepath.Clean(runner.Unit.AbsolutePath())
-		code := unitExitCode.Get(opts.WorkingDir)
+		code := unitExitCode.Get(unitPath)
 		globalExitCode.Set(unitPath, code)
 	}
 
@@ -122,28 +134,29 @@ func (runner *UnitRunner) runTerragrunt(
 }
 
 // Run executes a component.Unit right now.
-func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+func (runner *UnitRunner) Run(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+	cfg *runcfg.RunConfig,
+	credsGetter *creds.Getter,
+) error {
 	runner.Status = Running
 
 	if runner.Unit.Execution == nil {
 		return nil
 	}
 
-	if runner.Unit.Execution.AssumeAlreadyApplied {
-		if runner.Unit.Execution.Logger != nil {
-			runner.Unit.Execution.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path())
-		}
-
-		return nil
-	}
-
-	if err := runner.runTerragrunt(ctx, runner.Unit.Execution.TerragruntOptions, r); err != nil {
+	if err := runner.runTerragrunt(ctx, runner.Unit.Execution.TerragruntOptions, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
 	if runner.Unit.OutputJSONFile(runner.Unit.Execution.TerragruntOptions) != "" {
-		l, jsonOptions, err := runner.Unit.Execution.TerragruntOptions.CloneWithConfigPath(runner.Unit.Execution.Logger, runner.Unit.Execution.TerragruntOptions.TerragruntConfigPath)
+		l, jsonOptions, err := runner.Unit.Execution.TerragruntOptions.CloneWithConfigPath(
+			runner.Unit.Execution.Logger,
+			runner.Unit.Execution.TerragruntOptions.TerragruntConfigPath,
+		)
 		if err != nil {
 			return err
 		}
@@ -153,11 +166,11 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts)}
+		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts))
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := runfn.Run(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := run.Run(ctx, l, jsonOptions, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

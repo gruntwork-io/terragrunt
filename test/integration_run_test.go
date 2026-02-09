@@ -158,12 +158,13 @@ func TestRunVersionFilesCacheKey(t *testing.T) {
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionFilesCacheKey, tt.versionFiles...)
 			path := filepath.Join(tmpEnvPath, testFixtureVersionFilesCacheKey)
-			flags := []string{
+			flags := make([]string, 0, 4+2*len(tt.versionFiles))
+			flags = append(flags,
 				"-non-interactive",
 				"--log-level debug",
 				"--working-dir",
 				path,
-			}
+			)
 
 			for _, file := range tt.versionFiles {
 				flags = append(

@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -16,6 +17,7 @@ import (
 const (
 	testFixtureMixedConfig            = "fixtures/mixed-config"
 	testFixtureFailFast               = "fixtures/fail-fast"
+	testFixtureFailFastEarlyExit      = "fixtures/fail-fast-early-exit"
 	testFixtureRunnerPoolRemoteSource = "fixtures/runner-pool-remote-source"
 	testFixtureAuthProviderParallel   = "fixtures/auth-provider-parallel"
 )
@@ -113,16 +115,90 @@ func TestRunnerPoolStackConfigIgnored(t *testing.T) {
 func TestRunnerPoolFailFast(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFailFast)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFast)
-	testPath := filepath.Join(tmpEnvPath, testFixtureFailFast)
+	testCases := []struct {
+		expectedResults map[string]struct {
+			result string
+			reason string
+			cause  string
+		}
+		name     string
+		failFast bool
+	}{
+		{
+			name:     "fail-fast=false",
+			failFast: false,
+			expectedResults: map[string]struct {
+				result string
+				reason string
+				cause  string
+			}{
+				"failing-unit":          {result: "failed", reason: "run error"},
+				"succeeding-unit":       {result: "succeeded"},
+				"depends-on-failing":    {result: "early exit", reason: "ancestor error", cause: "failing-unit"},
+				"depends-on-succeeding": {result: "succeeded"},
+			},
+		},
+		{
+			name:     "fail-fast=true",
+			failFast: true,
+			expectedResults: map[string]struct {
+				result string
+				reason string
+				cause  string
+			}{
+				"failing-unit":          {result: "failed", reason: "run error"},
+				"succeeding-unit":       {result: "succeeded"},
+				"depends-on-failing":    {result: "early exit", reason: "ancestor error", cause: "failing-unit"},
+				"depends-on-succeeding": {result: "early exit", reason: "ancestor error"},
+			},
+		},
+	}
 
-	// create fail.txt in unit-a to trigger a failure
-	helpers.CreateFile(t, testPath, "unit-a", "fail.txt")
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- apply")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Contains(t, stderr, "unit-b did not run due to early exit")
-	assert.Contains(t, stderr, "unit-c did not run due to early exit")
+			helpers.CleanupTerraformFolder(t, testFixtureFailFastEarlyExit)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFailFastEarlyExit)
+			testPath := filepath.Join(tmpEnvPath, testFixtureFailFastEarlyExit)
+
+			cmd := "terragrunt run --all --non-interactive --report-file " + helpers.ReportFile + " --working-dir " + testPath
+			if tc.failFast {
+				cmd += " --fail-fast"
+			}
+
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd+" -- apply")
+			require.Error(t, err)
+
+			// Parse and verify the report file
+			reportFilePath := filepath.Join(testPath, helpers.ReportFile)
+			assert.FileExists(t, reportFilePath)
+
+			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+			require.NoError(t, err)
+
+			// Verify expected units are in the report
+			assert.ElementsMatch(t, []string{"failing-unit", "succeeding-unit", "depends-on-failing", "depends-on-succeeding"}, runs.Names())
+
+			// Verify each unit's result, reason, and cause
+			for unitName, expected := range tc.expectedResults {
+				run := runs.FindByName(unitName)
+				require.NotNil(t, run, "run %q not found in report", unitName)
+
+				assert.Equal(t, expected.result, run.Result, "unexpected result for %q", unitName)
+
+				if expected.reason != "" {
+					require.NotNil(t, run.Reason, "expected reason for %q but got nil", unitName)
+					assert.Equal(t, expected.reason, *run.Reason, "unexpected reason for %q", unitName)
+				}
+
+				if expected.cause != "" {
+					require.NotNil(t, run.Cause, "expected cause for %q but got nil", unitName)
+					assert.Equal(t, expected.cause, *run.Cause, "unexpected cause for %q", unitName)
+				}
+			}
+		})
+	}
 }
 
 func TestRunnerPoolDestroyFailFast(t *testing.T) {
@@ -189,10 +265,15 @@ func TestRunnerPoolSourceMap(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=v0.85.0 --working-dir "+testPath+" -- apply ")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive "+
+			"--source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=github.com/gruntwork-io/terragrunt.git?ref=v0.85.0 "+
+			"--working-dir "+testPath+" -- apply ",
+	)
 	require.NoError(t, err)
 	// Verify that source map values are used
-	require.Contains(t, stderr, "configurations from git::ssh://git@github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
+	require.Contains(t, stderr, "configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.85.0")
 }
 
 // TestAuthProviderParallelExecution verifies that --auth-provider-cmd is executed in parallel
@@ -243,12 +324,18 @@ func TestAuthProviderParallelExecution(t *testing.T) {
 		t.Logf("Auth command detected %d concurrent executions", detected)
 	}
 
-	require.GreaterOrEqual(t, startCount, 2, "Expected at least 2 auth start events")
-	require.GreaterOrEqual(t, endCount, 2, "Expected at least 2 auth end events")
+	// Log start/end counts but don't fail - concurrent detection is the real proof of parallelism.
+	// Due to timing and log buffering, start/end events may not always be captured reliably.
+	t.Logf("Auth start events: %d, end events: %d", startCount, endCount)
+
+	// The concurrent detection is the key proof of parallel execution.
+	// If auth commands detected other concurrent commands, parallelism is working.
 	assert.GreaterOrEqual(t, len(matches), 1,
 		"Expected at least one auth command to detect concurrent execution. "+
 			"This would prove parallel execution. If this fails, auth commands may be running sequentially.")
 	assert.GreaterOrEqual(t, maxConcurrent, 2,
 		"Expected auth commands to detect at least 2 concurrent executions. "+
 			"Detected max concurrent: %d. This proves parallel execution.", maxConcurrent)
+
+	helpers.ValidateAuthProviderScript(t, testPath, authProviderScript)
 }

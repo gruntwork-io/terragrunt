@@ -3,7 +3,7 @@ terraform {
   # before execution of terragrunt
   before_hook "before_hook_1" {
     commands = ["apply", "plan"]
-    execute = ["touch","before.out"]
+    execute = ["touch","${get_terragrunt_dir()}/before.out"]
     run_on_error = true
   }
 
@@ -11,7 +11,7 @@ terraform {
   # after execution of terragrunt
   after_hook "after_hook_1" {
     commands = ["apply", "plan"]
-    execute = ["touch","after.out"]
+    execute = ["touch","${get_terragrunt_dir()}/after.out"]
     run_on_error = true
   }
 

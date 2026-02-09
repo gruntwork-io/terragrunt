@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -30,12 +29,11 @@ import (
 )
 
 const (
-	StackDir          = ".terragrunt-stack"
-	valuesFile        = "terragrunt.values.hcl"
-	manifestName      = ".terragrunt-stack-manifest"
-	unitDirPerm       = 0755
-	valueFilePerm     = 0644
-	generationMaxPath = 1024
+	StackDir      = ".terragrunt-stack"
+	valuesFile    = "terragrunt.values.hcl"
+	manifestName  = ".terragrunt-stack-manifest"
+	unitDirPerm   = 0755
+	valueFilePerm = 0644
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -119,7 +117,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 				kind:         unitKind,
 			}
 
-			l.Infof("Generating unit %s from %s", unit.Name, sourceFile)
+			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile, opts.LogShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
 				"stack_file":  sourceFile,
@@ -152,7 +150,7 @@ func generateStacks(ctx context.Context, l log.Logger, opts *options.TerragruntO
 				kind:         stackKind,
 			}
 
-			l.Infof("Generating stack %s from %s", stack.Name, sourceFile)
+			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.RootWorkingDir, sourceFile, opts.LogShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
 				"stack_file":   sourceFile,
@@ -312,7 +310,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 
 		localSrc, err := filepath.Abs(localSrc)
 		if err != nil {
-			l.Warnf("failed to get absolute path for source '%s': %w", identifier, err)
+			l.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
 			// fallback to original source
 			localSrc = src
 		}
@@ -357,7 +355,7 @@ func isLocal(l log.Logger, workingDir, src string) bool {
 	for _, g := range getter.Getters {
 		recognized, err := getter.Detect(req, g)
 		if err != nil {
-			l.Debugf("Error detecting getter for %s: %w", src, err)
+			l.Debugf("Error detecting getter for %s: %v", src, err)
 			continue
 		}
 
@@ -616,7 +614,7 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, op
 			evaluatedLocals,
 		)
 		if evalErr != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntStackConfigPath, opts.LogShowAbsPaths))
 
 			return errors.New(evalErr)
 		}
@@ -646,51 +644,6 @@ func validateTargetDir(kind, name, destDir, expectedFile string) error {
 	}
 
 	return nil
-}
-
-// CleanStacks removes stack directories within the specified working directory, unless the command is "destroy".
-// It returns an error if any issues occur during the deletion process, or nil if successful.
-func CleanStacks(_ context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if opts.TerraformCommand == tf.CommandNameDestroy {
-		l.Debugf("Skipping stack clean for %s, as part of delete command", opts.WorkingDir)
-		return nil
-	}
-
-	errs := &errors.MultiError{}
-
-	walkFn := func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			l.Warnf("Error accessing path %s: %v", path, walkErr)
-
-			errs = errs.Append(walkErr)
-
-			return nil
-		}
-
-		if d.IsDir() && d.Name() == StackDir {
-			relPath, relErr := filepath.Rel(opts.WorkingDir, path)
-			if relErr != nil {
-				relPath = path // fallback to absolute if error
-			}
-
-			l.Infof("Deleting stack directory: %s", relPath)
-
-			if rmErr := os.RemoveAll(path); rmErr != nil {
-				l.Errorf("Failed to delete stack directory %s: %v", relPath, rmErr)
-
-				errs = errs.Append(rmErr)
-			}
-
-			return filepath.SkipDir
-		}
-
-		return nil
-	}
-	if walkErr := filepath.WalkDir(opts.WorkingDir, walkFn); walkErr != nil {
-		errs = errs.Append(walkErr)
-	}
-
-	return errs.ErrorOrNil()
 }
 
 // GetUnitDir returns the directory path for a unit based on its no_dot_terragrunt_stack setting.

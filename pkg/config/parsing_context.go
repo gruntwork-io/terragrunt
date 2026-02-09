@@ -4,14 +4,22 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+const (
+	// MaxParseDepth limits nested parsing to prevent stack overflow
+	// from deeply recursive config structures (includes, dependencies, etc.).
+	MaxParseDepth = 1000
 )
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
@@ -58,6 +66,10 @@ type ParsingContext struct {
 
 	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
 	SkipOutputsResolution bool
+
+	// ParseDepth tracks the current parsing recursion depth.
+	// This prevents stack overflow from deeply nested configs.
+	ParseDepth int
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
@@ -73,69 +85,103 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 // Clone returns a shallow copy of the ParsingContext.
-func (ctx ParsingContext) Clone() *ParsingContext {
-	return &ctx
+func (ctx *ParsingContext) Clone() *ParsingContext {
+	clone := *ctx
+	return &clone
 }
 
-func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
-	ctx.PartialParseDecodeList = decodeList
-	return &ctx
+func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
+	c := ctx.Clone()
+	c.PartialParseDecodeList = decodeList
+
+	return c
 }
 
-func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
-	ctx.TerragruntOptions = opts
-	return &ctx
+func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
+	c := ctx.Clone()
+	c.TerragruntOptions = opts
+
+	return c
 }
 
-func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
-	ctx.Locals = locals
-	return &ctx
+func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Locals = locals
+
+	return c
 }
 
-func (ctx ParsingContext) WithValues(values *cty.Value) *ParsingContext {
-	ctx.Values = values
-	return &ctx
+func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Values = values
+
+	return c
 }
 
 // WithFeatures sets the feature flags to be used in evaluation context.
-func (ctx ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
-	ctx.Features = features
+func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Features = features
 
-	return &ctx
+	return c
 }
 
-func (ctx ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
-	ctx.TrackInclude = trackInclude
-	return &ctx
+func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
+	c := ctx.Clone()
+	c.TrackInclude = trackInclude
+
+	return c
 }
 
-func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
-	ctx.ParserOptions = parserOptions
-	return &ctx
+func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+	c := ctx.Clone()
+	c.ParserOptions = parserOptions
+
+	return c
 }
 
 // WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
 // Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
 // This avoids false positive "There is no variable named dependency" errors during parsing
 // when dependency outputs haven't been resolved yet.
-func (ctx ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
+func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
 	var diagWriter = io.Discard
 	if l.Level() >= log.DebugLevel {
 		diagWriter = os.Stderr
 	}
 
-	opts := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(diagWriter, true))
-	ctx.ParserOptions = opts
+	c := ctx.Clone()
+	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
 
-	return &ctx
+	return c
 }
 
-func (ctx ParsingContext) WithSkipOutputsResolution() *ParsingContext {
-	ctx.SkipOutputsResolution = true
-	return &ctx
+func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
+	c := ctx.Clone()
+	c.SkipOutputsResolution = true
+
+	return c
 }
 
-func (ctx ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
-	ctx.DecodedDependencies = v
-	return &ctx
+func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.DecodedDependencies = v
+
+	return c
+}
+
+// WithIncrementedDepth returns a new ParsingContext with incremented parse depth.
+// Returns an error if the maximum depth would be exceeded.
+func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
+	if ctx.ParseDepth > MaxParseDepth {
+		return nil, errors.New(MaxParseDepthError{
+			Depth: ctx.ParseDepth,
+			Max:   MaxParseDepth,
+		})
+	}
+
+	c := ctx.Clone()
+	c.ParseDepth = ctx.ParseDepth + 1
+
+	return c, nil
 }

@@ -266,7 +266,7 @@ func buildWorktreesIfNeeded(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (*worktrees.Worktrees, error) {
-	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse filters: %w", err)
 	}

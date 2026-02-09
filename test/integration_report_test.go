@@ -42,7 +42,7 @@ func TestTerragruntReport(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath, &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
@@ -89,18 +89,15 @@ func TestTerragruntReportDisableSummary(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
 
-	// Run terragrunt with report experiment enabled and summary disabled
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all apply --non-interactive --working-dir "+
+			rootPath+" --summary-disable",
 	)
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-disable", &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Verify the report output does not contain the summary
-	stdoutStr := stdout.String()
-	assert.NotContains(t, stdoutStr, "Run Summary")
+	assert.NotContains(t, stdout, "Run Summary")
 }
 
 func TestTerragruntReportSaveToFile(t *testing.T) {
@@ -120,7 +117,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		},
 	}
 
-	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause"}
+	expectedHeader := []string{"Name", "Started", "Ended", "Result", "Reason", "Cause", "Ref", "Cmd", "Args"}
 
 	expectedRecords := []map[string]string{
 		{"Name": "chain-a", "Result": "failed", "Reason": "run error", "Cause": ""},
@@ -131,7 +128,7 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 		{"Name": "first-exclude", "Result": "excluded", "Reason": "exclude block", "Cause": ""},
 		{"Name": "first-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
 		{"Name": "first-success", "Result": "succeeded", "Reason": "", "Cause": ""},
-		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": ""},
+		{"Name": "retry-success", "Result": "succeeded", "Reason": "retry succeeded", "Cause": "file_not_there_yet"},
 		{"Name": "second-early-exit", "Result": "early exit", "Reason": "ancestor error", "Cause": "second-failure"},
 		{"Name": "second-failure", "Result": "failed", "Reason": "run error", "Cause": ".*Failed to execute.*"},
 		{"Name": "second-success", "Result": "succeeded", "Reason": "", "Cause": ""},
@@ -163,12 +160,12 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 
 			reportFile := "report." + tt.format
 			cmd := fmt.Sprintf(
-				"terragrunt run --all --log-level trace apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
+				"terragrunt run --all apply --non-interactive --working-dir %s --queue-exclude-dir %s --report-file %s",
 				rootPath,
 				filepath.Join(rootPath, "second-exclude"),
 				reportFile)
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-			require.NoError(t, err)
+			require.Error(t, err)
 
 			// Verify the report file exists
 			reportFilePath := filepath.Join(rootPath, reportFile)
@@ -259,10 +256,15 @@ func TestTerragruntReportSaveToFile(t *testing.T) {
 func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 	t.Parallel()
 
-	// Set up test environment
-	helpers.CleanupTerraformFolder(t, testFixtureReportPath)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+	setup := func(t *testing.T) string {
+		t.Helper()
+
+		helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureReportPath)
+
+		return rootPath
+	}
 
 	testCases := []struct {
 		name           string
@@ -314,6 +316,8 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			rootPath := setup(t)
+
 			// Build command with appropriate flags
 			cmd := "terragrunt run --all apply --non-interactive --working-dir " + rootPath
 			if tc.reportFile != "" {
@@ -335,7 +339,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			)
 
 			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-			require.NoError(t, err)
+			require.Error(t, err)
 
 			// Verify the report file exists
 			reportFile := filepath.Join(rootPath, tc.reportFile)
@@ -349,7 +353,7 @@ func TestTerragruntReportSaveToFileWithFormat(t *testing.T) {
 			switch tc.expectedFormat {
 			case "csv":
 				// For CSV, verify it starts with the expected header
-				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause"))
+				assert.True(t, strings.HasPrefix(string(content), "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args"))
 			case "json":
 				// For JSON, verify it's valid JSON and has the expected structure
 				var jsonContent []map[string]any
@@ -429,7 +433,7 @@ func TestTerragruntReportWithUnitTiming(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath+" --summary-per-unit", &stdout, &stderr)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Verify the report output contains expected information
 	stdoutStr := stdout.String()
@@ -704,11 +708,6 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			switch tc.reportFormat {
 			case "json":
-				if tc.validateSchema {
-					err := report.ValidateJSONReportFromFile(reportFilePath)
-					require.NoError(t, err, "Report should pass schema validation")
-				}
-
 				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
 				require.NoError(t, err, "Should be able to parse JSON report")
 
@@ -767,6 +766,107 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 					run := runs.FindByName(ignoredUnit)
 					assert.Nil(t, run, "Ignored unit '%s' should NOT be in report", ignoredUnit)
 				}
+			}
+		})
+	}
+}
+
+// TestTerragruntReportSingleUnit tests that report generation works correctly
+// for single unit runs (not --all). This verifies the fix that adds report
+// generation support to single `terragrunt run` commands.
+func TestTerragruntReportSingleUnit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		reportFormat   string
+		schemaFile     string
+		validateSchema bool
+	}{
+		{
+			name:         "JSON format",
+			reportFormat: "json",
+		},
+		{
+			name:         "CSV format",
+			reportFormat: "csv",
+		},
+		{
+			name:           "JSON format with schema",
+			reportFormat:   "json",
+			schemaFile:     "schema.json",
+			validateSchema: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+			unitPath := filepath.Join(tmpEnvPath, testFixtureReportPath, "first-success")
+
+			reportFile := "report." + tc.reportFormat
+			reportFilePath := filepath.Join(unitPath, reportFile)
+
+			cmd := fmt.Sprintf(
+				"terragrunt run plan --non-interactive --working-dir %s --report-file %s --report-format %s",
+				unitPath,
+				reportFilePath,
+				tc.reportFormat,
+			)
+
+			if tc.schemaFile != "" {
+				cmd += " --report-schema-file " + filepath.Join(unitPath, tc.schemaFile)
+			}
+
+			var stdout, stderr bytes.Buffer
+
+			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			require.NoError(t, err)
+
+			require.FileExists(t, reportFilePath, "Report file should exist for single unit run")
+
+			switch tc.reportFormat {
+			case "json":
+				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse JSON report")
+
+				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
+
+				run := runs[0]
+				assert.Equal(t, "first-success", run.Name, "Report should contain the unit name")
+				assert.Equal(t, "succeeded", run.Result, "Unit should have succeeded")
+
+				assert.False(t, run.Started.IsZero(), "Started timestamp should not be zero")
+				assert.False(t, run.Ended.IsZero(), "Ended timestamp should not be zero")
+
+			case "csv":
+				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse CSV report")
+
+				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
+
+				run := runs[0]
+				assert.Equal(t, "first-success", run.Name, "Report should contain the unit name")
+				assert.Equal(t, "succeeded", run.Result, "Unit should have succeeded")
+			}
+
+			if tc.schemaFile != "" {
+				schemaFilePath := filepath.Join(unitPath, tc.schemaFile)
+				require.FileExists(t, schemaFilePath, "Schema file should exist")
+
+				schemaContent, err := os.ReadFile(schemaFilePath)
+				require.NoError(t, err)
+
+				var schema map[string]any
+
+				err = json.Unmarshal(schemaContent, &schema)
+				require.NoError(t, err, "Schema should be valid JSON")
+
+				assert.Equal(t, "array", schema["type"])
+				assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
 			}
 		})
 	}

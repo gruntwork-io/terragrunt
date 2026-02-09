@@ -35,15 +35,6 @@ import (
 	"github.com/NYTimes/gziphandler"
 )
 
-func getPathRelativeTo(t *testing.T, path string, basePath string) string {
-	t.Helper()
-
-	relPath, err := util.GetPathRelativeTo(path, basePath)
-	require.NoError(t, err)
-
-	return relPath
-}
-
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 	formatter.SetDisabledColors(true)
@@ -59,7 +50,7 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
 
 	return tmpEnvPath, stdout, stderr, err
 }

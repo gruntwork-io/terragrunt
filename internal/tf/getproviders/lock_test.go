@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
@@ -32,6 +33,8 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 
 	var document string
 
+	var documentSb35 strings.Builder
+
 	for i := 0; i < 2; i++ {
 		packageName := fmt.Sprintf("%s-%s-%d", address, version, i)
 		hasher := sha256.New()
@@ -39,8 +42,10 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 		require.NoError(t, err)
 
 		sha := hex.EncodeToString(hasher.Sum(nil))
-		document += fmt.Sprintf("%s %s\n", sha, packageName)
+		documentSb35.WriteString(fmt.Sprintf("%s %s\n", sha, packageName))
 	}
+
+	document += documentSb35.String()
 
 	provider := mocks.NewMockProvider(ctrl)
 	provider.EXPECT().Address().Return(address).AnyTimes()

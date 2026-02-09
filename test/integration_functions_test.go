@@ -188,14 +188,14 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --non-interactive --log-level trace --working-dir "+rootPath,
+		"terragrunt run --log-level debug --all plan --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
 	assert.Contains(t, output, "git show-toplevel result")
 	assert.Contains(t, output, "git rev-parse --show-toplevel")
-	assert.Contains(t, output, "repo_root = \".\"")
+	assert.Contains(t, output, fmt.Sprintf(`repo_root = "%s"`, rootPath))
 }
 
 func TestGetRepoRoot(t *testing.T) {
@@ -303,7 +303,7 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level trace --non-interactive --working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt plan --non-interactive --working-dir "+appPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stdout.String()
@@ -347,12 +347,12 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+	assert.NotContains(t, stderr, "Detected dependent units:\n"+clusterPath)
 
 	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --destroy-dependencies-check --non-interactive --working-dir "+basePath+" -- destroy -auto-approve")
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
+	assert.Contains(t, stderr, "Detected dependent units:\n"+clusterPath)
 }
 
 func TestGetPathFromRepoRoot(t *testing.T) {

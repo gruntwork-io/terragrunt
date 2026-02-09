@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -138,6 +139,7 @@ func TestEnsureRun(t *testing.T) {
 				run := newRun(t, filepath.Join(tmp, "existing-run"))
 				err := r.AddRun(l, run)
 				require.NoError(t, err)
+
 				return run
 			},
 		},
@@ -349,14 +351,14 @@ func TestEndRunAlreadyEnded(t *testing.T) {
 			r.AddRun(l, run)
 
 			// Set up initial options with the initial result
-			initialOptions := append(tt.initialOptions, report.WithResult(tt.initialResult))
+			initialOptions := slices.Concat(tt.initialOptions, []report.EndOption{report.WithResult(tt.initialResult)})
 
 			// End the run with the initial state
 			err := r.EndRun(l, runName, initialOptions...)
 			require.NoError(t, err)
 
 			// Set up second options with the second result
-			secondOptions := append(tt.secondOptions, report.WithResult(tt.secondResult))
+			secondOptions := slices.Concat(tt.secondOptions, []report.EndOption{report.WithResult(tt.secondResult)})
 
 			// Then try to end it again with a different state
 			err = r.EndRun(l, runName, secondOptions...)
@@ -465,8 +467,8 @@ func TestWriteCSV(t *testing.T) {
 				r.EndRun(l, run.Path)
 			},
 			expected: [][]string{
-				{"Name", "Started", "Ended", "Result", "Reason", "Cause"},
-				{"successful-run", "", "", "succeeded", "", ""},
+				{"Name", "Started", "Ended", "Result", "Reason", "Cause", "Ref", "Cmd", "Args"},
+				{"successful-run", "", "", "succeeded", "", "", "", "", ""},
 			},
 		},
 		{
@@ -497,11 +499,11 @@ func TestWriteCSV(t *testing.T) {
 				)
 			},
 			expected: [][]string{
-				{"Name", "Started", "Ended", "Result", "Reason", "Cause"},
-				{"success-run", "", "", "succeeded", "", ""},
-				{"failed-run", "", "", "failed", "run error", ""},
-				{"excluded-run", "", "", "excluded", "", "test-block"},
-				{"early-exit-run", "", "", "early exit", "run error", "another-block"},
+				{"Name", "Started", "Ended", "Result", "Reason", "Cause", "Ref", "Cmd", "Args"},
+				{"success-run", "", "", "succeeded", "", "", "", "", ""},
+				{"failed-run", "", "", "failed", "run error", "", "", "", ""},
+				{"excluded-run", "", "", "excluded", "", "test-block", "", "", ""},
+				{"early-exit-run", "", "", "early exit", "run error", "another-block", "", "", ""},
 			},
 		},
 	}
@@ -561,6 +563,9 @@ func TestWriteCSV(t *testing.T) {
 				assert.Equal(t, expected[3], record[3], "Result mismatch in record %d", i)
 				assert.Equal(t, expected[4], record[4], "Reason mismatch in record %d", i)
 				assert.Equal(t, expected[5], record[5], "Cause mismatch in record %d", i)
+				assert.Equal(t, expected[6], record[6], "Ref mismatch in record %d", i)
+				assert.Equal(t, expected[7], record[7], "Cmd mismatch in record %d", i)
+				assert.Equal(t, expected[8], record[8], "Args mismatch in record %d", i)
 
 				// Verify that timestamps are in RFC3339 format
 				if record[1] != "" {
@@ -761,7 +766,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v2/schema.json",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json",
     "properties": {
       "Started": {
         "type": "string",
@@ -795,6 +800,18 @@ const ExpectedSchema = `{
           "early exit",
           "excluded"
         ]
+      },
+      "Ref": {
+        "type": "string"
+      },
+      "Cmd": {
+        "type": "string"
+      },
+      "Args": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       }
     },
     "additionalProperties": false,
@@ -887,7 +904,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 				"schemas",
 				"run",
 				"report",
-				"v2",
+				"v3",
 				"schema.json",
 			),
 		},
@@ -1752,28 +1769,28 @@ func TestParseCSVRuns(t *testing.T) {
 	}{
 		{
 			name:     "header only",
-			input:    "Name,Started,Ended,Result,Reason,Cause\n",
+			input:    "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\n",
 			expected: report.CSVRuns{},
 		},
 		{
 			name:     "single run",
-			input:    "Name,Started,Ended,Result,Reason,Cause\nmodule/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n",
+			input:    "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\nmodule/unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n",
 			expected: report.CSVRuns{{Name: "module/unit", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"}},
 		},
 		{
 			name: "multiple runs with all fields",
-			input: `Name,Started,Ended,Result,Reason,Cause
-unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,
-unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error
+			input: `Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args
+unit-a,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,HEAD~1,plan,-out=plan.tfplan|-var=foo=bar
+unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error,main,apply,
 `,
 			expected: report.CSVRuns{
-				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded"},
-				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error"},
+				{Name: "unit-a", Started: "2024-01-01T10:00:00Z", Ended: "2024-01-01T10:01:00Z", Result: "succeeded", Ref: "HEAD~1", Cmd: "plan", Args: "-out=plan.tfplan|-var=foo=bar"},
+				{Name: "unit-b", Started: "2024-01-01T10:01:00Z", Ended: "2024-01-01T10:02:00Z", Result: "failed", Reason: "run error", Cause: "some error", Ref: "main", Cmd: "apply"},
 			},
 		},
 		{
 			name:        "invalid csv - missing fields",
-			input:       "Name,Started,Ended,Result,Reason,Cause\nunit-a,2024-01-01T10:00:00Z\n",
+			input:       "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\nunit-a,2024-01-01T10:00:00Z\n",
 			expectError: true,
 		},
 	}
@@ -1797,6 +1814,9 @@ unit-b,2024-01-01T10:01:00Z,2024-01-01T10:02:00Z,failed,run error,some error
 				assert.Equal(t, expected.Result, runs[i].Result)
 				assert.Equal(t, expected.Reason, runs[i].Reason)
 				assert.Equal(t, expected.Cause, runs[i].Cause)
+				assert.Equal(t, expected.Ref, runs[i].Ref)
+				assert.Equal(t, expected.Cmd, runs[i].Cmd)
+				assert.Equal(t, expected.Args, runs[i].Args)
 			}
 		})
 	}
@@ -1812,7 +1832,7 @@ func TestParseCSVRunsFromFile(t *testing.T) {
 		t.Parallel()
 
 		reportFile := filepath.Join(tmp, "valid-report.csv")
-		content := "Name,Started,Ended,Result,Reason,Cause\ntest-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,\n"
+		content := "Name,Started,Ended,Result,Reason,Cause,Ref,Cmd,Args\ntest-unit,2024-01-01T10:00:00Z,2024-01-01T10:01:00Z,succeeded,,,,,\n"
 
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
@@ -1915,8 +1935,9 @@ func TestCSVRunsNames(t *testing.T) {
 	}
 }
 
-// TestValidateJSONReport verifies that JSON report validation works correctly.
-func TestValidateJSONReport(t *testing.T) {
+// TestParseJSONRunsFromFileValidation verifies that JSON report validation works correctly
+// when parsing files. Validation is performed as the first step in parsing.
+func TestParseJSONRunsFromFileValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1981,11 +2002,17 @@ func TestValidateJSONReport(t *testing.T) {
 		},
 	}
 
+	tmp := helpers.TmpDirWOSymlinks(t)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := report.ValidateJSONReport([]byte(tt.input))
+			reportFile := filepath.Join(tmp, strings.ReplaceAll(tt.name, " ", "-")+".json")
+			err := os.WriteFile(reportFile, []byte(tt.input), 0644)
+			require.NoError(t, err)
+
+			_, err = report.ParseJSONRunsFromFile(reportFile)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -1994,49 +2021,22 @@ func TestValidateJSONReport(t *testing.T) {
 			}
 		})
 	}
-}
 
-// TestValidateJSONReportFromFile verifies that file-based validation works.
-func TestValidateJSONReportFromFile(t *testing.T) {
-	t.Parallel()
-
-	tmp := helpers.TmpDirWOSymlinks(t)
-
-	t.Run("valid file", func(t *testing.T) {
+	t.Run("schema validation error details", func(t *testing.T) {
 		t.Parallel()
 
-		reportFile := filepath.Join(tmp, "valid-report.json")
-		content := `[{"Name": "test-unit", "Started": "2024-01-01T10:00:00Z", "Ended": "2024-01-01T10:01:00Z", "Result": "succeeded"}]`
-
-		err := os.WriteFile(reportFile, []byte(content), 0644)
-		require.NoError(t, err)
-
-		err = report.ValidateJSONReportFromFile(reportFile)
-		require.NoError(t, err)
-	})
-
-	t.Run("invalid file content", func(t *testing.T) {
-		t.Parallel()
-
-		reportFile := filepath.Join(tmp, "invalid-report.json")
+		reportFile := filepath.Join(tmp, "schema-error-details.json")
 		content := `[{"Name": "test-unit"}]` // missing required fields
 
 		err := os.WriteFile(reportFile, []byte(content), 0644)
 		require.NoError(t, err)
 
-		err = report.ValidateJSONReportFromFile(reportFile)
+		_, err = report.ParseJSONRunsFromFile(reportFile)
 		require.Error(t, err)
 
 		var schemaErr *report.SchemaValidationError
 		require.ErrorAs(t, err, &schemaErr)
 		assert.NotEmpty(t, schemaErr.Errors)
-	})
-
-	t.Run("non-existent file", func(t *testing.T) {
-		t.Parallel()
-
-		err := report.ValidateJSONReportFromFile(filepath.Join(tmp, "does-not-exist.json"))
-		require.Error(t, err)
 	})
 }
 

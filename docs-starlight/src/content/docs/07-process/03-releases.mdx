@@ -1,0 +1,64 @@
+---
+title: Releases
+description: Learn about the Terragrunt release process.
+slug: docs/process/releases
+sidebar:
+  order: 3
+---
+
+Terragrunt releases use [semantic versions (semver)](https://semver.org/).
+
+Note that as of 2026/01/27, Terragrunt is still pre-1.0, so breaking changes may still be introduced in minor releases. We will try to minimize these changes as much as possible, but they may still happen.
+
+Once 1.0 is released, Terragrunt backwards compatibility will be guaranteed for all minor releases (see [Terragrunt 1.0 Guarantees](/docs/process/1-0-guarantees) for details on what constitutes a breaking change).
+
+This documentation should be updated at that time to reflect the new policy. If it has not, please file a bug report.
+
+### When to Cut a New Release
+
+While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a new feature is added or a bug is fixed. Maintainers will exercise their best judgment to determine when a new release is necessary, and bias towards cutting a new release as frequently as possible when in doubt.
+
+### How to Create a New Release
+
+To release a new version of Terragrunt, go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and cut a new pre-release off the `main` branch. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
+
+The GitHub Actions workflow for this repository has been configured to:
+
+1. Automatically detect new tags.
+
+2. Build assets for every OS using that tag as a version number (including binaries, archives, checksums, signature files, etc.).
+
+3. Upload the assets to the release in GitHub.
+
+See [`.github/workflows/release.yml`](https://github.com/gruntwork-io/terragrunt/blob/main/.github/workflows/release.yml) for details.
+
+Follow the GitHub Actions logs to ensure that the assets are built and uploaded correctly. Once the job is successful, go back to the release, give the release notes a final review, then uncheck the **Set as a pre-release** checkbox and check the **Set as the latest release** checkbox.
+
+### Pre-releases
+
+Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to give the community a chance to test it in the wild before making it generally available.
+
+Alpha pre-releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
+
+Pre-releases are tagged with a pre-release name that looks like the following: `alpha2025022501`, etc. with the following information:
+
+- Channel: e.g. `alpha` (indicating the stability of the release)
+
+  The `alpha` channel has the following meaning in Terragrunt:
+
+  - `alpha`: This release is recommended for testing in non-production environments only. It is intended for testing out new features with stakeholders external to Gruntwork before a general release.
+
+  At the moment, this is really the only channel we need. In the future, we might adjust this to include more channels, such as `beta`, etc.
+
+- Date: e.g. `20250225` (indicating the date the release was cut without dashes or slashes)
+- Incremental number: e.g. `01` (indicating the number of pre-releases cut on that day)
+
+This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes.
+
+The current plan for how maintainers are going to handle pre-releases after 1.0 is that:
+
+1. Pre-releases for the `alpha` channel will continue to be cut from feature branches, and use the same naming convention as before.
+2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc1`, which is incremented for each release candidate.
+
+Release candidates in the `rc` channel will undergo more thorough testing, both automated and manual.
+

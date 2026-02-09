@@ -58,6 +58,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					if value {
 						return opts.StrictControls.FilterByNames(controls.QueueExcludeExternal).Evaluate(ctx)
 					}
+
 					return nil
 				},
 			},
@@ -76,6 +77,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					}
 
 					opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+
 					return nil
 				},
 			},
@@ -149,6 +151,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					if value {
 						return opts.StrictControls.FilterByNames(controls.QueueStrictInclude).Evaluate(ctx)
 					}
+
 					return nil
 				},
 			},

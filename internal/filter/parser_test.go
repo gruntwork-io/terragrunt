@@ -441,6 +441,36 @@ func TestParser_StringRepresentation(t *testing.T) {
 			input:    "foo | bar",
 			expected: "name=foo | name=bar",
 		},
+		{
+			name:     "graph expression with dependents",
+			input:    "...foo",
+			expected: "...name=foo",
+		},
+		{
+			name:     "graph expression with dependencies",
+			input:    "foo...",
+			expected: "name=foo...",
+		},
+		{
+			name:     "graph expression with dependent depth",
+			input:    "1...foo",
+			expected: "1...name=foo",
+		},
+		{
+			name:     "graph expression with dependency depth",
+			input:    "foo...1",
+			expected: "name=foo...1",
+		},
+		{
+			name:     "graph expression with both depths",
+			input:    "2...foo...3",
+			expected: "2...name=foo...3",
+		},
+		{
+			name:     "graph expression with caret",
+			input:    "...^foo...",
+			expected: "...^name=foo...",
+		},
 	}
 
 	for _, tt := range tests {
@@ -629,6 +659,218 @@ func TestParser_GraphExpressions(t *testing.T) {
 				ExcludeTarget:       true,
 			},
 		},
+		{
+			name:  "depth-limited prefix - direct dependents only",
+			input: "1...foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "depth-limited postfix - direct dependencies only",
+			input: "foo...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependencyDepth:     1,
+			},
+		},
+		{
+			name:  "depth-limited both directions",
+			input: "2...foo...3",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependentDepth:      2,
+				DependencyDepth:     3,
+			},
+		},
+		{
+			name:  "depth-limited with caret",
+			input: "1...^foo...2",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       true,
+				DependentDepth:      1,
+				DependencyDepth:     2,
+			},
+		},
+		{
+			name:  "depth-limited with multi-digit depth",
+			input: "10...foo...25",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependentDepth:      10,
+				DependencyDepth:     25,
+			},
+		},
+		{
+			name:  "very large depth clamps to max",
+			input: "999999999...foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      filter.MaxTraversalDepth,
+			},
+		},
+		{
+			name:  "overflow depth falls back to unlimited",
+			input: "99999999999999999999999...foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      0,
+			},
+		},
+		// Numeric directory edge cases - testing disambiguation
+		{
+			name:  "numeric dir with depth - number before ellipsis is depth",
+			input: "1...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "1",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "numeric dir escape hatch - braced path for target with dependency depth",
+			input: "{1}...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathExpression{
+					Value: "1",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependencyDepth:     1,
+			},
+		},
+		{
+			name:  "numeric dir escape hatch - braced path for target with dependent depth",
+			input: "1...{1}",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathExpression{
+					Value: "1",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "numeric dir escape hatch - explicit name attribute with dependency depth",
+			input: "name=1...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "1",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependencyDepth:     1,
+			},
+		},
+		{
+			name:  "numeric dir escape hatch - explicit name attribute with dependent depth",
+			input: "1...name=1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "1",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "numeric dir full escape - both directions with braces",
+			input: "1...{1}...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.PathExpression{
+					Value: "1",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+				DependencyDepth:     1,
+			},
+		},
+		{
+			name:  "alphanumeric dir not confused with depth",
+			input: "1...1foo",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "1foo",
+				},
+				IncludeDependents:   true,
+				IncludeDependencies: false,
+				ExcludeTarget:       false,
+				DependentDepth:      1,
+			},
+		},
+		{
+			name:  "alphanumeric dir not confused with depth - postfix",
+			input: "foo1...1",
+			expected: &filter.GraphExpression{
+				Target: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo1",
+				},
+				IncludeDependents:   false,
+				IncludeDependencies: true,
+				ExcludeTarget:       false,
+				DependencyDepth:     1,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -648,6 +890,8 @@ func TestParser_GraphExpressions(t *testing.T) {
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).IncludeDependencies, graphExpr.IncludeDependencies)
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).ExcludeTarget, graphExpr.ExcludeTarget)
 			assert.Equal(t, tt.expected.(*filter.GraphExpression).Target, graphExpr.Target)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependentDepth, graphExpr.DependentDepth)
+			assert.Equal(t, tt.expected.(*filter.GraphExpression).DependencyDepth, graphExpr.DependencyDepth)
 		})
 	}
 }
@@ -779,7 +1023,22 @@ func TestParser_GraphExpressionErrors(t *testing.T) {
 		{
 			name:        "incomplete ellipsis",
 			input:       "..foo",
-			expectError: false, // This parses as path filter, not an error
+			expectError: false, // This parses as name filter "..foo", not an error
+		},
+		{
+			name:        "depth without target",
+			input:       "1...",
+			expectError: true,
+		},
+		{
+			name:        "depth without target and trailing space",
+			input:       "1... ",
+			expectError: true,
+		},
+		{
+			name:        "double depth no target",
+			input:       "1......2",
+			expectError: true, // 1... then ...2 with no target between
 		},
 	}
 

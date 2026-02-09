@@ -22,6 +22,11 @@ func NewLexer(input string) *Lexer {
 	return l
 }
 
+// Input returns the original input string.
+func (l *Lexer) Input() string {
+	return l.input
+}
+
 // NextToken reads and returns the next token from the input.
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
@@ -62,6 +67,7 @@ func (l *Lexer) NextToken() Token {
 		tok = NewToken(EOF, "", startPosition)
 	case '.':
 		if l.peekChar() == '.' {
+			// Check for ellipsis (...)
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
 				l.readChar()
 				l.readChar()
@@ -166,7 +172,7 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isIdentifierChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
 				break
@@ -188,7 +194,7 @@ func (l *Lexer) readIdentifier() string {
 func (l *Lexer) readAttributeValue() string {
 	position := l.position
 	for isAttributeValueChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
 				break
@@ -209,7 +215,7 @@ func (l *Lexer) readAttributeValue() string {
 func (l *Lexer) readPath(startPosition int) Token {
 	position := l.position
 	for isPathChar(l.ch) {
-		// Check if we're about to read an ellipsis (...)
+		// stop at ellipsis (...)
 		if l.ch == '.' && l.peekChar() == '.' {
 			if l.readPosition+1 < len(l.input) && l.input[l.readPosition+1] == '.' {
 				break

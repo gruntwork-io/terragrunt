@@ -345,20 +345,6 @@ func (q *Queue) areDependenciesReadyUnsafe(l log.Logger, e *Entry) bool {
 	for _, dep := range e.Component.Dependencies() {
 		depEntry := q.entryByPathUnsafe(dep.Path())
 		if depEntry == nil {
-			// Dependency not in queue - check if assumed already applied
-			if q.unitsMap != nil {
-				if unit, ok := q.unitsMap[dep.Path()]; ok {
-					if unit.Execution != nil && unit.Execution.AssumeAlreadyApplied {
-						l.Debugf(
-							"Dependency %s is not in queue, and is assumed to be already applied, considering it ready",
-							dep.Path(),
-						)
-
-						continue
-					}
-				}
-			}
-
 			l.Debugf("Dependency %s is not in queue, considering it ready", dep.Path())
 
 			continue
@@ -414,9 +400,17 @@ func (q *Queue) areDependentsReadyUnsafe(e *Entry) bool {
 }
 
 // SetEntryStatus safely sets the status of an entry with proper synchronization.
+//
+// If the entry is already in a terminal state (StatusSucceeded, StatusFailed, or StatusEarlyExit),
+// this operation is a no-op. This prevents race conditions where a concurrent success could
+// overwrite an early-exit status set by fail-fast mode.
 func (q *Queue) SetEntryStatus(e *Entry, status Status) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+
+	if isTerminal(e.Status) {
+		return
+	}
 
 	e.Status = status
 }
