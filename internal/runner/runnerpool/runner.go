@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -492,13 +491,9 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
-			credsGetter := creds.NewGetter()
-			if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
-				childCtx,
-				unitLogger,
-				u.Execution.TerragruntOptions,
-				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
-			); err != nil {
+			// See https://github.com/gruntwork-io/terragrunt/issues/5515
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, u.Execution.TerragruntOptions)
+			if err != nil {
 				return err
 			}
 

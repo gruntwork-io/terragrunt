@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -44,4 +45,17 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 	}
 
 	return nil
+}
+
+// ObtainCredsForParsing creates a new Getter, obtains external-command
+// credentials, and populates opts.Env before HCL parsing.
+// Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
+// See https://github.com/gruntwork-io/terragrunt/issues/5515
+func ObtainCredsForParsing(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*Getter, error) {
+	g := NewGetter()
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+		return nil, err
+	}
+
+	return g, nil
 }

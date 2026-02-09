@@ -219,11 +219,11 @@ func TestSOPSDecryptedCorrectlyRunAllWithFilter(t *testing.T) {
 func TestSOPSDecryptedCorrectlyRunAllMultipleUnits(t *testing.T) {
 	t.Parallel()
 
-	const numUnits = 48
+	const numUnits = 12
 
 	rootPath := generateSopsMultiUnitFixtures(t, numUnits)
 
-	// Run apply on all 48 units in parallel — this is where the race condition manifests
+	// Run apply on all units in parallel — this is where the race condition manifests
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(

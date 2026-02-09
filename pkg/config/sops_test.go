@@ -105,6 +105,8 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) { //nolint:paralleltest // mut
 
 	var envVarRaces atomic.Int32
 
+	var decryptErrors atomic.Int32
+
 	// Mock decrypt function that simulates KMS latency and detects env var races.
 	mockDecryptFn := func(path string, format string) ([]byte, error) {
 		// Check if WE are the goroutine that set the env var.
@@ -188,7 +190,9 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) { //nolint:paralleltest // mut
 				_, pctx := NewParsingContext(ctx, l, opts)
 
 				// Call sopsDecryptFileImpl directly with mock decryptFn
-				sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecryptFn)
+				if _, decryptErr := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecryptFn); decryptErr != nil {
+					decryptErrors.Add(1)
+				}
 			}(i, sf)
 		}
 
@@ -196,8 +200,11 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) { //nolint:paralleltest // mut
 		wg.Wait()
 	}
 
-	t.Logf("Env var races detected: %d (across %d iterations x %d files)",
-		envVarRaces.Load(), iterations, len(secretFiles))
+	t.Logf("Env var races detected: %d, decrypt errors: %d (across %d iterations x %d files)",
+		envVarRaces.Load(), decryptErrors.Load(), iterations, len(secretFiles))
+
+	require.Zero(t, decryptErrors.Load(),
+		"sopsDecryptFileImpl returned errors — possible regression in decrypt logic")
 
 	require.Zero(t, envVarRaces.Load(),
 		"Env vars changed during decrypt — race condition detected (issue #5515)")

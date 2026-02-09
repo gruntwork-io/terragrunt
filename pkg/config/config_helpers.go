@@ -1345,11 +1345,19 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
 func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
-	// Lock for entire cache-check-decrypt-store operation to prevent race conditions
-	// when multiple units are decrypted concurrently. This is necessary because:
-	// 1. Environment variables need to be temporarily set for SOPS authentication
-	// 2. The cache check and decrypt must be atomic to prevent duplicate work
-	l.Debugf("sops decrypt: acquiring lock for %s (format=%s)", path, format)
+	// Fast path: check cache before acquiring lock.
+	// Cache has its own sync.RWMutex, safe for concurrent reads.
+	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
+
+		return val, nil
+	}
+
+	// Cache miss: acquire lock for env mutation + decrypt.
+	// The lock serializes os.Setenv/os.Unsetenv to prevent race conditions
+	// when multiple units decrypt concurrently with different auth credentials.
+	// See https://github.com/gruntwork-io/terragrunt/issues/5515
+	l.Debugf("sops decrypt: cache miss, acquiring lock for %s (format=%s)", path, format)
 
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
@@ -1366,13 +1374,14 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 		}
 	}
 
+	// Double-check: another goroutine may have populated cache while we waited for the lock.
 	if val, ok := sopsCache.Get(ctx, path); ok {
-		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
+		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
 
 		return val, nil
 	}
 
-	l.Debugf("sops decrypt: cache miss, decrypting %s", path)
+	l.Debugf("sops decrypt: decrypting %s", path)
 
 	rawData, err := decryptFn(path, format)
 	if err != nil {
