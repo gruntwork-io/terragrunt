@@ -115,11 +115,10 @@ OpenTofu/Terraform has an official documented setting [network_mirror](https://d
 
 ### Provider Cache with `providers lock` command
 
-If you run `providers lock` with enabled Terragrunt Provider Cache, Terragrunt creates the provider cache and generates the lock file on its own, without running `terraform providers lock` at all.
+If you run `providers lock` with enabled Terragrunt Provider Cache, Terragrunt creates the provider cache and generates the lock file.
 
 ```shell
-terragrunt providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64 \
---provider-cache
+terragrunt run --provider-cache -- providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64
 ```
 
 ## Configure the Provider Cache Server

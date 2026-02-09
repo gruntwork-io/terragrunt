@@ -18,9 +18,6 @@ const (
 	// FormatDot outputs the discovered configurations in GraphViz DOT format.
 	FormatDot = "dot"
 
-	// SortAlpha sorts the discovered configurations in alphabetical order.
-	SortAlpha = "alpha"
-
 	// SortDAG sorts the discovered configurations in a topological sort order.
 	SortDAG = "dag"
 
@@ -43,8 +40,8 @@ type Options struct {
 	// QueueConstructAs constructs the queue as if a particular command was run.
 	QueueConstructAs string
 
-	// Hidden determines whether to detect hidden directories.
-	Hidden bool
+	// NoHidden determines if hidden directories should be excluded from the output.
+	NoHidden bool
 
 	// Dependencies determines whether to include dependencies in the output.
 	Dependencies bool
@@ -64,7 +61,6 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		TerragruntOptions: opts,
 		Format:            FormatText,
 		Mode:              ModeNormal,
-		Hidden:            false,
 	}
 }
 

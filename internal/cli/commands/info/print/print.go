@@ -13,8 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -31,7 +31,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	prepared, err := run.PrepareConfig(ctx, l, opts)
+	prepared, err := prepare.PrepareConfig(ctx, l, opts)
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)
@@ -44,7 +44,7 @@ func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 	}
 
 	// Download source
-	updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, report.NewReport())
+	updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, report.NewReport())
 	if err != nil {
 		// Even on error, try to print what info we have
 		l.Debugf("Fetching info with error: %v", err)

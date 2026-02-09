@@ -11,18 +11,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -53,8 +53,6 @@ const (
 	DefaultTFDataDir = ".terraform"
 
 	DefaultIAMAssumeRoleDuration = 3600
-
-	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
@@ -187,7 +185,7 @@ type TerragruntOptions struct {
 	// Path to the report schema file.
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs clihelper.Args
+	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
@@ -204,6 +202,8 @@ type TerragruntOptions struct {
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
+	// Tips is a collection of tips that can be shown to users.
+	Tips tips.Tips `clone:"shadowcopy"`
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
@@ -238,8 +238,8 @@ type TerragruntOptions struct {
 	JSONDisableDependentModules bool
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
-	// True if is required to show dependent modules and confirm action
-	CheckDependentModules bool
+	// True if is required to show dependent units and confirm action
+	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
 	DestroyDependenciesCheck bool
 	// Include fields metadata in render-json
@@ -380,6 +380,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:          true,
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
+		TerraformCliArgs:           iacargs.New(),
 		Writer:                     stdout,
 		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
@@ -392,6 +393,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Errors:                     defaultErrorsConfig(),
 		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
+		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
@@ -504,62 +506,84 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	return l, newOpts, nil
 }
 
-// Check if argument is planfile TODO check file formatter
-func checkIfPlanFile(arg string) bool {
-	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
-}
-
-// Extract planfile from arguments list
-func extractPlanFile(argsToInsert []string) (*string, []string) {
-	planFile := ""
-
-	var filteredArgs []string
-
-	for _, arg := range argsToInsert {
-		if checkIfPlanFile(arg) {
-			planFile = arg
-		} else {
-			filteredArgs = append(filteredArgs, arg)
-		}
-	}
-
-	if planFile != "" {
-		return &planFile, filteredArgs
-	}
-
-	return nil, filteredArgs
-}
-
 // InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
-	planFile, restArgs := extractPlanFile(argsToInsert)
-
-	commandLength := 1
-	if slices.Contains(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
-		// Since these terraform commands require subcommands which may not always be properly passed by the user,
-		// using min to return the minimum to avoid potential out of bounds slice errors.
-		commandLength = min(minCommandLength, len(opts.TerraformCliArgs))
+	// Ensure TerraformCliArgs is initialized. This allows callers to use
+	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
+	// which is common when building options incrementally or in tests.
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = iacargs.New()
 	}
 
-	// Options must be inserted after command but before the other args
-	// command is either 1 word or 2 words
-	var args []string
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := iacargs.New(argsToInsert...)
 
-	args = append(args, opts.TerraformCliArgs[:commandLength]...)
-	args = append(args, restArgs...)
-	args = append(args, opts.TerraformCliArgs[commandLength:]...)
+	// Insert flags at beginning
+	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
 
-	// check if planfile was extracted
-	if planFile != nil {
-		args = append(args, *planFile)
+	// Merge command and subcommands from parsed args
+	opts.mergeCommandAndSubCommand(parsed)
+
+	// Arguments: insert at the beginning
+	opts.TerraformCliArgs.InsertArguments(0, parsed.Arguments...)
+}
+
+// mergeCommandAndSubCommand handles command and subcommand merging during arg insertion.
+// Command rules:
+//   - If opts has no command, use parsed.Command
+//   - If parsed.Command matches opts command, do nothing
+//   - If parsed.Command is a known subcommand, add to SubCommand
+//   - Otherwise treat parsed.Command as positional argument
+//
+// SubCommand rules:
+//   - If parsed has explicit subcommands, use them (last writer wins)
+//   - Otherwise keep any subcommand set during command merging
+func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *iacargs.IacArgs) {
+	// Handle command field
+	switch {
+	case opts.TerraformCliArgs.Command == "":
+		opts.TerraformCliArgs.Command = parsed.Command
+	case parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command:
+		// no-op
+	case iacargs.IsKnownSubCommand(parsed.Command):
+		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
+	default:
+		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
 	}
 
-	opts.TerraformCliArgs = args
+	// Explicit subcommands in parsed take precedence
+	if len(parsed.SubCommand) > 0 {
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	}
 }
 
 // AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
+// Uses IacArgs parsing to properly distinguish flags from arguments.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
-	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
+	// Ensure TerraformCliArgs is initialized. This allows callers to use
+	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
+	// which is common when building options incrementally or in tests.
+	if opts.TerraformCliArgs == nil {
+		opts.TerraformCliArgs = iacargs.New()
+	}
+
+	// Parse args using IacArgs to properly separate flags from arguments
+	parsed := iacargs.New(argsToAppend...)
+
+	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
+
+	// Handle parsed.Command as an argument (extra_arguments don't have a command)
+	if parsed.Command != "" {
+		opts.TerraformCliArgs.AppendArgument(parsed.Command)
+	}
+
+	opts.TerraformCliArgs.AppendArgument(parsed.Arguments...)
+
+	// Replace subcommand if provided
+	if len(parsed.SubCommand) > 0 {
+		opts.TerraformCliArgs.SubCommand = parsed.SubCommand
+	}
 }
 
 // TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
@@ -639,8 +663,15 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 	currentAttempt := 1
 
-	// convert working dir to a clean, absolute path for reporting
-	reportDir, err := filepath.Abs(opts.WorkingDir)
+	// Convert working dir to a clean, absolute path for reporting.
+	// Use directory of original config path (pre-cache location) to ensure
+	// report runs match those created by the runner pool.
+	reportWorkingDir := opts.WorkingDir
+	if opts.OriginalTerragruntConfigPath != "" {
+		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
+	}
+
+	reportDir, err := filepath.Abs(reportWorkingDir)
 	if err != nil {
 		return err
 	}
@@ -654,9 +685,14 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		}
 
 		// Process the error through our error handling configuration
-		action, processErr := opts.Errors.ProcessError(l, err, currentAttempt)
-		if processErr != nil {
-			return fmt.Errorf("error processing error handling rules: %w", processErr)
+		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
+		if recoveryErr != nil {
+			var maxAttemptsReachedError *MaxAttemptsReachedError
+			if errors.As(recoveryErr, &maxAttemptsReachedError) {
+				return maxAttemptsReachedError
+			}
+
+			return fmt.Errorf("encountered error while attempting error recovery: %w", recoveryErr)
 		}
 
 		if action == nil {
@@ -699,7 +735,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 
 			l.Warnf(
 				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
-				action.RetryMessage,
+				action.RetryBlockName,
 				currentAttempt,
 				action.RetryAttempts,
 				action.RetrySleepSecs,
@@ -764,15 +800,23 @@ type ErrorAction struct {
 	IgnoreBlockName string
 	RetryBlockName  string
 	IgnoreMessage   string
-	RetryMessage    string
 	RetryAttempts   int
 	RetrySleepSecs  int
 	ShouldIgnore    bool
 	ShouldRetry     bool
 }
 
-// ProcessError evaluates an error against the configuration and returns the appropriate action
-func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
+type MaxAttemptsReachedError struct {
+	Err        error
+	MaxRetries int
+}
+
+func (e *MaxAttemptsReachedError) Error() string {
+	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
+}
+
+// AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
+func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
 	if err == nil {
 		return nil, nil
 	}
@@ -780,43 +824,51 @@ func (c *ErrorsConfig) ProcessError(l log.Logger, err error, currentAttempt int)
 	errStr := extractErrorMessage(err)
 	action := &ErrorAction{}
 
-	l.Debugf("Processing error message: %s", errStr)
+	l.Debugf("Attempting error recovery for error: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
 		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
-		if isIgnorable {
-			action.IgnoreBlockName = ignoreBlock.Name
-			action.ShouldIgnore = true
-			action.IgnoreMessage = ignoreBlock.Message
-			action.IgnoreSignals = make(map[string]any)
-
-			// Convert cty.Value map to regular map
-			maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
-
-			return action, nil
+		if !isIgnorable {
+			continue
 		}
+
+		action.IgnoreBlockName = ignoreBlock.Name
+		action.ShouldIgnore = true
+		action.IgnoreMessage = ignoreBlock.Message
+		action.IgnoreSignals = make(map[string]any)
+
+		// Convert cty.Value map to regular map
+		maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
+
+		return action, nil
 	}
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
 		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
-		if isRetryable {
-			if currentAttempt >= retryBlock.MaxAttempts {
-				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
-					retryBlock.MaxAttempts, err))
-			}
-
-			action.RetryMessage = retryBlock.Name
-			action.ShouldRetry = true
-			action.RetryAttempts = retryBlock.MaxAttempts
-			action.RetrySleepSecs = retryBlock.SleepIntervalSec
-
-			return action, nil
+		if !isRetryable {
+			continue
 		}
+
+		if currentAttempt >= retryBlock.MaxAttempts {
+			return nil, &MaxAttemptsReachedError{
+				MaxRetries: retryBlock.MaxAttempts,
+				Err:        err,
+			}
+		}
+
+		action.RetryBlockName = retryBlock.Name
+		action.ShouldRetry = true
+		action.RetryAttempts = retryBlock.MaxAttempts
+		action.RetrySleepSecs = retryBlock.SleepIntervalSec
+
+		return action, nil
 	}
 
-	return nil, err
+	// We encountered no error while attempting error recovery, even though the underlying error
+	// is still present. Recovery did not error, the original error will be handled externally.
+	return nil, nil
 }
 
 func extractErrorMessage(err error) string {

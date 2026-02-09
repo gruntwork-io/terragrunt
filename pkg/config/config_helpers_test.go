@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -18,6 +20,21 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
+
+// assertErrorType checks that the error chain contains an error of the same type as expectedErr.
+func assertErrorType(t *testing.T, expectedErr, actualErr error) bool {
+	t.Helper()
+
+	expectedType := reflect.TypeOf(expectedErr)
+
+	for err := actualErr; err != nil; err = errors.Unwrap(err) {
+		if reflect.TypeOf(err) == expectedType {
+			return true
+		}
+	}
+
+	return assert.Fail(t, "error type mismatch", "expected error of type %T in chain, but got %T", expectedErr, actualErr)
+}
 
 func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
@@ -239,7 +256,7 @@ func TestRunCommand(t *testing.T) {
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
+					assertErrorType(t, tc.expectedErr, actualErr)
 				}
 			} else {
 				require.NoError(t, actualErr)
@@ -351,7 +368,7 @@ func TestFindInParentFolders(t *testing.T) {
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
-					assert.IsType(t, tc.expectedErr, errors.Unwrap(actualErr))
+					assertErrorType(t, tc.expectedErr, actualErr)
 				}
 			} else {
 				require.NoError(t, actualErr)
@@ -632,7 +649,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 
 	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
 		opts := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-		opts.TerraformCliArgs = cliArgs
+		opts.TerraformCliArgs = iacargs.New(cliArgs...)
 		expectedFooInput := cliArgs
 		// Expecting nil to be returned for get_terraform_cli_args() call for
 		// either nil or empty array of input args
@@ -1071,6 +1088,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 		[]any{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
 		afterHooksMap["after_hook_2"].(map[string]any)["execute"].([]any),
 	)
+
 	errorHooksMap := terraformMap["error_hook"].(map[string]any)
 	assert.Equal(
 		t,

@@ -95,6 +95,14 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
+	// Exclude OpenTofu/Terraform/Terragrunt cache directories
+	// that may have been created when manually running in the fixtures directory.
+	excludeFromCopy := []string{
+		"**/.terraform/**",
+		"**/.terragrunt-cache/**",
+		"**/terragrunt-debug.tfvars.json",
+	}
+
 	require.NoError(
 		t,
 		util.CopyFolderContents(
@@ -103,7 +111,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
 			includeInCopy,
-			nil,
+			excludeFromCopy,
 		),
 	)
 
@@ -309,7 +317,8 @@ func cleanS3Bucket(t *testing.T, client *s3.Client, bucketName string) {
 		if len(out.Versions) > 0 {
 			var objectsToDelete []s3types.ObjectIdentifier
 
-			for _, version := range out.Versions {
+			for i := range out.Versions {
+				version := &out.Versions[i]
 				objectsToDelete = append(objectsToDelete, s3types.ObjectIdentifier{
 					Key:       version.Key,
 					VersionId: version.VersionId,
@@ -397,12 +406,13 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(includeModulePaths)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", rootModulePath,
-	}
+	)
 
 	for _, module := range includeModulePaths {
 		cmdParts = append(cmdParts, "--queue-include-dir", module)
@@ -424,8 +434,7 @@ func RunValidateAllWithIncludeAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
@@ -448,12 +457,13 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 ) []string {
 	t.Helper()
 
-	cmdParts := []string{
+	cmdParts := make([]string, 0, 9+2*len(units)) //nolint:mnd
+	cmdParts = append(cmdParts,
 		"terragrunt", "run", "--all", "validate",
 		"--non-interactive",
 		"--log-level", "debug",
 		"--working-dir", workDir,
-	}
+	)
 
 	for _, unit := range units {
 		cmdParts = append(cmdParts, "--filter", fmt.Sprintf("'{%s}...'", unit))
@@ -475,8 +485,7 @@ func RunValidateAllWithFilteredPlusDependenciesAndGetIncludedModules(
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Unit (.+) \(excluded: (true|false)`)
-	require.NoError(t, err)
+	includedModulesRegexp := regexp.MustCompile(`=> Unit (.+) \(excluded: (true|false)`)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
@@ -524,7 +533,7 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := filepath.Join(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --log-level trace --working-dir %s %s", testPath, args))
+	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all plan --non-interactive --working-dir %s %s", testPath, args))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -1125,7 +1134,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 	}
 
 	cmd := fmt.Sprintf(
-		"terragrunt hcl validate --inputs %s --log-level trace --non-interactive --working-dir %s",
+		"terragrunt hcl validate --inputs %s --non-interactive --working-dir %s",
 		strings.Join(extraArgs, " "),
 		moduleDir,
 	)

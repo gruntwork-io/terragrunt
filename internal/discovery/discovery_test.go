@@ -153,7 +153,7 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 	opts.WorkingDir = internalDir
 	opts.RootWorkingDir = internalDir
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -170,10 +170,12 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				db := component.NewUnit(dbDir)
 				externalApp := component.NewUnit(externalAppDir)
 				externalApp.SetExternal()
+
 				vpc := component.NewUnit(vpcDir)
 				db.AddDependency(vpc)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
+
 				return component.Components{app, db, vpc}
 			},
 		},
@@ -184,11 +186,14 @@ func TestDiscoveryWithDependencies(t *testing.T) {
 				vpc := component.NewUnit(vpcDir)
 				db := component.NewUnit(dbDir)
 				db.AddDependency(vpc)
+
 				externalApp := component.NewUnit(externalAppDir)
 				externalApp.SetExternal()
+
 				app := component.NewUnit(appDir)
 				app.AddDependency(db)
 				app.AddDependency(externalApp)
+
 				return component.Components{app, db, vpc, externalApp}
 			},
 		},
@@ -417,7 +422,7 @@ inputs = {
 		require.NoError(t, err)
 	}
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	// Test that d with parsing enabled doesn't fail on stack files
@@ -474,7 +479,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	filters, err := filter.ParseFilterQueries([]string{"!" + unit2Dir})
+	filters, err := filter.ParseFilterQueries(l, []string{"!" + unit2Dir})
 	require.NoError(t, err)
 
 	// Exclude unit2
@@ -483,7 +488,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{unit1Dir, unit3Dir}, cfgs.Filter(component.UnitKind).Paths())
 
-	filters, err = filter.ParseFilterQueries([]string{"./unit1"})
+	filters, err = filter.ParseFilterQueries(l, []string{"./unit1"})
 	require.NoError(t, err)
 
 	// Exclude-by-default and include only unit1
@@ -492,7 +497,7 @@ func TestDiscoveryIncludeExcludeFilters(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{unit1Dir}, cfgs.Filter(component.UnitKind).Paths())
 
-	filters, err = filter.ParseFilterQueries([]string{"./unit3"})
+	filters, err = filter.ParseFilterQueries(l, []string{"./unit3"})
 	require.NoError(t, err)
 
 	// Strict include behaves the same
@@ -514,7 +519,7 @@ func TestDiscoveryHiddenIncludedByIncludeDirs(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(tmpDir)
 	require.NoError(t, err)
 
-	filters, err := filter.ParseFilterQueries([]string{"./.hidden/**"})
+	filters, err := filter.ParseFilterQueries(l, []string{"./.hidden/**"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -573,7 +578,7 @@ func TestDiscoveryIgnoreExternalDependencies(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(internalDir).WithFilters(depsFilters)
@@ -715,7 +720,7 @@ func TestDiscoveryExcludesByDefaultWhenFilterFlagIsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(tt.filters)
+			filters, err := filter.ParseFilterQueries(l, tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -977,7 +982,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	// Discover components with dependency discovery enabled
@@ -1038,7 +1043,7 @@ dependency "foo" {
 
 	l := logger.CreateLogger()
 
-	depsFilters, err := filter.ParseFilterQueries([]string{"{./**}..."})
+	depsFilters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"{./**}..."})
 	require.NoError(t, err)
 
 	// Discover components with dependency discovery enabled

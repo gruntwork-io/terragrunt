@@ -24,10 +24,10 @@ import (
 
 // Run runs the find command.
 func Run(ctx context.Context, l log.Logger, opts *Options) error {
-	d, err := discovery.NewForDiscoveryCommand(discovery.DiscoveryCommandOptions{
+	d, err := discovery.NewForDiscoveryCommand(l, &discovery.DiscoveryCommandOptions{
 		WorkingDir:        opts.WorkingDir,
 		QueueConstructAs:  opts.QueueConstructAs,
-		NoHidden:          !opts.Hidden,
+		NoHidden:          opts.NoHidden,
 		WithRequiresParse: opts.Dependencies || opts.Mode == ModeDAG,
 		WithRelationships: opts.Dependencies || opts.Mode == ModeDAG,
 		Exclude:           opts.Exclude,
@@ -42,7 +42,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if parseErr != nil {
 		return fmt.Errorf("failed to parse filters: %w", parseErr)
 	}
@@ -70,7 +70,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "find_discover", map[string]any{
 		"working_dir":  opts.WorkingDir,
-		"hidden":       opts.Hidden,
+		"no_hidden":    opts.NoHidden,
 		"dependencies": opts.Dependencies,
 		"mode":         opts.Mode,
 		"exclude":      opts.Exclude,

@@ -15,21 +15,36 @@ $version = "${version}"
 $binaryName = "terragrunt_\${os}_\${arch}.exe"
 try {
     $ProgressPreference = 'SilentlyContinue'
-    # Download binary and checksum
     $baseUrl = "https://github.com/gruntwork-io/terragrunt/releases/download/$version"
     Write-Host "Downloading Terragrunt $version..."
     Invoke-WebRequest -Uri "$baseUrl/$binaryName" -OutFile $binaryName -UseBasicParsing
     Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS.gpgsig" -OutFile "SHA256SUMS.gpgsig" -UseBasicParsing
+
+    # First: Verify GPG signature of checksum file (requires gpg installed)
+    Write-Host "Importing Gruntwork signing key..."
+    Invoke-WebRequest -Uri "https://gruntwork.io/.well-known/pgp-key.txt" -OutFile "pgp-key.txt" -UseBasicParsing
+    gpg --import pgp-key.txt 2>$null
+    Write-Host "Verifying GPG signature of SHA256SUMS..."
+    gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "GPG signature verification failed"
+        exit 1
+    }
+    Write-Host "GPG signature verified!"
+
+    # Second: Verify checksum of binary against trusted SHA256SUMS
     $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
     $expectedChecksum = (Get-Content "SHA256SUMS" | ForEach-Object { $parts = $_ -split '\s+'; if ($parts[1] -eq $binaryName) { return $parts[0].ToLower() } } | Select-Object -First 1)
     if ($actualChecksum -ne $expectedChecksum) {
         Write-Error "Checksum verification failed"
         exit 1
     }
-    Write-Host "Terragrunt $version has been downloaded and verified successfully"
+    Write-Host "Checksum verified!"
+    Write-Host "Terragrunt $version downloaded and verified successfully"
 }
 catch {
-    Write-Error "Failed to download: $_"
+    Write-Error "Failed: $_"
     exit 1
 }
 finally {
@@ -51,25 +66,33 @@ OS="${os}"
 ARCH="${arch}"
 VERSION="${version}"
 BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
+BASE_URL="https://github.com/gruntwork-io/terragrunt/releases/download/\$VERSION"
 
-# Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/\$VERSION/\$BINARY_NAME" -o "\$BINARY_NAME"
+# Download binary and verification files
+curl -sL "\$BASE_URL/\$BINARY_NAME" -o "\$BINARY_NAME"
+curl -sL "\$BASE_URL/SHA256SUMS" -o SHA256SUMS
+curl -sL "\$BASE_URL/SHA256SUMS.gpgsig" -o SHA256SUMS.gpgsig
 
-# Generate the checksum
+# First: Import Gruntwork signing key and verify GPG signature of checksum file
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import 2>/dev/null
+if gpg --verify SHA256SUMS.gpgsig SHA256SUMS 2>/dev/null; then
+  echo "GPG signature verified!"
+else
+  echo "GPG signature verification failed!"
+  exit 1
+fi
+
+# Second: Verify checksum of binary against trusted SHA256SUMS
 CHECKSUM="\$(${os == 'linux' ? 'sha256sum' : 'shasum -a 256'} "\$BINARY_NAME" | awk '{print \$1}')"
-
-# Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/\$VERSION/SHA256SUMS" -o SHA256SUMS
-
-# Grab the expected checksum (exact match on filename)
 EXPECTED_CHECKSUM="\$(awk -v binary="\$BINARY_NAME" '\$2 == binary {print \$1; exit}' SHA256SUMS)"
 
-# Compare the checksums
-if [ "\$CHECKSUM" == "\$EXPECTED_CHECKSUM" ]; then
- echo "Checksums match!"
-else
- echo "Checksums do not match!"
-fi`}
+if [ "\$CHECKSUM" != "\$EXPECTED_CHECKSUM" ]; then
+  echo "Checksum verification failed!"
+  exit 1
+fi
+echo "Checksum verified!"
+
+echo "Terragrunt \$VERSION downloaded and verified successfully"`}
   frame='terminal'
 	>
 </Code>

@@ -9,12 +9,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -80,7 +81,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	filters, err := filter.ParseFilterQueries(opts.FilterQueries)
+	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if err != nil {
 		return errors.Errorf("failed to parse filters: %w", err)
 	}
@@ -114,7 +115,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 				"working_dir":       opts.WorkingDir,
 			}, func(ctx context.Context) error {
 				l.Debugf("Running stack clean for %s, as part of generate command", opts.WorkingDir)
-				return config.CleanStacks(ctx, l, opts)
+				return clean.CleanStacks(l, opts)
 			})
 			if errClean != nil {
 				return errors.Errorf("failed to clean stack directories under %q: %w", opts.WorkingDir, errClean)
@@ -223,7 +224,7 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	}
 
 	// Skip summary when JSON output is requested via -json flag
-	if opts.TerraformCliArgs.Normalize(clihelper.SingleDashFlag).Contains(tf.FlagNameJSON) {
+	if opts.TerraformCliArgs.Normalize(iacargs.SingleDashFlag).Contains(tf.FlagNameJSON) {
 		return true
 	}
 

@@ -23,6 +23,7 @@ const (
 	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixtures/hooks/before-after-and-error-merge"
 	testFixtureHooksSkipOnErrorPath                               = "fixtures/hooks/skip-on-error"
 	testFixtureErrorHooksPath                                     = "fixtures/hooks/error-hooks"
+	testFixtureErrorHooksSourceDownloadFail                       = "fixtures/hooks/error-hooks-source-download-fail"
 	testFixtureHooksOneArgActionPath                              = "fixtures/hooks/one-arg-action"
 	testFixtureHooksEmptyStringCommandPath                        = "fixtures/hooks/bad-arg-action/empty-string-command"
 	testFixtureHooksEmptyCommandListPath                          = "fixtures/hooks/bad-arg-action/empty-command-list"
@@ -33,6 +34,7 @@ const (
 	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
 	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/hooks/init-once/with-source-with-backend"
 	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
+	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -91,8 +93,8 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	// With source always being "." (current directory), init-from-module executes once
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command should execute once")
 }
 
 func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
@@ -140,7 +142,7 @@ func TestTerragruntHookRunAllApply(t *testing.T) {
 	beforeOnlyPath := filepath.Join(rootPath, "before-only")
 	afterOnlyPath := filepath.Join(rootPath, "after-only")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
@@ -158,7 +160,7 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 	beforeOnlyPath := filepath.Join(rootPath, "before-only")
 	afterOnlyPath := filepath.Join(rootPath, "after-only")
 
-	helpers.RunTerragrunt(t, "terragrunt run --all apply --log-level trace --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
 
 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
 	require.NoError(t, beforeErr)
@@ -304,6 +306,27 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	assert.NotContains(t, output, "not_matching_hook")
 }
 
+func TestTerragruntErrorHookTriggeredOnSourceDownloadFail(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksSourceDownloadFail)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksSourceDownloadFail)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureErrorHooksSourceDownloadFail)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+rootPath+
+			" -- apply -auto-approve",
+	)
+	require.Error(t, err)
+
+	// Hook output goes to stdout, check both stdout and stderr
+	output := stdout + stderr
+	// Verify error hook for init-from-module is triggered when source download fails
+	assert.Contains(t, output, "ERROR_HOOK_TRIGGERED_ON_INIT_FROM_MODULE",
+		"Error hook for 'init-from-module' should be triggered when source download fails")
+}
+
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	t.Parallel()
 
@@ -416,4 +439,24 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
 	assert.Empty(t, dat.IAMRole)
+}
+
+func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksPathPreservation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksPathPreservation)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksPathPreservation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+
+	// The absolute path should be preserved exactly as the hook output it
+	// NOT converted to a relative path like "../../../.terraform.d/plugin-cache"
+	assert.Contains(t, stderr, "/home/testuser/.terraform.d/plugin-cache")
+	assert.NotContains(t, stderr, "../")
 }

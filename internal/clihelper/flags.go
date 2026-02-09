@@ -136,7 +136,7 @@ func (flags Flags) WithSubcommandScope() Flags {
 }
 
 func (flags Flags) Names() []string {
-	var names []string
+	names := make([]string, 0, len(flags))
 
 	for _, flag := range flags {
 		names = append(names, flag.Names()...)

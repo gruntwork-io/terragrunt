@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/getsops/sops/v3/cmd/sops/formats"
@@ -45,6 +47,24 @@ const (
 	noMatchedPats = 1
 	matchedPats   = 2
 )
+
+// RunCmdCacheEntry stores run_cmd results including output for replay.
+// This allows the output to be replayed on cache hits, which is necessary
+// when the command was first executed during discovery phase (with io.Discard writers)
+// but needs to show output during the execution phase (with real writers).
+type RunCmdCacheEntry struct {
+	// Stdout is the raw stdout of the command.
+	Stdout string
+	// Stderr is the raw stderr of the command.
+	Stderr string
+	// replayOnce ensures output is replayed exactly once to a real (non-Discard) writer.
+	replayOnce sync.Once
+}
+
+// Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
+func (e *RunCmdCacheEntry) Value() string {
+	return strings.TrimSuffix(e.Stdout, "\n")
+}
 
 const (
 	FuncNameFindInParentFolders                     = "find_in_parent_folders"
@@ -476,7 +496,7 @@ func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
 
 	if len(args) == 0 {
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
@@ -523,19 +543,44 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 
 	// Skip cache lookup if --terragrunt-no-cache is set
 	if !disableCache {
-		cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
+		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
 		if foundInCache {
+			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
+			// This is needed because the command may have first run during discovery phase
+			// with io.Discard writers, so we need to replay the output during execution phase.
+			// We only call Do() when we have a real writer, so it won't fire during discovery.
+			if pctx.TerragruntOptions.Writer != io.Discard {
+				cachedEntry.replayOnce.Do(func() {
+					if !suppressOutput && cachedEntry.Stdout != "" {
+						_, _ = pctx.TerragruntOptions.Writer.Write([]byte(cachedEntry.Stdout))
+					}
+
+					if cachedEntry.Stderr != "" {
+						_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(cachedEntry.Stderr))
+					}
+				})
+			}
+
 			if suppressOutput {
 				l.Debugf("run_cmd, cached output: [REDACTED]")
 			} else {
-				l.Debugf("run_cmd, cached output: [%s]", cachedValue)
+				l.Debugf("run_cmd, cached output: [%s]", cachedEntry.Value())
 			}
 
-			return cachedValue, nil
+			return cachedEntry.Value(), nil
 		}
 	}
 
-	cmdOutput, err := shell.RunCommandWithOutput(ctx, l, pctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		pctx.TerragruntOptions,
+		currentPath,
+		true,
+		false,
+		args[0],
+		args[1:]...,
+	)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -548,10 +593,25 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		l.Debugf("run_cmd output: [%s]", value)
 	}
 
-	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
-	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	entry := &RunCmdCacheEntry{
+		Stdout: cmdOutput.Stdout.String(),
+		Stderr: cmdOutput.Stderr.String(),
+	}
+
+	if pctx.TerragruntOptions.Writer != io.Discard {
+		entry.replayOnce.Do(func() {
+			if !suppressOutput && entry.Stdout != "" {
+				_, _ = pctx.TerragruntOptions.Writer.Write([]byte(entry.Stdout))
+			}
+
+			if entry.Stderr != "" {
+				_, _ = pctx.TerragruntOptions.ErrWriter.Write([]byte(entry.Stderr))
+			}
+		})
+	}
+
 	if !disableCache {
-		runCommandCache.Put(ctx, cacheKey, value)
+		runCommandCache.Put(ctx, cacheKey, entry)
 	}
 
 	return value, nil
@@ -853,10 +913,7 @@ func getWorkingDirImpl(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 		return "", err
 	}
 
-	if sourceURL == "" {
-		return pctx.TerragruntOptions.WorkingDir, nil
-	}
-
+	// sourceURL will always be at least "." (current directory) to ensure cache is always used
 	walkWithSymlinks := pctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
 
 	source, err := tf.NewSource(l, sourceURL, pctx.TerragruntOptions.DownloadDir, pctx.TerragruntOptions.WorkingDir, walkWithSymlinks)
@@ -877,7 +934,7 @@ func getTerraformCliArgs(ctx context.Context, pctx *ParsingContext, l log.Logger
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terraform_cli_args", attrs, func(childCtx context.Context) error {
-		result = pctx.TerragruntOptions.TerraformCliArgs
+		result = pctx.TerragruntOptions.TerraformCliArgs.Slice()
 		return nil
 	})
 
@@ -916,7 +973,7 @@ func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger)
 			return err
 		}
 
-		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, awsConfig)
+		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -944,7 +1001,7 @@ func getAWSAccountID(ctx context.Context, pctx *ParsingContext, l log.Logger) (s
 			return err
 		}
 
-		accountID, err := awshelper.GetAWSAccountID(childCtx, awsConfig)
+		accountID, err := awshelper.GetAWSAccountID(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -972,7 +1029,7 @@ func getAWSCallerIdentityARN(ctx context.Context, pctx *ParsingContext, l log.Lo
 			return err
 		}
 
-		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, awsConfig)
+		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -1000,7 +1057,7 @@ func getAWSCallerIdentityUserID(ctx context.Context, pctx *ParsingContext, l log
 			return err
 		}
 
-		userID, err := awshelper.GetAWSUserID(childCtx, awsConfig)
+		userID, err := awshelper.GetAWSUserID(childCtx, &awsConfig)
 		if err != nil {
 			return err
 		}
@@ -1136,7 +1193,9 @@ func readTerragruntConfigAsFuncImpl(ctx context.Context, pctx *ParsingContext, l
 
 			err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_read_terragrunt_config", attrs, func(childCtx context.Context) error {
 				var innerErr error
+
 				result, innerErr = ParseTerragruntConfig(childCtx, pctx, l, targetConfigPath, defaultVal)
+
 				return innerErr
 			})
 

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://terragrunt.gruntwork.io/schemas/auth-provider-cmd/v1/schema.json",
+  "title": "Terragrunt Auth Provider Command Response Schema",
+  "description": "Schema for the JSON response expected from an auth provider command",
+  "type": "object",
+  "properties": {
+    "awsCredentials": {
+      "type": "object",
+      "description": "AWS credentials to set as environment variables",
+      "properties": {
+        "ACCESS_KEY_ID": {
+          "type": "string",
+          "description": "AWS access key ID"
+        },
+        "SECRET_ACCESS_KEY": {
+          "type": "string",
+          "description": "AWS secret access key"
+        },
+        "SESSION_TOKEN": {
+          "type": "string",
+          "description": "AWS session token (optional)"
+        }
+      },
+      "required": ["ACCESS_KEY_ID", "SECRET_ACCESS_KEY"],
+      "additionalProperties": false
+    },
+    "awsRole": {
+      "type": "object",
+      "description": "AWS role to assume",
+      "properties": {
+        "roleARN": {
+          "type": "string",
+          "description": "The ARN of the IAM role to assume"
+        },
+        "roleSessionName": {
+          "type": "string",
+          "description": "The session name for the assumed role"
+        },
+        "duration": {
+          "type": "integer",
+          "description": "Duration in seconds for the assumed role session",
+          "minimum": 0
+        },
+        "webIdentityToken": {
+          "type": "string",
+          "description": "Web identity token for OIDC-based role assumption"
+        }
+      },
+      "required": ["roleARN"],
+      "additionalProperties": false
+    },
+    "envs": {
+      "type": "object",
+      "description": "Additional environment variables to set",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

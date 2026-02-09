@@ -12,12 +12,6 @@ const (
 	// FormatJSON outputs the discovered components in JSON format.
 	FormatJSON = "json"
 
-	// SortAlpha sorts the discovered components in alphabetical order.
-	SortAlpha = "alpha"
-
-	// SortDAG sorts the discovered components in a topological sort order.
-	SortDAG = "dag"
-
 	// ModeNormal is the default mode for the find command.
 	ModeNormal = "normal"
 
@@ -44,8 +38,8 @@ type Options struct {
 	// DAG determines if the output should be in DAG mode.
 	DAG bool
 
-	// Hidden determines if hidden components should be included in the output.
-	Hidden bool
+	// NoHidden determines if hidden directories should be excluded from the output.
+	NoHidden bool
 
 	// Dependencies determines if dependencies should be included in the output.
 	Dependencies bool
@@ -65,7 +59,6 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		TerragruntOptions: opts,
 		Format:            FormatText,
 		Mode:              ModeNormal,
-		Hidden:            false,
 	}
 }
 

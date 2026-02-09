@@ -96,7 +96,7 @@ func NewExperiments() Experiments {
 
 // Names returns all experiment names.
 func (exps Experiments) Names() []string {
-	names := []string{}
+	names := make([]string, 0, len(exps))
 
 	for _, exp := range exps {
 		names = append(names, exp.Name)

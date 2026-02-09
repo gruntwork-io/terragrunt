@@ -97,7 +97,11 @@ func (parser *Parser) GetDiagnosticsWriter(writer io.Writer, disableColor bool) 
 
 	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
-		termWidth = 80
+		// When not connected to a terminal (e.g., in CI, tests, or piped output),
+		// use width 0 to disable word-wrapping. This prevents error messages from
+		// being split at unpredictable positions based on path lengths, which can
+		// cause issues when parsing or testing error output.
+		termWidth = 0
 	}
 
 	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(termWidth), termColor)

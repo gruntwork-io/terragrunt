@@ -54,16 +54,16 @@ func TestFindHidden(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected string
-		hidden   bool
+		noHidden bool
 	}{
 		{
-			name:     "visible",
-			expected: "stack\nunit\n",
+			name:     "default (includes hidden)",
+			expected: ".hide/unit\nstack\nunit\n",
 		},
 		{
-			name:     "hidden",
-			hidden:   true,
-			expected: ".hide/unit\nstack\nunit\n",
+			name:     "no-hidden flag excludes hidden",
+			noHidden: true,
+			expected: "stack\nunit\n",
 		},
 	}
 
@@ -75,8 +75,8 @@ func TestFindHidden(t *testing.T) {
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
-			if tc.hidden {
-				cmd += " --hidden"
+			if tc.noHidden {
+				cmd += " --no-hidden"
 			}
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -293,7 +293,7 @@ func TestFindExclude(t *testing.T) {
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
 
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, config.Path)
 					if strings.Contains(tc.args, "--exclude") {
@@ -378,7 +378,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
 
-			var paths []string
+			paths := make([]string, 0, len(configs))
 			for _, config := range configs {
 				// Normalize path separators for cross-platform compatibility
 				paths = append(paths, filepath.ToSlash(config.Path))

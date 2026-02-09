@@ -6,18 +6,18 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terratest/modules/collections"
 
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/terraform-linters/tflint/cmd"
 )
 
 const (
@@ -29,126 +29,72 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
+	hookExecute := slices.Clone(hook.Execute)
+	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
+		return arg == tfExternalTFLint
+	})
+
 	// try to fetch configuration file from hook parameters
-	configFile := tflintConfigFilePath(hook.Execute)
-	if configFile == "" {
-		// find .tflint.hcl configuration in project files if it is not provided in arguments
-		projectConfigFile, err := findTflintConfigInProject(l, opts)
-		if err != nil {
-			return err
-		}
-
-		configFile = projectConfigFile
-	}
-
-	l.Debugf("Using .tflint.hcl file in %s", configFile)
-
-	variables, err := InputsToTflintVar(config.Inputs)
+	configFile, err := tflintConfigFilePath(l, opts, hookExecute)
 	if err != nil {
 		return err
 	}
 
-	tfVariables, err := tfArgumentsToTflintVar(l, hook, config.Terraform)
+	l.Debugf("Using .tflint.hcl file in %s", util.RelPathForLog(opts.RootWorkingDir, configFile, opts.LogShowAbsPaths))
+
+	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
 		return err
 	}
 
-	variables = append(variables, tfVariables...)
-
-	l.Debugf("Initializing tflint in directory %s", opts.WorkingDir)
-
-	cli, err := cmd.NewCLI(opts.Writer, opts.ErrWriter)
+	tfVariables, err := tfArgumentsToTflintVar(l, hook, &cfg.Terraform)
 	if err != nil {
-		return errors.New(err)
+		return err
 	}
 
-	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
+	l.Debugf(
+		"Initializing tflint in directory %s",
+		util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+	)
+
+	tflintArgs := hookExecute[1:]
+
+	configFileRel := util.RelPathForLog(opts.WorkingDir, configFile, opts.LogShowAbsPaths)
+	chdirRel := util.RelPathForLog(opts.RootWorkingDir, opts.WorkingDir, opts.LogShowAbsPaths)
 
 	// tflint init
-	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
-	if externalTfLint {
-		l.Debugf("Running external tflint init with args %v", initArgs)
+	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
+	l.Debugf("Running external tflint init with args %v", initArgs)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
-			initArgs[0], initArgs[1:]...)
-		if err != nil {
-			return errors.New(ErrorRunningTflint{args: initArgs})
-		}
-	} else {
-		l.Debugf("Running internal tflint init with args %v", initArgs)
-
-		statusCode := cli.Run(initArgs)
-		if statusCode != 0 {
-			return errors.New(ErrorRunningTflint{args: initArgs})
-		}
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
+		initArgs[0], initArgs[1:]...)
+	if err != nil {
+		return errors.New(ErrorRunningTflint{args: initArgs})
 	}
 
 	// tflint execution
-	args := []string{
+	args := make([]string, 0, 5+len(variables)+len(tfVariables)+len(tflintArgs))
+	args = append(args,
 		"tflint",
-		"--config", configFile,
-		"--chdir", opts.WorkingDir,
-	}
+		"--config", configFileRel,
+		"--chdir", chdirRel,
+	)
 	args = append(args, variables...)
+	args = append(args, tfVariables...)
 	args = append(args, tflintArgs...)
 
-	if externalTfLint {
-		l.Debugf("Running external tflint with args %v", args)
+	l.Debugf("Running external tflint with args %v", args)
 
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, false, false,
-			args[0], args[1:]...)
-		if err != nil {
-			return errors.New(ErrorRunningTflint{args: args})
-		}
-
-		l.Info("Tflint has run successfully. No issues found.")
-	} else {
-		l.Debugf("Running internal tflint with args %v", args)
-		statusCode := cli.Run(args)
-
-		switch statusCode {
-		case cmd.ExitCodeError:
-			return errors.New(ErrorRunningTflint{args: initArgs})
-		case cmd.ExitCodeIssuesFound:
-			return errors.New(IssuesFound{})
-		case cmd.ExitCodeOK:
-			l.Info("Tflint has run successfully. No issues found.")
-		default:
-			return errors.New(UnknownError{statusCode: statusCode})
-		}
+	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
+		args[0], args[1:]...)
+	if err != nil {
+		return errors.New(ErrorRunningTflint{args: args})
 	}
+
+	l.Info("Tflint has run successfully. No issues found.")
 
 	return nil
-}
-
-// tflintArguments filters args for --external-tflint, returning filtered args and a flag for using
-// external tflint.
-func tflintArguments(arguments []string) ([]string, bool) {
-	externalTfLint := false
-	filteredArguments := make([]string, 0, len(arguments))
-
-	for _, arg := range arguments {
-		if arg == tfExternalTFLint {
-			externalTfLint = true
-			continue
-		}
-
-		filteredArguments = append(filteredArguments, arg)
-	}
-
-	return filteredArguments, externalTfLint
-}
-
-// configFilePathArgument return configuration file specified in --config argument
-func tflintConfigFilePath(arguments []string) string {
-	for i, arg := range arguments {
-		if arg == "--config" && len(arguments) > i+1 {
-			return arguments[i+1]
-		}
-	}
-
-	return ""
 }
 
 // InputsToTflintVar converts the inputs map to a list of tflint variables.
@@ -166,103 +112,6 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 	}
 
 	return variables, nil
-}
-
-// tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
-func tfArgumentsToTflintVar(l log.Logger, hook config.Hook,
-	config *config.TerraformConfig) ([]string, error) {
-	var variables []string
-
-	for _, arg := range config.ExtraArgs {
-		// use extra args which will be used on same command as hook
-		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
-			continue
-		}
-
-		if arg.EnvVars != nil {
-			// extract env_vars
-			for name, value := range *arg.EnvVars {
-				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
-					varName := after
-
-					varValue, err := util.AsTerraformEnvVarJSONValue(value)
-					if err != nil {
-						return nil, err
-					}
-
-					newVar := fmt.Sprintf("--var='%s=%s'", varName, varValue)
-					variables = append(variables, newVar)
-				}
-			}
-		}
-
-		if arg.Arguments != nil {
-			// extract variables and var files from arguments
-			for _, value := range *arg.Arguments {
-				if after, ok := strings.CutPrefix(value, argVarPrefix); ok {
-					varName := after
-					newVar := fmt.Sprintf("--var='%s'", varName)
-					variables = append(variables, newVar)
-				}
-
-				if after, ok := strings.CutPrefix(value, argVarFilePrefix); ok {
-					varName := after
-					newVar := "--var-file=" + varName
-					variables = append(variables, newVar)
-				}
-			}
-		}
-
-		if arg.RequiredVarFiles != nil {
-			// extract required variables
-			for _, file := range *arg.RequiredVarFiles {
-				newVar := "--var-file=" + file
-				variables = append(variables, newVar)
-			}
-		}
-
-		if arg.OptionalVarFiles != nil {
-			// extract optional variables
-			for _, file := range util.RemoveDuplicatesKeepLast(*arg.OptionalVarFiles) {
-				if util.FileExists(file) {
-					newVar := "--var-file=" + file
-					variables = append(variables, newVar)
-				} else {
-					l.Debugf("Skipping tflint var-file %s as it does not exist", file)
-				}
-			}
-		}
-	}
-
-	return variables, nil
-}
-
-// findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
-func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
-	previousDir := opts.WorkingDir
-
-	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
-	// parent folders we'll check
-	for range opts.MaxFoldersToCheck {
-		currentDir := filepath.Dir(previousDir)
-		l.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
-
-		if currentDir == previousDir {
-			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
-		}
-
-		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
-		if util.FileExists(fileToFind) {
-			l.Debugf("Found .tflint.hcl in %s", fileToFind)
-			return fileToFind, nil
-		}
-
-		previousDir = currentDir
-	}
-
-	return "", errors.New(ConfigNotFound{
-		cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", opts.MaxFoldersToCheck),
-	})
 }
 
 // Custom error types
@@ -295,4 +144,126 @@ type ConfigNotFound struct {
 
 func (err ConfigNotFound) Error() string {
 	return "Could not find .tflint.hcl config file in the parent folders: " + err.cause
+}
+
+// tfArgumentsToTflintVar converts variables from the terraform config to a list of tflint variables.
+func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
+	tfCfg *runcfg.TerraformConfig) ([]string, error) {
+	var variables []string
+
+	for i := range tfCfg.ExtraArgs {
+		arg := &tfCfg.ExtraArgs[i]
+		// use extra args which will be used on same command as hook
+		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
+			continue
+		}
+
+		if len(arg.EnvVars) > 0 {
+			// extract env_vars
+			for name, value := range arg.EnvVars {
+				if after, ok := strings.CutPrefix(name, tfVarPrefix); ok {
+					varName := after
+
+					varValue, err := util.AsTerraformEnvVarJSONValue(value)
+					if err != nil {
+						return nil, err
+					}
+
+					newVar := fmt.Sprintf("--var='%s=%s'", varName, varValue)
+					variables = append(variables, newVar)
+				}
+			}
+		}
+
+		if len(arg.Arguments) > 0 {
+			// extract variables and var files from arguments
+			for _, value := range arg.Arguments {
+				if after, ok := strings.CutPrefix(value, argVarPrefix); ok {
+					varName := after
+					newVar := fmt.Sprintf("--var='%s'", varName)
+					variables = append(variables, newVar)
+				}
+
+				if after, ok := strings.CutPrefix(value, argVarFilePrefix); ok {
+					varName := after
+					newVar := "--var-file=" + varName
+					variables = append(variables, newVar)
+				}
+			}
+		}
+
+		if len(arg.RequiredVarFiles) > 0 {
+			// extract required variables
+			for _, file := range arg.RequiredVarFiles {
+				newVar := "--var-file=" + file
+				variables = append(variables, newVar)
+			}
+		}
+
+		if len(arg.OptionalVarFiles) > 0 {
+			// extract optional variables
+			for _, file := range util.RemoveDuplicatesKeepLast(arg.OptionalVarFiles) {
+				if util.FileExists(file) {
+					newVar := "--var-file=" + file
+					variables = append(variables, newVar)
+				} else {
+					l.Debugf("Skipping tflint var-file %s as it does not exist", file)
+				}
+			}
+		}
+	}
+
+	return variables, nil
+}
+
+// findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
+// When running from cache, we start searching from the original config directory to find config in the source directory.
+func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
+	startDir := opts.WorkingDir
+	if opts.TerragruntConfigPath != "" {
+		startDir = filepath.Dir(opts.TerragruntConfigPath)
+	}
+
+	previousDir := startDir
+
+	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
+	// parent folders we'll check
+	for range opts.MaxFoldersToCheck {
+		currentDir := filepath.Dir(previousDir)
+		l.Debugf("Finding .tflint.hcl file from %s and going to %s",
+			util.RelPathForLog(opts.RootWorkingDir, previousDir, opts.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, currentDir, opts.LogShowAbsPaths))
+
+		if currentDir == previousDir {
+			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
+		}
+
+		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
+		if util.FileExists(fileToFind) {
+			l.Debugf("Found .tflint.hcl in %s", util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.LogShowAbsPaths))
+			return fileToFind, nil
+		}
+
+		previousDir = currentDir
+	}
+
+	return "", errors.New(ConfigNotFound{
+		cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", opts.MaxFoldersToCheck),
+	})
+}
+
+// configFilePathArgument return configuration file specified in --config argument
+func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, arguments []string) (string, error) {
+	for i, arg := range arguments {
+		if arg == "--config" && len(arguments) > i+1 {
+			return arguments[i+1], nil
+		}
+	}
+	// find .tflint.hcl configuration in project files if it is not provided in arguments
+	projectConfigFile, err := findTflintConfigInProject(l, opts)
+	if err != nil {
+		return "", err
+	}
+
+	return projectConfigFile, nil
 }

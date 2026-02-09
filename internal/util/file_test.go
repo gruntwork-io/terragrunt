@@ -1,8 +1,8 @@
 package util_test
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -11,13 +11,7 @@ import (
 	"strconv"
 	"testing"
 
-	"fmt"
-
-	"slices"
-
-	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -84,86 +78,6 @@ func TestCanonicalPath(t *testing.T) {
 			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
-}
-
-func TestGlobs(t *testing.T) {
-	t.Parallel()
-
-	basePath := "testdata/fixture-glob-canonical"
-
-	expectedHelper := func(path string) string {
-		basePath, err := filepath.Abs(basePath)
-		require.NoError(t, err)
-
-		return filepath.ToSlash(filepath.Join(basePath, path))
-	}
-
-	testCases := []struct {
-		paths    []string
-		expected []string
-	}{
-		{[]string{"*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"**"}, []string{expectedHelper("module-a"), expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child"), expectedHelper("module-b/module-b-child/main.tf"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
-		{[]string{"module-a", "module-b/module-b-child/.."}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"*-a", "*-b"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"module-*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"module-*/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl")}},
-		{[]string{"module-*/**.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
-	}
-
-	l := logger.CreateLogger()
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			compiledGlobs, err := util.CompileGlobs(basePath, tc.paths...)
-			require.NoError(t, err)
-
-			actual, err := getGlobPaths(t.Context(), l, basePath, compiledGlobs)
-
-			slices.Sort(actual)
-
-			slices.Sort(tc.expected)
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.paths, basePath)
-		})
-	}
-}
-
-func getGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGlobs map[string]glob.Glob) ([]string, error) {
-	if len(compiledGlobs) == 0 {
-		return []string{}, nil
-	}
-
-	basePath, err := util.CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		path = filepath.ToSlash(path)
-
-		for globPath, compiledGlob := range compiledGlobs {
-			ll := l.WithField("glob_path", globPath)
-			if compiledGlob.Match(path) {
-				ll.WithField("matched_path", path).Debug("Matched glob pattern")
-
-				paths = append(paths, path)
-			}
-		}
-
-		return nil
-	})
-
-	return paths, err
 }
 
 func TestPathContainsHiddenFileOrFolder(t *testing.T) {
@@ -799,4 +713,82 @@ func TestMoveFile(t *testing.T) {
 	contents, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, "test", string(contents))
+}
+
+func TestRelPathForLog(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		basePath    string
+		targetPath  string
+		expected    string
+		showAbsPath bool
+	}{
+		{
+			name:        "showAbsPath true returns targetPath unchanged",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child/file.txt",
+			showAbsPath: true,
+			expected:    helpers.RootFolder + "base/child/file.txt",
+		},
+		{
+			name:        "same path returns targetPath",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base",
+			showAbsPath: false,
+			expected:    helpers.RootFolder + "base",
+		},
+		{
+			name:        "child path gets ./ prefix",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child",
+			showAbsPath: false,
+			expected:    "." + string(filepath.Separator) + "child",
+		},
+		{
+			name:        "nested child path gets ./ prefix",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child/subchild/file.txt",
+			showAbsPath: false,
+			expected:    "." + string(filepath.Separator) + filepath.Join("child", "subchild", "file.txt"),
+		},
+		{
+			name:        "parent path returns relative path with ..",
+			basePath:    helpers.RootFolder + "base/child",
+			targetPath:  helpers.RootFolder + "base",
+			showAbsPath: false,
+			expected:    "..",
+		},
+		{
+			name:        "sibling path returns relative path with ..",
+			basePath:    helpers.RootFolder + "base/child1",
+			targetPath:  helpers.RootFolder + "base/child2",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + "child2",
+		},
+		{
+			name:        "deeply nested sibling path",
+			basePath:    helpers.RootFolder + "base/a/b/c",
+			targetPath:  helpers.RootFolder + "base/x/y/z",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + filepath.Join("x", "y", "z"),
+		},
+		{
+			name:        "unrelated paths at different roots",
+			basePath:    helpers.RootFolder + "foo",
+			targetPath:  helpers.RootFolder + "bar/baz",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + filepath.Join("bar", "baz"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.RelPathForLog(tc.basePath, tc.targetPath, tc.showAbsPath)
+			assert.Equal(t, tc.expected, actual, "For basePath %s and targetPath %s", tc.basePath, tc.targetPath)
+		})
+	}
 }

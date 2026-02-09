@@ -227,7 +227,7 @@ dependency "db" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -302,7 +302,7 @@ func TestDiscoveryWithFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 
 			// Some errors occur during parsing (like empty filter), others during evaluation
 			if tt.errorExpected && err != nil {
@@ -397,7 +397,7 @@ func TestDiscoveryWithFiltersEdgeCases(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
@@ -600,7 +600,7 @@ locals {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters and ReadFiles enabled
@@ -652,7 +652,7 @@ locals {
 
 	// Test with absolute path filter
 	filterQueries := []string{"reading=" + sharedFile}
-	filters, err := filter.ParseFilterQueries(filterQueries)
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), filterQueries)
 	require.NoError(t, err)
 
 	discovery := discovery.NewDiscovery(tmpDir).
@@ -702,7 +702,7 @@ func TestDiscoveryWithReadingFiltersErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 
 			// Some errors occur during parsing
 			if tt.errorExpected && err != nil {
@@ -809,7 +809,7 @@ dependency "vpc" {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries)
 			require.NoError(t, err)
 
 			// Create discovery with filters
@@ -889,7 +889,7 @@ dependency "vpc" {
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"app..."})
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -903,7 +903,7 @@ dependency "vpc" {
 	t.Run("dependent traversal from vpc finds all dependents", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries([]string{"...vpc"})
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"...vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -954,7 +954,7 @@ dependency "db" {
 		t.Parallel()
 
 		// Filter for app and its dependencies - unrelated should not be included
-		filters, err := filter.ParseFilterQueries([]string{"app..."})
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"app..."})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1011,7 +1011,7 @@ dependency "vpc" {
 		t.Parallel()
 
 		// Graph expression discovers app and its dependencies, then additional filter excludes vpc
-		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"})
+		filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"app...", "!vpc"})
 		require.NoError(t, err)
 
 		discovery := discovery.NewDiscovery(tmpDir).WithFilters(filters)
@@ -1208,7 +1208,7 @@ locals {
 			opts.RootWorkingDir = tmpDir
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(tt.filterQueries("HEAD~1", "HEAD"))
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), tt.filterQueries("HEAD~1", "HEAD"))
 			if tt.errorExpected {
 				require.Error(t, err)
 				return
@@ -1323,7 +1323,7 @@ func TestDiscoveryWithGitFilters_WorktreeCleanup(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references
-	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
 	w, err := worktrees.NewWorktrees(
@@ -1409,7 +1409,7 @@ func TestDiscoveryWithGitFilters_NoChanges(t *testing.T) {
 	opts.RootWorkingDir = tmpDir
 
 	// Parse filter with Git references (no changes between commits)
-	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1...HEAD]"})
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1...HEAD]"})
 	require.NoError(t, err)
 
 	w, err := worktrees.NewWorktrees(
@@ -1530,7 +1530,7 @@ locals {
 	opts.RootWorkingDir = basicDir // Also subdirectory
 
 	// Parse filter with Git reference
-	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1]"})
+	filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[HEAD~1]"})
 	require.NoError(t, err)
 
 	// Create worktrees from the subdirectory
@@ -1779,7 +1779,7 @@ func TestDiscoveryWithGitFilters_FromSubdirectory_MultipleCommits(t *testing.T) 
 			opts.RootWorkingDir = basicDir
 
 			// Parse filter with Git reference
-			filters, err := filter.ParseFilterQueries([]string{"[" + tt.gitRef + "]"})
+			filters, err := filter.ParseFilterQueries(logger.CreateLogger(), []string{"[" + tt.gitRef + "]"})
 			require.NoError(t, err)
 
 			// Create worktrees from the subdirectory

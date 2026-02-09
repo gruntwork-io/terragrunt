@@ -86,7 +86,7 @@ func TestFeatureIncludeFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testIncludeFlag)
 	rootPath := filepath.Join(tmpEnvPath, testIncludeFlag, "app")
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --log-level trace --non-interactive --working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
 
 	validateOutputs(t, rootPath)
 }

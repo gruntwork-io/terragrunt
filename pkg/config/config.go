@@ -102,10 +102,11 @@ var (
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 
-		parseOpts := []hclparse.Option{
+		parseOpts := make([]hclparse.Option, 0, 3) //nolint:mnd
+		parseOpts = append(parseOpts,
 			hclparse.WithDiagnosticsWriter(writer, l.Formatter().DisabledColors()),
 			hclparse.WithLogger(l),
-		}
+		)
 
 		strictControl := opts.StrictControls.Find(controls.BareInclude)
 
@@ -953,7 +954,8 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 //
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
-// method returns the source URL or an empty string if there is no source url
+// method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
+// used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
 func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
 	switch {
 	case terragruntOptions.Source != "":
@@ -961,7 +963,7 @@ func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragr
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
 		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
 	default:
-		return "", nil
+		return ".", nil
 	}
 }
 
@@ -1136,19 +1138,36 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location
-func ReadTerragruntConfig(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+func ReadTerragruntConfig(ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	parserOptions []hclparse.Option,
+) (*TerragruntConfig, error) {
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-	ctx, parsingCtx := NewParsingContext(ctx, l, terragruntOptions)
+	ctx, parsingCtx := NewParsingContext(ctx, l, opts)
 	parsingCtx = parsingCtx.WithParseOption(parserOptions)
 
-	return ParseConfigFile(ctx, parsingCtx, l, terragruntOptions.TerragruntConfigPath, nil)
+	return ParseConfigFile(ctx, parsingCtx, l, opts.TerragruntConfigPath, nil)
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	configPath string,
+	includeFromChild *IncludeConfig,
+) (*TerragruntConfig, error) {
+	var err error
+
+	pctx, err = pctx.WithIncrementedDepth()
+	if err != nil {
+		return nil, err
+	}
+
 	var config *TerragruntConfig
 
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)

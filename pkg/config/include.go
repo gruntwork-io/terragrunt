@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -214,14 +215,35 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 		// TODO: Remove lint suppression
 		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
-			l.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy no merge: not merging config in for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 		case ShallowMerge:
-			l.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 
 			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
-			l.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.Path)
+			l.Debugf(
+				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
+				util.RelPathForLog(
+					pctx.TerragruntOptions.RootWorkingDir,
+					includeConfig.Path,
+					pctx.TerragruntOptions.LogShowAbsPaths,
+				),
+			)
 
 			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			if err != nil {
@@ -230,7 +252,12 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 
 			baseDependencyBlock = mergedDependencyBlock
 		default:
-			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
+			return nil, fmt.Errorf(
+				"you reached an impossible condition. This is most likely a bug in terragrunt. "+
+					"Please open an issue at github.com/gruntwork-io/terragrunt with this error message. "+
+					"Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY",
+				mergeStrategy,
+			)
 		}
 	}
 
@@ -501,7 +528,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 				if cfg.Terraform.IncludeInCopy != nil {
 					targetList := *cfg.Terraform.IncludeInCopy
-					combinedList := append(srcList, targetList...)
+					combinedList := slices.Concat(srcList, targetList)
 					cfg.Terraform.IncludeInCopy = &combinedList
 				} else {
 					cfg.Terraform.IncludeInCopy = &srcList
@@ -513,7 +540,7 @@ func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntCon
 
 				if cfg.Terraform.ExcludeFromCopy != nil {
 					targetList := *cfg.Terraform.ExcludeFromCopy
-					combinedList := append(srcList, targetList...)
+					combinedList := slices.Concat(srcList, targetList)
 					cfg.Terraform.ExcludeFromCopy = &combinedList
 				} else {
 					cfg.Terraform.ExcludeFromCopy = &srcList
@@ -620,7 +647,7 @@ func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies [
 		dependencyBlocks[dep.Name] = dep
 	}
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := make([]Dependency, 0, len(keys))
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}
@@ -646,7 +673,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 		sameKeyDep, hasSameKey := dependencyBlocks[dep.Name]
 		if hasSameKey {
 			sameKeyDepPtr := &sameKeyDep
-			if err := sameKeyDepPtr.DeepMerge(dep); err != nil {
+			if err := sameKeyDepPtr.DeepMerge(&dep); err != nil {
 				return nil, err
 			}
 
@@ -658,7 +685,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	}
 
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := make([]Dependency, 0, len(keys))
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}
@@ -767,7 +794,7 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
 func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
-	includedPaths := []string{}
+	includedPaths := make([]string, 0, len(terragruntIncludeList))
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 
 	for _, tgInc := range terragruntIncludeList {

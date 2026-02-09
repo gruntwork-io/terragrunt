@@ -53,6 +53,7 @@ func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) 
 		}
 
 		unitOpts.TerragruntConfigPath = filepath.Join(unit.Path(), configFilename)
+		unitOpts.OriginalTerragruntConfigPath = unitOpts.TerragruntConfigPath
 
 		if err := runBootstrap(ctx, l, unitOpts); err != nil {
 			if opts.FailFast {

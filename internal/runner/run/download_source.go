@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-getter"
@@ -14,9 +15,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -33,19 +34,20 @@ const (
 	fileURIScheme = "file://"
 )
 
-// 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
-// 2. Check if module directory exists in temporary folder
-// 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
-// 4. Set terragruntOptions.WorkingDir to the temporary folder.
+// DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
+// into a temporary folder, then:
+// 1. Check if module directory exists in temporary folder
+// 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
+// 3. Set terragruntOptions.WorkingDir to the temporary folder.
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(
+func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
 	source string,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) (*options.TerragruntOptions, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
@@ -59,20 +61,14 @@ func downloadTerraformSource(
 		return nil, err
 	}
 
-	l.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
-
-	var includeInCopy, excludeFromCopy []string
-
-	if cfg.Terraform != nil && cfg.Terraform.IncludeInCopy != nil {
-		includeInCopy = *cfg.Terraform.IncludeInCopy
-	}
-
-	if cfg.Terraform != nil && cfg.Terraform.ExcludeFromCopy != nil {
-		excludeFromCopy = *cfg.Terraform.ExcludeFromCopy
-	}
+	l.Debugf(
+		"Copying files from %s into %s",
+		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
+	)
 
 	// Always include the .tflint.hcl file, if it exists
-	includeInCopy = append(includeInCopy, tfLintConfig)
+	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
 	err = util.CopyFolderContents(
 		l,
@@ -80,7 +76,7 @@ func downloadTerraformSource(
 		terraformSource.WorkingDir,
 		ModuleManifestName,
 		includeInCopy,
-		excludeFromCopy,
+		cfg.Terraform.ExcludeFromCopy,
 	)
 	if err != nil {
 		return nil, err
@@ -91,7 +87,14 @@ func downloadTerraformSource(
 		return nil, err
 	}
 
-	l.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
+	l.Debugf(
+		"Setting working directory to %s",
+		util.RelPathForLog(
+			opts.RootWorkingDir,
+			terraformSource.WorkingDir,
+			opts.LogShowAbsPaths,
+		),
+	)
 	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
 
 	return updatedTerragruntOptions, nil
@@ -103,7 +106,7 @@ func DownloadTerraformSourceIfNecessary(
 	l log.Logger,
 	terraformSource *tf.Source,
 	opts *options.TerragruntOptions,
-	cfg *config.TerragruntConfig,
+	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
 	if opts.SourceUpdate {
@@ -123,7 +126,15 @@ func DownloadTerraformSourceIfNecessary(
 				return err
 			}
 
-			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TofuImplementation, terraformSource.WorkingDir)
+			l.Debugf(
+				"%s files in %s are up to date. Will not download again.",
+				opts.TofuImplementation,
+				util.RelPathForLog(
+					opts.RootWorkingDir,
+					terraformSource.WorkingDir,
+					opts.LogShowAbsPaths,
+				),
+			)
 
 			return nil
 		}
@@ -151,9 +162,17 @@ func DownloadTerraformSourceIfNecessary(
 
 	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 
-	downloadErr := RunActionWithHooks(ctx, l, "download source", terragruntOptionsForDownload, cfg, r, func(_ context.Context) error {
-		return downloadSource(ctx, l, terraformSource, opts, cfg, r)
-	})
+	downloadErr := RunActionWithHooks(
+		ctx,
+		l,
+		"download source",
+		terragruntOptionsForDownload,
+		cfg,
+		r,
+		func(childCtx context.Context) error {
+			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+		},
+	)
 	if downloadErr != nil {
 		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
@@ -237,7 +256,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -247,23 +266,15 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
-				var includeInCopy, excludeFromCopy []string
-
-				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
-					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
-				}
-
-				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
-					excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
-				}
-
 				client.Getters[getterName] = &FileCopyGetter{
-					IncludeInCopy:   includeInCopy,
-					ExcludeFromCopy: excludeFromCopy,
+					IncludeInCopy:   cfg.Terraform.IncludeInCopy,
+					ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
 				}
-			} else {
-				client.Getters[getterName] = getterValue
+
+				continue
 			}
+
+			client.Getters[getterName] = getterValue
 		}
 
 		// Load in custom getters that are only supported in Terragrunt
@@ -298,7 +309,14 @@ func preserveSymlinksOption() getter.ClientOption {
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *options.TerragruntOptions, cfg *config.TerragruntConfig, r *report.Report) error {
+func downloadSource(
+	ctx context.Context,
+	l log.Logger,
+	src *tf.Source,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	r *report.Report,
+) error {
 	canonicalSourceURL := src.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
@@ -307,8 +325,8 @@ func downloadSource(ctx context.Context, l log.Logger, src *tf.Source, opts *opt
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
-		canonicalSourceURL,
-		src.DownloadDir)
+		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 

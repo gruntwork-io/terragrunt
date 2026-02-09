@@ -80,7 +80,7 @@ type delegateKeyMap struct {
 
 // Additional short help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d delegateKeyMap) ShortHelp() []key.Binding {
+func (d delegateKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
 		d.choose,
 		d.scaffold,
@@ -89,7 +89,7 @@ func (d delegateKeyMap) ShortHelp() []key.Binding {
 
 // Additional full help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d delegateKeyMap) FullHelp() [][]key.Binding {
+func (d delegateKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	return [][]key.Binding{
 		{
 			d.choose,
@@ -143,7 +143,7 @@ type pagerKeyMap struct {
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
-func (keys pagerKeyMap) ShortHelp() []key.Binding {
+func (keys pagerKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
 		keys.Up,
 		keys.Down,
@@ -158,7 +158,7 @@ func (keys pagerKeyMap) ShortHelp() []key.Binding {
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
-func (keys pagerKeyMap) FullHelp() [][]key.Binding {
+func (keys pagerKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	return [][]key.Binding{
 		{keys.Up, keys.Down, keys.PageDown, keys.PageUp},                   // first column
 		{keys.Navigation, keys.NavigationBack, keys.Choose, keys.Scaffold}, // second column

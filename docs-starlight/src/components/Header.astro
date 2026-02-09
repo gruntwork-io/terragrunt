@@ -9,6 +9,7 @@ import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
 import ButtonLink from '@components/ui/ButtonLink';
+import { getGitHubRepo, formatStarCount } from '@lib/github';
 
 import '@styles/global.css';
 
@@ -27,28 +28,13 @@ interface Props {
 const { showThemeToggle = true } = Astro.props;
 
 // Github Stars
-let starCountDisplay = process.env.GITHUB_STARS || '8.6k';
+let starCountDisplay = process.env.GITHUB_STARS || '9.2k';
 
-try {
-    // Only fetch if not in environment variable
-    if (!process.env.GITHUB_STARS) {
-        const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt', {
-            headers: {
-                'User-Agent': 'Terragrunt-Docs'
-            }
-        });
-        if (response.ok) {
-            const data = await response.json();
-            const stars = data.stargazers_count;
-            if (typeof stars === 'number') {
-                starCountDisplay = (stars / 1000).toFixed(1) + 'k';
-            }
-        } else {
-            console.error('Failed to fetch GitHub stars:', response.status, await response.text());
-        }
+if (!process.env.GITHUB_STARS) {
+    const repoData = await getGitHubRepo('gruntwork-io', 'terragrunt');
+    if (repoData && typeof repoData.stargazers_count === 'number') {
+        starCountDisplay = formatStarCount(repoData.stargazers_count);
     }
-} catch (error) {
-    console.error('Error fetching GitHub stars:', error);
 }
 ---
 
@@ -142,7 +128,7 @@ try {
           <a
             aria-label="Join the Terragrunt Discord"
             class="social-icon flex items-center gap-3 transition duration-[250ms] ease-in-out"
-            href="https://discord.com/invite/YENaT9h8jh"
+            href="/community/invite"
             rel="noopener noreferrer"
             target="_blank"
           >

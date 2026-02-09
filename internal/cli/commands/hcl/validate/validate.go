@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -20,13 +21,12 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/hashicorp/hcl/v2"
-	"golang.org/x/exp/slices"
 
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/view"
@@ -89,7 +89,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	opts.NonInteractive = true
 
 	// Create discovery with filter support if experiment enabled
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
@@ -100,7 +100,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+	filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
 	if parseErr != nil {
 		return fmt.Errorf("failed to parse filters: %w", parseErr)
 	}
@@ -240,7 +240,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	opts.SkipOutput = true
 	opts.NonInteractive = true
 
-	d, err := discovery.NewForHCLCommand(discovery.HCLCommandOptions{
+	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
@@ -250,7 +250,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, parseErr := filter.ParseFilterQueries(opts.FilterQueries)
+		filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
 		if parseErr != nil {
 			return fmt.Errorf("failed to parse filters: %w", parseErr)
 		}
@@ -297,21 +297,21 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 
 		unitOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		prepared, err := run.PrepareConfig(ctx, l, unitOpts)
+		prepared, err := prepare.PrepareConfig(ctx, l, unitOpts)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Download source
-		updatedOpts, err := run.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
+		updatedOpts, err := prepare.PrepareSource(ctx, l, prepared.Opts, prepared.Cfg, r)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
 		// Generate config
-		if err := run.PrepareGenerate(l, updatedOpts, prepared.Cfg); err != nil {
+		if err := prepare.PrepareGenerate(l, updatedOpts, prepared.Cfg.ToRunConfig(l)); err != nil {
 			errs = append(errs, err)
 			continue
 		}
@@ -334,7 +334,7 @@ func runValidateInputs(l log.Logger, opts *options.TerragruntOptions, cfg *confi
 		return err
 	}
 
-	allVars := append(required, optional...)
+	allVars := slices.Concat(required, optional)
 
 	allInputs, err := getDefinedTerragruntInputs(l, opts, cfg)
 	if err != nil {
@@ -489,7 +489,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 // getTerraformInputNamesFromConfig will return the list of names of variables configured by the inputs block in the
 // terragrunt config.
 func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig) []string {
-	out := []string{}
+	out := make([]string, 0, len(terragruntConfig.Inputs))
 	for inputName := range terragruntConfig.Inputs {
 		out = append(out, inputName)
 	}
@@ -516,7 +516,7 @@ func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOp
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs)
+	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs.Slice())
 	if err != nil {
 		return inputNames, err
 	}

@@ -514,6 +514,55 @@ terragrunt find --filter '...^vpc'
     - terragrunt.hcl
 </FileTree>
 
+#### Depth-Limited Traversal
+
+You can limit how many levels of dependencies or dependents to traverse by adding a numeric depth before or after the ellipsis (`...`) operator. This is useful when you only want immediate or nearby relationships rather than the full transitive closure.
+
+```bash
+# Find 'service' and only its direct dependencies (1 level deep)
+terragrunt find --filter 'service...1'
+
+# Find 'vpc' and only components that directly depend on it (1 level)
+terragrunt find --filter '1...vpc'
+
+# Find 'db' with 2 levels of dependencies and 1 level of dependents
+terragrunt find --filter '1...db...2'
+```
+
+Given this dependency graph where service depends on db and cache, which both depend on vpc:
+
+<FileTree>
+- .
+  - vpc
+    - terragrunt.hcl
+  - db
+    - terragrunt.hcl (depends on: vpc)
+  - cache
+    - terragrunt.hcl (depends on: vpc)
+  - service
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+Using `service...1` (dependencies with depth 1):
+
+<FileTree>
+- .
+  - vpc \<-- Not matched (2 hops away, beyond depth limit)
+    - terragrunt.hcl
+  - **db** \<-- Matched (1 hop from service)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (1 hop from service)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (target)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+<Aside type="note" title="Multiple Targets and Depth">
+When a filter matches multiple targets, the depth limit applies independently to each target. If a component is reachable from multiple targets at different distances, it will be included if it is within the depth limit of _any_ target.
+
+For example, if target A can reach component X in 3 hops and target B can reach X in 1 hop, with a depth limit of 2, X will be included because it is within 2 hops of target B.
+</Aside>
+
 <Aside type="tip">
 Graph expressions require dependency/dependent information to work correctly.
 

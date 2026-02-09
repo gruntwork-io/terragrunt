@@ -130,6 +130,7 @@ func BenchmarkCASWithManyUnits(b *testing.B) {
 				if cas {
 					return "with CAS"
 				}
+
 				return "without CAS"
 			})()
 

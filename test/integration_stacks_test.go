@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -886,9 +887,9 @@ func TestStackApplyWithDependency(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyWithDependencyParallelism(t *testing.T) {
@@ -903,9 +904,9 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
@@ -920,9 +921,9 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 
 	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
 
-	// check that test
-	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
-	assert.FileExists(t, dataPath)
+	// check that data.txt exists in the cache directory (since terraform now runs from cache)
+	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
+	assert.True(t, helpers.FileExistsInCache(t, appWithDepPath, "data.txt"))
 }
 
 func TestStackApplyDestroyWithDependency(t *testing.T) {
@@ -1637,7 +1638,9 @@ func TestStackTerragruntDir(t *testing.T) {
 		"terragrunt apply --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
-	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
+
+	expectedTerragruntDir := filepath.Join(rootPath, "tennant_1")
+	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = "%s"`, expectedTerragruntDir))
 }
 
 func TestStackOriginalTerragruntDir(t *testing.T) {

@@ -12,12 +12,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"maps"
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
@@ -39,6 +41,10 @@ const (
 
 	// Authentication type on the Terragrunt Provider Cache server.
 	APIKeyAuth = "x-api-key"
+
+	// Retry configuration for registry operations during cache warm-up
+	registryRetryMaxAttempts   = 3
+	registryRetrySleepInterval = 5 * time.Second
 )
 
 var (
@@ -57,6 +63,15 @@ var (
 	//    │ Locked
 	//    ╵
 	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(CacheProviderHTTPStatusCode) + `.*` + http.StatusText(CacheProviderHTTPStatusCode))
+
+	// registryTimeoutPatterns matches transient network errors that should trigger retries
+	registryTimeoutPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?s).*Client\.Timeout exceeded while awaiting headers.*`),
+		regexp.MustCompile(`(?s).*TLS handshake timeout.*`),
+		regexp.MustCompile(`(?s).*context deadline exceeded.*`),
+		regexp.MustCompile(`(?s).*connection reset by peer.*`),
+		regexp.MustCompile(`(?s).*tcp.*timeout.*`),
+	}
 )
 
 type ProviderCache struct {
@@ -239,7 +254,7 @@ func (cache *ProviderCache) warmUpCache(
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
 	// Check if user passed -upgrade flag to terraform init
-	isUpgrade := slices.Contains(opts.TerraformCliArgs, "-upgrade")
+	isUpgrade := opts.TerraformCliArgs.Contains("-upgrade")
 
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
 		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
@@ -351,12 +366,16 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	return cfg.Save(filename)
 }
 
-func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
-	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
-	errWriter := util.NewTrapWriter(opts.ErrWriter)
+// isRegistryTimeoutError checks if the error output matches known transient registry timeout patterns
+func isRegistryTimeoutError(output []byte) bool {
+	return slices.ContainsFunc(registryTimeoutPatterns, func(pattern *regexp.Regexp) bool {
+		return pattern.Match(output)
+	})
+}
 
+func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if slices.Contains(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
+	if opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) &&
 		!slices.Contains(args, tf.FlagNameNoColor) {
 		args = append(args, tf.FlagNameNoColor)
 	}
@@ -367,22 +386,63 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 	}
 
 	cloneOpts.Writer = io.Discard
-	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.TerraformCliArgs = args
+	cloneOpts.TerraformCliArgs = iacargs.New(args...)
 	cloneOpts.Env = envs
 
-	output, err := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs...)
-	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
-		return new(util.CmdOutput), nil
+	var finalOutput *util.CmdOutput
+
+	err = util.DoWithRetry(
+		ctx,
+		"Running terraform providers lock",
+		registryRetryMaxAttempts,
+		registryRetrySleepInterval,
+		l,
+		log.DebugLevel,
+		func(ctx context.Context) error {
+			errWriter := util.NewTrapWriter(opts.ErrWriter)
+			cloneOpts.ErrWriter = errWriter
+
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs.Slice()...)
+			finalOutput = output
+
+			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
+			// it means success - the cache recorded the request
+			if cmdErr != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
+				return nil
+			}
+
+			if cmdErr != nil {
+				if isRegistryTimeoutError(output.Stderr.Bytes()) {
+					return cmdErr
+				}
+
+				err = errWriter.Flush()
+				if err != nil {
+					l.Warnf("Failed to flush stderr: %v", err)
+				}
+
+				return util.FatalError{Underlying: cmdErr}
+			}
+
+			if flushErr := errWriter.Flush(); flushErr != nil {
+				return util.FatalError{Underlying: flushErr}
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		// Unwrap FatalError to return the original error
+		var fatalErr util.FatalError
+		if errors.As(err, &fatalErr) {
+			return finalOutput, fatalErr.Underlying
+		}
+
+		return finalOutput, err
 	}
 
-	if err := errWriter.Flush(); err != nil {
-		return nil, err
-	}
-
-	return output, err
+	return finalOutput, nil
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.

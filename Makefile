@@ -39,6 +39,10 @@ run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m ./...
 
+run-lint-fix:
+	@echo "Linting with feature flags: [$(LINT_TAGS)]"
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --fix ./...
+
 run-strict-lint:
 	golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
 
@@ -51,4 +55,12 @@ license-check:
 	licensei check --debug
 	licensei header --debug
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-strict-lint
+fuzz:
+	@for package in $$(go list ./...); do \
+		for fuzz_test in $$(go test -list 'Fuzz' "$$package" 2>/dev/null | grep '^Fuzz' || true); do \
+			echo "Fuzzing $$fuzz_test in $$package"; \
+			go test -run '^$$' -fuzztime="30s" -v -fuzz "^$$fuzz_test$$" "$$package"; \
+		done; \
+	done
+
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-strict-lint fuzz

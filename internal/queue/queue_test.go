@@ -1,6 +1,7 @@
 package queue_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -1009,4 +1010,41 @@ func TestQueue_DestroyWithIgnoreDependencyErrors_AllowsProgressAfterFailure(t *t
 
 	// Queue should be finished
 	assert.True(t, q.Finished(), "Queue should be finished")
+}
+
+func TestSetEntryStatus_TerminalGuard(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		initial   queue.Status
+		attempted queue.Status
+	}{
+		{queue.StatusSucceeded, queue.StatusFailed},
+		{queue.StatusSucceeded, queue.StatusEarlyExit},
+		{queue.StatusSucceeded, queue.StatusRunning},
+		{queue.StatusFailed, queue.StatusSucceeded},
+		{queue.StatusFailed, queue.StatusEarlyExit},
+		{queue.StatusEarlyExit, queue.StatusSucceeded},
+		{queue.StatusEarlyExit, queue.StatusFailed},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%v_to_%v", tc.initial, tc.attempted), func(t *testing.T) {
+			t.Parallel()
+
+			configs := component.Components{component.NewUnit("Test")}
+			q, err := queue.NewQueue(configs)
+			require.NoError(t, err)
+
+			entry := q.EntryByPath("Test")
+
+			// Set initial terminal state directly
+			entry.Status = tc.initial
+
+			// Attempt transition via SetEntryStatus
+			q.SetEntryStatus(entry, tc.attempted)
+
+			assert.Equal(t, tc.initial, entry.Status, "Terminal status should not change")
+		})
+	}
 }

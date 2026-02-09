@@ -98,13 +98,18 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
 		if err != nil {
 			return "", fmt.Errorf("terragrunt command failed: %w", err)
 		}
 
-		// Verify the config was created correctly
-		terraformrcBytes, readErr := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+		// Verify the config was created correctly - it's now in the cache directory
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+		if cacheWorkingDir == "" {
+			return "", fmt.Errorf("failed to find cache working directory for %s", appPath)
+		}
+
+		terraformrcBytes, readErr := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		if readErr != nil {
 			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
 		}
@@ -215,13 +220,18 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, appsPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appsPath))
 
 	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { include = ["example.com/hashicorp/azurerm", "example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "network_mirror" { exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] url = "%s" } "filesystem_mirror" { include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] path = "%s" } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
-	for _, filename := range []string{"app0/.terraformrc", "app1/.terraformrc"} {
-		terraformrcBytes, err := os.ReadFile(filepath.Join(appsPath, filename))
+	for _, appName := range []string{"app0", "app1"} {
+		// Find the cache directory for each app since .terraformrc is now created there
+		appPath := filepath.Join(appsPath, appName)
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+		require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", appPath)
+
+		terraformrcBytes, err := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		require.NoError(t, err)
 
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
@@ -400,7 +410,7 @@ func TestTerragruntSourceMapEnvArg(t *testing.T) {
 		),
 	)
 	tgPath := filepath.Join(rootPath, "multiple-match")
-	tgArgs := "terragrunt run --all --log-level trace --non-interactive --working-dir " + tgPath + " -- apply -auto-approve"
+	tgArgs := "terragrunt run --all --non-interactive --working-dir " + tgPath + " -- apply -auto-approve"
 	helpers.RunTerragrunt(t, tgArgs)
 }
 
@@ -591,7 +601,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-dir %s --log-level trace --non-interactive --working-dir %s", providerCacheDir, rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": {
@@ -637,6 +647,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 			lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
 			assert.False(t, diags.HasErrors())
 
+			// Find the cache working directory since providers are now installed there
+			cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+			require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", appPath)
+
 			for _, provider := range providers {
 				var (
 					actualProviderSymlinks   int
@@ -647,7 +661,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
 				assert.NotNil(t, providerBlock)
 
-				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
+				providerPath := filepath.Join(cacheWorkingDir, ".terraform/providers", provider)
 				assert.True(t, util.FileExists(providerPath))
 
 				entries, err := os.ReadDir(providerPath)
@@ -692,7 +706,7 @@ func TestParseTFLog(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all init --log-level trace --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
+		"terragrunt run --all init --non-interactive --log-format=pretty --no-color --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -779,19 +793,27 @@ func TestRunnerPoolTelemetry(t *testing.T) {
 }
 
 func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureVersionInvocation, "**/.tool-versions")
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureVersionInvocation)
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+
+			testPath+" -- apply",
+	)
 	require.NoError(t, err)
 
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	expected := 3
+	// Expected 2 version commands:
+	// 1. Root directory (initial version check)
+	// 2. dependency-with-custom-version (has .tool-versions file, different cache key)
+	// Note: dependency and app share the same cache key as root, so they get cache hits and skip version command
+	expected := 2
 
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
 	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
@@ -804,16 +826,26 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	testPath, err := filepath.EvalSymlinks(testPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --log-level trace --non-interactive --working-dir "+testPath+" -- apply")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --log-level debug --working-dir "+testPath+" -- apply",
+	)
 	require.NoError(t, err)
 
 	// check that version command was invoked only once -version
 	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
-	expected := 2
+	expected := 1
 
-	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
+	assert.Len(
+		t,
+		matches,
+		expected,
+		"Expected exactly %d occurrence(s) of '-version' command, found %d",
+		expected,
+		len(matches),
+	)
 }
 
 func TestTerragruntTelemetryTraces(t *testing.T) {

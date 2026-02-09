@@ -5,6 +5,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -269,7 +270,7 @@ func ListStackFiles(
 	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	discovery, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+	discovery, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:    opts.WorkingDir,
 		FilterQueries: opts.FilterQueries,
 		Experiments:   opts.Experiments,
@@ -322,9 +323,9 @@ func worktreeStacksToGenerate(
 	// If we edit a stack in a worktree, we need to generate it, at the minimum.
 	stackDiff := w.Stacks()
 
-	editedStacks := append(
+	editedStacks := slices.Concat(
 		stackDiff.Added,
-		stackDiff.Removed...,
+		stackDiff.Removed,
 	)
 
 	for _, changed := range stackDiff.Changed {
@@ -348,7 +349,7 @@ func worktreeStacksToGenerate(
 		fromFilters, toFilters := pair.Expand()
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 				WorkingDir:    pair.FromWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,
@@ -361,7 +362,7 @@ func worktreeStacksToGenerate(
 		}
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(discovery.StackGenerateOptions{
+			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 				WorkingDir:    pair.ToWorktree.Path,
 				FilterQueries: []string{"type=stack"},
 				Experiments:   experiments,

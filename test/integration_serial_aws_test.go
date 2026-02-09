@@ -52,11 +52,20 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
+	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", helpers.TerraformRemoteStateS3Region)
+	helpers.CopyTerragruntConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		s3BucketName,
+		"not-used",
+		helpers.TerraformRemoteStateS3Region,
+	)
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -103,7 +112,17 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
 		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
 	})
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run --all apply --non-interactive --working-dir %s --auth-provider-cmd %s", rootPath, mockAuthCmd))
+
+	helpers.ValidateAuthProviderScript(t, rootPath, mockAuthCmd)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all apply --non-interactive --working-dir %s --auth-provider-cmd %s",
+			rootPath,
+			mockAuthCmd,
+		),
+	)
 }
 
 // NOTE: the following test asserts precise timing for determining parallelism. As such, it can not be run in parallel
@@ -117,8 +136,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	require.NoError(t, err)
 
 	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	regex, err := regexp.Compile(`out = "([-:\w]+)"`)
-	require.NoError(t, err)
+	regex := regexp.MustCompile(`out = "([-:\w]+)"`)
 
 	matches := regex.FindAllStringSubmatch(output, -1)
 	assert.Len(t, matches, numberOfModules)

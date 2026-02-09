@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -21,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -452,7 +454,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assertOptionsEqual(t, *tc.expectedOptions, *actualOptions, "For args %v", tc.args)
+				assertOptionsEqual(t, tc.expectedOptions, actualOptions, "For args %v", tc.args)
 			}
 		})
 	}
@@ -460,7 +462,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 // We can't do a direct comparison between TerragruntOptions objects because we can't compare Logger or RunTerragrunt
 // instances. Therefore, we have to manually check everything else.
-func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, msgAndArgs ...any) {
+func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actual *options.TerragruntOptions, msgAndArgs ...any) {
 	t.Helper()
 
 	// Normalize path separators for cross-platform compatibility
@@ -494,7 +496,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = terraformCliArgs
+	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
@@ -560,7 +562,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		expected []string
 	}{
 		{
-			args: []string{},
+			args:     []string{},
+			expected: []string{},
 		},
 		{
 			args:     []string{"plan", "--bar"},
@@ -597,7 +600,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		},
 		{
 			args:     []string{"run", "--all", "destroy", "--", "plan", "-foo", "--bar"},
-			expected: []string{tf.CommandNameDestroy, "plan", "-foo", "-bar"},
+			expected: []string{tf.CommandNameDestroy, "-foo", "-bar", "plan"},
 		},
 	}
 
@@ -613,7 +616,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			)
 			actualOptions, err := runAppTest(l, tc.args, opts)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, []string(actualOptions.TerraformCliArgs), "For args %v", tc.args)
+			assert.Equal(t, tc.expected, actualOptions.TerraformCliArgs.Slice(), "For args %v", tc.args)
 		})
 	}
 }
@@ -873,7 +876,17 @@ func runAppTest(l log.Logger, args []string, opts *options.TerragruntOptions) (*
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.OsExiter = cli.OSExiter
 	app.Action = func(ctx context.Context, cliCtx *clihelper.Context) error {
-		opts.TerraformCliArgs = append(opts.TerraformCliArgs, cliCtx.Args()...)
+		for _, arg := range cliCtx.Args() {
+			switch {
+			case strings.HasPrefix(arg, "-"):
+				opts.TerraformCliArgs.AppendFlag(arg)
+			case opts.TerraformCliArgs.Command == "":
+				opts.TerraformCliArgs.SetCommand(arg)
+			default:
+				opts.TerraformCliArgs.AppendArgument(arg)
+			}
+		}
+
 		return nil
 	}
 	app.ExitErrHandler = cli.ExitErrHandler

@@ -80,7 +80,7 @@ flags:
   - find-format
   - find-json
   - find-dag
-  - find-hidden
+  - find-no-hidden
   - find-dependencies
   - find-exclude
   - find-include
@@ -303,10 +303,10 @@ As the default text format of `find` won't display dependency information anyway
 
 ## Hidden Configurations
 
-By default, hidden directories (those starting with `.`) are excluded from the search. Use the `--hidden` flag to include them:
+By default, hidden directories (those starting with `.`) are included in the search results. Use the `--no-hidden` flag to exclude them:
 
 ```bash
-terragrunt find --hidden
+terragrunt find --no-hidden
 ```
 
 ## Disabling Color Output
@@ -330,18 +330,6 @@ terragrunt find --working-dir=/path/to/working/dir
 ```
 
 ## Filtering Results
-
-<Aside type="tip" title="Experimental Feature">
-This feature is currently experimental and not yet complete. See the [filter-flag experiment documentation](/docs/reference/experiments#filter-flag) for details on what is and isn't supported.
-
-Usage of the filter flag requires usage of the `filter-flag` experiment, like so:
-
-```bash
-terragrunt find --experiment filter-flag --filter 'foo'
-```
-
-Examples below will omit the `--experiment filter-flag` flag for brevity.
-</Aside>
 
 The `find` command supports the `--filter` flag to target specific configurations using a flexible query language. This is particularly useful for discovering configurations that match specific criteria before running operations on them.
 
@@ -378,13 +366,13 @@ The filter syntax supports negation, multiple filters, and complex queries:
 
 ```bash
 # Exclude specific configurations
-terragrunt find --experiment filter-flag --filter '!./test/**'
+terragrunt find --filter '!./test/**'
 
 # Multiple filters (OR logic)
-terragrunt find --experiment filter-flag --filter 'app1' --filter 'app2'
+terragrunt find --filter 'app1' --filter 'app2'
 
 # Complex queries with chaining
-terragrunt find --experiment filter-flag --filter './dev/** | type=unit | !name=unit1'
+terragrunt find --filter './dev/** | type=unit | !name=unit1'
 ```
 
 <Aside type="tip" title="Learn More About Filtering">

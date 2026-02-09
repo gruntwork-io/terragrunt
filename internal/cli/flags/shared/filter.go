@@ -56,6 +56,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					if workDir == "" {
 						workDir = opts.RootWorkingDir
 					}
+
 					if workDir == "" {
 						// Fallback to current directory if neither is set
 						workDir = "."
