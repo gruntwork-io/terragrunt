@@ -1362,24 +1362,22 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
 
-	// Set environment variables from the TerragruntOptions.Env map.
-	// This is especially useful for integrations with things like the `auth-provider` flag,
-	// which can set environment variables that are used for decryption.
+	// Save original process env values for keys we'll override, set opts.Env
+	// for SOPS auth, and restore originals on exit.
 	env := pctx.TerragruntOptions.Env
+	origEnv := make(map[string]string, len(env))
 
-	var setKeys []string
+	for k := range env {
+		origEnv[k] = os.Getenv(k)
+	}
 
 	for k, v := range env {
-		if os.Getenv(k) == "" {
-			os.Setenv(k, v) //nolint:errcheck
-
-			setKeys = append(setKeys, k)
-		}
+		os.Setenv(k, v) //nolint:errcheck
 	}
 
 	defer func() {
-		for _, k := range setKeys {
-			os.Unsetenv(k) //nolint:errcheck
+		for k, v := range origEnv {
+			os.Setenv(k, v) //nolint:errcheck
 		}
 	}()
 
