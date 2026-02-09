@@ -489,6 +489,19 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				unitLogger = l
 			}
 
+			// Get credentials BEFORE config parsing — sops_decrypt_file() and
+			// get_aws_account_id() in locals need auth-provider credentials
+			// available in opts.Env during HCL evaluation.
+			credsGetter := creds.NewGetter()
+			if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
+				childCtx,
+				unitLogger,
+				u.Execution.TerragruntOptions,
+				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
+			); err != nil {
+				return err
+			}
+
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
 				unitLogger,
@@ -500,16 +513,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			}
 
 			runCfg := cfg.ToRunConfig(unitLogger)
-
-			credsGetter := creds.NewGetter()
-			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
-				childCtx,
-				unitLogger,
-				u.Execution.TerragruntOptions,
-				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
-			); err != nil {
-				return err
-			}
 
 			err = unitRunner.Run(
 				childCtx,

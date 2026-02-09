@@ -9,6 +9,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -21,6 +23,19 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+	// Get credentials BEFORE config parsing — sops_decrypt_file() and
+	// get_aws_account_id() in locals need auth-provider credentials
+	// available in opts.Env during HCL evaluation.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
+		ctx,
+		l,
+		opts,
+		externalcmd.NewProvider(l, opts),
+	); err != nil {
+		return err
+	}
+
 	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
 	if err != nil {
 		return err

@@ -1335,7 +1335,7 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 
 		var innerErr error
 
-		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, path, format, decrypt.File)
+		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, path, format, decrypt.File)
 
 		return innerErr
 	})
@@ -1344,12 +1344,13 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
+func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
 	// Lock for entire cache-check-decrypt-store operation to prevent race conditions
 	// when multiple units are decrypted concurrently. This is necessary because:
 	// 1. Environment variables need to be temporarily set for SOPS authentication
 	// 2. The cache check and decrypt must be atomic to prevent duplicate work
-	// See https://github.com/gruntwork-io/terragrunt/issues/5515
+	l.Debugf("sops decrypt: acquiring lock for %s (format=%s)", path, format)
+
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
 
@@ -1357,6 +1358,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, path string,
 	// This is especially useful for integrations with things like the `auth-provider` flag,
 	// which can set environment variables that are used for decryption.
 	env := pctx.TerragruntOptions.Env
+
 	for k, v := range env {
 		if os.Getenv(k) == "" {
 			os.Setenv(k, v)      //nolint:errcheck
@@ -1365,8 +1367,12 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, path string,
 	}
 
 	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
+
 		return val, nil
 	}
+
+	l.Debugf("sops decrypt: cache miss, decrypting %s", path)
 
 	rawData, err := decryptFn(path, format)
 	if err != nil {
