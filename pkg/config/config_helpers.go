@@ -1367,12 +1367,21 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	// which can set environment variables that are used for decryption.
 	env := pctx.TerragruntOptions.Env
 
+	var setKeys []string
+
 	for k, v := range env {
 		if os.Getenv(k) == "" {
-			os.Setenv(k, v)      //nolint:errcheck
-			defer os.Unsetenv(k) //nolint:errcheck
+			os.Setenv(k, v) //nolint:errcheck
+
+			setKeys = append(setKeys, k)
 		}
 	}
+
+	defer func() {
+		for _, k := range setKeys {
+			os.Unsetenv(k) //nolint:errcheck
+		}
+	}()
 
 	// Double-check: another goroutine may have populated cache while we waited for the lock.
 	if val, ok := sopsCache.Get(ctx, path); ok {
