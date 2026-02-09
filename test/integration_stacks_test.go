@@ -1562,7 +1562,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	assert.Equal(t, "app_1", app1Outputs["data"], "app_1 should have correct data value")
 	assert.Equal(t, "app_2", app2Outputs["data"], "app_2 should have correct data value")
 
-	// Level 1: root_stack_1 contains app_1 and app_2
+	// Level 1: root_stack_1 contains app_3 and app_4
 	assert.Contains(t, result, "root_stack_1", "root_stack_1 should exist at top level")
 	rootStack1Outputs := result["root_stack_1"].(map[string]any)
 	assert.Contains(t, rootStack1Outputs, "app_3", "root_stack_1 should contain app_3")
@@ -1570,7 +1570,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	assert.Equal(t, "app_3", rootStack1Outputs["app_3"].(map[string]any)["data"], "root_stack_1.app_3 should have correct data value")
 	assert.Equal(t, "app_4", rootStack1Outputs["app_4"].(map[string]any)["data"], "root_stack_1.app_4 should have correct data value")
 
-	// Level 2: root_stack_2 contains stack_v2 which contains app_1 and app_2
+	// Level 2: root_stack_2 contains stack_v2 which contains app_3 and app_4
 	assert.Contains(t, result, "root_stack_2", "root_stack_2 should exist at top level")
 	rootStack2Outputs := result["root_stack_2"].(map[string]any)
 	assert.Contains(t, rootStack2Outputs, "stack_v2", "root_stack_2 should contain stack_v2")
@@ -1580,7 +1580,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	assert.Equal(t, "app_3", stackV2Outputs["app_3"].(map[string]any)["data"], "root_stack_2.stack_v2.app_3 should have correct data value")
 	assert.Equal(t, "app_4", stackV2Outputs["app_4"].(map[string]any)["data"], "root_stack_2.stack_v2.app_4 should have correct data value")
 
-	// Level 3: root_stack_3 contains stack_v3 which contains stack_v2 which contains app_1 and app_2
+	// Level 3: root_stack_3 contains stack_v3 which contains stack_v2 which contains app_3 and app_4
 	assert.Contains(t, result, "root_stack_3", "root_stack_3 should exist at top level")
 	rootStack3Outputs := result["root_stack_3"].(map[string]any)
 	assert.Contains(t, rootStack3Outputs, "stack_v3", "root_stack_3 should contain stack_v3")
@@ -1621,7 +1621,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	_, stackV2ExistsHCL := topLevelAttrs["stack_v2"]
 	assert.False(t, stackV2ExistsHCL, "stack_v2 should NOT exist at top level in HCL output")
 
-	// Level 1: Verify root_stack_1 contains app_1 and app_2
+	// Level 1: Verify root_stack_1 contains app_3 and app_4
 	rootStack1Attr, exists := topLevelAttrs["root_stack_1"]
 	require.True(t, exists, "root_stack_1 attribute should exist in HCL output")
 	rootStack1Value, rootStack1Diags := rootStack1Attr.Expr.Value(&hcl.EvalContext{})
@@ -1631,7 +1631,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	assert.Contains(t, rootStack1Map, "app_3", "root_stack_1 should contain app_3 in HCL output")
 	assert.Contains(t, rootStack1Map, "app_4", "root_stack_1 should contain app_4 in HCL output")
 
-	// Level 2: Verify root_stack_2.stack_v2 contains app_1 and app_2
+	// Level 2: Verify root_stack_2.stack_v2 contains app_3 and app_4
 	rootStack2Attr, exists := topLevelAttrs["root_stack_2"]
 	require.True(t, exists, "root_stack_2 attribute should exist in HCL output")
 	rootStack2Value, rootStack2Diags := rootStack2Attr.Expr.Value(&hcl.EvalContext{})
@@ -1645,7 +1645,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	assert.Contains(t, stackV2Map, "app_3", "root_stack_2.stack_v2 should contain app_3 in HCL output")
 	assert.Contains(t, stackV2Map, "app_4", "root_stack_2.stack_v2 should contain app_4 in HCL output")
 
-	// Level 3: Verify root_stack_3.stack_v3.stack_v2 contains app_1 and app_2
+	// Level 3: Verify root_stack_3.stack_v3.stack_v2 contains app_3 and app_4
 	rootStack3Attr, exists := topLevelAttrs["root_stack_3"]
 	require.True(t, exists, "root_stack_3 attribute should exist in HCL output")
 	rootStack3Value, rootStack3Diags := rootStack3Attr.Expr.Value(&hcl.EvalContext{})
