@@ -12,11 +12,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -132,6 +132,10 @@ type Discovery struct {
 	// When false, relationship discovery is skipped, improving performance for commands
 	// that don't need dependency information.
 	discoverRelationships bool
+
+	// preserveSymlinks determines whether to preserve symlink paths instead of canonicalizing them.
+	// This is set based on the symlinks experiment flag.
+	preserveSymlinks bool
 }
 
 // DiscoveryOption is a function that modifies a Discovery.
@@ -702,60 +706,60 @@ func (d *Discovery) processFile(
 ) component.Component {
 	dir := filepath.Dir(path)
 
-	canonicalDir, canErr := util.CanonicalPath(dir, d.discoveryContext.WorkingDir)
-	if canErr == nil {
-		// Eventually, this is going to be removed entirely, as filter evaluation
-		// will be all that's needed. We no longer drop configs via exclude patterns here so
-		// reporting can record excluded units.
-		c := d.createComponentFromPath(path, filenames)
-		if c == nil {
-			return nil
+	// When symlinks experiment is enabled, preserve symlink paths instead of canonicalizing.
+	// This ensures that:
+	// - find_in_parent_folders() searches the correct parent chain
+	// - User-visible paths remain as symlinks
+	// - Include path resolution works correctly with symlinked directories
+	// Fix for https://github.com/gruntwork-io/terragrunt/issues/5314
+	var componentDir string
+
+	if d.preserveSymlinks {
+		componentDir = dir
+	} else {
+		var canErr error
+
+		componentDir, canErr = util.CanonicalPath(dir, d.discoveryContext.WorkingDir)
+		if canErr != nil {
+			componentDir = dir
 		}
-
-		// Check for hidden directories before returning
-		if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-			// Always allow .terragrunt-stack contents
-			cleanDir := util.CleanPath(canonicalDir)
-			if !isInStackDirectory(cleanDir) {
-				return nil
-			}
-		}
-
-		if _, ok := d.filters.RequiresParse(); !ok {
-			filtered, err := d.filters.Evaluate(l, component.Components{c})
-			if err != nil {
-				l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
-				return nil
-			}
-
-			if len(filtered) == 0 {
-				return nil
-			}
-		}
-
-		return c
 	}
 
-	// Now enforce hidden directory check if still applicable
+	c := d.createComponentFromPath(path, componentDir, filenames)
+	if c == nil {
+		return nil
+	}
+
+	// Check for hidden directories before returning
 	if d.noHidden && d.isInHiddenDirectory(hiddenDirMemo, path) {
-		// Always allow .terragrunt-stack contents. We can safely use the non-canonical
-		// dir here because this branch is only reached when canonical path computation
-		// failed, or when we couldn't early-return with a concrete component.
-		allowHidden := isInStackDirectory(filepath.ToSlash(dir))
-
-		if !allowHidden {
+		// Always allow .terragrunt-stack contents
+		cleanDir := util.CleanPath(componentDir)
+		if !isInStackDirectory(cleanDir) {
 			return nil
 		}
 	}
 
-	return d.createComponentFromPath(path, filenames)
+	// Filter evaluation
+	if _, ok := d.filters.RequiresParse(); !ok {
+		filtered, err := d.filters.Evaluate(l, component.Components{c})
+		if err != nil {
+			l.Debugf("Error evaluating filters for %s: %v", c.Path(), err)
+			return nil
+		}
+
+		if len(filtered) == 0 {
+			return nil
+		}
+	}
+
+	return c
 }
 
 // createComponentFromPath creates a component from a file path if it matches one of the config filenames.
 // Returns nil if the file doesn't match any of the provided filenames.
-func (d *Discovery) createComponentFromPath(path string, filenames []string) component.Component {
+func (d *Discovery) createComponentFromPath(path string, dir string, filenames []string) component.Component {
 	base := filepath.Base(path)
-	dir := filepath.Dir(path)
+	// Use provided dir parameter instead of computing from path
 
 	componentOfBase := func(dir, base string) component.Component {
 		if base == config.DefaultStackFile {
@@ -901,6 +905,10 @@ func (d *Discovery) Discover(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
+	// Set preserveSymlinks based on experiment flag
+	// Fix for https://github.com/gruntwork-io/terragrunt/issues/5314
+	d.preserveSymlinks = opts.Experiments.Evaluate(experiment.Symlinks)
+
 	// Set default config filenames if not set
 	filenames := d.configFilenames
 	if len(filenames) == 0 {
