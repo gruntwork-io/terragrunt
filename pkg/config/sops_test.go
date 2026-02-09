@@ -4,6 +4,7 @@ package config //nolint:testpackage // needs access to sopsCache internals
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -182,8 +183,8 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) { //nolint:paralleltest // mut
 // loaded into opts.Env. This caused SOPS to return empty/wrong secrets.
 //
 // This test verifies the env propagation contract of sopsDecryptFileImpl:
-//   - Fresh credentials from opts.Env override stale process env during decrypt
-//   - Process env is restored to original values after decrypt completes
+//   - Existing process env vars are preserved (not overridden by opts.Env)
+//   - Missing env vars from opts.Env are set during decrypt and unset after
 //   - Without credentials, decrypt fails (reproduces the original bug)
 //   - Concurrent goroutines with different credentials are properly isolated
 func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // mutates package-global sopsCache and process env vars
@@ -200,28 +201,30 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	secretFiles := generateTestSecretFiles(t, 1)
 	secretFile := secretFiles[0]
 
-	// Mock decryptFn that requires authKey=="fresh-token" — simulates KMS auth.
+	// Mock decryptFn that requires authKey to be set — simulates KMS auth.
 	authRequiringDecryptFn := func(path string, _ string) ([]byte, error) {
 		token := os.Getenv(authKey)
-		if token != "fresh-token" {
-			return nil, fmt.Errorf("KMS auth failed: no valid credential (got %q)", token)
+		if token == "" {
+			return nil, errors.New("KMS auth failed: no credential set")
 		}
 
 		return os.ReadFile(path)
 	}
 
-	// Subtest 1: Fresh credentials from opts.Env must override stale process env.
-	// Models: auth-provider returns fresh token, but process env has stale one from previous run.
-	t.Run("fresh_creds_override_stale_process_env", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
+	// Subtest 1: Existing process env vars are preserved (not overridden).
+	// Models: CI runner has real AWS_SESSION_TOKEN, auth-provider returns empty token.
+	// sopsDecryptFileImpl must NOT override the real token with empty — SOPS uses process env.
+	t.Run("existing_process_env_preserved", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
 		sopsCache = cache.NewCache[string](sopsCacheName)
 
-		t.Setenv(authKey, "stale-token")
+		t.Setenv(authKey, "real-ci-token")
 
 		opts, err := options.NewTerragruntOptionsForTest(secretFile)
 		require.NoError(t, err)
 
 		opts.WorkingDir = filepath.Dir(secretFile)
-		opts.Env = map[string]string{authKey: "fresh-token"}
+		// opts.Env has empty value for authKey (like auth-provider returning empty session token)
+		opts.Env = map[string]string{authKey: ""}
 
 		l := logger.CreateLogger()
 		ctx := context.Background()
@@ -229,12 +232,12 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 		_, pctx := NewParsingContext(ctx, l, opts)
 
 		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
-		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
+		require.NoError(t, err, "decrypt must succeed using existing process env credentials")
 		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-		// Process env must be restored to stale value after decrypt
-		assert.Equal(t, "stale-token", os.Getenv(authKey),
-			"process env must be restored to original value after decrypt")
+		// Process env must still have the real token — not overridden
+		assert.Equal(t, "real-ci-token", os.Getenv(authKey),
+			"existing process env var must not be overridden")
 	})
 
 	// Subtest 2: Credentials injected when absent from process env.
@@ -259,9 +262,10 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
 		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-		// Process env must be restored to empty after decrypt
-		assert.Empty(t, os.Getenv(authKey),
-			"process env must be restored to empty after decrypt")
+		// Process env must be unset (not empty string) after decrypt
+		_, exists := os.LookupEnv(authKey)
+		assert.False(t, exists,
+			"env var must be unset after decrypt, not set to empty string")
 	})
 
 	// Subtest 3: Missing credentials cause decrypt failure.

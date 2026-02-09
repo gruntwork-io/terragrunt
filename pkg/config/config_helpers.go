@@ -1362,26 +1362,28 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
 
-	// Override process env with opts.Env for SOPS auth, restoring originals on exit.
-	// Only touches keys that actually differ (typically 3-5 auth-provider keys),
-	// skipping the hundreds of inherited process env vars that already match.
+	// Set env vars from opts.Env that are missing from process env.
+	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
+	// in process env yet — SOPS needs them for KMS auth.
+	// Existing process env vars are preserved to avoid overriding real
+	// credentials with empty auth-provider values.
 	env := pctx.TerragruntOptions.Env
-	origEnv := make(map[string]string)
+
+	var setKeys []string
 
 	for k, v := range env {
-		current := os.Getenv(k)
-
-		if current == v {
+		if _, exists := os.LookupEnv(k); exists {
 			continue
 		}
 
-		origEnv[k] = current
 		os.Setenv(k, v) //nolint:errcheck
+
+		setKeys = append(setKeys, k)
 	}
 
 	defer func() {
-		for k, v := range origEnv {
-			os.Setenv(k, v) //nolint:errcheck
+		for _, k := range setKeys {
+			os.Unsetenv(k) //nolint:errcheck
 		}
 	}()
 
