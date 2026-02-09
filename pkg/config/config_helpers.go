@@ -1362,16 +1362,20 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
 
-	// Save original process env values for keys we'll override, set opts.Env
-	// for SOPS auth, and restore originals on exit.
+	// Override process env with opts.Env for SOPS auth, restoring originals on exit.
+	// Only touches keys that actually differ (typically 3-5 auth-provider keys),
+	// skipping the hundreds of inherited process env vars that already match.
 	env := pctx.TerragruntOptions.Env
-	origEnv := make(map[string]string, len(env))
-
-	for k := range env {
-		origEnv[k] = os.Getenv(k)
-	}
+	origEnv := make(map[string]string)
 
 	for k, v := range env {
+		current := os.Getenv(k)
+
+		if current == v {
+			continue
+		}
+
+		origEnv[k] = current
 		os.Setenv(k, v) //nolint:errcheck
 	}
 

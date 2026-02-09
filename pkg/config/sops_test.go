@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/internal/locks"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -42,40 +40,6 @@ func generateTestSecretFiles(t *testing.T, count int) []string {
 	}
 
 	return files
-}
-
-// sopsDecryptFileImplBuggy replicates the ORIGINAL buggy implementation from main branch.
-// The bug: lock is ONLY acquired when len(env) > 0, leaving goroutines without env vars
-// unprotected. They can observe env var mutations from locked goroutines mid-operation.
-// This function exists solely to demonstrate the race condition in tests.
-func sopsDecryptFileImplBuggy(ctx context.Context, pctx *ParsingContext, _ log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
-	env := pctx.TerragruntOptions.Env
-	if len(env) > 0 {
-		locks.EnvLock.Lock()
-		defer locks.EnvLock.Unlock()
-
-		for k, v := range env {
-			if os.Getenv(k) == "" {
-				os.Setenv(k, v)      //nolint:errcheck
-				defer os.Unsetenv(k) //nolint:errcheck
-			}
-		}
-	}
-	// NO lock held here for goroutines without env vars — decryptFn runs unprotected
-
-	if val, ok := sopsCache.Get(ctx, path); ok {
-		return val, nil
-	}
-
-	rawData, err := decryptFn(path, format)
-	if err != nil {
-		return "", err
-	}
-
-	value := string(rawData)
-	sopsCache.Put(ctx, path, value)
-
-	return value, nil
 }
 
 // TestSOPSDecryptConcurrencyRace is a regression test for
@@ -210,161 +174,197 @@ func TestSOPSDecryptConcurrencyRace(t *testing.T) { //nolint:paralleltest // mut
 		"Env vars changed during decrypt — race condition detected (issue #5515)")
 }
 
-// TestSOPSDecryptConcurrencyDataCorruption is an integration-style regression test
-// for https://github.com/gruntwork-io/terragrunt/issues/5515
+// TestSOPSDecryptEnvPropagation is a deterministic regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/5515
 //
-// This test verifies DATA CORRECTNESS under concurrent decryption. It uses a mock
-// decryptFn that detects env var INSTABILITY during the decrypt operation — the
-// signature of the race condition.
+// The original customer-reported bug: sops_decrypt_file() during HCL evaluation
+// couldn't authenticate to KMS because auth-provider credentials were not yet
+// loaded into opts.Env. This caused SOPS to return empty/wrong secrets.
 //
-// The mock decryptFn captures the auth env var at START and END of the operation
-// (with simulated KMS latency in between). If the value changes mid-operation
-// (set→unset transition), that indicates a race — another goroutine's deferred
-// os.Unsetenv ran while this goroutine was mid-decrypt. The mock returns corrupted
-// output "{}" when this happens, simulating what customers see as wrong secret values.
-//
-// Part 1: Runs the BUGGY implementation (conditional lock) — expects data corruption.
-// Part 2: Runs the FIXED implementation (unconditional lock) — expects all correct.
-func TestSOPSDecryptConcurrencyDataCorruption(t *testing.T) { //nolint:paralleltest // mutates package-global sopsCache and process env vars via os.Setenv/os.Unsetenv
-	const (
-		testAuthKey   = "SOPS_TEST_KMS_TOKEN"
-		testAuthValue = "valid-kms-token"
-		numFiles      = 20
-		iterations    = 30
-	)
+// This test verifies the env propagation contract of sopsDecryptFileImpl:
+//   - Fresh credentials from opts.Env override stale process env during decrypt
+//   - Process env is restored to original values after decrypt completes
+//   - Without credentials, decrypt fails (reproduces the original bug)
+//   - Concurrent goroutines with different credentials are properly isolated
+func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // mutates package-global sopsCache and process env vars
+	const authKey = "SOPS_TEST_AUTH_CRED"
 
 	origCache := sopsCache
 
 	t.Cleanup(func() {
 		sopsCache = origCache
 
-		os.Unsetenv(testAuthKey) //nolint:errcheck
+		os.Unsetenv(authKey) //nolint:errcheck
 	})
 
-	// Ensure clean env before test
-	os.Unsetenv(testAuthKey) //nolint:errcheck
+	secretFiles := generateTestSecretFiles(t, 1)
+	secretFile := secretFiles[0]
 
-	secretFiles := generateTestSecretFiles(t, numFiles)
-
-	// Mock decryptFn that detects env var instability during operation.
-	// Simulates KMS latency with a sleep, then checks if the auth env var
-	// changed between the start and end of the operation.
-	//
-	// Stable env var (same value at start and end) → return correct file content.
-	// Unstable env var (changed mid-operation) → return corrupted "{}" output.
-	raceDetectingDecryptFn := func(path string, format string) ([]byte, error) {
-		// Capture env var state at START of decrypt
-		startVal := os.Getenv(testAuthKey)
-
-		// Simulate KMS network latency — widens the race window
-		time.Sleep(10 * time.Millisecond)
-
-		// Capture env var state at END of decrypt
-		endVal := os.Getenv(testAuthKey)
-
-		// Detect env var instability: if the value changed mid-operation,
-		// another goroutine's deferred os.Unsetenv ran while we were
-		// mid-decrypt — this is the race condition.
-		if startVal != endVal {
-			// Auth token appeared then disappeared (or vice versa) mid-operation.
-			// In production this causes KMS auth failure mid-request, returning
-			// empty/wrong secrets — exactly what customers report.
-			return []byte("{}"), nil
+	// Mock decryptFn that requires authKey=="fresh-token" — simulates KMS auth.
+	authRequiringDecryptFn := func(path string, _ string) ([]byte, error) {
+		token := os.Getenv(authKey)
+		if token != "fresh-token" {
+			return nil, fmt.Errorf("KMS auth failed: no valid credential (got %q)", token)
 		}
 
-		// Env var was stable throughout the operation — return correct content
 		return os.ReadFile(path)
 	}
 
-	// runConcurrentDecrypts runs all secretFiles through the given decryptImpl concurrently.
-	// Returns count of files that got wrong (corrupted) results.
-	runConcurrentDecrypts := func(
-		t *testing.T,
-		decryptImpl func(context.Context, *ParsingContext, log.Logger, string, string, func(string, string) ([]byte, error)) (string, error),
-	) int {
-		t.Helper()
+	// Subtest 1: Fresh credentials from opts.Env must override stale process env.
+	// Models: auth-provider returns fresh token, but process env has stale one from previous run.
+	t.Run("fresh_creds_override_stale_process_env", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
+		sopsCache = cache.NewCache[string](sopsCacheName)
 
-		var corruptedResults atomic.Int32
+		t.Setenv(authKey, "stale-token")
 
-		for iter := 0; iter < iterations; iter++ {
-			sopsCache = cache.NewCache[string](sopsCacheName)
+		opts, err := options.NewTerragruntOptionsForTest(secretFile)
+		require.NoError(t, err)
 
-			var wg sync.WaitGroup
+		opts.WorkingDir = filepath.Dir(secretFile)
+		opts.Env = map[string]string{authKey: "fresh-token"}
 
-			barrier := make(chan struct{})
+		l := logger.CreateLogger()
+		ctx := context.Background()
+		ctx = WithConfigValues(ctx)
+		_, pctx := NewParsingContext(ctx, l, opts)
 
-			for i, sf := range secretFiles {
-				wg.Add(1)
+		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
+		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
 
-				go func(idx int, filePath string) {
-					defer wg.Done()
-
-					<-barrier
-
-					opts, optsErr := options.NewTerragruntOptionsForTest(filePath)
-					if !assert.NoError(t, optsErr, "NewTerragruntOptionsForTest") {
-						corruptedResults.Add(1)
-						return
-					}
-
-					opts.WorkingDir = filepath.Dir(filePath)
-
-					// Half goroutines have auth-provider env vars (like --auth-provider-cmd).
-					// In buggy code, only THESE goroutines acquire the lock.
-					// The other half run unlocked and can observe env var mutations
-					// from locked goroutines during their decrypt operation.
-					if idx%2 == 0 {
-						opts.Env = map[string]string{testAuthKey: testAuthValue}
-					}
-
-					l := logger.CreateLogger()
-					ctx := context.Background()
-					ctx = WithConfigValues(ctx)
-					_, pctx := NewParsingContext(ctx, l, opts)
-
-					result, err := decryptImpl(ctx, pctx, l, filePath, "json", raceDetectingDecryptFn)
-					if err != nil {
-						corruptedResults.Add(1)
-						return
-					}
-
-					// Verify correct file content was returned
-					expectedPrefix := `{"value":"secret-from-unit-`
-					if result == "{}" {
-						corruptedResults.Add(1)
-					} else if len(result) < len(expectedPrefix) || result[:len(expectedPrefix)] != expectedPrefix {
-						corruptedResults.Add(1)
-					}
-				}(i, sf)
-			}
-
-			close(barrier)
-			wg.Wait()
-		}
-
-		return int(corruptedResults.Load())
-	}
-
-	// --- Part 1: Buggy implementation (conditional lock) — observability only ---
-	// Race conditions are probabilistic. Under favorable scheduling the race may not trigger,
-	// so we only log the result instead of asserting. The important assertion is Part 2.
-	t.Run("buggy_conditional_lock_causes_corruption", func(t *testing.T) { //nolint:paralleltest // shares sopsCache with other subtest
-		corrupted := runConcurrentDecrypts(t, sopsDecryptFileImplBuggy)
-		t.Logf("Buggy implementation: %d corrupted results out of %d total (%d iterations x %d files)",
-			corrupted, iterations*numFiles, iterations, numFiles)
-
-		if corrupted == 0 {
-			t.Log("Race did not trigger this run — this is expected on fast machines or favorable scheduling")
-		}
+		// Process env must be restored to stale value after decrypt
+		assert.Equal(t, "stale-token", os.Getenv(authKey),
+			"process env must be restored to original value after decrypt")
 	})
 
-	// --- Part 2: Fixed implementation (unconditional lock) should produce zero corruption ---
-	t.Run("fixed_unconditional_lock_prevents_corruption", func(t *testing.T) { //nolint:paralleltest // shares sopsCache with other subtest
-		corrupted := runConcurrentDecrypts(t, sopsDecryptFileImpl)
-		t.Logf("Fixed implementation: %d corrupted results out of %d total (%d iterations x %d files)",
-			corrupted, iterations*numFiles, iterations, numFiles)
+	// Subtest 2: Credentials injected when absent from process env.
+	// Models: first run, auth-provider loaded creds into opts.Env, process env was empty.
+	t.Run("new_creds_set_when_absent_from_process_env", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
+		sopsCache = cache.NewCache[string](sopsCacheName)
 
-		require.Zero(t, corrupted,
-			"Fixed unconditional-lock code should never produce corrupted results")
+		os.Unsetenv(authKey) //nolint:errcheck
+
+		opts, err := options.NewTerragruntOptionsForTest(secretFile)
+		require.NoError(t, err)
+
+		opts.WorkingDir = filepath.Dir(secretFile)
+		opts.Env = map[string]string{authKey: "fresh-token"}
+
+		l := logger.CreateLogger()
+		ctx := context.Background()
+		ctx = WithConfigValues(ctx)
+		_, pctx := NewParsingContext(ctx, l, opts)
+
+		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
+		assert.Contains(t, result, `"value":"secret-from-unit-01"`)
+
+		// Process env must be restored to empty after decrypt
+		assert.Empty(t, os.Getenv(authKey),
+			"process env must be restored to empty after decrypt")
+	})
+
+	// Subtest 3: Missing credentials cause decrypt failure.
+	// Reproduces the ORIGINAL bug: auth-provider hasn't run yet, opts.Env has no
+	// auth token, process env has no auth token → SOPS can't authenticate to KMS.
+	t.Run("missing_creds_fails_decrypt", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
+		sopsCache = cache.NewCache[string](sopsCacheName)
+
+		os.Unsetenv(authKey) //nolint:errcheck
+
+		opts, err := options.NewTerragruntOptionsForTest(secretFile)
+		require.NoError(t, err)
+
+		opts.WorkingDir = filepath.Dir(secretFile)
+		// Empty env — simulates auth-provider NOT having run (the original bug)
+		opts.Env = map[string]string{}
+
+		l := logger.CreateLogger()
+		ctx := context.Background()
+		ctx = WithConfigValues(ctx)
+		_, pctx := NewParsingContext(ctx, l, opts)
+
+		_, err = sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+		require.Error(t, err,
+			"decrypt must fail without auth credentials — reproduces original issue #5515")
+	})
+
+	// Subtest 4: Concurrent goroutines with DIFFERENT auth tokens are isolated.
+	// Models production: multiple units decrypt in parallel, each with different
+	// auth-provider credentials. The lock must ensure each sees its OWN token.
+	t.Run("concurrent_different_creds_isolated", func(t *testing.T) { //nolint:paralleltest // mutates sopsCache and process env
+		const numGoroutines = 5
+
+		sopsCache = cache.NewCache[string](sopsCacheName)
+
+		os.Unsetenv(authKey) //nolint:errcheck
+
+		files := generateTestSecretFiles(t, numGoroutines)
+
+		var wg sync.WaitGroup
+
+		barrier := make(chan struct{})
+
+		var failures atomic.Int32
+
+		for i, f := range files {
+			wg.Add(1)
+
+			go func(idx int, filePath string) {
+				defer wg.Done()
+
+				<-barrier
+
+				expectedToken := fmt.Sprintf("token-%d", idx)
+
+				opts, err := options.NewTerragruntOptionsForTest(filePath)
+				if !assert.NoError(t, err) {
+					failures.Add(1)
+
+					return
+				}
+
+				opts.WorkingDir = filepath.Dir(filePath)
+				opts.Env = map[string]string{authKey: expectedToken}
+
+				// Each goroutine's decryptFn verifies it sees ITS OWN token
+				tokenCheckFn := func(path string, _ string) ([]byte, error) {
+					actual := os.Getenv(authKey)
+					if actual != expectedToken {
+						return nil, fmt.Errorf("goroutine %d: expected %q, got %q", idx, expectedToken, actual)
+					}
+
+					return os.ReadFile(path)
+				}
+
+				l := logger.CreateLogger()
+				ctx := context.Background()
+				ctx = WithConfigValues(ctx)
+				_, pctx := NewParsingContext(ctx, l, opts)
+
+				result, decryptErr := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", tokenCheckFn)
+				if decryptErr != nil {
+					t.Logf("goroutine %d failed: %v", idx, decryptErr)
+					failures.Add(1)
+
+					return
+				}
+
+				expectedPrefix := `{"value":"secret-from-unit-`
+				if len(result) < len(expectedPrefix) || result[:len(expectedPrefix)] != expectedPrefix {
+					t.Logf("goroutine %d: wrong content: %s", idx, result)
+					failures.Add(1)
+				}
+			}(i, f)
+		}
+
+		close(barrier)
+		wg.Wait()
+
+		require.Zero(t, failures.Load(),
+			"all goroutines must see their own auth token during decrypt — env isolation failed")
+
+		assert.Empty(t, os.Getenv(authKey),
+			"process env must be clean after all concurrent decrypts")
 	})
 }
