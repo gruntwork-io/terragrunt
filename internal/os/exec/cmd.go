@@ -25,9 +25,10 @@ type Cmd struct {
 	logger          log.Logger
 	interruptSignal os.Signal
 	*exec.Cmd
-	filename           string
-	forwardSignalDelay time.Duration
-	usePTY             bool
+	filename                   string
+	forwardSignalDelay         time.Duration
+	usePTY                     bool
+	gracefulShutdownRegistered bool
 }
 
 // Command returns the `Cmd` struct to execute the named program with
@@ -47,6 +48,10 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.WaitDelay = DefaultGracefulShutdownDelay
 
 	cmd.Cancel = func() error {
+		if cmd.gracefulShutdownRegistered {
+			return nil
+		}
+
 		if cmd.Process == nil {
 			return nil
 		}
@@ -95,6 +100,8 @@ func (cmd *Cmd) Start() error {
 //  2. If the context does not contain any causes, this means that there was some failure and we need to terminate all executed commands,
 //     in this situation we are sure that commands did not receive any signal, so we send them an interrupt signal immediately.
 func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) func() {
+	cmd.gracefulShutdownRegistered = true
+
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
 
 	go func() {
