@@ -660,6 +660,35 @@ func TestUpdateGettersHTTPNetrc(t *testing.T) {
 	assert.True(t, httpsGetter.Netrc, "HTTPS getter should have Netrc enabled for ~/.netrc authentication")
 }
 
+// TestUpdateGettersIncludesAllGlobalGetters verifies that every scheme registered in the global
+// getter.Getters map is present in client.Getters after calling UpdateGetters. This guards against
+// regressions where the reflect-based approach might silently fail to create an instance.
+func TestUpdateGettersIncludesAllGlobalGetters(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{},
+	}
+
+	client := &getter.Client{}
+
+	updateGettersFunc := run.UpdateGetters(terragruntOptions, cfg)
+	err = updateGettersFunc(client)
+	require.NoError(t, err)
+
+	// Every scheme from the global getter.Getters map must be present
+	for scheme := range getter.Getters {
+		assert.Contains(t, client.Getters, scheme,
+			"client.Getters should contain the %q scheme from the global getter.Getters map", scheme)
+	}
+
+	// Terragrunt-specific getters must also be present
+	assert.Contains(t, client.Getters, "tfr", "client.Getters should contain the Terragrunt registry getter")
+}
+
 // TestDownloadWithNoSourceCreatesCache tests that when sourceURL is "." (no source specified),
 // DownloadTerraformSource creates cache and copies files from the working directory.
 // This tests the behavior when terragrunt.hcl doesn't have a terraform { source = "..." } block.

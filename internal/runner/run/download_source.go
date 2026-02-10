@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -258,22 +259,27 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 // necessary for customizing the behavior of the file getter.
 func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
-		// We create fresh getter instances for each client to avoid race conditions.
-		// The global getter.Getters map contains shared getter instances, and when
-		// SetClient is called on them from multiple goroutines, it causes data races.
-		// Creating new instances ensures each client has its own getter state.
-		client.Getters = map[string]getter.Getter{
-			"file": &FileCopyGetter{
-				IncludeInCopy:   cfg.Terraform.IncludeInCopy,
-				ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
-			},
-			"git":   &getter.GitGetter{},
-			"gcs":   &getter.GCSGetter{},
-			"hg":    &getter.HgGetter{},
-			"s3":    &getter.S3Getter{},
-			"http":  &getter.HttpGetter{Netrc: true},
-			"https": &getter.HttpGetter{Netrc: true},
+		// We iterate over the global getter.Getters map and clone each getter
+		// to avoid race conditions. The global map contains shared getter
+		// instances, and when SetClient is called on them from multiple
+		// goroutines, it causes data races. Cloning via dereference ensures
+		// each client has its own getter state, while automatically picking
+		// up any new getter types registered by go-getter.
+		client.Getters = make(map[string]getter.Getter, len(getter.Getters))
+		for name, g := range getter.Getters {
+			v := reflect.ValueOf(g).Elem()
+			clone := reflect.New(v.Type())
+			clone.Elem().Set(v)
+			client.Getters[name] = clone.Interface().(getter.Getter)
 		}
+
+		// Override with Terragrunt-specific customizations
+		client.Getters["file"] = &FileCopyGetter{
+			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
+			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
+		}
+		client.Getters["http"] = &getter.HttpGetter{Netrc: true}
+		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
 
 		// Load in custom getters that are only supported in Terragrunt
 		client.Getters["tfr"] = &tf.RegistryGetter{
