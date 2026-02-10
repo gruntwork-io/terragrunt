@@ -951,6 +951,9 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 
 // TestHTTPGetterNetrcAuthentication verifies that HTTP/HTTPS getters correctly authenticate
 // using ~/.netrc credentials when downloading OpenTofu/Terraform sources.
+//
+// Does not use `t.Parallel()` because we need to set the `NETRC` environment variable
+// to point to a temporary `~/.netrc` file for the test to pass.
 func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	expectedUser := "testuser"
 	expectedPass := "testpassword"
