@@ -664,8 +664,14 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
-		service.FS().Remove(cache.packageDir)  //nolint:errcheck
-		service.FS().Remove(cache.archivePath) //nolint:errcheck
+
+		if err := service.FS().RemoveAll(cache.packageDir); err != nil {
+			service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
+		}
+
+		if err := service.FS().Remove(cache.archivePath); err != nil {
+			service.logger.Warnf("Failed to clean up archive %q: %v", cache.archivePath, err)
+		}
 
 		return cache.err
 	}

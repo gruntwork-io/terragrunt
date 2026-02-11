@@ -110,7 +110,7 @@ func (pc *ProviderCache) Init(l log.Logger, opts *options.TerragruntOptions) err
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
 
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")

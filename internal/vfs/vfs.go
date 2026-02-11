@@ -307,7 +307,6 @@ func (z *ZipDecompressor) extractRegularFile(
 		reader = &limitedReader{
 			reader:    rc,
 			remaining: z.FileSizeLimit - *totalSize,
-			totalSize: totalSize,
 		}
 	}
 
@@ -339,7 +338,6 @@ func (z *ZipDecompressor) extractRegularFile(
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
 	reader    io.Reader
-	totalSize *int64
 	remaining int64
 }
 
