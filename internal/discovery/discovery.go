@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -80,15 +81,19 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-		l.Debugf("Cycle: %v", cycleErr)
+	telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
+		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+			l.Debugf("Cycle: %v", cycleErr)
 
-		if d.breakCycles {
-			l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+			if d.breakCycles {
+				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-			components = removeCycles(components)
+				components = removeCycles(components)
+			}
 		}
-	}
+
+		return nil
+	})
 
 	if d.graphTarget != "" {
 		var err error
@@ -234,7 +239,13 @@ func (d *Discovery) runGraphPhase(
 		allComponents := resultsToComponents(discovered)
 		allComponents = append(allComponents, resultsToComponents(candidates)...)
 
-		buildErrs := d.buildDependencyGraph(ctx, l, opts, allComponents)
+		var buildErrs []error
+
+		telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependents", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
+			buildErrs = d.buildDependencyGraph(childCtx, l, opts, allComponents)
+			return errors.Join(buildErrs...)
+		})
+
 		if len(buildErrs) > 0 && !d.suppressParseErrors {
 			return &PhaseResults{
 				Discovered: discovered,
@@ -244,12 +255,22 @@ func (d *Discovery) runGraphPhase(
 	}
 
 	phase := NewGraphPhase(d.numWorkers, d.maxDependencyDepth)
-	result, err := phase.Run(ctx, l, &PhaseInput{
-		Opts:       opts,
-		Components: resultsToComponents(discovered),
-		Candidates: candidates,
-		Classifier: d.classifier,
-		Discovery:  d,
+
+	var (
+		result *PhaseResults
+		err    error
+	)
+
+	telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
+		result, err = phase.Run(childCtx, l, &PhaseInput{
+			Opts:       opts,
+			Components: resultsToComponents(discovered),
+			Candidates: candidates,
+			Classifier: d.classifier,
+			Discovery:  d,
+		})
+
+		return err
 	})
 
 	allDiscovered := discovered
@@ -372,16 +393,12 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	for _, depPath := range depPaths {
-		existing := threadSafeComponents.FindByPath(depPath)
-		if existing != nil {
-			c.AddDependency(existing)
-			continue
-		}
-
-		depComponent := component.NewUnit(depPath)
+		depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
 
 		if isExternal(parentCtx.WorkingDir, depPath) {
-			depComponent.SetExternal()
+			if ext, ok := depComponent.(*component.Unit); ok {
+				ext.SetExternal()
+			}
 		}
 
 		addedComponent, created := threadSafeComponents.EnsureComponent(depComponent)

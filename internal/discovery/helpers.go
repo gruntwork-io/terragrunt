@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -103,6 +104,21 @@ func isExternal(workingDir string, componentPath string) bool {
 	}
 
 	return relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator))
+}
+
+// componentFromDependencyPath returns a component for a dependency path. If the path already
+// exists in the thread-safe components, it returns that. If the path contains a stack file,
+// it creates a stack. Otherwise, it creates a unit.
+func componentFromDependencyPath(path string, components *component.ThreadSafeComponents) component.Component {
+	if existing := components.FindByPath(path); existing != nil {
+		return existing
+	}
+
+	if _, err := os.Stat(filepath.Join(path, config.DefaultStackFile)); err == nil {
+		return component.NewStack(path)
+	}
+
+	return component.NewUnit(path)
 }
 
 // skipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's

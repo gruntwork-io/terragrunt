@@ -670,11 +670,8 @@ func (p *GraphPhase) processUpstreamCandidate(
 	dependsOnTarget := false
 
 	for _, dep := range deps {
-		depComponent := state.graphTraversalState.threadSafeComponents.FindByPath(dep)
-		if depComponent == nil {
-			depComponent = component.NewUnit(dep)
-			depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
-		}
+		depComponent := componentFromDependencyPath(dep, state.graphTraversalState.threadSafeComponents)
+		depComponent, _ = state.graphTraversalState.threadSafeComponents.EnsureComponent(depComponent)
 
 		parentCtx := canonicalCandidate.DiscoveryContext()
 		if parentCtx != nil && isExternal(parentCtx.WorkingDir, dep) {
@@ -734,16 +731,12 @@ func (p *GraphPhase) resolveDependency(
 		return nil, NewMissingWorkingDirectoryError(parent.Path())
 	}
 
-	existing := threadSafeComponents.FindByPath(depPath)
-	if existing != nil {
-		parent.AddDependency(existing)
-		return existing, nil
-	}
-
-	depComponent := component.NewUnit(depPath)
+	depComponent := componentFromDependencyPath(depPath, threadSafeComponents)
 
 	if isExternal(parentCtx.WorkingDir, depPath) {
-		depComponent.SetExternal()
+		if ext, ok := depComponent.(*component.Unit); ok {
+			ext.SetExternal()
+		}
 	}
 
 	parent.AddDependency(depComponent)
