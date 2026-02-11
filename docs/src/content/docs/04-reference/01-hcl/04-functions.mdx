@@ -832,6 +832,8 @@ This caching behavior can be modified using the special parameters described in 
 
 `deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended.
 
+When merging multiple files, precedence follows argument order. With `sort(fileset(...))`, later filenames in alphabetical order take precedence for overlapping keys.
+
 This is useful when composing nested configuration from multiple files:
 
 ```hcl
