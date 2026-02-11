@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -183,6 +184,21 @@ func resultsToComponents(results []DiscoveryResult) component.Components {
 	}
 
 	return components
+}
+
+// sanitizeReadFiles clones, removes empty strings, sorts, and deduplicates the file list.
+func sanitizeReadFiles(files []string) []string {
+	if len(files) == 0 {
+		return []string{}
+	}
+
+	files = slices.Clone(files)
+	files = slices.DeleteFunc(files, func(file string) bool {
+		return len(file) == 0
+	})
+	slices.Sort(files)
+
+	return slices.Compact(files)
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.

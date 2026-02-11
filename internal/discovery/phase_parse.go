@@ -284,7 +284,8 @@ func parseComponent(
 	}
 
 	if parsingCtx.FilesRead != nil {
-		c.SetReading(*parsingCtx.FilesRead...)
+		readFiles := sanitizeReadFiles(*parsingCtx.FilesRead)
+		c.SetReading(readFiles...)
 	}
 
 	return nil
