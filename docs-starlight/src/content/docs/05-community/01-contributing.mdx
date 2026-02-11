@@ -175,7 +175,7 @@ You'll want to check that the markdown files are linted correctly before submitt
 markdownlint \
     --disable MD013 MD024 \
     -- \
-    docs
+  docs-starlight/src/content
 ```
 
 ### Running tests
@@ -289,6 +289,74 @@ gcloud projects add-iam-policy-binding <gcp-project> \
   --member="<service-account>" \
   --role="roles/iam.serviceAccountTokenCreator"
 ```
+
+### Azure Integration Tests
+
+Running the Azure storage backend suite requires a bit of setup because the tests talk to real Azure resources.
+
+#### 1. Enable the Azure build tag
+
+All Azure integration tests are behind the `azure` build tag. Make sure you always invoke `go test` with `-tags=azure` (or set `GOFLAGS='-tags=azure'`). Without the tag, the entire test file is skipped.
+
+#### 2. Provide Azure credentials
+
+Authenticate with an Azure principal that can create resource groups, storage accounts, containers, and role assignments. Any of the following credential flows work:
+
+- `az login` (Azure CLI logged in as a user/service principal with the required permissions)
+- Environment variables consumed by the Azure SDK, for example:
+
+  ```bash
+  export AZURE_TENANT_ID="<tenant-guid>"
+  export AZURE_CLIENT_ID="<service-principal-app-id>"
+  export AZURE_CLIENT_SECRET="<service-principal-secret>"
+  export AZURE_SUBSCRIPTION_ID="<subscription-guid>"      # also read by the tests
+  export AZURE_CLIENT_OBJECT_ID="<service-principal-object-id>"  # needed for RBAC scenarios
+  ```
+
+  The helpers also accept the `ARM_*` equivalents (`ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID`, etc.).
+
+#### 3. Choose how storage resources are supplied
+
+You have two options when running the suite:
+
+1. **Use an existing storage account** (quick start):
+
+  ```bash
+  export TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT="existingacct"
+  export TERRAGRUNT_AZURE_TEST_LOCATION="swedencentral"   # defaults to eastus if omitted
+  ```
+
+  The tests will create and destroy containers inside that account. Do **not** point to a production account.
+
+2. **Let the tests create isolated resources** (recommended for CI and parallel runs):
+
+  ```bash
+  export TERRAGRUNT_AZURE_TEST_ISOLATION="full"                # enable the new isolation helpers
+  export TERRAGRUNT_AZURE_TEST_ISOLATE_STORAGE="true"          # create a throwaway storage account per test
+  export TERRAGRUNT_AZURE_TEST_ISOLATE_RESOURCE_GROUP="true"   # isolate the resource group as well
+  export TERRAGRUNT_AZURE_TEST_CLEANUP="true"                  # delete resources after each test
+  export TERRAGRUNT_AZURE_TEST_SUBSCRIPTION_ID="$AZURE_SUBSCRIPTION_ID"  # or set explicitly
+  export TERRAGRUNT_AZURE_TEST_LOCATION="swedencentral"
+  ```
+
+  You may still provide `TERRAGRUNT_AZURE_TEST_STORAGE_ACCOUNT` to use as a naming seed, but it is optional when isolation is enabled.
+
+Additional optional variables:
+
+- `TERRAGRUNT_AZURE_TEST_ACCESS_KEY`: forces shared key auth instead of Azure AD
+- `TERRAGRUNT_AZURE_TEST_RESOURCE_GROUP`: reuse an existing RG when isolation is disabled
+
+#### 4. Run the suite
+
+```bash
+# Run the full Azure storage integration suite
+GOFLAGS='-tags=azure' go test -v -count=1 ./test/integration_azure_test.go
+
+# Target a single test case (example)
+GOFLAGS='-tags=azure' go test -v -count=1 ./test/integration_azure_test.go -run TestAzureBackendBootstrap
+```
+
+The command above uses `-count=1` to avoid cached runs while debugging. Expect the tests to create and tear down temporary resource groups, storage accounts, and containers when isolation is enabled.
 
 #### Race tests
 

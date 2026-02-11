@@ -22,5 +22,5 @@ func NewBucketDoesNotExistError(bucketName string) *BucketDoesNotExistError {
 
 // Error implements `error` interface.
 func (err BucketDoesNotExistError) Error() string {
-	return fmt.Sprintf("S3 bucket %s does not exist", err.bucketName)
+	return fmt.Sprintf("Remote state storage %s does not exist", err.bucketName)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -18,6 +19,7 @@ import (
 var backends = backend.Backends{
 	s3.NewBackend(),
 	gcs.NewBackend(),
+	azurerm.NewBackend(nil),
 }
 
 // RemoteState is the configuration for Terraform remote state.

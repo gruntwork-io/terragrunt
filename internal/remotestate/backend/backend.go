@@ -43,6 +43,9 @@ type Backend interface {
 	// DeleteBucket deletes the entire bucket.
 	DeleteBucket(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error
 
+	// DeleteStorageAccount deletes the storage account.
+	DeleteStorageAccount(ctx context.Context, l log.Logger, config Config, opts *options.TerragruntOptions) error
+
 	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user.
 	GetTFInitArgs(config Config) map[string]any

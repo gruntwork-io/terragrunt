@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -24,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/hashicorp/go-getter"
@@ -1128,11 +1130,30 @@ func getTerragruntOutputJSONFromRemoteState(
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
+
+		case azurerm.BackendName:
+			l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", targetTGOptions.TerragruntConfigPath)
+			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
+				ctx,
+				l,
+				targetTGOptions,
+				remoteState,
+			)
+
+			if err != nil {
+				return nil, err
+			}
+
+			l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", targetTGOptions.TerragruntConfigPath)
+
+			return jsonBytes, nil
+
 		default:
 			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
 	}
 
+	// If direct fetching is not supported or disabled, fallback to the standard output path
 	// Generate the backend configuration in the working dir. If no generate config is set on the remote state block,
 	// set a temporary generate config so we can generate the backend code.
 	if remoteState.Generate == nil {
@@ -1224,6 +1245,69 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 	}
 
 	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
+func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) (outputsJSON []byte, err error) {
+	// Validation should be done immediately after each type assertion
+	storageAccount, okStorage := remoteState.BackendConfig["storage_account_name"].(string)
+	if !okStorage {
+		return
+	}
+
+	containerName, okContainer := remoteState.BackendConfig["container_name"].(string)
+	if !okContainer {
+		return
+	}
+
+	key, okKey := remoteState.BackendConfig["key"].(string)
+	if !okKey {
+		return
+	}
+
+	l.Debugf("Attempting to fetch outputs directly from Azure Storage account %s, container %s, blob %s", storageAccount, containerName, key)
+
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
+	if err != nil {
+		return
+	}
+
+	resp, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
+		Container: &containerName,
+		Key:       &key,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error downloading state file: %w", err)
+	}
+
+	// Ensure response body is closed after we're done
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("error closing response body: %w", cerr)
+		}
+	}()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading state file: %w", err)
+	}
+
+	var state struct {
+		Outputs map[string]interface{} `json:"outputs"`
+	}
+
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("error parsing state file JSON: %w", err)
+	}
+
+	outputsJSON, err = json.Marshal(state.Outputs)
+	if err != nil {
+		return nil, fmt.Errorf("error encoding outputs as JSON: %w", err)
+	}
+
+	l.Debugf("Successfully parsed outputs from Azure Storage state file")
+
+	return
 }
 
 // setupTerragruntOptionsForBareTerraform sets up a new TerragruntOptions struct that can be used to run terraform

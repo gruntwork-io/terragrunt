@@ -17,7 +17,7 @@ This flag is equivalent to enabling the `dependency-fetch-output-from-state` exp
 
 The main benefit this flag provides is performance. Reading directly from state is typically faster than executing the OpenTofu/Terraform binary to get the same outputs.
 
-The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
+The limitation of this approach is that it is only supported by the S3 and Azure Storage backends, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
 Avoid using this flag without pinning the version of OpenTofu/Terraform you are using.
