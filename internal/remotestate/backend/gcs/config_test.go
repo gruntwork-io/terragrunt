@@ -3,7 +3,7 @@ package gcs_test
 import (
 	"testing"
 
-	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
+	gcs "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,80 +16,80 @@ func TestConfig_IsEqual(t *testing.T) {
 
 	testCases := []struct { //nolint: govet
 		name          string
-		cfg           gcsbackend.Config
-		comparableCfg gcsbackend.Config
+		cfg           gcs.Config
+		comparableCfg gcs.Config
 		shouldBeEqual bool
 	}{
 		{
 			"equal-both-empty",
-			gcsbackend.Config{},
-			gcsbackend.Config{},
+			gcs.Config{},
+			gcs.Config{},
 			true,
 		},
 		{
 			"equal-empty-and-nil",
-			gcsbackend.Config{},
+			gcs.Config{},
 			nil,
 			true,
 		},
 		{
 			"equal-one-key",
-			gcsbackend.Config{"foo": "bar"},
-			gcsbackend.Config{"foo": "bar"},
+			gcs.Config{"foo": "bar"},
+			gcs.Config{"foo": "bar"},
 			true,
 		},
 		{
 			"equal-multiple-keys",
-			gcsbackend.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
-			gcsbackend.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
+			gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
+			gcs.Config{"foo": "bar", "baz": []string{"a", "b", "c"}, "blah": 123, "bool": true},
 			true,
 		},
 		{
 			"equal-encrypt-bool-handling",
-			gcsbackend.Config{"encrypt": true},
-			gcsbackend.Config{"encrypt": "true"},
+			gcs.Config{"encrypt": true},
+			gcs.Config{"encrypt": "true"},
 			true,
 		},
 		{
 			"equal-general-bool-handling",
-			gcsbackend.Config{"something": true, "encrypt": true},
-			gcsbackend.Config{"something": "true", "encrypt": "true"},
+			gcs.Config{"something": true, "encrypt": true},
+			gcs.Config{"something": "true", "encrypt": "true"},
 			true,
 		},
 		{
 			"equal-ignore-gcs-labels",
-			gcsbackend.Config{"foo": "bar", "gcs_bucket_labels": []map[string]string{{"foo": "bar"}}},
-			gcsbackend.Config{"foo": "bar"},
+			gcs.Config{"foo": "bar", "gcs_bucket_labels": []map[string]string{{"foo": "bar"}}},
+			gcs.Config{"foo": "bar"},
 			true,
 		},
 		{
 			"unequal-values",
-			gcsbackend.Config{"foo": "bar"},
-			gcsbackend.Config{"foo": "different"},
+			gcs.Config{"foo": "bar"},
+			gcs.Config{"foo": "different"},
 			false,
 		},
 		{
 			"unequal-non-empty-cfg-nil",
-			gcsbackend.Config{"foo": "bar"},
+			gcs.Config{"foo": "bar"},
 			nil,
 			false,
 		},
 		{
 			"unequal-general-bool-handling",
-			gcsbackend.Config{"something": true},
-			gcsbackend.Config{"something": "false"},
+			gcs.Config{"something": true},
+			gcs.Config{"something": "false"},
 			false,
 		},
 		{
 			"equal-null-ignored",
-			gcsbackend.Config{"something": "foo"},
-			gcsbackend.Config{"something": "foo", "ignored-because-null": nil},
+			gcs.Config{"something": "foo"},
+			gcs.Config{"something": "foo", "ignored-because-null": nil},
 			true,
 		},
 		{
 			"terragrunt-only-configs-remain-intact",
-			gcsbackend.Config{"something": "foo", "skip_bucket_creation": true},
-			gcsbackend.Config{"something": "foo"},
+			gcs.Config{"something": "foo", "skip_bucket_creation": true},
+			gcs.Config{"something": "foo"},
 			true,
 		},
 	}
@@ -112,60 +112,60 @@ func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 
 	testCases := []struct { //nolint: govet
 		name   string
-		config gcsbackend.Config
-		check  func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS)
+		config gcs.Config
+		check  func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS)
 	}{
 		{
 			"skip-bucket-versioning-string-true",
-			gcsbackend.Config{
+			gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "true",
 			},
-			func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS) {
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
 			"skip-bucket-versioning-string-false",
-			gcsbackend.Config{
+			gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": "false",
 			},
-			func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS) {
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.False(t, cfg.SkipBucketVersioning)
 			},
 		},
 		{
 			"skip-bucket-creation-string-true",
-			gcsbackend.Config{
+			gcs.Config{
 				"bucket":               "my-bucket",
 				"skip_bucket_creation": "true",
 			},
-			func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS) {
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketCreation)
 			},
 		},
 		{
 			"enable-bucket-policy-only-string-true",
-			gcsbackend.Config{
+			gcs.Config{
 				"bucket":                    "my-bucket",
 				"enable_bucket_policy_only": "true",
 			},
-			func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS) {
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.EnableBucketPolicyOnly)
 			},
 		},
 		{
 			"native-bool-still-works",
-			gcsbackend.Config{
+			gcs.Config{
 				"bucket":                 "my-bucket",
 				"skip_bucket_versioning": true,
 			},
-			func(t *testing.T, cfg *gcsbackend.ExtendedRemoteStateConfigGCS) {
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
 				t.Helper()
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
@@ -189,7 +189,7 @@ func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 func TestParseExtendedGCSConfig_InvalidStringBool(t *testing.T) {
 	t.Parallel()
 
-	cfg := gcsbackend.Config{
+	cfg := gcs.Config{
 		"bucket":                 "my-bucket",
 		"skip_bucket_versioning": "maybe",
 	}
