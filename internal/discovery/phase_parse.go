@@ -119,7 +119,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 	}
 
 	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
+		return results, errors.Join(errs...)
 	}
 
 	return results, nil
