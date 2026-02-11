@@ -183,3 +183,17 @@ func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 		})
 	}
 }
+
+// TestParseExtendedGCSConfig_InvalidStringBool verifies invalid string values
+// for bool fields are rejected (e.g. "maybe" is not a valid bool).
+func TestParseExtendedGCSConfig_InvalidStringBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := gcsbackend.Config{
+		"bucket":                 "my-bucket",
+		"skip_bucket_versioning": "maybe",
+	}
+
+	_, err := cfg.ParseExtendedGCSConfig()
+	require.Error(t, err)
+}

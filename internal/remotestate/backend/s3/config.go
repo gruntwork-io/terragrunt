@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mitchellh/mapstructure"
 
 	"maps"
 
@@ -103,11 +102,11 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 		extendedConfig ExtendedRemoteStateConfigS3
 	)
 
-	if err := mapstructure.WeakDecode(cfg, &s3Config); err != nil {
+	if err := util.DecodeWithStringBoolHook(cfg, &s3Config); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
+	if err := util.DecodeWithStringBoolHook(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 
