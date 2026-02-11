@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -16,14 +17,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// DefaultGracefulShutdownDelay is the default time to wait for a process to exit
+// gracefully after sending an interrupt signal before escalating to SIGKILL.
+const DefaultGracefulShutdownDelay = 30 * time.Second
+
 // Cmd is a command type.
 type Cmd struct {
 	logger          log.Logger
 	interruptSignal os.Signal
 	*exec.Cmd
-	filename           string
-	forwardSignalDelay time.Duration
-	usePTY             bool
+	filename                   string
+	forwardSignalDelay         time.Duration
+	usePTY                     bool
+	gracefulShutdownRegistered atomic.Bool
 }
 
 // Command returns the `Cmd` struct to execute the named program with
@@ -39,13 +45,24 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	cmd.WaitDelay = DefaultGracefulShutdownDelay
+
 	cmd.Cancel = func() error {
+		if cmd.gracefulShutdownRegistered.Load() {
+			return nil
+		}
+
 		if cmd.Process == nil {
 			return nil
 		}
 
 		if sig := signal.SignalFromContext(ctx); sig != nil {
 			return cmd.Process.Signal(sig)
+		}
+
+		if cmd.interruptSignal != nil {
+			return cmd.Process.Signal(cmd.interruptSignal)
 		}
 
 		return cmd.Process.Signal(os.Kill)
@@ -84,6 +101,8 @@ func (cmd *Cmd) Start() error {
 //  2. If the context does not contain any causes, this means that there was some failure and we need to terminate all executed commands,
 //     in this situation we are sure that commands did not receive any signal, so we send them an interrupt signal immediately.
 func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) func() {
+	cmd.gracefulShutdownRegistered.Store(true)
+
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
 
 	go func() {
