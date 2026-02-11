@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -28,7 +29,7 @@ type Cmd struct {
 	filename                   string
 	forwardSignalDelay         time.Duration
 	usePTY                     bool
-	gracefulShutdownRegistered bool
+	gracefulShutdownRegistered atomic.Bool
 }
 
 // Command returns the `Cmd` struct to execute the named program with
@@ -48,7 +49,7 @@ func Command(ctx context.Context, name string, args ...string) *Cmd {
 	cmd.WaitDelay = DefaultGracefulShutdownDelay
 
 	cmd.Cancel = func() error {
-		if cmd.gracefulShutdownRegistered {
+		if cmd.gracefulShutdownRegistered.Load() {
 			return nil
 		}
 
@@ -100,7 +101,7 @@ func (cmd *Cmd) Start() error {
 //  2. If the context does not contain any causes, this means that there was some failure and we need to terminate all executed commands,
 //     in this situation we are sure that commands did not receive any signal, so we send them an interrupt signal immediately.
 func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) func() {
-	cmd.gracefulShutdownRegistered = true
+	cmd.gracefulShutdownRegistered.Store(true)
 
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
 
