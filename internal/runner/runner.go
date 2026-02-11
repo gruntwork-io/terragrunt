@@ -43,7 +43,6 @@ func FindDependentUnits(
 				l,
 				dir,
 				opts,
-				cfg,
 			),
 		)
 	}
@@ -77,7 +76,7 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, _ *config.TerragruntConfig) map[string]*component.Unit {
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
 	matchedModulesMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory
