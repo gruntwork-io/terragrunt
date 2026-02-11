@@ -243,6 +243,7 @@ func parseComponent(
 		config.ExcludeBlock,
 		config.ErrorsBlock,
 		config.RemoteStateBlock,
+		config.TerragruntVersionConstraints,
 	).WithSkipOutputsResolution()
 
 	if len(discovery.parserOptions) > 0 {
