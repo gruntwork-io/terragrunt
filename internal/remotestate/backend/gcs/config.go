@@ -32,6 +32,8 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 
 func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
+	// Note: strconv.ParseBool is intentionally lenient here (accepts "1"/"0"/"t"/"f") for backward
+	// compatibility with existing configs. DecodeWithStringBoolHook uses strict "true"/"false" only.
 	for key, value := range targetCfg {
 		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {

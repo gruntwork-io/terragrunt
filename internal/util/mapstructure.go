@@ -18,7 +18,8 @@ func DecodeWithStringBoolHook(input, output any) error {
 				return data, nil
 			}
 
-			strValue := strings.TrimSpace(fmt.Sprintf("%v", data))
+			// TrimSpace + EqualFold for robustness against minor formatting differences.
+			strValue := strings.TrimSpace(data.(string))
 
 			switch {
 			case strings.EqualFold(strValue, "true"):

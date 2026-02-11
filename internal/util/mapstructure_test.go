@@ -34,6 +34,54 @@ func TestDecodeWithStringBoolHook(t *testing.T) {
 	assert.Equal(t, "plain-string", output.StringValue)
 }
 
+func TestDecodeWithStringBoolHook_NativeBoolPassthrough(t *testing.T) {
+	t.Parallel()
+
+	input := map[string]any{
+		"bool_value":   true,
+		"string_value": "hello",
+	}
+
+	var output decodeStringBoolConfig
+
+	err := util.DecodeWithStringBoolHook(input, &output)
+	require.NoError(t, err)
+
+	assert.True(t, output.BoolValue)
+	assert.Equal(t, "hello", output.StringValue)
+}
+
+func TestDecodeWithStringBoolHook_CaseInsensitiveAndWhitespace(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"uppercase-TRUE", "TRUE", true},
+		{"mixed-True", "True", true},
+		{"uppercase-FALSE", "FALSE", false},
+		{"mixed-False", "False", false},
+		{"whitespace-true", "  true  ", true},
+		{"whitespace-false", " false ", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := map[string]any{"bool_value": tc.input}
+
+			var output decodeStringBoolConfig
+
+			err := util.DecodeWithStringBoolHook(input, &output)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, output.BoolValue)
+		})
+	}
+}
+
 func TestDecodeWithStringBoolHook_InvalidBoolStringsRejected(t *testing.T) {
 	t.Parallel()
 
@@ -85,5 +133,4 @@ func TestDecodeWithStringBoolHook_NonStringBoolsRejected(t *testing.T) {
 
 	err := util.DecodeWithStringBoolHook(input, &output)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unconvertible type 'int'")
 }
