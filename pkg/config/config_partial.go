@@ -321,7 +321,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList)
+	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntOptions.TerragruntConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.TerragruntOptions.UsePartialParseConfigCache {
