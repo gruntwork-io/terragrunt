@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -156,7 +155,7 @@ func TestGetLatestReleaseInvalidRepository(t *testing.T) {
 	for _, repo := range testCases {
 		t.Run(fmt.Sprintf("repo=%s", repo), func(tt *testing.T) {
 			_, err := client.GetLatestRelease(tt.Context(), repo)
-			require.Error(tt, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -201,10 +200,10 @@ func TestGetLatestReleaseEmptyTag(t *testing.T) {
 func TestGetLatestReleaseCaching(t *testing.T) {
 	t.Parallel()
 
-	var callCount atomic.Int32
+	callCount := 0
 	// Create a mock server that tracks how many times it's called
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount.Add(1)
+		callCount++
 		w.Header().Set("Content-Type", "application/json")
 		response := `{"tag_name": "v1.0.0"}`
 		_, err := fmt.Fprint(w, response)
@@ -219,14 +218,14 @@ func TestGetLatestReleaseCaching(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "v1.0.0", tag1)
-	assert.Equal(t, int32(1), callCount.Load())
+	assert.Equal(t, 1, callCount)
 
 	// Second call should use cache
 	tag2, err := client.GetLatestReleaseTag(t.Context(), "owner/repo")
 	require.NoError(t, err)
 
 	assert.Equal(t, "v1.0.0", tag2)
-	assert.Equal(t, int32(1), callCount.Load())
+	assert.Equal(t, 1, callCount)
 }
 
 // Tests for GitHubReleasesDownloadClient
