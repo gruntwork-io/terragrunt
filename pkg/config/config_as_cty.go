@@ -140,17 +140,6 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataLocals] = localsCty
 	}
 
-	if config.DependentModulesPath != nil {
-		dependentModulesCty, err := convertToCtyWithJSON(config.DependentModulesPath)
-		if err != nil {
-			return cty.NilVal, err
-		}
-
-		if dependentModulesCty != cty.NilVal {
-			output[MetadataDependentModules] = dependentModulesCty
-		}
-	}
-
 	featureFlagsCty, err := featureFlagsBlocksAsCty(config.FeatureFlags)
 	if err != nil {
 		return cty.NilVal, err
@@ -201,11 +190,6 @@ func TerragruntConfigAsCtyWithMetadata(config *TerragruntConfig) (cty.Value, err
 		return cty.NilVal, err
 	}
 
-	if err := wrapWithMetadata(config, config.DependentModulesPath, MetadataDependentModules, &output); err != nil {
-		return cty.NilVal, err
-	}
-
-	// Terraform
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err

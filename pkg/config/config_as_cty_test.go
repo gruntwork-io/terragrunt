@@ -26,7 +26,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testFalse := false
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
-	dependentModulesPath := []*string{&testSource}
 	metaVal := cty.MapVal(map[string]cty.Value{
 		"foo": cty.StringVal("bar"),
 	})
@@ -94,7 +93,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		Locals: map[string]any{
 			"quote": "the answer is 42",
 		},
-		DependentModulesPath: dependentModulesPath,
 		TerragruntDependencies: config.Dependencies{
 			config.Dependency{
 				Name:                                "foo",
@@ -308,8 +306,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "FieldsMetadata":
 		return "", false
-	case "DependentModulesPath":
-		return "dependent_modules", true
 	case "Engine":
 		return "engine", true
 	case "FeatureFlags":
