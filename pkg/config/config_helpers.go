@@ -1315,9 +1315,27 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_sops_decrypt_file", attrs, func(childCtx context.Context) error {
+		if len(params) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: len(params)})
+		}
+
+		format, err := getSopsFileFormat(sourceFile)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		path := sourceFile
+
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
+			path = filepath.Clean(path)
+		}
+
+		trackFileRead(pctx.FilesRead, path)
+
 		var innerErr error
 
-		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, params)
+		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, path, format, decrypt.File)
 
 		return innerErr
 	})
@@ -1326,60 +1344,59 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger, params []string) (string, error) {
-	numParams := len(params)
-
-	var sourceFile string
-
-	if numParams > 0 {
-		sourceFile = params[0]
-	}
-
-	if numParams != 1 {
-		return "", errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
-	}
-
-	format, err := getSopsFileFormat(sourceFile)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	path := sourceFile
-
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
-		path = filepath.Clean(path)
-	}
-
-	// Track that this file was read during parsing
-	trackFileRead(pctx.FilesRead, path)
-
-	// Set environment variables from the TerragruntOptions.Env map.
-	// This is especially useful for integrations with things like the `auth-provider` flag,
-	// which can set environment variables that are used for decryption.
-	//
-	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
-	// for decryption, we have to rely on environment variables to pass these configurations.
-	// This can cause a race condition, so we have to be careful to avoid having anything else
-	// running concurrently that might interfere with the environment variables.
-	env := pctx.TerragruntOptions.Env
-	if len(env) > 0 {
-		locks.EnvLock.Lock()
-		defer locks.EnvLock.Unlock()
-
-		for k, v := range env {
-			if os.Getenv(k) == "" {
-				os.Setenv(k, v)      //nolint:errcheck
-				defer os.Unsetenv(k) //nolint:errcheck
-			}
-		}
-	}
-
+func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
+	// Fast path: check cache before acquiring lock.
+	// Cache has its own sync.RWMutex, safe for concurrent reads.
 	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
+
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(path, format)
+	// Cache miss: acquire lock for env mutation + decrypt.
+	// The lock serializes os.Setenv/os.Unsetenv to prevent race conditions
+	// when multiple units decrypt concurrently with different auth credentials.
+	// See https://github.com/gruntwork-io/terragrunt/issues/5515
+	l.Debugf("sops decrypt: cache miss, acquiring lock for %s (format=%s)", path, format)
+
+	locks.EnvLock.Lock()
+	defer locks.EnvLock.Unlock()
+
+	// Set env vars from opts.Env that are missing from process env.
+	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
+	// in process env yet — SOPS needs them for KMS auth.
+	// Existing process env vars are preserved to avoid overriding real
+	// credentials with empty auth-provider values.
+	env := pctx.TerragruntOptions.Env
+
+	var setKeys []string
+
+	for k, v := range env {
+		if _, exists := os.LookupEnv(k); exists {
+			continue
+		}
+
+		os.Setenv(k, v) //nolint:errcheck
+
+		setKeys = append(setKeys, k)
+	}
+
+	defer func() {
+		for _, k := range setKeys {
+			os.Unsetenv(k) //nolint:errcheck
+		}
+	}()
+
+	// Double-check: another goroutine may have populated cache while we waited for the lock.
+	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
+
+		return val, nil
+	}
+
+	l.Debugf("sops decrypt: decrypting %s", path)
+
+	rawData, err := decryptFn(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
@@ -1391,7 +1408,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 		return value, nil
 	}
 
-	return "", errors.New(InvalidSopsFormatError{SourceFilePath: sourceFile})
+	return "", errors.New(InvalidSopsFormatError{SourceFilePath: path})
 }
 
 // Mapping of SOPS format to string
