@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -323,10 +324,11 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	contents, err = util.ReadFileAsString(useLockfileConfigPath)
 	require.NoError(t, err)
 
-	anchorText = "    use_lockfile = true"
-	require.Contains(t, contents, anchorText, "Expected anchor text not found in %s", useLockfileConfigPath)
-	newContents = strings.ReplaceAll(contents, anchorText, anchorText+"\n    skip_bucket_versioning = true")
-	require.NotEqual(t, contents, newContents, "strings.ReplaceAll did not modify contents of %s", useLockfileConfigPath)
+	// Use regex to match use_lockfile with any amount of whitespace before the equals sign
+	useLockfileRegex := regexp.MustCompile(`([ \t]+use_lockfile\s*=\s*true)`)
+	require.Regexp(t, useLockfileRegex, contents, "Expected use_lockfile pattern not found in %s", useLockfileConfigPath)
+	newContents = useLockfileRegex.ReplaceAllString(contents, "$1\n    skip_bucket_versioning = true")
+	require.NotEqual(t, contents, newContents, "regex replacement did not modify contents of %s", useLockfileConfigPath)
 	err = os.WriteFile(useLockfileConfigPath, []byte(newContents), 0644)
 	require.NoError(t, err)
 
@@ -1212,7 +1214,7 @@ func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
+		`prefix=../dep .+Unit '../dep' is already init-ed. Retrieving outputs directly from working directory.`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }

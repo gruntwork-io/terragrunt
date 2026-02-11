@@ -1069,16 +1069,16 @@ func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureConfigWithNonDefaultNames)
 	tmpEnvPath = path.Join(tmpEnvPath, testFixtureConfigWithNonDefaultNames)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --config main.hcl --non-interactive --working-dir "+filepath.Join(tmpEnvPath, "app"), &stdout, &stderr)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply --config main.hcl --non-interactive --working-dir "+
+			filepath.Join(tmpEnvPath, "app"),
+	)
 	require.NoError(t, err)
 
-	out := stdout.String()
-	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Equal(t, 1, strings.Count(stdout, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(stdout, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(stdout, "common_hcl"))
 }
 
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
