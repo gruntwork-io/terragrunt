@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 
@@ -9,8 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
-
-	"maps"
 )
 
 const (

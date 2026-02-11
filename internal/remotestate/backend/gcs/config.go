@@ -1,7 +1,9 @@
 package gcs
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -9,9 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
-
-	"maps"
 )
 
 type Config map[string]any

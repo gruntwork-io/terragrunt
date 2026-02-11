@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,7 +104,7 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			extS3Cfg, err := tc.config.Normalize(log.Default()).ParseExtendedS3Config()
+			extS3Cfg, err := tc.config.Normalize(logger.CreateLogger()).ParseExtendedS3Config()
 			require.NoError(t, err)
 
 			tc.check(t, extS3Cfg)
@@ -124,6 +124,6 @@ func TestParseExtendedS3Config_InvalidStringBool(t *testing.T) {
 		"use_lockfile": "maybe",
 	}
 
-	_, err := cfg.Normalize(log.Default()).ParseExtendedS3Config()
+	_, err := cfg.Normalize(logger.CreateLogger()).ParseExtendedS3Config()
 	require.Error(t, err)
 }

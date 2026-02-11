@@ -190,6 +190,19 @@ func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
 				"-backend-config=use_lockfile=false",
 			},
 		},
+		{
+			"gcs-string-bool-skip-versioning",
+			"gcs",
+			map[string]any{
+				"bucket":                 "my-bucket",
+				"prefix":                 "terraform.tfstate",
+				"skip_bucket_versioning": "true",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=prefix=terraform.tfstate",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

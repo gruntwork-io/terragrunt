@@ -3,7 +3,7 @@ package gcs_test
 import (
 	"testing"
 
-	gcs "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
