@@ -170,6 +170,28 @@ func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
 				assert.True(t, cfg.SkipBucketVersioning)
 			},
 		},
+		{
+			"empty-string-coerces-to-false",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.False(t, cfg.SkipBucketVersioning)
+			},
+		},
+		{
+			"numeric-one-coerces-to-true",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "1",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketVersioning)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

@@ -98,6 +98,32 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
 			},
 		},
+		{
+			"empty-string-coerces-to-false",
+			s3backend.Config{
+				"bucket":       "my-bucket",
+				"key":          "my-key",
+				"region":       "us-east-1",
+				"use_lockfile": "",
+			},
+			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.False(t, cfg.RemoteStateConfigS3.UseLockfile)
+			},
+		},
+		{
+			"numeric-one-coerces-to-true",
+			s3backend.Config{
+				"bucket":       "my-bucket",
+				"key":          "my-key",
+				"region":       "us-east-1",
+				"use_lockfile": "1",
+			},
+			func(t *testing.T, cfg *s3backend.ExtendedRemoteStateConfigS3) {
+				t.Helper()
+				assert.True(t, cfg.RemoteStateConfigS3.UseLockfile)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

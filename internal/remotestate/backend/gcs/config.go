@@ -56,6 +56,10 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 		extendedConfig ExtendedRemoteStateConfigGCS
 	)
 
+	// WeakDecode handles string->bool coercion ("true"/"false") needed when HCL ternary
+	// type unification produces string values for bool fields (see #5475). Also accepts
+	// strconv.ParseBool inputs ("1"/"0"/"t"/"f"). When adding new struct fields, verify
+	// that WeakDecode coercion behavior is acceptable for the field type.
 	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
 		return nil, errors.New(err)
 	}
