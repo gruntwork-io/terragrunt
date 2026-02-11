@@ -341,7 +341,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 		cfg.AddHost(registryName, map[string]string{
 			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
-			"modules.v1": fmt.Sprintf("https://%s%s", registryName, apiURLs.ModulesV1),
+			"modules.v1": ResolveModulesURL(registryName, apiURLs.ModulesV1),
 		})
 	}
 
@@ -564,4 +564,15 @@ func filterRegistriesByImplementation(registryNames []string, implementation opt
 
 	// User explicitly set registry names, return as-is
 	return registryNames
+}
+
+// ResolveModulesURL resolves the modules.v1 URL from registry discovery.
+// If the URL is already absolute (contains "://"), it is returned as-is.
+// Otherwise, it is treated as a relative path and combined with the registry name.
+func ResolveModulesURL(registryName, modulesV1 string) string {
+	if strings.Contains(modulesV1, "://") {
+		return modulesV1
+	}
+
+	return fmt.Sprintf("https://%s%s", registryName, modulesV1)
 }
