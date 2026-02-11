@@ -612,7 +612,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client := &getter.Client{}
 
 			// Call updateGetters
-			updateGettersFunc := run.UpdateGetters(terragruntOptions, tc.cfg)
+			updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, tc.cfg)
 			err = updateGettersFunc(client)
 			require.NoError(t, err)
 
@@ -645,7 +645,7 @@ func TestUpdateGettersHTTPNetrc(t *testing.T) {
 
 	client := &getter.Client{}
 
-	updateGettersFunc := run.UpdateGetters(terragruntOptions, cfg)
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, cfg)
 	err = updateGettersFunc(client)
 	require.NoError(t, err)
 
@@ -675,7 +675,7 @@ func TestUpdateGettersIncludesAllGlobalGetters(t *testing.T) {
 
 	client := &getter.Client{}
 
-	updateGettersFunc := run.UpdateGetters(terragruntOptions, cfg)
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, cfg)
 	err = updateGettersFunc(client)
 	require.NoError(t, err)
 
@@ -1021,7 +1021,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 		Mode: getter.ClientModeFile,
 	}
 
-	updateFn := run.UpdateGetters(opts, cfg)
+	updateFn := run.UpdateGetters(logger.CreateLogger(), opts, cfg)
 	require.NoError(t, updateFn(client))
 
 	require.NoError(t, client.Get())

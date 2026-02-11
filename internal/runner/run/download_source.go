@@ -257,7 +257,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
+func UpdateGetters(l log.Logger, terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We iterate over the global getter.Getters map and clone each getter
 		// to avoid race conditions. The global map contains shared getter
@@ -275,6 +275,7 @@ func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.Run
 
 		// Override with Terragrunt-specific customizations
 		client.Getters["file"] = &FileCopyGetter{
+			Logger:          l,
 			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
 			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
 		}
@@ -376,7 +377,7 @@ func downloadSource(
 
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg), preserveSymlinksOption())
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(l, opts, cfg), preserveSymlinksOption())
 	})
 }
 
