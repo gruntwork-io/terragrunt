@@ -6,12 +6,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/slices"
 
 	"maps"
-
-	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 type Config map[string]any
@@ -33,7 +33,7 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
 	// Note: strconv.ParseBool is intentionally lenient here (accepts "1"/"0"/"t"/"f") for backward
-	// compatibility with existing configs. DecodeWithStringBoolHook uses strict "true"/"false" only.
+	// compatibility with existing configs. WeakDecode also accepts these via strconv.ParseBool.
 	for key, value := range targetCfg {
 		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
@@ -57,11 +57,11 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 		extendedConfig ExtendedRemoteStateConfigGCS
 	)
 
-	if err := util.DecodeWithStringBoolHook(cfg, &gcsConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := util.DecodeWithStringBoolHook(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 

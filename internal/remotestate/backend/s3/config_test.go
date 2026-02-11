@@ -112,7 +112,7 @@ func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 	}
 }
 
-// TestParseExtendedS3Config_InvalidStringBool verifies that DecodeWithStringBoolHook rejects
+// TestParseExtendedS3Config_InvalidStringBool verifies that WeakDecode rejects
 // invalid string values for bool fields (e.g. "maybe" is not a valid bool).
 func TestParseExtendedS3Config_InvalidStringBool(t *testing.T) {
 	t.Parallel()

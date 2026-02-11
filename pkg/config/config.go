@@ -40,6 +40,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -1679,8 +1680,8 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		}
 
 		var config *remotestate.Config
-		// Decode with strict string->bool coercion for HCL ternary type unification. See #5475.
-		if err := util.DecodeWithStringBoolHook(remoteStateMap, &config); err != nil {
+		// WeakDecode: HCL ternary type unification sends string "true" for bool fields. See #5475.
+		if err := mapstructure.WeakDecode(remoteStateMap, &config); err != nil {
 			return nil, err
 		}
 
@@ -1791,8 +1792,8 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 
 		for name, block := range generateMap {
 			var generateBlock terragruntGenerateBlock
-			// Decode with strict string->bool coercion for HCL ternary type unification. See #5475.
-			if err := util.DecodeWithStringBoolHook(block, &generateBlock); err != nil {
+			// WeakDecode: HCL ternary type unification sends string "true" for bool fields. See #5475.
+			if err := mapstructure.WeakDecode(block, &generateBlock); err != nil {
 				return nil, err
 			}
 

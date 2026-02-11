@@ -132,7 +132,6 @@ remote_state = {
 	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid boolean string")
 }
 
 func TestParseTerragruntConfigGenerateAttrStringBoolCoercion(t *testing.T) {
@@ -185,7 +184,6 @@ generate = {
 	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid boolean string")
 }
 
 func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
