@@ -458,6 +458,7 @@ func Parse(
 		config.ExcludeBlock,
 		config.ErrorsBlock,
 		config.RemoteStateBlock,
+		config.TerragruntVersionConstraints,
 	)
 
 	cfg, err = config.PartialParseConfigFile(ctx, parsingCtx, l, parseOpts.TerragruntConfigPath, nil)

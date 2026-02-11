@@ -10,10 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/runner"
-
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -37,7 +35,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		return err
 	}
 
-	return runRender(ctx, l, opts, prepared.Cfg)
+	return runRender(l, opts, prepared.Cfg)
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *Options) error {
@@ -69,7 +67,7 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 			continue
 		}
 
-		if err := runRender(ctx, l, unitOpts, prepared.Cfg); err != nil {
+		if err := runRender(l, unitOpts, prepared.Cfg); err != nil {
 			if opts.FailFast {
 				return err
 			}
@@ -92,22 +90,22 @@ func runAll(ctx context.Context, l log.Logger, opts *Options) error {
 	return nil
 }
 
-func runRender(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func runRender(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return errors.New("terragrunt was not able to render the config because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 
 	switch opts.Format {
 	case FormatJSON:
-		return renderJSON(ctx, l, opts, cfg)
+		return renderJSON(l, opts, cfg)
 	case FormatHCL:
-		return renderHCL(ctx, l, opts, cfg)
+		return renderHCL(l, opts, cfg)
 	default:
 		return fmt.Errorf("unsupported render format: %s", opts.Format)
 	}
 }
 
-func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
+func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	if opts.Write {
 		buf := new(bytes.Buffer)
 
@@ -129,20 +127,7 @@ func renderHCL(_ context.Context, l log.Logger, opts *Options, cfg *config.Terra
 	return nil
 }
 
-func renderJSON(ctx context.Context, l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
-	if !opts.DisableDependentUnits {
-		dependentUnits := runner.FindDependentUnits(ctx, l, opts.TerragruntOptions, cfg)
-
-		dependentModulesPath := make([]*string, 0, len(dependentUnits))
-		for _, module := range dependentUnits {
-			path := module.Path()
-			dependentModulesPath = append(dependentModulesPath, &path)
-		}
-
-		cfg.DependentModulesPath = dependentModulesPath
-		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]any{config.FoundInFile: opts.TerragruntConfigPath})
-	}
-
+func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error {
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderMetadata {
