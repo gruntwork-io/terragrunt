@@ -1118,6 +1118,99 @@ func TestDiscovery_WithReport(t *testing.T) {
 	assert.Len(t, components, 1)
 }
 
+// TestDiscovery_ExcludeDependencies tests that ExcludeDependencies only takes effect
+// when the dependent unit's exclude condition (If) is true.
+func TestDiscovery_ExcludeDependencies(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		excludeIf          string
+		dependentExcluded  bool
+		dependencyExcluded bool
+	}{
+		{
+			name:               "exclude_dependencies with if=false",
+			excludeIf:          "false",
+			dependentExcluded:  false,
+			dependencyExcluded: false,
+		},
+		{
+			name:               "exclude_dependencies with if=true",
+			excludeIf:          "true",
+			dependentExcluded:  true,
+			dependencyExcluded: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			dependentDir := filepath.Join(tmpDir, "dependent")
+			dependencyDir := filepath.Join(tmpDir, "dependency")
+
+			require.NoError(t, os.MkdirAll(dependentDir, 0755))
+			require.NoError(t, os.MkdirAll(dependencyDir, 0755))
+
+			dependentHCL := `
+exclude {
+  if                   = ` + tt.excludeIf + `
+  actions              = ["all"]
+  exclude_dependencies = true
+}
+
+dependency "dependency" {
+  config_path = "../dependency"
+}
+`
+			require.NoError(t, os.WriteFile(filepath.Join(dependentDir, "terragrunt.hcl"), []byte(dependentHCL), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(dependencyDir, "terragrunt.hcl"), []byte(""), 0644))
+
+			l := logger.CreateLogger()
+			opts := &options.TerragruntOptions{
+				WorkingDir:       tmpDir,
+				RootWorkingDir:   tmpDir,
+				TerraformCommand: "plan",
+			}
+
+			ctx := t.Context()
+
+			d := discovery.NewDiscovery(tmpDir).
+				WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
+				WithParseExclude().
+				WithRelationships()
+
+			components, err := d.Discover(ctx, l, opts)
+			require.NoError(t, err)
+
+			var dependentUnit, dependencyUnit *component.Unit
+
+			for _, c := range components {
+				unit, ok := c.(*component.Unit)
+				if !ok {
+					continue
+				}
+
+				switch c.Path() {
+				case dependentDir:
+					dependentUnit = unit
+				case dependencyDir:
+					dependencyUnit = unit
+				}
+			}
+
+			require.NotNil(t, dependentUnit, "dependent unit should be discovered")
+			require.NotNil(t, dependencyUnit, "dependency unit should be discovered")
+
+			assert.Equal(t, tt.dependentExcluded, dependentUnit.Excluded(), "dependent excluded state")
+			assert.Equal(t, tt.dependencyExcluded, dependencyUnit.Excluded(), "dependency excluded state")
+		})
+	}
+}
+
 // TestDiscovery_OriginalTerragruntConfigPath tests that get_original_terragrunt_dir() returns the
 // correct directory during parsing. This verifies that phase_parse.go correctly sets
 // OriginalTerragruntConfigPath when parsing units.
