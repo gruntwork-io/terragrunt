@@ -828,6 +828,24 @@ carrot
 
 This caching behavior can be modified using the special parameters described in the [Special Parameters](#special-parameters) section above.
 
+## deep_merge
+
+`deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended.
+
+This is useful when composing nested configuration from multiple files:
+
+```hcl
+locals {
+  config_json_files = sort(fileset(get_terragrunt_dir(), "*.json"))
+  config = deep_merge([
+    for file in local.config_json_files :
+    jsondecode(file("${get_terragrunt_dir()}/${file}"))
+  ]...)
+}
+
+inputs = local.config
+```
+
 ## read_terragrunt_config
 
 `read_terragrunt_config(config_path, [default_val])` parses the terragrunt config at the given path and serializes the
