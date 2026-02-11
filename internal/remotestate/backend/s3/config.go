@@ -103,11 +103,11 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 		extendedConfig ExtendedRemoteStateConfigS3
 	)
 
-	if err := mapstructure.Decode(cfg, &s3Config); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &s3Config); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.Decode(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 

@@ -56,11 +56,11 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 		extendedConfig ExtendedRemoteStateConfigGCS
 	)
 
-	if err := mapstructure.Decode(cfg, &gcsConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.Decode(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 
