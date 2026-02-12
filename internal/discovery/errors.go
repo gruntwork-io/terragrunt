@@ -89,31 +89,6 @@ func NewMissingWorkingDirectoryError(componentPath string) error {
 	})
 }
 
-// MaxDepthReachedError represents an error that occurs when the maximum
-// discovery depth is reached during traversal.
-type MaxDepthReachedError struct {
-	CurrentPath string
-	Phase       PhaseKind
-	MaxDepth    int
-}
-
-func (e MaxDepthReachedError) Error() string {
-	return fmt.Sprintf(
-		"Maximum depth of %d reached during %s phase while processing '%s'. "+
-			"Consider increasing the max depth setting or checking for circular references.",
-		e.MaxDepth, e.Phase.String(), e.CurrentPath,
-	)
-}
-
-// NewMaxDepthReachedError creates a new MaxDepthReachedError.
-func NewMaxDepthReachedError(phase PhaseKind, maxDepth int, currentPath string) error {
-	return errors.New(MaxDepthReachedError{
-		Phase:       phase,
-		MaxDepth:    maxDepth,
-		CurrentPath: currentPath,
-	})
-}
-
 // ClassificationError represents an error during component classification.
 type ClassificationError struct {
 	ComponentPath string
@@ -135,24 +110,3 @@ func NewClassificationError(componentPath, reason string) error {
 	})
 }
 
-// PhaseError wraps an error that occurred during a specific discovery phase.
-type PhaseError struct {
-	Err   error
-	Phase PhaseKind
-}
-
-func (e PhaseError) Error() string {
-	return fmt.Sprintf("error during %s phase: %v", e.Phase.String(), e.Err)
-}
-
-func (e PhaseError) Unwrap() error {
-	return e.Err
-}
-
-// NewPhaseError creates a new PhaseError.
-func NewPhaseError(phase PhaseKind, err error) error {
-	return errors.New(PhaseError{
-		Phase: phase,
-		Err:   err,
-	})
-}
