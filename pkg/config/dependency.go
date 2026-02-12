@@ -311,7 +311,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !pctx.SkipOutputsResolution {
-			l.Debugf("Reading Terragrunt config file at %s", depPath)
+			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, depPath, pctx.TerragruntOptions.LogShowAbsPaths))
 		}
 
 		depCtx := pctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(depOpts).WithDiagnosticsSuppressed(l)
@@ -717,7 +717,7 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 	locks.Lock(targetConfig)
 	defer locks.Unlock(targetConfig)
 
-	l.Debugf("Getting output of dependency %s for config %s", targetConfig, pctx.TerragruntOptions.TerragruntConfigPath)
+	l.Debugf("Getting output of dependency %s for config %s", util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, targetConfig, pctx.TerragruntOptions.LogShowAbsPaths), util.RelPathForLog(pctx.TerragruntOptions.RootWorkingDir, pctx.TerragruntOptions.TerragruntConfigPath, pctx.TerragruntOptions.LogShowAbsPaths))
 
 	jsonCache := cache.ContextCache[[]byte](ctx, JSONOutputCacheContextKey)
 	if jsonBytes, found := jsonCache.Get(ctx, targetConfig); found {
@@ -1015,7 +1015,15 @@ func getTerragruntOutputJSONFromInitFolder(
 		return nil, err
 	}
 
-	l.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
+	l.Debugf(
+		"Unit '%s' is already init-ed. "+
+			"Retrieving outputs directly from working directory.",
+		util.RelPathForLog(
+			pctx.TerragruntOptions.RootWorkingDir,
+			filepath.Dir(targetConfigPath),
+			pctx.TerragruntOptions.LogShowAbsPaths,
+		),
+	)
 
 	out, err := tf.RunCommandWithOutput(ctx, l, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
@@ -1025,7 +1033,15 @@ func getTerragruntOutputJSONFromInitFolder(
 	jsonString := strings.TrimSpace(out.Stdout.String())
 	jsonBytes := []byte(jsonString)
 
-	l.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
+	l.Debugf(
+		"Retrieved output from %s as json: %s",
+		util.RelPathForLog(
+			pctx.TerragruntOptions.RootWorkingDir,
+			targetConfigPath,
+			pctx.TerragruntOptions.LogShowAbsPaths,
+		),
+		jsonString,
+	)
 
 	return jsonBytes, nil
 }

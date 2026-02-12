@@ -76,7 +76,6 @@ const (
 	MetadataCatalog                     = "catalog"
 	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
-	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
 	MetadataExclude                     = "exclude"
@@ -162,7 +161,6 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
 	FeatureFlags                FeatureFlags
-	DependentModulesPath        []*string
 	IsPartial                   bool
 }
 
@@ -1143,7 +1141,7 @@ func ReadTerragruntConfig(ctx context.Context,
 	opts *options.TerragruntOptions,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", opts.TerragruntConfigPath)
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	ctx, parsingCtx := NewParsingContext(ctx, l, opts)

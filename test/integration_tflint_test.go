@@ -84,15 +84,18 @@ func TestTflintWithoutConfigFile(t *testing.T) {
 }
 
 func TestTflintFindsConfigInCurrentPath(t *testing.T) {
-	out := new(bytes.Buffer)
-	errOut := new(bytes.Buffer)
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoTfSourcePath)
 	modulePath := filepath.Join(rootPath, testFixtureTflintNoTfSourcePath)
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level debug --working-dir "+modulePath, out, errOut)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --log-level debug --working-dir "+modulePath,
+	)
 	require.NoError(t, err)
 
-	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
-	assert.Contains(t, errOut.String(), "--config ./.tflint.hcl")
+	assert.Contains(t, stderr, "Tflint has run successfully. No issues found")
+
+	expectedTflintHCLPath := filepath.Join("..", "..", "..", ".tflint.hcl")
+	assert.Contains(t, stderr, expectedTflintHCLPath)
 }
 
 func TestTflintInitSameModule(t *testing.T) {

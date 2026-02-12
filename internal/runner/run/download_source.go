@@ -61,7 +61,11 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	l.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
+	l.Debugf(
+		"Copying files from %s into %s",
+		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
+	)
 
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
@@ -83,7 +87,14 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	l.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
+	l.Debugf(
+		"Setting working directory to %s",
+		util.RelPathForLog(
+			opts.RootWorkingDir,
+			terraformSource.WorkingDir,
+			opts.LogShowAbsPaths,
+		),
+	)
 	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
 
 	return updatedTerragruntOptions, nil
@@ -115,7 +126,15 @@ func DownloadTerraformSourceIfNecessary(
 				return err
 			}
 
-			l.Debugf("%s files in %s are up to date. Will not download again.", opts.TofuImplementation, terraformSource.WorkingDir)
+			l.Debugf(
+				"%s files in %s are up to date. Will not download again.",
+				opts.TofuImplementation,
+				util.RelPathForLog(
+					opts.RootWorkingDir,
+					terraformSource.WorkingDir,
+					opts.LogShowAbsPaths,
+				),
+			)
 
 			return nil
 		}
@@ -306,8 +325,8 @@ func downloadSource(
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
-		canonicalSourceURL,
-		src.DownloadDir)
+		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 

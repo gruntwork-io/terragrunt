@@ -1214,7 +1214,7 @@ func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
+		`prefix=../dep .+Unit '../dep' is already init-ed. Retrieving outputs directly from working directory.`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }

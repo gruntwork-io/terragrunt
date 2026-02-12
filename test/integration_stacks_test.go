@@ -1,7 +1,9 @@
 package test_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,17 +12,16 @@ import (
 	"github.com/gruntwork-io/terratest/modules/files"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -56,6 +57,7 @@ const (
 	testFixtureStackNoDotTerragruntStackOutput = "fixtures/stacks/no-dot-terragrunt-stack-output"
 	testFixtureStackFindInParentFolders        = "fixtures/stacks/find-in-parent-folders"
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
+	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -1637,7 +1639,9 @@ func TestStackTerragruntDir(t *testing.T) {
 		"terragrunt apply --all --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
-	assert.Contains(t, out, `terragrunt_dir = "./tennant_1"`)
+
+	expectedTerragruntDir := filepath.Join(rootPath, "tennant_1")
+	assert.Contains(t, out, fmt.Sprintf(`terragrunt_dir = "%s"`, expectedTerragruntDir))
 }
 
 func TestStackOriginalTerragruntDir(t *testing.T) {
@@ -2018,4 +2022,33 @@ func findStackFiles(t *testing.T, dir string) []string {
 	require.NoError(t, err)
 
 	return stackFiles
+}
+
+// TestStackVersionConstraints verifies that version constraints are respected in stack runs.
+// This test cannot be parallelized as it changes the global version.Version.
+//
+//nolint:paralleltest
+func TestStackVersionConstraints(t *testing.T) {
+	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackVersionConstraints, "live")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// Run with a version that doesn't meet the constraint (>= 99.0.0)
+	err := helpers.RunTerragruntVersionCommand(
+		t,
+		"v0.99.0",
+		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	require.Error(t, err)
+
+	var invalidVersionError run.InvalidTerragruntVersion
+	assert.ErrorAs(t, err, &invalidVersionError)
 }

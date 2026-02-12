@@ -34,6 +34,7 @@ const (
 	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
 	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/hooks/init-once/with-source-with-backend"
 	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
+	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -438,4 +439,24 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
 	assert.Empty(t, dat.IAMRole)
+}
+
+func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksPathPreservation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksPathPreservation)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksPathPreservation)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath,
+	)
+
+	require.Error(t, err)
+
+	// The absolute path should be preserved exactly as the hook output it
+	// NOT converted to a relative path like "../../../.terraform.d/plugin-cache"
+	assert.Contains(t, stderr, "/home/testuser/.terraform.d/plugin-cache")
+	assert.NotContains(t, stderr, "../")
 }

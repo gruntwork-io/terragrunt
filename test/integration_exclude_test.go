@@ -1,227 +1,309 @@
 package test_test
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
+	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"testing"
 )
 
 const (
-	testExcludeByDefault       = "fixtures/exclude/default"
-	testExcludeDisabled        = "fixtures/exclude/disabled"
-	testExcludeByAction        = "fixtures/exclude/action"
-	testExcludeByFlags         = "fixtures/exclude/feature-flags"
-	testExcludeDependencies    = "fixtures/exclude/dependencies"
-	testExcludeAllExceptOutput = "fixtures/exclude/all-except-output"
-	testExcludeNoRun           = "fixtures/exclude/no-run"
+	testExcludeComprehensive = "fixtures/exclude/comprehensive"
 )
 
-func TestExcludeByDefault(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeByDefault)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByDefault)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeByDefault)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "app1")
-	assert.NotContains(t, stderr, "app2")
+// expectedResult defines the expected outcome for a unit in a test case.
+type expectedResult struct {
+	result string
+	reason string
 }
 
-func TestExcludeDisabled(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeDisabled)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDisabled)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeDisabled)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "app1")
-	assert.Contains(t, stderr, "app2")
+// excludeTestCase defines a single test case for the exclude block behavior.
+type excludeTestCase struct {
+	expectedUnits   map[string]expectedResult
+	name            string
+	command         string
+	workingDir      string
+	featureFlags    []string
+	runAll          bool
+	expectEarlyExit bool
+	expectRuns      bool
 }
 
-func TestExcludeApply(t *testing.T) {
+func TestExcludeBlockBehavior(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testExcludeByAction)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByAction)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeByAction)
+	testCases := []*excludeTestCase{
+		// ========== Run --all Mode Tests ==========
+		{
+			name:    "run_all_basic_exclusion",
+			command: "plan",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"always-excluded": {result: "excluded", reason: "exclude block"},
+				"never-excluded":  {result: "succeeded"},
+				"normal-unit":     {result: "succeeded"},
+			},
+		},
+		{
+			name:    "run_all_action_specific_plan",
+			command: "plan",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"exclude-plan-only":  {result: "excluded", reason: "exclude block"},
+				"exclude-apply-only": {result: "succeeded"},
+			},
+		},
+		{
+			name:    "run_all_action_specific_apply",
+			command: "apply -auto-approve",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"exclude-plan-only":  {result: "succeeded"},
+				"exclude-apply-only": {result: "excluded", reason: "exclude block"},
+			},
+		},
+		{
+			name:    "run_all_all_except_output_apply",
+			command: "apply -auto-approve",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"exclude-all-except-output": {result: "excluded", reason: "exclude block"},
+			},
+		},
+		{
+			name:    "run_all_all_except_output_cmd",
+			command: "output",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"exclude-all-except-output": {result: "succeeded"},
+			},
+		},
+		{
+			name:    "run_all_ignores_no_run",
+			command: "plan",
+			runAll:  true,
+			expectedUnits: map[string]expectedResult{
+				"no-run-true":  {result: "excluded", reason: "exclude block"},
+				"no-run-false": {result: "excluded", reason: "exclude block"},
+				"normal-unit":  {result: "succeeded"},
+			},
+		},
+		{
+			name:         "run_all_feature_flag_true",
+			command:      "plan",
+			runAll:       true,
+			featureFlags: []string{"exclude=true"},
+			expectedUnits: map[string]expectedResult{
+				"conditional-flag": {result: "excluded", reason: "exclude block"},
+			},
+		},
+		{
+			name:         "run_all_feature_flag_false",
+			command:      "plan",
+			runAll:       true,
+			featureFlags: []string{"exclude=false"},
+			expectedUnits: map[string]expectedResult{
+				"conditional-flag": {result: "succeeded"},
+			},
+		},
+		{
+			name:         "run_all_exclude_dependencies_true",
+			command:      "plan",
+			runAll:       true,
+			featureFlags: []string{"exclude=true", "exclude_deps=true"},
+			expectedUnits: map[string]expectedResult{
+				"with-dep": {result: "excluded", reason: "exclude block"},
+				"dep-unit": {result: "excluded", reason: "exclude block"},
+			},
+		},
+		{
+			name:         "run_all_exclude_dependencies_false",
+			command:      "plan",
+			runAll:       true,
+			featureFlags: []string{"exclude=true", "exclude_deps=false"},
+			expectedUnits: map[string]expectedResult{
+				"with-dep": {result: "excluded", reason: "exclude block"},
+				"dep-unit": {result: "succeeded"},
+			},
+		},
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
+		// ========== Single Unit Mode Tests ==========
+		// Single-unit mode uses stderr to verify behavior since reports are not generated
+		{
+			name:            "single_no_run_true_early_exit",
+			command:         "plan",
+			runAll:          false,
+			workingDir:      "no-run-true",
+			expectEarlyExit: true,
+		},
+		{
+			name:       "single_no_run_false_runs",
+			command:    "plan",
+			runAll:     false,
+			workingDir: "no-run-false",
+			expectRuns: true,
+		},
+		{
+			name:       "single_no_run_not_set_runs",
+			command:    "plan",
+			runAll:     false,
+			workingDir: "no-run-not-set",
+			expectRuns: true,
+		},
+		{
+			name:       "single_action_mismatch_runs",
+			command:    "apply -auto-approve",
+			runAll:     false,
+			workingDir: "action-mismatch",
+			expectRuns: true,
+		},
+		{
+			name:            "single_conditional_no_run_excluded",
+			command:         "plan",
+			runAll:          false,
+			workingDir:      "conditional-no-run",
+			expectEarlyExit: true,
+		},
+		{
+			name:         "single_conditional_no_run_runs",
+			command:      "plan",
+			runAll:       false,
+			workingDir:   "conditional-no-run",
+			featureFlags: []string{"enable_unit=true"},
+			expectRuns:   true,
+		},
+	}
 
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Contains(t, stderr, "exclude-apply")
-	assert.NotContains(t, stderr, "exclude-plan")
+			cleanupTerraformFolder(t, testExcludeComprehensive)
+			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeComprehensive)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+			var rootPath string
+			if tc.runAll {
+				rootPath = filepath.Join(tmpEnvPath, testExcludeComprehensive)
+			} else {
+				rootPath = filepath.Join(tmpEnvPath, testExcludeComprehensive, tc.workingDir)
+			}
 
-	require.NoError(t, err)
+			reportFile := filepath.Join(t.TempDir(), "report.json")
 
-	// should be applied only exclude-plan
-	assert.Contains(t, stderr, "exclude-plan")
-	assert.NotContains(t, stderr, "exclude-apply")
+			cmd := buildExcludeTestCommand(tc, rootPath, reportFile)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+			require.NoError(t, err)
+
+			if !tc.runAll {
+				if tc.expectEarlyExit {
+					assert.Contains(t, stderr, "Early exit in terragrunt unit")
+					assert.Contains(t, stderr, "due to exclude block with no_run = true")
+				}
+
+				if tc.expectRuns {
+					assert.NotContains(t, stderr, "Early exit in terragrunt unit")
+					assert.NotContains(t, stderr, "due to exclude block with no_run = true")
+				}
+
+				return
+			}
+
+			runs, err := report.ParseJSONRunsFromFile(reportFile)
+			require.NoError(t, err, "Failed to parse report file")
+
+			for unitName, expected := range tc.expectedUnits {
+				run := runs.FindByName(unitName)
+				require.NotNil(t, run, "unit %s not found in report. Found: %v", unitName, runs.Names())
+				assert.Equal(
+					t,
+					expected.result,
+					run.Result,
+					"unit %s: expected result %q, got %q",
+					unitName,
+					expected.result,
+					run.Result,
+				)
+
+				switch expected.result {
+				case "excluded":
+					require.NotEmpty(
+						t,
+						expected.reason,
+						"test bug: excluded unit %s must specify expected reason",
+						unitName,
+					)
+					require.NotNil(
+						t,
+						run.Reason,
+						"unit %s: expected reason %q but got nil",
+						unitName,
+						expected.reason,
+					)
+					assert.Equal(
+						t,
+						expected.reason,
+						*run.Reason,
+						"unit %s: expected reason %q, got %q",
+						unitName,
+						expected.reason,
+						*run.Reason,
+					)
+				case "succeeded":
+					assert.Nil(
+						t,
+						run.Reason,
+						"unit %s: succeeded units should not have a reason, got %v",
+						unitName,
+						run.Reason,
+					)
+				default:
+					t.Fatalf("Unexpected result %q for unit %s", expected.result, unitName)
+				}
+			}
+		})
+	}
 }
 
-func TestExcludeByFeatureFlagDefault(t *testing.T) {
-	t.Parallel()
+// buildExcludeTestCommand constructs the terragrunt command for a test case.
+func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) string {
+	if tc.runAll {
+		cmd := fmt.Sprintf(
+			"terragrunt run --all --non-interactive --working-dir %s "+
+				"--report-file %s --report-format json",
+			rootPath,
+			reportFile,
+		)
 
-	cleanupTerraformFolder(t, testExcludeByFlags)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
+		var cmdSB strings.Builder
+		for _, flag := range tc.featureFlags {
+			cmdSB.WriteString(" --feature " + flag)
+		}
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --non-interactive --working-dir "+rootPath)
+		cmd += cmdSB.String()
 
-	require.NoError(t, err)
+		cmd += " -- " + tc.command
 
-	assert.Contains(t, stderr, "Unit app1")
-	assert.NotContains(t, stderr, "Unit app2")
-}
+		return cmd
+	}
 
-func TestExcludeByFeatureFlag(t *testing.T) {
-	t.Parallel()
+	cmd := fmt.Sprintf(
+		"terragrunt %s --non-interactive --working-dir %s",
+		tc.command,
+		rootPath,
+	)
 
-	cleanupTerraformFolder(t, testExcludeByFlags)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
+	var cmdSB strings.Builder
+	for _, flag := range tc.featureFlags {
+		cmdSB.WriteString(" --feature " + flag)
+	}
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude2=false --non-interactive --working-dir "+rootPath)
+	cmd += cmdSB.String()
 
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "app1")
-	assert.Contains(t, stderr, "app2")
-}
-
-func TestExcludeAllByFeatureFlag(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeByFlags)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeByFlags)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all apply --feature exclude1=true --feature exclude2=true --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-
-	assert.NotContains(t, stderr, "app1")
-	assert.NotContains(t, stderr, "app2")
-}
-
-func TestExcludeDependencies(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeDependencies)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencies)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeDependencies)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature exclude=false --feature exclude_dependencies=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "dep")
-	assert.Contains(t, stderr, "app1")
-
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --feature exclude=true --feature exclude_dependencies=false --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "Unit dep")
-	assert.NotContains(t, stderr, "Unit app1")
-}
-
-func TestExcludeAllExceptOutput(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeAllExceptOutput)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeAllExceptOutput)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeAllExceptOutput)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-	require.NoError(t, err)
-
-	assert.NotContains(t, stderr, "app1")
-	assert.Contains(t, stderr, "app2")
-
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --non-interactive --working-dir "+rootPath)
-	require.NoError(t, err)
-
-	assert.Contains(t, stderr, "app1")
-	assert.Contains(t, stderr, "app2")
-}
-
-func TestExcludeNoRunSingleUnit(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeNoRun)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-unit")
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Early exit in terragrunt unit")
-	assert.Contains(t, stderr, "due to exclude block with no_run = true")
-}
-
-func TestExcludeNoRunRunAll(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeNoRun)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit normal-unit")
-	assert.NotContains(t, stderr, "Unit no-run-unit")
-}
-
-func TestExcludeNoRunConditional(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeNoRun)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "conditional-no-run-unit")
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Early exit in terragrunt unit")
-	assert.Contains(t, stderr, "due to exclude block with no_run = true")
-
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --feature enable_unit=true --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
-}
-
-func TestExcludeNoRunIndependentOfActions(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testExcludeNoRun)
-	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeNoRun)
-	rootPath := filepath.Join(tmpEnvPath, testExcludeNoRun, "no-run-independent")
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
-
-	require.NoError(t, err)
-	assert.NotContains(t, stderr, "Early exit in terragrunt unit")
-	assert.NotContains(t, stderr, "due to exclude block with no_run = true")
-
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan --non-interactive --working-dir "+rootPath)
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Early exit in terragrunt unit")
-	assert.Contains(t, stderr, "due to exclude block with no_run = true")
+	return cmd
 }

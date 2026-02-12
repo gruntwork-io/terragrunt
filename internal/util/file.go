@@ -1153,6 +1153,31 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	return fullPath, nil
 }
 
+// RelPathForLog returns a relative path suitable for logging.
+// If the path cannot be made relative, it returns the original path.
+// Paths that don't start with ".." get a "./" prefix for clarity.
+// If showAbsPath is true, the original targetPath is returned unchanged.
+func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
+	if showAbsPath {
+		return targetPath
+	}
+
+	if relPath, err := filepath.Rel(basePath, targetPath); err == nil {
+		if relPath == "." {
+			return targetPath
+		}
+
+		// Add "./" prefix for paths within the base directory for clarity
+		if !strings.HasPrefix(relPath, "..") {
+			return "." + string(filepath.Separator) + relPath
+		}
+
+		return relPath
+	}
+
+	return targetPath
+}
+
 // MoveFile attempts to rename a file from source to destination, if this fails
 // due to invalid cross-device link it falls back to copying the file contents
 // and deleting the original file.
