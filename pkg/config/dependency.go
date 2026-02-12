@@ -1372,7 +1372,7 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	if err = tf.RunCommand(ctx, l, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
-		l.Debugf(stderr.String())
+		l.Debugf("%s", stderr.String())
 	}
 
 	return nil

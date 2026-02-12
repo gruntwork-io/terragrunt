@@ -985,7 +985,7 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 	}
 
 	loggingInput := client.CreateS3LoggingInput()
-	l.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%s", bucket, logsBucket, logsBucketPrefix, loggingInput)
+	l.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%v", bucket, logsBucket, logsBucketPrefix, loggingInput)
 
 	if _, err := client.s3Client.PutBucketLogging(ctx, &loggingInput); err != nil {
 		return errors.Errorf("error enabling bucket-wide Access Logging on AWS S3 bucket %s: %w", cfg.RemoteStateConfigS3.Bucket, err)
