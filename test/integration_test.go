@@ -1250,9 +1250,6 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 }
 
-// TestSymlinksWithInclude tests that include blocks work correctly when running
-// terragrunt from a symlinked directory with the symlinks experiment enabled.
-// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5314
 func TestSymlinksWithInclude(t *testing.T) {
 	t.Parallel()
 
