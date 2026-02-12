@@ -240,6 +240,116 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 }
 
+// TestTerragruntProviderCacheWithAbsoluteModuleURL tests that the provider cache correctly handles
+// registries that return absolute URLs in their .well-known/terraform.json discovery response.
+// See https://github.com/gruntwork-io/terragrunt/issues/5156
+func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
+	rootPath := t.TempDir()
+	appPath := filepath.Join(rootPath, "app")
+	providerCacheDir := filepath.Join(rootPath, "providers-cache")
+	providersPath := filepath.Join(rootPath, "providers")
+
+	err := os.MkdirAll(appPath, os.ModePerm)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	defaultTransport := http.DefaultTransport
+
+	defer func() {
+		http.DefaultTransport = defaultTransport
+	}()
+
+	absoluteModulesURL := "https://modules.example.com/registry/v1/modules/"
+
+	registryURL := runMockRegistryWithAbsoluteModuleURL(t, ctx, providersPath, absoluteModulesURL)
+	registryHost := registryURL.Host
+
+	fakeProvider := FakeProvider{
+		RegistryName: registryHost,
+		Namespace:    "hashicorp",
+		Name:         "null",
+		Version:      "3.2.0",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, providersPath)
+
+	mainTfPath := filepath.Join(appPath, "main.tf")
+	mainTfContent := fmt.Sprintf(`terraform {
+  required_providers {
+    null = {
+      source  = "%s/hashicorp/null"
+      version = "3.2.0"
+    }
+  }
+}
+`, registryHost)
+	err = os.WriteFile(mainTfPath, []byte(mainTfContent), 0644)
+	require.NoError(t, err)
+
+	terragruntHclPath := filepath.Join(appPath, "terragrunt.hcl")
+	err = os.WriteFile(terragruntHclPath, []byte("# Test fixture for absolute module URL\n"), 0644)
+	require.NoError(t, err)
+
+	cliConfigFilename, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "*")
+	require.NoError(t, err)
+
+	defer cliConfigFilename.Close()
+
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile)
+
+	cliConfigSettings := &test.CLIConfigSettings{
+		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
+			{
+				Path:    providersPath,
+				Include: []string{registryHost + "/*/*"},
+			},
+		},
+		DirectMethods: []test.CLIConfigProviderInstallationDirect{
+			{
+				Exclude: []string{registryHost + "/*/*"},
+			},
+		},
+	}
+	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt init --provider-cache --provider-cache-registry-names %s --provider-cache-dir %s --non-interactive --working-dir %s",
+			registryHost,
+			providerCacheDir,
+			appPath,
+		),
+	)
+
+	cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+	require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory")
+
+	terraformrcBytes, err := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
+	require.NoError(t, err)
+
+	terraformrc := string(terraformrcBytes)
+
+	assert.Contains(
+		t,
+		terraformrc,
+		absoluteModulesURL,
+		"The .terraformrc should contain the absolute modules.v1 URL as-is",
+	)
+
+	malformedURL := fmt.Sprintf("https://%s%s", registryHost, absoluteModulesURL)
+	assert.NotContains(
+		t,
+		terraformrc,
+		malformedURL,
+		"The .terraformrc should NOT contain a malformed URL with double hostname",
+	)
+}
+
 func TestTerragruntDownloadDir(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureLocalRelativeDownloadPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)

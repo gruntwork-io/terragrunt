@@ -19,14 +19,8 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
-// DefaultTerragruntConfigPath is the default name of the terragrunt configuration file.
-const DefaultTerragruntConfigPath = "terragrunt.hcl"
-
 // DefaultEngineType is the default engine type.
 const DefaultEngineType = "rpc"
-
-// TerraformCommandsNeedInput lists terraform commands that require input handling.
-var TerraformCommandsNeedInput = []string{"apply", "destroy", "refresh", "import"}
 
 // CopyLockFile copies the lock file from the source folder to the destination folder.
 //
@@ -181,15 +175,6 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 	}
 
 	return matches[1], nil
-}
-
-// ShouldCopyLockFile determines if the terraform lock file should be copied.
-func ShouldCopyLockFile(cfg *TerraformConfig) bool {
-	if cfg == nil {
-		return true // Default to copying
-	}
-
-	return !cfg.NoCopyTerraformLockFile
 }
 
 // EngineOptions fetches engine options from the RunConfig.
@@ -393,13 +378,15 @@ func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition b
 		return false
 	}
 
-	if noRun != nil && !*noRun {
+	switch {
+	case noRun == nil:
+		// When no_run isn't set, preserve legacy behavior: only exact action matches prevent a run.
+		return slices.Contains(actions, command)
+	case !*noRun:
+		// When no_run is explicitly false, never prevent the run.
 		return false
-	}
-
-	if noRun != nil && *noRun {
+	default:
+		// When no_run is explicitly true, use the shared action matcher (supports special values).
 		return IsActionListedInExclude(actions, command)
 	}
-
-	return slices.Contains(actions, command)
 }
