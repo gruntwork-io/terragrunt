@@ -107,7 +107,7 @@ const (
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	testFixtureExecCmdTfPath                  = "fixtures/exec-cmd-tf-path"
-	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
+	testFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureSymlinkInclude                 = "fixtures/symlink-include"
 	testFixtureSymlinkIncludeDeps             = "fixtures/symlink-include-deps"
 	testFixtureLogStreaming                   = "fixtures/streaming"
@@ -1187,10 +1187,10 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
 	// so the symlinked directories are copied physically, which defeats the purpose of this test,
 	// therefore we are going to create the symlinks manually in the destination directory
-	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDisjointSymlinks))
 	require.NoError(t, err)
 
-	disjointSymlinksEnvironmentPath := filepath.Join(tmpEnvPath, textFixtureDisjointSymlinks)
+	disjointSymlinksEnvironmentPath := filepath.Join(tmpEnvPath, testFixtureDisjointSymlinks)
 	require.NoError(
 		t,
 		os.Symlink(filepath.Join(disjointSymlinksEnvironmentPath, "a"),
@@ -1250,6 +1250,9 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 }
 
+// TestSymlinksWithInclude tests that include blocks work correctly when running
+// terragrunt from a symlinked directory with the symlinks experiment enabled.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5314
 func TestSymlinksWithInclude(t *testing.T) {
 	t.Parallel()
 
@@ -1309,22 +1312,14 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 		"terragrunt run --all validate --experiment symlinks --non-interactive --working-dir "+symlinkPath,
 	)
 
-	// The key success is that units are discovered and include resolution works.
-	// We should NOT get "must specify a 'path' parameter" error.
-	// Other errors (like module not found or dependency syntax) are expected in this test fixture.
-	assert.NotContains(t, stderr, "must specify a 'path' parameter", "Should not fail with include path error")
+	// Before the fix, this would fail with:
+	// "The include configuration in .../actual/child/terragrunt.hcl must specify a 'path' parameter"
+	require.NoError(t, err, "Expected no error when running with symlinks experiment from symlinked directory with deps, got: %s", stderr)
 
 	// Verify units were discovered through symlink
 	assert.Contains(t, stderr, "Unit app1", "Should discover app1 unit")
 	assert.Contains(t, stderr, "Unit app2", "Should discover app2 unit")
 	assert.Contains(t, stderr, "Unit vpc", "Should discover vpc unit")
-
-	// If there's an error, it should be about modules/dependencies, not include paths
-	if err != nil {
-		// Acceptable errors: module not found, dependency issues
-		// NOT acceptable: include configuration errors
-		t.Logf("Test completed with expected errors (module/dependency issues): %v", err)
-	}
 }
 
 func TestInvalidSource(t *testing.T) {
