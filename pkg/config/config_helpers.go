@@ -1369,7 +1369,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 	// credentials with empty auth-provider values.
 	env := pctx.TerragruntOptions.Env
 
-	var setKeys []string
+	setKeys := make([]string, 0, len(env))
 
 	for k, v := range env {
 		if _, exists := os.LookupEnv(k); exists {
