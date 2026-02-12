@@ -346,7 +346,7 @@ func (c *Classifier) matchesFilesystemExpression(l log.Logger, comp component.Co
 // Returns the index of the matching graph expression, or -1 if no match.
 // Negated graph expressions are handled separately by matchesNegatedGraphExpressionTarget.
 func (c *Classifier) matchesGraphExpressionTarget(l log.Logger, comp component.Component) int {
-	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
+	idx := slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
 		if info.IsNegated {
 			return false
 		}
@@ -358,13 +358,19 @@ func (c *Classifier) matchesGraphExpressionTarget(l log.Logger, comp component.C
 
 		return match
 	})
+
+	if idx >= 0 {
+		return c.graphExprs[idx].Index
+	}
+
+	return -1
 }
 
 // matchesNegatedGraphExpressionTarget checks if the component matches any negated graph expression target.
 // Returns the index of the matching graph expression, or -1 if no match.
 // This is used to identify components that need graph traversal even when they would otherwise be excluded.
 func (c *Classifier) matchesNegatedGraphExpressionTarget(l log.Logger, comp component.Component) int {
-	return slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
+	idx := slices.IndexFunc(c.graphExprs, func(info *GraphExpressionInfo) bool {
 		if !info.IsNegated {
 			return false
 		}
@@ -376,6 +382,12 @@ func (c *Classifier) matchesNegatedGraphExpressionTarget(l log.Logger, comp comp
 
 		return match
 	})
+
+	if idx >= 0 {
+		return c.graphExprs[idx].Index
+	}
+
+	return -1
 }
 
 // GraphExpressions returns the analyzed graph expressions.

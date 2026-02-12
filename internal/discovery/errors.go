@@ -109,4 +109,3 @@ func NewClassificationError(componentPath, reason string) error {
 		Reason:        reason,
 	})
 }
-

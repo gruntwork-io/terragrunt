@@ -319,6 +319,22 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:    1,
 		},
 		{
+			name:           "graph_expression_index_with_preceding_non_graph_filter",
+			filterStrs:     []string{"./libs/api", "./libs/db..."},
+			componentPath:  "./libs/db",
+			expectedStatus: filter.StatusCandidate,
+			expectedReason: filter.CandidacyReasonGraphTarget,
+			expectedIdx:    1,
+		},
+		{
+			name:           "graph_expression_index_with_multiple_preceding_non_graph_filters",
+			filterStrs:     []string{"./libs/api", "!./libs/cache", "./libs/db..."},
+			componentPath:  "./libs/db",
+			expectedStatus: filter.StatusCandidate,
+			expectedReason: filter.CandidacyReasonGraphTarget,
+			expectedIdx:    2,
+		},
+		{
 			name:               "parse_expressions_with_parse_data_evaluates_normally",
 			filterStrs:         []string{"reading=config/*.hcl"},
 			componentPath:      "./apps/app1",
