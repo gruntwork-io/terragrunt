@@ -81,19 +81,28 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
+	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{}, func(childCtx context.Context) error {
 		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
 			l.Debugf("Cycle: %v", cycleErr)
 
 			if d.breakCycles {
 				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-				components = removeCycles(components)
+				var removeErr error
+
+				components, removeErr = removeCycles(components)
+				if removeErr != nil {
+					return removeErr
+				}
 			}
 		}
 
 		return nil
 	})
+
+	if cycleCheckErr != nil && !d.suppressParseErrors {
+		return components, cycleCheckErr
+	}
 
 	if d.graphTarget != "" {
 		var err error
@@ -414,7 +423,7 @@ func (d *Discovery) buildComponentDependencies(
 }
 
 // removeCycles removes cycles from the dependency graph.
-func removeCycles(components component.Components) component.Components {
+func removeCycles(components component.Components) (component.Components, error) {
 	var (
 		c   component.Component
 		err error
@@ -433,7 +442,7 @@ func removeCycles(components component.Components) component.Components {
 		components = components.RemoveByPath(c.Path())
 	}
 
-	return components
+	return components, err
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
