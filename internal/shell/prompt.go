@@ -17,7 +17,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, opts *
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
 	// a message about assuming `yes` to Debug, so
 	if opts.NonInteractive {
-		l.Debugf(prompt)
+		l.Debugf("%s", prompt)
 		l.Debugf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
 
 		return "yes", nil

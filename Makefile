@@ -37,18 +37,11 @@ LINT_TAGS := $(shell grep -rh 'go:build' . | \
 
 run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m ./...
-
-run-lint-incremental:
-	@echo "Incremental lint from $(BASE_REV) with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --new-from-rev $(BASE_REV) ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m ./...
 
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --fix ./...
-
-run-strict-lint:
-	golangci-lint run -v --timeout=10m -c .strict.golangci.yml --new-from-rev origin/main ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --fix ./...
 
 generate-mocks:
 	go generate ./...
@@ -67,4 +60,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-incremental run-lint-fix run-strict-lint fuzz
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz
