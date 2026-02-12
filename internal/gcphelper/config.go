@@ -137,7 +137,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *opt
 	}
 
 	if err := json.Unmarshal([]byte(contents), &account); err != nil {
-		return nil, errors.Errorf("Error parsing GCP credentials: %w", err)
+		return nil, errors.Errorf("Error parsing GCP credentials.")
 	}
 
 	conf := jwt.Config{

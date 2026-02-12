@@ -126,9 +126,7 @@ func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
 }
 
 // TestGetTFInitArgs_StringBoolCoercion verifies that string boolean values
-// (from HCL ternary type unification) pass through correctly to terraform init
-// -backend-config args. Complements unit-level WeakDecode coercion tests in
-// s3/config_test.go and gcs/config_test.go. See #5475.
+// (from HCL ternary type unification) pass through correctly to terraform init -backend-config args.
 func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 

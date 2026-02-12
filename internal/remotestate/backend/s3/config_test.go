@@ -11,7 +11,6 @@ import (
 
 // TestParseExtendedS3Config_StringBoolCoercion verifies that boolean config values
 // passed as strings (e.g. from HCL ternary type unification) are correctly parsed.
-// See https://github.com/gruntwork-io/terragrunt/issues/5475
 func TestParseExtendedS3Config_StringBoolCoercion(t *testing.T) {
 	t.Parallel()
 
