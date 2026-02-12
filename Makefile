@@ -39,6 +39,10 @@ run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m ./...
 
+run-lint-incremental:
+	@echo "Incremental lint from $(BASE_REV) with feature flags: [$(LINT_TAGS)]"
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --new-from-rev $(BASE_REV) ./...
+
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --fix ./...
@@ -63,4 +67,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix run-strict-lint fuzz
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-incremental run-lint-fix run-strict-lint fuzz
