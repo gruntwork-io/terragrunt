@@ -125,6 +125,99 @@ func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
 	}
 }
 
+// TestGetTFInitArgs_StringBoolCoercion verifies that string boolean values
+// (from HCL ternary type unification) pass through correctly to terraform init -backend-config args.
+func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		backendName  string
+		config       map[string]any
+		expectedArgs []string
+	}{
+		{
+			"s3-string-bool-use-lockfile",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"encrypt":      "true",
+				"use_lockfile": "true",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=encrypt=true",
+				"-backend-config=use_lockfile=true",
+			},
+		},
+		{
+			"s3-native-bool-use-lockfile",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"encrypt":      true,
+				"use_lockfile": true,
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=encrypt=true",
+				"-backend-config=use_lockfile=true",
+			},
+		},
+		{
+			"s3-string-bool-false",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"use_lockfile": "false",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=use_lockfile=false",
+			},
+		},
+		{
+			"gcs-string-bool-skip-versioning",
+			"gcs",
+			map[string]any{
+				"bucket":                 "my-bucket",
+				"prefix":                 "terraform.tfstate",
+				"skip_bucket_versioning": "true",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=prefix=terraform.tfstate",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &remotestate.Config{
+				BackendName:   tc.backendName,
+				BackendConfig: tc.config,
+			}
+			args := remotestate.New(cfg).GetTFInitArgs()
+
+			assert.ElementsMatch(t, tc.expectedArgs, args)
+		})
+	}
+}
+
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
 	t.Helper()
 

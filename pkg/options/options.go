@@ -438,7 +438,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.New(err), log.WithFormatter(formatter))
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", errors.New(err))
 
 		return nil, err
 	}

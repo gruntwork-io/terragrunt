@@ -40,9 +40,9 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		moduleURL      url.URL
 		terraformGet   string
 		expectedResult string
+		moduleURL      url.URL
 	}{
 		{
 			name: "BaseWithRoot",
