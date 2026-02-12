@@ -6,17 +6,17 @@ sidebar:
   order: 1
 ---
 
-## What compatibility guarantees are being made in 1.0?
-
 The term "breaking change" means something different to different people, and every change can, in some way, be a breaking change to someone.
 
-![Relevant XKCD](https://imgs.xkcd.com/comics/workflow.png)
+[![Relevant XKCD](https://imgs.xkcd.com/comics/workflow.png)](https://xkcd.com/1172/)
 
-*Relevant XKCD*
+*Relevant XKCD (#1172)*
 
 With the release of Terragrunt 1.0, there are some concrete compatibility guarantees that you can rely on for the duration of the 1.x line of Terragrunt, which is intended to remain the latest major version of Terragrunt for the foreseeable future. Any violations of these guarantees is a bug that will be fixed in a future 1.x release, or an oversight on the part of maintainers that will result in an update to this document.
 
 This is a living document that will be updated as questions are answered regarding what is and isn't considered a breaking change in Terragrunt 1.x.
+
+## What compatibility guarantees are being made in 1.0?
 
 ### The CLI
 
@@ -87,6 +87,12 @@ It is possible that changes to third party software that Terragrunt integrates w
 ### Performance
 
 The fastest thing you can do in software is to do nothing at all. In the pursuit of improving performance, maintainers may prevent Terragrunt from doing work understood to be unnecessary. In a large enough user base, *someone* is potentially going to be impacted by changes like this. Whenever possible, maintainers will strive to err on the side of maintaining exactly the same functionality, and only changing functionality if there's little to no justification for how the behavior would be beneficial to Terragrunt users. In the event changes like this cause disruption to users, maintainers will take this disruption very seriously and work to remediate the disruption, or revert the performance improvement.
+
+### Golang Compatibility
+
+Maintainers will frequently update the build system to use the latest version of Golang when compiling Terragrunt. Newer versions of Golang may drop support for older operating systems, which means that newer versions of compiled Terragrunt binaries might no longer run on older operating systems. When the Golang version is upgraded, the `go.mod` file will also be updated accordingly. If you compile Terragrunt from source, you may need to upgrade your local Golang installation to match the version specified in `go.mod`, or manually downgrade the version in `go.mod` to continue compiling Terragrunt using an older Golang version.
+
+If you are impacted by a Golang version upgrade and would like to request a policy adjustment, please reach out to the maintainers by starting a GitHub discussion or reaching out in the Terragrunt Discord.
 
 ## Versioning Policy
 
