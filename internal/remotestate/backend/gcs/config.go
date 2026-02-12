@@ -31,8 +31,6 @@ func (cfg Config) FilterOutTerragruntKeys() Config {
 
 func (cfg Config) IsEqual(targetCfg Config, logger log.Logger) bool {
 	// If other keys in config are bools, DeepEqual also will consider the maps to be different.
-	// Note: strconv.ParseBool is intentionally lenient here (accepts "1"/"0"/"t"/"f") for backward
-	// compatibility with existing configs. WeakDecode also accepts these via strconv.ParseBool.
 	for key, value := range targetCfg {
 		if util.KindOf(targetCfg[key]) == reflect.String && util.KindOf(cfg[key]) == reflect.Bool {
 			if convertedValue, err := strconv.ParseBool(value.(string)); err == nil {
@@ -56,10 +54,6 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 		extendedConfig ExtendedRemoteStateConfigGCS
 	)
 
-	// WeakDecode handles string->bool coercion ("true"/"false") needed when HCL ternary
-	// type unification produces string values for bool fields (see #5475). Also accepts
-	// strconv.ParseBool inputs ("1"/"0"/"t"/"f"). When adding new struct fields, verify
-	// that WeakDecode coercion behavior is acceptable for the field type.
 	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
 		return nil, errors.New(err)
 	}
