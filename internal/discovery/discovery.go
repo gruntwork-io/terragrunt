@@ -634,6 +634,8 @@ func (d *Discovery) walkDirectoryConcurrently(
 ) error {
 	walkFn := filepath.WalkDir
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		// WalkDirWithSymlinks returns logical (symlink-preserved) paths.
+		// processFile depends on this for correct find_in_parent_folders() behavior.
 		walkFn = util.WalkDirWithSymlinks
 	}
 
@@ -697,8 +699,9 @@ func isInStackDirectory(cleanDir string) bool {
 // processFile processes a single file to determine if it's a Terragrunt configuration.
 //
 // Note: when the symlinks experiment is enabled, `path` contains logical (symlink-preserved)
-// paths from WalkDirWithSymlinks, not physical paths. This is intentional - it allows
-// find_in_parent_folders() to traverse the symlink's parent chain correctly.
+// paths from WalkDirWithSymlinks, not physical paths. Consequently, `dir` (filepath.Dir(path))
+// and `canonicalDir` (absolute form of dir) also preserve symlink segments. This is intentional -
+// it allows find_in_parent_folders() to traverse the symlink's parent chain correctly.
 // See https://github.com/gruntwork-io/terragrunt/issues/5314
 func (d *Discovery) processFile(
 	l log.Logger,

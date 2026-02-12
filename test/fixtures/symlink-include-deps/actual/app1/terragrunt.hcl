@@ -7,7 +7,7 @@ dependency "vpc" {
 }
 
 terraform {
-  source = "../../../module"
+  source = "../../module"
 }
 
 inputs = {

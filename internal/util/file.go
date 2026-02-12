@@ -1038,6 +1038,10 @@ func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 // and calling the provided function for each file or directory encountered. It handles both regular
 // symlinks and circular symlinks without getting into infinite loops.
 //
+// Unlike filepath.WalkDir, callback paths are logical (symlink-preserving) - if root is a symlink,
+// paths use the symlink location, not the resolved physical target. This is important for callers
+// like find_in_parent_folders() that need to traverse the symlink's parent chain.
+//
 //nolint:funlen
 func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 	// pathPair keeps track of both the physical (real) path on disk
@@ -1107,6 +1111,8 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			return nil
 		})
 	}
+
+	root = filepath.Clean(root)
 
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {

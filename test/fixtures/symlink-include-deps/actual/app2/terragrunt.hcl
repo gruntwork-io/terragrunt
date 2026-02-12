@@ -7,7 +7,7 @@ dependency "app1" {
 }
 
 terraform {
-  source = "../../../module"
+  source = "../../module"
 }
 
 inputs = {

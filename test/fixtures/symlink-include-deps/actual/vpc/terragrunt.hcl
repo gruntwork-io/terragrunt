@@ -3,7 +3,7 @@ include "root" {
 }
 
 terraform {
-  source = "../../../module"
+  source = "../../module"
 }
 
 inputs = {

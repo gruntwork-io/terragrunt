@@ -1313,7 +1313,7 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 	)
 
 	// Before the fix, this would fail with:
-	// "The include configuration in .../actual/child/terragrunt.hcl must specify a 'path' parameter"
+	// "The include configuration in .../actual/app1/terragrunt.hcl must specify a 'path' parameter"
 	require.NoError(t, err, "Expected no error when running with symlinks experiment from symlinked directory with deps, got: %s", stderr)
 
 	// Verify units were discovered through symlink
