@@ -17,7 +17,6 @@ jobs:
         with:
           version: 2026.1.9
           experimental: true
-          cache: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
