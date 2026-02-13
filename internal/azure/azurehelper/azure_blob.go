@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -39,39 +40,13 @@ type GetObjectOutput struct {
 	Body io.ReadCloser
 }
 
-// AzureResponseError represents an Azure API error response with detailed information.
-// It contains the following fields:
-//   - StatusCode: HTTP status code from the Azure API response
-//   - ErrorCode: Azure-specific error code that identifies the error type
-//   - Message: Human-readable error message describing what went wrong
-type AzureResponseError struct {
-	Message    string // Human-readable error message (larger field first)
-	ErrorCode  string // Azure-specific error code
-	StatusCode int    // HTTP status code from the Azure API response
-}
+// AzureResponseError is an alias to the canonical definition in errorutil.
+// All new code should use errorutil.AzureResponseError directly.
+type AzureResponseError = errorutil.AzureResponseError
 
-// ConvertAzureError converts an azcore.ResponseError to AzureResponseError
-func ConvertAzureError(err error) *AzureResponseError {
-	var respErr *azcore.ResponseError
-	if errors.As(err, &respErr) {
-		// Extract the error message from the error object
-		// since respErr.Message is not directly accessible
-		message := respErr.Error()
-
-		return &AzureResponseError{
-			StatusCode: respErr.StatusCode,
-			ErrorCode:  respErr.ErrorCode,
-			Message:    message,
-		}
-	}
-
-	return nil
-}
-
-// Error implements the error interface for AzureResponseError
-func (e *AzureResponseError) Error() string {
-	return fmt.Sprintf("Azure API error (StatusCode=%d, ErrorCode=%s): %s", e.StatusCode, e.ErrorCode, e.Message)
-}
+// ConvertAzureError delegates to the canonical implementation in errorutil.
+// All new code should use errorutil.ConvertAzureError directly.
+var ConvertAzureError = errorutil.ConvertAzureError
 
 // verifyStorageAccountExists checks if the storage account exists using the Management API.
 func verifyStorageAccountExists(ctx context.Context, l log.Logger, config map[string]interface{}, storageAccountName, resourceGroupName string) error {

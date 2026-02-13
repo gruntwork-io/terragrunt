@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
@@ -294,12 +294,12 @@ func CreateStorageAccountClient(ctx context.Context, l log.Logger, config map[st
 	// Use centralized authentication logic
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure auth config: %w", err)
+		return nil, errors.Errorf("error getting azure auth config: %w", err)
 	}
 
 	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure credentials: %w", err)
+		return nil, errors.Errorf("error getting azure credentials: %w", err)
 	}
 
 	// Reject SAS token authentication for management-plane operations
@@ -921,7 +921,7 @@ func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Lo
 
 	resourceGroupClient, err := CreateResourceGroupClient(ctx, l, c.subscriptionID)
 	if err != nil {
-		return fmt.Errorf("error creating resource group client: %w", err)
+		return errors.Errorf("error creating resource group client: %w", err)
 	}
 
 	// Default tags to use if not specified
@@ -932,7 +932,7 @@ func (c *StorageAccountClient) EnsureResourceGroup(ctx context.Context, l log.Lo
 	// Ensure the resource group exists
 	err = resourceGroupClient.EnsureResourceGroup(ctx, l, c.resourceGroupName, location, tags)
 	if err != nil {
-		return fmt.Errorf("error ensuring resource group exists: %w", err)
+		return errors.Errorf("error ensuring resource group exists: %w", err)
 	}
 
 	return nil
@@ -957,7 +957,7 @@ func (c *StorageAccountClient) getCurrentUserObjectID(ctx context.Context) (stri
 	}
 
 	// If all else fails, return an error
-	return "", fmt.Errorf("could not determine current user object ID. Please set AZURE_CLIENT_OBJECT_ID or ARM_CLIENT_OBJECT_ID environment variable with your user/service principal object ID. Graph API error: %w", err)
+	return "", errors.Errorf("could not determine current user object ID. Please set AZURE_CLIENT_OBJECT_ID or ARM_CLIENT_OBJECT_ID environment variable with your user/service principal object ID. Graph API error: %w", err)
 }
 
 // getUserObjectIDFromGraphAPI gets the current user's object ID from Microsoft Graph API
@@ -984,7 +984,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	// Create request for Microsoft Graph API to get current user
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://graph.microsoft.com/v1.0/me", nil)
 	if err != nil {
-		return "", fmt.Errorf("error creating request: %w", err)
+		return "", errors.Errorf("error creating request: %w", err)
 	}
 
 	// Add authorization header
@@ -994,7 +994,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	// Send request
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error sending request to Microsoft Graph API: %w", err)
+		return "", errors.Errorf("error sending request to Microsoft Graph API: %w", err)
 	}
 	// Simply handle the error properly by ignoring it in defer
 	// This is sufficient to satisfy the errcheck linter
@@ -1005,7 +1005,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	// Check response status code
 	if resp.StatusCode != httpStatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort read for error message, failure is acceptable
-		return "", fmt.Errorf("error from Microsoft Graph API: %s - %s", resp.Status, string(bodyBytes))
+		return "", errors.Errorf("error from Microsoft Graph API: %s - %s", resp.Status, string(bodyBytes))
 	}
 
 	// Parse response
@@ -1014,7 +1014,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&graphResponse); err != nil {
-		return "", fmt.Errorf("error decoding response from Microsoft Graph API: %w", err)
+		return "", errors.Errorf("error decoding response from Microsoft Graph API: %w", err)
 	}
 
 	// Check if ID is empty
@@ -1308,7 +1308,7 @@ func (c *StorageAccountClient) waitForRBACPermissions(ctx context.Context, l log
 		elapsed := time.Since(startTime)
 
 		if elapsed >= maxDuration {
-			return fmt.Errorf("RBAC permissions did not propagate within %v", maxDuration)
+			return errors.Errorf("RBAC permissions did not propagate within %v", maxDuration)
 		}
 
 		logDebug(l, "RBAC permission test attempt %d (elapsed: %v)", attempt, elapsed.Round(time.Second))
@@ -1410,14 +1410,14 @@ func GetAzureCredentials(ctx context.Context, l log.Logger) (*azidentity.Default
 	// Use centralized authentication logic to determine auth method
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, "", fmt.Errorf("error getting azure auth config: %w", err)
+		return nil, "", errors.Errorf("error getting azure auth config: %w", err)
 	}
 
 	// For backward compatibility, always create a DefaultAzureCredential
 	// This ensures existing code that depends on this type still works
 	defaultCred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
 	if err != nil {
-		return nil, "", fmt.Errorf("error creating azure default credential: %w", err)
+		return nil, "", errors.Errorf("error creating azure default credential: %w", err)
 	}
 
 	// Log the authentication method being used
@@ -1521,7 +1521,7 @@ func (c *StorageAccountClient) IsPermissionError(err error) bool {
 func (c *StorageAccountClient) GetStorageAccountKeys(ctx context.Context) ([]string, error) {
 	resp, err := c.client.ListKeys(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list storage account keys: %w", err)
+		return nil, errors.Errorf("failed to list storage account keys: %w", err)
 	}
 
 	var keys []string
@@ -1561,7 +1561,7 @@ func (c *StorageAccountClient) GetStorageAccountSAS(ctx context.Context, permiss
 
 	resp, err := c.client.ListAccountSAS(ctx, c.resourceGroupName, c.storageAccountName, sasParams, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate SAS token: %w", err)
+		return "", errors.Errorf("failed to generate SAS token: %w", err)
 	}
 
 	if resp.AccountSasToken == nil {
@@ -1575,7 +1575,7 @@ func (c *StorageAccountClient) GetStorageAccountSAS(ctx context.Context, permiss
 func (c *StorageAccountClient) GetStorageAccountProperties(ctx context.Context) (*armstorage.AccountProperties, error) {
 	resp, err := c.client.GetProperties(ctx, c.resourceGroupName, c.storageAccountName, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get storage account properties: %w", err)
+		return nil, errors.Errorf("failed to get storage account properties: %w", err)
 	}
 
 	return resp.Account.Properties, nil

@@ -3,14 +3,13 @@ package implementations
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -49,7 +48,7 @@ func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectI
 	// Call the azurehelper method
 	helperOutput, err := b.client.GetObject(ctx, helperInput)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get blob object: %w", err)
+		return nil, errors.Errorf("failed to get blob object: %w", err)
 	}
 
 	if helperOutput == nil {
@@ -65,7 +64,7 @@ func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectI
 		if closeErr := helperOutput.Body.Close(); closeErr != nil {
 			// Log the close error, but don't override any existing errors
 			if err == nil {
-				err = fmt.Errorf("failed to close blob stream: %w", closeErr)
+				err = errors.Errorf("failed to close blob stream: %w", closeErr)
 			}
 		}
 	}()
@@ -73,7 +72,7 @@ func (b *BlobServiceImpl) GetObject(ctx context.Context, input *types.GetObjectI
 	// Read the content from the ReadCloser
 	content, err := io.ReadAll(helperOutput.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read blob content: %w", err)
+		return nil, errors.Errorf("failed to read blob content: %w", err)
 	}
 
 	// Convert azurehelper.GetObjectOutput to types.GetObjectOutput
@@ -125,13 +124,13 @@ func (b *BlobServiceImpl) CopyBlobToContainer(ctx context.Context, l log.Logger,
 
 	output, err := b.GetObject(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to get source blob: %w", err)
+		return errors.Errorf("failed to get source blob: %w", err)
 	}
 
 	// Upload the content to the destination
 	err = dstClient.UploadBlob(ctx, l, dstContainer, dstKey, output.Content)
 	if err != nil {
-		return fmt.Errorf("failed to upload blob to destination: %w", err)
+		return errors.Errorf("failed to upload blob to destination: %w", err)
 	}
 
 	return nil

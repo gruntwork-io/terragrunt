@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -335,7 +335,7 @@ func (r *RBACServiceImpl) AssignRole(ctx context.Context, l log.Logger, roleName
 	// Get role definition ID from role name
 	roleDefID, err := r.getRoleDefinitionID(ctx, roleName)
 	if err != nil {
-		return fmt.Errorf("failed to get role definition for %s: %w", roleName, err)
+		return errors.Errorf("failed to get role definition for %s: %w", roleName, err)
 	}
 
 	client, err := armauthorization.NewRoleAssignmentsClient(r.subscriptionID, r.credential, nil)
@@ -394,7 +394,7 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 	if roleName != "" {
 		roleDefinitionID, err = r.getRoleDefinitionID(ctx, roleName)
 		if err != nil {
-			return fmt.Errorf("failed to get role definition for %s: %w", roleName, err)
+			return errors.Errorf("failed to get role definition for %s: %w", roleName, err)
 		}
 	}
 
@@ -528,7 +528,7 @@ func (r *RBACServiceImpl) GetPrincipal(ctx context.Context, principalID string) 
 		return currentPrincipal, nil
 	}
 
-	return nil, fmt.Errorf("principal %s not found or not accessible", principalID)
+	return nil, errors.Errorf("principal %s not found or not accessible", principalID)
 }
 
 // GetPrincipalID gets the ID of the current principal
@@ -570,7 +570,7 @@ func (r *RBACServiceImpl) getRoleDefinitionID(ctx context.Context, roleName stri
 		}
 	}
 
-	return "", fmt.Errorf("role definition '%s' not found", roleName)
+	return "", errors.Errorf("role definition '%s' not found", roleName)
 }
 
 // listRoleAssignments gets all role assignments at a scope
@@ -1052,7 +1052,7 @@ func (c *ProductionServiceContainer) GetServiceInfo(serviceName string) (map[str
 		}, nil
 	}
 
-	return nil, fmt.Errorf("service %s not registered", serviceName)
+	return nil, errors.Errorf("service %s not registered", serviceName)
 }
 
 // HasService checks if a specific service type is registered
@@ -1068,19 +1068,19 @@ func (c *ProductionServiceContainer) Health(ctx context.Context, l log.Logger) e
 		l.Debugf("Checking health of service: %s", serviceName)
 
 		if service == nil {
-			return fmt.Errorf("service %s is not properly initialized", serviceName)
+			return errors.Errorf("service %s is not properly initialized", serviceName)
 		}
 
 		// Perform type-specific health checks
 		switch svc := service.(type) {
 		case interfaces.AuthenticationService:
 			if err := svc.ValidateCredentials(ctx); err != nil {
-				return fmt.Errorf("authentication service health check failed: %w", err)
+				return errors.Errorf("authentication service health check failed: %w", err)
 			}
 		case interfaces.StorageAccountService:
 			// Check if we can query the storage account (validates connectivity and permissions)
 			if _, err := svc.Exists(ctx); err != nil {
-				return fmt.Errorf("storage account service health check failed: %w", err)
+				return errors.Errorf("storage account service health check failed: %w", err)
 			}
 		case interfaces.BlobService:
 			// BlobService doesn't have a simple health check method without a container name,
@@ -1210,7 +1210,7 @@ func createCredentialFromConfig(tenantID, clientID, clientSecret string, useMana
 		// Use managed identity if specified
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+			return nil, errors.Errorf("failed to create default azure credential: %w", err)
 		}
 
 		return cred, nil
@@ -1219,7 +1219,7 @@ func createCredentialFromConfig(tenantID, clientID, clientSecret string, useMana
 		// Use service principal if credentials are provided
 		cred, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create client secret credential: %w", err)
+			return nil, errors.Errorf("failed to create client secret credential: %w", err)
 		}
 
 		return cred, nil
@@ -1232,7 +1232,7 @@ func createCredentialFromConfig(tenantID, clientID, clientSecret string, useMana
 
 		cred, err := azidentity.NewDefaultAzureCredential(options)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential with tenant ID: %w", err)
+			return nil, errors.Errorf("failed to create default azure credential with tenant ID: %w", err)
 		}
 
 		return cred, nil
@@ -1241,7 +1241,7 @@ func createCredentialFromConfig(tenantID, clientID, clientSecret string, useMana
 		// Fall back to default credential
 		cred, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default azure credential: %w", err)
+			return nil, errors.Errorf("failed to create default azure credential: %w", err)
 		}
 
 		return cred, nil
@@ -1345,7 +1345,7 @@ func (a *AuthenticationServiceImpl) SetCloudEnvironment(ctx context.Context, env
 	// In a real implementation, this would validate and set the cloud environment
 	// For now, we only support AzurePublicCloud
 	if environment != "" && environment != "AzurePublicCloud" {
-		return fmt.Errorf("unsupported cloud environment: %s, only AzurePublicCloud is currently supported", environment)
+		return errors.Errorf("unsupported cloud environment: %s, only AzurePublicCloud is currently supported", environment)
 	}
 
 	return nil
@@ -1390,13 +1390,13 @@ func parseJWTToken(tokenString string) (map[string]interface{}, error) {
 	// Decode the payload (second part)
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("error decoding token payload: %w", err)
+		return nil, errors.Errorf("error decoding token payload: %w", err)
 	}
 
 	// Parse the JSON payload
 	var claims map[string]interface{}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, fmt.Errorf("error parsing token claims: %w", err)
+		return nil, errors.Errorf("error parsing token claims: %w", err)
 	}
 
 	return claims, nil

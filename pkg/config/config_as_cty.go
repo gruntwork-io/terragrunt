@@ -556,7 +556,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 // serialize the struct because `config` and `encryption` are arbitrary
 // interfaces whose type we do not know, so we have to do a hack to go through json.
 func RemoteStateAsCty(remote *remotestate.RemoteState) (cty.Value, error) {
-	if remote == nil {
+	if remote == nil || remote.Config == nil {
 		return cty.NilVal, nil
 	}
 

@@ -1261,19 +1261,19 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 		Key:       &key,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error downloading state file: %w", err)
+		return nil, errors.Errorf("error downloading state file: %w", err)
 	}
 
 	// Ensure response body is closed after we're done
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("error closing response body: %w", cerr)
+			err = errors.Errorf("error closing response body: %w", cerr)
 		}
 	}()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading state file: %w", err)
+		return nil, errors.Errorf("error reading state file: %w", err)
 	}
 
 	var state struct {
@@ -1281,12 +1281,12 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 	}
 
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("error parsing state file JSON: %w", err)
+		return nil, errors.Errorf("error parsing state file JSON: %w", err)
 	}
 
 	outputsJSON, err = json.Marshal(state.Outputs)
 	if err != nil {
-		return nil, fmt.Errorf("error encoding outputs as JSON: %w", err)
+		return nil, errors.Errorf("error encoding outputs as JSON: %w", err)
 	}
 
 	l.Debugf("Successfully parsed outputs from Azure Storage state file")

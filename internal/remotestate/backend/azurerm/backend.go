@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/factory"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -531,7 +531,7 @@ func (backend *Backend) checkContainerExistence(ctx context.Context, l log.Logge
 	err := WithRetry(ctx, l, operationContainerExistenceCheck, retryConfig, func() error {
 		blobService, serviceErr := backend.getBlobService(ctx, l, azureCfg, opts)
 		if serviceErr != nil {
-			return fmt.Errorf("failed to get blob service: %w", serviceErr)
+			return errors.Errorf("failed to get blob service: %w", serviceErr)
 		}
 
 		exists, existsErr := blobService.ContainerExists(ctx, azureCfg.RemoteStateConfigAzurerm.ContainerName)
@@ -895,7 +895,7 @@ func (backend *Backend) uploadBlobFromReader(
 	// If the reader provides size info, check it
 	if sizer, ok := data.(interface{ Size() int64 }); ok {
 		if size := sizer.Size(); size > maxStateFileSize {
-			return fmt.Errorf("state file too large: %d bytes exceeds limit of %d bytes", size, maxStateFileSize)
+			return errors.Errorf("state file too large: %d bytes exceeds limit of %d bytes", size, maxStateFileSize)
 		}
 	}
 
@@ -911,12 +911,12 @@ func (backend *Backend) uploadBlobFromReader(
 	// Read all data from the limited reader
 	blobData, err := io.ReadAll(limitedReader)
 	if err != nil {
-		return fmt.Errorf("error reading blob data: %w", err)
+		return errors.Errorf("error reading blob data: %w", err)
 	}
 
 	// Check if we hit the limit (read more than maxStateFileSize)
 	if int64(len(blobData)) > maxStateFileSize {
-		return fmt.Errorf("state file too large: exceeds limit of %d bytes", maxStateFileSize)
+		return errors.Errorf("state file too large: exceeds limit of %d bytes", maxStateFileSize)
 	}
 
 	// Upload the blob with retry logic
@@ -1014,12 +1014,12 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 
 	// Verify the copy succeeded by reading the destination blob
 	if _, err := backend.GetObject(ctx, l, dstContainer, dstKey, dstBlobService); err != nil {
-		return fmt.Errorf("error verifying destination state file: %w", err)
+		return errors.Errorf("error verifying destination state file: %w", err)
 	}
 
 	// Delete source state file
 	if err := srcBlobService.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey); err != nil {
-		return fmt.Errorf("error deleting source state file: %w", err)
+		return errors.Errorf("error deleting source state file: %w", err)
 	}
 
 	return nil
@@ -1498,25 +1498,22 @@ func (backend *Backend) ensureStorageAccountExists(ctx context.Context, l log.Lo
 	return nil
 }
 
-// verifyStorageAccess verifies access to the storage account by attempting to perform basic operations.
+// verifyStorageAccess verifies access to the storage account by checking that
+// the configured container exists and is accessible. This is a read-only
+// operation that avoids creating test blobs in production containers.
 func (backend *Backend) verifyStorageAccess(ctx context.Context, l log.Logger, blobService interfaces.BlobService, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
 	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
-	testBlobName := fmt.Sprintf(".terragrunt-test-%d", time.Now().UnixNano())
 
-	// Try to create the container if it doesn't exist
-	if err := blobService.CreateContainerIfNecessary(ctx, l, containerName); err != nil {
-		return backend.wrapBlobError(err, containerName, testBlobName)
+	exists, err := blobService.ContainerExists(ctx, containerName)
+	if err != nil {
+		return backend.wrapContainerError(err, containerName)
 	}
 
-	// Try to upload a test blob
-	testData := []byte("Terragrunt storage access test")
-	if err := blobService.UploadBlob(ctx, l, containerName, testBlobName, testData); err != nil {
-		return backend.wrapBlobError(err, containerName, testBlobName)
-	}
-
-	// Clean up the test blob
-	if err := blobService.DeleteBlobIfNecessary(ctx, l, containerName, testBlobName); err != nil {
-		l.Warnf("Failed to delete test blob %s in container %s: %v", testBlobName, containerName, err)
+	if !exists {
+		return backend.wrapContainerDoesNotExistError(
+			errors.Errorf("container %s does not exist after bootstrap", containerName),
+			containerName,
+		)
 	}
 
 	return nil
@@ -1540,12 +1537,12 @@ func (backend *Backend) deleteStorageAccountWithRetry(ctx context.Context, l log
 
 // WrapValidationError wraps a storage account validation error with context.
 func WrapValidationError(msg string) error {
-	return fmt.Errorf("storage account validation error: %s", msg)
+	return errors.Errorf("storage account validation error: %s", msg)
 }
 
 // WrapStorageAccountNotFoundError wraps a storage account not found error.
 func WrapStorageAccountNotFoundError(accountName string) error {
-	return fmt.Errorf("storage account %s not found and CreateStorageAccountIfNotExists is false", accountName)
+	return errors.Errorf("storage account %s not found and CreateStorageAccountIfNotExists is false", accountName)
 }
 
 // ValidateStorageAccountName validates an Azure Storage account name.
@@ -1775,14 +1772,14 @@ func (backend *Backend) validateDeleteStorageAccountConfig(resourceGroupName, su
 // promptForStorageAccountDeletion prompts user for confirmation before deletion
 func (backend *Backend) promptForStorageAccountDeletion(ctx context.Context, l log.Logger, storageAccountName string, opts *options.TerragruntOptions) (bool, error) {
 	if opts.NonInteractive {
-		return false, fmt.Errorf("cannot delete storage account %s in non-interactive mode: user confirmation is required", storageAccountName)
+		return false, errors.Errorf("cannot delete storage account %s in non-interactive mode: user confirmation is required", storageAccountName)
 	}
 
 	prompt := fmt.Sprintf("Are you sure you want to delete storage account %s? This action cannot be undone. (y/N)", storageAccountName)
 
 	response, err := shell.PromptUserForInput(ctx, l, prompt, opts)
 	if err != nil {
-		return false, fmt.Errorf("failed to get user confirmation: %w", err)
+		return false, errors.Errorf("failed to get user confirmation: %w", err)
 	}
 
 	return strings.ToLower(strings.TrimSpace(response)) == "y", nil
@@ -1835,7 +1832,7 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 
 	storageAccount, err := storageService.GetStorageAccount(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get storage account details: %w", err)
+		return errors.Errorf("failed to get storage account details: %w", err)
 	}
 
 	if storageAccount == nil {
@@ -1865,7 +1862,7 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 			return nil
 		}
 
-		return fmt.Errorf("failed to assign Storage Blob Data Owner role: %w", err)
+		return errors.Errorf("failed to assign Storage Blob Data Owner role: %w", err)
 	}
 
 	l.Infof("Successfully assigned Storage Blob Data Owner role to current principal")

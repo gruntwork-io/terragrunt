@@ -21,23 +21,24 @@ func FormatWithStackTrace(format string, args ...interface{}) string {
 	return fmt.Sprintf(format, args...)
 }
 
-// ErrorClass represents the classification of an Azure error
-type ErrorClass string
+// ErrorClass is a type alias for the canonical errorutil.ErrorClass.
+// All new code should use errorutil.ErrorClass directly.
+type ErrorClass = errorutil.ErrorClass
 
+// Re-exported error classifications from errorutil for backward compatibility.
 const (
-	// Error classifications
-	ErrorClassAuthentication ErrorClass = "authentication"
-	ErrorClassAuthorization  ErrorClass = "authorization"
-	ErrorClassConfiguration  ErrorClass = "configuration"
-	ErrorClassInvalidRequest ErrorClass = "invalid_request"
-	ErrorClassNetworking     ErrorClass = "networking"
-	ErrorClassNotFound       ErrorClass = "not_found"
-	ErrorClassPermission     ErrorClass = "permission"
-	ErrorClassResource       ErrorClass = "resource"
-	ErrorClassSystem         ErrorClass = "system"
-	ErrorClassThrottling     ErrorClass = "throttling"
-	ErrorClassTransient      ErrorClass = "transient"
-	ErrorClassUnknown        ErrorClass = "unknown"
+	ErrorClassAuthentication = errorutil.ErrorClassAuthentication
+	ErrorClassAuthorization  = errorutil.ErrorClassAuthorization
+	ErrorClassConfiguration  = errorutil.ErrorClassConfiguration
+	ErrorClassInvalidRequest = errorutil.ErrorClassInvalidRequest
+	ErrorClassNetworking     = errorutil.ErrorClassNetworking
+	ErrorClassNotFound       = errorutil.ErrorClassNotFound
+	ErrorClassPermission     = errorutil.ErrorClassPermission
+	ErrorClassResource       = errorutil.ErrorClassResource
+	ErrorClassSystem         = errorutil.ErrorClassSystem
+	ErrorClassThrottling     = errorutil.ErrorClassThrottling
+	ErrorClassTransient      = errorutil.ErrorClassTransient
+	ErrorClassUnknown        = errorutil.ErrorClassUnknown
 )
 
 // ResourceType represents the type of Azure resource
@@ -182,6 +183,5 @@ func IsPermissionError(err error) bool {
 
 // ClassifyError determines the error classification from an error
 func ClassifyError(err error) ErrorClass {
-	// Convert from errorutil.ErrorClass to local ErrorClass type
-	return ErrorClass(errorutil.ClassifyError(err))
+	return errorutil.ClassifyError(err)
 }

@@ -17,6 +17,7 @@ type ErrorClass string
 const (
 	ErrorClassUnknown        ErrorClass = "unknown"
 	ErrorClassAuthentication ErrorClass = "authentication"
+	ErrorClassAuthorization  ErrorClass = "authorization"
 	ErrorClassPermission     ErrorClass = "permission"
 	ErrorClassNotFound       ErrorClass = "not_found"
 	ErrorClassNetworking     ErrorClass = "networking"
@@ -25,6 +26,7 @@ const (
 	ErrorClassTransient      ErrorClass = "transient"
 	ErrorClassConfiguration  ErrorClass = "configuration"
 	ErrorClassResource       ErrorClass = "resource"
+	ErrorClassSystem         ErrorClass = "system"
 )
 
 // Resource types for error context

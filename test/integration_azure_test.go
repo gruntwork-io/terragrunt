@@ -31,24 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setAndRestoreTGExperiment sets the TG_EXPERIMENT environment variable to include "azure-backend" if not already present.
-// It returns a cleanup function that restores the previous value.
-func setAndRestoreTGExperiment() func() {
-	oldEnv := os.Getenv("TG_EXPERIMENT")
-	currentExperiments := oldEnv
-	if currentExperiments == "" {
-		os.Setenv("TG_EXPERIMENT", "azure-backend")
-	} else if !strings.Contains(currentExperiments, "azure-backend") {
-		os.Setenv("TG_EXPERIMENT", currentExperiments+",azure-backend")
-	}
-	return func() {
-		if oldEnv == "" {
-			os.Unsetenv("TG_EXPERIMENT")
-		} else {
-			os.Setenv("TG_EXPERIMENT", oldEnv)
-		}
-	}
-}
+
 
 // addAzureBackendExperimentFlag adds the --experiment azure-backend flag to the command string if not already present.
 func addAzureBackendExperimentFlag(command string) string {
@@ -316,28 +299,18 @@ func TestAzureRBACRoleAssignment(t *testing.T) {
 	require.NoError(t, err)
 	opts.NonInteractive = true
 
-	// Store original environment variables to restore later
-	originalClientID := os.Getenv("AZURE_CLIENT_ID")
-	originalClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
-	originalTenantID := os.Getenv("AZURE_TENANT_ID")
-
 	// Set Azure SDK environment variables for service principal auth
-	os.Setenv("AZURE_CLIENT_ID", clientID)
-	os.Setenv("AZURE_CLIENT_SECRET", clientSecret)
-	os.Setenv("AZURE_TENANT_ID", tenantID)
+	// Using t.Setenv which automatically restores on test cleanup and is safe with t.Parallel()
+	t.Setenv("AZURE_CLIENT_ID", clientID)
+	t.Setenv("AZURE_CLIENT_SECRET", clientSecret)
+	t.Setenv("AZURE_TENANT_ID", tenantID)
 
-	// Ensure environment is restored at the end
-	defer func() {
-		// Restore original environment variables
-		os.Setenv("AZURE_CLIENT_ID", originalClientID)
-		os.Setenv("AZURE_CLIENT_SECRET", originalClientSecret)
-		os.Setenv("AZURE_TENANT_ID", originalTenantID)
-
-		// Clean up the container if it was created using standard pattern
+	// Ensure container is cleaned up at the end
+	t.Cleanup(func() {
 		cleanupConfig := createStandardBlobConfig(storageAccount, containerName, nil)
 		client := createBlobServiceClientHelper(ctx, t, cleanupConfig)
 		_ = client.DeleteContainer(ctx, log, containerName)
-	}()
+	})
 
 	// Only perform object ID lookup if Azure AD auth is enabled and MSI is NOT being used
 	useAzureAD := os.Getenv("TERRAGRUNT_AZURE_USE_AZUREAD_AUTH") == "true" || os.Getenv("USE_AZUREAD_AUTH") == "true"
@@ -2006,19 +1979,14 @@ func copyTerragruntConfigAndFillProviderPlaceholders(t *testing.T, src, dst stri
 func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
 	t.Helper()
 
-	cleanup := setAndRestoreTGExperiment()
-	defer cleanup()
 	command = addAzureBackendExperimentFlag(command)
 	return helpers.RunTerragruntCommandWithOutput(t, command)
-
 }
 
 // --- Generic test helpers (continued) ---
 func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Buffer) error {
 	t.Helper()
 
-	cleanup := setAndRestoreTGExperiment()
-	defer cleanup()
 	command = addAzureBackendExperimentFlag(command)
 	return helpers.RunTerragruntCommand(t, command, stdout, stderr)
 }
@@ -2027,8 +1995,6 @@ func runTerragruntCommand(t *testing.T, command string, stdout, stderr *bytes.Bu
 func runTerragrunt(t *testing.T, command string) {
 	t.Helper()
 
-	cleanup := setAndRestoreTGExperiment()
-	defer cleanup()
 	command = addAzureBackendExperimentFlag(command)
 	helpers.RunTerragrunt(t, command)
 }

@@ -3,7 +3,6 @@ package azurehelper
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -127,7 +126,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 	// Get auth config once - this retrieves subscription ID from environment if not provided
 	authConfig, err := azureauth.GetAuthConfig(ctx, l, config)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure auth config: %w", err)
+		return nil, errors.Errorf("error getting azure auth config: %w", err)
 	}
 
 	// Use subscription ID from auth config if we didn't have one
@@ -143,7 +142,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 	// Validate subscription ID format
 	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate subscription ID format: %w", err)
+		return nil, errors.Errorf("failed to validate subscription ID format: %w", err)
 	}
 
 	if !matched {
@@ -153,13 +152,13 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 	// Get Azure credentials using the auth config we already retrieved
 	authResult, err := azureauth.GetTokenCredential(ctx, l, authConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error getting azure credentials: %w", err)
+		return nil, errors.Errorf("error getting azure credentials: %w", err)
 	}
 
 	// Create resource group client
 	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, authResult.Credential, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error creating resource group client: %w", err)
+		return nil, errors.Errorf("error creating resource group client: %w", err)
 	}
 
 	return &ResourceGroupClient{
@@ -202,7 +201,7 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 
 	_, err = c.client.CreateOrUpdate(ctx, resourceGroupName, resourceGroup, nil)
 	if err != nil {
-		return fmt.Errorf("error creating resource group: %w", err)
+		return errors.Errorf("error creating resource group: %w", err)
 	}
 
 	logInfo(l, "Successfully created resource group %s", resourceGroupName)
@@ -224,19 +223,19 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 			return nil
 		}
 		// Return any other error
-		return fmt.Errorf("error checking resource group existence: %w", err)
+		return errors.Errorf("error checking resource group existence: %w", err)
 	}
 
 	// Start the delete operation
 	poller, err := c.client.BeginDelete(ctx, resourceGroupName, nil)
 	if err != nil {
-		return fmt.Errorf("error starting resource group deletion: %w", err)
+		return errors.Errorf("error starting resource group deletion: %w", err)
 	}
 
 	// Wait for the delete operation to complete
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("error deleting resource group: %w", err)
+		return errors.Errorf("error deleting resource group: %w", err)
 	}
 
 	logInfo(l, "Successfully deleted resource group %s", resourceGroupName)
@@ -248,7 +247,7 @@ func (c *ResourceGroupClient) DeleteResourceGroup(ctx context.Context, l log.Log
 func (c *ResourceGroupClient) GetResourceGroup(ctx context.Context, resourceGroupName string) (*armresources.ResourceGroup, error) {
 	resp, err := c.client.Get(ctx, resourceGroupName, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error getting resource group: %w", err)
+		return nil, errors.Errorf("error getting resource group: %w", err)
 	}
 
 	return &resp.ResourceGroup, nil
@@ -263,7 +262,7 @@ func (c *ResourceGroupClient) ResourceGroupExists(ctx context.Context, resourceG
 			return false, nil
 		}
 
-		return false, fmt.Errorf("error checking if resource group exists: %w", err)
+		return false, errors.Errorf("error checking if resource group exists: %w", err)
 	}
 
 	return true, nil

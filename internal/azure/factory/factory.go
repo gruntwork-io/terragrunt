@@ -3,6 +3,8 @@ package factory
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"sync"
@@ -175,9 +177,6 @@ func getConfigBool(config map[string]interface{}, key string) bool {
 	return false
 }
 
-// hashMultiplier is the multiplier used for the simple hash algorithm.
-const hashMultiplier = 31
-
 // determineAuthType determines the authentication type and secret hash from config.
 // For secret-based auth (SAS token, access key, client secret), returns a hashed
 // representation of the secret to avoid credential mixups while preventing
@@ -239,22 +238,16 @@ func (f *AzureServiceFactory) getCacheKey(config map[string]interface{}) string 
 		url.QueryEscape(secretHash))
 }
 
-// hashSecret returns a truncated hash of a secret for cache key differentiation.
+// hashSecret returns a truncated SHA-256 hash of a secret for cache key differentiation.
 // This allows distinguishing different credentials without exposing the actual values.
 func hashSecret(secret string) string {
 	if secret == "" {
 		return ""
 	}
 
-	// Use a simple hash based on the secret's characters
-	// This is sufficient for cache key differentiation and avoids cryptographic overhead
-	h := 0
-	for _, c := range secret {
-		h = hashMultiplier*h + int(c)
-	}
+	h := sha256.Sum256([]byte(secret))
 
-	// Return a hex representation truncated to 8 characters
-	return fmt.Sprintf("%08x", uint32(h))
+	return hex.EncodeToString(h[:])[:16]
 }
 
 // isExpired checks if a cache entry is expired

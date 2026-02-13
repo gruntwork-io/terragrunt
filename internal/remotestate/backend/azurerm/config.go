@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -412,7 +413,7 @@ func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm,
 	}
 
 	if err := mapstructure.Decode(cfg, &extConfig); err != nil {
-		return nil, fmt.Errorf("failed to decode Azure config: %w", err)
+		return nil, errors.Errorf("failed to decode Azure config: %w", err)
 	}
 
 	return &extConfig, nil
