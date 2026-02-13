@@ -464,7 +464,7 @@ func (r *RBACServiceImpl) ListRoleAssignments(ctx context.Context, scope string)
 			continue
 		}
 
-		roleName := extractRoleNameFromDefinitionID(*props.RoleDefinitionID)
+		roleName := extractRoleDefinitionGUID(*props.RoleDefinitionID)
 
 		roleAssignment := interfaces.RoleAssignment{
 			RoleName:    roleName,
@@ -771,14 +771,20 @@ func (a *AuthenticationServiceImpl) GetCloudEnvironment(ctx context.Context) (st
 	return "AzurePublicCloud", nil
 }
 
-// GetConfiguration returns the current authentication configuration
+// GetConfiguration returns the current authentication configuration.
+// Sensitive fields are redacted to prevent accidental exposure in logs or diagnostics.
 func (a *AuthenticationServiceImpl) GetConfiguration(ctx context.Context) (map[string]interface{}, error) {
-	// Convert the config struct to a map
+	// Convert the config struct to a map, redacting sensitive values
+	clientSecretValue := ""
+	if a.config.ClientSecret != "" {
+		clientSecretValue = "<redacted>"
+	}
+
 	return map[string]interface{}{
 		"subscription_id":      a.config.SubscriptionID,
 		"tenant_id":            a.config.TenantID,
 		"client_id":            a.config.ClientID,
-		"client_secret":        a.config.ClientSecret,
+		"client_secret":        clientSecretValue,
 		"use_managed_identity": a.config.UseManagedIdentity,
 	}, nil
 }
@@ -882,21 +888,9 @@ func (c *ProductionServiceContainer) GetStorageAccountService(ctx context.Contex
 
 // GetBlobService returns a production blob service
 func (c *ProductionServiceContainer) GetBlobService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.BlobService, error) {
-	// Check if a custom service is registered first (check both new and legacy keys)
+	// Check if a custom blob service is registered
 	if c.HasService("blob") {
 		if svc, ok := c.cache["blob"].(interfaces.BlobService); ok {
-			return svc, nil
-		}
-	}
-
-	if c.HasService("auth") {
-		if svc, ok := c.cache["auth"].(interfaces.BlobService); ok {
-			return svc, nil
-		}
-	}
-
-	if c.HasService("authentication") {
-		if svc, ok := c.cache["authentication"].(interfaces.BlobService); ok {
 			return svc, nil
 		}
 	}
@@ -1179,11 +1173,10 @@ func (c *ProductionServiceContainer) RegisterResourceGroupService(service interf
 
 // Helper functions
 
-// Helper function to extract role name from role definition ID
-func extractRoleNameFromDefinitionID(roleDefinitionID string) string {
-	// Role definition ID format is usually:
-	// /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/{definitionID}
-	// For simplicity, just return the last part
+// extractRoleDefinitionGUID extracts the role definition GUID from a fully-qualified role definition ID.
+// Role definition ID format: /subscriptions/{sub}/providers/Microsoft.Authorization/roleDefinitions/{guid}
+// Note: this returns the GUID, not the human-readable display name (e.g. "Storage Blob Data Owner").
+func extractRoleDefinitionGUID(roleDefinitionID string) string {
 	parts := strings.Split(roleDefinitionID, "/")
 	if len(parts) > 0 {
 		return parts[len(parts)-1]
@@ -1207,10 +1200,15 @@ func createBlobClient(ctx context.Context, l log.Logger, config map[string]inter
 func createCredentialFromConfig(tenantID, clientID, clientSecret string, useManagedIdentity bool) (azcore.TokenCredential, error) {
 	switch {
 	case useManagedIdentity:
-		// Use managed identity if specified
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		// Use managed identity credential when explicitly requested
+		opts := &azidentity.ManagedIdentityCredentialOptions{}
+		if clientID != "" {
+			opts.ID = azidentity.ClientID(clientID)
+		}
+
+		cred, err := azidentity.NewManagedIdentityCredential(opts)
 		if err != nil {
-			return nil, errors.Errorf("failed to create default azure credential: %w", err)
+			return nil, errors.Errorf("failed to create managed identity credential: %w", err)
 		}
 
 		return cred, nil

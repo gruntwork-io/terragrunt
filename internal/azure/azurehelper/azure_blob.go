@@ -199,6 +199,11 @@ func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.Te
 		skipExistenceCheck = v
 	}
 
+	// SAS tokens are data-plane only; management-plane existence checks will fail
+	if sasToken, ok := config["sas_token"].(string); ok && sasToken != "" {
+		skipExistenceCheck = true
+	}
+
 	// Verify storage account exists via Management API if we have the required info
 	if subscriptionID != "" && resourceGroupName != "" && !skipExistenceCheck {
 		if err := verifyStorageAccountExists(ctx, l, config, storageAccountName, resourceGroupName); err != nil {

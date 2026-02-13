@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
@@ -46,6 +47,12 @@ const (
 
 var _ backend.Backend = new(Backend)
 
+// Precompiled regexes for container name validation (avoids recompilation on every call).
+var (
+	containerNameStartEndRe = regexp.MustCompile(`^[a-z0-9].*[a-z0-9]$`)
+	containerNameCharsRe    = regexp.MustCompile(`^[a-z0-9-]+$`)
+)
+
 // ValidateContainerName validates that the container name follows Azure naming conventions.
 // Container names must:
 // - Be between 3 and 63 characters long
@@ -67,17 +74,12 @@ func ValidateContainerName(containerName string) error {
 	}
 
 	// Check that it starts and ends with alphanumeric
-	if !regexp.MustCompile(`^[a-z0-9].*[a-z0-9]$`).MatchString(containerName) && len(containerName) > 1 {
-		return WrapContainerValidationError("container name must start and end with a letter or number")
-	}
-
-	// For single character names, just check it's alphanumeric
-	if len(containerName) == 1 && !regexp.MustCompile(`^[a-z0-9]$`).MatchString(containerName) {
+	if !containerNameStartEndRe.MatchString(containerName) {
 		return WrapContainerValidationError("container name must start and end with a letter or number")
 	}
 
 	// Check that it only contains valid characters (lowercase letters, numbers, hyphens)
-	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(containerName) {
+	if !containerNameCharsRe.MatchString(containerName) {
 		return WrapContainerValidationError("container name can only contain lowercase letters, numbers, and hyphens")
 	}
 
@@ -93,7 +95,9 @@ func ValidateContainerName(containerName string) error {
 type Backend struct {
 	*backend.CommonBackend
 	telemetry        *AzureTelemetryCollector
+	telemetryOnce    sync.Once
 	errorHandler     *azureutil.OperationHandler
+	errorHandlerOnce sync.Once
 	serviceContainer interfaces.AzureServiceContainer
 	serviceFactory   interfaces.ServiceFactory
 }
@@ -1017,9 +1021,13 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		return errors.Errorf("error verifying destination state file: %w", err)
 	}
 
-	// Delete source state file
-	if err := srcBlobService.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey); err != nil {
-		return errors.Errorf("error deleting source state file: %w", err)
+	// Delete source state file with retry to handle transient failures
+	retryConfig := DefaultRetryConfig()
+
+	if err := WithRetry(ctx, l, "source state file deletion", retryConfig, func() error {
+		return srcBlobService.DeleteBlobIfNecessary(ctx, l, srcContainer, srcKey)
+	}); err != nil {
+		return errors.Errorf("error deleting source state file after retries: %w", err)
 	}
 
 	return nil
@@ -1213,7 +1221,7 @@ func (backend *Backend) executeStorageBootstrap(ctx context.Context, l log.Logge
 	}
 
 	// Step 2: Initialize required services from container
-	storageService, blobService, err := backend.initBootstrapServices(ctx, l, tel, azureCfg)
+	storageService, _, err := backend.initBootstrapServices(ctx, l, tel, azureCfg)
 	if err != nil {
 		return err
 	}
@@ -1237,18 +1245,8 @@ func (backend *Backend) executeStorageBootstrap(ctx context.Context, l log.Logge
 
 	l.Infof("Storage account %s exists and is configured", storageAccountName)
 
-	// Step 5: Verify we can access the storage account
-	if err := backend.verifyStorageAccess(ctx, l, blobService, azureCfg); err != nil {
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
-			ErrorType:      "AccessVerificationError",
-			Classification: ClassifyError(err),
-			Operation:      OperationBootstrap,
-			ResourceType:   "storage_account",
-			ResourceName:   storageAccountName,
-		})
-
-		return err
-	}
+	// Note: container existence is NOT verified here because the container is
+	// created later by createContainerIfNeeded in the parent Bootstrap flow.
 
 	// Log successful completion
 	tel.LogOperation(ctx, OperationBootstrap, time.Since(startTime), map[string]interface{}{
@@ -1567,9 +1565,9 @@ func ValidateStorageAccountName(name string) error {
 
 // Helper methods for backend
 
-// getTelemetry returns the telemetry collector, initializing it if needed
+// getTelemetry returns the telemetry collector, initializing it lazily via sync.Once.
 func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
-	if backend.telemetry == nil {
+	backend.telemetryOnce.Do(func() {
 		// Check if we have enhanced telemetry settings
 		enableDetailedMetrics := true
 		metricsBufferSize := 1000
@@ -1586,18 +1584,18 @@ func (backend *Backend) getTelemetry(l log.Logger) *AzureTelemetryCollector {
 			EnableDetailedMetrics: enableDetailedMetrics,
 			BufferSize:            metricsBufferSize,
 		})
-	}
+	})
 
 	return backend.telemetry
 }
 
-// getErrorHandler returns the error handler, initializing it if needed
+// getErrorHandler returns the error handler, initializing it lazily via sync.Once.
 func (backend *Backend) getErrorHandler(l log.Logger) *azureutil.OperationHandler {
-	if backend.errorHandler == nil {
+	backend.errorHandlerOnce.Do(func() {
 		tel := backend.getTelemetry(l)
 		telemetryAdapter := NewTelemetryAdapter(tel, l)
 		backend.errorHandler = azureutil.NewOperationHandler(telemetryAdapter, l)
-	}
+	})
 
 	return backend.errorHandler
 }

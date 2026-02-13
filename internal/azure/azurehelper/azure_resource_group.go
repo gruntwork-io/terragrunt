@@ -140,7 +140,7 @@ func CreateResourceGroupClient(ctx context.Context, l log.Logger, subscriptionID
 	}
 
 	// Validate subscription ID format
-	matched, err := regexp.MatchString(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
+	matched, err := regexp.MatchString(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, subscriptionID)
 	if err != nil {
 		return nil, errors.Errorf("failed to validate subscription ID format: %w", err)
 	}
