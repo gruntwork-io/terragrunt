@@ -675,7 +675,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	stdoutWriter := options.ExtractOriginalWriter(opts.Writer)
 	stderrWriter := options.ExtractOriginalWriter(opts.ErrWriter)
 
-	if opts.Headless {
+	if opts.Headless && !opts.ForwardTFStdout {
 		stdoutLogLevel = log.InfoLevel
 		stderrLogLevel = log.ErrorLevel
 		stdoutWriter = options.ExtractOriginalWriter(opts.ErrWriter)
