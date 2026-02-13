@@ -241,6 +241,20 @@ $ terragrunt find --hidden
 WARN  The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.
 ```
 
+### disable-dependent-modules
+
+Throw an error when using the deprecated `--disable-dependent-modules` flag.
+
+**Reason**: Dependent modules discovery has been removed from `terragrunt render`. The `--disable-dependent-modules` flag is no longer needed and has no effect.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt render --format=json --disable-dependent-modules
+WARN  The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.
+```
+
 ## Control Categories
 
 Certain strict controls are grouped into categories to make it easier to enable multiple strict controls at once.
