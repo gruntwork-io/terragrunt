@@ -32,12 +32,10 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack       *component.Stack
-	queue       *queue.Queue
-	opts        *options.TerragruntOptions
-	report      *report.Report
-	unitOpts    map[string]*options.TerragruntOptions
-	unitLoggers map[string]log.Logger
+	Stack  *component.Stack
+	queue  *queue.Queue
+	opts   *options.TerragruntOptions
+	report *report.Report
 }
 
 // BuildCanonicalConfigPath computes the canonical config path for a unit.
@@ -238,7 +236,7 @@ func NewRunnerPoolStack(
 	terragruntOptions *options.TerragruntOptions,
 	discovered component.Components,
 	opts ...common.Option,
-) (common.StackRunner, error) {
+) (common.StackRunner, map[string]*options.TerragruntOptions, map[string]log.Logger, error) {
 	// Filter out Stack components - we only want Unit components
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
 	nonStackComponents := make(component.Components, 0, len(discovered))
@@ -254,31 +252,30 @@ func NewRunnerPoolStack(
 		stack := component.NewStack(terragruntOptions.WorkingDir)
 
 		runner := &Runner{
-			Stack:       stack,
-			opts:        terragruntOptions,
-			unitOpts:    make(map[string]*options.TerragruntOptions),
-			unitLoggers: make(map[string]log.Logger),
+			Stack: stack,
+			opts:  terragruntOptions,
 		}
 
 		// Create an empty queue
 		q, queueErr := queue.NewQueue(component.Components{})
 		if queueErr != nil {
-			return nil, queueErr
+			return nil, nil, nil, queueErr
 		}
 
 		runner.queue = q
 
-		return runner.WithOptions(opts...), nil
+		unitOpts := make(map[string]*options.TerragruntOptions)
+		unitLoggers := make(map[string]log.Logger)
+
+		return runner.WithOptions(opts...), unitOpts, unitLoggers, nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
 	stack := component.NewStack(terragruntOptions.WorkingDir)
 
 	runner := &Runner{
-		Stack:       stack,
-		opts:        terragruntOptions,
-		unitOpts:    make(map[string]*options.TerragruntOptions),
-		unitLoggers: make(map[string]log.Logger),
+		Stack: stack,
+		opts:  terragruntOptions,
 	}
 
 	// Apply options (including report) BEFORE resolving units so that
@@ -288,11 +285,8 @@ func NewRunnerPoolStack(
 	// Resolve units from discovery - populates per-unit options and loggers
 	units, unitOptsMap, unitLoggersMap, err := resolveUnitsFromDiscovery(ctx, l, runner.opts, runner.Stack, nonStackComponents)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-
-	runner.unitOpts = unitOptsMap
-	runner.unitLoggers = unitLoggersMap
 
 	// Check for units with Git refs but no remote state configuration
 	checkLocalStateWithGitRefs(l, units)
@@ -313,12 +307,12 @@ func NewRunnerPoolStack(
 
 	q, queueErr := queue.NewQueue(filtered)
 	if queueErr != nil {
-		return nil, queueErr
+		return nil, nil, nil, queueErr
 	}
 
 	runner.queue = q
 
-	return runner.WithOptions(opts...), nil
+	return runner.WithOptions(opts...), unitOptsMap, unitLoggersMap, nil
 }
 
 // filterUnitsToComponents converts resolved units to Components.
@@ -341,7 +335,7 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, unitOpts map[string]*options.TerragruntOptions, unitLoggers map[string]log.Logger) error {
 	terraformCmd := opts.TerraformCommand
 
 	if opts.OutputFolder != "" {
@@ -355,7 +349,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 	if slices.Contains(config.TerraformCommandsNeedInput, terraformCmd) {
 		opts.TerraformCliArgs.InsertFlag(0, "-input=false")
-		r.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts, unitOpts)
 	}
 
 	var planErrorBuffers []bytes.Buffer
@@ -366,11 +360,11 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			opts.TerraformCliArgs.InsertFlag(0, "-auto-approve")
 		}
 
-		r.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts, unitOpts)
 	case tf.CommandNameShow:
-		r.syncTerraformCliArgs(l, opts)
+		r.syncTerraformCliArgs(l, opts, unitOpts)
 	case tf.CommandNamePlan:
-		planErrorBuffers = r.handlePlan()
+		planErrorBuffers = r.handlePlan(unitOpts)
 		defer r.summarizePlanAllErrors(l, planErrorBuffers)
 	}
 
@@ -424,32 +418,32 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	}
 
 	task := func(ctx context.Context, u *component.Unit) error {
-		unitOpts := r.unitOpts[u.Path()]
-		if unitOpts == nil {
+		uOpts := unitOpts[u.Path()]
+		if uOpts == nil {
 			return tgerrors.Errorf("unit %s has no execution context", u.Path())
 		}
 
-		unitLogger := r.unitLoggers[u.Path()]
+		unitLogger := unitLoggers[u.Path()]
 		if unitLogger == nil {
 			unitLogger = l
 		}
 
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      unitOpts.TerraformCommand,
-			"terraform_cli_args":     unitOpts.TerraformCliArgs,
-			"working_dir":            unitOpts.WorkingDir,
-			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
+			"terraform_command":      uOpts.TerraformCommand,
+			"terraform_cli_args":     uOpts.TerraformCliArgs,
+			"working_dir":            uOpts.WorkingDir,
+			"terragrunt_config_path": uOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writer)
-			unitOpts.Writer = unitWriter
+			unitWriter := NewUnitWriter(uOpts.Writer)
+			uOpts.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts)
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, uOpts)
 			if err != nil {
 				return err
 			}
@@ -457,8 +451,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
 				unitLogger,
-				unitOpts,
-				config.DefaultParserOptions(unitLogger, unitOpts),
+				uOpts,
+				config.DefaultParserOptions(unitLogger, uOpts),
 			)
 			if err != nil {
 				return err
@@ -469,7 +463,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			err = unitRunner.Run(
 				childCtx,
 				unitLogger,
-				unitOpts,
+				uOpts,
 				r.report,
 				runCfg,
 				credsGetter,
@@ -595,12 +589,12 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 // handlePlan handles logic for plan command, including error buffer setup and summary.
 // Returns error buffers for each unit to capture stderr output for later analysis.
-func (r *Runner) handlePlan() []bytes.Buffer {
+func (r *Runner) handlePlan(unitOpts map[string]*options.TerragruntOptions) []bytes.Buffer {
 	planErrorBuffers := make([]bytes.Buffer, len(r.Stack.Units))
 	for i, u := range r.Stack.Units {
-		unitOpts := r.unitOpts[u.Path()]
-		if unitOpts != nil {
-			unitOpts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], unitOpts.ErrWriter)
+		uOpts := unitOpts[u.Path()]
+		if uOpts != nil {
+			uOpts.ErrWriter = io.MultiWriter(&planErrorBuffers[i], uOpts.ErrWriter)
 		}
 	}
 
@@ -706,40 +700,40 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // syncTerraformCliArgs syncs the Terraform CLI arguments for each unit in the stack based on the provided Terragrunt options.
-func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions) {
+func (r *Runner) syncTerraformCliArgs(l log.Logger, opts *options.TerragruntOptions, unitOpts map[string]*options.TerragruntOptions) {
 	for _, unit := range r.Stack.Units {
-		unitOpts := r.unitOpts[unit.Path()]
-		if unitOpts == nil {
+		uOpts := unitOpts[unit.Path()]
+		if uOpts == nil {
 			continue
 		}
 
 		discoveryCtx := unit.DiscoveryContext()
 		if discoveryCtx != nil && len(discoveryCtx.Args) > 0 {
 			// Merge stack-level flags that aren't already present
-			unitOpts.TerraformCliArgs.MergeFlags(opts.TerraformCliArgs)
+			uOpts.TerraformCliArgs.MergeFlags(opts.TerraformCliArgs)
 		} else {
-			unitOpts.TerraformCliArgs = opts.TerraformCliArgs.Clone()
+			uOpts.TerraformCliArgs = opts.TerraformCliArgs.Clone()
 		}
 
-		planFile := unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, unitOpts.JSONOutputFolder, unitOpts.TerraformCommand)
+		planFile := unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, uOpts.JSONOutputFolder, uOpts.TerraformCommand)
 
 		if planFile != "" {
-			l.Debugf("Using output file %s for unit %s", planFile, unitOpts.TerragruntConfigPath)
+			l.Debugf("Using output file %s for unit %s", planFile, uOpts.TerragruntConfigPath)
 
 			// Check if plan file already exists in args
-			if unitOpts.TerraformCliArgs.HasPlanFile() {
+			if uOpts.TerraformCliArgs.HasPlanFile() {
 				// Plan file already present, args are already structured correctly
 				continue
 			}
 
-			if unitOpts.TerraformCommand == tf.CommandNamePlan {
+			if uOpts.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				unitOpts.TerraformCliArgs.AppendFlag("-out=" + planFile)
+				uOpts.TerraformCliArgs.AppendFlag("-out=" + planFile)
 
 				continue
 			}
 
-			unitOpts.TerraformCliArgs.AppendArgument(planFile)
+			uOpts.TerraformCliArgs.AppendArgument(planFile)
 		}
 	}
 }
@@ -923,11 +917,6 @@ func (r *Runner) GetStack() *component.Stack {
 // SetReport sets the report for the runner.
 func (r *Runner) SetReport(rpt *report.Report) {
 	r.report = rpt
-}
-
-// UnitOpts returns the TerragruntOptions for a specific unit by its path.
-func (r *Runner) UnitOpts(unitPath string) *options.TerragruntOptions {
-	return r.unitOpts[unitPath]
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies

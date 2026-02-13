@@ -75,7 +75,6 @@ func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
 	assert.Equal(t, subDir, unit.Path())
 }
 
-
 func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	t.Parallel()
 

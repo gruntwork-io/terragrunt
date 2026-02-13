@@ -189,8 +189,12 @@ func createRunner(
 	tgOpts *options.TerragruntOptions,
 	comps component.Components,
 	opts ...common.Option,
-) (common.StackRunner, error) {
-	var runner common.StackRunner
+) (common.StackRunner, map[string]*options.TerragruntOptions, map[string]log.Logger, error) {
+	var (
+		runner      common.StackRunner
+		unitOpts    map[string]*options.TerragruntOptions
+		unitLoggers map[string]log.Logger
+	)
 
 	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
@@ -198,15 +202,15 @@ func createRunner(
 	}, func(childCtx context.Context) error {
 		var err2 error
 
-		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
+		runner, unitOpts, unitLoggers, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
 
 		return err2
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
-	return runner, nil
+	return runner, unitOpts, unitLoggers, nil
 }
 
 // checkVersionConstraints performs version constraint checks on all discovered units concurrently.

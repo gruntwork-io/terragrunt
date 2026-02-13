@@ -18,7 +18,7 @@ import (
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
+func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, map[string]*options.TerragruntOptions, map[string]log.Logger, error) {
 	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
@@ -97,7 +97,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions)
+	runner, _, _, err := FindStackInSubfolders(ctx, l, cfgOptions)
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return matchedModulesMap
