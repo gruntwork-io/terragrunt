@@ -4,6 +4,10 @@ include "root" {
 
 dependency "vpc" {
   config_path = "../vpc"
+  mock_outputs = {
+    name = "mock-vpc"
+  }
+  mock_outputs_allowed_terraform_commands = ["validate"]
 }
 
 terraform {

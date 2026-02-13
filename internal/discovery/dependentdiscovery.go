@@ -176,8 +176,7 @@ func (dd *DependentDiscovery) discoverDependents(
 
 		walkFn := filepath.WalkDir
 		if dd.opts != nil && dd.opts.Experiments.Evaluate(experiment.Symlinks) {
-			// WalkDirWithSymlinks returns logical (symlink-preserved) paths.
-			// This ensures dependency resolution uses symlink paths consistently with discovery.
+			// Returns logical (symlink-preserved) paths; see WalkDirWithSymlinks godoc.
 			walkFn = util.WalkDirWithSymlinks
 		}
 

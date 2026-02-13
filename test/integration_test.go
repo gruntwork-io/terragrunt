@@ -1274,6 +1274,7 @@ func TestSymlinksWithInclude(t *testing.T) {
 
 	// Run terragrunt with symlinks experiment from the symlinked directory
 	// This should find root.hcl via the symlink path, not the physical path
+	// --log-level info is required so that "Unit ..." names appear in stderr for assertions
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+symlinkChildPath,
@@ -1306,7 +1307,7 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, fixtureRoot)
 
 	// Run from symlink with --all (triggers discovery, partial parse, and dependency graph)
-	// Use --experiment symlinks to enable symlink preservation
+	// --log-level info is required so that "Unit ..." names appear in stderr for assertions
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+symlinkPath,
@@ -1323,8 +1324,9 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 }
 
 // TestSymlinksWithIncludeNoExperiment verifies that without the symlinks experiment flag,
-// running from a symlinked directory fails with an include path error. This proves the
-// experiment flag is the actual fix for https://github.com/gruntwork-io/terragrunt/issues/5314
+// running from a symlinked directory fails with an include path error when the symlink's
+// physical parent chain does not contain the root config. This proves the experiment flag
+// is the actual fix for https://github.com/gruntwork-io/terragrunt/issues/5314
 func TestSymlinksWithIncludeNoExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -1332,23 +1334,28 @@ func TestSymlinksWithIncludeNoExperiment(t *testing.T) {
 	require.NoError(t, err)
 
 	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureSymlinkInclude)
-
-	symlinkPath := filepath.Join(fixtureRoot, "symlink")
-	actualPath := filepath.Join(fixtureRoot, "actual")
-	require.NoError(t, os.Symlink(actualPath, symlinkPath))
-
-	symlinkChildPath := filepath.Join(symlinkPath, "child")
-
 	helpers.CleanupTerraformFolder(t, fixtureRoot)
 
-	// Run WITHOUT --experiment symlinks - should fail with include path error
+	// Create symlink in an isolated directory where root.hcl does NOT exist in the parent chain.
+	// This reproduces the real #5314 scenario: the physical path resolved by EvalSymlinks
+	// has different parents than the logical symlink path.
+	isolatedDir := filepath.Join(tmpEnvPath, "isolated")
+	require.NoError(t, os.MkdirAll(isolatedDir, 0755))
+
+	symlinkPath := filepath.Join(isolatedDir, "child")
+	actualPath := filepath.Join(fixtureRoot, "actual", "child")
+	require.NoError(t, os.Symlink(actualPath, symlinkPath))
+
+	// Run WITHOUT --experiment symlinks - should fail because find_in_parent_folders
+	// searches the physical parent chain (isolated/ -> tmpEnvPath/) which has no root.hcl
+	// Error originates from config/config_helpers.go FindInParentFolders()
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all validate --log-level info --non-interactive --working-dir "+symlinkChildPath,
+		"terragrunt run --all validate --log-level info --non-interactive --working-dir "+symlinkPath,
 	)
 
 	require.Error(t, err, "Expected error when running from symlinked directory without symlinks experiment")
-	assert.Contains(t, stderr, "must specify a 'path' parameter", "Should fail with include path error without symlinks experiment")
+	assert.Contains(t, stderr, "must specify a 'path'", "Should fail with include path error without symlinks experiment")
 }
 
 func TestInvalidSource(t *testing.T) {

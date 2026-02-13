@@ -630,10 +630,11 @@ func TestWalkDirWithSymlinksRoot(t *testing.T) {
 	tempDir, err := filepath.EvalSymlinks(tempDir)
 	require.NoError(t, err)
 
-	// Create actual directory with a file
+	// Create actual directory with a file and nested subdirectory
 	actualDir := filepath.Join(tempDir, "actual")
-	require.NoError(t, os.Mkdir(actualDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(actualDir, "subdir"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(actualDir, "test.txt"), []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(actualDir, "subdir", "nested.txt"), []byte("nested"), 0644))
 
 	// Create symlink pointing to actual
 	symlinkDir := filepath.Join(tempDir, "symlink")
@@ -655,16 +656,25 @@ func TestWalkDirWithSymlinksRoot(t *testing.T) {
 
 	sort.Strings(paths)
 
-	// All paths should use the symlink location, not the physical "actual" directory
-	for _, p := range paths {
-		assert.Contains(t, p, "symlink", "Path should use symlink location: %s", p)
-		assert.NotContains(t, p, "actual", "Path should not use physical location: %s", p)
+	// Verify all expected paths are present with symlink-based locations
+	expectedPaths := []string{
+		filepath.ToSlash(symlinkDir),
+		filepath.ToSlash(filepath.Join(symlinkDir, "subdir")),
+		filepath.ToSlash(filepath.Join(symlinkDir, "subdir", "nested.txt")),
+		filepath.ToSlash(filepath.Join(symlinkDir, "test.txt")),
+	}
+	sort.Strings(expectedPaths)
+
+	require.Len(t, paths, len(expectedPaths))
+
+	for i, expected := range expectedPaths {
+		assert.Equal(t, expected, paths[i])
 	}
 
-	// Should contain root and the test file
-	assert.Len(t, paths, 2)
-	assert.Equal(t, filepath.ToSlash(symlinkDir), paths[0])
-	assert.Equal(t, filepath.ToSlash(filepath.Join(symlinkDir, "test.txt")), paths[1])
+	// No path should reference the physical "actual" directory
+	for _, p := range paths {
+		assert.NotContains(t, p, "actual", "Path should not use physical location: %s", p)
+	}
 }
 
 func Test_sanitizePath(t *testing.T) {

@@ -634,8 +634,7 @@ func (d *Discovery) walkDirectoryConcurrently(
 ) error {
 	walkFn := filepath.WalkDir
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
-		// WalkDirWithSymlinks returns logical (symlink-preserved) paths.
-		// processFile depends on this for correct find_in_parent_folders() behavior.
+		// Returns logical (symlink-preserved) paths; see WalkDirWithSymlinks godoc.
 		walkFn = util.WalkDirWithSymlinks
 	}
 

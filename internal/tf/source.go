@@ -63,9 +63,8 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 		var err error
 
 		if src.WalkDirWithSymlinks {
-			// Note: WalkDirWithSymlinks returns logical (symlink-preserved) paths, so the hash
-			// will differ from filepath.WalkDir when sourceDir is a symlink. This means upgrading
-			// to the symlinks experiment may cause a one-time cache invalidation for symlink users.
+			// Returns logical (symlink-preserved) paths (see WalkDirWithSymlinks godoc), so the
+			// hash may differ when sourceDir is a symlink, causing one-time cache invalidation.
 			err = util.WalkDirWithSymlinks(sourceDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					// If we've encountered an error while walking the tree, give up

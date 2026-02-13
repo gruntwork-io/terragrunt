@@ -1041,6 +1041,7 @@ func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 // Unlike filepath.WalkDir, callback paths are logical (symlink-preserving) - if root is a symlink,
 // paths use the symlink location, not the resolved physical target. This is important for callers
 // like find_in_parent_folders() that need to traverse the symlink's parent chain.
+// When root is not a symlink, behavior is identical to filepath.WalkDir (plus symlink following).
 //
 //nolint:funlen
 func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
@@ -1066,6 +1067,8 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 			if err != nil {
 				// Note: on error, currentPath is the physical path (not logical) since we
 				// cannot compute the logical path when the walk itself encountered an error.
+				// Current callers are safe (they return the error immediately without using the path),
+				// but future callers should not rely on path in error callbacks.
 				return externalWalkFn(currentPath, d, err)
 			}
 
