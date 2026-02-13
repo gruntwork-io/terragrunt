@@ -41,11 +41,8 @@ jobs:
           RAMDISK=$(hdiutil attach -nomount ram://8388608)
           diskutil erasevolume HFS+ RAMDisk $RAMDISK
           mkdir -p /Volumes/RAMDisk/go-build
-          mkdir -p /Volumes/RAMDisk/terragrunt
           rm -rf ~/Library/Caches/go-build
-          rm -rf ~/Library/Caches/terragrunt
           ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
-          ln -sf /Volumes/RAMDisk/terragrunt ~/Library/Caches/terragrunt
 
       - name: Cache mise tools
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
