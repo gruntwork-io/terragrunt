@@ -1,0 +1,194 @@
+---
+title: Combining Expressions
+description: Combine filter expressions using negation, intersection, and union operators
+slug: docs/features/filter/combining
+sidebar:
+  order: 7
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+## Negated Expressions
+
+Negate filter expressions using the `!` prefix. Negated expressions are always evaluated after all positive expressions have been evaluated.
+
+```bash
+# Exclude by name
+terragrunt find --filter '!app1'
+
+# Exclude by path
+terragrunt find --filter '!./prod/**'
+
+# Exclude by type
+terragrunt find --filter '!type=stack'
+```
+
+<FileTree>
+- envs
+  - prod
+    - apps
+      - app1 \<-- Excluded by _both_ the first and second filter
+        - terragrunt.hcl
+      - app2 \<-- Matched by all filters _except_ the second filter
+        - terragrunt.hcl
+    - stacks
+      - **stack1** \<-- Excluded by _both_ the second and third filter
+        - terragrunt.stack.hcl
+  - stage
+    - apps
+      - **app1** \<-- Matched by all filters _except_ the first filter
+        - terragrunt.hcl
+      - **app2** \<-- Matched by all filters
+        - terragrunt.hcl
+    - stacks
+      - **stack1** \<-- Matched by all filters _except_ the third filter
+        - terragrunt.stack.hcl
+
+</FileTree>
+
+## Intersection Expressions
+
+Use the `|` operator to refine results from left to right. Results must match all filters in the chain to be included.
+
+```bash
+# Find all components in ./prod/** that are also units
+terragrunt find --filter './prod/** | type=unit'
+
+# Find all components in ./prod/** that are not units
+terragrunt find --filter './prod/** | !type=unit'
+
+# You can chain as many filters as you want to further refine the results
+terragrunt find --filter './dev/** | type=unit | !name=unit1'
+```
+
+<FileTree>
+- prod
+  - units
+    - **unit1** \<-- Matched by first filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by first filter
+      - terragrunt.hcl
+  - stacks
+    - **stack1** \<-- Matched by second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by second filter
+      - terragrunt.stack.hcl
+- dev
+  - units
+    - unit1
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by third filter
+      - terragrunt.hcl
+  - stacks
+    - stack1
+      - terragrunt.stack.hcl
+    - stack2
+      - terragrunt.stack.hcl
+</FileTree>
+
+### Path resolution in intersection chains
+
+In an intersection chain (`A | B | C`), the left-most expression determines which [**components**](/docs/getting-started/terminology#component) flow through the rest of the chain. Each component carries its own **discovery context**, including a working directory where the component was discovered.
+
+Relative path expressions (like `./apps/*`) in any part of the chain resolve against the working directory of the component's discovery context — **not** the user's current working directory. These two are the same when discovering components in the current working directory.
+
+```bash
+# Referencing the file tree above
+terragrunt run --working-dir prod --filter './units/** | unit1'
+```
+
+When using [Git expressions](/docs/features/filter/git), components are discovered in temporary Git worktrees (see [How it works](/docs/features/filter/git#how-it-works) for more details. As such, relative paths resolve relative to the root of the Git worktree where the component was discovered.
+
+```bash
+# Note that we still need to specify 'prod' here in the path.
+terragrunt run --working-dir prod --filter '[main...HEAD] | ./prod/units/**'
+```
+
+## Union Expressions
+
+Specify multiple `--filter` flags to merge results from multiple filters.
+
+```bash
+# Find components named 'unit1' and 'stack1'
+terragrunt find --filter unit1 --filter stack1
+
+# Find components in ./envs/prod/* and ./envs/stage/*
+terragrunt find --filter './envs/prod/*' --filter './envs/stage/*'
+
+# Find components named 'stack2' _except_ those in ./envs/prod/* and ./envs/stage/*
+terragrunt find --filter stack2 --filter '!./envs/prod/**' --filter '!./envs/stage/**'
+```
+
+<FileTree>
+- envs
+  - prod
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - stage
+    - **unit1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.hcl
+    - **unit2** \<-- Matched by the second filter
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter _and_ the second filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the second filter
+      - terragrunt.stack.hcl
+  - dev
+    - **unit1** \<-- Matched by the first filter
+      - terragrunt.hcl
+    - unit2
+      - terragrunt.hcl
+    - **stack1** \<-- Matched by the first filter
+      - terragrunt.stack.hcl
+    - **stack2** \<-- Matched by the third filter
+      - terragrunt.stack.hcl
+</FileTree>
+
+### Unions of negated filters
+
+When a filter query starts with a negation (`!`), the result is applied after _all_ positive filters have been applied.
+
+This means that if you have a filter query like this:
+
+```bash
+terragrunt find --filter '!type=unit' --filter 'name=unit1'
+```
+
+The result will be the components that are not units _and_ are named `unit1`.
+
+This means that you should be able to expect negative filters to take effect regardless of how other positive filters may result in the addition of results.
+
+<Aside type="tip" title="Using Negated Expressions">
+If you have infrastructure that you _never_ want to run, you can consider leveraging the [`--filters-file`](/docs/features/filter/filters-file) to automatically negate them.
+</Aside>
+
+### Unions with Git expressions
+
+Union deduplication is based on the **absolute path** of each discovered component. When combining [Git expressions](/docs/features/filter/git) with non-Git expressions in a union, it might seem like the same unit has appeared twice: once discovered from your current working directory and once from a git worktree. From Terragrunt's perspective, these are two different units and can be operated on independently.
+
+If your intent is not to use Terragrunt in this way (to operate on units in temporary Git worktrees), you can use the `find` command instead to perform the logic of discovering components that have changed between Git references, then separately perform a `run` against units in your current working directory.
+
+```bash
+terragrunt find --filter '[main...HEAD]' | awk '{printf "{%s}\n", $0}' > /tmp/diffs.txt
+terragrunt run --all --filters-file diffs.txt -- plan
+```
+
+<Aside type="tip" title="Explicit path filters">
+
+Note the use of `awk` here to wrap paths in `{}`. This is to explicitly mark the paths as [path expressions](/docs/features/filter/path). This is only necessary for disambiguation between [path expressions](/docs/features/filter/path) and [name expressions](/docs/features/filter/name). If you aren't concerned with this ambiguity, you can omit this step.
+
+</Aside>
+
+<Aside type="caution" title="Supporting destroys">
+
+Note that this approach won't support destroys. For Git expressions to support destroys, Terragrunt needs to be able to perform runs on units that might not exist in the current working directory (as they've been removed in a commit). If you want to support the full infrastructure lifecycle with Git expressions, you will want to use Git expressions directly in runs, or add additional tooling.
+
+</Aside>
+
