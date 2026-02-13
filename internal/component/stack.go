@@ -176,9 +176,7 @@ func (s *Stack) ensureDependency(dependency Component) {
 	s.lock()
 	defer s.unlock()
 
-	if !slices.ContainsFunc(s.dependencies, func(d Component) bool {
-		return d.Path() == dependency.Path()
-	}) {
+	if !slices.Contains(s.dependencies, dependency) {
 		s.dependencies = append(s.dependencies, dependency)
 	}
 }
@@ -188,9 +186,7 @@ func (s *Stack) ensureDependent(dependent Component) {
 	s.lock()
 	defer s.unlock()
 
-	if !slices.ContainsFunc(s.dependents, func(d Component) bool {
-		return d.Path() == dependent.Path()
-	}) {
+	if !slices.Contains(s.dependents, dependent) {
 		s.dependents = append(s.dependents, dependent)
 	}
 }

@@ -212,9 +212,7 @@ func (u *Unit) ensureDependency(dependency Component) {
 	u.lock()
 	defer u.unlock()
 
-	if !slices.ContainsFunc(u.dependencies, func(d Component) bool {
-		return d.Path() == dependency.Path()
-	}) {
+	if !slices.Contains(u.dependencies, dependency) {
 		u.dependencies = append(u.dependencies, dependency)
 	}
 }
@@ -224,9 +222,7 @@ func (u *Unit) ensureDependent(dependent Component) {
 	u.lock()
 	defer u.unlock()
 
-	if !slices.ContainsFunc(u.dependents, func(d Component) bool {
-		return d.Path() == dependent.Path()
-	}) {
+	if !slices.Contains(u.dependents, dependent) {
 		u.dependents = append(u.dependents, dependent)
 	}
 }
