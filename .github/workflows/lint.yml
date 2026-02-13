@@ -35,6 +35,27 @@ jobs:
         mkdir -p /home/runner/.cache/golangci-lint
         sudo mount -t tmpfs -o size=2G tmpfs /home/runner/.cache/golangci-lint
 
+    - name: "Mount RAM disk"
+      shell: bash
+      if: runner.os == 'macOS'
+      run: |
+        RAMDISK=$(hdiutil attach -nomount ram://8388608)
+        diskutil erasevolume HFS+ RAMDisk $RAMDISK
+        mkdir -p /Volumes/RAMDisk/go-build
+        mkdir -p /Volumes/RAMDisk/golangci-lint
+        rm -rf ~/Library/Caches/go-build
+        rm -rf ~/Library/Caches/golangci-lint
+        ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
+        ln -sf /Volumes/RAMDisk/golangci-lint ~/Library/Caches/golangci-lint
+
+    - name: Cache mise tools
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+      with:
+        path: ~/.local/share/mise/installs
+        key: ${{ runner.os }}-mise-tools-${{ hashFiles('mise.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-mise-tools-
+
     - name: Set up mise
       uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
       with:
