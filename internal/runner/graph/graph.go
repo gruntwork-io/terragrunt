@@ -93,10 +93,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
+	stack, unitOpts, unitLoggers, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
+	return runall.RunAllOnStack(ctx, l, graphOpts, stack, unitOpts, unitLoggers)
 }

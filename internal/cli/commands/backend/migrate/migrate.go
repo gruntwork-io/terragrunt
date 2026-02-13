@@ -31,7 +31,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts)
+	stackRunner, unitOpts, _, err := runner.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
@@ -46,12 +46,12 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcOpts := stackRunner.UnitOpts(srcPath)
+	srcOpts := unitOpts[srcPath]
 	if srcOpts == nil {
 		return errors.Errorf("src unit has no execution context at %s", srcPath)
 	}
 
-	dstOpts := stackRunner.UnitOpts(dstPath)
+	dstOpts := unitOpts[dstPath]
 	if dstOpts == nil {
 		return errors.Errorf("dst unit has no execution context at %s", dstPath)
 	}
