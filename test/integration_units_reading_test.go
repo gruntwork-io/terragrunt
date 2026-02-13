@@ -40,6 +40,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 			name:         "empty",
 			unitsReading: []string{},
 			expectedUnits: []string{
+				"including",
 				"indirect",
 				"reading-from-tf",
 				"reading-hcl",
@@ -55,6 +56,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 				"shared.hcl",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
 			},
@@ -97,6 +99,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 				"reading-hcl-and-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 			},
 		},
@@ -109,6 +112,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 				"reading-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
 				"reading-tfvars",
@@ -127,6 +131,7 @@ func TestSOPSUnitsReading(t *testing.T) {
 				"reading-hcl-and-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-tfvars",
 			},
@@ -193,6 +198,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 			name:         "empty",
 			unitsReading: []string{},
 			expectedUnits: []string{
+				"including",
 				"indirect",
 				"reading-from-tf",
 				"reading-hcl",
@@ -208,6 +214,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				"shared.hcl",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
 			},
@@ -250,6 +257,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				"reading-hcl-and-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 			},
 		},
@@ -262,6 +270,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				"reading-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-hcl-and-tfvars",
 				"reading-tfvars",
@@ -280,6 +289,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 				"reading-hcl-and-tfvars",
 			},
 			expectedUnits: []string{
+				"including",
 				"reading-hcl",
 				"reading-tfvars",
 			},
@@ -361,6 +371,7 @@ func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 
 	// Units that read shared.hcl should be included
 	expectedUnits := []string{
+		"including",
 		"reading-hcl",
 		"reading-hcl-and-tfvars",
 	}

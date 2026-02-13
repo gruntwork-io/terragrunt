@@ -686,7 +686,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to compile glob pattern")
+		assert.Contains(t, err.Error(), "failed to match path pattern")
 	})
 }
 

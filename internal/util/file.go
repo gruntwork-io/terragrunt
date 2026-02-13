@@ -1177,6 +1177,18 @@ func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
 	return targetPath
 }
 
+// ResolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+// Returns the original path if symlink resolution fails.
+func ResolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
+}
+
 // MoveFile attempts to rename a file from source to destination, if this fails
 // due to invalid cross-device link it falls back to copying the file contents
 // and deleting the original file.

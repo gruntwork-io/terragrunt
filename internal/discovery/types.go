@@ -1,0 +1,213 @@
+package discovery
+
+import (
+	"context"
+	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+// Type aliases for filter package types used throughout discovery.
+// These provide backward compatibility and shorter type names within the discovery package.
+type (
+	// ClassificationStatus is an alias for filter.ClassificationStatus.
+	ClassificationStatus = filter.ClassificationStatus
+	// CandidacyReason is an alias for filter.CandidacyReason.
+	CandidacyReason = filter.CandidacyReason
+	// GraphExpressionInfo is an alias for filter.GraphExpressionInfo.
+	GraphExpressionInfo = filter.GraphExpressionInfo
+)
+
+// Status constants are aliases for filter package constants.
+const (
+	StatusDiscovered = filter.StatusDiscovered
+	StatusCandidate  = filter.StatusCandidate
+	StatusExcluded   = filter.StatusExcluded
+)
+
+// CandidacyReason constants are aliases for filter package constants.
+const (
+	CandidacyReasonNone               = filter.CandidacyReasonNone
+	CandidacyReasonGraphTarget        = filter.CandidacyReasonGraphTarget
+	CandidacyReasonRequiresParse      = filter.CandidacyReasonRequiresParse
+	CandidacyReasonPotentialDependent = filter.CandidacyReasonPotentialDependent
+)
+
+// PhaseKind identifies the type of discovery phase.
+type PhaseKind int
+
+const (
+	// PhaseFilesystem walks directories to find terragrunt configurations.
+	PhaseFilesystem PhaseKind = iota
+	// PhaseWorktree discovers components in Git worktrees (concurrent with Filesystem).
+	PhaseWorktree
+	// PhaseParse parses HCL configurations for filter evaluation.
+	PhaseParse
+	// PhaseGraph traverses dependency/dependent relationships.
+	PhaseGraph
+	// PhaseRelationship builds dependency graph for orphan components.
+	PhaseRelationship
+	// PhaseFinal applies final filter evaluation and cycle checking.
+	PhaseFinal
+)
+
+// String returns a string representation of the PhaseKind.
+func (pk PhaseKind) String() string {
+	switch pk {
+	case PhaseFilesystem:
+		return "filesystem"
+	case PhaseWorktree:
+		return "worktree"
+	case PhaseParse:
+		return "parse"
+	case PhaseGraph:
+		return "graph"
+	case PhaseRelationship:
+		return "relationship"
+	case PhaseFinal:
+		return "final"
+	default:
+		return "unknown"
+	}
+}
+
+// DiscoveryResult represents a discovered or candidate component with metadata.
+type DiscoveryResult struct {
+	// Component is the discovered Terragrunt component.
+	Component component.Component
+	// Status indicates whether this is a definite discovery, candidate, or excluded.
+	Status ClassificationStatus
+	// Reason explains why the component is a candidate (only meaningful when Status == StatusCandidate).
+	Reason CandidacyReason
+	// Phase indicates which phase produced this result.
+	Phase PhaseKind
+	// GraphExpressionIndex is the index of the graph expression that matched (for candidates).
+	// This is used during the graph phase to determine how to traverse.
+	GraphExpressionIndex int
+}
+
+// PhaseResults contains the results from running a discovery phase.
+// It provides thread-safe methods for collecting results during concurrent processing.
+type PhaseResults struct {
+	// Discovered contains components definitively included in results.
+	Discovered []DiscoveryResult
+	// Candidates contains components that might be included pending further evaluation.
+	Candidates []DiscoveryResult
+	// mu protects concurrent access to Discovered and Candidates.
+	mu sync.Mutex
+}
+
+// NewPhaseResults creates a new PhaseResults.
+func NewPhaseResults() *PhaseResults {
+	return &PhaseResults{}
+}
+
+// AddDiscovered adds a discovered result to the results in a thread-safe manner.
+func (pr *PhaseResults) AddDiscovered(result DiscoveryResult) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	pr.Discovered = append(pr.Discovered, result)
+}
+
+// AddCandidate adds a candidate result to the results in a thread-safe manner.
+func (pr *PhaseResults) AddCandidate(result DiscoveryResult) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+
+	pr.Candidates = append(pr.Candidates, result)
+}
+
+// PhaseInput provides input data to a discovery phase.
+type PhaseInput struct {
+	Opts       *options.TerragruntOptions
+	Classifier *filter.Classifier
+	Discovery  *Discovery
+	Components component.Components
+	Candidates []DiscoveryResult
+}
+
+// Phase defines the interface for a discovery phase.
+type Phase interface {
+	// Name returns the human-readable name of the phase.
+	Name() string
+	// Kind returns the PhaseKind identifier.
+	Kind() PhaseKind
+	// Run executes the phase with the given input and returns the result and any error.
+	Run(ctx context.Context, l log.Logger, input *PhaseInput) (*PhaseResults, error)
+}
+
+// Discovery is the main configuration for discovery.
+type Discovery struct {
+	// discoveryContext is the context in which the discovery is happening.
+	discoveryContext *component.DiscoveryContext
+
+	// worktrees is the worktrees created for Git-based filters.
+	worktrees *worktrees.Worktrees
+
+	// report is used for recording excluded external dependencies during discovery.
+	report *report.Report
+
+	// workingDir is the directory to search for Terragrunt configurations.
+	workingDir string
+
+	// gitRoot is the git repository root, used as boundary for dependent discovery.
+	gitRoot string
+
+	// graphTarget is the target path for graph filtering (prune to target + dependents).
+	graphTarget string
+
+	// configFilenames is the list of config filenames to discover. If nil, defaults are used.
+	configFilenames []string
+
+	// parserOptions are custom HCL parser options to use when parsing during discovery.
+	parserOptions []hclparse.Option
+
+	// filters contains filter queries for component selection.
+	filters filter.Filters
+
+	// classifier categorizes filter expressions for efficient evaluation.
+	classifier *filter.Classifier
+
+	// gitExpressions contains Git filter expressions that require worktree discovery.
+	gitExpressions filter.GitExpressions
+
+	// maxDependencyDepth is the maximum depth of the dependency tree to discover.
+	maxDependencyDepth int
+
+	// numWorkers determines the number of concurrent workers for discovery operations.
+	numWorkers int
+
+	// noHidden determines whether to detect configurations in hidden directories.
+	noHidden bool
+
+	// requiresParse is true when the discovery requires parsing Terragrunt configurations.
+	requiresParse bool
+
+	// parseExclude determines whether to parse exclude configurations.
+	parseExclude bool
+
+	// parseIncludes determines whether to parse for include configurations.
+	parseIncludes bool
+
+	// readFiles determines whether to parse for reading files.
+	readFiles bool
+
+	// suppressParseErrors determines whether to suppress errors when parsing Terragrunt configurations.
+	suppressParseErrors bool
+
+	// breakCycles determines whether to break cycles in the dependency graph if any exist.
+	breakCycles bool
+
+	// excludeByDefault determines whether to exclude configurations by default (triggered by include flags).
+	excludeByDefault bool
+
+	// discoverRelationships determines whether to run relationship discovery.
+	discoverRelationships bool
+}
