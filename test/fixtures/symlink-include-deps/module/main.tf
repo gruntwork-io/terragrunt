@@ -21,6 +21,8 @@ resource "null_resource" "test" {
   triggers = {
     name      = var.name
     from_root = var.from_root
+    vpc_id    = var.vpc_id
+    app1_id   = var.app1_id
   }
 }
 

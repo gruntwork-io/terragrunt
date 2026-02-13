@@ -1276,7 +1276,7 @@ func TestSymlinksWithInclude(t *testing.T) {
 	// This should find root.hcl via the symlink path, not the physical path
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all validate --experiment symlinks --non-interactive --working-dir "+symlinkChildPath,
+		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+symlinkChildPath,
 	)
 
 	// Before the fix, this would fail with:
@@ -1284,7 +1284,7 @@ func TestSymlinksWithInclude(t *testing.T) {
 	require.NoError(t, err, "Expected no error when running with symlinks experiment from symlinked directory, got: %s", stderr)
 
 	// Verify the path uses the symlink path (relative "."), not the physical path (which would be "../../actual/child")
-	assert.Contains(t, stderr, "Unit .")
+	assert.Contains(t, stderr, "Unit .", "Should discover child unit as current dir")
 	assert.NotContains(t, stderr, "actual/child", "Path should use symlink path, not physical path")
 }
 
@@ -1309,7 +1309,7 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 	// Use --experiment symlinks to enable symlink preservation
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all validate --experiment symlinks --non-interactive --working-dir "+symlinkPath,
+		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+symlinkPath,
 	)
 
 	// Before the fix, this would fail with:
@@ -1320,6 +1320,35 @@ func TestSymlinksWithIncludeDeps(t *testing.T) {
 	assert.Contains(t, stderr, "Unit app1", "Should discover app1 unit")
 	assert.Contains(t, stderr, "Unit app2", "Should discover app2 unit")
 	assert.Contains(t, stderr, "Unit vpc", "Should discover vpc unit")
+}
+
+// TestSymlinksWithIncludeNoExperiment verifies that without the symlinks experiment flag,
+// running from a symlinked directory fails with an include path error. This proves the
+// experiment flag is the actual fix for https://github.com/gruntwork-io/terragrunt/issues/5314
+func TestSymlinksWithIncludeNoExperiment(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureSymlinkInclude))
+	require.NoError(t, err)
+
+	fixtureRoot := filepath.Join(tmpEnvPath, testFixtureSymlinkInclude)
+
+	symlinkPath := filepath.Join(fixtureRoot, "symlink")
+	actualPath := filepath.Join(fixtureRoot, "actual")
+	require.NoError(t, os.Symlink(actualPath, symlinkPath))
+
+	symlinkChildPath := filepath.Join(symlinkPath, "child")
+
+	helpers.CleanupTerraformFolder(t, fixtureRoot)
+
+	// Run WITHOUT --experiment symlinks - should fail with include path error
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all validate --log-level info --non-interactive --working-dir "+symlinkChildPath,
+	)
+
+	require.Error(t, err, "Expected error when running from symlinked directory without symlinks experiment")
+	assert.Contains(t, stderr, "must specify a 'path' parameter", "Should fail with include path error without symlinks experiment")
 }
 
 func TestInvalidSource(t *testing.T) {

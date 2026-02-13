@@ -1064,6 +1064,8 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 	walkFn = func(pair pathPair) error {
 		return filepath.WalkDir(pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
 			if err != nil {
+				// Note: on error, currentPath is the physical path (not logical) since we
+				// cannot compute the logical path when the walk itself encountered an error.
 				return externalWalkFn(currentPath, d, err)
 			}
 
@@ -1112,6 +1114,7 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 		})
 	}
 
+	// Clean root so the logical path stored below is normalized.
 	root = filepath.Clean(root)
 
 	realRoot, err := filepath.EvalSymlinks(root)
