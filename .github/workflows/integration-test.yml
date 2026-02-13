@@ -139,6 +139,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
 
       - name: "Setup Docker"
         if: runner.os == 'Linux'
@@ -152,6 +154,13 @@ jobs:
           sudo docker image prune --all --force
           sudo docker builder prune -a
           df -h
+
+      - name: "Mount tmpfs"
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p /home/runner/.cache/go-build
+          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
@@ -210,6 +219,8 @@ jobs:
             ${{ steps.go-cache-paths.outputs.go-build }}
             ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.integration.os }}-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-build-
 
       - name: Terragrunt Provider Cache
         if: runner.os == 'Linux'
