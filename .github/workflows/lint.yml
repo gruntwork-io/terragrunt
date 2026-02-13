@@ -21,7 +21,7 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
-        fetch-depth: 1
+        fetch-depth: 0
 
     - name: "Mount tmpfs"
       shell: bash
@@ -89,5 +89,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-golangci-lint-
 
+    - name: Fetch main branch
+      if: github.ref != 'refs/heads/main'
+      run: git fetch origin main --depth=1
+
     - name: Lint
-      run: make run-lint
+      run: |
+        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          make run-lint
+        else
+          make run-lint-incremental
+        fi
