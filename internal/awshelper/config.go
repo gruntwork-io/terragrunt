@@ -125,12 +125,8 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(opts) != nil {
-		return cfg, nil
-	}
-
 	iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
-	if iamRoleOptions.RoleARN == "" {
+	if iamRoleOptions.RoleARN == "" && createCredentialsFromEnv(opts) != nil {
 		return cfg, nil
 	}
 
