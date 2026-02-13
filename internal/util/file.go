@@ -398,7 +398,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(
-	logger log.Logger,
+	l log.Logger,
 	source,
 	destination,
 	manifestFile string,
@@ -437,7 +437,7 @@ func CopyFolderContents(
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
@@ -455,14 +455,14 @@ func CopyFolderContents(
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(logger, destination, manifestFile)
-	if err := manifest.Clean(); err != nil {
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
 		return errors.New(err)
 	}
 
@@ -473,7 +473,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
-			logger.Warnf("Error closing manifest file: %v", err)
+			l.Warnf("Error closing manifest file: %v", err)
 		}
 	}(manifest)
 
@@ -507,7 +507,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -661,7 +661,6 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
 	ManifestFolder string
@@ -677,12 +676,12 @@ type fileManifestEntry struct {
 }
 
 // Clean will recursively remove all files specified in the manifest
-func (manifest *fileManifest) Clean() error {
-	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+func (manifest *fileManifest) Clean(l log.Logger) error {
+	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(manifestPath string) error {
+func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
@@ -696,11 +695,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
-			manifest.logger.Warnf("Error closing file %s: %v", name, err)
+			l.Warnf("Error closing file %s: %v", name, err)
 		}
 
 		if err := os.Remove(name); err != nil {
-			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
@@ -720,7 +719,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
 		} else {
@@ -763,8 +762,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors

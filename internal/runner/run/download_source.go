@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -256,26 +257,30 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func UpdateGetters(terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
+func UpdateGetters(l log.Logger, terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
-		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
-		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
-		// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
-		// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
-		client.Getters = map[string]getter.Getter{}
-
-		for getterName, getterValue := range getter.Getters {
-			if getterName == "file" {
-				client.Getters[getterName] = &FileCopyGetter{
-					IncludeInCopy:   cfg.Terraform.IncludeInCopy,
-					ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
-				}
-
-				continue
-			}
-
-			client.Getters[getterName] = getterValue
+		// We iterate over the global getter.Getters map and clone each getter
+		// to avoid race conditions. The global map contains shared getter
+		// instances, and when SetClient is called on them from multiple
+		// goroutines, it causes data races. Cloning via dereference ensures
+		// each client has its own getter state, while automatically picking
+		// up any new getter types registered by go-getter.
+		client.Getters = make(map[string]getter.Getter, len(getter.Getters))
+		for name, g := range getter.Getters {
+			v := reflect.ValueOf(g).Elem()
+			clone := reflect.New(v.Type())
+			clone.Elem().Set(v)
+			client.Getters[name] = clone.Interface().(getter.Getter)
 		}
+
+		// Override with Terragrunt-specific customizations
+		client.Getters["file"] = &FileCopyGetter{
+			Logger:          l,
+			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
+			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
+		}
+		client.Getters["http"] = &getter.HttpGetter{Netrc: true}
+		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
 
 		// Load in custom getters that are only supported in Terragrunt
 		client.Getters["tfr"] = &tf.RegistryGetter{
@@ -292,10 +297,13 @@ func preserveSymlinksOption() getter.ClientOption {
 	return func(c *getter.Client) error {
 		// Create a custom git getter that preserves symlink settings
 		if c.Getters != nil {
-			if gitGetter, exists := c.Getters["git"]; exists {
-				// Replace with a wrapper that preserves symlink settings
+			if _, exists := c.Getters["git"]; exists {
+				// Replace with a wrapper that preserves symlink settings.
+				// We create a fresh GitGetter instance instead of wrapping the
+				// existing one to avoid race conditions when multiple goroutines
+				// share the same getter from the global getter.Getters map.
 				c.Getters["git"] = &symlinkPreservingGitGetter{
-					original: gitGetter,
+					original: &getter.GitGetter{},
 					client:   c,
 				}
 			}
@@ -369,7 +377,7 @@ func downloadSource(
 
 	// Fallback to standard go-getter
 	return opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(opts, cfg), preserveSymlinksOption())
+		return getter.GetAny(src.DownloadDir, src.CanonicalSourceURL.String(), UpdateGetters(l, opts, cfg), preserveSymlinksOption())
 	})
 }
 
