@@ -273,7 +273,7 @@ func parseComponent(
 		}
 
 		if !discovery.suppressParseErrors || cfg == nil {
-			return errors.New(err)
+			return err
 		}
 
 		l.Debugf("Suppressing parse error for %s: %s", parseOpts.TerragruntConfigPath, err)

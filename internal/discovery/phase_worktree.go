@@ -366,7 +366,10 @@ func (p *WorktreePhase) walkChangedStack(
 		return nil, errors.Join(errs...)
 	}
 
-	componentPairs := MatchComponentPairs(fromComponents, toComponents)
+	componentPairs, err := MatchComponentPairs(fromComponents, toComponents)
+	if err != nil {
+		return nil, err
+	}
 
 	finalComponents := make(component.Components, 0, max(len(fromComponents), len(toComponents)))
 
@@ -432,16 +435,12 @@ type ComponentPair struct {
 func MatchComponentPairs(
 	fromComponents component.Components,
 	toComponents component.Components,
-) []ComponentPair {
+) ([]ComponentPair, error) {
 	componentPairs := make([]ComponentPair, 0, max(len(fromComponents), len(toComponents)))
 
 	for _, fromComponent := range fromComponents {
 		if fromComponent.DiscoveryContext() == nil {
-			panic(
-				"fromComponent.DiscoveryContext() is nil in MatchComponentPairs. " +
-					"This should never happen. Please report this as a bug with the exact " +
-					"setup you were using that caused this.",
-			)
+			return nil, NewMissingDiscoveryContextError(fromComponent.Path())
 		}
 
 		fromComponentSuffix := strings.TrimPrefix(
@@ -451,11 +450,7 @@ func MatchComponentPairs(
 
 		for _, toComponent := range toComponents {
 			if toComponent.DiscoveryContext() == nil {
-				panic(
-					"toComponent.DiscoveryContext() is nil in MatchComponentPairs. " +
-						"This should never happen. Please report this as a bug with the exact " +
-						"setup you were using that caused this.",
-				)
+				return nil, NewMissingDiscoveryContextError(toComponent.Path())
 			}
 
 			toComponentSuffix := strings.TrimPrefix(
@@ -472,7 +467,7 @@ func MatchComponentPairs(
 		}
 	}
 
-	return componentPairs
+	return componentPairs, nil
 }
 
 // WorktreeKind represents the type of worktree (from or to).

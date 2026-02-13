@@ -250,7 +250,8 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/db", "/worktree-to"),
 		}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Len(t, pairs, 2, "Should match 2 component pairs")
 
@@ -277,7 +278,8 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/new-unit", "/worktree-to"),
 		}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Empty(t, pairs, "Added-only components should not produce pairs")
 	})
@@ -291,7 +293,8 @@ func TestMatchComponentPairs(t *testing.T) {
 
 		toComponents := component.Components{}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Empty(t, pairs, "Removed-only components should not produce pairs")
 	})
@@ -307,7 +310,8 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/new-name", "/worktree-to"),
 		}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Empty(t, pairs, "Renamed components (different paths) should not match")
 	})
@@ -325,7 +329,8 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/added", "/worktree-to"),
 		}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Len(t, pairs, 1, "Should only match the shared component")
 		assert.Equal(t, "/shared", getRelativePath(pairs[0].FromComponent))
@@ -335,7 +340,8 @@ func TestMatchComponentPairs(t *testing.T) {
 	t.Run("handles_empty_inputs", func(t *testing.T) {
 		t.Parallel()
 
-		pairs := discovery.MatchComponentPairs(component.Components{}, component.Components{})
+		pairs, err := discovery.MatchComponentPairs(component.Components{}, component.Components{})
+		require.NoError(t, err)
 
 		assert.Empty(t, pairs, "Empty inputs should produce empty pairs")
 	})
@@ -353,9 +359,27 @@ func TestMatchComponentPairs(t *testing.T) {
 			createTestComponent("/worktree-to/apps/backend", "/worktree-to"),
 		}
 
-		pairs := discovery.MatchComponentPairs(fromComponents, toComponents)
+		pairs, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.NoError(t, err)
 
 		assert.Len(t, pairs, 2, "Should match 2 nested component pairs")
+	})
+
+	t.Run("returns_error_for_nil_discovery_context", func(t *testing.T) {
+		t.Parallel()
+
+		nilCtxComponent := component.NewUnit("/some/path")
+		nilCtxComponent.SetDiscoveryContext(nil)
+
+		fromComponents := component.Components{nilCtxComponent}
+		toComponents := component.Components{}
+
+		_, err := discovery.MatchComponentPairs(fromComponents, toComponents)
+		require.Error(t, err)
+
+		var missingCtxErr discovery.MissingDiscoveryContextError
+		require.ErrorAs(t, err, &missingCtxErr)
+		assert.Equal(t, "/some/path", missingCtxErr.ComponentPath)
 	})
 }
 
