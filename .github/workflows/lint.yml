@@ -12,11 +12,18 @@ jobs:
       matrix:
         # Windows doesn't get to be linted continuously because it annoyingly requires
         # that all files use \r\n line endings.
-        # os: [ubuntu, macos, windows]
-        os: [ubuntu, macos]
+        # macOS only on main — no darwin-specific Go files exist (all OS splits are unix/windows).
+        os: ${{ github.ref == 'refs/heads/main' && fromJSON('["ubuntu","macos"]') || fromJSON('["ubuntu"]') }}
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+    - name: "Mount tmpfs on /tmp for faster I/O"
+      if: runner.os == 'Linux'
+      run: |
+        sudo mount -t tmpfs -o size=12G,mode=1777 tmpfs /tmp
+        echo "tmpfs mounted on /tmp:"
+        df -h /tmp
 
     - name: Set up mise
       uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
@@ -30,6 +37,14 @@ jobs:
     - id: go-cache-paths
       shell: bash
       run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          # Use tmpfs-backed paths for faster cache I/O
+          echo "go-build=/tmp/cache/go-build" >> "$GITHUB_OUTPUT"
+          echo "go-mod=/tmp/cache/go-mod" >> "$GITHUB_OUTPUT"
+          echo "golangci-lint-cache=/tmp/cache/golangci-lint" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
         echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
@@ -43,28 +58,44 @@ jobs:
           exit 0
         fi
 
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-    - name: Go Build Cache
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+    - name: Restore lint caches
+      uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
-        path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
+        path: |
+          ${{ steps.go-cache-paths.outputs.go-build }}
+          ${{ steps.go-cache-paths.outputs.go-mod }}
+          ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
+        key: ${{ runner.os }}-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}
+        restore-keys: |
+          ${{ runner.os }}-lint-
 
-    - name: Go Mod Cache
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-      with:
-        path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+    - name: Download Go modules
+      env:
+        GOMODCACHE: ${{ steps.go-cache-paths.outputs.go-mod }}
+      run: go mod download
 
-    - name: golangci-lint Cache
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-      with:
-        path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
+    - name: Fetch main for incremental lint
+      if: github.ref != 'refs/heads/main'
+      run: git fetch origin main --depth=1
 
     - name: Lint
-      run: make run-lint
+      env:
+        GOCACHE: ${{ steps.go-cache-paths.outputs.go-build }}
+        GOMODCACHE: ${{ steps.go-cache-paths.outputs.go-mod }}
+        GOLANGCI_LINT_CACHE: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
+      run: |
+        if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          BASE_REV=$(git merge-base origin/main HEAD) make run-lint-incremental
+        else
+          make run-lint
+        fi
+
+    - name: Save lint caches
+      if: always()
+      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+      with:
+        path: |
+          ${{ steps.go-cache-paths.outputs.go-build }}
+          ${{ steps.go-cache-paths.outputs.go-mod }}
+          ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
+        key: ${{ runner.os }}-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}
