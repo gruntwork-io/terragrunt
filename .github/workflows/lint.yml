@@ -90,13 +90,14 @@ jobs:
           ${{ runner.os }}-golangci-lint-
 
     - name: Fetch main branch
-      if: github.ref != 'refs/heads/main'
+      if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main --depth=1
 
     - name: Lint
       run: |
-        if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          make run-lint
-        else
+        # Incremental lint only on feature branches, full lint on main and tags
+        if [[ "${{ github.ref }}" == refs/heads/* ]] && [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
           make run-lint-incremental
+        else
+          make run-lint
         fi
