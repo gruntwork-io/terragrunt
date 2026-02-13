@@ -25,9 +25,9 @@ func Build(
 		return nil, err
 	}
 
-	units := runner.GetStack().Units
+	rp := runner.(*Runner)
 
-	if err := checkVersionConstraints(ctx, l, terragruntOptions, units); err != nil {
+	if err := checkVersionConstraints(ctx, l, terragruntOptions, rp.unitOpts, rp.unitLoggers, rp.GetStack().Units); err != nil {
 		return nil, err
 	}
 

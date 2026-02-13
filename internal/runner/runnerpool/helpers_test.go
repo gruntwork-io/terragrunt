@@ -75,21 +75,20 @@ func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
 	assert.Equal(t, subDir, unit.Path())
 }
 
-func TestCloneUnitOptions_NilStackExecution(t *testing.T) {
+func TestCloneUnitOptions_NilStackOpts(t *testing.T) {
 	t.Parallel()
 
-	stack := component.NewStack(helpers.TmpDirWOSymlinks(t))
 	unit := component.NewUnit("/some/path")
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := runnerpool.CloneUnitOptions(stack, unit, "/some/path/terragrunt.hcl", "", l)
+	opts, logger, err := runnerpool.CloneUnitOptions(nil, unit, "/some/path/terragrunt.hcl", "", l)
 
 	require.NoError(t, err)
 	assert.Nil(t, opts)
 	assert.NotNil(t, logger)
 }
 
-func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
+func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -98,15 +97,10 @@ func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
 	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	stack := component.NewStack(tmpDir)
-	stack.Execution = &component.StackExecution{
-		TerragruntOptions: stackOpts,
-	}
-
 	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := runnerpool.CloneUnitOptions(stack, unit, configPath, "", l)
+	opts, logger, err := runnerpool.CloneUnitOptions(stackOpts, unit, configPath, "", l)
 
 	require.NoError(t, err)
 	require.NotNil(t, opts)
