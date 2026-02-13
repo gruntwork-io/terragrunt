@@ -251,10 +251,6 @@ func checkUnitVersionConstraints(
 	unitLogger log.Logger,
 	unit *component.Unit,
 ) error {
-	if unitOpts == nil {
-		return nil
-	}
-
 	unitConfig := unit.Config()
 
 	// This is almost definitely already parsed, but we'll check just in case.
