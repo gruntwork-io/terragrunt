@@ -226,6 +226,7 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 **Current Backend Support:**
 
 - ✅ S3 backend: Fully supported
+- ✅ GCS backend: Fully supported
 - ⚠️ Other backends: Falls back to the normal method (using `tofu/terraform output`)
 
 When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
@@ -250,7 +251,7 @@ Provide your feedback in the dedicated [GitHub discussion](https://github.com/gr
 
 To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] Add support for additional backends (e.g., GCS, etc.)
+- [x] Add support for additional backends (GCS)
 - [ ] Comprehensive integration testing across different backend types
 - [ ] Performance benchmarking to validate speed improvements
 - [ ] Error handling and edge case testing
