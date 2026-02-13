@@ -25,4 +25,6 @@ type StackRunner interface {
 	GetStack() *component.Stack
 	// SetReport attaches a report object to the stack for collecting run data and summaries.
 	SetReport(r *report.Report)
+	// UnitOpts returns the TerragruntOptions for a specific unit by its path.
+	UnitOpts(unitPath string) *options.TerragruntOptions
 }

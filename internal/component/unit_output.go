@@ -36,14 +36,14 @@ func unitOutputLock(key string) *sync.Mutex {
 	return newMu
 }
 
-// FlushOutput flushes buffer data to the output writer for this unit, if the writer supports it.
-// This is safe to call even if Execution or the Writer is nil.
-func FlushOutput(u *Unit) error {
-	if u == nil || u.Execution == nil || u.Execution.TerragruntOptions == nil || u.Execution.TerragruntOptions.Writer == nil {
+// FlushOutput flushes buffer data to the given writer for this unit, if the writer supports it.
+// This is safe to call even if u or w is nil.
+func FlushOutput(u *Unit, w io.Writer) error {
+	if u == nil || w == nil {
 		return nil
 	}
 
-	writer, ok := u.Execution.TerragruntOptions.Writer.(flusher)
+	writer, ok := w.(flusher)
 	if !ok {
 		return nil
 	}
@@ -51,7 +51,7 @@ func FlushOutput(u *Unit) error {
 	// Use parent writer's address as lock key to serialize flushes to same parent.
 	// Falls back to unit path for writers without parentWriterProvider.
 	key := u.AbsolutePath()
-	if pwp, ok := u.Execution.TerragruntOptions.Writer.(parentWriterProvider); ok {
+	if pwp, ok := w.(parentWriterProvider); ok {
 		key = fmt.Sprintf("%p", pwp.ParentWriter())
 	}
 
