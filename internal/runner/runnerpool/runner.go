@@ -458,7 +458,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			// Wrap the writer to buffer unit-scoped output
 			unitWriter := NewUnitWriter(unitOpts.Writer)
 			unitOpts.Writer = unitWriter
-			unitRunner := common.NewUnitRunner(u, unitOpts, unitLogger)
+			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
@@ -483,6 +483,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 
 			err = unitRunner.Run(
 				childCtx,
+				unitLogger,
 				unitOpts,
 				r.report,
 				runCfg,
