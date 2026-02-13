@@ -3,6 +3,10 @@ name: CI
 on:
   push:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
@@ -37,7 +41,7 @@ jobs:
     secrets: inherit
 
   base_tests:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
@@ -45,14 +49,14 @@ jobs:
     secrets: inherit
 
   build:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
     if: github.ref == 'refs/heads/main'
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build-no-proxy.yml
     secrets: inherit
 
