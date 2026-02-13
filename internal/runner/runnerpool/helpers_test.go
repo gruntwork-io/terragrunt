@@ -75,18 +75,6 @@ func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
 	assert.Equal(t, subDir, unit.Path())
 }
 
-func TestCloneUnitOptions_NilStackOpts(t *testing.T) {
-	t.Parallel()
-
-	unit := component.NewUnit("/some/path")
-	l := thlogger.CreateLogger()
-
-	opts, logger, err := runnerpool.CloneUnitOptions(nil, unit, "/some/path/terragrunt.hcl", "", l)
-
-	require.NoError(t, err)
-	assert.Nil(t, opts)
-	assert.NotNil(t, logger)
-}
 
 func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	t.Parallel()

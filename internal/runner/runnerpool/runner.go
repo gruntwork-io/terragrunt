@@ -84,10 +84,6 @@ func CloneUnitOptions(
 	stackDefaultDownloadDir string,
 	l log.Logger,
 ) (*options.TerragruntOptions, log.Logger, error) {
-	if stackOpts == nil {
-		return nil, l, nil
-	}
-
 	clonedLogger, clonedOpts, err := stackOpts.CloneWithConfigPath(l, canonicalConfigPath)
 	if err != nil {
 		return nil, nil, err
