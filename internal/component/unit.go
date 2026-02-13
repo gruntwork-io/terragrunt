@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -258,10 +259,12 @@ func (u *Unit) String() string {
 }
 
 // AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, returns the original path silently.
-func (u *Unit) AbsolutePath() string {
+// If path conversion fails, logs the error and returns the original path.
+func (u *Unit) AbsolutePath(l log.Logger) string {
 	absPath, err := filepath.Abs(u.path)
 	if err != nil {
+		l.Errorf("Error converting unit path %s to absolute path: %v", u.path, err)
+
 		return u.path
 	}
 
@@ -298,11 +301,11 @@ func (u *Unit) FindInPaths(targetDirs []string) bool {
 }
 
 // PlanFile returns plan file location if output folder is set.
-func (u *Unit) PlanFile(rootWorkingDir, outputFolder, jsonOutputFolder, terraformCommand string) string {
+func (u *Unit) PlanFile(rootWorkingDir, outputFolder, jsonOutputFolder, tofuCommand string) string {
 	planFile := u.OutputFile(rootWorkingDir, outputFolder)
 
-	planCommand := terraformCommand == tf.CommandNamePlan ||
-		terraformCommand == tf.CommandNameShow
+	planCommand := tofuCommand == tf.CommandNamePlan ||
+		tofuCommand == tf.CommandNameShow
 
 	// if JSON output enabled and no PlanFile specified, save plan in working dir
 	if planCommand && planFile == "" && jsonOutputFolder != "" {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // flusher is any writer that supports Flush() error.
@@ -38,7 +40,7 @@ func unitOutputLock(key string) *sync.Mutex {
 
 // FlushOutput flushes buffer data to the given writer for this unit, if the writer supports it.
 // This is safe to call even if u or w is nil.
-func FlushOutput(u *Unit, w io.Writer) error {
+func FlushOutput(l log.Logger, u *Unit, w io.Writer) error {
 	if u == nil || w == nil {
 		return nil
 	}
@@ -50,7 +52,7 @@ func FlushOutput(u *Unit, w io.Writer) error {
 
 	// Use parent writer's address as lock key to serialize flushes to same parent.
 	// Falls back to unit path for writers without parentWriterProvider.
-	key := u.AbsolutePath()
+	key := u.AbsolutePath(l)
 	if pwp, ok := w.(parentWriterProvider); ok {
 		key = fmt.Sprintf("%p", pwp.ParentWriter())
 	}
