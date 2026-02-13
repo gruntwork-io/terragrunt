@@ -1061,6 +1061,7 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 	walkFunc := filepath.WalkDir
 
 	if opts.Experiments.Evaluate(experiment.Symlinks) {
+		// Returns logical (symlink-preserved) paths; see WalkDirWithSymlinks godoc.
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
