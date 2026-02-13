@@ -108,7 +108,9 @@ func TestGetTFInitArgsInitDisabled(t *testing.T) {
 	}
 	args := remotestate.New(cfg).GetTFInitArgs()
 
-	assertTerraformInitArgsEqual(t, args, "-backend=false")
+	// With the fix for #1422, disable_init should NOT prevent terraform backend initialization
+	// It should only prevent Terragrunt from creating/managing remote state resources
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
 func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
