@@ -28,13 +28,14 @@ import (
 const (
 	terraformRemoteStateGcpRegion = "eu"
 
-	testFixtureGcsPath              = "fixtures/gcs/"
-	testFixtureGcsByoBucketPath     = "fixtures/gcs-byo-bucket/"
-	testFixtureGcsImpersonatePath   = "fixtures/gcs-impersonate/"
-	testFixtureGcsNoBucket          = "fixtures/gcs-no-bucket/"
-	testFixtureGcsNoPrefix          = "fixtures/gcs-no-prefix/"
-	testFixtureGcsParallelStateInit = "fixtures/gcs-parallel-state-init"
-	testFixtureGCSBackend           = "fixtures/gcs-backend"
+	testFixtureGcsPath                  = "fixtures/gcs/"
+	testFixtureGcsByoBucketPath         = "fixtures/gcs-byo-bucket/"
+	testFixtureGcsImpersonatePath       = "fixtures/gcs-impersonate/"
+	testFixtureGcsNoBucket              = "fixtures/gcs-no-bucket/"
+	testFixtureGcsNoPrefix              = "fixtures/gcs-no-prefix/"
+	testFixtureGcsParallelStateInit     = "fixtures/gcs-parallel-state-init"
+	testFixtureGCSBackend               = "fixtures/gcs-backend"
+	testFixtureOutputFromRemoteStateGCS = "fixtures/output-from-remote-state-gcs"
 )
 
 func TestGcpBootstrapBackend(t *testing.T) {
@@ -644,4 +645,197 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 	if err := bucket.Delete(ctx); err != nil {
 		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
 	}
+}
+
+func TestGcpOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
+	// "fixtures/output-from-remote-state-gcs/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteStateGCS)
+
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateGCS, "root.hcl")
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	copyTerragruntGCSConfigAndFillPlaceholders(
+		t,
+		rootTerragruntConfigPath,
+		rootTerragruntConfigPath,
+		project,
+		terraformRemoteStateGcpRegion,
+		gcsBucketName,
+	)
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteStateGCS)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app1 -- apply -auto-approve",
+			environmentPath,
+		),
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app3 -- apply -auto-approve",
+			environmentPath,
+		),
+	)
+	// Now delete dependencies cached state
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app1CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
+	app3CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app3"))
+	require.NotEmpty(t, app3CacheDir, "Cache directory for app3 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app3CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app3CacheDir, ".terraform")))
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--non-interactive --working-dir %s/app2 -- apply -auto-approve",
+			environmentPath,
+		),
+	)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all output --backend-bootstrap --dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "app1 output")
+	assert.Contains(t, stdout, "app2 output")
+	assert.Contains(t, stdout, "app3 output")
+	assert.NotContains(t, stderr, "terraform output -json")
+	assert.NotContains(t, stderr, "tofu output -json")
+
+	assert.True(
+		t, (strings.Index(stdout, "app3 output") < strings.Index(stdout, "app1 output")) &&
+			(strings.Index(stdout, "app1 output") < strings.Index(stdout, "app2 output")),
+	)
+}
+
+func TestGcpNoDependencyFetchOutputFromState(t *testing.T) { //nolint: paralleltest
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
+	// "fixtures/output-from-remote-state-gcs/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteStateGCS)
+
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateGCS, "root.hcl")
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	copyTerragruntGCSConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteStateGCS)
+
+	// Apply dependencies first
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--auto-approve --non-interactive --working-dir %s/app1",
+			environmentPath,
+		),
+	)
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --dependency-fetch-output-from-state "+
+				"--auto-approve --non-interactive --working-dir %s/app3",
+			environmentPath,
+		),
+	)
+	// Now delete dependencies cached state
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app1CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
+	app3CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app3"))
+	require.NotEmpty(t, app3CacheDir, "Cache directory for app3 should exist")
+	require.NoError(t, os.Remove(filepath.Join(app3CacheDir, ".terraform/terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(app3CacheDir, ".terraform")))
+
+	// Apply app2 with experiment enabled but --no-dependency-fetch-output-from-state flag set
+	// This should fall back to using terraform output instead of fetching from state
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt apply --backend-bootstrap --experiment dependency-fetch-output-from-state "+
+				"--no-dependency-fetch-output-from-state --auto-approve --non-interactive --working-dir %s/app2",
+			environmentPath,
+		),
+	)
+
+	// Run output command with experiment enabled but flag set to disable
+	// When the flag is set, it should use terraform output instead of fetching from GCS
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --log-level debug --all output --backend-bootstrap --experiment dependency-fetch-output-from-state "+
+			"--no-dependency-fetch-output-from-state --non-interactive --working-dir "+environmentPath,
+	)
+	require.NoError(t, err)
+
+	// Verify outputs are still correct
+	assert.Contains(t, stdout, "app1 output")
+	assert.Contains(t, stdout, "app2 output")
+	assert.Contains(t, stdout, "app3 output")
+
+	// When --no-dependency-fetch-output-from-state is set, it should use terraform output
+	// This means we should see "terraform output -json" or "tofu output -json" in stderr
+	// (The exact command depends on which terraform implementation is being used)
+	// This is the opposite of TestGcpOutputFromRemoteState which asserts this is NOT present
+	assert.True(
+		t,
+		strings.Contains(
+			stderr,
+			"terraform output",
+		) || strings.Contains(
+			stderr,
+			"tofu output",
+		),
+		"Expected to see terraform/tofu output command when --no-dependency-fetch-output-from-state flag is set, but stderr was: %s",
+		stderr,
+	)
+}
+
+func TestGcpMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
+	// "fixtures/output-from-remote-state-gcs/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// t.Parallel()
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	if project == "" {
+		t.Skipf("Skipping test because GOOGLE_CLOUD_PROJECT environment variable is not set")
+	}
+
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteGCSBucket(t, gcsBucketName)
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutputFromRemoteStateGCS)
+
+	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateGCS, "root.hcl")
+	copyTerragruntGCSConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, project, terraformRemoteStateGcpRegion, gcsBucketName)
+
+	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateGCS, "env1")
+
+	// applying only the app1 dependency, the app3 dependency was purposely not applied and should be mocked when running the app2 module
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply --dependency-fetch-output-from-state --auto-approve --backend-bootstrap --non-interactive --working-dir %s/app1", environmentPath))
+	// Now delete dependencies cached state
+	// Since terraform runs from cache, the state files are in the cache directories
+	app1CacheDir := helpers.FindCacheWorkingDir(t, filepath.Join(environmentPath, "app1"))
+	require.NotEmpty(t, app1CacheDir, "Cache directory for app1 should exist")
+	require.NoError(t, os.RemoveAll(filepath.Join(app1CacheDir, ".terraform")))
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt init --dependency-fetch-output-from-state --non-interactive --working-dir %s/app2", environmentPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "Failed to read outputs")
+	assert.Contains(t, stderr, "fallback to mock outputs")
 }
