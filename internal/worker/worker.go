@@ -157,20 +157,8 @@ func (wp *Pool) Submit(task Task) {
 
 		err := task()
 
-		// If there's an error, always record it directly first
 		if err != nil {
 			wp.appendError(err)
-		}
-
-		// Only try to send result to channel if there's an error and pool isn't stopping
-		if err != nil {
-			select {
-			case <-wp.doneChan:
-				// Pool is stopping, error already recorded directly via appendError
-			case wp.resultChan <- err:
-				// Successfully sent the error
-			default: // Channel might be closed or full, but we already recorded the error via appendError, so we can safely continue without panic
-			}
 		}
 	}()
 }
