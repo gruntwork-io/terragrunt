@@ -18,8 +18,18 @@ import (
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
+func FindStackInSubfolders(
+	ctx context.Context,
+	l log.Logger,
+	terragruntOptions *options.TerragruntOptions,
+	opts ...common.Option,
+) (common.StackRunner, error) {
 	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
+}
+
+// BuildUnitOpts is a facade for runnerpool.BuildUnitOpts.
+func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *component.Unit) (*options.TerragruntOptions, log.Logger, error) {
+	return runnerpool.BuildUnitOpts(l, stackOpts, unit)
 }
 
 // FindDependentUnits - find dependent units for a given unit.

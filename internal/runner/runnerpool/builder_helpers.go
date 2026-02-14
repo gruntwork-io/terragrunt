@@ -214,19 +214,26 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	stackOpts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
 	g, checkCtx := errgroup.WithContext(ctx)
 
-	maxWorkers := min(runtime.NumCPU(), opts.Parallelism)
+	maxWorkers := min(runtime.NumCPU(), stackOpts.Parallelism)
 	g.SetLimit(maxWorkers)
 
 	for _, unit := range units {
 		g.Go(func() error {
+			unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, unit)
+			if err != nil {
+				return err
+			}
+
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
+				unitOpts,
+				unitLogger,
 				unit,
 			)
 		})
@@ -240,13 +247,15 @@ func checkVersionConstraints(
 func checkUnitVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
+	unitOpts *options.TerragruntOptions,
+	unitLogger log.Logger,
 	unit *component.Unit,
 ) error {
 	unitConfig := unit.Config()
 
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
-		configCtx, pctx := config.NewParsingContext(ctx, l, unit.Execution.TerragruntOptions)
+		configCtx, pctx := config.NewParsingContext(ctx, l, unitOpts)
 		pctx = pctx.WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,
@@ -266,15 +275,15 @@ func checkUnitVersionConstraints(
 		}
 	}
 
-	if !unit.Execution.TerragruntOptions.TFPathExplicitlySet && unitConfig.TerraformBinary != "" {
-		unit.Execution.TerragruntOptions.TFPath = unitConfig.TerraformBinary
+	if !unitOpts.TFPathExplicitlySet && unitConfig.TerraformBinary != "" {
+		unitOpts.TFPath = unitConfig.TerraformBinary
 	}
 
-	if unit.Execution != nil && unit.Execution.Logger != nil {
-		l = unit.Execution.Logger
+	if unitLogger != nil {
+		l = unitLogger
 	}
 
-	_, err := run.PopulateTFVersion(ctx, l, unit.Execution.TerragruntOptions)
+	_, err := run.PopulateTFVersion(ctx, l, unitOpts)
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}
@@ -284,14 +293,14 @@ func checkUnitVersionConstraints(
 		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersion(terraformVersionConstraint, unit.Execution.TerragruntOptions); err != nil {
+	if err := run.CheckTerraformVersion(terraformVersionConstraint, unitOpts); err != nil {
 		return errors.Errorf("Terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 
 	if unitConfig.TerragruntVersionConstraint != "" {
 		if err := run.CheckTerragruntVersion(
 			unitConfig.TerragruntVersionConstraint,
-			unit.Execution.TerragruntOptions,
+			unitOpts,
 		); err != nil {
 			return errors.Errorf("Terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
 		}
@@ -306,8 +315,8 @@ func checkUnitVersionConstraints(
 				return errors.Errorf("failed to get default value for feature flag %s in unit %s: %w", flagName, unit.DisplayPath(), err)
 			}
 
-			if _, exists := unit.Execution.TerragruntOptions.FeatureFlags.Load(flagName); !exists {
-				unit.Execution.TerragruntOptions.FeatureFlags.Store(flagName, defaultValue)
+			if _, exists := unitOpts.FeatureFlags.Load(flagName); !exists {
+				unitOpts.FeatureFlags.Store(flagName, defaultValue)
 			}
 		}
 	}

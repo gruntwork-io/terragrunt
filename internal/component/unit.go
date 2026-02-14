@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -22,7 +21,6 @@ const (
 type Unit struct {
 	cfg              *config.TerragruntConfig
 	discoveryContext *DiscoveryContext
-	Execution        *UnitExecution
 	path             string
 	configFile       string
 	reading          []string
@@ -33,14 +31,6 @@ type Unit struct {
 	excluded         bool
 }
 
-// UnitExecution holds execution-specific fields for running a unit.
-// This is nil during discovery phase and populated when preparing for execution.
-type UnitExecution struct {
-	TerragruntOptions *options.TerragruntOptions
-	Logger            log.Logger
-	FlagExcluded      bool
-}
-
 // NewUnit creates a new Unit component with the given path.
 func NewUnit(path string) *Unit {
 	return &Unit{
@@ -49,15 +39,6 @@ func NewUnit(path string) *Unit {
 		discoveryContext: &DiscoveryContext{},
 		dependencies:     make(Components, 0),
 		dependents:       make(Components, 0),
-	}
-}
-
-// NewUnitExecution creates a new UnitExecution with the given options.
-func NewUnitExecution(l log.Logger, opts *options.TerragruntOptions, excluded bool) *UnitExecution {
-	return &UnitExecution{
-		TerragruntOptions: opts,
-		Logger:            l,
-		FlagExcluded:      excluded,
 	}
 }
 
@@ -271,27 +252,18 @@ func (u *Unit) String() string {
 		deps = append(deps, dep.DisplayPath())
 	}
 
-	excluded := false
-	assumeApplied := false
-
-	if u.Execution != nil {
-		excluded = u.Execution.FlagExcluded
-	}
-
 	return fmt.Sprintf(
-		"Unit %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		path, excluded, assumeApplied, strings.Join(deps, ", "),
+		"Unit %s (excluded: %v, dependencies: [%s])",
+		path, u.excluded, strings.Join(deps, ", "),
 	)
 }
 
 // AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, returns the original path and logs a warning if a logger is available.
-func (u *Unit) AbsolutePath() string {
+// If path conversion fails, logs the error and returns the original path.
+func (u *Unit) AbsolutePath(l log.Logger) string {
 	absPath, err := filepath.Abs(u.path)
 	if err != nil {
-		if u.Execution != nil && u.Execution.Logger != nil {
-			u.Execution.Logger.Warnf("Failed to convert unit path %q to absolute path: %v", u.path, err)
-		}
+		l.Errorf("Error converting unit path %s to absolute path: %v", u.path, err)
 
 		return u.path
 	}
@@ -329,19 +301,14 @@ func (u *Unit) FindInPaths(targetDirs []string) bool {
 }
 
 // PlanFile returns plan file location if output folder is set.
-// Requires Execution to be populated.
-func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
-	if u.Execution == nil || u.Execution.TerragruntOptions == nil {
-		return ""
-	}
+func (u *Unit) PlanFile(rootWorkingDir, outputFolder, jsonOutputFolder, tofuCommand string) string {
+	planFile := u.OutputFile(rootWorkingDir, outputFolder)
 
-	planFile := u.OutputFile(opts)
-
-	planCommand := u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNamePlan ||
-		u.Execution.TerragruntOptions.TerraformCommand == tf.CommandNameShow
+	planCommand := tofuCommand == tf.CommandNamePlan ||
+		tofuCommand == tf.CommandNameShow
 
 	// if JSON output enabled and no PlanFile specified, save plan in working dir
-	if planCommand && planFile == "" && u.Execution.TerragruntOptions.JSONOutputFolder != "" {
+	if planCommand && planFile == "" && jsonOutputFolder != "" {
 		planFile = tf.TerraformPlanFile
 	}
 
@@ -349,24 +316,24 @@ func (u *Unit) PlanFile(opts *options.TerragruntOptions) string {
 }
 
 // OutputFile returns plan file location if output folder is set.
-func (u *Unit) OutputFile(opts *options.TerragruntOptions) string {
-	return u.planFilePath(opts, opts.OutputFolder, tf.TerraformPlanFile)
+func (u *Unit) OutputFile(rootWorkingDir, outputFolder string) string {
+	return u.planFilePath(rootWorkingDir, outputFolder, tf.TerraformPlanFile)
 }
 
 // OutputJSONFile returns plan JSON file location if JSON output folder is set.
-func (u *Unit) OutputJSONFile(opts *options.TerragruntOptions) string {
-	return u.planFilePath(opts, opts.JSONOutputFolder, tf.TerraformPlanJSONFile)
+func (u *Unit) OutputJSONFile(rootWorkingDir, jsonOutputFolder string) string {
+	return u.planFilePath(rootWorkingDir, jsonOutputFolder, tf.TerraformPlanJSONFile)
 }
 
 // planFilePath computes the path for plan output files.
-func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) string {
 	if outputFolder == "" {
 		return ""
 	}
 
 	// Use discoveryContext.WorkingDir as base (always populated).
 	// This is critical for git-based filters where units are discovered in temporary worktrees.
-	// Using opts.RootWorkingDir would cause relative paths to escape the outputFolder.
+	// Using rootWorkingDir would cause relative paths to escape the outputFolder.
 	relPath, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path)
 	if err != nil {
 		relPath = u.path
@@ -375,7 +342,7 @@ func (u *Unit) planFilePath(opts *options.TerragruntOptions, outputFolder, fileN
 	dir := filepath.Join(outputFolder, relPath)
 
 	if !filepath.IsAbs(dir) {
-		base := opts.RootWorkingDir
+		base := rootWorkingDir
 		if !filepath.IsAbs(base) {
 			if absBase, err := filepath.Abs(base); err == nil {
 				base = absBase
