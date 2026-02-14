@@ -167,7 +167,7 @@ func StackOutput(
 		for i := range stackNamesSorted {
 			for j := i + 1; j < len(stackNamesSorted); j++ {
 				// Compare lengths of the actual paths from the nameToPath map, not the declaredStacks lookup
-				if len(nameToPath[stackNamesSorted[i]]) < len(nameToPath[stackNamesSorted[j]]) {
+				if len(nameToPath[stackNamesSorted[i]]) > len(nameToPath[stackNamesSorted[j]]) {
 					stackNamesSorted[i], stackNamesSorted[j] = stackNamesSorted[j], stackNamesSorted[i]
 				}
 			}
