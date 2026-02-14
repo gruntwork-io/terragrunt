@@ -331,6 +331,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+
 			return helpers.FetchToFile(ctx, req, cache.archivePath)
 		}); err != nil {
 			return err

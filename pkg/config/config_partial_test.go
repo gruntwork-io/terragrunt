@@ -414,7 +414,7 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 	// Setup test environment
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	configContent := `dependencies { paths = ["../app1"] }`
+	configContent := `dependencies { paths = ["../app1"] }` //nolint:goconst
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 	// Get file metadata for cache key generation
@@ -613,4 +613,70 @@ func forceModTimeChange(t *testing.T, path string, prev time.Time) {
 	}
 
 	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)
+}
+
+// TestPartialParseConfigCacheDifferentCallers verifies that the partial parse config cache
+// creates separate entries for different calling modules parsing the same file.
+// This prevents cross-environment dependency bugs where context-sensitive functions
+// (e.g. path_relative_to_include) return wrong values from a cached result.
+func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
+	t.Parallel()
+
+	// Create a shared config file that both modules will parse.
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	sharedConfigPath := filepath.Join(tmpDir, "shared.hcl")
+	sharedContent := `dependencies { paths = ["../app1"] }`
+	require.NoError(t, os.WriteFile(sharedConfigPath, []byte(sharedContent), 0644))
+
+	// Create two different module directories with distinct config paths.
+	moduleADir := filepath.Join(tmpDir, "moduleA")
+	moduleBDir := filepath.Join(tmpDir, "moduleB")
+
+	require.NoError(t, os.MkdirAll(moduleADir, 0755))
+	require.NoError(t, os.MkdirAll(moduleBDir, 0755))
+
+	moduleAConfigPath := filepath.Join(moduleADir, "terragrunt.hcl")
+	moduleBConfigPath := filepath.Join(moduleBDir, "terragrunt.hcl")
+
+	require.NoError(t, os.WriteFile(moduleAConfigPath, []byte(""), 0644))
+	require.NoError(t, os.WriteFile(moduleBConfigPath, []byte(""), 0644))
+
+	// Setup shared caches in context so both modules use the same config cache.
+	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
+	configCache := cache.NewCache[*config.TerragruntConfig]("test-config-cache")
+	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
+	baseCtx = context.WithValue(baseCtx, config.TerragruntConfigCacheContextKey, configCache)
+	l := logger.CreateLogger()
+
+	// Parse shared config from module A's context.
+	optsA := mockOptionsForTestWithConfigPath(t, moduleAConfigPath)
+	optsA.UsePartialParseConfigCache = true
+	ctxA, pctxA := config.NewParsingContext(baseCtx, l, optsA)
+	pctxA = pctxA.WithDecodeList(config.DependenciesBlock)
+
+	configA, err := config.PartialParseConfigFile(ctxA, pctxA, l, sharedConfigPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, configA)
+
+	// Parse shared config from module B's context (different TerragruntConfigPath).
+	optsB := mockOptionsForTestWithConfigPath(t, moduleBConfigPath)
+	optsB.UsePartialParseConfigCache = true
+	ctxB, pctxB := config.NewParsingContext(baseCtx, l, optsB)
+	pctxB = pctxB.WithDecodeList(config.DependenciesBlock)
+
+	configB, err := config.PartialParseConfigFile(ctxB, pctxB, l, sharedConfigPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, configB)
+
+	// Verify that two separate cache entries were created (one per caller),
+	// not a single shared entry. This ensures context-sensitive functions like
+	// path_relative_to_include() would evaluate correctly for each caller.
+	configCache.Mutex.RLock()
+	cacheLen := len(configCache.Cache)
+	configCache.Mutex.RUnlock()
+	assert.Equal(t, 2, cacheLen, "config cache should have 2 entries (one per calling module), not 1")
+
+	// Both should return valid results.
+	assert.Equal(t, []string{"../app1"}, configA.Dependencies.Paths)
+	assert.Equal(t, []string{"../app1"}, configB.Dependencies.Paths)
 }

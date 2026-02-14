@@ -84,6 +84,108 @@ remote_state = {
 	}
 }
 
+func TestParseTerragruntConfigRemoteStateAttrStringBoolCoercion(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  enable_flags = true
+}
+
+remote_state = {
+  backend = "s3"
+  disable_init = local.enable_flags ? "true" : "false"
+  disable_dependency_optimization = local.enable_flags ? "false" : "true"
+  config = {
+    bucket = "my-bucket"
+    key = "terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.True(t, terragruntConfig.RemoteState.DisableInit)
+		assert.False(t, terragruntConfig.RemoteState.DisableDependencyOptimization)
+	}
+}
+
+func TestParseTerragruntConfigRemoteStateAttrInvalidStringBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+remote_state = {
+  backend = "s3"
+  disable_init = "maybe"
+  config = {}
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+}
+
+func TestParseTerragruntConfigGenerateAttrStringBoolCoercion(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  enable_flags = true
+}
+
+generate = {
+  provider = {
+    path = "provider.tf"
+    if_exists = "overwrite"
+    contents = "provider \"aws\" {}"
+    disable_signature = local.enable_flags ? "true" : "false"
+    disable = local.enable_flags ? "false" : "true"
+  }
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	providerGenerateConfig, ok := terragruntConfig.GenerateConfigs["provider"]
+	require.True(t, ok)
+	assert.True(t, providerGenerateConfig.DisableSignature)
+	assert.False(t, providerGenerateConfig.Disable)
+}
+
+func TestParseTerragruntConfigGenerateAttrInvalidStringBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+generate = {
+  provider = {
+    path = "provider.tf"
+    if_exists = "overwrite"
+    contents = "provider \"aws\" {}"
+    disable_signature = "maybe"
+  }
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.Error(t, err)
+}
+
 func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 	t.Parallel()
 

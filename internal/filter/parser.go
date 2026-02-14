@@ -232,16 +232,19 @@ func parseDepth(literal string) int {
 }
 
 // parsePrefixExpression parses a prefix expression (e.g., "!name=foo").
+// It collapses consecutive negations: !! becomes positive, !!! becomes negative, etc.
 func (p *Parser) parsePrefixExpression() Expression {
-	expression := &PrefixExpression{
-		Operator: p.curToken.Literal,
+	// Count consecutive negation operators
+	negationCount := 0
+	for p.curToken.Type == BANG {
+		negationCount++
+
+		p.nextToken()
 	}
 
-	p.nextToken()
-
-	expression.Right = p.parseExpression(PREFIX)
-
-	if expression.Right == nil {
+	// Parse the inner expression
+	inner := p.parseExpression(PREFIX)
+	if inner == nil {
 		// Clear any errors from parseExpression (like generic EOF error)
 		// and add our specific error with the EOF title for consistency
 		p.errors = nil
@@ -250,7 +253,16 @@ func (p *Parser) parsePrefixExpression() Expression {
 		return nil
 	}
 
-	return expression
+	// If even number of negations, they cancel out - return inner expression directly
+	if negationCount%2 == 0 {
+		return inner
+	}
+
+	// Odd number of negations - wrap in single PrefixExpression
+	return &PrefixExpression{
+		Operator: "!",
+		Right:    inner,
+	}
 }
 
 // parseInfixExpression parses an infix expression (e.g., "./apps/* | name=bar").
