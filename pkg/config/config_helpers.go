@@ -101,6 +101,7 @@ const (
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
+	FuncNameDeepMerge                               = "deep_merge"
 
 	sopsCacheName = "sopsCache"
 )
@@ -201,6 +202,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, pctx, l, getWorkingDir),
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
+		FuncNameDeepMerge:                               deepMergeMapValuesAsFuncImpl(),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22

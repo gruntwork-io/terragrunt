@@ -214,6 +214,39 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 	return deepMergeCtyMapsMapOnly(target, source, mergo.WithAppendSlice)
 }
 
+// Create a cty Function that deeply merges map/object values.
+// Later args override earlier args for overlapping keys.
+func deepMergeMapValuesAsFuncImpl() function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
+		Type:     function.StaticReturnType(cty.DynamicPseudoType),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			outVal := cty.EmptyObjectVal
+
+			for _, arg := range args {
+				if arg.IsNull() {
+					continue
+				}
+
+				if !arg.Type().IsMapType() && !arg.Type().IsObjectType() {
+					return cty.NilVal, errors.New(
+						InvalidParameterTypeError{Expected: "map or object", Actual: arg.Type().FriendlyName()},
+					)
+				}
+
+				merged, err := deepMergeCtyMaps(outVal, arg)
+				if err != nil {
+					return cty.NilVal, err
+				}
+
+				outVal = *merged
+			}
+
+			return outVal, nil
+		},
+	})
+}
+
 // deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
 // we cheat by using map[string]any as an intermediary. Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.

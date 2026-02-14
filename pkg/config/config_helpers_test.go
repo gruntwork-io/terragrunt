@@ -913,6 +913,116 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}
 }
 
+func TestTerragruntDeepMergeFunction(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		expected map[string]any
+		input    string
+	}{
+		{
+			input: `deep_merge(
+				jsondecode("{\"env\":{\"region\":\"us-east-1\",\"tags\":{\"owner\":\"platform\"}},\"allow\":[1]}"),
+				jsondecode("{\"env\":{\"tags\":{\"app\":\"api\"}},\"allow\":[2]}")
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-east-1",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{1., 2.},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					config = {
+						retries = 1
+						flags   = { enabled = true }
+					}
+				},
+				jsondecode("{\"config\":{\"timeout\":30,\"flags\":{\"debug\":false}}}")
+			)`,
+			expected: map[string]any{
+				"config": map[string]any{
+					"retries": 1.,
+					"timeout": 30.,
+					"flags": map[string]any{
+						"enabled": true,
+						"debug":   false,
+					},
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{
+					env = {
+						region = "us-east-1"
+						tags   = { owner = "platform" }
+					}
+					allow = [1]
+				},
+				{
+					env = {
+						tags = { app = "api" }
+					}
+					allow = [2]
+				},
+				{
+					env = {
+						region = "us-west-2"
+					}
+				}
+			)`,
+			expected: map[string]any{
+				"env": map[string]any{
+					"region": "us-west-2",
+					"tags": map[string]any{
+						"owner": "platform",
+						"app":   "api",
+					},
+				},
+				"allow": []any{1., 2.},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
+			l := logger.CreateLogger()
+			ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
+			actual, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
+			require.NoError(t, err)
+			require.NotNil(t, actual)
+
+			test, containsTest := actual.Inputs["test"]
+			require.True(t, containsTest)
+
+			assert.Equal(t, tc.expected, test)
+		})
+	}
+}
+
+func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+	configString := `inputs = { test = deep_merge({ a = 1 }, "invalid") }`
+	l := logger.CreateLogger()
+	ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
+	_, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+}
+
 func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 	t.Parallel()
 
