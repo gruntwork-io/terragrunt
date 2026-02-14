@@ -14,20 +14,20 @@ func Build(
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
 	opts ...common.Option,
-) (common.StackRunner, map[string]*options.TerragruntOptions, map[string]log.Logger, error) {
+) (common.StackRunner, error) {
 	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	runner, unitOpts, unitLoggers, err := createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	runner, err := createRunner(ctx, l, terragruntOptions, discovered, opts...)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	if err := checkVersionConstraints(ctx, l, terragruntOptions, unitOpts, unitLoggers, runner.GetStack().Units); err != nil {
-		return nil, nil, nil, err
+	if err := checkVersionConstraints(ctx, l, terragruntOptions, runner.GetStack().Units); err != nil {
+		return nil, err
 	}
 
-	return runner, unitOpts, unitLoggers, nil
+	return runner, nil
 }

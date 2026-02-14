@@ -67,7 +67,7 @@ dependency "db" {
 	// Inject graph filter for dependents of target
 	optsOn.FilterQueries = []string{`...{` + vpcDir + `}`}
 	// Build runner
-	runnerOn, _, _, err := runnerpool.Build(ctx, l, optsOn)
+	runnerOn, err := runnerpool.Build(ctx, l, optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -80,7 +80,7 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, _, _, err := runnerpool.Build(ctx, l, optsOff, discovery.WithGraphTarget(vpcDir))
+	runnerOff, err := runnerpool.Build(ctx, l, optsOff, discovery.WithGraphTarget(vpcDir))
 	require.NoError(t, err)
 
 	offPaths := make([]string, 0, len(runnerOff.GetStack().Units))

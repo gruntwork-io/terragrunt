@@ -143,15 +143,15 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		stackOpts = append(stackOpts, common.WithWorktrees(wts))
 	}
 
-	stack, unitOpts, unitLoggers, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, stack, unitOpts, unitLoggers)
+	return RunAllOnStack(ctx, l, opts, stack)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner, unitOpts map[string]*options.TerragruntOptions, unitLoggers map[string]log.Logger) error {
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
 	l.Debugf("%s", runner.GetStack().String())
 
 	if err := runner.LogUnitDeployOrder(l, opts.TerraformCommand); err != nil {
@@ -187,7 +187,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := runner.Run(ctx, l, opts, unitOpts, unitLoggers)
+		err := runner.Run(ctx, l, opts)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

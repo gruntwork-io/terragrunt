@@ -189,12 +189,8 @@ func createRunner(
 	tgOpts *options.TerragruntOptions,
 	comps component.Components,
 	opts ...common.Option,
-) (common.StackRunner, map[string]*options.TerragruntOptions, map[string]log.Logger, error) {
-	var (
-		runner      common.StackRunner
-		unitOpts    map[string]*options.TerragruntOptions
-		unitLoggers map[string]log.Logger
-	)
+) (common.StackRunner, error) {
+	var runner common.StackRunner
 
 	err := doWithTelemetry(ctx, telemetryCreation, map[string]any{
 		"discovered_configs": len(comps),
@@ -202,15 +198,15 @@ func createRunner(
 	}, func(childCtx context.Context) error {
 		var err2 error
 
-		runner, unitOpts, unitLoggers, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
+		runner, err2 = NewRunnerPoolStack(childCtx, l, tgOpts, comps, opts...)
 
 		return err2
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return runner, unitOpts, unitLoggers, nil
+	return runner, nil
 }
 
 // checkVersionConstraints performs version constraint checks on all discovered units concurrently.
@@ -218,21 +214,21 @@ func createRunner(
 func checkVersionConstraints(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
-	unitOptsMap map[string]*options.TerragruntOptions,
-	unitLoggersMap map[string]log.Logger,
+	stackOpts *options.TerragruntOptions,
 	units []*component.Unit,
 ) error {
 	g, checkCtx := errgroup.WithContext(ctx)
 
-	maxWorkers := min(runtime.NumCPU(), opts.Parallelism)
+	maxWorkers := min(runtime.NumCPU(), stackOpts.Parallelism)
 	g.SetLimit(maxWorkers)
 
 	for _, unit := range units {
-		unitOpts := unitOptsMap[unit.Path()]
-		unitLogger := unitLoggersMap[unit.Path()]
-
 		g.Go(func() error {
+			unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, unit)
+			if err != nil {
+				return err
+			}
+
 			return checkUnitVersionConstraints(
 				checkCtx,
 				l,
