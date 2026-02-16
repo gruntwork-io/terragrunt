@@ -223,6 +223,9 @@ In addition to allowing for explicit invocation of OpenTofu/Terraform instead of
 
 For example, if you are currently using the `terragrunt run-all` command, you can switch to the `run` command with the `--all` flag instead.
 
+- **Before:** `terragrunt run-all plan`
+- **After:** `terragrunt run --all plan`
+
 Before:
 
 ```bash
