@@ -93,7 +93,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if opts.CheckDependentUnits {
-		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg)
+		allowDestroy := confirmActionWithDependentUnits(ctx, l, opts, cfg, r)
 		if !allowDestroy {
 			return nil
 		}
@@ -256,8 +256,9 @@ func confirmActionWithDependentUnits(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
+	rpt *report.Report,
 ) bool {
-	units := findDependentUnits(ctx, l, opts, cfg)
+	units := findDependentUnits(ctx, l, opts, cfg, rpt)
 	if len(units) != 0 {
 		if _, err := opts.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
@@ -291,8 +292,9 @@ func findDependentUnits(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
+	rpt *report.Report,
 ) []string {
-	units := runner.FindDependentUnits(ctx, l, opts, cfg)
+	units := runner.FindDependentUnits(ctx, l, opts, cfg, rpt)
 
 	paths := make([]string, len(units))
 	for i, unit := range units {

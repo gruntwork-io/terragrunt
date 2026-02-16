@@ -79,8 +79,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// The prefix ellipsis means "include dependents"; target is included by default.
 	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
-
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
 	}
@@ -93,10 +91,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, r, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
+	return runall.RunAllOnStack(ctx, l, graphOpts, stack, r)
 }

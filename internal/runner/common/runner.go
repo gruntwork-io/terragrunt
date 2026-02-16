@@ -14,15 +14,13 @@ import (
 // Implemented by runnerpool.Runner and any alternate runner implementations.
 type StackRunner interface {
 	// Run executes all units in the stack according to the specified Terraform command and options.
-	Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions) error
+	Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, rpt *report.Report) error
 	// LogUnitDeployOrder logs the order in which units will be deployed for the given Terraform command.
-	LogUnitDeployOrder(l log.Logger, terraformCommand string) error
+	LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOptions) error
 	// JSONUnitDeployOrder returns the deployment order of units as a JSON string.
-	JSONUnitDeployOrder(terraformCommand string) (string, error)
+	JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, error)
 	// ListStackDependentUnits returns a map of each unit to the list of units that depend on it.
 	ListStackDependentUnits() map[string][]string
 	// GetStack retrieves the underlying Stack object managed by this runner.
 	GetStack() *component.Stack
-	// SetReport attaches a report object to the stack for collecting run data and summaries.
-	SetReport(r *report.Report)
 }

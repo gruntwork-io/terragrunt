@@ -64,8 +64,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
-
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
 	}
@@ -143,18 +141,18 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		stackOpts = append(stackOpts, common.WithWorktrees(wts))
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, r, stackOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, stack)
+	return RunAllOnStack(ctx, l, opts, stack, r)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner, rpt *report.Report) error {
 	l.Debugf("%s", runner.GetStack().String())
 
-	if err := runner.LogUnitDeployOrder(l, opts.TerraformCommand); err != nil {
+	if err := runner.LogUnitDeployOrder(l, opts); err != nil {
 		return err
 	}
 
@@ -187,7 +185,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := runner.Run(ctx, l, opts)
+		err := runner.Run(ctx, l, opts, rpt)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

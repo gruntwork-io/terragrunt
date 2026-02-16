@@ -75,17 +75,6 @@ func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	return nil
 }
 
-// extractReport finds ReportProvider in options and returns the report.
-func extractReport(opts []common.Option) *report.Report {
-	for _, opt := range opts {
-		if rp, ok := opt.(common.ReportProvider); ok {
-			return rp.GetReport()
-		}
-	}
-
-	return nil
-}
-
 // newBaseDiscovery constructs the base discovery with common immutable options.
 func newBaseDiscovery(
 	tgOpts *options.TerragruntOptions,
@@ -116,6 +105,7 @@ func newBaseDiscovery(
 func prepareDiscovery(
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
+	rpt *report.Report,
 	opts ...common.Option,
 ) (*discovery.Discovery, error) {
 	workingDir := resolveWorkingDir(tgOpts)
@@ -139,8 +129,8 @@ func prepareDiscovery(
 	}
 
 	// Apply report for recording excluded external dependencies
-	if r := extractReport(opts); r != nil {
-		d = d.WithReport(r)
+	if rpt != nil {
+		d = d.WithReport(rpt)
 	}
 
 	return d, nil
@@ -152,10 +142,11 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
+	rpt *report.Report,
 	opts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(l, tgOpts, opts...)
+	d, err := prepareDiscovery(l, tgOpts, rpt, opts...)
 	if err != nil {
 		return nil, err
 	}

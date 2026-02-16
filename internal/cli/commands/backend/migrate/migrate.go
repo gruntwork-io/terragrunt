@@ -4,6 +4,7 @@ package migrate
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -31,27 +32,27 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts)
+	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts, report.NewReport())
 	if err != nil {
 		return err
 	}
 
-	srcModule := stackRunner.GetStack().FindUnitByPath(srcPath)
-	if srcModule == nil {
+	srcUnit := stackRunner.GetStack().FindUnitByPath(srcPath)
+	if srcUnit == nil {
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstModule := stackRunner.GetStack().FindUnitByPath(dstPath)
-	if dstModule == nil {
+	dstUnit := stackRunner.GetStack().FindUnitByPath(dstPath)
+	if dstUnit == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}
 
-	srcOpts, _, err := runner.BuildUnitOpts(l, opts, srcModule)
+	srcOpts, _, err := runner.BuildUnitOpts(l, opts, srcUnit)
 	if err != nil {
 		return errors.Errorf("failed to build opts for src unit %s: %w", srcPath, err)
 	}
 
-	dstOpts, _, err := runner.BuildUnitOpts(l, opts, dstModule)
+	dstOpts, _, err := runner.BuildUnitOpts(l, opts, dstUnit)
 	if err != nil {
 		return errors.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
 	}

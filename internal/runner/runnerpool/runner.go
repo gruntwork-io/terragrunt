@@ -32,10 +32,8 @@ import (
 
 // Runner implements the Stack interface for runner pool execution.
 type Runner struct {
-	Stack  *component.Stack
-	queue  *queue.Queue
-	opts   *options.TerragruntOptions
-	report *report.Report
+	Stack *component.Stack
+	queue *queue.Queue
 }
 
 // BuildCanonicalConfigPath computes the canonical config path for a unit.
@@ -295,7 +293,6 @@ func NewRunnerPoolStack(
 
 		runner := &Runner{
 			Stack: stack,
-			opts:  terragruntOptions,
 		}
 
 		// Create an empty queue
@@ -314,7 +311,6 @@ func NewRunnerPoolStack(
 
 	runner := &Runner{
 		Stack: stack,
-		opts:  terragruntOptions,
 	}
 
 	// Apply options (including report) BEFORE resolving units so that
@@ -374,7 +370,7 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions) error {
+func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, rpt *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
@@ -426,7 +422,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 	// Emit report entries for excluded units that haven't been reported yet.
 	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
-	if r.report != nil {
+	if rpt != nil {
 		for _, u := range r.Stack.Units {
 			if u.Excluded() {
 				// Ensure path is absolute for reporting
@@ -445,7 +441,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					)
 				}
 
-				run, err := r.report.EnsureRun(l, unitPath, ensureOpts...)
+				run, err := rpt.EnsureRun(l, unitPath, ensureOpts...)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -459,7 +455,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
 
-					if err := r.report.EndRun(
+					if err := rpt.EndRun(
 						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
@@ -527,7 +523,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 				childCtx,
 				unitLogger,
 				uOpts,
-				r.report,
+				rpt,
 				runCfg,
 				credsGetter,
 			)
@@ -555,7 +551,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 	err := controller.Run(ctx, l)
 
 	// Emit report entries for early exit and failed units after controller completes
-	if r.report != nil {
+	if rpt != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
 		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
 		for _, qe := range r.queue.Entries {
@@ -587,7 +583,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					)
 				}
 
-				run, reportErr := r.report.EnsureRun(l, unitPath, ensureOpts...)
+				run, reportErr := rpt.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, reportErr)
 					continue
@@ -620,7 +616,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 						endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 					}
 
-					if endErr := r.report.EndRun(l, run.Path, endOpts...); endErr != nil {
+					if endErr := rpt.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 					}
 				case queue.StatusFailed:
@@ -639,7 +635,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 						}
 					}
 
-					if endErr := r.report.EndRun(l, run.Path, endOpts...); endErr != nil {
+					if endErr := rpt.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
 					}
 				}
@@ -651,25 +647,22 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
-func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error {
+func (r *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOptions) error {
 	outStr := fmt.Sprintf(
 		"Unit queue will be processed for %s in this order:\n",
-		terraformCommand,
+		opts.TerraformCommand,
 	)
 
 	// For destroy commands, reflect the actual processing order (reverse of apply order).
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
 	entries := slices.Clone(r.queue.Entries)
-	if r.opts != nil &&
-		r.opts.TerraformCliArgs.IsDestroyCommand(
-			r.opts.TerraformCommand,
-		) {
+	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
 		slices.Reverse(entries)
 	}
 
 	// Use absolute paths if --log-show-abs-paths is set
-	showAbsPaths := r.opts != nil && r.opts.LogShowAbsPaths
+	showAbsPaths := opts.LogShowAbsPaths
 
 	var outStrSb strings.Builder
 
@@ -690,9 +683,9 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, terraformCommand string) error
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
-func (r *Runner) JSONUnitDeployOrder(_ string) (string, error) {
+func (r *Runner) JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, error) {
 	// Use absolute paths if --log-show-abs-paths is set
-	showAbsPaths := r.opts != nil && r.opts.LogShowAbsPaths
+	showAbsPaths := opts != nil && opts.LogShowAbsPaths
 
 	orderedUnits := make([]string, 0, len(r.queue.Entries))
 	for _, unit := range r.queue.Entries {
@@ -926,11 +919,6 @@ func (r *Runner) WithOptions(opts ...common.Option) *Runner {
 // GetStack returns the stack associated with the runner.
 func (r *Runner) GetStack() *component.Stack {
 	return r.Stack
-}
-
-// SetReport sets the report for the runner.
-func (r *Runner) SetReport(rpt *report.Report) {
-	r.report = rpt
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
