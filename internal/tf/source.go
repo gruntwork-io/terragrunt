@@ -102,14 +102,14 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 				}
 
 				if d.IsDir() {
+					// avoid checking files in .terragrunt-cache directory since contents is auto-generated
+					if strings.Contains(path, util.TerragruntCacheDir) {
+						return filepath.SkipDir
+					}
 					// We don't use any info from directories to calculate our hash
 					return nil
 				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
+				// avoid checking .terraform.lock.hcl file since contents is auto-generated
 				if d.Name() == util.TerraformLockFile {
 					return nil
 				}
