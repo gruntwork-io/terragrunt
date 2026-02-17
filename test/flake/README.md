@@ -180,7 +180,7 @@ After analysis, create resolution plans in the `plan/` directory:
 
 ## Requirements
 
-- Go 1.25+
+- Go
 - GitHub token with `repo` and `actions:read` permissions
 
 ## Environment Variables

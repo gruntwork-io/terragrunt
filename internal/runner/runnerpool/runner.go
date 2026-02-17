@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -113,33 +112,6 @@ func CloneUnitOptions(
 	return clonedOpts, clonedLogger, nil
 }
 
-// ShouldSkipUnitWithoutTerraform checks if a unit should be skipped because it has
-// neither a Terraform source nor any Terraform/OpenTofu files in its directory.
-// Returns true if the unit should be skipped, false otherwise.
-func ShouldSkipUnitWithoutTerraform(unit *component.Unit, dir string, l log.Logger) (bool, error) {
-	terragruntConfig := unit.Config()
-
-	// If the unit has a Terraform source configured, don't skip it
-	if terragruntConfig != nil && terragruntConfig.Terraform != nil &&
-		terragruntConfig.Terraform.Source != nil && *terragruntConfig.Terraform.Source != "" {
-		return false, nil
-	}
-
-	// Check if the directory contains any Terraform/OpenTofu files
-	hasFiles, err := util.DirContainsTFFiles(dir)
-	if err != nil {
-		return false, err
-	}
-
-	if !hasFiles {
-		l.Debugf("Unit %s does not have an associated terraform configuration and will be skipped.", dir)
-
-		return true, nil
-	}
-
-	return false, nil
-}
-
 // resolveUnitsFromDiscovery converts discovered components to units with execution context.
 // This replaces the old UnitResolver pattern with a simpler direct conversion.
 func resolveUnitsFromDiscovery(
@@ -164,7 +136,7 @@ func resolveUnitsFromDiscovery(
 		}
 
 		// Build canonical config path and update unit path
-		canonicalConfigPath, canonicalDir, err := BuildCanonicalConfigPath(unit, basePath)
+		canonicalConfigPath, _, err := BuildCanonicalConfigPath(unit, basePath)
 		if err != nil {
 			return nil, err
 		}
@@ -194,16 +166,6 @@ func resolveUnitsFromDiscovery(
 					unitOpts.Source = unitSource
 				}
 			}
-		}
-
-		// Skip units without Terraform configuration
-		skip, err := ShouldSkipUnitWithoutTerraform(unit, canonicalDir, unitLogger)
-		if err != nil {
-			return nil, err
-		}
-
-		if skip {
-			continue
 		}
 
 		// Transfer discovery context command and args to unit options if available
@@ -349,17 +311,6 @@ func NewRunnerPoolStack(
 		return nil, queueErr
 	}
 
-	// Set units map on queue to enable checking dependencies not in queue
-	// (e.g., when using --queue-strict-include or --filter)
-	unitsMap := make(map[string]*component.Unit, len(units))
-	for _, u := range units {
-		if u != nil && u.Path() != "" {
-			unitsMap[u.Path()] = u
-		}
-	}
-
-	q.SetUnitsMap(unitsMap)
-
 	runner.queue = q
 
 	return runner.WithOptions(opts...), nil
@@ -489,6 +440,15 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 				unitLogger = l
 			}
 
+			// Get credentials BEFORE config parsing — sops_decrypt_file() and
+			// get_aws_account_id() in locals need auth-provider credentials
+			// available in opts.Env during HCL evaluation.
+			// See https://github.com/gruntwork-io/terragrunt/issues/5515
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, u.Execution.TerragruntOptions)
+			if err != nil {
+				return err
+			}
+
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
 				unitLogger,
@@ -500,16 +460,6 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 			}
 
 			runCfg := cfg.ToRunConfig(unitLogger)
-
-			credsGetter := creds.NewGetter()
-			if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
-				childCtx,
-				unitLogger,
-				u.Execution.TerragruntOptions,
-				externalcmd.NewProvider(unitLogger, u.Execution.TerragruntOptions),
-			); err != nil {
-				return err
-			}
 
 			err = unitRunner.Run(
 				childCtx,

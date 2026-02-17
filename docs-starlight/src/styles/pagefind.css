@@ -1,0 +1,183 @@
+
+/* Search Box */
+@media (width < 800px) {
+  #search-and-buttons {
+    width: calc(100% - 50px) !important;
+  }
+}
+
+site-search button {
+  background-color: var(--color-opacity-5);
+  border: 1px solid var(--color-opacity-10);
+  border-radius: 6px;
+  color: var(--color-gray-2);
+  height: 100%;
+  max-width: none;
+  min-height: 44px;
+  padding: 6px 12px;
+}
+
+/* Search Box NOT inside Dialog  */
+site-search>button {
+  display: flex;
+  width: 100%;
+}
+
+site-search button svg {
+  color: var(--color-gray-1);
+}
+
+/* Search Dialog Box */
+site-search dialog[open] {
+  background: var(--color-dialog-bg);
+  border-radius: .5rem;
+  display: flex;
+  height: max-content;
+  margin: 4rem auto auto;
+  max-height: calc(100% - 8rem);
+  max-width: 40rem;
+  min-height: 15rem;
+  width: 90%;
+}
+
+button[data-close-modal] {
+  color: black;
+  display: none;
+}
+
+site-search .dialog-frame {
+  overflow-x: hidden;
+  padding: 1.5rem;
+}
+
+#starlight__search > div:nth-of-type(2) {
+  display: none;
+}
+
+site-search .pagefind-ui {
+  color: oklch(0.37 0.013 285.805);
+}
+
+site-search .pagefind-ui__drawer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+site-search .pagefind-ui__results {
+  padding-left: 0;
+}
+
+site-search .pagefind-ui__result {
+  padding: 20px 10px;
+}
+
+/* Site Search Dark Mode */
+html[data-theme="dark"] site-search input,
+html[data-theme="dark"] site-search .pagefind-ui__result-link  {
+  color: rgb(19, 24, 36);
+}
+
+
+/*
+ * Starlight Overrides
+ *
+ * Context: Starlight components apply different styles based on dark/light mode state.
+ * This causes visual issues because the docs pages have dark mode support, but the homepage nav does not.
+ * This override fixes an issue on the homepage nav by styling CMD+K in a consistent way across all pages in both * modes.
+ *
+ * Future Considerations:
+ * - If homepage gains dark mode support, this override may need adjustment
+ * - Consider if a more systematic theming approach is needed long-term
+ */
+site-search button kbd {
+  background-color: transparent;
+  font-size: var(--sl-text-sm);
+  gap: 0;
+  margin: 0 0 0 auto;
+}
+
+.pagefind-ui__message {
+  padding: 1.5em 0;
+  height: auto;
+}
+
+#starlight__search .pagefind-ui__form:before {
+  background-color: black !important;
+}
+
+input.pagefind-ui__search-input {
+  background-color: white;
+  color: black;
+  border: 1px solid oklch(0.871 0.006 286.286);
+  border-radius: 8px;
+  max-width: 590px;
+  padding-left: 50px;
+  width: -webkit-fill-available;
+}
+
+input.pagefind-ui__search-input::placeholder {
+  color: #666;
+}
+
+input.pagefind-ui__search-input:focus {
+  outline: 2px solid #448daf;
+  outline-offset: 2px;
+}
+
+.pagefind-ui__search-clear {
+  background-color: transparent;
+  border: none;
+  right: 0;
+}
+
+.pagefind-ui__search-clear:before {
+  background-color: black;
+  content: "";
+  display: block;
+  height: 100%;
+  margin-bottom: 20px;
+  width: 100%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m13.41 12 6.3-6.29a1 1 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1 1 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 .33 1.64 1 1 0 0 0 1.09-.22l6.29-6.3 6.29 6.3a1 1 0 0 0 1.64-.33 1 1 0 0 0-.22-1.09L13.41 12Z'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)),
+#starlight__search .pagefind-ui__result-nested,
+.pagefind-ui__result-title,
+.pagefind-ui__result-nested {
+  background-color: transparent;
+}
+
+.pagefind-ui__result {
+  background: white;
+  color: black;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* Fix search result icons - same approach as text fix */
+.pagefind-ui__result svg,
+.pagefind-ui__result svg path {
+  fill: black;
+}
+
+.pagefind-ui__result-link,
+.pagefind-ui__result-excerpt {
+  color: black;
+}
+
+.pagefind-ui__result-title a {
+  color: black;
+}
+
+.pagefind-ui__result-title a:hover {
+  color: #448daf;
+}
+
+/* Fix to site-search button area smaller on mobile */
+@media (width <= 768px) {
+  body.tg site-search > button {
+    width: 100%;
+  }
+}

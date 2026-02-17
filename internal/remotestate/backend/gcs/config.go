@@ -1,18 +1,16 @@
 package gcs
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/slices"
-
-	"maps"
-
-	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 type Config map[string]any
@@ -56,11 +54,11 @@ func (cfg Config) ParseExtendedGCSConfig() (*ExtendedRemoteStateConfigGCS, error
 		extendedConfig ExtendedRemoteStateConfigGCS
 	)
 
-	if err := mapstructure.Decode(cfg, &gcsConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &gcsConfig); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.Decode(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 

@@ -76,6 +76,9 @@ const (
 
 	// DeprecatedHiddenFlag is the control that prevents the use of the deprecated `--hidden` flag.
 	DeprecatedHiddenFlag = "deprecated-hidden-flag"
+
+	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
+	DisableDependentModules = "disable-dependent-modules"
 )
 
 //nolint:lll
@@ -279,6 +282,13 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them."),
 			Warning:     "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
+		},
+		&Control{
+			Name:        DisableDependentModules,
+			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`."),
+			Warning:     "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
 		},
 	}
 

@@ -8,12 +8,12 @@
 package component
 
 import (
-	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 // Kind is the type of Terragrunt component.
@@ -255,7 +255,7 @@ func NewThreadSafeComponents(components Components) *ThreadSafeComponents {
 
 	// Pre-populate resolved paths cache for initial components
 	for _, c := range components {
-		tsc.resolvedPaths[c.Path()] = resolvePath(c.Path())
+		tsc.resolvedPaths[c.Path()] = util.ResolvePath(c.Path())
 	}
 
 	return tsc
@@ -269,7 +269,7 @@ func (tsc *ThreadSafeComponents) resolvedPathFor(path string) string {
 		return resolved
 	}
 
-	return resolvePath(path)
+	return util.ResolvePath(path)
 }
 
 // EnsureComponent adds a component to the components list if it's not already present.
@@ -293,7 +293,7 @@ func (tsc *ThreadSafeComponents) findComponent(c Component) (Component, bool) {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
-	searchResolved := resolvePath(c.Path())
+	searchResolved := util.ResolvePath(c.Path())
 
 	idx := slices.IndexFunc(tsc.components, func(cc Component) bool {
 		return tsc.resolvedPathFor(cc.Path()) == searchResolved
@@ -313,7 +313,7 @@ func (tsc *ThreadSafeComponents) addComponent(c Component) (Component, bool) {
 	tsc.mu.Lock()
 	defer tsc.mu.Unlock()
 
-	searchResolved := resolvePath(c.Path())
+	searchResolved := util.ResolvePath(c.Path())
 
 	// Do one last check to see if the component is already in the components list
 	// to avoid a TOCTOU race condition. Uses resolved paths for comparison.
@@ -339,7 +339,7 @@ func (tsc *ThreadSafeComponents) FindByPath(path string) Component {
 	tsc.mu.RLock()
 	defer tsc.mu.RUnlock()
 
-	resolvedSearchPath := resolvePath(path)
+	resolvedSearchPath := util.ResolvePath(path)
 
 	for _, c := range tsc.components {
 		if tsc.resolvedPathFor(c.Path()) == resolvedSearchPath {
@@ -368,15 +368,4 @@ func (tsc *ThreadSafeComponents) Len() int {
 	defer tsc.mu.RUnlock()
 
 	return len(tsc.components)
-}
-
-// resolvePath resolves symlinks in a path for consistent comparison across platforms.
-// On macOS, /var is a symlink to /private/var, so paths must be resolved.
-func resolvePath(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
 }

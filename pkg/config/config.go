@@ -26,8 +26,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -42,6 +40,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -76,7 +75,6 @@ const (
 	MetadataCatalog                     = "catalog"
 	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
-	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
 	MetadataExclude                     = "exclude"
@@ -162,7 +160,6 @@ type TerragruntConfig struct {
 	TerraformBinary             string
 	TerragruntDependencies      Dependencies
 	FeatureFlags                FeatureFlags
-	DependentModulesPath        []*string
 	IsPartial                   bool
 }
 
@@ -1683,7 +1680,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 		}
 
 		var config *remotestate.Config
-		if err := mapstructure.Decode(remoteStateMap, &config); err != nil {
+		if err := mapstructure.WeakDecode(remoteStateMap, &config); err != nil {
 			return nil, err
 		}
 
@@ -1794,7 +1791,7 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 
 		for name, block := range generateMap {
 			var generateBlock terragruntGenerateBlock
-			if err := mapstructure.Decode(block, &generateBlock); err != nil {
+			if err := mapstructure.WeakDecode(block, &generateBlock); err != nil {
 				return nil, err
 			}
 

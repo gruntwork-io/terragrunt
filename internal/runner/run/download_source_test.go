@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path"
@@ -610,7 +612,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client := &getter.Client{}
 
 			// Call updateGetters
-			updateGettersFunc := run.UpdateGetters(terragruntOptions, tc.cfg)
+			updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, tc.cfg)
 			err = updateGettersFunc(client)
 			require.NoError(t, err)
 
@@ -627,6 +629,64 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			)
 		})
 	}
+}
+
+// TestUpdateGettersHTTPNetrc verifies that HTTP/HTTPS getters have Netrc enabled
+// for authentication via ~/.netrc files.
+func TestUpdateGettersHTTPNetrc(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{},
+	}
+
+	client := &getter.Client{}
+
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, cfg)
+	err = updateGettersFunc(client)
+	require.NoError(t, err)
+
+	// Verify HTTP getter has Netrc enabled
+	httpGetter, ok := client.Getters["http"].(*getter.HttpGetter)
+	require.True(t, ok, "HTTP getter should be of type HttpGetter")
+	assert.True(t, httpGetter.Netrc, "HTTP getter should have Netrc enabled for ~/.netrc authentication")
+
+	// Verify HTTPS getter has Netrc enabled
+	httpsGetter, ok := client.Getters["https"].(*getter.HttpGetter)
+	require.True(t, ok, "HTTPS getter should be of type HttpGetter")
+	assert.True(t, httpsGetter.Netrc, "HTTPS getter should have Netrc enabled for ~/.netrc authentication")
+}
+
+// TestUpdateGettersIncludesAllGlobalGetters verifies that every scheme registered in the global
+// getter.Getters map is present in client.Getters after calling UpdateGetters. This guards against
+// regressions where the reflect-based approach might silently fail to create an instance.
+func TestUpdateGettersIncludesAllGlobalGetters(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{
+		Terraform: runcfg.TerraformConfig{},
+	}
+
+	client := &getter.Client{}
+
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), terragruntOptions, cfg)
+	err = updateGettersFunc(client)
+	require.NoError(t, err)
+
+	// Every scheme from the global getter.Getters map must be present
+	for scheme := range getter.Getters {
+		assert.Contains(t, client.Getters, scheme,
+			"client.Getters should contain the %q scheme from the global getter.Getters map", scheme)
+	}
+
+	// Terragrunt-specific getters must also be present
+	assert.Contains(t, client.Getters, "tfr", "client.Getters should contain the Terragrunt registry getter")
 }
 
 // TestDownloadWithNoSourceCreatesCache tests that when sourceURL is "." (no source specified),
@@ -916,4 +976,57 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHTTPGetterNetrcAuthentication verifies that HTTP/HTTPS getters correctly authenticate
+// using ~/.netrc credentials when downloading OpenTofu/Terraform sources.
+//
+// Does not use `t.Parallel()` because we need to set the `NETRC` environment variable
+// to point to a temporary `~/.netrc` file for the test to pass.
+func TestHTTPGetterNetrcAuthentication(t *testing.T) {
+	expectedUser := "testuser"
+	expectedPass := "testpassword"
+	fileContent := "# test tofu content"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != expectedUser || pass != expectedPass {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.Write([]byte(fileContent))
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	netrcContent := fmt.Sprintf("machine %s\nlogin %s\npassword %s\n",
+		serverURL.Host, expectedUser, expectedPass)
+
+	netrcFile := filepath.Join(t.TempDir(), ".netrc")
+	require.NoError(t, os.WriteFile(netrcFile, []byte(netrcContent), 0600))
+
+	t.Setenv("NETRC", netrcFile)
+
+	opts, err := options.NewTerragruntOptionsForTest("./test")
+	require.NoError(t, err)
+
+	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}}
+
+	client := &getter.Client{
+		Src:  server.URL + "/module.tf",
+		Dst:  filepath.Join(t.TempDir(), "module.tf"),
+		Mode: getter.ClientModeFile,
+	}
+
+	updateFn := run.UpdateGetters(logger.CreateLogger(), opts, cfg)
+	require.NoError(t, updateFn(client))
+
+	require.NoError(t, client.Get())
+
+	downloaded, err := os.ReadFile(client.Dst)
+	require.NoError(t, err)
+	assert.Equal(t, fileContent, string(downloaded))
 }

@@ -22,8 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/hashicorp/go-getter/v2"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/errgroup"
 )
@@ -38,10 +38,13 @@ const (
 	maxRetriesFetchFile = 5
 
 	providerCacheWarmUpChBufferSize = 100
-)
 
-// Borrow the "unpack a zip cache into a target directory" logic from go-getter
-var unzip = getter.ZipDecompressor{}
+	// DefaultProviderFileSizeLimit is the maximum total decompressed size for provider archives (1 GB)
+	DefaultProviderFileSizeLimit = 1 << 30 // 1 GiB
+
+	// DefaultProviderFilesLimit is the maximum number of files in a provider archive
+	DefaultProviderFilesLimit = 100
+)
 
 type ProviderCaches []*ProviderCache
 
@@ -162,7 +165,13 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 }
 
 func (cache *ProviderCache) ArchivePath() string {
-	if util.FileExists(cache.archivePath) {
+	exists, err := vfs.FileExists(cache.ProviderService.FS(), cache.archivePath)
+	if err != nil {
+		cache.logger.Warnf("Error checking archive path %s: %v", cache.archivePath, err)
+		return ""
+	}
+
+	if exists {
 		return cache.archivePath
 	}
 
@@ -273,18 +282,30 @@ func (cache *ProviderCache) setSignature(ctx context.Context) ([]byte, error) {
 // 1. Checks if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
 // 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
-	if util.FileExists(cache.packageDir) {
-		return nil
-	}
+	fs := cache.ProviderService.FS()
 
-	if err := os.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
+	exists, err := vfs.FileExists(fs, cache.packageDir)
+	if err != nil {
 		return errors.New(err)
 	}
 
-	if util.FileExists(cache.userProviderDir) {
+	if exists {
+		return nil
+	}
+
+	if err := fs.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
+		return errors.New(err)
+	}
+
+	userProviderExists, err := vfs.FileExists(fs, cache.userProviderDir)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if userProviderExists {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
-		if err := os.Symlink(cache.userProviderDir, cache.packageDir); err != nil {
+		if err := vfs.Symlink(fs, cache.userProviderDir, cache.packageDir); err != nil {
 			return errors.New(err)
 		}
 
@@ -297,7 +318,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.Errorf("not found provider download url")
 	}
 
-	if util.FileExists(cache.DownloadURL) {
+	downloadURLExists, err := vfs.FileExists(fs, cache.DownloadURL)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	if downloadURLExists {
 		cache.archivePath = cache.DownloadURL
 	} else {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
@@ -305,6 +331,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+
 			return helpers.FetchToFile(ctx, req, cache.archivePath)
 		}); err != nil {
 			return err
@@ -315,8 +342,17 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := unzip.Decompress(cache.packageDir, cache.archivePath, true, unzipFileMode); err != nil {
-		return errors.New(err)
+	if err := vfs.NewZipDecompressor(
+		vfs.WithFileSizeLimit(DefaultProviderFileSizeLimit),
+		vfs.WithFilesLimit(DefaultProviderFilesLimit),
+	).Unzip(
+		cache.logger,
+		fs,
+		cache.packageDir,
+		cache.archivePath,
+		unzipFileMode,
+	); err != nil {
+		return err
 	}
 
 	auth, err := cache.AuthenticatePackage(ctx)
@@ -348,11 +384,20 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 }
 
 func (cache *ProviderCache) removeArchive() error {
-	if cache.archiveCached && util.FileExists(cache.archivePath) {
-		cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
+	fs := cache.ProviderService.FS()
 
-		if err := os.Remove(cache.archivePath); err != nil {
+	if cache.archiveCached {
+		exists, err := vfs.FileExists(fs, cache.archivePath)
+		if err != nil {
 			return errors.New(err)
+		}
+
+		if exists {
+			cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
+
+			if err := fs.Remove(cache.archivePath); err != nil {
+				return errors.New(err)
+			}
 		}
 	}
 
@@ -362,7 +407,7 @@ func (cache *ProviderCache) removeArchive() error {
 func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile, error) {
 	lockfile := util.NewLockfile(cache.lockfilePath)
 
-	if err := os.MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
+	if err := cache.ProviderService.FS().MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
 		return nil, errors.New(err)
 	}
 
@@ -375,10 +420,24 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 	return lockfile, nil
 }
 
+// ProviderServiceOption configures a ProviderService.
+type ProviderServiceOption func(*ProviderService)
+
+// WithFS sets the filesystem for file operations.
+// If not set, defaults to the real OS filesystem.
+func WithFS(fs vfs.FS) ProviderServiceOption {
+	return func(ps *ProviderService) {
+		ps.fs = fs
+	}
+}
+
 type ProviderService struct {
 	logger                log.Logger
 	providerCacheWarmUpCh chan *ProviderCache
 	credsSource           *cliconfig.CredentialsSource
+
+	// fs is the filesystem for file operations.
+	fs vfs.FS
 
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	cacheDir string
@@ -393,16 +452,32 @@ type ProviderService struct {
 	cacheReadyMu   sync.RWMutex
 }
 
-func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {
+// FS returns the configured filesystem.
+func (service *ProviderService) FS() vfs.FS {
+	return service.fs
+}
+
+func NewProviderService(
+	cacheDir,
+	userCacheDir string,
+	credsSource *cliconfig.CredentialsSource,
+	l log.Logger,
+	opts ...ProviderServiceOption,
+) *ProviderService {
 	service := &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache, providerCacheWarmUpChBufferSize),
 		credsSource:           credsSource,
-		logger:                logger,
+		logger:                l,
+		fs:                    vfs.NewOSFS(),
 	}
 
-	logger.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	l.Debugf("Provider service initialized with cache dir: %s, user cache dir: %s", cacheDir, userCacheDir)
 
 	return service
 }
@@ -521,7 +596,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 
 	service.logger.Debugf("Starting provider cache service with cache dir: %q", service.cacheDir)
 
-	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
+	if err := service.FS().MkdirAll(service.cacheDir, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
 
@@ -590,8 +665,14 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		service.logger.Errorf("Failed to warm up provider %s: %v", cache.Provider, cache.err)
-		os.Remove(cache.packageDir)  //nolint:errcheck
-		os.Remove(cache.archivePath) //nolint:errcheck
+
+		if err := service.FS().RemoveAll(cache.packageDir); err != nil {
+			service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
+		}
+
+		if err := service.FS().Remove(cache.archivePath); err != nil {
+			service.logger.Warnf("Failed to clean up archive %q: %v", cache.archivePath, err)
+		}
 
 		return cache.err
 	}
