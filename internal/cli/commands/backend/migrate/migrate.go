@@ -31,17 +31,17 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts)
+	rnr, err := runner.NewStackRunner(ctx, l, opts)
 	if err != nil {
 		return err
 	}
 
-	srcUnit := stackRunner.GetStack().FindUnitByPath(srcPath)
+	srcUnit := rnr.GetStack().FindUnitByPath(srcPath)
 	if srcUnit == nil {
 		return errors.Errorf("src unit not found at %s", srcPath)
 	}
 
-	dstUnit := stackRunner.GetStack().FindUnitByPath(dstPath)
+	dstUnit := rnr.GetStack().FindUnitByPath(dstPath)
 	if dstUnit == nil {
 		return errors.Errorf("dst unit not found at %s", dstPath)
 	}

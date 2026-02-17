@@ -36,40 +36,6 @@ type Runner struct {
 	queue *queue.Queue
 }
 
-// BuildCanonicalConfigPath computes the canonical config path for a unit.
-// It handles .hcl/.json suffixes, joins an appropriate config filename when needed,
-// converts to canonical absolute path, and updates the unit's path.
-// Returns the canonical config path and the canonical unit directory.
-func BuildCanonicalConfigPath(
-	unit *component.Unit,
-	basePath string,
-) (canonicalConfigPath string, canonicalDir string, err error) {
-	terragruntConfigPath := unit.Path()
-	if !strings.HasSuffix(terragruntConfigPath, ".hcl") && !strings.HasSuffix(terragruntConfigPath, ".json") {
-		fileName := config.DefaultTerragruntConfigPath
-		if unit.ConfigFile() != "" {
-			fileName = unit.ConfigFile()
-		}
-
-		terragruntConfigPath = filepath.Join(unit.Path(), fileName)
-	}
-
-	// Convert to canonical absolute path - this is critical for dependency resolution
-	// Use the stack's working directory as the base for path resolution
-	// This ensures paths are resolved relative to where run --all was executed
-	canonicalConfigPath, err = util.CanonicalPath(terragruntConfigPath, basePath)
-	if err != nil {
-		return "", "", err
-	}
-
-	canonicalDir = filepath.Dir(canonicalConfigPath)
-
-	// Update the unit's path to the canonical directory path
-	unit.SetPath(canonicalDir)
-
-	return canonicalConfigPath, canonicalDir, nil
-}
-
 // CloneUnitOptions clones TerragruntOptions for a specific unit.
 // It handles CloneWithConfigPath, per-unit DownloadDir fallback, and OriginalTerragruntConfigPath.
 // Returns the cloned options and logger, or the original logger if stackOpts is nil.
@@ -215,18 +181,10 @@ func resolveUnitsFromDiscovery(
 ) ([]*component.Unit, error) {
 	units := make([]*component.Unit, 0, len(discovered))
 
-	basePath := stack.Path()
-
 	for _, c := range discovered {
 		unit, ok := c.(*component.Unit)
 		if !ok {
 			continue
-		}
-
-		// Build canonical config path and update unit path
-		_, _, err := BuildCanonicalConfigPath(unit, basePath)
-		if err != nil {
-			return nil, err
 		}
 
 		// Store config from discovery context if available
@@ -273,9 +231,9 @@ func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
 func NewRunnerPoolStack(
 	ctx context.Context,
 	l log.Logger,
-	terragruntOptions *options.TerragruntOptions,
+	opts *options.TerragruntOptions,
 	discovered component.Components,
-	opts ...common.Option,
+	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
 	// Filter out Stack components - we only want Unit components
 	// Stack components (terragrunt.stack.hcl files) are for stack generation, not execution
@@ -289,9 +247,9 @@ func NewRunnerPoolStack(
 	if len(nonStackComponents) == 0 {
 		l.Warnf("No units discovered. Creating an empty runner.")
 
-		stack := component.NewStack(terragruntOptions.WorkingDir)
+		stack := component.NewStack(opts.WorkingDir)
 
-		runner := &Runner{
+		rnr := &Runner{
 			Stack: stack,
 		}
 
@@ -301,39 +259,39 @@ func NewRunnerPoolStack(
 			return nil, queueErr
 		}
 
-		runner.queue = q
+		rnr.queue = q
 
-		return runner.WithOptions(opts...), nil
+		return rnr.WithOptions(runnerOpts...), nil
 	}
 
 	// Initialize stack; queue will be constructed after resolving units so we can filter excludes first.
-	stack := component.NewStack(terragruntOptions.WorkingDir)
+	stack := component.NewStack(opts.WorkingDir)
 
-	runner := &Runner{
+	rnr := &Runner{
 		Stack: stack,
 	}
 
 	// Apply options (including report) BEFORE resolving units so that
 	// the report is available during unit resolution for tracking exclusions
-	runner = runner.WithOptions(opts...)
+	rnr = rnr.WithOptions(runnerOpts...)
 
 	// Resolve units from discovery - canonicalizes paths
-	units, err := resolveUnitsFromDiscovery(ctx, l, runner.Stack, nonStackComponents)
+	units, err := resolveUnitsFromDiscovery(ctx, l, rnr.Stack, nonStackComponents)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check for units with Git refs but no remote state configuration
 	checkLocalStateWithGitRefs(l, units)
-	runner.Stack.Units = units
+	rnr.Stack.Units = units
 
-	if terragruntOptions.TerraformCliArgs.IsDestroyCommand(terragruntOptions.TerraformCommand) {
+	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
 		applyPreventDestroyExclusions(l, units)
 	}
 
 	// Apply filter-allow-destroy exclusions for plan and apply commands
-	if terragruntOptions.TerraformCommand == tf.CommandNamePlan || terragruntOptions.TerraformCommand == tf.CommandNameApply {
-		applyFilterAllowDestroyExclusions(l, terragruntOptions, units)
+	if opts.TerraformCommand == tf.CommandNamePlan || opts.TerraformCommand == tf.CommandNameApply {
+		applyFilterAllowDestroyExclusions(l, opts, units)
 	}
 
 	// Build queue from resolved units (which have canonical absolute paths).
@@ -345,9 +303,20 @@ func NewRunnerPoolStack(
 		return nil, queueErr
 	}
 
-	runner.queue = q
+	// Set units map on queue to enable checking dependencies not in queue
+	// (e.g., when using --queue-strict-include or --filter)
+	unitsMap := make(map[string]*component.Unit, len(units))
+	for _, u := range units {
+		if u != nil && u.Path() != "" {
+			unitsMap[u.Path()] = u
+		}
+	}
 
-	return runner.WithOptions(opts...), nil
+	q.SetUnitsMap(unitsMap)
+
+	rnr.queue = q
+
+	return rnr.WithOptions(runnerOpts...), nil
 }
 
 // filterUnitsToComponents converts resolved units to Components.
@@ -370,11 +339,11 @@ func filterUnitsToComponents(units []*component.Unit) component.Components {
 
 // Run executes the stack according to TerragruntOptions and returns the first
 // error (or a joined error) once execution is finished.
-func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, rpt *report.Report) error {
+func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.TerragruntOptions, r *report.Report) error {
 	terraformCmd := stackOpts.TerraformCommand
 
 	if stackOpts.OutputFolder != "" {
-		for _, u := range r.Stack.Units {
+		for _, u := range rnr.Stack.Units {
 			planFile := u.OutputFile(stackOpts.RootWorkingDir, stackOpts.OutputFolder)
 			if err := os.MkdirAll(filepath.Dir(planFile), os.ModePerm); err != nil {
 				return err
@@ -411,19 +380,19 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 	// Pre-allocate plan error buffers keyed by unit path
 	var planErrorBuffers map[string]*bytes.Buffer
 	if isPlan {
-		planErrorBuffers = make(map[string]*bytes.Buffer, len(r.Stack.Units))
-		for _, u := range r.Stack.Units {
+		planErrorBuffers = make(map[string]*bytes.Buffer, len(rnr.Stack.Units))
+		for _, u := range rnr.Stack.Units {
 			planErrorBuffers[u.Path()] = &bytes.Buffer{}
 		}
 
-		defer r.summarizePlanAllErrors(l, planErrorBuffers)
+		defer rnr.summarizePlanAllErrors(l, planErrorBuffers)
 	}
 
 	// Emit report entries for excluded units that haven't been reported yet.
 	// Units excluded by CLI flags or exclude blocks are already reported during unit resolution,
 	// but we still need to report units excluded by other mechanisms (e.g., external dependencies).
-	if rpt != nil {
-		for _, u := range r.Stack.Units {
+	if r != nil {
+		for _, u := range rnr.Stack.Units {
 			if u.Excluded() {
 				// Ensure path is absolute for reporting
 				unitPath := u.AbsolutePath(l)
@@ -441,7 +410,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					)
 				}
 
-				run, err := rpt.EnsureRun(l, unitPath, ensureOpts...)
+				run, err := r.EnsureRun(l, unitPath, ensureOpts...)
 				if err != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, err)
 					continue
@@ -455,7 +424,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					// External dependencies that are assumed already applied are excluded with --queue-exclude-external
 					reason := report.ReasonExcludeBlock
 
-					if err := rpt.EndRun(
+					if err := r.EndRun(
 						l,
 						run.Path,
 						report.WithResult(report.ResultExcluded),
@@ -470,39 +439,39 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 
 	task := func(ctx context.Context, u *component.Unit) error {
 		// Build per-unit opts and logger on demand
-		uOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
+		unitOpts, unitLogger, err := BuildUnitOpts(l, stackOpts, u)
 		if err != nil {
 			return tgerrors.Errorf("failed to build opts for unit %s: %w", u.Path(), err)
 		}
 
 		// Sync CLI args from stackOpts into unit opts
 		if needsCliSync {
-			syncUnitCliArgs(l, stackOpts, uOpts, u)
+			syncUnitCliArgs(l, stackOpts, unitOpts, u)
 		}
 
 		// Wrap ErrWriter with plan error buffer for plan commands
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				uOpts.ErrWriter = io.MultiWriter(buf, uOpts.ErrWriter)
+				unitOpts.ErrWriter = io.MultiWriter(buf, unitOpts.ErrWriter)
 			}
 		}
 
 		return telemetry.TelemeterFromContext(ctx).Collect(ctx, "runner_pool_task", map[string]any{
-			"terraform_command":      uOpts.TerraformCommand,
-			"terraform_cli_args":     uOpts.TerraformCliArgs,
-			"working_dir":            uOpts.WorkingDir,
-			"terragrunt_config_path": uOpts.TerragruntConfigPath,
+			"terraform_command":      unitOpts.TerraformCommand,
+			"terraform_cli_args":     unitOpts.TerraformCliArgs,
+			"working_dir":            unitOpts.WorkingDir,
+			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(uOpts.Writer)
-			uOpts.Writer = unitWriter
+			unitWriter := NewUnitWriter(unitOpts.Writer)
+			unitOpts.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, uOpts)
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts)
 			if err != nil {
 				return err
 			}
@@ -510,8 +479,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
 				unitLogger,
-				uOpts,
-				config.DefaultParserOptions(unitLogger, uOpts),
+				unitOpts,
+				config.DefaultParserOptions(unitLogger, unitOpts),
 			)
 			if err != nil {
 				return err
@@ -522,8 +491,8 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 			err = unitRunner.Run(
 				childCtx,
 				unitLogger,
-				uOpts,
-				rpt,
+				unitOpts,
+				r,
 				runCfg,
 				credsGetter,
 			)
@@ -537,13 +506,13 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 		})
 	}
 
-	r.queue.FailFast = stackOpts.FailFast
-	r.queue.IgnoreDependencyOrder = stackOpts.IgnoreDependencyOrder
+	rnr.queue.FailFast = stackOpts.FailFast
+	rnr.queue.IgnoreDependencyOrder = stackOpts.IgnoreDependencyOrder
 	// Allow continuing the queue when dependencies fail if requested via CLI
-	r.queue.IgnoreDependencyErrors = stackOpts.IgnoreDependencyErrors
+	rnr.queue.IgnoreDependencyErrors = stackOpts.IgnoreDependencyErrors
 	controller := NewController(
-		r.queue,
-		r.Stack.Units,
+		rnr.queue,
+		rnr.Stack.Units,
 		WithRunner(task),
 		WithMaxConcurrency(stackOpts.Parallelism),
 	)
@@ -551,17 +520,17 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 	err := controller.Run(ctx, l)
 
 	// Emit report entries for early exit and failed units after controller completes
-	if rpt != nil {
+	if r != nil {
 		// Build a quick lookup of queue entry status by path to avoid nested scans
-		statusByPath := make(map[string]queue.Status, len(r.queue.Entries))
-		for _, qe := range r.queue.Entries {
+		statusByPath := make(map[string]queue.Status, len(rnr.queue.Entries))
+		for _, qe := range rnr.queue.Entries {
 			statusByPath[qe.Component.Path()] = qe.Status
 		}
 
-		for _, entry := range r.queue.Entries {
+		for _, entry := range rnr.queue.Entries {
 			// Handle both early exit and failed units to ensure they're in the report
 			if entry.Status == queue.StatusEarlyExit || entry.Status == queue.StatusFailed {
-				unit := r.Stack.FindUnitByPath(entry.Component.Path())
+				unit := rnr.Stack.FindUnitByPath(entry.Component.Path())
 				if unit == nil {
 					l.Warnf("Could not find unit for entry: %s", entry.Component.Path())
 					continue
@@ -583,7 +552,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 					)
 				}
 
-				run, reportErr := rpt.EnsureRun(l, unitPath, ensureOpts...)
+				run, reportErr := r.EnsureRun(l, unitPath, ensureOpts...)
 				if reportErr != nil {
 					l.Errorf("Error ensuring run for unit %s: %v", unitPath, reportErr)
 					continue
@@ -616,7 +585,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 						endOpts = append(endOpts, report.WithCauseAncestorExit(failedAncestor))
 					}
 
-					if endErr := rpt.EndRun(l, run.Path, endOpts...); endErr != nil {
+					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for early exit unit %s: %v", unitPath, endErr)
 					}
 				case queue.StatusFailed:
@@ -635,7 +604,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 						}
 					}
 
-					if endErr := rpt.EndRun(l, run.Path, endOpts...); endErr != nil {
+					if endErr := r.EndRun(l, run.Path, endOpts...); endErr != nil {
 						l.Errorf("Error ending run for failed unit %s: %v", unitPath, endErr)
 					}
 				}
@@ -647,7 +616,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Terra
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
-func (r *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOptions) error {
+func (rnr *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOptions) error {
 	outStr := fmt.Sprintf(
 		"Unit queue will be processed for %s in this order:\n",
 		opts.TerraformCommand,
@@ -656,7 +625,7 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOption
 	// For destroy commands, reflect the actual processing order (reverse of apply order).
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
-	entries := slices.Clone(r.queue.Entries)
+	entries := slices.Clone(rnr.queue.Entries)
 	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
 		slices.Reverse(entries)
 	}
@@ -683,12 +652,12 @@ func (r *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOption
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
-func (r *Runner) JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, error) {
+func (rnr *Runner) JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, error) {
 	// Use absolute paths if --log-show-abs-paths is set
 	showAbsPaths := opts != nil && opts.LogShowAbsPaths
 
-	orderedUnits := make([]string, 0, len(r.queue.Entries))
-	for _, unit := range r.queue.Entries {
+	orderedUnits := make([]string, 0, len(rnr.queue.Entries))
+	for _, unit := range rnr.queue.Entries {
 		unitPath := unit.Component.DisplayPath()
 		if showAbsPaths {
 			unitPath = unit.Component.Path()
@@ -706,10 +675,10 @@ func (r *Runner) JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, e
 }
 
 // ListStackDependentUnits returns a map of units and their dependent units in the stack.
-func (r *Runner) ListStackDependentUnits() map[string][]string {
+func (rnr *Runner) ListStackDependentUnits() map[string][]string {
 	dependentUnits := make(map[string][]string)
 
-	for _, unit := range r.queue.Entries {
+	for _, unit := range rnr.queue.Entries {
 		if len(unit.Component.Dependencies()) != 0 {
 			for _, dep := range unit.Component.Dependencies() {
 				dependentUnits[dep.Path()] = util.RemoveDuplicates(append(dependentUnits[dep.Path()], unit.Component.Path()))
@@ -742,8 +711,8 @@ func (r *Runner) ListStackDependentUnits() map[string][]string {
 }
 
 // summarizePlanAllErrors summarizes all errors encountered during the plan phase across all units in the stack.
-func (r *Runner) summarizePlanAllErrors(l log.Logger, errorStreams map[string]*bytes.Buffer) {
-	for _, unit := range r.Stack.Units {
+func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorStreams map[string]*bytes.Buffer) {
+	for _, unit := range rnr.Stack.Units {
 		buf := errorStreams[unit.Path()]
 		if buf == nil {
 			continue
@@ -908,17 +877,17 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 }
 
 // WithOptions updates the stack with the provided options.
-func (r *Runner) WithOptions(opts ...common.Option) *Runner {
+func (rnr *Runner) WithOptions(opts ...common.Option) *Runner {
 	for _, opt := range opts {
-		opt.Apply(r)
+		opt.Apply(rnr)
 	}
 
-	return r
+	return rnr
 }
 
 // GetStack returns the stack associated with the runner.
-func (r *Runner) GetStack() *component.Stack {
-	return r.Stack
+func (rnr *Runner) GetStack() *component.Stack {
+	return rnr.Stack
 }
 
 // applyPreventDestroyExclusions excludes units with prevent_destroy=true and their dependencies
