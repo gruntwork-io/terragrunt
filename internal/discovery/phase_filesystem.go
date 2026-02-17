@@ -98,7 +98,7 @@ func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInp
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.
 func (p *FilesystemPhase) skipDirIfIgnorable(discovery *Discovery, path string) error {
-	if err := skipDirIfIgnorable(path); err != nil {
+	if err := util.SkipDirIfIgnorable(path); err != nil {
 		return err
 	}
 

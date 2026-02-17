@@ -26,6 +26,8 @@ import (
 const (
 	TerraformLockFile     = ".terraform.lock.hcl"
 	TerragruntCacheDir    = ".terragrunt-cache"
+	TerraformCacheDir     = ".terraform"
+	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
 	TfFileExtension       = ".tf"
 	ChecksumReadBlock     = 8192
@@ -1204,6 +1206,19 @@ func MoveFile(source string, destination string) error {
 		}
 
 		return renameErr
+	}
+
+	return nil
+}
+
+// SkipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's
+// in a directory that should never have components discovered in it.
+func SkipDirIfIgnorable(path string) error {
+	base := filepath.Base(path)
+
+	switch base {
+	case GitDir, TerraformCacheDir, TerragruntCacheDir:
+		return filepath.SkipDir
 	}
 
 	return nil
