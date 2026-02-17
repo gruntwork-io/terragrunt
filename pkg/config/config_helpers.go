@@ -101,8 +101,6 @@ const (
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
-
-	sopsCacheName = "sopsCache"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -1291,14 +1289,6 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// A cache of the results of a decrypt operation via sops. Each decryption
-// operation can take several seconds, so this cache speeds up terragrunt executions
-// where the same sops files are referenced multiple times.
-//
-// The cache keys are the canonical paths to the encrypted files, and the values are the
-// plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string](sopsCacheName)
-
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	var sourceFile string
@@ -1345,6 +1335,8 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
 func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
+	sopsCache := cache.ContextCache[string](ctx, SopsCacheContextKey)
+
 	// Fast path: check cache before acquiring lock.
 	// Cache has its own sync.RWMutex, safe for concurrent reads.
 	if val, ok := sopsCache.Get(ctx, path); ok {
@@ -1361,6 +1353,13 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 	locks.EnvLock.Lock()
 	defer locks.EnvLock.Unlock()
+
+	// Double-check: another goroutine may have populated cache while we waited for the lock.
+	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
+
+		return val, nil
+	}
 
 	// Set env vars from opts.Env that are missing from process env.
 	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
@@ -1386,13 +1385,6 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 			os.Unsetenv(k) //nolint:errcheck
 		}
 	}()
-
-	// Double-check: another goroutine may have populated cache while we waited for the lock.
-	if val, ok := sopsCache.Get(ctx, path); ok {
-		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
-
-		return val, nil
-	}
 
 	l.Debugf("sops decrypt: decrypting %s", path)
 
