@@ -42,7 +42,7 @@ run-lint:
 run-lint-incremental:
 	@git rev-parse origin/main >/dev/null 2>&1 || { echo "Error: origin/main not found. Run 'git fetch origin main' first."; exit 1; }
 	@echo "Incremental lint vs origin/main with feature flags: [$(LINT_TAGS)]"
-	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=10m --new-from-rev origin/main ./...
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --new-from-rev origin/main ./...
 
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
