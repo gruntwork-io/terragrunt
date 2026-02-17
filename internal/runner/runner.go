@@ -16,10 +16,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
-// assemble them into a Stack object that can be applied or destroyed in a single command
-func FindStackInSubfolders(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, opts ...common.Option) (common.StackRunner, error) {
-	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
+// NewStackRunner discovers all Terragrunt units under the working directory and
+// assembles them into a StackRunner that can apply or destroy them.
+func NewStackRunner(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	runnerOpts ...common.Option,
+) (common.StackRunner, error) {
+	return runnerpool.Build(ctx, l, opts, runnerOpts...)
+}
+
+// BuildUnitOpts is a facade for runnerpool.BuildUnitOpts.
+func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *component.Unit) (*options.TerragruntOptions, log.Logger, error) {
+	return runnerpool.BuildUnitOpts(l, stackOpts, unit)
 }
 
 // FindDependentUnits - find dependent units for a given unit.
@@ -55,7 +65,7 @@ func FindDependentUnits(
 	return matchedUnits
 }
 
-// discoverPathsToCheck finds root git top level directory and builds list of modules, or iterates over includes if git detection fails.
+// discoverPathsToCheck finds root git top level directory and builds list of units, or iterates over includes if git detection fails.
 func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	var pathsToCheck []string
 
@@ -75,45 +85,45 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 	return pathsToCheck
 }
 
-// findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
+// findMatchingUnitsInPath builds the stack from the config directory and filters units by working dir dependencies.
 func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
-	matchedModulesMap := make(map[string]*component.Unit)
+	matchedUnitsMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory
 	configPath := filepath.Join(dir, filepath.Base(opts.TerragruntConfigPath))
 
-	cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+	cfgOpts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
 	if err != nil {
 		l.Debugf("Failed to build terragrunt options from %s %v", configPath, err)
-		return matchedModulesMap
+		return matchedUnitsMap
 	}
 
-	cfgOptions.Env = opts.Env
-	cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	cfgOptions.TerraformCommand = opts.TerraformCommand
-	cfgOptions.TerraformCliArgs = opts.TerraformCliArgs
-	cfgOptions.CheckDependentUnits = opts.CheckDependentUnits
-	cfgOptions.NonInteractive = true
+	cfgOpts.Env = opts.Env
+	cfgOpts.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	cfgOpts.TerraformCommand = opts.TerraformCommand
+	cfgOpts.TerraformCliArgs = opts.TerraformCliArgs
+	cfgOpts.CheckDependentUnits = opts.CheckDependentUnits
+	cfgOpts.NonInteractive = true
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions)
+	rnr, err := NewStackRunner(ctx, l, cfgOpts)
 	if err != nil {
-		l.Debugf("Failed to build module stack %v", err)
-		return matchedModulesMap
+		l.Debugf("Failed to build unit stack %v", err)
+		return matchedUnitsMap
 	}
 
-	stack := runner.GetStack()
-	dependentModules := runner.ListStackDependentUnits()
+	stack := rnr.GetStack()
+	dependentUnits := rnr.ListStackDependentUnits()
 
-	deps, found := dependentModules[opts.WorkingDir]
+	deps, found := dependentUnits[opts.WorkingDir]
 	if found {
-		for _, module := range stack.Units {
-			if slices.Contains(deps, module.Path()) {
-				matchedModulesMap[module.Path()] = module
+		for _, unit := range stack.Units {
+			if slices.Contains(deps, unit.Path()) {
+				matchedUnitsMap[unit.Path()] = unit
 			}
 		}
 	}
 
-	return matchedModulesMap
+	return matchedUnitsMap
 }
