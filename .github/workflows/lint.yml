@@ -16,10 +16,6 @@ jobs:
       GOGC: "400"
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      with:
-        fetch-depth: 0
-
     - name: "Mount tmpfs"
       shell: bash
       if: runner.os == 'Linux'
@@ -31,6 +27,10 @@ jobs:
         sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
         mkdir -p /home/runner/.cache/golangci-lint
         sudo mount -t tmpfs -o size=2G tmpfs /home/runner/.cache/golangci-lint
+
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        fetch-depth: 0
 
     - name: Cache mise tools
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -87,7 +87,7 @@ jobs:
 
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
-      run: git fetch origin main --depth=1
+      run: git fetch origin main
 
     - name: Check for lint config changes
       id: lint-config

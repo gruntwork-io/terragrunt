@@ -17,11 +17,6 @@ jobs:
       GOGC: "400"
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 1
-
       - name: "Mount tmpfs"
         shell: bash
         if: runner.os == 'Linux'
@@ -34,12 +29,17 @@ jobs:
           mkdir -p /home/runner/.cache/terragrunt
           sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/terragrunt
 
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
       - name: "Mount RAM disk"
         shell: bash
         if: runner.os == 'macOS'
         run: |
-          RAMDISK=$(hdiutil attach -nomount ram://8388608)
-          diskutil erasevolume HFS+ RAMDisk $RAMDISK
+          RAMDISK=$(hdiutil attach -nomount ram://8388608) || { echo "Failed to create RAM disk"; exit 1; }
+          diskutil erasevolume HFS+ RAMDisk "$RAMDISK"
           mkdir -p /Volumes/RAMDisk/go-build
           rm -rf ~/Library/Caches/go-build
           ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build

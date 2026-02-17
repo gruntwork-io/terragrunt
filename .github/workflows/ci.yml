@@ -3,6 +3,10 @@ name: CI
 on:
   push:
 
+# Restrict default GITHUB_TOKEN to read-only; jobs needing more (e.g. checks: write) declare it explicitly
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
