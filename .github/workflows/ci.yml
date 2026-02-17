@@ -44,6 +44,9 @@ jobs:
     uses: ./.github/workflows/fuzz.yml
     secrets: inherit
 
+  # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
+  # markdownlint, license_check, install_script_test) run in parallel and are enforced
+  # by branch protection rules, not by job dependencies.
   base_tests:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/base-test.yml

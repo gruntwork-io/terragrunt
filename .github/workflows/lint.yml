@@ -85,6 +85,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-golangci-lint-
 
+    # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main

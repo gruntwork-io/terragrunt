@@ -34,6 +34,8 @@ jobs:
         with:
           fetch-depth: 1
 
+      # RAM disk for go-build cache — persists through post-steps so cache save works.
+      # If ramdisk is unmounted before job cleanup, cache save will fail silently.
       - name: "Mount RAM disk"
         shell: bash
         if: runner.os == 'macOS'
