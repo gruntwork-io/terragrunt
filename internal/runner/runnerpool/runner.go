@@ -171,34 +171,6 @@ func syncUnitCliArgs(l log.Logger, stackOpts *options.TerragruntOptions, unitOpt
 	}
 }
 
-// resolveUnitsFromDiscovery converts discovered components to units with canonical paths.
-// Returns the resolved units. Per-unit opts/loggers are built on demand via BuildUnitOpts.
-func resolveUnitsFromDiscovery(
-	_ context.Context,
-	l log.Logger,
-	stack *component.Stack,
-	discovered component.Components,
-) ([]*component.Unit, error) {
-	units := make([]*component.Unit, 0, len(discovered))
-
-	for _, c := range discovered {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		// Store config from discovery context if available
-		if unit.DiscoveryContext() != nil && unit.Config() == nil {
-			// Config should already be set during discovery
-			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
-		}
-
-		units = append(units, unit)
-	}
-
-	return units, nil
-}
-
 // checkLocalStateWithGitRefs checks if any unit has a Git ref in its discovery context
 // but no remote state configuration, and logs a warning if so.
 func checkLocalStateWithGitRefs(l log.Logger, units []*component.Unit) {
@@ -275,10 +247,15 @@ func NewRunnerPoolStack(
 	// the report is available during unit resolution for tracking exclusions
 	rnr = rnr.WithOptions(runnerOpts...)
 
-	// Resolve units from discovery - canonicalizes paths
-	units, err := resolveUnitsFromDiscovery(ctx, l, rnr.Stack, nonStackComponents)
-	if err != nil {
-		return nil, err
+	// Resolve units from discovery
+	units := make([]*component.Unit, 0, len(nonStackComponents))
+	for _, c := range nonStackComponents {
+		unit := c.(*component.Unit)
+		if unit.DiscoveryContext() != nil && unit.Config() == nil {
+			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
+		}
+
+		units = append(units, unit)
 	}
 
 	// Check for units with Git refs but no remote state configuration
@@ -760,7 +737,7 @@ func (rnr *Runner) summarizePlanAllErrors(l log.Logger, errorStreams map[string]
 //   - The function returns a new slice with shallow-copied entries so the original discovery
 //     results remain unchanged.
 func FilterDiscoveredUnits(discovered component.Components, units []*component.Unit) component.Components {
-	// Build allowlist from non-excluded unit paths (already canonical from resolveUnitsFromDiscovery)
+	// Build allowlist from non-excluded unit paths (already canonical from discovery)
 	allowed := make(map[string]struct{}, len(units))
 	for _, u := range units {
 		if !u.Excluded() {
@@ -769,7 +746,7 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 	}
 
 	// First pass: keep only allowed configs and prune their dependencies to allowed ones
-	// NOTE: Unit paths should already be canonical after resolveUnitsFromDiscovery modified them
+	// NOTE: Unit paths should already be canonical after discovery
 	filtered := make(component.Components, 0, len(discovered))
 	present := make(map[string]*component.Unit, len(discovered))
 
@@ -779,7 +756,7 @@ func FilterDiscoveredUnits(discovered component.Components, units []*component.U
 			continue
 		}
 
-		// Path should already be canonical from resolveUnitsFromDiscovery
+		// Path should already be canonical from discovery
 		unitPath := unit.Path()
 
 		if _, ok := allowed[unitPath]; !ok {
