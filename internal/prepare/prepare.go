@@ -38,7 +38,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, externalcmd.NewProvider(l, opts)); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, externalcmd.NewProvider(l, opts.AuthProviderCmd, opts)); err != nil {
 		return nil, err
 	}
 
@@ -101,7 +101,7 @@ func PrepareSource(
 	credsGetter := creds.NewGetter()
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
 	}); err != nil {
 		return nil, err
 	}

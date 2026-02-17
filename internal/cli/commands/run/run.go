@@ -76,8 +76,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		opts,
-		externalcmd.NewProvider(l, opts),
+		opts.Env,
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, opts),
 	); err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

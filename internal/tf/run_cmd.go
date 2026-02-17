@@ -65,7 +65,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 		opts.Writer, opts.ErrWriter = logTFOutput(l, opts, args)
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, opts, "", false, needsPTY, opts.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), "", false, needsPTY, opts.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {

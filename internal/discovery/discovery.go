@@ -49,7 +49,7 @@ func (d *Discovery) Discover(
 
 	if classifier.HasGraphFilters() {
 		if classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts.Env, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}

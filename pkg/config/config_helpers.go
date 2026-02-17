@@ -266,7 +266,7 @@ func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_repo_root", attrs, func(childCtx context.Context) error {
 		var innerErr error
 
-		result, innerErr = shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		result, innerErr = shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.WorkingDir)
 
 		return innerErr
 	})
@@ -284,7 +284,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_path_from_repo_root", attrs, func(childCtx context.Context) error {
-		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.WorkingDir)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
@@ -312,7 +312,7 @@ func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_path_to_repo_root", attrs, func(childCtx context.Context) error {
-		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.WorkingDir)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
@@ -572,7 +572,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		pctx.TerragruntOptions,
+		shell.RunOptionsFromOpts(pctx.TerragruntOptions),
 		currentPath,
 		true,
 		false,
@@ -966,7 +966,7 @@ func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger)
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_alias", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.IAMRoleOptions)
 		if err != nil {
 			return err
 		}
@@ -994,7 +994,7 @@ func getAWSAccountID(ctx context.Context, pctx *ParsingContext, l log.Logger) (s
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.IAMRoleOptions)
 		if err != nil {
 			return err
 		}
@@ -1022,7 +1022,7 @@ func getAWSCallerIdentityARN(ctx context.Context, pctx *ParsingContext, l log.Lo
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_arn", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.IAMRoleOptions)
 		if err != nil {
 			return err
 		}
@@ -1050,7 +1050,7 @@ func getAWSCallerIdentityUserID(ctx context.Context, pctx *ParsingContext, l log
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_user_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
+		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions.Env, pctx.TerragruntOptions.IAMRoleOptions)
 		if err != nil {
 			return err
 		}

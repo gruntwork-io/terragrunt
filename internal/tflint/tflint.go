@@ -67,7 +67,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: initArgs})
@@ -86,7 +86,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, opts, opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: args})

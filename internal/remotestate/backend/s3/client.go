@@ -82,7 +82,7 @@ type Client struct {
 func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsConfig, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsConfig, opts.Env, opts.IAMRoleOptions)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -93,7 +93,7 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 		}
 	}
 
-	s3Client, err := awshelper.CreateS3Client(ctx, l, awsConfig, opts)
+	s3Client, err := awshelper.CreateS3Client(ctx, l, awsConfig, opts.Env, opts.IAMRoleOptions)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -135,7 +135,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -544,7 +544,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 
 	prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", logsBucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}

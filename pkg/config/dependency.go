@@ -924,8 +924,8 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 			ctx,
 			l,
-			pctx.TerragruntOptions,
-			externalcmd.NewProvider(l, pctx.TerragruntOptions),
+			pctx.TerragruntOptions.Env,
+			externalcmd.NewProvider(l, pctx.TerragruntOptions.AuthProviderCmd, pctx.TerragruntOptions),
 		); err != nil {
 			return nil, err
 		}
@@ -1090,8 +1090,8 @@ func getTerragruntOutputJSONFromRemoteState(
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		pctx.TerragruntOptions,
-		externalcmd.NewProvider(l, pctx.TerragruntOptions),
+		pctx.TerragruntOptions.Env,
+		externalcmd.NewProvider(l, pctx.TerragruntOptions.AuthProviderCmd, pctx.TerragruntOptions),
 	); err != nil {
 		return nil, err
 	}
@@ -1142,7 +1142,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		}
 	}
 
-	if err := remoteState.GenerateOpenTofuCode(l, targetTGOptions); err != nil {
+	if err := remoteState.GenerateOpenTofuCode(l, targetTGOptions.WorkingDir); err != nil {
 		return nil, err
 	}
 
@@ -1185,7 +1185,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := awshelper.CreateS3Client(ctx, l, sessionConfig, opts)
+	s3Client, err := awshelper.CreateS3Client(ctx, l, sessionConfig, opts.Env, opts.IAMRoleOptions)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -1255,9 +1255,9 @@ func setupTerragruntOptionsForBareTerraform(
 	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
 
 	// Make sure to assume any roles set by TG_IAM_ROLE
-	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, targetTGOptions,
-		externalcmd.NewProvider(l, targetTGOptions),
-		amazonsts.NewProvider(l, targetTGOptions),
+	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, targetTGOptions.Env,
+		externalcmd.NewProvider(l, targetTGOptions.AuthProviderCmd, targetTGOptions),
+		amazonsts.NewProvider(l, targetTGOptions.IAMRoleOptions, targetTGOptions.Env),
 	); err != nil {
 		return nil, err
 	}
@@ -1291,8 +1291,8 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	if err = credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		pctx.TerragruntOptions,
-		externalcmd.NewProvider(l, pctx.TerragruntOptions),
+		pctx.TerragruntOptions.Env,
+		externalcmd.NewProvider(l, pctx.TerragruntOptions.AuthProviderCmd, pctx.TerragruntOptions),
 	); err != nil {
 		return nil, err
 	}

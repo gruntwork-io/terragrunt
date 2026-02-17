@@ -27,7 +27,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 	_, err := awshelper.CreateAwsConfig(t.Context(), l, &awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
-	}, options.NewTerragruntOptions())
+	}, nil, options.IAMRoleOptions{})
 	assert.Error(t, err)
 }
 
@@ -95,7 +95,7 @@ func TestCreateAwsConfigWithAuthProviderEnv(t *testing.T) {
 		},
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts.Env, opts.IAMRoleOptions)
 	require.NoError(t, err)
 	assert.Equal(t, "us-west-2", cfg.Region)
 
@@ -108,15 +108,13 @@ func TestCreateAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := context.Background()
 
-	opts := &options.TerragruntOptions{
-		Env: map[string]string{
-			"AWS_ACCESS_KEY_ID":     "test-access-key",
-			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
-			"AWS_DEFAULT_REGION":    "eu-west-1",
-		},
+	env := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "test-access-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret-key",
+		"AWS_DEFAULT_REGION":    "eu-west-1",
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, nil, env, options.IAMRoleOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", cfg.Region)
 	assert.NotNil(t, cfg.Credentials)
@@ -128,14 +126,12 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx := context.Background()
 
-	// Simulate env vars via opts.Env; do not mutate process env in parallel tests
-	opts := &options.TerragruntOptions{
-		Env: map[string]string{
-			"AWS_REGION":            "us-west-1",
-			"AWS_DEFAULT_REGION":    "us-west-1",
-			"AWS_ACCESS_KEY_ID":     "test-access-key",
-			"AWS_SECRET_ACCESS_KEY": "test-secret-key",
-		},
+	// Simulate env vars; do not mutate process env in parallel tests
+	env := map[string]string{
+		"AWS_REGION":            "us-west-1",
+		"AWS_DEFAULT_REGION":    "us-west-1",
+		"AWS_ACCESS_KEY_ID":     "test-access-key",
+		"AWS_SECRET_ACCESS_KEY": "test-secret-key",
 	}
 
 	// Create config with explicit region that should take precedence
@@ -143,7 +139,7 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 		Region: "us-east-1", // This should override the env vars
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsCfg, opts)
+	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsCfg, env, options.IAMRoleOptions{})
 	require.NoError(t, err)
 
 	// Verify that the config uses the region from awsCfg, not from environment variables

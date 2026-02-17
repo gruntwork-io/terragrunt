@@ -60,8 +60,8 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 	return token, nil
 }
 
-func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig, opts *options.TerragruntOptions) (*s3.Client, error) {
-	cfg, err := CreateAwsConfig(ctx, l, config, opts)
+func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig, env map[string]string, iamRoleOpts options.IAMRoleOptions) (*s3.Client, error) {
+	cfg, err := CreateAwsConfig(ctx, l, config, env, iamRoleOpts)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -82,18 +82,19 @@ func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig,
 	return s3.NewFromConfig(cfg, customFN...), nil
 }
 
-// CreateAwsConfig returns an AWS config object for the given AwsSessionConfig and TerragruntOptions.
+// CreateAwsConfig returns an AWS config object for the given AwsSessionConfig, environment, and IAM role options.
 func CreateAwsConfig(
 	ctx context.Context,
 	l log.Logger,
 	awsCfg *AwsSessionConfig,
-	opts *options.TerragruntOptions,
+	env map[string]string,
+	iamRoleOpts options.IAMRoleOptions,
 ) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-	if envCreds := createCredentialsFromEnv(opts); envCreds != nil {
+	if envCreds := createCredentialsFromEnv(env); envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
@@ -107,7 +108,7 @@ func CreateAwsConfig(
 	if awsCfg != nil && awsCfg.Region != "" {
 		region = awsCfg.Region
 	} else {
-		region = getRegionFromEnv(opts)
+		region = getRegionFromEnv(env)
 	}
 
 	if region == "" {
@@ -125,54 +126,47 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(opts) != nil {
+	if createCredentialsFromEnv(env) != nil {
 		return cfg, nil
 	}
 
-	iamRoleOptions := getMergedIAMRoleOptions(awsCfg, opts)
-	if iamRoleOptions.RoleARN == "" {
+	mergedIAMRoleOptions := getMergedIAMRoleOptions(awsCfg, iamRoleOpts)
+	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}
 
-	if iamRoleOptions.WebIdentityToken != "" {
-		l.Debugf("Assuming role %s using WebIdentity token", iamRoleOptions.RoleARN)
-		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, iamRoleOptions)
+	if mergedIAMRoleOptions.WebIdentityToken != "" {
+		l.Debugf("Assuming role %s using WebIdentity token", mergedIAMRoleOptions.RoleARN)
+		cfg.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions)
 
 		return cfg, nil
 	}
 
-	l.Debugf("Assuming role %s", iamRoleOptions.RoleARN)
-	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, iamRoleOptions, getExternalID(awsCfg))
+	l.Debugf("Assuming role %s", mergedIAMRoleOptions.RoleARN)
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions, getExternalID(awsCfg))
 
 	return cfg, nil
 }
 
-// getRegionFromEnv extracts region from environment variables in opts
-func getRegionFromEnv(opts *options.TerragruntOptions) string {
-	if opts == nil || opts.Env == nil {
+// getRegionFromEnv extracts region from environment variables.
+func getRegionFromEnv(env map[string]string) string {
+	if env == nil {
 		return ""
 	}
 
-	if region := opts.Env["AWS_REGION"]; region != "" {
+	if region := env["AWS_REGION"]; region != "" {
 		return region
 	}
 
-	return opts.Env["AWS_DEFAULT_REGION"]
+	return env["AWS_DEFAULT_REGION"]
 }
 
-// getMergedIAMRoleOptions merges IAM role options from awsCfg and opts
-func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, opts *options.TerragruntOptions) options.IAMRoleOptions {
-	iamRoleOptions := options.IAMRoleOptions{}
-
-	// Start with opts IAM role options if available
-	if opts != nil {
-		iamRoleOptions = opts.IAMRoleOptions
-	}
-
+// getMergedIAMRoleOptions merges IAM role options from awsCfg and the provided IAM role options.
+func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, iamRoleOpts options.IAMRoleOptions) options.IAMRoleOptions {
 	// Merge in awsCfg role options if available
 	if awsCfg != nil && awsCfg.RoleArn != "" {
-		iamRoleOptions = options.MergeIAMRoleOptions(
-			iamRoleOptions,
+		iamRoleOpts = options.MergeIAMRoleOptions(
+			iamRoleOpts,
 			options.IAMRoleOptions{
 				RoleARN:               awsCfg.RoleArn,
 				AssumeRoleSessionName: awsCfg.SessionName,
@@ -180,7 +174,7 @@ func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, opts *options.TerragruntO
 		)
 	}
 
-	return iamRoleOptions
+	return iamRoleOpts
 }
 
 // getExternalID returns the external ID from awsCfg if available
@@ -192,14 +186,14 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 	return awsCfg.ExternalID
 }
 
-// AssumeIamRole assumes an IAM role and returns the credentials
+// AssumeIamRole assumes an IAM role and returns the credentials.
 func AssumeIamRole(
 	ctx context.Context,
 	iamRoleOpts options.IAMRoleOptions,
 	externalID string,
-	opts *options.TerragruntOptions,
+	env map[string]string,
 ) (*types.Credentials, error) {
-	region := getRegionFromEnv(opts)
+	region := getRegionFromEnv(env)
 	if region == "" {
 		region = os.Getenv("AWS_REGION")
 	}
@@ -452,15 +446,15 @@ func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.
 	}
 }
 
-// createCredentialsFromEnv creates AWS credentials from environment variables in opts.Env
-func createCredentialsFromEnv(opts *options.TerragruntOptions) aws.CredentialsProvider {
-	if opts == nil || opts.Env == nil {
+// createCredentialsFromEnv creates AWS credentials from environment variables.
+func createCredentialsFromEnv(env map[string]string) aws.CredentialsProvider {
+	if env == nil {
 		return nil
 	}
 
-	accessKeyID := opts.Env["AWS_ACCESS_KEY_ID"]
-	secretAccessKey := opts.Env["AWS_SECRET_ACCESS_KEY"]
-	sessionToken := opts.Env["AWS_SESSION_TOKEN"]
+	accessKeyID := env["AWS_ACCESS_KEY_ID"]
+	secretAccessKey := env["AWS_SECRET_ACCESS_KEY"]
+	sessionToken := env["AWS_SESSION_TOKEN"]
 
 	// If we don't have at least access key and secret key, return nil
 	if accessKeyID == "" || secretAccessKey == "" {

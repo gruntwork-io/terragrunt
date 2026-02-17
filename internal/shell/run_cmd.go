@@ -29,9 +29,49 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
+// RunOptions contains the configuration needed to run shell commands.
+type RunOptions struct {
+	WorkingDir             string
+	Writer                 io.Writer
+	ErrWriter              io.Writer
+	Env                    map[string]string
+	TFPath                 string
+	Engine                 *options.EngineOptions
+	Experiments            experiment.Experiments
+	NoEngine               bool
+	Telemetry              *telemetry.Options
+	RootWorkingDir         string
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
+
+	// TerragruntOptions is the full options struct, only needed for the engine path.
+	// When the IaC engine is enabled and the command matches TFPath, this is passed
+	// to engine.ExecutionOptions. Non-engine callers may leave this nil.
+	TerragruntOptions *options.TerragruntOptions
+}
+
+// RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
+func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
+	return &RunOptions{
+		WorkingDir:             opts.WorkingDir,
+		Writer:                 opts.Writer,
+		ErrWriter:              opts.ErrWriter,
+		Env:                    opts.Env,
+		TFPath:                 opts.TFPath,
+		Engine:                 opts.Engine,
+		Experiments:            opts.Experiments,
+		NoEngine:               opts.NoEngine,
+		Telemetry:              opts.Telemetry,
+		RootWorkingDir:         opts.RootWorkingDir,
+		LogShowAbsPaths:        opts.LogShowAbsPaths,
+		LogDisableErrorSummary: opts.LogDisableErrorSummary,
+		TerragruntOptions:      opts,
+	}
+}
+
 // RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, opts, "", false, false, command, args...)
+func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
 
 	return err
 }
@@ -44,7 +84,7 @@ func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	runOpts *RunOptions,
 	workingDir string,
 	suppressStdout bool,
 	needsPTY bool,
@@ -57,7 +97,7 @@ func RunCommandWithOutput(
 	)
 
 	if workingDir == "" {
-		commandDir = opts.WorkingDir
+		commandDir = runOpts.WorkingDir
 	}
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
@@ -68,16 +108,16 @@ func RunCommandWithOutput(
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
-			cmdStderr = io.MultiWriter(opts.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
+			cmdStderr = io.MultiWriter(runOpts.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(runOpts.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
-		traceParent := telemetry.TraceParentFromContext(ctx, opts.Telemetry)
+		traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry)
 
 		if traceParent != "" {
 			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
-			opts.Env[telemetry.TraceParentEnv] = traceParent
+			runOpts.Env[telemetry.TraceParentEnv] = traceParent
 		}
 
 		if suppressStdout {
@@ -86,13 +126,13 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
-		if command == opts.TFPath {
+		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if opts.Engine != nil && opts.Experiments.Evaluate(experiment.IacEngine) && !opts.NoEngine {
+			if runOpts.Engine != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
-					TerragruntOptions: opts,
+					TerragruntOptions: runOpts.TerragruntOptions,
 					CmdStdout:         cmdStdout,
 					CmdStderr:         cmdStderr,
 					WorkingDir:        commandDir,
@@ -118,7 +158,7 @@ func RunCommandWithOutput(
 		cmd.Configure(
 			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
-			exec.WithEnv(opts.Env),
+			exec.WithEnv(runOpts.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
@@ -128,9 +168,9 @@ func RunCommandWithOutput(
 				Args:            args,
 				Command:         command,
 				WorkingDir:      cmd.Dir,
-				RootWorkingDir:  opts.RootWorkingDir,
-				LogShowAbsPaths: opts.LogShowAbsPaths,
-				DisableSummary:  opts.LogDisableErrorSummary,
+				RootWorkingDir:  runOpts.RootWorkingDir,
+				LogShowAbsPaths: runOpts.LogShowAbsPaths,
+				DisableSummary:  runOpts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -146,9 +186,9 @@ func RunCommandWithOutput(
 				Command:         command,
 				Output:          output,
 				WorkingDir:      cmd.Dir,
-				RootWorkingDir:  opts.RootWorkingDir,
-				LogShowAbsPaths: opts.LogShowAbsPaths,
-				DisableSummary:  opts.LogDisableErrorSummary,
+				RootWorkingDir:  runOpts.RootWorkingDir,
+				LogShowAbsPaths: runOpts.LogShowAbsPaths,
+				DisableSummary:  runOpts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

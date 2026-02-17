@@ -214,7 +214,7 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.Terra
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), awsConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), awsConfig, mockOptions.Env, mockOptions.IAMRoleOptions)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.NewFromConfig(cfg)
@@ -233,7 +233,7 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), sessionConfig, mockOptions)
+	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), sessionConfig, mockOptions.Env, mockOptions.IAMRoleOptions)
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.NewFromConfig(cfg)
