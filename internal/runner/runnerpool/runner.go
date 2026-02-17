@@ -593,22 +593,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 }
 
 // LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
-func (rnr *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOptions) error {
+func (rnr *Runner) LogUnitDeployOrder(l log.Logger, terraformCmd string, isDestroy bool, showAbsPaths bool) error {
 	outStr := fmt.Sprintf(
 		"Unit queue will be processed for %s in this order:\n",
-		opts.TerraformCommand,
+		terraformCmd,
 	)
 
 	// For destroy commands, reflect the actual processing order (reverse of apply order).
 	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
 	// IsUp() checks - dependents must complete before their dependencies are processed.
 	entries := slices.Clone(rnr.queue.Entries)
-	if opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand) {
+	if isDestroy {
 		slices.Reverse(entries)
 	}
-
-	// Use absolute paths if --log-show-abs-paths is set
-	showAbsPaths := opts.LogShowAbsPaths
 
 	var outStrSb strings.Builder
 
@@ -629,12 +626,14 @@ func (rnr *Runner) LogUnitDeployOrder(l log.Logger, opts *options.TerragruntOpti
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
-func (rnr *Runner) JSONUnitDeployOrder(opts *options.TerragruntOptions) (string, error) {
-	// Use absolute paths if --log-show-abs-paths is set
-	showAbsPaths := opts != nil && opts.LogShowAbsPaths
+func (rnr *Runner) JSONUnitDeployOrder(isDestroy bool, showAbsPaths bool) (string, error) {
+	entries := slices.Clone(rnr.queue.Entries)
+	if isDestroy {
+		slices.Reverse(entries)
+	}
 
-	orderedUnits := make([]string, 0, len(rnr.queue.Entries))
-	for _, unit := range rnr.queue.Entries {
+	orderedUnits := make([]string, 0, len(entries))
+	for _, unit := range entries {
 		unitPath := unit.Component.DisplayPath()
 		if showAbsPaths {
 			unitPath = unit.Component.Path()
