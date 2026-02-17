@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -211,7 +212,7 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 }
 
 // GetIAMRoleOptions returns the IAM role options from the RunConfig.
-func (cfg *RunConfig) GetIAMRoleOptions() options.IAMRoleOptions {
+func (cfg *RunConfig) GetIAMRoleOptions() iam.RoleOptions {
 	return cfg.IAMRole
 }
 

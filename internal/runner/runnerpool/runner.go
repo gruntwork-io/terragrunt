@@ -450,7 +450,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				childCtx,
 				unitLogger,
 				unitOpts,
-				config.DefaultParserOptions(unitLogger, unitOpts),
+				config.DefaultParserOptions(unitLogger, unitOpts.StrictControls),
 			)
 			if err != nil {
 				return err

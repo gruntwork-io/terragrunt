@@ -8,19 +8,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Provider obtains credentials by making API requests to Amazon STS.
 type Provider struct {
-	iamRoleOpts options.IAMRoleOptions
+	iamRoleOpts iam.RoleOptions
 	env         map[string]string
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, iamRoleOpts options.IAMRoleOptions, env map[string]string) providers.Provider {
+func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
 	return &Provider{
 		iamRoleOpts: iamRoleOpts,
 		env:         env,

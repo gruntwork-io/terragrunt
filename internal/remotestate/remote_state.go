@@ -150,7 +150,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, opts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), args...)
 	if err != nil {
 		return "", err
 	}
@@ -178,5 +178,5 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, opts, args...)
+	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), args...)
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -113,7 +114,7 @@ func Run(
 
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
-	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+	opts.IAMRoleOptions = iam.MergeRoleOptions(
 		cfg.GetIAMRoleOptions(),
 		opts.OriginalIAMRoleOptions,
 	)
@@ -274,7 +275,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {

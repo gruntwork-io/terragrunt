@@ -99,7 +99,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(t.Context(), l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)

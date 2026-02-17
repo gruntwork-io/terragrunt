@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -333,34 +334,12 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	}
 }
 
-// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
-type IAMRoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
-}
+// IAMRoleOptions is an alias for iam.RoleOptions.
+type IAMRoleOptions = iam.RoleOptions
 
+// MergeIAMRoleOptions delegates to iam.MergeRoleOptions.
 func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	out := target
-
-	if source.RoleARN != "" {
-		out.RoleARN = source.RoleARN
-	}
-
-	if source.AssumeRoleDuration != 0 {
-		out.AssumeRoleDuration = source.AssumeRoleDuration
-	}
-
-	if source.AssumeRoleSessionName != "" {
-		out.AssumeRoleSessionName = source.AssumeRoleSessionName
-	}
-
-	if source.WebIdentityToken != "" {
-		out.WebIdentityToken = source.WebIdentityToken
-	}
-
-	return out
+	return iam.MergeRoleOptions(target, source)
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with

@@ -423,7 +423,7 @@ func parseVariables(
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, opts, moduleDir)
+	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}

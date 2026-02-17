@@ -4,15 +4,23 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -26,7 +34,51 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
+	// TerragruntOptions is kept temporarily during the migration. New code should
+	// use the flat fields below instead of accessing TerragruntOptions directly.
 	TerragruntOptions *options.TerragruntOptions
+
+	// --- Path configuration ---
+	TerragruntConfigPath         string
+	OriginalTerragruntConfigPath string
+	WorkingDir                   string
+	RootWorkingDir               string
+	DownloadDir                  string
+
+	// --- Terraform command info ---
+	TerraformCommand         string
+	OriginalTerraformCommand string
+	TerraformCliArgs         *iacargs.IacArgs
+	Source                   string
+	SourceMap                map[string]string
+
+	// --- Feature control ---
+	Experiments    experiment.Experiments
+	StrictControls strict.Controls
+	FeatureFlags   *xsync.MapOf[string, string]
+
+	// --- I/O ---
+	Writer    io.Writer
+	ErrWriter io.Writer
+	Env       map[string]string
+
+	// --- IAM ---
+	IAMRoleOptions         iam.RoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
+
+	// --- Behavior flags ---
+	UsePartialParseConfigCache      bool
+	MaxFoldersToCheck               int
+	NoDependencyFetchOutputFromState bool
+	SkipOutput                      bool
+	TFPathExplicitlySet             bool
+	LogShowAbsPaths                 bool
+	AuthProviderCmd                 string
+
+	// --- Engine ---
+	Engine *options.EngineOptions
+
+	// --- Parsing state fields ---
 
 	// TrackInclude represents contexts of included configurations.
 	TrackInclude *TrackInclude
@@ -72,16 +124,49 @@ type ParsingContext struct {
 	ParseDepth int
 }
 
+// populateFromOpts copies fields from TerragruntOptions into the flat fields.
+func (pctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
+	pctx.TerragruntConfigPath = opts.TerragruntConfigPath
+	pctx.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	pctx.WorkingDir = opts.WorkingDir
+	pctx.RootWorkingDir = opts.RootWorkingDir
+	pctx.DownloadDir = opts.DownloadDir
+	pctx.TerraformCommand = opts.TerraformCommand
+	pctx.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	pctx.TerraformCliArgs = opts.TerraformCliArgs
+	pctx.Source = opts.Source
+	pctx.SourceMap = opts.SourceMap
+	pctx.Experiments = opts.Experiments
+	pctx.StrictControls = opts.StrictControls
+	pctx.FeatureFlags = opts.FeatureFlags
+	pctx.Writer = opts.Writer
+	pctx.ErrWriter = opts.ErrWriter
+	pctx.Env = opts.Env
+	pctx.IAMRoleOptions = opts.IAMRoleOptions
+	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
+	pctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
+	pctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
+	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
+	pctx.SkipOutput = opts.SkipOutput
+	pctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
+	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
+	pctx.AuthProviderCmd = opts.AuthProviderCmd
+	pctx.Engine = opts.Engine
+}
+
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)
 
-	return ctx, &ParsingContext{
+	pctx := &ParsingContext{
 		TerragruntOptions: opts,
-		ParserOptions:     DefaultParserOptions(l, opts),
+		ParserOptions:     DefaultParserOptions(l, opts.StrictControls),
 		FilesRead:         &filesRead,
 	}
+	pctx.populateFromOpts(opts)
+
+	return ctx, pctx
 }
 
 // Clone returns a shallow copy of the ParsingContext.
@@ -100,6 +185,7 @@ func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType
 func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
 	c := ctx.Clone()
 	c.TerragruntOptions = opts
+	c.populateFromOpts(opts)
 
 	return c
 }
@@ -184,4 +270,40 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	c.ParseDepth = ctx.ParseDepth + 1
 
 	return c, nil
+}
+
+// WithConfigPath returns a new ParsingContext with the config path updated.
+// It normalizes the path to an absolute path, updates WorkingDir to the directory
+// containing the config, and adjusts the logger's working directory field if it changed.
+// During the transition period, it also updates TerragruntOptions to stay in sync.
+func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+	configPath = util.CleanPath(configPath)
+	if !filepath.IsAbs(configPath) {
+		absConfigPath, err := filepath.Abs(configPath)
+		if err != nil {
+			return l, nil, err
+		}
+
+		configPath = util.CleanPath(absConfigPath)
+	}
+
+	workingDir := filepath.Dir(configPath)
+
+	if workingDir != ctx.WorkingDir {
+		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+	}
+
+	c := ctx.Clone()
+	c.TerragruntConfigPath = configPath
+	c.WorkingDir = workingDir
+
+	// Keep TerragruntOptions in sync during the transition period.
+	if c.TerragruntOptions != nil {
+		newOpts := c.TerragruntOptions.Clone()
+		newOpts.TerragruntConfigPath = configPath
+		newOpts.WorkingDir = workingDir
+		c.TerragruntOptions = newOpts
+	}
+
+	return l, c, nil
 }

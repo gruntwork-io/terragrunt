@@ -11,12 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
+	awsiam "github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -60,55 +61,58 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 	return token, nil
 }
 
-func CreateS3Client(ctx context.Context, l log.Logger, config *AwsSessionConfig, env map[string]string, iamRoleOpts options.IAMRoleOptions) (*s3.Client, error) {
-	cfg, err := CreateAwsConfig(ctx, l, config, env, iamRoleOpts)
-	if err != nil {
-		return nil, errors.New(err)
-	}
-
-	var customFN []func(*s3.Options)
-	if config.CustomS3Endpoint != "" {
-		customFN = append(customFN, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(config.CustomS3Endpoint)
-		})
-	}
-
-	if config.S3ForcePathStyle {
-		customFN = append(customFN, func(o *s3.Options) {
-			o.UsePathStyle = true
-		})
-	}
-
-	return s3.NewFromConfig(cfg, customFN...), nil
+// AwsConfigBuilder builds an AWS config using the builder pattern.
+// Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
+type AwsConfigBuilder struct {
+	sessionConfig *AwsSessionConfig
+	env           map[string]string
+	iamRoleOpts   iam.RoleOptions
 }
 
-// CreateAwsConfig returns an AWS config object for the given AwsSessionConfig, environment, and IAM role options.
-func CreateAwsConfig(
-	ctx context.Context,
-	l log.Logger,
-	awsCfg *AwsSessionConfig,
-	env map[string]string,
-	iamRoleOpts options.IAMRoleOptions,
-) (aws.Config, error) {
+// NewAwsConfigBuilder creates a new builder for AWS config.
+func NewAwsConfigBuilder() *AwsConfigBuilder {
+	return &AwsConfigBuilder{}
+}
+
+// WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
+func (b *AwsConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AwsConfigBuilder {
+	b.sessionConfig = cfg
+	return b
+}
+
+// WithEnv sets environment variables used for credential and region resolution.
+func (b *AwsConfigBuilder) WithEnv(env map[string]string) *AwsConfigBuilder {
+	b.env = env
+	return b
+}
+
+// WithIAMRoleOptions sets IAM role options for assuming a role.
+func (b *AwsConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AwsConfigBuilder {
+	b.iamRoleOpts = opts
+	return b
+}
+
+// Build creates the AWS config from the builder's configuration.
+func (b *AwsConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
 
-	if envCreds := createCredentialsFromEnv(env); envCreds != nil {
+	if envCreds := createCredentialsFromEnv(b.env); envCreds != nil {
 		l.Debugf("Using AWS credentials from auth provider command")
 
 		configOptions = append(configOptions, config.WithCredentialsProvider(envCreds))
-	} else if awsCfg != nil && awsCfg.CredsFilename != "" {
-		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{awsCfg.CredsFilename}))
+	} else if b.sessionConfig != nil && b.sessionConfig.CredsFilename != "" {
+		configOptions = append(configOptions, config.WithSharedConfigFiles([]string{b.sessionConfig.CredsFilename}))
 	}
 
 	// Prioritize configured region over environment variables
 	// This fixes the issue where AWS_REGION/AWS_DEFAULT_REGION env vars override the backend config region
 	var region string
-	if awsCfg != nil && awsCfg.Region != "" {
-		region = awsCfg.Region
+	if b.sessionConfig != nil && b.sessionConfig.Region != "" {
+		region = b.sessionConfig.Region
 	} else {
-		region = getRegionFromEnv(env)
+		region = getRegionFromEnv(b.env)
 	}
 
 	if region == "" {
@@ -117,8 +121,8 @@ func CreateAwsConfig(
 
 	configOptions = append(configOptions, config.WithRegion(region))
 
-	if awsCfg != nil && awsCfg.Profile != "" {
-		configOptions = append(configOptions, config.WithSharedConfigProfile(awsCfg.Profile))
+	if b.sessionConfig != nil && b.sessionConfig.Profile != "" {
+		configOptions = append(configOptions, config.WithSharedConfigProfile(b.sessionConfig.Profile))
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx, configOptions...)
@@ -126,11 +130,11 @@ func CreateAwsConfig(
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(env) != nil {
+	if createCredentialsFromEnv(b.env) != nil {
 		return cfg, nil
 	}
 
-	mergedIAMRoleOptions := getMergedIAMRoleOptions(awsCfg, iamRoleOpts)
+	mergedIAMRoleOptions := getMergedIAMRoleOptions(b.sessionConfig, b.iamRoleOpts)
 	if mergedIAMRoleOptions.RoleARN == "" {
 		return cfg, nil
 	}
@@ -143,9 +147,36 @@ func CreateAwsConfig(
 	}
 
 	l.Debugf("Assuming role %s", mergedIAMRoleOptions.RoleARN)
-	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions, getExternalID(awsCfg))
+	cfg.Credentials = getSTSCredentialsFromIAMRoleOptions(cfg, mergedIAMRoleOptions, getExternalID(b.sessionConfig))
 
 	return cfg, nil
+}
+
+// BuildS3Client creates an S3 client from the builder's configuration.
+// The session config (set via WithSessionConfig) provides S3-specific options like custom endpoint and path style.
+func (b *AwsConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3.Client, error) {
+	cfg, err := b.Build(ctx, l)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	var customFN []func(*s3.Options)
+
+	if b.sessionConfig != nil {
+		if b.sessionConfig.CustomS3Endpoint != "" {
+			customFN = append(customFN, func(o *s3.Options) {
+				o.BaseEndpoint = aws.String(b.sessionConfig.CustomS3Endpoint)
+			})
+		}
+
+		if b.sessionConfig.S3ForcePathStyle {
+			customFN = append(customFN, func(o *s3.Options) {
+				o.UsePathStyle = true
+			})
+		}
+	}
+
+	return s3.NewFromConfig(cfg, customFN...), nil
 }
 
 // getRegionFromEnv extracts region from environment variables.
@@ -162,12 +193,12 @@ func getRegionFromEnv(env map[string]string) string {
 }
 
 // getMergedIAMRoleOptions merges IAM role options from awsCfg and the provided IAM role options.
-func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, iamRoleOpts options.IAMRoleOptions) options.IAMRoleOptions {
+func getMergedIAMRoleOptions(awsCfg *AwsSessionConfig, iamRoleOpts iam.RoleOptions) iam.RoleOptions {
 	// Merge in awsCfg role options if available
 	if awsCfg != nil && awsCfg.RoleArn != "" {
-		iamRoleOpts = options.MergeIAMRoleOptions(
+		iamRoleOpts = iam.MergeRoleOptions(
 			iamRoleOpts,
-			options.IAMRoleOptions{
+			iam.RoleOptions{
 				RoleARN:               awsCfg.RoleArn,
 				AssumeRoleSessionName: awsCfg.SessionName,
 			},
@@ -189,7 +220,7 @@ func getExternalID(awsCfg *AwsSessionConfig) string {
 // AssumeIamRole assumes an IAM role and returns the credentials.
 func AssumeIamRole(
 	ctx context.Context,
-	iamRoleOpts options.IAMRoleOptions,
+	iamRoleOpts iam.RoleOptions,
 	externalID string,
 	env map[string]string,
 ) (*types.Credentials, error) {
@@ -305,9 +336,9 @@ func GetAWSPartition(ctx context.Context, cfg *aws.Config) (string, error) {
 
 // GetAWSAccountAlias gets the AWS account alias
 func GetAWSAccountAlias(ctx context.Context, cfg *aws.Config) (string, error) {
-	iamClient := iam.NewFromConfig(*cfg)
+	iamClient := awsiam.NewFromConfig(*cfg)
 
-	result, err := iamClient.ListAccountAliases(ctx, &iam.ListAccountAliasesInput{})
+	result, err := iamClient.ListAccountAliases(ctx, &awsiam.ListAccountAliasesInput{})
 	if err != nil {
 		return "", err
 	}
@@ -364,7 +395,7 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 }
 
 //nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
-func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions) aws.CredentialsProviderFunc {
+func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.RoleOptions) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
@@ -407,7 +438,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 }
 
 //nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
-func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions options.IAMRoleOptions, externalID string) aws.CredentialsProviderFunc {
+func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.RoleOptions, externalID string) aws.CredentialsProviderFunc {
 	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 

@@ -608,7 +608,7 @@ func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFi
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(l, opts, varFile, fileContents, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(l, varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}

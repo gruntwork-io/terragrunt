@@ -32,7 +32,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return err
 	}

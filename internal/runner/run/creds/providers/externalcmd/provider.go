@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -150,7 +151,7 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd str
 		duration = options.DefaultIAMAssumeRoleDuration
 	}
 
-	iamRoleOpts := options.IAMRoleOptions{
+	iamRoleOpts := iam.RoleOptions{
 		RoleARN:               role.RoleARN,
 		AssumeRoleDuration:    duration,
 		AssumeRoleSessionName: sessionName,

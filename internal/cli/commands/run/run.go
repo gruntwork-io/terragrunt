@@ -87,7 +87,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, opts, opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {

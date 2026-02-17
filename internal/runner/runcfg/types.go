@@ -10,8 +10,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // RunConfig contains all configuration data needed to execute terragrunt commands.
@@ -36,7 +36,7 @@ type RunConfig struct {
 	// TerraformBinary is the path to the terraform/tofu binary
 	TerraformBinary string
 	// IAMRole contains IAM role options for AWS authentication
-	IAMRole options.IAMRoleOptions
+	IAMRole iam.RoleOptions
 	// Errors contains error handling configuration
 	Errors ErrorsConfig
 	// Dependencies contains paths to dependent modules

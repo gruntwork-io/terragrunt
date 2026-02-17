@@ -14,6 +14,7 @@ package prepare
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -42,7 +43,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func PrepareSource(
 
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
-	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+	opts.IAMRoleOptions = iam.MergeRoleOptions(
 		cfg.GetIAMRoleOptions(),
 		opts.OriginalIAMRoleOptions,
 	)

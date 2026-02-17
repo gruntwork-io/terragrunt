@@ -82,7 +82,12 @@ type Client struct {
 func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsConfig, opts.Env, opts.IAMRoleOptions)
+	builder := awshelper.NewAwsConfigBuilder().
+		WithSessionConfig(awsConfig).
+		WithEnv(opts.Env).
+		WithIAMRoleOptions(opts.IAMRoleOptions)
+
+	cfg, err := builder.Build(ctx, l)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -93,7 +98,7 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 		}
 	}
 
-	s3Client, err := awshelper.CreateS3Client(ctx, l, awsConfig, opts.Env, opts.IAMRoleOptions)
+	s3Client, err := builder.BuildS3Client(ctx, l)
 	if err != nil {
 		return nil, errors.New(err)
 	}
