@@ -55,7 +55,7 @@ Then, for any unit that is discovered within those worktrees, Terragrunt will en
 
 In the example above, the `modified-unit` will be discovered in a "to" temporary directory (e.g. `/tmp/.../terragrunt-worktree-HEAD.../modified-unit`), whereas the `removed-unit` would be discovered in the "from" temporary directory (e.g. `/tmp/.../terragrunt-worktree-main.../removed-unit`).
 
-This is important to recognize, as it's how destroys will be possible despite the fact that the unit is no longer present in the current working directory. As a consequence, however, you may find that paths don't behave how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
+This is important to recognize, as it's how destroys will be possible despite the unit no longer being present in the current working directory. As a consequence, however, you may find that paths don't behave how you expect, as you will be performing runs in the temporary directories created for the relevant worktrees.
 
 <Aside type="caution" title="Remote State Recommended">
 
@@ -97,14 +97,14 @@ Note that this is a workaround for testing purposes only. For production use, re
 
 When using Git-based expressions and the `run` command, you are required to use one of the `plan` or `apply` commands, and not the `-destroy` flag.
 
-This is because whether or not a unit will be destroyed is determined by logic relevant to inspecting changes in Git.
+This is because whether a unit will be destroyed is determined by logic relevant to inspecting changes in Git.
 
 When units are added or modified between two Git references, they will be planned or applied. When the units are removed between two Git references, they will be planned for destruction (with `plan -destroy`) or destroyed (with `apply -destroy`).
 
 In the scenario above, running the following:
 
 ```bash
-terragrunt run --filter '[main...HEAD]' plan
+terragrunt run --all --filter '[main...HEAD]' -- plan
 ```
 
 Will result in the following:
@@ -119,7 +119,7 @@ Will result in the following:
 When using Git-based filter expressions and the run command, Terragrunt won't destroy units that are removed between the two Git references unless you use the `--filter-allow-destroy` flag.
 
 ```bash
-terragrunt run --filter '[main...HEAD]' --filter-allow-destroy destroy
+terragrunt run --all --filter '[main...HEAD]' --filter-allow-destroy -- destroy
 ```
 
 This is a safeguard to prevent unintended destruction of infrastructure.

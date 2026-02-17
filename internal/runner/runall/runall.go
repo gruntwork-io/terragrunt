@@ -48,7 +48,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stackOpts := []common.Option{}
+	runnerOpts := []common.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -63,8 +63,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	if opts.SummaryPerUnit {
 		r.WithShowUnitLevelSummary()
 	}
-
-	stackOpts = append(stackOpts, common.WithReport(r))
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
@@ -140,21 +138,22 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Pass worktrees to runner for git filter expressions
 	if wts != nil && len(wts.WorktreePairs) > 0 {
-		stackOpts = append(stackOpts, common.WithWorktrees(wts))
+		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, stack)
+	return RunAllOnStack(ctx, l, opts, rnr, r)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
-	l.Debugf("%s", runner.GetStack().String())
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rnr common.StackRunner, r *report.Report) error {
+	l.Debugf("%s", rnr.GetStack().String())
 
-	if err := runner.LogUnitDeployOrder(l, opts.TerraformCommand); err != nil {
+	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
+	if err := rnr.LogUnitDeployOrder(l, opts.TerraformCommand, isDestroy, opts.LogShowAbsPaths); err != nil {
 		return err
 	}
 
@@ -187,7 +186,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := runner.Run(ctx, l, opts)
+		err := rnr.Run(ctx, l, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen

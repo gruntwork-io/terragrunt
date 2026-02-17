@@ -65,20 +65,20 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
 <FileTree>
 - prod
   - units
-    - **unit1** \<-- Matched by first filter
+    - **unit1** \<-- Matched by the first filter
       - terragrunt.hcl
-    - **unit2** \<-- Matched by first filter
+    - **unit2** \<-- Matched by the first filter
       - terragrunt.hcl
   - stacks
-    - **stack1** \<-- Matched by second filter
+    - **stack1** \<-- Matched by the second filter
       - terragrunt.stack.hcl
-    - **stack2** \<-- Matched by second filter
+    - **stack2** \<-- Matched by the second filter
       - terragrunt.stack.hcl
 - dev
   - units
     - unit1
       - terragrunt.hcl
-    - **unit2** \<-- Matched by third filter
+    - **unit2** \<-- Matched by the third filter
       - terragrunt.hcl
   - stacks
     - stack1

@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -150,9 +149,6 @@ type Discovery struct {
 
 	// worktrees is the worktrees created for Git-based filters.
 	worktrees *worktrees.Worktrees
-
-	// report is used for recording excluded external dependencies during discovery.
-	report *report.Report
 
 	// workingDir is the directory to search for Terragrunt configurations.
 	workingDir string

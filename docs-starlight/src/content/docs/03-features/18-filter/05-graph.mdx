@@ -85,14 +85,14 @@ terragrunt find --filter '...^vpc'
 
 <FileTree>
 - .
-  - vpc \<-- Not matched by '...^vpc' (would be matched if ...vpc was used)
+  - vpc \<-- Not matched (due to '^' operator)
     - terragrunt.hcl
-  - db \<-- Matched by '...^vpc' (dependent on vpc)
-    - terragrunt.hcl
-  - cache \<-- Matched by '...^vpc' (dependent on vpc)
-    - terragrunt.hcl
-  - service \<-- Excluded by '...^vpc' (dependent on vpc)
-    - terragrunt.hcl
+  - **db** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on vpc via db and cache)
+    - terragrunt.hcl (depends on: db, cache)
 </FileTree>
 
 ## Depth-Limited Traversal
