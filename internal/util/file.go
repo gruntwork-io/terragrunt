@@ -1213,10 +1213,8 @@ func MoveFile(source string, destination string) error {
 
 // SkipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's
 // in a directory that should never have components discovered in it.
-func SkipDirIfIgnorable(path string) error {
-	base := filepath.Base(path)
-
-	switch base {
+func SkipDirIfIgnorable(dir string) error {
+	switch dir {
 	case GitDir, TerraformCacheDir, TerragruntCacheDir:
 		return filepath.SkipDir
 	}

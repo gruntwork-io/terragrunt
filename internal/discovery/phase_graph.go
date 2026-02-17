@@ -480,7 +480,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 				return filepath.SkipDir
 			}
 
-			if err := util.SkipDirIfIgnorable(path); err != nil {
+			if err := util.SkipDirIfIgnorable(d.Name()); err != nil {
 				return err
 			}
 
