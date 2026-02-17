@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -23,10 +22,9 @@ func FindStackInSubfolders(
 	ctx context.Context,
 	l log.Logger,
 	terragruntOptions *options.TerragruntOptions,
-	rpt *report.Report,
 	opts ...common.Option,
 ) (common.StackRunner, error) {
-	return runnerpool.Build(ctx, l, terragruntOptions, rpt, opts...)
+	return runnerpool.Build(ctx, l, terragruntOptions, opts...)
 }
 
 // BuildUnitOpts is a facade for runnerpool.BuildUnitOpts.
@@ -43,7 +41,6 @@ func FindDependentUnits(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	cfg *config.TerragruntConfig,
-	rpt *report.Report,
 ) []*component.Unit {
 	matchedUnitsMap := make(map[string]*component.Unit)
 	pathsToCheck := discoverPathsToCheck(ctx, l, opts, cfg)
@@ -56,7 +53,6 @@ func FindDependentUnits(
 				l,
 				dir,
 				opts,
-				rpt,
 			),
 		)
 	}
@@ -90,7 +86,7 @@ func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.Terra
 }
 
 // findMatchingUnitsInPath builds the stack from the config directory and filters modules by working dir dependencies.
-func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions, rpt *report.Report) map[string]*component.Unit {
+func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts *options.TerragruntOptions) map[string]*component.Unit {
 	matchedModulesMap := make(map[string]*component.Unit)
 
 	// Construct the full path to terragrunt.hcl in the directory
@@ -111,7 +107,7 @@ func findMatchingUnitsInPath(ctx context.Context, l log.Logger, dir string, opts
 
 	l.Infof("Discovering dependent units for %s", opts.TerragruntConfigPath)
 
-	runner, err := FindStackInSubfolders(ctx, l, cfgOptions, rpt)
+	runner, err := FindStackInSubfolders(ctx, l, cfgOptions)
 	if err != nil {
 		l.Debugf("Failed to build module stack %v", err)
 		return matchedModulesMap

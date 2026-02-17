@@ -1091,33 +1091,6 @@ terraform {
 	assert.Contains(t, paths, validDir)
 }
 
-// TestDiscovery_WithReport tests that WithReport sets the report.
-func TestDiscovery_WithReport(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-
-	unitDir := filepath.Join(tmpDir, "unit")
-	require.NoError(t, os.MkdirAll(unitDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(""), 0644))
-
-	l := logger.CreateLogger()
-	opts := &options.TerragruntOptions{
-		WorkingDir: tmpDir,
-	}
-
-	ctx := t.Context()
-
-	// Test that discovery works with a nil report (should not panic)
-	d := discovery.NewDiscovery(tmpDir).
-		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir}).
-		WithReport(nil)
-
-	components, err := d.Discover(ctx, l, opts)
-	require.NoError(t, err)
-	assert.Len(t, components, 1)
-}
-
 // TestDiscovery_ExcludeDependencies tests that ExcludeDependencies only takes effect
 // when the dependent unit's exclude condition (If) is true.
 func TestDiscovery_ExcludeDependencies(t *testing.T) {

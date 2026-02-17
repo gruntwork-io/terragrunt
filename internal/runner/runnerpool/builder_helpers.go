@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -105,7 +104,6 @@ func newBaseDiscovery(
 func prepareDiscovery(
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
-	rpt *report.Report,
 	opts ...common.Option,
 ) (*discovery.Discovery, error) {
 	workingDir := resolveWorkingDir(tgOpts)
@@ -128,11 +126,6 @@ func prepareDiscovery(
 		d = d.WithWorktrees(w)
 	}
 
-	// Apply report for recording excluded external dependencies
-	if rpt != nil {
-		d = d.WithReport(rpt)
-	}
-
 	return d, nil
 }
 
@@ -142,11 +135,10 @@ func discoverWithRetry(
 	ctx context.Context,
 	l log.Logger,
 	tgOpts *options.TerragruntOptions,
-	rpt *report.Report,
 	opts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(l, tgOpts, rpt, opts...)
+	d, err := prepareDiscovery(l, tgOpts, opts...)
 	if err != nil {
 		return nil, err
 	}

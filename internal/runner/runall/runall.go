@@ -141,7 +141,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		stackOpts = append(stackOpts, common.WithWorktrees(wts))
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, r, stackOpts...)
+	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
 	if err != nil {
 		return err
 	}

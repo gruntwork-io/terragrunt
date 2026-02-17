@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -68,7 +67,7 @@ dependency "db" {
 	// Inject graph filter for dependents of target
 	optsOn.FilterQueries = []string{`...{` + vpcDir + `}`}
 	// Build runner
-	runnerOn, err := runnerpool.Build(ctx, l, optsOn, report.NewReport())
+	runnerOn, err := runnerpool.Build(ctx, l, optsOn)
 	require.NoError(t, err)
 	// Collect unit paths
 	onPaths := make([]string, 0, len(runnerOn.GetStack().Units))
@@ -81,7 +80,7 @@ dependency "db" {
 	optsOff.WorkingDir = vpcDir
 	optsOff.RootWorkingDir = tmpDir
 	// No filter queries; rely on fallback graph target option
-	runnerOff, err := runnerpool.Build(ctx, l, optsOff, report.NewReport(), discovery.WithGraphTarget(vpcDir))
+	runnerOff, err := runnerpool.Build(ctx, l, optsOff, discovery.WithGraphTarget(vpcDir))
 	require.NoError(t, err)
 
 	offPaths := make([]string, 0, len(runnerOff.GetStack().Units))

@@ -99,7 +99,6 @@
 //   - [Discovery.WithParserOptions]: Set custom HCL parser options
 //   - [Discovery.WithGitRoot]: Set git root for dependent discovery boundary
 //   - [Discovery.WithGraphTarget]: Set graph target for pruning results
-//   - [Discovery.WithReport]: Set report for recording excluded dependencies
 //   - [Discovery.WithOptions]: Ingest runner options for parser and graph settings
 //
 // # Example Usage

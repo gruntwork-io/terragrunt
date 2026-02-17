@@ -4,7 +4,6 @@ package migrate
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -32,7 +31,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 
 	l.Debugf("Destination unit path %s", dstPath)
 
-	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts, report.NewReport())
+	stackRunner, err := runner.FindStackInSubfolders(ctx, l, opts)
 	if err != nil {
 		return err
 	}
