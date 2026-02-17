@@ -17,12 +17,14 @@ const (
 	DependencyOutputCacheContextKey configKey = iota
 	JSONOutputCacheContextKey       configKey = iota
 	OutputLocksContextKey           configKey = iota
+	SopsCacheContextKey             configKey = iota
 
 	hclCacheName              = "hclCache"
 	configCacheName           = "configCache"
 	runCmdCacheName           = "runCmdCache"
 	dependencyOutputCacheName = "dependencyOutputCache"
 	jsonOutputCacheName       = "jsonOutputCache"
+	sopsCacheName             = "sopsCache"
 )
 
 // WithConfigValues add to context default values for configuration.
@@ -33,6 +35,7 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
 	ctx = context.WithValue(ctx, JSONOutputCacheContextKey, cache.NewCache[[]byte](jsonOutputCacheName))
 	ctx = context.WithValue(ctx, OutputLocksContextKey, util.NewKeyLocks())
+	ctx = context.WithValue(ctx, SopsCacheContextKey, cache.NewCache[string](sopsCacheName))
 
 	return ctx
 }

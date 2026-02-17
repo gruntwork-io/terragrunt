@@ -6,8 +6,6 @@ sidebar:
   order: 4
 ---
 
-## Preamble
-
 Infrastructure as Code (IaC) tooling necessarily requires a lot of terminology to describe various concepts and features due to the breadth of the domain.
 
 Whenever possible, Terragrunt terminology attempts to align with wider industry standards, but there are always exceptions. There are going to be times when certain terms are used in different tools, but have special meaning in Terragrunt, and there are times when the same term might have different meaning in different contexts.
@@ -59,6 +57,12 @@ Stacks typically represent a collection of units that need to be managed in conc
 e.g. A stack might represent a collection of units that together form a single application environment, a business unit, or a region.
 
 The design of `terragrunt.stack.hcl` files is to ensure that they function entirely as a convenient shorthand for an equivalent directory structure of units. This is to ensure that users are able to easily transition between the two paradigms, and are able to decide for themselves which approach to structuring infrastructure is most appropriate for their use case.
+
+### Component
+
+Component is a generic term to refer to something that is either a unit or a stack.
+
+Certain Terragrunt commands operate on components (e.g. [`find`](/docs/reference/cli/commands/find) and [`list`](/docs/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/docs/reference/cli/commands/run) only runs units whereas [`stack generate`](/docs/reference/cli/commands/stack/generate) and [`stack output`](/docs/reference/cli/commands/stack/output) commands run on stacks.
 
 ### Module
 

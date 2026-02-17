@@ -1,0 +1,34 @@
+---
+title: Name Expressions
+description: Match units and stacks by their name
+slug: docs/features/filter/name
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Match units and stacks by their name. This is the simplest form of filtering.
+
+```bash
+# Exact match
+terragrunt find --filter app1
+
+# Glob pattern
+terragrunt find --filter 'app*'
+```
+
+<FileTree>
+- apps
+  - **app1** \<-- Matched by the first and second filter
+    - terragrunt.hcl
+  - **app2** \<-- Matched only by the second filter
+    - terragrunt.hcl
+  - other
+    - terragrunt.hcl
+</FileTree>
+
+<Aside type="note">
+Note that `app1` and `app2` were selected _within_ the `apps` directory. Filtering on names will match _any_ unit/stack that has a directory basename name matching a filter.
+</Aside>

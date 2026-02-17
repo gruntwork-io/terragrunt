@@ -141,9 +141,6 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	// unitsMap is a map of unit paths to Unit objects, used to check if dependencies not in the queue
-	// are assumed already applied or have existing state.
-	unitsMap map[string]*component.Unit
 	// Entries is a list of entries in the queue.
 	Entries Entries
 	// mu is a mutex used to synchronize access to the queue.
@@ -545,13 +542,4 @@ func isTerminal(status Status) bool {
 // isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
 	return status == StatusRunning || isTerminal(status)
-}
-
-// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
-// not in the queue are assumed already applied or have existing state.
-func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	q.unitsMap = unitsMap
 }
