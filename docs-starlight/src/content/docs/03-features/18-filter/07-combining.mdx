@@ -171,13 +171,22 @@ If you have infrastructure that you _never_ want to run, you can consider levera
 
 ### Unions with Git expressions
 
-Union deduplication is based on the **absolute path** of each discovered component. When combining [Git expressions](/docs/features/filter/git) with non-Git expressions in a union, it might seem like the same unit has appeared twice: once discovered from your current working directory and once from a git worktree. From Terragrunt's perspective, these are two different units and can be operated on independently.
+Union deduplication in filter results is based on the **absolute path** of each discovered component. When combining [Git expressions](/docs/features/filter/git) with non-Git expressions in a union, it might seem like the same unit has appeared twice.
+e.g.
 
-If your intent is not to use Terragrunt in this way (to operate on units in temporary Git worktrees), you can use the `find` command instead to perform the logic of discovering components that have changed between Git references, then separately perform a `run` against units in your current working directory.
+```bash
+$ terragrunt find --filter '[main...HEAD]' --filter ./live/foo
+live/foo
+live/foo
+```
+
+The reason for this is usually that a unit with the same name has been discovered twice: once discovered from your current working directory and once from a git worktree. From Terragrunt's perspective, these are two different units and can be operated on independently.
+
+If your intent is not to use Terragrunt in this way (to operate on units in temporary Git worktrees and units in your current working directory independently), you can use the `find` command instead to perform the logic of discovering components that have changed between Git references, then separately perform a `run` against units in your current working directory.
 
 ```bash
 terragrunt find --filter '[main...HEAD]' | awk '{printf "{%s}\n", $0}' > /tmp/diffs.txt
-terragrunt run --all --filters-file diffs.txt -- plan
+terragrunt run --all --filters-file /tmp/diffs.txt -- plan
 ```
 
 <Aside type="tip" title="Explicit path filters">
