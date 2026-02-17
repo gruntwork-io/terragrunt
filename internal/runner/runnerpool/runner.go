@@ -250,7 +250,11 @@ func NewRunnerPoolStack(
 	// Resolve units from discovery
 	units := make([]*component.Unit, 0, len(nonStackComponents))
 	for _, c := range nonStackComponents {
-		unit := c.(*component.Unit)
+		unit, ok := c.(*component.Unit)
+		if !ok {
+			continue
+		}
+
 		if unit.DiscoveryContext() != nil && unit.Config() == nil {
 			l.Debugf("Unit %s has no config from discovery", unit.DisplayPath())
 		}
@@ -282,7 +286,7 @@ func NewRunnerPoolStack(
 
 	rnr.queue = q
 
-	return rnr.WithOptions(runnerOpts...), nil
+	return rnr, nil
 }
 
 // filterUnitsToComponents converts resolved units to Components.
