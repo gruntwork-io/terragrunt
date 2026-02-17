@@ -65,4 +65,4 @@ fuzz:
 		done; \
 	done
 
-.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-incremental run-lint-fix fuzz
+.PHONY: help fmt fmtcheck install-pre-commit-hook clean run-lint run-lint-fix fuzz
