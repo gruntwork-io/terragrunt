@@ -280,17 +280,6 @@ func NewRunnerPoolStack(
 		return nil, queueErr
 	}
 
-	// Set units map on queue to enable checking dependencies not in queue
-	// (e.g., when using --queue-strict-include or --filter)
-	unitsMap := make(map[string]*component.Unit, len(units))
-	for _, u := range units {
-		if u != nil && u.Path() != "" {
-			unitsMap[u.Path()] = u
-		}
-	}
-
-	q.SetUnitsMap(unitsMap)
-
 	rnr.queue = q
 
 	return rnr.WithOptions(runnerOpts...), nil
