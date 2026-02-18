@@ -165,6 +165,48 @@ func TestParser_PrefixExpressions(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "double negation collapses to positive",
+			input: "!!foo",
+			expected: &filter.AttributeExpression{
+				Key:   "name",
+				Value: "foo",
+			},
+		},
+		{
+			name:  "triple negation collapses to single negative",
+			input: "!!!foo",
+			expected: &filter.PrefixExpression{
+				Operator: "!",
+				Right: &filter.AttributeExpression{
+					Key:   "name",
+					Value: "foo",
+				},
+			},
+		},
+		{
+			name:  "quadruple negation collapses to positive",
+			input: "!!!!foo",
+			expected: &filter.AttributeExpression{
+				Key:   "name",
+				Value: "foo",
+			},
+		},
+		{
+			name:  "double negation with attribute filter",
+			input: "!!name=bar",
+			expected: &filter.AttributeExpression{
+				Key:   "name",
+				Value: "bar",
+			},
+		},
+		{
+			name:  "double negation with path filter",
+			input: "!!./apps/foo",
+			expected: &filter.PathExpression{
+				Value: "./apps/foo",
+			},
+		},
 	}
 
 	for _, tt := range tests {
