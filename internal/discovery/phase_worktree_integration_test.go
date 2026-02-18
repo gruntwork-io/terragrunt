@@ -797,7 +797,7 @@ locals {
 			// Parse filter queries
 			l := logger.CreateLogger()
 			filterQueries := tt.filterQueries("HEAD~1", "HEAD")
-			filters, err := filter.ParseFilterQueries(l, filterQueries)
+			filters, err := filter.ParseFilterQueries(filterQueries)
 			require.NoError(t, err)
 
 			// Create worktrees
@@ -891,7 +891,7 @@ locals {
 	l := logger.CreateLogger()
 
 	// Parse filter with Git reference
-	filters, err := filter.ParseFilterQueries(l, []string{"[HEAD~1]"})
+	filters, err := filter.ParseFilterQueries([]string{"[HEAD~1]"})
 	require.NoError(t, err)
 
 	// Create worktrees from the subdirectory
@@ -1156,7 +1156,7 @@ locals {
 			// Parse filter queries
 			l := logger.CreateLogger()
 			filterQueries := tt.filterQueries("HEAD~1", "HEAD")
-			filters, err := filter.ParseFilterQueries(l, filterQueries)
+			filters, err := filter.ParseFilterQueries(filterQueries)
 			require.NoError(t, err)
 
 			// Create worktrees
@@ -1253,7 +1253,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			l := logger.CreateLogger()
 
 			// Parse filter with Git reference
-			filters, err := filter.ParseFilterQueries(l, []string{"[" + tt.gitRef + "]"})
+			filters, err := filter.ParseFilterQueries([]string{"[" + tt.gitRef + "]"})
 			require.NoError(t, err)
 
 			// Create worktrees from the subdirectory

@@ -238,7 +238,7 @@ func TestDiscovery_WithDependencies(t *testing.T) {
 	t.Run("discovery with dependency graph filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+		filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(internalDir).
@@ -307,7 +307,7 @@ dependency "foo" {
 
 	ctx := t.Context()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -372,7 +372,7 @@ dependency "foo" {
 
 	ctx := t.Context()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -581,7 +581,7 @@ func TestDiscovery_WithReadFiles(t *testing.T) {
 	ctx := t.Context()
 
 	// Use a reading filter to trigger parsing and populate the reading field
-	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
+	filters, err := filter.ParseFilterQueries([]string{"reading=shared.hcl"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -664,7 +664,7 @@ inputs = {
 
 	l := logger.CreateLogger()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)
 
 	opts := &options.TerragruntOptions{
@@ -760,7 +760,7 @@ func TestDiscovery_IncludeExcludeFilterSemantics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filters)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).
@@ -790,7 +790,7 @@ func TestDiscovery_HiddenIncludedByIncludeDirs(t *testing.T) {
 
 	ctx := t.Context()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"./.hidden/**"})
+	filters, err := filter.ParseFilterQueries([]string{"./.hidden/**"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -837,7 +837,7 @@ func TestDiscovery_ExternalDependencies(t *testing.T) {
 
 	ctx := t.Context()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(internalDir).
@@ -915,7 +915,7 @@ dependency "foo" {
 
 	ctx := t.Context()
 
-	filters, err := filter.ParseFilterQueries(l, []string{"{./**}..."})
+	filters, err := filter.ParseFilterQueries([]string{"{./**}..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1011,7 +1011,7 @@ dependency "d" {
 	t.Run("full depth discovers all", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"a..."})
+		filters, err := filter.ParseFilterQueries([]string{"a..."})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(tmpDir).
@@ -1032,7 +1032,7 @@ dependency "d" {
 	t.Run("limited depth", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"a..."})
+		filters, err := filter.ParseFilterQueries([]string{"a..."})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(tmpDir).
@@ -1251,7 +1251,7 @@ dependency "db" {
 	ctx := t.Context()
 
 	// Use a dependency traversal filter (app...) to trigger parsing
-	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
+	filters, err := filter.ParseFilterQueries([]string{"app..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).

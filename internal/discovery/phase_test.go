@@ -182,7 +182,7 @@ locals {
 	ctx := t.Context()
 
 	// Filter with reading= attribute requires parsing
-	filters, err := filter.ParseFilterQueries(l, []string{"reading=shared.hcl"})
+	filters, err := filter.ParseFilterQueries([]string{"reading=shared.hcl"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -242,7 +242,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Use graph filter to trigger graph phase
-	filters, err := filter.ParseFilterQueries(l, []string{"app..."})
+	filters, err := filter.ParseFilterQueries([]string{"app..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -322,7 +322,7 @@ dependency "vpc" {
 	// Currently, the implementation requires relationships to be built
 	// before dependent traversal can work (unlike dependency traversal which
 	// parses configs on-the-fly)
-	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -401,8 +401,6 @@ dependency "db" {
 // TestCandidacyClassifier_AnalyzesFiltersCorrectly tests the candidacy classifier analysis.
 func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 	t.Parallel()
-
-	l := logger.CreateLogger()
 
 	tests := []struct {
 		name                   string
@@ -487,7 +485,7 @@ func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
+			filters, err := filter.ParseFilterQueries(tt.filterStrings)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
@@ -597,7 +595,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
+			filters, err := filter.ParseFilterQueries(tt.filterStrings)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
@@ -623,9 +621,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 func TestClassifier_ParseExpressions(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
-
-	filters, err := filter.ParseFilterQueries(l, []string{"reading=config/*", "reading=shared.hcl"})
+	filters, err := filter.ParseFilterQueries([]string{"reading=config/*", "reading=shared.hcl"})
 	require.NoError(t, err)
 
 	classifier := filter.NewClassifier()
@@ -640,9 +636,7 @@ func TestClassifier_ParseExpressions(t *testing.T) {
 func TestClassifier_NegatedExpressions(t *testing.T) {
 	t.Parallel()
 
-	l := logger.CreateLogger()
-
-	filters, err := filter.ParseFilterQueries(l, []string{"!./foo", "!./bar", "./baz"})
+	filters, err := filter.ParseFilterQueries([]string{"!./foo", "!./bar", "./baz"})
 	require.NoError(t, err)
 
 	classifier := filter.NewClassifier()
@@ -656,8 +650,6 @@ func TestClassifier_NegatedExpressions(t *testing.T) {
 // TestClassifier_HasDependentFilters tests the HasDependentFilters method.
 func TestClassifier_HasDependentFilters(t *testing.T) {
 	t.Parallel()
-
-	l := logger.CreateLogger()
 
 	tests := []struct {
 		name          string
@@ -700,7 +692,7 @@ func TestClassifier_HasDependentFilters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
+			filters, err := filter.ParseFilterQueries(tt.filterStrings)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
@@ -758,7 +750,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Using dependent filter (...vpc) should now work with pre-built graph
-	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).

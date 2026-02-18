@@ -91,7 +91,7 @@ dependency "vpc" {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).
@@ -173,7 +173,7 @@ dependency "vpc" {
 	t.Run("dependency traversal from app finds all dependencies", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"app..."})
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(tmpDir).
@@ -232,7 +232,7 @@ dependency "db" {
 		t.Parallel()
 
 		// Filter for app and its dependencies - unrelated should not be included
-		filters, err := filter.ParseFilterQueries(l, []string{"app..."})
+		filters, err := filter.ParseFilterQueries([]string{"app..."})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(tmpDir).
@@ -297,7 +297,7 @@ dependency "vpc" {
 		t.Parallel()
 
 		// Graph expression discovers app and its dependencies, then additional filter excludes vpc
-		filters, err := filter.ParseFilterQueries(l, []string{"app...", "!vpc"})
+		filters, err := filter.ParseFilterQueries([]string{"app...", "!vpc"})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(tmpDir).
@@ -481,7 +481,7 @@ locals {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).
@@ -533,7 +533,7 @@ locals {
 
 	// Test with absolute path filter
 	filterQueries := []string{"reading=" + sharedFile}
-	filters, err := filter.ParseFilterQueries(l, filterQueries)
+	filters, err := filter.ParseFilterQueries(filterQueries)
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -576,14 +576,12 @@ func TestDiscovery_ReadingAttributeFiltersErrorHandling(t *testing.T) {
 		},
 	}
 
-	l := logger.CreateLogger()
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			_, err := filter.ParseFilterQueries(l, tt.filterQueries)
+			_, err := filter.ParseFilterQueries(tt.filterQueries)
 			if tt.errorExpectedOnParse {
 				require.Error(t, err, "Expected error for filter: %v", tt.filterQueries)
 			} else {
@@ -736,7 +734,7 @@ unit "test" {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).
@@ -830,7 +828,7 @@ func TestDiscovery_FilterEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filters)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).
@@ -908,7 +906,7 @@ func TestDiscovery_FilterErrorHandling(t *testing.T) {
 			t.Parallel()
 
 			// Parse filter queries
-			filters, err := filter.ParseFilterQueries(l, tt.filterQueries)
+			filters, err := filter.ParseFilterQueries(tt.filterQueries)
 
 			// Some errors occur during parsing (like empty filter), others during evaluation
 			if tt.errorExpected && err != nil {
@@ -984,7 +982,7 @@ dependency "external" {
 	t.Run("external=true filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"{./**}... | external=true"})
+		filters, err := filter.ParseFilterQueries([]string{"{./**}... | external=true"})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(internalDir).
@@ -1001,7 +999,7 @@ dependency "external" {
 	t.Run("external=false filter", func(t *testing.T) {
 		t.Parallel()
 
-		filters, err := filter.ParseFilterQueries(l, []string{"{./**}... | external=false"})
+		filters, err := filter.ParseFilterQueries([]string{"{./**}... | external=false"})
 		require.NoError(t, err)
 
 		d := discovery.NewDiscovery(internalDir).
@@ -1072,7 +1070,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Use ...vpc to find all dependents of vpc
-	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1135,7 +1133,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Use ...^vpc to find dependents but exclude the target (vpc)
-	filters, err := filter.ParseFilterQueries(l, []string{"...^vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...^vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1207,7 +1205,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Use ^app... to find dependencies but exclude the target (app)
-	filters, err := filter.ParseFilterQueries(l, []string{"^app..."})
+	filters, err := filter.ParseFilterQueries([]string{"^app..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1277,7 +1275,7 @@ dependency "vpc" {
 	ctx := t.Context()
 
 	// Use ...db... to find both dependencies and dependents of db
-	filters, err := filter.ParseFilterQueries(l, []string{"...db..."})
+	filters, err := filter.ParseFilterQueries([]string{"...db..."})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1355,7 +1353,7 @@ dependency "vpc" {
 	// Use ...vpc to find dependents of vpc
 	// consumer is outside the working directory (app/) but should be found
 	// via upward filesystem walking bounded by git root
-	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(appDir).
@@ -1443,7 +1441,7 @@ dependency "api" {
 
 	// Use ...vpc to find dependents of vpc
 	// api and frontend are both outside the working directory (infra/)
-	filters, err := filter.ParseFilterQueries(l, []string{"...vpc"})
+	filters, err := filter.ParseFilterQueries([]string{"...vpc"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(infraDir).
@@ -1519,7 +1517,7 @@ dependency "db" {
 	ctx := t.Context()
 
 	// Use ...db to find all dependents of db
-	filters, err := filter.ParseFilterQueries(l, []string{"...db"})
+	filters, err := filter.ParseFilterQueries([]string{"...db"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -1628,7 +1626,7 @@ dependency "vpc" {
 
 			ctx := t.Context()
 
-			filters, err := filter.ParseFilterQueries(l, tt.filters)
+			filters, err := filter.ParseFilterQueries(tt.filters)
 			require.NoError(t, err)
 
 			d := discovery.NewDiscovery(tmpDir).

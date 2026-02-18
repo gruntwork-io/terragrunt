@@ -96,8 +96,7 @@ func TestCandidacyClassifier_Analyze(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			l := logger.CreateLogger()
-			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
+			filters, err := filter.ParseFilterQueries(tt.filterStrings)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
@@ -197,7 +196,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
+			filters, err := filter.ParseFilterQueries(tt.filterStrings)
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
@@ -281,7 +280,7 @@ func TestDiscovery_WithPathFilter(t *testing.T) {
 	ctx := t.Context()
 
 	// Test: filter to apps/* only
-	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*"})
+	filters, err := filter.ParseFilterQueries([]string{"./apps/*"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -321,7 +320,7 @@ func TestDiscovery_WithNegatedFilter(t *testing.T) {
 	ctx := t.Context()
 
 	// Test: exclude ./bar
-	filters, err := filter.ParseFilterQueries(l, []string{"!./bar"})
+	filters, err := filter.ParseFilterQueries([]string{"!./bar"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
@@ -366,7 +365,7 @@ func TestDiscovery_CombinedFilters(t *testing.T) {
 	ctx := t.Context()
 
 	// Test: ./apps/* but not ./apps/baz
-	filters, err := filter.ParseFilterQueries(l, []string{"./apps/*", "!./apps/baz"})
+	filters, err := filter.ParseFilterQueries([]string{"./apps/*", "!./apps/baz"})
 	require.NoError(t, err)
 
 	d := discovery.NewDiscovery(tmpDir).
