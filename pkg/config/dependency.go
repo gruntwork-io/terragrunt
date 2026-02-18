@@ -760,6 +760,7 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	}
 
 	// Set dependency-specific fields
+	pctx.OriginalTerragruntConfigPath = targetConfig
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"
@@ -1108,8 +1109,12 @@ func getTerragruntOutputJSONFromRemoteState(
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
+	// Clone pctx and discard init stdout so it doesn't leak into the caller's output buffer.
+	initPctx := pctx.Clone()
+	initPctx.Writer = io.Discard
+
 	// First run init to setup the backend configuration so that we can run output.
-	runTerraformInitForDependencyOutput(ctx, pctx, l, tempWorkDir)
+	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	out, err := tf.RunCommandWithOutput(ctx, l, tfRunOpts, tf.CommandNameOutput, "-json")
