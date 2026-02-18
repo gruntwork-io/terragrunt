@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -154,9 +155,20 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts *options.Terragru
 	return ctx, pctx
 }
 
-// Clone returns a shallow copy of the ParsingContext.
+// Clone returns a copy of the ParsingContext.
+// Maps are deep-copied so that mutations (e.g. credential injection into Env)
+// on a clone do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
+
+	if ctx.Env != nil {
+		clone.Env = maps.Clone(ctx.Env)
+	}
+
+	if ctx.SourceMap != nil {
+		clone.SourceMap = maps.Clone(ctx.SourceMap)
+	}
+
 	return &clone
 }
 
