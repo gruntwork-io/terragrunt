@@ -41,9 +41,17 @@ func ErrorHandler(commands clihelper.Commands) clihelper.FlagErrHandlerFunc {
 	}
 }
 
+// maxContextDepth is the upper bound on parent traversal in isRunContext
+// to guard against unexpectedly deep or circular context chains.
+const maxContextDepth = 10
+
 // isRunContext returns true if the current command or any ancestor is the "run" command.
 func isRunContext(ctx *clihelper.Context) bool {
-	for ctx != nil {
+	for range maxContextDepth {
+		if ctx == nil {
+			return false
+		}
+
 		if ctx.Command != nil && ctx.Command.Name == "run" {
 			return true
 		}

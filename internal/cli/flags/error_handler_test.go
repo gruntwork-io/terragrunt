@@ -1,7 +1,7 @@
 package flags_test
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -41,6 +41,7 @@ func TestErrorHandler(t *testing.T) {
 		app := clihelper.NewApp()
 		appCtx := clihelper.NewAppContext(app, nil)
 		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
+
 		return appCtx.NewCommandContext(rootCmd, nil)
 	}
 
@@ -52,6 +53,7 @@ func TestErrorHandler(t *testing.T) {
 		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
 		rootCtx := appCtx.NewCommandContext(rootCmd, nil)
 		cmd := &clihelper.Command{Name: name}
+
 		return rootCtx.NewCommandContext(cmd, nil)
 	}
 
@@ -65,20 +67,21 @@ func TestErrorHandler(t *testing.T) {
 		runCmd := &clihelper.Command{Name: "run"}
 		runCtx := rootCtx.NewCommandContext(runCmd, nil)
 		cmd := &clihelper.Command{Name: name}
+
 		return runCtx.NewCommandContext(cmd, nil)
 	}
 
 	testCases := []struct {
-		name          string
 		ctx           *clihelper.Context
 		err           error
 		expectedError error
+		name          string
 	}{
 		{
 			name:          "non-undefined-flag error passes through unchanged",
 			ctx:           newRootCtx(),
-			err:           fmt.Errorf("some other error"),
-			expectedError: fmt.Errorf("some other error"),
+			err:           errors.New("some other error"),
+			expectedError: errors.New("some other error"),
 		},
 		{
 			name:          "known flag at global level returns GlobalFlagHintError",
