@@ -162,18 +162,20 @@ func (b *AwsConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3
 
 	var customFN []func(*s3.Options)
 
-	if b.sessionConfig != nil {
-		if b.sessionConfig.CustomS3Endpoint != "" {
-			customFN = append(customFN, func(o *s3.Options) {
-				o.BaseEndpoint = aws.String(b.sessionConfig.CustomS3Endpoint)
-			})
-		}
+	if b.sessionConfig == nil {
+		return s3.NewFromConfig(cfg), nil
+	}
 
-		if b.sessionConfig.S3ForcePathStyle {
-			customFN = append(customFN, func(o *s3.Options) {
-				o.UsePathStyle = true
-			})
-		}
+	if b.sessionConfig.CustomS3Endpoint != "" {
+		customFN = append(customFN, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(b.sessionConfig.CustomS3Endpoint)
+		})
+	}
+
+	if b.sessionConfig.S3ForcePathStyle {
+		customFN = append(customFN, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
 	}
 
 	return s3.NewFromConfig(cfg, customFN...), nil
@@ -181,7 +183,7 @@ func (b *AwsConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3
 
 // getRegionFromEnv extracts region from environment variables.
 func getRegionFromEnv(env map[string]string) string {
-	if env == nil {
+	if len(env) == 0 {
 		return ""
 	}
 
@@ -479,7 +481,7 @@ func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.Role
 
 // createCredentialsFromEnv creates AWS credentials from environment variables.
 func createCredentialsFromEnv(env map[string]string) aws.CredentialsProvider {
-	if env == nil {
+	if len(env) == 0 {
 		return nil
 	}
 
