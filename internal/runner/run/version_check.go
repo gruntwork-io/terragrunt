@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -66,15 +67,15 @@ func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.Terragru
 }
 
 // formatVersionForCache formats the implementation and version for the cache
-func formatVersionForCache(implementation options.TerraformImplementationType, version *version.Version) string {
+func formatVersionForCache(implementation tfimpl.Type, version *version.Version) string {
 	var implStr string
 
 	switch implementation {
-	case options.TerraformImpl:
+	case tfimpl.Terraform:
 		implStr = "terraform"
-	case options.OpenTofuImpl:
+	case tfimpl.OpenTofu:
 		implStr = "opentofu"
-	case options.UnknownImpl:
+	case tfimpl.Unknown:
 		implStr = "unknown"
 	}
 
@@ -82,31 +83,31 @@ func formatVersionForCache(implementation options.TerraformImplementationType, v
 }
 
 // parseVersionFromCache parses the cache format back to implementation and version for options
-func parseVersionFromCache(cachedData string) (options.TerraformImplementationType, *version.Version, error) {
+func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, error) {
 	const expectedParts = 2
 
 	parts := strings.SplitN(cachedData, ":", expectedParts)
 	if len(parts) != expectedParts {
-		return options.UnknownImpl, nil, errors.New(InvalidTerraformVersionSyntax(cachedData))
+		return tfimpl.Unknown, nil, errors.New(InvalidTerraformVersionSyntax(cachedData))
 	}
 
 	implStr := strings.ToLower(parts[0])
 	versionStr := parts[1]
 
-	var implementation options.TerraformImplementationType
+	var implementation tfimpl.Type
 
 	switch implStr {
 	case "terraform":
-		implementation = options.TerraformImpl
+		implementation = tfimpl.Terraform
 	case "opentofu":
-		implementation = options.OpenTofuImpl
+		implementation = tfimpl.OpenTofu
 	default:
-		implementation = options.UnknownImpl
+		implementation = tfimpl.Unknown
 	}
 
 	version, err := version.NewVersion(versionStr)
 	if err != nil {
-		return options.UnknownImpl, nil, err
+		return tfimpl.Unknown, nil, err
 	}
 
 	return implementation, version, nil
@@ -115,10 +116,10 @@ func parseVersionFromCache(cachedData string) (options.TerraformImplementationTy
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
 // This function can be used independently when you need to check the version without
 // populating or using the version cache.
-func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, *version.Version, options.TerraformImplementationType, error) {
+func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
 	_, optsCopy, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return l, nil, options.UnknownImpl, err
+		return l, nil, tfimpl.Unknown, err
 	}
 
 	optsCopy.Writers.Writer = io.Discard
@@ -132,21 +133,21 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 
 	output, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(optsCopy), tf.FlagNameVersion)
 	if err != nil {
-		return l, nil, options.UnknownImpl, err
+		return l, nil, tfimpl.Unknown, err
 	}
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
-		return l, nil, options.UnknownImpl, err
+		return l, nil, tfimpl.Unknown, err
 	}
 
 	tfImplementation, err := parseTerraformImplementationType(output.Stdout.String())
 	if err != nil {
-		return l, nil, options.UnknownImpl, err
+		return l, nil, tfimpl.Unknown, err
 	}
 
-	if tfImplementation == options.UnknownImpl {
-		tfImplementation = options.TerraformImpl
+	if tfImplementation == tfimpl.Unknown {
+		tfImplementation = tfimpl.Terraform
 
 		l.Warnf("Failed to identify Terraform implementation, fallback to terraform version: %s", terraformVersion)
 	} else {
@@ -219,21 +220,21 @@ func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error
 }
 
 // parseTerraformImplementationType - Parse terraform implementation from --version command output
-func parseTerraformImplementationType(versionCommandOutput string) (options.TerraformImplementationType, error) {
+func parseTerraformImplementationType(versionCommandOutput string) (tfimpl.Type, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return options.UnknownImpl, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return tfimpl.Unknown, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
 	rawType := strings.ToLower(matches[1])
 	switch rawType {
 	case "terraform":
-		return options.TerraformImpl, nil
+		return tfimpl.Terraform, nil
 	case "opentofu":
-		return options.OpenTofuImpl, nil
+		return tfimpl.OpenTofu, nil
 	default:
-		return options.UnknownImpl, nil
+		return tfimpl.Unknown, nil
 	}
 }
 

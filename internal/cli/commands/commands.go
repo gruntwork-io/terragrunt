@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -224,7 +225,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	tfImplementation := opts.TofuImplementation
 
 	// Check if OpenTofu is being used
-	if tfImplementation != options.OpenTofuImpl {
+	if tfImplementation != tfimpl.OpenTofu {
 		return errors.Errorf("auto provider cache dir requires OpenTofu, but detected %s", tfImplementation)
 	}
 
