@@ -21,7 +21,7 @@ func TestAwsSessionValidationFail(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	_, err := awshelper.NewAwsConfigBuilder().
+	_, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(&awshelper.AwsSessionConfig{
 			Region:        "not-existing-region",
 			CredsFilename: "/tmp/not-existing-file",
@@ -92,7 +92,7 @@ func TestCreateAwsConfigWithAuthProviderEnv(t *testing.T) {
 		"AWS_REGION":            "us-west-2",
 	}
 
-	cfg, err := awshelper.NewAwsConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithEnv(env).
 		Build(ctx, l)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestCreateAwsConfigWithAuthProviderEnvDefaultRegion(t *testing.T) {
 		"AWS_DEFAULT_REGION":    "eu-west-1",
 	}
 
-	cfg, err := awshelper.NewAwsConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithEnv(env).
 		Build(ctx, l)
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestAwsConfigRegionTakesPrecedenceOverEnvVars(t *testing.T) {
 		Region: "us-east-1", // This should override the env vars
 	}
 
-	cfg, err := awshelper.NewAwsConfigBuilder().
+	cfg, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsCfg).
 		WithEnv(env).
 		Build(ctx, l)

@@ -82,7 +82,7 @@ type Client struct {
 func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
-	builder := awshelper.NewAwsConfigBuilder().
+	builder := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(awsConfig).
 		WithEnv(opts.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions)

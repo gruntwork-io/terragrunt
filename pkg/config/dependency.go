@@ -1186,7 +1186,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
-	s3Client, err := awshelper.NewAwsConfigBuilder().
+	s3Client, err := awshelper.NewAWSConfigBuilder().
 		WithSessionConfig(sessionConfig).
 		WithEnv(opts.Env).
 		WithIAMRoleOptions(opts.IAMRoleOptions).
