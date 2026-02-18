@@ -1055,16 +1055,21 @@ func GetDefaultConfigPath(workingDir string) string {
 	return configPath
 }
 
-// FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
-// config file if it has a name as returned by the DefaultConfigPath method
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
+//
 // Parameters:
 //   - rootPath: the root directory to search
 //   - experiments: experiment flags (for symlink support)
 //   - configPath: the terragrunt config path (to detect non-default config filenames)
 //   - env: environment variables (to resolve TF_DATA_DIR)
 //   - downloadDir: the terragrunt download directory to skip
-func FindConfigFilesInPath(rootPath string, experiments experiment.Experiments, configPath string, env map[string]string, downloadDir string) ([]string, error) {
+func FindConfigFilesInPath(
+	rootPath string,
+	experiments experiment.Experiments,
+	configPath string,
+	env map[string]string,
+	downloadDir string,
+) ([]string, error) {
 	configFiles := []string{}
 
 	walkFunc := filepath.WalkDir
