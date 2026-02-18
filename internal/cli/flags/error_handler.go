@@ -33,6 +33,10 @@ func ErrorHandler(commands clihelper.Commands) clihelper.FlagErrHandlerFunc {
 			return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
 		}
 
+		if ctx.Command != nil && ctx.Command.Name == "run" {
+			return NewPassthroughFlagHintError(undefFlag)
+		}
+
 		return err
 	}
 }

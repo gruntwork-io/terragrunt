@@ -141,6 +141,10 @@ func TestCLIFlagHints(t *testing.T) {
 			expectedError: flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
 			args:          "run --no-include-root",
 		},
+		{
+			expectedError: flags.NewPassthroughFlagHintError("platform"),
+			args:          "run --platform",
+		},
 	}
 
 	for i, tc := range testCases {
