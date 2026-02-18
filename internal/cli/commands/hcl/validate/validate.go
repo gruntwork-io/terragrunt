@@ -138,12 +138,12 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			values, err := config.ReadValues(ctx, l, parseOpts, c.Path())
+			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
+
+			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
-
-			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
 
 			parser = parser.WithParseOption(parseOptions)
 			if values != nil {

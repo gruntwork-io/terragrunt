@@ -123,9 +123,9 @@ type TerragruntOptions struct {
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
+	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
@@ -332,14 +332,6 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.WebIdentityToken = token
 	}
-}
-
-// IAMRoleOptions is an alias for iam.RoleOptions.
-type IAMRoleOptions = iam.RoleOptions
-
-// MergeIAMRoleOptions delegates to iam.MergeRoleOptions.
-func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	return iam.MergeRoleOptions(target, source)
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with

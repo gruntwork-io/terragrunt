@@ -1935,7 +1935,7 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.NewAwsConfigBuilder().Build(t.Context(), createLogger())
+	cfg, err := awshelper.NewAwsConfigBuilder().Build(t.Context(), l)
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)

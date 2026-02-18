@@ -1319,7 +1319,7 @@ func ParseConfig(
 	}
 
 	// read unit files and add to context
-	unitValues, err := readValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}

@@ -34,11 +34,9 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	// --- I/O ---
 	Writer    io.Writer
 	ErrWriter io.Writer
 
-	// --- Pointer fields ---
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	Engine           *options.EngineOptions
@@ -49,21 +47,17 @@ type ParsingContext struct {
 	// use the flat fields below instead of accessing TerragruntOptions directly.
 	TerragruntOptions *options.TerragruntOptions
 
-	// --- Parsing state (pointer fields) ---
 	DecodedDependencies *cty.Value
 	Values              *cty.Value
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	// --- Map fields ---
 	Env                 map[string]string
 	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
 
-	// Set a custom converter to TerragruntConfig.
 	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
-	// --- Path configuration ---
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
 	WorkingDir                   string
@@ -71,26 +65,21 @@ type ParsingContext struct {
 	DownloadDir                  string
 	Source                       string
 
-	// --- Terraform command info ---
 	TerraformCommand         string
 	OriginalTerraformCommand string
 	AuthProviderCmd          string
 
-	// --- IAM ---
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
 
-	// --- Feature control ---
 	Experiments            experiment.Experiments
 	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
 	ParserOptions          []hclparse.Option
 
-	// --- Numeric fields ---
 	MaxFoldersToCheck int
 	ParseDepth        int
 
-	// --- Boolean flags ---
 	LogShowAbsPaths                  bool
 	TFPathExplicitlySet              bool
 	SkipOutput                       bool

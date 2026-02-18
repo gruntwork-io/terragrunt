@@ -1046,7 +1046,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	if filepath.Base(targetConfig) == DefaultStackFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
-		values, readErr := readValues(ctx, pctx, l, stackSourceDir)
+		values, readErr := ReadValues(ctx, pctx, l, stackSourceDir)
 		if readErr != nil {
 			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, readErr)
 		}
@@ -1061,7 +1061,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	// check if file is a values file, decode as values file
 	if strings.HasSuffix(targetConfig, valuesFile) {
-		unitValues, readErr := readValues(ctx, pctx, l, filepath.Dir(targetConfig))
+		unitValues, readErr := ReadValues(ctx, pctx, l, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, errors.New(readErr)
 		}

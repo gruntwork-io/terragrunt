@@ -143,14 +143,14 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 
 	if runOpts.JSONLogFormat && !args.Normalize(clihelper.SingleDashFlag).Contains(FlagNameJSON) {
 		wrappedOut := buildOutWriter(
-			runOpts.Headless,
 			logger,
+			runOpts.Headless,
 			outWriter,
 			errWriter,
 		)
 		wrappedErr := buildErrWriter(
-			runOpts.Headless,
 			logger,
+			runOpts.Headless,
 			errWriter,
 		)
 
@@ -158,15 +158,15 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
 	} else if !shouldForceForwardTFStdout(args) {
 		wrappedOut := buildOutWriter(
-			runOpts.Headless,
 			logger,
+			runOpts.Headless,
 			outWriter,
 			errWriter,
 			writer.WithMsgSeparator(logMsgSeparator),
 		)
 		wrappedErr := buildErrWriter(
-			runOpts.Headless,
 			logger,
+			runOpts.Headless,
 			errWriter,
 			writer.WithMsgSeparator(logMsgSeparator),
 			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
@@ -234,7 +234,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 // stdout to the STDOUT log level.
 //
 // Also accepts any additional writer options desired.
-func buildOutWriter(headless bool, logger log.Logger, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
 	logLevel := log.StdoutLevel
 
 	if headless {
@@ -244,7 +244,7 @@ func buildOutWriter(headless bool, logger log.Logger, outWriter, errWriter io.Wr
 
 	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+		writer.WithLogger(l.WithOptions(log.WithOutput(outWriter))),
 		writer.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
@@ -259,7 +259,7 @@ func buildOutWriter(headless bool, logger log.Logger, outWriter, errWriter io.Wr
 // stderr to the STDERR log level.
 //
 // Also accepts any additional writer options desired.
-func buildErrWriter(headless bool, logger log.Logger, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
 	logLevel := log.StderrLevel
 
 	if headless {
@@ -268,7 +268,7 @@ func buildErrWriter(headless bool, logger log.Logger, errWriter io.Writer, write
 
 	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+		writer.WithLogger(l.WithOptions(log.WithOutput(errWriter))),
 		writer.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
