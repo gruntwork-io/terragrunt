@@ -21,8 +21,8 @@ import (
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
-	authProviderCmd   string
 	terragruntOptions *options.TerragruntOptions
+	authProviderCmd   string
 }
 
 // NewProvider returns a new Provider instance.

@@ -41,15 +41,8 @@ var commandsThatNeedPty = []string{
 
 // RunOptions contains the configuration needed to run TF commands.
 type RunOptions struct {
-	ForwardTFStdout              bool
-	Writer                       io.Writer
-	ErrWriter                    io.Writer
-	TFPath                       string
-	JSONLogFormat                bool
-	Headless                     bool
-	OriginalTerragruntConfigPath string
-
-	// ShellRunOpts provides the options for shell.RunCommandWithOutput.
+	Writer       io.Writer
+	ErrWriter    io.Writer
 	ShellRunOpts *shell.RunOptions
 
 	// TerragruntOptions is the full options struct. It is needed when the
@@ -58,6 +51,12 @@ type RunOptions struct {
 	// Callers that only need basic TF command execution may leave this nil,
 	// as long as the TerraformCommandHook is not set in the context.
 	TerragruntOptions *options.TerragruntOptions
+
+	TFPath                       string
+	OriginalTerragruntConfigPath string
+	ForwardTFStdout              bool
+	JSONLogFormat                bool
+	Headless                     bool
 }
 
 // RunOptionsFromOpts constructs RunOptions from TerragruntOptions.

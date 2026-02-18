@@ -16,6 +16,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
@@ -956,128 +957,52 @@ func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.
 	return result, err
 }
 
-// Return the AWS account alias
+// getAWSField is a common helper for fetching a single AWS field with telemetry.
+// It builds an AWS config from the parsing context, then calls fetchFn to get the value.
+func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, telemetryName string, fetchFn func(context.Context, *aws.Config) (string, error)) (string, error) {
+	attrs := map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, telemetryName, attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.NewAwsConfigBuilder().
+			WithEnv(pctx.Env).
+			WithIAMRoleOptions(pctx.IAMRoleOptions).
+			Build(childCtx, l)
+		if err != nil {
+			return err
+		}
+
+		val, err := fetchFn(childCtx, &awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = val
+
+		return nil
+	})
+
+	return result, err
+}
+
 func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntConfigPath,
-		"working_dir": pctx.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_alias", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.NewAwsConfigBuilder().
-			WithEnv(pctx.Env).
-			WithIAMRoleOptions(pctx.IAMRoleOptions).
-			Build(childCtx, l)
-		if err != nil {
-			return err
-		}
-
-		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = accountAlias
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_account_alias", awshelper.GetAWSAccountAlias)
 }
 
-// Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntConfigPath,
-		"working_dir": pctx.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.NewAwsConfigBuilder().
-			WithEnv(pctx.Env).
-			WithIAMRoleOptions(pctx.IAMRoleOptions).
-			Build(childCtx, l)
-		if err != nil {
-			return err
-		}
-
-		accountID, err := awshelper.GetAWSAccountID(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = accountID
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_account_id", awshelper.GetAWSAccountID)
 }
 
-// Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntConfigPath,
-		"working_dir": pctx.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_arn", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.NewAwsConfigBuilder().
-			WithEnv(pctx.Env).
-			WithIAMRoleOptions(pctx.IAMRoleOptions).
-			Build(childCtx, l)
-		if err != nil {
-			return err
-		}
-
-		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = identityARN
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_caller_identity_arn", awshelper.GetAWSIdentityArn)
 }
 
-// Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntConfigPath,
-		"working_dir": pctx.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_user_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.NewAwsConfigBuilder().
-			WithEnv(pctx.Env).
-			WithIAMRoleOptions(pctx.IAMRoleOptions).
-			Build(childCtx, l)
-		if err != nil {
-			return err
-		}
-
-		userID, err := awshelper.GetAWSUserID(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = userID
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_caller_identity_user_id", awshelper.GetAWSUserID)
 }
 
 // ParseTerragruntConfig parses the terragrunt config and return a

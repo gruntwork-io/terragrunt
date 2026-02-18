@@ -31,23 +31,24 @@ const SignalForwardingDelay = time.Second * 15
 
 // RunOptions contains the configuration needed to run shell commands.
 type RunOptions struct {
-	WorkingDir             string
-	Writer                 io.Writer
-	ErrWriter              io.Writer
-	Env                    map[string]string
-	TFPath                 string
-	Engine                 *options.EngineOptions
-	Experiments            experiment.Experiments
-	NoEngine               bool
-	Telemetry              *telemetry.Options
-	RootWorkingDir         string
-	LogShowAbsPaths        bool
-	LogDisableErrorSummary bool
+	Writer    io.Writer
+	ErrWriter io.Writer
+	Telemetry *telemetry.Options
+	Env       map[string]string
+	Engine    *options.EngineOptions
 
 	// TerragruntOptions is the full options struct, only needed for the engine path.
 	// When the IaC engine is enabled and the command matches TFPath, this is passed
 	// to engine.ExecutionOptions. Non-engine callers may leave this nil.
 	TerragruntOptions *options.TerragruntOptions
+
+	RootWorkingDir         string
+	WorkingDir             string
+	TFPath                 string
+	Experiments            experiment.Experiments
+	NoEngine               bool
+	LogShowAbsPaths        bool
+	LogDisableErrorSummary bool
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.

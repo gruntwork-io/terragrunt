@@ -15,8 +15,8 @@ import (
 
 // Provider obtains credentials by making API requests to Amazon STS.
 type Provider struct {
-	iamRoleOpts iam.RoleOptions
 	env         map[string]string
+	iamRoleOpts iam.RoleOptions
 }
 
 // NewProvider returns a new Provider instance.
