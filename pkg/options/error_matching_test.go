@@ -26,7 +26,7 @@ func TestExtractErrorMessage_ExcludesCommandFlags(t *testing.T) {
 		Output:     util.CmdOutput{Stderr: stderr},
 	}
 
-	msg := options.ExportExtractErrorMessage(err)
+	msg := options.ExtractErrorMessage(err)
 
 	// The extracted message should only contain stderr and the underlying error,
 	// not the command string with flags.
@@ -58,11 +58,11 @@ func TestExtractErrorMessage_DoesNotFalselyMatchTimeout(t *testing.T) {
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExportExtractErrorMessage(err)
+	msg := options.ExtractErrorMessage(err)
 
 	// The timeout pattern should NOT match because the extracted message only
 	// contains stderr and exit error, not the command flags.
-	matched := options.ExportMatchesAnyRegexpPattern(msg, patterns)
+	matched := options.MatchesAnyRegexpPattern(msg, patterns)
 	assert.False(t, matched, "timeout pattern should NOT match when 'timeout' only appears in command flags; cleaned message: %s", msg)
 }
 
@@ -86,8 +86,8 @@ func TestExtractErrorMessage_StillMatchesRealTimeout(t *testing.T) {
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExportExtractErrorMessage(err)
-	matched := options.ExportMatchesAnyRegexpPattern(msg, patterns)
+	msg := options.ExtractErrorMessage(err)
+	matched := options.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
 }
 
@@ -112,8 +112,8 @@ func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) 
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExportExtractErrorMessage(err)
-	matched := options.ExportMatchesAnyRegexpPattern(msg, patterns)
+	msg := options.ExtractErrorMessage(err)
+	matched := options.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
 }
 
@@ -123,7 +123,7 @@ func TestExtractErrorMessage_NonProcessError(t *testing.T) {
 	// For non-ProcessExecutionError errors, the full error string is used.
 	err := errors.New("some generic error with timeout in it")
 
-	msg := options.ExportExtractErrorMessage(err)
+	msg := options.ExtractErrorMessage(err)
 	assert.Contains(t, msg, "timeout")
 
 	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
@@ -131,7 +131,7 @@ func TestExtractErrorMessage_NonProcessError(t *testing.T) {
 		{Pattern: timeoutPattern},
 	}
 
-	matched := options.ExportMatchesAnyRegexpPattern(msg, patterns)
+	matched := options.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match for non-ProcessExecutionError; cleaned message: %s", msg)
 }
 
@@ -169,7 +169,7 @@ func TestErrorCleanPattern_PreservesCharacters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := options.ExportErrorCleanPattern.ReplaceAllString(tt.input, " ")
+			result := options.ErrorCleanPattern.ReplaceAllString(tt.input, " ")
 			require.Equal(t, tt.expected, result)
 		})
 	}
