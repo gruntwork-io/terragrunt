@@ -83,7 +83,7 @@ var (
 	}
 
 	// Pattern used to clean error message when looking for retry and ignore patterns.
-	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
+	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 )
 
 type ctxKey byte
@@ -841,8 +841,18 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 }
 
 func extractErrorMessage(err error) string {
-	// fetch the error string and remove any ASCII escape sequences
-	multilineText := log.RemoveAllASCISeq(err.Error())
+	var errText string
+
+	// For ProcessExecutionError, match only against stderr and the underlying error,
+	// not the full command string with flags.
+	var processErr util.ProcessExecutionError
+	if errors.As(err, &processErr) {
+		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
+	} else {
+		errText = err.Error()
+	}
+
+	multilineText := log.RemoveAllASCISeq(errText)
 	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
 
 	return strings.Join(strings.Fields(errorText), " ")
