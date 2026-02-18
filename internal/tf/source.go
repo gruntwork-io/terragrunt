@@ -75,7 +75,7 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 			if d.IsDir() {
 				// We don't use any info from directories to calculate our hash
-				return util.SkipDirIfIgnorable(path)
+				return util.SkipDirIfIgnorable(d.Name())
 			}
 			// avoid checking .terraform.lock.hcl file since contents is auto-generated
 			if d.Name() == util.TerraformLockFile {
