@@ -195,15 +195,18 @@ func (ctrls Controls) EnableControl(name string) error {
 	return NewInvalidControlNameError(ctrls.FilterByStatus(ActiveStatus).Names())
 }
 
-// LogEnabled logs the control names that are enabled and have completed Status.
+// LogEnabled logs the control names that are enabled.
 func (ctrls Controls) LogEnabled(logger log.Logger) {
 	enabledControls := ctrls.FilterByEnabled()
 
 	if len(enabledControls) > 0 {
 		logger.Debugf("Enabled strict control(s): %s", enabledControls.Names())
 	}
+}
 
-	completedControls := enabledControls.FilterByStatus(CompletedStatus)
+// LogCompletedControls warns about any completed controls from the given explicitly requested names.
+func (ctrls Controls) LogCompletedControls(logger log.Logger, requestedNames []string) {
+	completedControls := ctrls.FilterByNames(requestedNames...).FilterByStatus(CompletedStatus)
 
 	if len(completedControls) > 0 {
 		logger.Warnf(CompletedControlsFmt, completedControls.Names().String())

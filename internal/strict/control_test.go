@@ -216,7 +216,16 @@ func TestEnableControl(t *testing.T) {
 
 			logger, output := newTestLogger()
 
+			var requestedNames []string
+
+			for _, ec := range tc.enableControls {
+				if ec.expectedErr == nil {
+					requestedNames = append(requestedNames, ec.controlName)
+				}
+			}
+
 			controls.LogEnabled(logger)
+			controls.LogCompletedControls(logger, requestedNames)
 
 			if tc.expectedCompletedMsg == "" {
 				assert.Empty(t, output.String())
@@ -278,6 +287,57 @@ func TestEnableStrictMode(t *testing.T) {
 			assert.Empty(t, output.String())
 		})
 	}
+}
+
+func TestLogCompletedControlsWithParentAndCompletedSubcontrol(t *testing.T) {
+	t.Parallel()
+
+	// Regression test for #5293: enabling a parent control that has a completed
+	// subcontrol should NOT warn, because the user only explicitly requested the parent.
+	parentCtrl := &controls.Control{
+		Name: "parent-ctrl",
+		Subcontrols: strict.Controls{
+			&controls.Control{
+				Name:   "completed-sub",
+				Status: strict.CompletedStatus,
+			},
+		},
+	}
+
+	ctrls := strict.Controls{parentCtrl}
+
+	// Enable the parent (which recursively enables subcontrols).
+	err := ctrls.EnableControl("parent-ctrl")
+	require.NoError(t, err)
+
+	logger, output := newTestLogger()
+
+	// Only "parent-ctrl" was explicitly requested.
+	ctrls.LogCompletedControls(logger, []string{"parent-ctrl"})
+
+	assert.Empty(t, output.String(), "should not warn about implicitly enabled completed subcontrols")
+}
+
+func TestLogCompletedControlsWithExplicitlyRequestedCompletedControl(t *testing.T) {
+	t.Parallel()
+
+	// Explicitly requesting a completed control SHOULD produce a warning.
+	completedCtrl := &controls.Control{
+		Name:   "completed-ctrl",
+		Status: strict.CompletedStatus,
+	}
+
+	ctrls := strict.Controls{completedCtrl}
+
+	err := ctrls.EnableControl("completed-ctrl")
+	require.NoError(t, err)
+
+	logger, output := newTestLogger()
+
+	ctrls.LogCompletedControls(logger, []string{"completed-ctrl"})
+
+	expectedMsg := fmt.Sprintf(strict.CompletedControlsFmt, "completed-ctrl")
+	assert.Contains(t, strings.TrimSpace(output.String()), expectedMsg)
 }
 
 func TestEvaluateControl(t *testing.T) {
