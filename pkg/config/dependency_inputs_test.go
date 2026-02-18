@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,9 +31,7 @@ inputs = {
 
 	// Create a parsing context with strict controls
 	pctx := &config.ParsingContext{
-		TerragruntOptions: &options.TerragruntOptions{
-			StrictControls: controls.New(),
-		},
+		StrictControls: controls.New(),
 	}
 
 	logger := log.New()
@@ -66,9 +63,7 @@ inputs = {
 
 	// Create a parsing context with strict controls
 	pctx := &config.ParsingContext{
-		TerragruntOptions: &options.TerragruntOptions{
-			StrictControls: controls.New(),
-		},
+		StrictControls: controls.New(),
 	}
 
 	logger := log.New()

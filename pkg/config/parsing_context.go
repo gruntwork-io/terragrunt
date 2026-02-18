@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -42,10 +43,7 @@ type ParsingContext struct {
 	Engine           *options.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
-
-	// TerragruntOptions is kept temporarily during the migration. New code should
-	// use the flat fields below instead of accessing TerragruntOptions directly.
-	TerragruntOptions *options.TerragruntOptions
+	Telemetry        *telemetry.Options
 
 	DecodedDependencies *cty.Value
 	Values              *cty.Value
@@ -64,10 +62,11 @@ type ParsingContext struct {
 	RootWorkingDir               string
 	DownloadDir                  string
 	Source                       string
-
-	TerraformCommand         string
-	OriginalTerraformCommand string
-	AuthProviderCmd          string
+	TerraformCommand             string
+	OriginalTerraformCommand     string
+	AuthProviderCmd              string
+	TFPath                       string
+	TofuImplementation           options.TerraformImplementationType
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
@@ -80,12 +79,23 @@ type ParsingContext struct {
 	MaxFoldersToCheck int
 	ParseDepth        int
 
-	LogShowAbsPaths                  bool
-	TFPathExplicitlySet              bool
-	SkipOutput                       bool
+	LogShowAbsPaths        bool
+	TFPathExplicitlySet    bool
+	SkipOutput             bool
+	ForwardTFStdout        bool
+	JSONLogFormat          bool
+	Debug                  bool
+	AutoInit               bool
+	Headless               bool
+	BackendBootstrap       bool
+	NoEngine               bool
+	CheckDependentUnits    bool
+	LogDisableErrorSummary bool
+
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
+	NoStackValidate                  bool
 }
 
 // populateFromOpts copies fields from TerragruntOptions into the flat fields.
@@ -116,6 +126,19 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	ctx.AuthProviderCmd = opts.AuthProviderCmd
 	ctx.Engine = opts.Engine
+	ctx.TFPath = opts.TFPath
+	ctx.TofuImplementation = opts.TofuImplementation
+	ctx.ForwardTFStdout = opts.ForwardTFStdout
+	ctx.JSONLogFormat = opts.JSONLogFormat
+	ctx.Debug = opts.Debug
+	ctx.AutoInit = opts.AutoInit
+	ctx.Headless = opts.Headless
+	ctx.BackendBootstrap = opts.BackendBootstrap
+	ctx.NoEngine = opts.NoEngine
+	ctx.CheckDependentUnits = opts.CheckDependentUnits
+	ctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
+	ctx.Telemetry = opts.Telemetry
+	ctx.NoStackValidate = opts.NoStackValidate
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
@@ -124,9 +147,8 @@ func NewParsingContext(ctx context.Context, l log.Logger, opts *options.Terragru
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
-		TerragruntOptions: opts,
-		ParserOptions:     DefaultParserOptions(l, opts.StrictControls),
-		FilesRead:         &filesRead,
+		ParserOptions: DefaultParserOptions(l, opts.StrictControls),
+		FilesRead:     &filesRead,
 	}
 	pctx.populateFromOpts(opts)
 
@@ -142,14 +164,6 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
-
-	return c
-}
-
-func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
-	c := ctx.Clone()
-	c.TerragruntOptions = opts
-	c.populateFromOpts(opts)
 
 	return c
 }
@@ -239,7 +253,6 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // WithConfigPath returns a new ParsingContext with the config path updated.
 // It normalizes the path to an absolute path, updates WorkingDir to the directory
 // containing the config, and adjusts the logger's working directory field if it changed.
-// During the transition period, it also updates TerragruntOptions to stay in sync.
 func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
 	configPath = util.CleanPath(configPath)
 	if !filepath.IsAbs(configPath) {
@@ -260,14 +273,6 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	c := ctx.Clone()
 	c.TerragruntConfigPath = configPath
 	c.WorkingDir = workingDir
-
-	// Keep TerragruntOptions in sync during the transition period.
-	if c.TerragruntOptions != nil {
-		newOpts := c.TerragruntOptions.Clone()
-		newOpts.TerragruntConfigPath = configPath
-		newOpts.WorkingDir = workingDir
-		c.TerragruntOptions = newOpts
-	}
 
 	return l, c, nil
 }
