@@ -1323,6 +1323,8 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 		RootWorkingDir:         pctx.RootWorkingDir,
 		LogShowAbsPaths:        pctx.LogShowAbsPaths,
 		LogDisableErrorSummary: pctx.LogDisableErrorSummary,
+		Headless:               pctx.Headless,
+		ForwardTFStdout:        pctx.ForwardTFStdout,
 	}
 }
 
