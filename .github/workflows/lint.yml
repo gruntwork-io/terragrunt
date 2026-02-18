@@ -85,10 +85,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-golangci-lint-
 
-    # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately
+    # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
+    # Use refspec main:main to create a local branch (required for git merge-base main HEAD).
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
-      run: git fetch origin main
+      run: git fetch origin main:main
+
+    # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
+    # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
+    - name: Set memory limits (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        echo "GOGC=100" >> "$GITHUB_ENV"
+        echo "GOMEMLIMIT=10GiB" >> "$GITHUB_ENV"
 
     - name: Check for lint config changes
       id: lint-config
