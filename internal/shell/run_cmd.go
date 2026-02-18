@@ -37,36 +37,40 @@ type RunOptions struct {
 	Env       map[string]string
 	Engine    *options.EngineOptions
 
-	// TerragruntOptions is the full options struct, only needed for the engine path.
-	// When the IaC engine is enabled and the command matches TFPath, this is passed
-	// to engine.ExecutionOptions. Non-engine callers may leave this nil.
-	TerragruntOptions *options.TerragruntOptions
-
-	RootWorkingDir         string
-	WorkingDir             string
-	TFPath                 string
-	Experiments            experiment.Experiments
-	NoEngine               bool
-	LogShowAbsPaths        bool
-	LogDisableErrorSummary bool
+	RootWorkingDir          string
+	WorkingDir              string
+	TFPath                  string
+	EngineCachePath         string
+	EngineLogLevel          string
+	Experiments             experiment.Experiments
+	Headless                bool
+	ForwardTFStdout         bool
+	NoEngine                bool
+	EngineSkipChecksumCheck bool
+	LogShowAbsPaths         bool
+	LogDisableErrorSummary  bool
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
 func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 	return &RunOptions{
-		WorkingDir:             opts.WorkingDir,
-		Writer:                 opts.Writer,
-		ErrWriter:              opts.ErrWriter,
-		Env:                    opts.Env,
-		TFPath:                 opts.TFPath,
-		Engine:                 opts.Engine,
-		Experiments:            opts.Experiments,
-		NoEngine:               opts.NoEngine,
-		Telemetry:              opts.Telemetry,
-		RootWorkingDir:         opts.RootWorkingDir,
-		LogShowAbsPaths:        opts.LogShowAbsPaths,
-		LogDisableErrorSummary: opts.LogDisableErrorSummary,
-		TerragruntOptions:      opts,
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
 	}
 }
 
@@ -133,14 +137,25 @@ func RunCommandWithOutput(
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
-					TerragruntOptions: runOpts.TerragruntOptions,
-					CmdStdout:         cmdStdout,
-					CmdStderr:         cmdStderr,
-					WorkingDir:        commandDir,
-					SuppressStdout:    suppressStdout,
-					AllocatePseudoTty: needsPTY,
-					Command:           command,
-					Args:              args,
+					CmdStdout:               cmdStdout,
+					CmdStderr:               cmdStderr,
+					Engine:                  runOpts.Engine,
+					Env:                     runOpts.Env,
+					Writer:                  runOpts.Writer,
+					ErrWriter:               runOpts.ErrWriter,
+					WorkingDir:              commandDir,
+					RootWorkingDir:          runOpts.RootWorkingDir,
+					EngineCachePath:         runOpts.EngineCachePath,
+					EngineLogLevel:          runOpts.EngineLogLevel,
+					Command:                 command,
+					Args:                    args,
+					Headless:                runOpts.Headless,
+					ForwardTFStdout:         runOpts.ForwardTFStdout,
+					SuppressStdout:          suppressStdout,
+					AllocatePseudoTty:       needsPTY,
+					EngineSkipChecksumCheck: runOpts.EngineSkipChecksumCheck,
+					LogShowAbsPaths:         runOpts.LogShowAbsPaths,
+					LogDisableErrorSummary:  runOpts.LogDisableErrorSummary,
 				})
 				if err != nil {
 					return errors.New(err)
