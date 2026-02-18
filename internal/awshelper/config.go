@@ -71,7 +71,9 @@ type AwsConfigBuilder struct {
 
 // NewAwsConfigBuilder creates a new builder for AWS config.
 func NewAwsConfigBuilder() *AwsConfigBuilder {
-	return &AwsConfigBuilder{}
+	return &AwsConfigBuilder{
+		env: make(map[string]string),
+	}
 }
 
 // WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
