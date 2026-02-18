@@ -39,6 +39,10 @@ run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m ./...
 
+run-lint-incremental:
+	@echo "Incremental lint (new issues only) with feature flags: [$(LINT_TAGS)]"
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --new-from-merge-base=main ./...
+
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --fix ./...
