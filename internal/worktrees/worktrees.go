@@ -233,7 +233,7 @@ func (w *Worktrees) Stacks() StackDiff {
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
+func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 	diffs := wp.Diffs
 
 	toPath := wp.ToWorktree.Path
@@ -247,18 +247,34 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			fromExpressions = append(fromExpressions, filter.NewPathFilter(dir))
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			fromExpressions = append(fromExpressions, expr)
 		case config.DefaultStackFile:
-			fromExpressions = append(
-				fromExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
+			dirExpr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
+			}
+
+			fromExpressions = append(fromExpressions, dirExpr, globExpr)
 		default:
 			// Check to see if the removed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				toExpressions = append(toExpressions, expr)
 			}
 		}
 	}
@@ -268,18 +284,34 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			toExpressions = append(toExpressions, expr)
 		case config.DefaultStackFile:
-			toExpressions = append(
-				toExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
+			dirExpr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
+			}
+
+			toExpressions = append(toExpressions, dirExpr, globExpr)
 		default:
 			// Check to see if the added file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				toExpressions = append(toExpressions, expr)
 			}
 		}
 	}
@@ -289,21 +321,36 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			toExpressions = append(toExpressions, expr)
 		case config.DefaultStackFile:
 			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
 		default:
 			// Check to see if the changed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				toExpressions = append(toExpressions, expr)
 
 				continue
 			}
 
 			// Otherwise, we'll consider it a file that could potentially be read by other units, and needs to be
 			// tracked using a reading filter.
-			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, path))
+			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create reading filter for %s: %w", path, err)
+			}
+
+			toExpressions = append(toExpressions, expr)
 		}
 	}
 
@@ -323,7 +370,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 		)
 	}
 
-	return fromFilters, toFilters
+	return fromFilters, toFilters, nil
 }
 
 // NewWorktrees creates a new Worktrees for a given set of Git filters.

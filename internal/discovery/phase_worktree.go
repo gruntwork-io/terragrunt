@@ -81,7 +81,10 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := pair.Expand()
+			fromFilters, toFilters, err := pair.Expand()
+			if err != nil {
+				return err
+			}
 
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 

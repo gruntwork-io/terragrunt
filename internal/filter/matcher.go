@@ -52,10 +52,7 @@ func MatchComponent(c component.Component, expr Expression) (bool, error) {
 
 // matchPath checks if a component matches a path expression.
 func matchPath(c component.Component, expr *PathExpression) (bool, error) {
-	g, err := expr.CompileGlob()
-	if err != nil {
-		return false, err
-	}
+	g := expr.Glob()
 
 	componentPath := c.Path()
 
@@ -83,10 +80,7 @@ func matchPath(c component.Component, expr *PathExpression) (bool, error) {
 func matchAttribute(c component.Component, expr *AttributeExpression) (bool, error) {
 	switch expr.Key {
 	case AttributeName:
-		g, err := expr.CompileGlob()
-		if err != nil {
-			return false, err
-		}
+		g := expr.Glob()
 
 		return g.Match(filepath.Base(c.Path())), nil
 
