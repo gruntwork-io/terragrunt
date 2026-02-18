@@ -76,7 +76,9 @@ type Stack struct {
 func GenerateStackFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, l, opts, stackSourceDir)
+	ctx, pctx := NewParsingContext(ctx, l, opts)
+
+	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
 		return errors.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
@@ -538,7 +540,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 }
 
 // ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
-func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
+func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directory string) (*cty.Value, error) {
 	if directory == "" {
 		return nil, errors.New("ReadValues: directory path cannot be empty")
 	}
@@ -550,14 +552,13 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 	}
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
-	ctx, parser := NewParsingContext(ctx, l, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

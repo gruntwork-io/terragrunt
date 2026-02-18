@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -122,9 +123,9 @@ type TerragruntOptions struct {
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
+	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
@@ -331,36 +332,6 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.WebIdentityToken = token
 	}
-}
-
-// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
-type IAMRoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
-}
-
-func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	out := target
-
-	if source.RoleARN != "" {
-		out.RoleARN = source.RoleARN
-	}
-
-	if source.AssumeRoleDuration != 0 {
-		out.AssumeRoleDuration = source.AssumeRoleDuration
-	}
-
-	if source.AssumeRoleSessionName != "" {
-		out.AssumeRoleSessionName = source.AssumeRoleSessionName
-	}
-
-	if source.WebIdentityToken != "" {
-		out.WebIdentityToken = source.WebIdentityToken
-	}
-
-	return out
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with

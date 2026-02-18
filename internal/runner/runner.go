@@ -69,7 +69,7 @@ func FindDependentUnits(
 func discoverPathsToCheck(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	var pathsToCheck []string
 
-	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir); err == nil {
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
 	} else {
 		uniquePaths := make(map[string]bool)

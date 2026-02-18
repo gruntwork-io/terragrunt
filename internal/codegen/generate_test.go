@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -258,12 +257,8 @@ func TestFmtGeneratedFile(t *testing.T) {
 				HclFmt:           tc.fmt,
 			}
 
-			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
-			require.NoError(t, err)
-			assert.NotNil(t, opts)
-
 			l := logger.CreateLogger()
-			err = codegen.WriteToFile(l, opts, "", &config)
+			err := codegen.WriteToFile(l, "", &config)
 			require.NoError(t, err)
 
 			assert.True(t, util.FileExists(tc.path))
@@ -317,12 +312,8 @@ func TestGenerateDisabling(t *testing.T) {
 				Disable:          tc.disabled,
 			}
 
-			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
-			require.NoError(t, err)
-			assert.NotNil(t, opts)
-
 			l := logger.CreateLogger()
-			err = codegen.WriteToFile(l, opts, "", &config)
+			err := codegen.WriteToFile(l, "", &config)
 			require.NoError(t, err)
 
 			if tc.disabled {

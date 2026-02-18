@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -113,13 +114,13 @@ func Run(
 
 	// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 	// precedence.
-	opts.IAMRoleOptions = options.MergeIAMRoleOptions(
+	opts.IAMRoleOptions = iam.MergeRoleOptions(
 		cfg.GetIAMRoleOptions(),
 		opts.OriginalIAMRoleOptions,
 	)
 
 	if err = opts.RunWithErrorHandling(ctx, l, r, func() error {
-		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts, amazonsts.NewProvider(l, opts))
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, amazonsts.NewProvider(l, opts.IAMRoleOptions, opts.Env))
 	}); err != nil {
 		return err
 	}
@@ -192,13 +193,13 @@ func GenerateConfig(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.R
 	actualLock.Lock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
-		if err := codegen.WriteToFile(l, opts, opts.WorkingDir, &genCfg); err != nil {
+		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
 			return err
 		}
 	}
 
 	if cfg.RemoteState.Config != nil && cfg.RemoteState.Generate != nil {
-		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts); err != nil {
+		if err := cfg.RemoteState.GenerateOpenTofuCode(l, opts.WorkingDir); err != nil {
 			return err
 		}
 	} else if cfg.RemoteState.Config != nil {
@@ -274,7 +275,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, opts, opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
