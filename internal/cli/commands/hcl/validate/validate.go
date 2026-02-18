@@ -156,7 +156,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, parseOpts, file, values); err != nil {
+			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
 

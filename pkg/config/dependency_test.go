@@ -122,12 +122,12 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
 
-	pctx.TerragruntOptions = opts
-	err = pctx.TerragruntOptions.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+	err = opts.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), opts.TerragruntConfigPath, nil)
+	pctx.Experiments = opts.Experiments
+	pctx.Env = env.Parse(os.Environ())
+	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)

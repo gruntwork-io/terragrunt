@@ -558,7 +558,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		shell.RunOptionsFromOpts(pctx.TerragruntOptions),
+		&shell.RunOptions{
+			WorkingDir:      pctx.WorkingDir,
+			Writer:          pctx.Writer,
+			ErrWriter:       pctx.ErrWriter,
+			Env:             pctx.Env,
+			RootWorkingDir:  pctx.RootWorkingDir,
+			LogShowAbsPaths: pctx.LogShowAbsPaths,
+		},
 		currentPath,
 		true,
 		false,
@@ -1031,7 +1038,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, readErr)
 		}
 
-		stackFile, readErr := ReadStackConfigFile(ctx, l, pctx.TerragruntOptions, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, pctx, targetConfig, values)
 		if readErr != nil {
 			return cty.NilVal, errors.New(readErr)
 		}
