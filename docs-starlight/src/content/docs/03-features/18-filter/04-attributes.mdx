@@ -1,0 +1,144 @@
+---
+title: Attribute Expressions
+description: Match units and stacks by their configuration attributes
+slug: features/filter/attributes
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Match units and stacks by their configuration attributes.
+
+```bash
+# Filter by component type
+terragrunt find --filter 'type=unit'
+terragrunt find --filter 'type=stack'
+
+# Filter by external dependency status
+terragrunt find --filter '{./**}... | external=false'
+terragrunt find --filter '{./**}... | external=true'
+
+# Explicitly filter by name (useful for explicitly indicating that this is a name expression)
+terragrunt find --filter 'name=stack*'
+```
+
+<FileTree>
+- .
+  - **unit1** \<-- Matched by the first filter
+    - terragrunt.hcl
+  - **stack1** \<-- Matched by the second and fifth filter
+    - terragrunt.stack.hcl
+- ..
+  - dependencies \<-- Note that this directory is sibling to the current working directory
+    - **dependency-of-app1** \<-- Matched by the fourth filter, but not the third filter
+        - terragrunt.hcl
+</FileTree>
+
+The following are the attributes supported for attribute-based expressions:
+
+| Attribute | Description |
+|-----------|-------------|
+| name | Match units and stacks by their directory basename. |
+| type | Match units and stacks by their type. |
+| external | Match units and stacks if they are external to the current working directory. |
+| reading | Match units and stacks by the files they read. |
+| source | Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files. |
+
+## Reading-Based Expressions
+
+Match units and stacks by the files they read.
+
+Consider the following file tree:
+
+<FileTree>
+
+- reading-shared-hcl
+  - terragrunt.hcl
+- also-reading-shared-hcl
+  - terragrunt.hcl
+- not-reading-shared-hcl
+  - terragrunt.hcl
+- shared.hcl
+
+</FileTree>
+
+Suppose that `reading-shared-hcl` and `also-reading-shared-hcl` both read `shared.hcl` in their configurations, like so:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+ shared = read_terragrunt_config(find_in_parent_folders("shared.hcl"))
+}
+```
+
+If you run the command `terragrunt run --all --filter 'reading=shared.hcl' -- plan` from the root folder, both
+`reading-shared-hcl` and `also-reading-shared-hcl` will be run; not `not-reading-shared-hcl`.
+
+This is because the `read_terragrunt_config` HCL function has a special hook that allows Terragrunt to track that it has
+read the file `shared.hcl`. This hook is used by all native HCL functions that Terragrunt supports which read files.
+
+Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
+
+For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
+use-cases, the [`mark_as_read`](/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
+
+That would look something like this:
+
+```hcl
+# terragrunt.hcl
+
+locals {
+  filename = mark_as_read("file-read-by-tofu.txt")
+}
+
+inputs = {
+  filename = local.filename
+}
+```
+<Aside type="caution">
+Due to how Terragrunt parses configurations during `run --all`, functions will only properly mark files as read if they are used outside the `inputs` attribute.
+
+Reading a file directly in the `inputs` attribute will not mark the file as read, as the `inputs` attribute is not parsed until after the queue has already been populated to support rendering of dependency outputs, which are only available after dependencies have been run.
+</Aside>
+
+## Source-Based Expressions
+
+Match units and stacks by their Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files.
+
+```bash
+# Filter by exact source match
+terragrunt find --filter 'source=github.com/acme/foo'
+terragrunt find --filter 'source=gitlab.com/example/baz'
+terragrunt find --filter 'source=./module'
+
+# Filter by source using glob patterns
+terragrunt find --filter 'source=*github.com**acme/*'
+terragrunt find --filter 'source=git::git@github.com:acme/**'
+terragrunt find --filter 'source=**github.com**'
+terragrunt find --filter 'source=gitlab.com/**'
+```
+
+<FileTree>
+- .
+  - **github-acme-foo** \<-- Matched by source=github.com/acme/foo and source=*github.com**acme/*
+    - terragrunt.hcl (source: github.com/acme/foo)
+  - **github-acme-bar** \<-- Matched by source=*github.com**acme/* and source=git::git@github.com:acme/**
+    - terragrunt.hcl (source: git::git@github.com:acme/bar)
+  - **gitlab-example-baz** \<-- Matched by source=gitlab.com/example/baz and source=gitlab.com/**
+    - terragrunt.hcl (source: gitlab.com/example/baz)
+  - **local-module** \<-- Matched by source=./module
+    - terragrunt.hcl (source: ./module)
+    - module
+      - main.tf
+  - other-unit
+    - terragrunt.hcl (source: s3://bucket/module)
+</FileTree>
+
+<Aside type="note">
+The `source=` filter matches against the Terraform source URL or path specified in the `terraform` block of `terragrunt.hcl` files in units. It supports glob patterns, allowing you to match multiple sources with patterns like `*github.com**` or `gitlab.com/**`. This is useful for filtering units that use specific module sources, such as all units using a particular GitHub organization's modules or all local modules.
+
+This attribute may be supported on stacks in the future.
+</Aside>

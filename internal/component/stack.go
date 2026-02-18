@@ -8,27 +8,17 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
 	StackKind Kind = "stack"
 )
 
-// StackExecution holds execution-specific fields for running a stack.
-// This is nil during discovery phase and populated when preparing for execution.
-type StackExecution struct {
-	Report            *report.Report
-	TerragruntOptions *options.TerragruntOptions
-}
-
 // Stack represents a discovered Terragrunt stack configuration.
 type Stack struct {
 	cfg              *config.StackConfig
 	discoveryContext *DiscoveryContext
-	Execution        *StackExecution
 	path             string
 	reading          []string
 	dependencies     Components
@@ -234,8 +224,8 @@ func (s *Stack) String() string {
 	sort.Strings(units)
 
 	workingDir := s.path
-	if s.Execution != nil && s.Execution.TerragruntOptions != nil {
-		workingDir = s.Execution.TerragruntOptions.WorkingDir
+	if s.discoveryContext != nil && s.discoveryContext.WorkingDir != "" {
+		workingDir = s.discoveryContext.WorkingDir
 	}
 
 	return fmt.Sprintf("Stack at %s:\n%s", workingDir, strings.Join(units, "\n"))

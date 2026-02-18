@@ -3,7 +3,6 @@ package discovery
 import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
@@ -17,12 +16,6 @@ func (d *Discovery) WithDiscoveryContext(ctx *component.DiscoveryContext) *Disco
 // WithWorktrees sets the worktrees for Git-based filters.
 func (d *Discovery) WithWorktrees(w *worktrees.Worktrees) *Discovery {
 	d.worktrees = w
-	return d
-}
-
-// WithReport sets the report for recording excluded external dependencies.
-func (d *Discovery) WithReport(r *report.Report) *Discovery {
-	d.report = r
 	return d
 }
 
