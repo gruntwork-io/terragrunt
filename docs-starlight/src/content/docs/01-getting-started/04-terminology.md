@@ -62,7 +62,7 @@ The design of `terragrunt.stack.hcl` files is to ensure that they function entir
 
 Component is a generic term to refer to something that is either a unit or a stack.
 
-Certain Terragrunt commands operate on components (e.g. [`find`](/docs/reference/cli/commands/find) and [`list`](/docs/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/docs/reference/cli/commands/run) only runs units whereas [`stack generate`](/docs/reference/cli/commands/stack/generate) and [`stack output`](/docs/reference/cli/commands/stack/output) commands run on stacks).
+Certain Terragrunt commands operate on components (e.g. [`find`](/reference/cli/commands/find) and [`list`](/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/reference/cli/commands/run) only runs units whereas [`stack generate`](/reference/cli/commands/stack/generate) and [`stack output`](/reference/cli/commands/stack/output) commands run on stacks).
 
 ### Module
 
