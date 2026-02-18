@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -572,7 +573,7 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 //   - UnknownImpl: returns both (backward compatibility)
 //
 // If the user has explicitly set registry names (don't match defaults), returns them as-is.
-func filterRegistriesByImplementation(registryNames []string, implementation options.TerraformImplementationType) []string {
+func filterRegistriesByImplementation(registryNames []string, implementation tfimpl.Type) []string {
 	// Default registries in the same order as defined in options/options.go
 	defaultRegistries := []string{
 		"registry.terraform.io",
@@ -593,11 +594,11 @@ func filterRegistriesByImplementation(registryNames []string, implementation opt
 		// If matches defaults, filter based on implementation
 		if matchesDefault {
 			switch implementation {
-			case options.OpenTofuImpl:
+			case tfimpl.OpenTofu:
 				return []string{"registry.opentofu.org"}
-			case options.TerraformImpl:
+			case tfimpl.Terraform:
 				return []string{"registry.terraform.io"}
-			case options.UnknownImpl:
+			case tfimpl.Unknown:
 				// Backward compatibility: use both registries if implementation is unknown
 				return registryNames
 			default:

@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -19,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -41,7 +43,7 @@ type ParsingContext struct {
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	Engine           *options.EngineOptions
+	Engine           *enginecfg.Options
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
@@ -67,7 +69,7 @@ type ParsingContext struct {
 	OriginalTerraformCommand     string
 	AuthProviderCmd              string
 	TFPath                       string
-	TofuImplementation           options.TerraformImplementationType
+	TofuImplementation           tfimpl.Type
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions

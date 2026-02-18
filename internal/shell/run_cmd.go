@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -35,7 +36,7 @@ type RunOptions struct {
 	ErrWriter io.Writer
 	Telemetry *telemetry.Options
 	Env       map[string]string
-	Engine    *options.EngineOptions
+	Engine    *enginecfg.Options
 
 	RootWorkingDir          string
 	WorkingDir              string

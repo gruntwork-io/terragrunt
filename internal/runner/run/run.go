@@ -126,7 +126,7 @@ func Run(
 	}
 
 	// get the default download dir
-	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	_, defaultDownloadDir, err := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}
