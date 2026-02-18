@@ -160,11 +160,11 @@ func (b *AwsConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3
 		return nil, errors.New(err)
 	}
 
-	var customFN []func(*s3.Options)
-
 	if b.sessionConfig == nil {
 		return s3.NewFromConfig(cfg), nil
 	}
+
+	customFN := make([]func(*s3.Options), 0, 2) //nolint:mnd
 
 	if b.sessionConfig.CustomS3Endpoint != "" {
 		customFN = append(customFN, func(o *s3.Options) {
