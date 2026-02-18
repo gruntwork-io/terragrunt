@@ -55,6 +55,19 @@ func TestErrorHandler(t *testing.T) {
 		return rootCtx.NewCommandContext(cmd, nil)
 	}
 
+	// newRunSubcommandCtx creates a context for a subcommand of "run"
+	// (e.g., "providers" in "terragrunt run providers lock -platform ...").
+	newRunSubcommandCtx := func(name string) *clihelper.Context {
+		app := clihelper.NewApp()
+		appCtx := clihelper.NewAppContext(app, nil)
+		rootCmd := &clihelper.Command{Name: "terragrunt", IsRoot: true}
+		rootCtx := appCtx.NewCommandContext(rootCmd, nil)
+		runCmd := &clihelper.Command{Name: "run"}
+		runCtx := rootCtx.NewCommandContext(runCmd, nil)
+		cmd := &clihelper.Command{Name: name}
+		return runCtx.NewCommandContext(cmd, nil)
+	}
+
 	testCases := []struct {
 		name          string
 		ctx           *clihelper.Context
@@ -82,6 +95,12 @@ func TestErrorHandler(t *testing.T) {
 		{
 			name:          "unknown flag on run command returns PassthroughFlagHintError",
 			ctx:           newCommandCtx("run"),
+			err:           clihelper.UndefinedFlagError("platform"),
+			expectedError: flags.NewPassthroughFlagHintError("platform"),
+		},
+		{
+			name:          "unknown flag on run subcommand returns PassthroughFlagHintError",
+			ctx:           newRunSubcommandCtx("providers"),
 			err:           clihelper.UndefinedFlagError("platform"),
 			expectedError: flags.NewPassthroughFlagHintError("platform"),
 		},

@@ -33,12 +33,25 @@ func ErrorHandler(commands clihelper.Commands) clihelper.FlagErrHandlerFunc {
 			return NewGlobalFlagHintError(undefFlag, cmdHint, flagHint)
 		}
 
-		if ctx.Command != nil && ctx.Command.Name == "run" {
+		if isRunContext(ctx) {
 			return NewPassthroughFlagHintError(undefFlag)
 		}
 
 		return err
 	}
+}
+
+// isRunContext returns true if the current command or any ancestor is the "run" command.
+func isRunContext(ctx *clihelper.Context) bool {
+	for ctx != nil {
+		if ctx.Command != nil && ctx.Command.Name == "run" {
+			return true
+		}
+
+		ctx = ctx.Parent()
+	}
+
+	return false
 }
 
 func findFlagInCommands(commands clihelper.Commands, undefFlag string) (clihelper.Commands, clihelper.Flag) {
