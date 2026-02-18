@@ -10,13 +10,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Windows doesn't get to be linted continuously because it annoyingly requires
-        # that all files use \r\n line endings.
-        # os: [ubuntu, macos, windows]
         os: [ubuntu, macos]
+    env:
+      # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
+      GOGC: "400"
 
     steps:
+    - name: "Mount tmpfs"
+      shell: bash
+      if: runner.os == 'Linux'
+      run: |
+        sudo mount -t tmpfs -o size=12G tmpfs /tmp
+        mkdir -p /home/runner/go
+        sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
+        mkdir -p /home/runner/.cache/go-build
+        sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        mkdir -p /home/runner/.cache/golangci-lint
+        sudo mount -t tmpfs -o size=2G tmpfs /home/runner/.cache/golangci-lint
+
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        fetch-depth: 0
+
+    - name: Cache mise tools
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+      with:
+        path: ~/.local/share/mise/installs
+        key: ${{ runner.os }}-mise-tools-${{ hashFiles('mise.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-mise-tools-
 
     - name: Set up mise
       uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
@@ -24,7 +46,6 @@ jobs:
         version: 2026.1.9
         experimental: true
       env:
-        # Adding token here to reduce the likelihood of hitting rate limit issues.
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - id: go-cache-paths
@@ -33,38 +54,68 @@ jobs:
         echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          echo "golangci-lint-cache=$LOCALAPPDATA/golangci-lint" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
         if [ "$RUNNER_OS" == "macOS" ]; then
           echo "golangci-lint-cache=$HOME/Library/Caches/golangci-lint" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
+        echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
 
     - name: Go Build Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-go-build-
 
     - name: Go Mod Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-go-mod-
 
     - name: golangci-lint Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-linux-amd64
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        restore-keys: |
+          ${{ runner.os }}-golangci-lint-
+
+    # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
+    # Use refspec main:main to create a local branch (required for git merge-base main HEAD).
+    - name: Fetch main branch
+      if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
+      run: git fetch origin main:main
+
+    # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
+    # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
+    - name: Set memory limits (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        echo "GOGC=100" >> "$GITHUB_ENV"
+        echo "GOMEMLIMIT=10GiB" >> "$GITHUB_ENV"
+
+    - name: Check for lint config changes
+      id: lint-config
+      if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
+      run: |
+        if git diff --name-only origin/main...HEAD | grep -q '^\.golangci\.yml$'; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Lint
-      run: make run-lint
+      run: |
+        # Full lint on main, tags, or when lint config changed
+        if [[ "${{ github.ref }}" != refs/heads/* ]] || \
+           [[ "${{ github.ref }}" == "refs/heads/main" ]] || \
+           [[ "${{ steps.lint-config.outputs.changed }}" == "true" ]]; then
+          make run-lint
+        else
+          make run-lint-incremental
+        fi
