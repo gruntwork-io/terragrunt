@@ -968,7 +968,7 @@ func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, teleme
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, telemetryName, attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.NewAwsConfigBuilder().
+		awsConfig, err := awshelper.NewAWSConfigBuilder().
 			WithEnv(pctx.Env).
 			WithIAMRoleOptions(pctx.IAMRoleOptions).
 			Build(childCtx, l)

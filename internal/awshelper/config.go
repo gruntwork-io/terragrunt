@@ -61,41 +61,41 @@ func (f tokenFetcher) FetchToken(_ context.Context) ([]byte, error) {
 	return token, nil
 }
 
-// AwsConfigBuilder builds an AWS config using the builder pattern.
+// AWSConfigBuilder builds an AWS config using the builder pattern.
 // Use NewAwsConfigBuilder to create, chain With* methods for optional parameters, then call Build().
-type AwsConfigBuilder struct {
+type AWSConfigBuilder struct {
 	sessionConfig *AwsSessionConfig
 	env           map[string]string
 	iamRoleOpts   iam.RoleOptions
 }
 
-// NewAwsConfigBuilder creates a new builder for AWS config.
-func NewAwsConfigBuilder() *AwsConfigBuilder {
-	return &AwsConfigBuilder{
+// NewAWSConfigBuilder creates a new builder for AWS config.
+func NewAWSConfigBuilder() *AWSConfigBuilder {
+	return &AWSConfigBuilder{
 		env: make(map[string]string),
 	}
 }
 
 // WithSessionConfig sets the AWS session configuration (region, profile, credentials file, etc.).
-func (b *AwsConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AwsConfigBuilder {
+func (b *AWSConfigBuilder) WithSessionConfig(cfg *AwsSessionConfig) *AWSConfigBuilder {
 	b.sessionConfig = cfg
 	return b
 }
 
 // WithEnv sets environment variables used for credential and region resolution.
-func (b *AwsConfigBuilder) WithEnv(env map[string]string) *AwsConfigBuilder {
+func (b *AWSConfigBuilder) WithEnv(env map[string]string) *AWSConfigBuilder {
 	b.env = env
 	return b
 }
 
 // WithIAMRoleOptions sets IAM role options for assuming a role.
-func (b *AwsConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AwsConfigBuilder {
+func (b *AWSConfigBuilder) WithIAMRoleOptions(opts iam.RoleOptions) *AWSConfigBuilder {
 	b.iamRoleOpts = opts
 	return b
 }
 
 // Build creates the AWS config from the builder's configuration.
-func (b *AwsConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
+func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config, error) {
 	var configOptions []func(*config.LoadOptions) error
 
 	configOptions = append(configOptions, config.WithAppID("terragrunt/"+version.GetVersion()))
@@ -156,7 +156,7 @@ func (b *AwsConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 
 // BuildS3Client creates an S3 client from the builder's configuration.
 // The session config (set via WithSessionConfig) provides S3-specific options like custom endpoint and path style.
-func (b *AwsConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3.Client, error) {
+func (b *AWSConfigBuilder) BuildS3Client(ctx context.Context, l log.Logger) (*s3.Client, error) {
 	cfg, err := b.Build(ctx, l)
 	if err != nil {
 		return nil, errors.New(err)
