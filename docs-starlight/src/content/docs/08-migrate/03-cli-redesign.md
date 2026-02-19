@@ -89,7 +89,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-iam-web-identity-token`             | `--iam-assume-role-web-identity-token`                    |
 | `--terragrunt-ignore-dependency-errors`           | `--queue-ignore-errors`                                   |
 | `--terragrunt-ignore-dependency-order`            | `--queue-ignore-dag-order`                                |
-| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external`                                |
+| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external` (deprecated)                   |
 | `--terragrunt-include-dir`                        | `--queue-include-dir`                                     |
 | `--terragrunt-include-external-dependencies`      | `--queue-include-external`                                |
 | `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules` (deprecated)                |
@@ -118,7 +118,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-source-map`                         | `--source-map`                                            |
 | `--terragrunt-source-update`                      | `--source-update`                                         |
 | `--terragrunt-source`                             | `--source`                                                |
-| `--terragrunt-strict-include`                     | `--queue-strict-include`                                  |
+| `--terragrunt-strict-include`                     | `--queue-strict-include` (deprecated)                     |
 | `--terragrunt-strict-validate`                    | `--strict-validate`                                       |
 | `--terragrunt-tfpath`                             | `--tf-path`                                               |
 | `--terragrunt-use-partial-parse-config-cache`     | `--use-partial-parse-config-cache`                        |
