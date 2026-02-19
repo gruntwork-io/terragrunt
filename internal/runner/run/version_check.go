@@ -131,7 +131,7 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 		}
 	}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(optsCopy), tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, tfRunOptsFromPkgOpts(optsCopy), tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}

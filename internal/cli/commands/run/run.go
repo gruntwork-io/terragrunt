@@ -163,7 +163,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {

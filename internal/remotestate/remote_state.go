@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -150,7 +151,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, tfRunOptsFromOpts(opts), args...)
 	if err != nil {
 		return "", err
 	}
@@ -178,5 +179,21 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), args...)
+	return tf.RunCommand(ctx, l, tfRunOptsFromOpts(opts), args...)
+}
+
+// tfRunOptsFromOpts constructs tf.RunOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func tfRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		HookData:                     opts,
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -89,4 +90,19 @@ func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.RunOptions {
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.
 func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provider {
 	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
+}
+
+// TFRunOptsFromOpts constructs tf.RunOptions from TerragruntOptions.
+func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		HookData:                     opts,
+	}
 }

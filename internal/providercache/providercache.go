@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -185,11 +186,13 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	runOpts *tf.RunOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	opts := runOpts.HookData.(*options.TerragruntOptions)
 
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
 
@@ -214,7 +217,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), args...)
+		return tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(opts), args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -264,7 +267,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	providerConstraints, err := getproviders.ParseProviderConstraints(opts, filepath.Dir(opts.TerragruntConfigPath))
+	providerConstraints, err := getproviders.ParseProviderConstraints(opts.TofuImplementation, filepath.Dir(opts.TerragruntConfigPath))
 	if err != nil {
 		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(opts.TerragruntConfigPath), err)
 
@@ -323,7 +326,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), args...)
+	return tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(cloneOpts), args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -449,7 +452,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 			errWriter := util.NewTrapWriter(opts.ErrWriter)
 			cloneOpts.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -58,7 +59,7 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(opts), terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {
