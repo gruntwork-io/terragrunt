@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -14,10 +15,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -96,39 +94,6 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 
 	return CleanPath(absPath), nil
-}
-
-func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
-	basePath, err := CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var errs []error
-
-	compiledGlobs := map[string]glob.Glob{}
-
-	for _, globPath := range globPaths {
-		canGlobPath, err := CanonicalPath(globPath, basePath)
-		if err != nil {
-			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlob, err := glob.Compile(canGlobPath, '/')
-		if err != nil {
-			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
-			continue
-		}
-
-		compiledGlobs[globPath] = compiledGlob
-	}
-
-	if len(errs) > 0 {
-		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
-	}
-
-	return compiledGlobs, nil
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
@@ -433,7 +398,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(
-	logger log.Logger,
+	l log.Logger,
 	source,
 	destination,
 	manifestFile string,
@@ -472,7 +437,7 @@ func CopyFolderContents(
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
@@ -490,14 +455,14 @@ func CopyFolderContents(
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(logger, destination, manifestFile)
-	if err := manifest.Clean(); err != nil {
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
 		return errors.New(err)
 	}
 
@@ -508,7 +473,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
-			logger.Warnf("Error closing manifest file: %v", err)
+			l.Warnf("Error closing manifest file: %v", err)
 		}
 	}(manifest)
 
@@ -542,7 +507,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -614,7 +579,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	// If destination exists, remove it first to avoid permission issues
 	// This is especially important when CAS creates read-only files
 	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil {
+		if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
 			return errors.New(err)
 		}
 	}
@@ -696,7 +661,6 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
 	ManifestFolder string
@@ -712,12 +676,12 @@ type fileManifestEntry struct {
 }
 
 // Clean will recursively remove all files specified in the manifest
-func (manifest *fileManifest) Clean() error {
-	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+func (manifest *fileManifest) Clean(l log.Logger) error {
+	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(manifestPath string) error {
+func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
@@ -731,11 +695,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
-			manifest.logger.Warnf("Error closing file %s: %v", name, err)
+			l.Warnf("Error closing file %s: %v", name, err)
 		}
 
 		if err := os.Remove(name); err != nil {
-			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
@@ -755,7 +719,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
 		} else {
@@ -798,8 +762,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors
@@ -1186,6 +1150,43 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
 
 	return fullPath, nil
+}
+
+// RelPathForLog returns a relative path suitable for logging.
+// If the path cannot be made relative, it returns the original path.
+// Paths that don't start with ".." get a "./" prefix for clarity.
+// If showAbsPath is true, the original targetPath is returned unchanged.
+func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
+	if showAbsPath {
+		return targetPath
+	}
+
+	if relPath, err := filepath.Rel(basePath, targetPath); err == nil {
+		if relPath == "." {
+			return targetPath
+		}
+
+		// Add "./" prefix for paths within the base directory for clarity
+		if !strings.HasPrefix(relPath, "..") {
+			return "." + string(filepath.Separator) + relPath
+		}
+
+		return relPath
+	}
+
+	return targetPath
+}
+
+// ResolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+// Returns the original path if symlink resolution fails.
+func ResolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }
 
 // MoveFile attempts to rename a file from source to destination, if this fails

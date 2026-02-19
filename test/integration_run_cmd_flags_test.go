@@ -121,5 +121,6 @@ func TestRunCmdConflictingCacheOptionsFails(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.Error(t, err)
-	assert.Contains(t, stderr, "--terragrunt-global-cache and --terragrunt-no-cache options cannot be used together")
+	assert.Contains(t, stderr, "The --terragrunt-global-cache and")
+	assert.Contains(t, stderr, "--terragrunt-no-cache options cannot be used together")
 }
