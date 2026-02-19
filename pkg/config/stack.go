@@ -25,7 +25,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -73,10 +72,8 @@ type Stack struct {
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
 // reads necessary values, and generates units and stacks in the target directory.
 // It handles the creation of required directories and returns any errors encountered.
-func GenerateStackFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
+func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
-
-	ctx, pctx := NewParsingContext(ctx, l, opts)
 
 	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
@@ -95,7 +92,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, opts *options.Terragru
 		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
 		noStackValidate: pctx.NoStackValidate,
-		stackConfigPath: opts.TerragruntStackConfigPath,
+		stackConfigPath: pctx.TerragruntStackConfigPath,
 	}
 
 	if err := generateUnits(ctx, l, genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
@@ -374,13 +371,11 @@ func isLocal(l log.Logger, workingDir, src string) bool {
 
 // ReadOutputs retrieves the OpenTofu/Terraform output JSON for this unit, converts it into a map of cty.Values,
 // and logs the operation for debugging. It returns early in case of any errors during retrieval or conversion.
-func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, unitDir string) (map[string]cty.Value, error) {
+func (u *Unit) ReadOutputs(ctx context.Context, l log.Logger, pctx *ParsingContext, unitDir string) (map[string]cty.Value, error) {
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	l.Debugf("Getting output from unit %s in %s", u.Name, unitDir)
 
-	ctx, parserCtx := NewParsingContext(ctx, l, opts)
-
-	jsonBytes, err := getOutputJSONWithCaching(ctx, parserCtx, l, configPath)
+	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, configPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -415,23 +410,21 @@ func ReadStackConfigFile(ctx context.Context, l log.Logger, pctx *ParsingContext
 func ReadStackConfigString(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	pctx *ParsingContext,
 	configPath string,
 	configString string,
 	values *cty.Value,
 ) (*StackConfig, error) {
-	ctx, parser := NewParsingContext(ctx, l, opts)
-
 	if values != nil {
-		parser = parser.WithValues(values)
+		pctx = pctx.WithValues(values)
 	}
 
-	hclFile, err := hclparse.NewParser(parser.ParserOptions...).ParseFromString(configString, configPath)
+	hclFile, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	return ParseStackConfig(ctx, l, parser, hclFile, values)
+	return ParseStackConfig(ctx, l, pctx, hclFile, values)
 }
 
 // ParseStackConfig parses the stack configuration from the given file and values.

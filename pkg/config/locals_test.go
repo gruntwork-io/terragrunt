@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -22,7 +23,7 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
 	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.NoError(t, err)
 
@@ -66,7 +67,7 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestMultiDeepReferenceConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
 	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.NoError(t, err)
 
@@ -104,7 +105,7 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestImpossibleConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 
@@ -123,7 +124,7 @@ func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 	file, err := hclparse.NewParser().ParseFromString(MultipleLocalsBlockConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 }

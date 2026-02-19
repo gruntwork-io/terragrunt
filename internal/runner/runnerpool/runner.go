@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
@@ -445,11 +446,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return err
 			}
 
+			childCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
+
 			cfg, err := config.ReadTerragruntConfig(
 				childCtx,
 				unitLogger,
-				unitOpts,
-				config.DefaultParserOptions(unitLogger, unitOpts.StrictControls),
+				pctx,
+				pctx.ParserOptions,
 			)
 			if err != nil {
 				return err

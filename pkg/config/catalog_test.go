@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -130,7 +131,8 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
 
 			l := logger.CreateLogger()
-			config, err := config.ReadCatalogConfig(t.Context(), l, opts)
+			_, catalogPctx := configbridge.NewParsingContext(t.Context(), l, opts)
+			config, err := config.ReadCatalogConfig(t.Context(), l, catalogPctx)
 
 			if tt.expectedErr == nil {
 				require.NoError(t, err)

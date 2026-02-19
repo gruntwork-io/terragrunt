@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -118,7 +119,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
 	filename := "../../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
 
@@ -177,7 +178,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
@@ -204,7 +205,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation
