@@ -723,10 +723,6 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 
 ## Visualizing the DAG
 
-<Aside type="note">
-This section shows the DAG shape, while command behavior (execution order, parallelism, and filtering) is documented in [`dag graph`](/docs/reference/cli/commands/dag/graph), [`list`](/docs/reference/cli/commands/list), and [`run`](/docs/reference/cli/commands/run).
-</Aside>
-
 To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command), or its equivalent `list --format=dot --dependencies --external` command.
 
 The graph is output in DOT format. The typical program used to render this file format is GraphViz, but many web services are available that can do this as well.
