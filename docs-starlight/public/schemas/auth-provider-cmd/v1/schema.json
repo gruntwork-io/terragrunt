@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://docs.terragrunt.com/schemas/auth-provider-cmd/v1/schema.json",
+  "$id": "https://terragrunt.gruntwork.io/schemas/auth-provider-cmd/v1/schema.json",
   "title": "Terragrunt Auth Provider Command Response Schema",
   "description": "Schema for the JSON response expected from an auth provider command",
   "type": "object",
@@ -22,7 +22,10 @@
           "description": "AWS session token (optional)"
         }
       },
-      "required": ["ACCESS_KEY_ID", "SECRET_ACCESS_KEY"],
+      "required": [
+        "ACCESS_KEY_ID",
+        "SECRET_ACCESS_KEY"
+      ],
       "additionalProperties": false
     },
     "awsRole": {
@@ -47,7 +50,9 @@
           "description": "Web identity token for OIDC-based role assumption"
         }
       },
-      "required": ["roleARN"],
+      "required": [
+        "roleARN"
+      ],
       "additionalProperties": false
     },
     "envs": {

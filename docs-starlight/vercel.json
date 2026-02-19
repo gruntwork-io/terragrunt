@@ -2,6 +2,23 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "framework": "astro",
+  "redirects": [
+    {
+      "source": "/lp/:slug*",
+      "destination": "https://terragrunt.com/lp/:slug*",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-ambassador/:slug*",
+      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-scale/:slug*",
+      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/pagefind/(.*)",
