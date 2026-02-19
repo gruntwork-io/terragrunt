@@ -17,7 +17,6 @@ import (
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -466,9 +465,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	}
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions()
-
-	gcsClient, err := gcsbackend.NewClient(t.Context(), l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(t.Context(), l, extGCSCfg, nil)
 	require.NoError(t, err, "Error creating GCS client")
 
 	// verify the bucket exists
@@ -498,9 +495,7 @@ func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 	}
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions()
-
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, nil)
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -535,9 +530,7 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 	}
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions()
-
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, nil)
 	require.NoError(t, err, "Error creating GCS client")
 
 	bucket := gcsClient.Bucket(bucketName)
@@ -579,9 +572,7 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions()
-
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, nil)
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
@@ -607,9 +598,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
 	l := logger.CreateLogger()
-	opts := options.NewTerragruntOptions()
-
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, nil)
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)
