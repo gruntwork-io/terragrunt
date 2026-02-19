@@ -2,6 +2,21 @@
 // multiple packages (options, config, awshelper, etc.).
 package iam
 
+import (
+	"fmt"
+	"time"
+)
+
+const (
+	// DefaultAssumeRoleDuration is the default session duration in seconds for IAM role assumption.
+	DefaultAssumeRoleDuration = 3600
+)
+
+// GetDefaultAssumeRoleSessionName returns a unique session name for IAM role assumption.
+func GetDefaultAssumeRoleSessionName() string {
+	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
+}
+
 // RoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type RoleOptions struct {
 	RoleARN               string

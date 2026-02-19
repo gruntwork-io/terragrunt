@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -255,10 +254,10 @@ func AssumeIamRole(
 
 	roleSessionName := iamRoleOpts.AssumeRoleSessionName
 	if roleSessionName == "" {
-		roleSessionName = options.GetDefaultIAMAssumeRoleSessionName()
+		roleSessionName = iam.GetDefaultAssumeRoleSessionName()
 	}
 
-	duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+	duration := time.Duration(iam.DefaultAssumeRoleDuration) * time.Second
 	if iamRoleOpts.AssumeRoleDuration > 0 {
 		duration = time.Duration(iamRoleOpts.AssumeRoleDuration) * time.Second
 	}
@@ -414,7 +413,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 			return aws.Credentials{}, err
 		}
 
-		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+		duration := time.Duration(iam.DefaultAssumeRoleDuration) * time.Second
 		if iamRoleOptions.AssumeRoleDuration > 0 {
 			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
 		}
@@ -451,7 +450,7 @@ func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.Role
 			roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 		}
 
-		duration := time.Duration(options.DefaultIAMAssumeRoleDuration) * time.Second
+		duration := time.Duration(iam.DefaultAssumeRoleDuration) * time.Second
 		if iamRoleOptions.AssumeRoleDuration > 0 {
 			duration = time.Duration(iamRoleOptions.AssumeRoleDuration) * time.Second
 		}
