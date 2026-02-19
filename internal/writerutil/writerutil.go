@@ -1,3 +1,4 @@
+// Package writerutil provides utilities for wrapping and unwrapping io.Writer instances.
 package writerutil
 
 import "io"

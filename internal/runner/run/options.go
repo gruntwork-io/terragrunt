@@ -292,18 +292,23 @@ func (o *Options) DataDir() string {
 // shellRunOptions builds a *shell.RunOptions from this Options.
 func (o *Options) shellRunOptions() *shell.RunOptions {
 	return &shell.RunOptions{
-		WorkingDir:             o.WorkingDir,
-		Writer:                 o.Writer,
-		ErrWriter:              o.ErrWriter,
-		Env:                    o.Env,
-		TFPath:                 o.TFPath,
-		Engine:                 o.Engine,
-		Experiments:            o.Experiments,
-		NoEngine:               o.NoEngine,
-		Telemetry:              o.Telemetry,
-		RootWorkingDir:         o.RootWorkingDir,
-		LogShowAbsPaths:        o.LogShowAbsPaths,
-		LogDisableErrorSummary: o.LogDisableErrorSummary,
+		WorkingDir:              o.WorkingDir,
+		Writer:                  o.Writer,
+		ErrWriter:               o.ErrWriter,
+		Env:                     o.Env,
+		TFPath:                  o.TFPath,
+		Engine:                  o.Engine,
+		Experiments:             o.Experiments,
+		NoEngine:                o.NoEngine,
+		Telemetry:               o.Telemetry,
+		RootWorkingDir:          o.RootWorkingDir,
+		LogShowAbsPaths:         o.LogShowAbsPaths,
+		LogDisableErrorSummary:  o.LogDisableErrorSummary,
+		Headless:                o.Headless,
+		ForwardTFStdout:         o.ForwardTFStdout,
+		EngineCachePath:         o.EngineCachePath,
+		EngineLogLevel:          o.EngineLogLevel,
+		EngineSkipChecksumCheck: o.EngineSkipChecksumCheck,
 	}
 }
 
@@ -322,6 +327,30 @@ func (o *Options) tfRunOptions() *tf.RunOptions {
 	}
 }
 
+// shellRunOptsFromPkgOpts constructs shell.RunOptions from *options.TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromPkgOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
+}
+
 // tfRunOptsFromPkgOpts constructs tf.RunOptions from *options.TerragruntOptions.
 // This is a package-level helper to avoid an import cycle with configbridge.
 func tfRunOptsFromPkgOpts(opts *options.TerragruntOptions) *tf.RunOptions {
@@ -333,7 +362,7 @@ func tfRunOptsFromPkgOpts(opts *options.TerragruntOptions) *tf.RunOptions {
 		JSONLogFormat:                opts.JSONLogFormat,
 		Headless:                     opts.Headless,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		ShellRunOpts:                 shellRunOptsFromPkgOpts(opts),
 		HookData:                     opts,
 	}
 }

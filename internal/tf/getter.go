@@ -71,8 +71,8 @@ type RegistryServicePath struct {
 // GH issue: https://github.com/gruntwork-io/terragrunt/issues/1772
 type RegistryGetter struct {
 	client             *getter.Client
-	TofuImplementation tfimpl.Type
 	Logger             log.Logger
+	TofuImplementation tfimpl.Type
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for

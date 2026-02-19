@@ -78,7 +78,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		ctx,
 		l,
 		opts.Env,
-		externalcmd.NewProvider(l, opts.AuthProviderCmd, shell.RunOptionsFromOpts(opts)),
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
 	}

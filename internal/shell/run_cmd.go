@@ -18,7 +18,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
@@ -50,29 +49,6 @@ type RunOptions struct {
 	EngineSkipChecksumCheck bool
 	LogShowAbsPaths         bool
 	LogDisableErrorSummary  bool
-}
-
-// RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
-func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
-	return &RunOptions{
-		WorkingDir:              opts.WorkingDir,
-		Writer:                  opts.Writer,
-		ErrWriter:               opts.ErrWriter,
-		Env:                     opts.Env,
-		TFPath:                  opts.TFPath,
-		Engine:                  opts.Engine,
-		Experiments:             opts.Experiments,
-		NoEngine:                opts.NoEngine,
-		Telemetry:               opts.Telemetry,
-		RootWorkingDir:          opts.RootWorkingDir,
-		LogShowAbsPaths:         opts.LogShowAbsPaths,
-		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
-		Headless:                opts.Headless,
-		ForwardTFStdout:         opts.ForwardTFStdout,
-		EngineCachePath:         opts.EngineCachePath,
-		EngineLogLevel:          opts.EngineLogLevel,
-		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
-	}
 }
 
 // RunCommand runs the given shell command.

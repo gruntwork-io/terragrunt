@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -42,7 +41,7 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	// We need to get the credentials from auth-provider-cmd at the very beginning,
 	// since the locals block may contain `get_aws_account_id()` func.
 	credsGetter := creds.NewGetter()
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, externalcmd.NewProvider(l, opts.AuthProviderCmd, shell.RunOptionsFromOpts(opts))); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, l, opts.Env, externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts))); err != nil {
 		return nil, err
 	}
 

@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package shell
+package shell_test
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +37,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata\\test_sigint_wait.bat"
 
 	go func() {
-		_, err := RunCommandWithOutput(ctx, l, RunOptionsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

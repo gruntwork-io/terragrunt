@@ -67,7 +67,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shellRunOptsFromOpts(opts), opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: initArgs})
@@ -86,7 +86,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shellRunOptsFromOpts(opts), opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: args})
@@ -266,4 +266,28 @@ func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, argumen
 	}
 
 	return projectConfigFile, nil
+}
+
+// shellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
 }
