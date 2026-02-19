@@ -231,48 +231,6 @@ func (w *Worktrees) Stacks() StackDiff {
 	return stackDiff
 }
 
-// expandDiffPaths processes a list of changed paths from a worktree diff, creating path filter expressions
-// for discovered units and stacks. primaryExprs receives filters for config files (units/stacks),
-// while fallbackExprs receives filters for non-config files adjacent to units in the "to" worktree.
-func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs *filter.Expressions) error {
-	for _, path := range paths {
-		dir := filepath.Dir(path)
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			expr, err := filter.NewPathFilter(dir)
-			if err != nil {
-				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
-			}
-
-			*primaryExprs = append(*primaryExprs, expr)
-		case config.DefaultStackFile:
-			dirExpr, err := filter.NewPathFilter(dir)
-			if err != nil {
-				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
-			}
-
-			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
-			if err != nil {
-				return errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
-			}
-
-			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
-		default:
-			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				expr, err := filter.NewPathFilter(dir)
-				if err != nil {
-					return errors.Errorf("failed to create path filter for %s: %w", dir, err)
-				}
-
-				*fallbackExprs = append(*fallbackExprs, expr)
-			}
-		}
-	}
-
-	return nil
-}
-
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
 func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
@@ -505,6 +463,48 @@ func NewWorktrees(
 	}
 
 	return worktrees, outerErr
+}
+
+// expandDiffPaths processes a list of changed paths from a worktree diff, creating path filter expressions
+// for discovered units and stacks. primaryExprs receives filters for config files (units/stacks),
+// while fallbackExprs receives filters for non-config files adjacent to units in the "to" worktree.
+func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs *filter.Expressions) error {
+	for _, path := range paths {
+		dir := filepath.Dir(path)
+
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			*primaryExprs = append(*primaryExprs, expr)
+		case config.DefaultStackFile:
+			dirExpr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
+			}
+
+			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
+		default:
+			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				*fallbackExprs = append(*fallbackExprs, expr)
+			}
+		}
+	}
+
+	return nil
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.

@@ -8,24 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func mustPath(t *testing.T, value string) *filter.PathExpression {
-	t.Helper()
-
-	expr, err := filter.NewPathFilter(value)
-	require.NoError(t, err)
-
-	return expr
-}
-
-func mustAttr(t *testing.T, key, value string) *filter.AttributeExpression {
-	t.Helper()
-
-	expr, err := filter.NewAttributeExpression(key, value)
-	require.NoError(t, err)
-
-	return expr
-}
-
 func TestRestrictToStacks(t *testing.T) {
 	t.Parallel()
 
@@ -116,4 +98,22 @@ func TestRestrictToStacks(t *testing.T) {
 			assert.Equal(t, tt.expected, expr.IsRestrictedToStacks())
 		})
 	}
+}
+
+func mustPath(t *testing.T, value string) *filter.PathExpression {
+	t.Helper()
+
+	expr, err := filter.NewPathFilter(value)
+	require.NoError(t, err)
+
+	return expr
+}
+
+func mustAttr(t *testing.T, key, value string) *filter.AttributeExpression {
+	t.Helper()
+
+	expr, err := filter.NewAttributeExpression(key, value)
+	require.NoError(t, err)
+
+	return expr
 }
