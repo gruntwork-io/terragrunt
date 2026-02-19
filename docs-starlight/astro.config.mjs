@@ -261,6 +261,10 @@ export default defineConfig({
     }),
     sitemap(),
   ],
+  // Note that some redirects are handled in vercel.json instead.
+  //
+  // This is because Astro won't do dynamic redirects for external destinations.
+  // It's faster to have Vercel handle it anyways.
   redirects: {
     // Catch-all redirect from /docs/* to /*
     "/docs/[...slug]": "/[...slug]",
@@ -274,11 +278,8 @@ export default defineConfig({
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
 
     // Redirects to external sites.
-    "/lp/[...slug]": "https://terragrunt.com/lp/[...slug]",
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-ambassador/[...slug]": "https://terragrunt.com/terragrunt-ambassador/[...slug]",
     "/terragrunt-scale": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-scale/[...slug]": "https://terragrunt.com/terragrunt-ambassador/[...slug]",
     "/contact/": "https://gruntwork.io/contact",
     "/commercial-support/": "https://gruntwork.io/support",
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",
