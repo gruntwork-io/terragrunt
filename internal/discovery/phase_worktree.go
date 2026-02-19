@@ -144,7 +144,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
-			status, reason, graphIdx = input.Classifier.Classify(l, c, classCtx)
+			status, reason, graphIdx = input.Classifier.Classify(c, classCtx)
 		}
 
 		result := DiscoveryResult{

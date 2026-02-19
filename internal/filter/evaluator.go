@@ -73,12 +73,7 @@ func evaluatePathFilter(filter *PathExpression, components component.Components)
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		matches, err := matchPath(c, filter)
-		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to match path pattern: "+filter.Value, err)
-		}
-
-		if matches {
+		if matchPath(c, filter) {
 			result = append(result, c)
 		}
 	}

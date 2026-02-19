@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -398,7 +397,7 @@ func TestClassifier_Classify(t *testing.T) {
 				comp = newTestComponent(tt.componentPath)
 			}
 
-			status, reason, idx := classifier.Classify(logger.CreateLogger(), comp, filter.ClassificationContext{
+			status, reason, idx := classifier.Classify(comp, filter.ClassificationContext{
 				ParseDataAvailable: tt.parseDataAvailable,
 			})
 
