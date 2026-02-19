@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
+	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -41,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -957,7 +957,7 @@ func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_default_retryable_errors", attrs, func(childCtx context.Context) error {
-		result = options.DefaultRetryableErrors
+		result = retry.DefaultRetryableErrors
 		return nil
 	})
 

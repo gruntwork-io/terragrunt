@@ -61,7 +61,7 @@ func CloneUnitOptions(
 	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
 	// so each unit caches to its own .terragrunt-cache next to the config.
 	if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
-		_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+		_, unitDefaultDownloadDir, err := util.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -80,7 +80,7 @@ func CloneUnitOptions(
 func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *component.Unit) (*options.TerragruntOptions, log.Logger, error) {
 	var stackDefaultDownloadDir string
 	if stackOpts != nil {
-		_, stackDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stackOpts.TerragruntConfigPath)
+		_, stackDefaultDownloadDir, _ = util.DefaultWorkingAndDownloadDirs(stackOpts.TerragruntConfigPath)
 	}
 
 	// Compute config path from already-canonical unit.Path() + unit.ConfigFile()
