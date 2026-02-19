@@ -92,7 +92,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external`                                |
 | `--terragrunt-include-dir`                        | `--queue-include-dir`                                     |
 | `--terragrunt-include-external-dependencies`      | `--queue-include-external`                                |
-| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules`                             |
+| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules` (deprecated)                |
 | `--terragrunt-json-out-dir`                       | `--json-out-dir`                                          |
 | `--terragrunt-json-out`                           | `--out`                                                   |
 | `--terragrunt-log-custom-format`                  | `--log-custom-format`                                     |
