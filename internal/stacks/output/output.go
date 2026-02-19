@@ -9,7 +9,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -269,12 +268,7 @@ func buildWorktreesIfNeeded(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (*worktrees.Worktrees, error) {
-	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return nil, errors.Errorf("failed to parse filters: %w", err)
-	}
-
-	gitFilters := filters.UniqueGitFilters()
+	gitFilters := opts.Filters.UniqueGitFilters()
 	if len(gitFilters) == 0 {
 		return nil, nil
 	}

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -375,26 +376,50 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.TFPath = filepath.ToSlash(opts.TFPath)
 
+	var fileFilterStrings []string
+
 	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
+	fileFilterStrings = append(fileFilterStrings, excludeFiltersFromFile...)
 
-	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
+	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr
 		}
 
-		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
+		fileFilterStrings = append(fileFilterStrings, filtersFromFile...)
 	}
 
-	// Sort and compact opts.FilterQueries to make them unique
-	slices.Sort(opts.FilterQueries)
-	opts.FilterQueries = slices.Compact(opts.FilterQueries)
+	if len(fileFilterStrings) > 0 {
+		parsed, parseErr := filter.ParseFilterQueries(l, fileFilterStrings)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		opts.Filters = append(opts.Filters, parsed...)
+	}
+
+	// Deduplicate filters by their string representation
+	seen := make(map[string]struct{}, len(opts.Filters))
+	deduped := make(filter.Filters, 0, len(opts.Filters))
+
+	for _, f := range opts.Filters {
+		key := f.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		seen[key] = struct{}{}
+
+		deduped = append(deduped, f)
+	}
+
+	opts.Filters = deduped
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

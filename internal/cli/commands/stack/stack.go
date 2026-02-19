@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
@@ -46,16 +45,16 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 	}
 
-	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return errors.Errorf("failed to parse filters: %w", err)
-	}
+	filters := opts.Filters
 
 	gitFilters := filters.UniqueGitFilters()
 
 	// Only create worktrees when git filter expressions are present
 	var wts *worktrees.Worktrees
+
 	if len(gitFilters) > 0 {
+		var err error
+
 		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
