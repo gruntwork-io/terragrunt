@@ -72,7 +72,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-debug`                              | `--inputs-debug`                                          |
 | `--terragrunt-diff`                               | `--diff`                                                  |
 | `--terragrunt-disable-bucket-update`              | `--disable-bucket-update`                                 |
-| `--terragrunt-disable-command-validation`         | `--disable-command-validation`                            |
+| `--terragrunt-disable-command-validation`         | `--disable-command-validation` (deprecated)               |
 | `--terragrunt-download-dir`                       | `--download-dir`                                          |
 | `--terragrunt-exclude-dir`                        | `--queue-exclude-dir`                                     |
 | `--terragrunt-excludes-file`                      | `--queue-excludes-file`                                   |
@@ -100,7 +100,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-log-format`                         | `--log-format`                                            |
 | `--terragrunt-log-level`                          | `--log-level`                                             |
 | `--terragrunt-log-show-abs-paths`                 | `--log-show-abs-paths`                                    |
-| `--terragrunt-modules-that-include`               | `--units-that-include`                                    |
+| `--terragrunt-modules-that-include`               | `--units-that-include` (deprecated)                       |
 | `--terragrunt-no-auto-approve`                    | `--no-auto-approve`                                       |
 | `--terragrunt-no-auto-init`                       | `--no-auto-init`                                          |
 | `--terragrunt-no-auto-retry`                      | `--no-auto-retry`                                         |
