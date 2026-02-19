@@ -89,7 +89,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, opts, r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, run.NewOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
@@ -165,7 +165,7 @@ func (runner *UnitRunner) Run(
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := run.Run(ctx, jsonLogger, jsonOptions, adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, run.NewOptions(jsonOptions), adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

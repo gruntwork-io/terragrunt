@@ -2,8 +2,6 @@ package run
 
 import (
 	"fmt"
-
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Custom error types
@@ -27,12 +25,13 @@ func (name WrongTofuCommand) Error() string {
 }
 
 type BackendNotDefined struct {
-	Opts        *options.TerragruntOptions
+	ConfigPath  string
+	WorkingDir  string
 	BackendType string
 }
 
 func (err BackendNotDefined) Error() string {
-	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.Opts.TerragruntConfigPath, err.Opts.WorkingDir, err.BackendType)
+	return fmt.Sprintf("Found remote_state settings in %s but no backend block in the Terraform code in %s. You must define a backend block (it can be empty!) in your Terraform code or your remote state settings will have no effect! It should look something like this:\n\nterraform {\n  backend \"%s\" {}\n}\n\n", err.ConfigPath, err.WorkingDir, err.BackendType)
 }
 
 type NoTerraformFilesFound string
@@ -42,11 +41,11 @@ func (path NoTerraformFilesFound) Error() string {
 }
 
 type ModuleIsProtected struct {
-	Opts *options.TerragruntOptions
+	ConfigPath string
 }
 
 func (err ModuleIsProtected) Error() string {
-	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.Opts.TerragruntConfigPath)
+	return fmt.Sprintf("Unit is protected by the prevent_destroy flag in %s. Set it to false or remove it to allow destruction of the unit.", err.ConfigPath)
 }
 
 // Legacy retry error removed in favor of error handling via options.Errors

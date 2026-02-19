@@ -136,7 +136,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}()
 
-	runErr = run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, run.NewOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }

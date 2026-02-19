@@ -17,8 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -59,10 +57,6 @@ type ParsingContext struct {
 	PredefinedFunctions map[string]function.Function
 
 	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
-
-	// OutputRunFunc runs terraform to fetch dependency outputs.
-	// Set by the bridge layer; nil means dependency output fetching via run is unavailable.
-	OutputRunFunc func(ctx context.Context, l log.Logger, pctx *ParsingContext, stdoutWriter io.Writer, runCfg *runcfg.RunConfig, credsGetter *creds.Getter) error
 
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
