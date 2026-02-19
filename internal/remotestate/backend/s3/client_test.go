@@ -13,9 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +28,7 @@ const defaultTestRegion = "us-east-1"
 func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("aws_test")
-	require.NoError(t, err, "Error creating mockOptions")
+	mockOpts := &backend.Options{}
 
 	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
 		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
@@ -39,7 +38,7 @@ func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 
 	l := logger.CreateLogger()
 
-	client, err := s3backend.NewClient(t.Context(), l, extS3Cfg, mockOptions)
+	client, err := s3backend.NewClient(t.Context(), l, extS3Cfg, mockOpts)
 	require.NoError(t, err, "Error creating S3 client")
 
 	return client

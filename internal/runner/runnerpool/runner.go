@@ -442,7 +442,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, unitOpts)
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, configbridge.ShellRunOptsFromOpts(unitOpts))
 			if err != nil {
 				return err
 			}

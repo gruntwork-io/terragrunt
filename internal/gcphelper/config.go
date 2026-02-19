@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
@@ -33,9 +32,9 @@ func CreateGCSClient(
 	ctx context.Context,
 	l log.Logger,
 	config *GCPSessionConfig,
-	opts *options.TerragruntOptions,
+	env map[string]string,
 ) (*storage.Client, error) {
-	clientOpts, err := CreateGCPConfig(ctx, config, opts)
+	clientOpts, err := CreateGCPConfig(ctx, config, env)
 	if err != nil {
 		return nil, err
 	}
@@ -48,15 +47,15 @@ func CreateGCSClient(
 	return gcsClient, nil
 }
 
-// CreateGCPConfig returns GCP client options for the given GCPSessionConfig and TerragruntOptions.
+// CreateGCPConfig returns GCP client options for the given GCPSessionConfig and environment variables.
 func CreateGCPConfig(
 	ctx context.Context,
 	gcpCfg *GCPSessionConfig,
-	opts *options.TerragruntOptions,
+	env map[string]string,
 ) ([]option.ClientOption, error) {
 	var clientOpts []option.ClientOption
 
-	if envCreds := createGCPCredentialsFromEnv(opts); envCreds != nil {
+	if envCreds := createGCPCredentialsFromEnv(env); envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
@@ -67,15 +66,15 @@ func CreateGCPConfig(
 			AccessToken: gcpCfg.AccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if oauthAccessToken := opts.Env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
+	} else if oauthAccessToken := env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
 		// Use OAuth access token from environment
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
 		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if opts.Env["GOOGLE_CREDENTIALS"] != "" {
+	} else if env["GOOGLE_CREDENTIALS"] != "" {
 		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
-		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, opts)
+		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, env)
 		if err != nil {
 			return nil, err
 		}
@@ -102,15 +101,15 @@ func CreateGCPConfig(
 	return clientOpts, nil
 }
 
-// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in opts.Env
+// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable.
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientOption {
-	if opts == nil || opts.Env == nil {
+func createGCPCredentialsFromEnv(env map[string]string) option.ClientOption {
+	if env == nil {
 		return nil
 	}
 
-	credentialsFile := opts.Env["GOOGLE_APPLICATION_CREDENTIALS"]
+	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil
 	}
@@ -120,7 +119,7 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientO
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
-func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *options.TerragruntOptions) (option.ClientOption, error) {
+func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, env map[string]string) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
 		PrivateKey   string `json:"private_key"`
@@ -129,7 +128,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *opt
 	}{}
 
 	// to mirror how Terraform works, we have to accept either the file path or the contents
-	creds := opts.Env["GOOGLE_CREDENTIALS"]
+	creds := env["GOOGLE_CREDENTIALS"]
 
 	contents, err := util.FileOrData(creds)
 	if err != nil {

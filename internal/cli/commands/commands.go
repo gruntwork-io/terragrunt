@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/stack"
 	versioncmd "github.com/gruntwork-io/terragrunt/internal/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
@@ -214,10 +215,15 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, err := run.PopulateTFVersion(ctx, l, opts)
+		runOpts := configbridge.NewRunOptions(opts)
+
+		_, terraformVersion, tfImpl, err := run.PopulateTFVersion(ctx, l, runOpts)
 		if err != nil {
 			return err
 		}
+
+		opts.TerraformVersion = terraformVersion
+		opts.TofuImplementation = tfImpl
 	}
 
 	terraformVersion := opts.TerraformVersion

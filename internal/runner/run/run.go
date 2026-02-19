@@ -138,7 +138,7 @@ func Run(
 
 	updatedOpts := opts
 
-	sourceURL, err := runcfg.GetTerraformSourceURL(opts.toTerragruntOptions(), cfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
 	if err != nil {
 		return err
 	}
@@ -286,7 +286,7 @@ func runTerragruntWithConfig(
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
 			// Use directory from OriginalTerragruntConfigPath to copy locks since WorkingDir point to cache directory
-			lockFileError = runcfg.CopyLockFile(l, opts.toTerragruntOptions(), opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
+			lockFileError = runcfg.CopyLockFile(l, opts.RootWorkingDir, opts.LogShowAbsPaths, opts.WorkingDir, filepath.Dir(opts.OriginalTerragruntConfigPath))
 		}
 
 		// If command failed, log a helpful message
@@ -519,7 +519,7 @@ func remoteStateNeedsInit(
 		return false, nil
 	}
 
-	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.toTerragruntOptions()); err != nil || !ok {
+	if ok, err := remoteState.NeedsBootstrap(ctx, l, opts.remoteStateOpts()); err != nil || !ok {
 		return false, err
 	}
 
@@ -619,7 +619,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *Options, 
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.toTerragruntOptions()); err != nil {
+	if err := cfg.RemoteState.Bootstrap(ctx, l, opts.remoteStateOpts()); err != nil {
 		return err
 	}
 

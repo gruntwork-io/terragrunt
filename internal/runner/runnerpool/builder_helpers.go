@@ -267,24 +267,29 @@ func checkUnitVersionConstraints(
 		l = unitLogger
 	}
 
-	_, err := run.PopulateTFVersion(ctx, l, unitOpts)
+	runOpts := configbridge.NewRunOptions(unitOpts)
+
+	_, terraformVersion, tfImpl, err := run.PopulateTFVersion(ctx, l, runOpts)
 	if err != nil {
 		return errors.Errorf("failed to populate Terraform version for unit %s: %w", unit.DisplayPath(), err)
 	}
+
+	unitOpts.TerraformVersion = terraformVersion
+	unitOpts.TofuImplementation = tfImpl
 
 	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
 	if unitConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = unitConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersion(terraformVersionConstraint, unitOpts); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(unitOpts.TerraformVersion, terraformVersionConstraint); err != nil {
 		return errors.Errorf("Terraform version check failed for unit %s: %w", unit.DisplayPath(), err)
 	}
 
 	if unitConfig.TerragruntVersionConstraint != "" {
-		if err := run.CheckTerragruntVersion(
+		if err := run.CheckTerragruntVersionMeetsConstraint(
+			unitOpts.TerragruntVersion,
 			unitConfig.TerragruntVersionConstraint,
-			unitOpts,
 		); err != nil {
 			return errors.Errorf("Terragrunt version check failed for unit %s: %w", unit.DisplayPath(), err)
 		}

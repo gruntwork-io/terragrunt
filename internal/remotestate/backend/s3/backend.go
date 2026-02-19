@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const BackendName = "s3"
@@ -32,7 +31,7 @@ func NewBackend() *Backend {
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist
-func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	cfg := Config(backendConfig).Normalize(l)
 
 	extS3Cfg, err := cfg.ExtendedS3Config(l)
@@ -69,7 +68,7 @@ func (backend *Backend) Bootstrap(
 	ctx context.Context,
 	l log.Logger,
 	backendConfig backend.Config,
-	opts *options.TerragruntOptions,
+	opts *backend.Options,
 ) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
@@ -135,7 +134,7 @@ func (backend *Backend) Bootstrap(
 }
 
 // IsVersionControlEnabled returns true if version control for s3 bucket is enabled.
-func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return false, err
@@ -153,7 +152,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 // Migrate copies the s3 bucket object located at src config to dst config and deletes the src object.
 // Creates a new DynamoDB table item for dst config and deletes the table item from the src config.
-func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	srcExtS3Cfg, err := Config(srcBackendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
@@ -199,7 +198,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 }
 
 // Delete deletes the remote state specified in the given config.
-func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
@@ -240,7 +239,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 }
 
 // DeleteBucket deletes the entire bucket specified in the given config.
-func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err

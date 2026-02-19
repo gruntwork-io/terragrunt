@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"google.golang.org/api/iterator"
 )
 
@@ -35,11 +34,11 @@ func NewClient(
 	ctx context.Context,
 	l log.Logger,
 	config *ExtendedRemoteStateConfigGCS,
-	opts *options.TerragruntOptions,
+	env map[string]string,
 ) (*Client, error) {
 	gcpConfig := config.GetGCPSessionConfig()
 
-	gcsClient, err := gcphelper.CreateGCSClient(ctx, l, gcpConfig, opts)
+	gcsClient, err := gcphelper.CreateGCSClient(ctx, l, gcpConfig, env)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +53,7 @@ func NewClient(
 
 // CreateGCSBucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
-func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) CreateGCSBucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
 	if client.DoesGCSBucketExist(ctx, bucketName) {
 		return nil
 	}

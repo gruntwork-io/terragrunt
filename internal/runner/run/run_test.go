@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -74,7 +75,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts.Env = tc.envVarsInOpts
 
-			runOpts := run.NewOptions(opts)
+			runOpts := configbridge.NewRunOptions(opts)
 
 			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
@@ -167,7 +168,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(run.NewOptions(opts))
+			err = run.CheckFolderContainsTerraformCode(configbridge.NewRunOptions(opts))
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -348,7 +349,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, run.NewOptions(tc.options), &config)
+		out := run.FilterTerraformExtraArgs(l, configbridge.NewRunOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }

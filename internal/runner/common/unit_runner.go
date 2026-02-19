@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -89,7 +90,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := run.Run(ctx, l, run.NewOptions(opts), r, cfg, credsGetter)
+	runErr := run.Run(ctx, l, configbridge.NewRunOptions(opts), r, cfg, credsGetter)
 
 	// Store the unit exit code in the global map using the unit path as key
 	// (matches key used in run_cmd.go via filepath.Dir(opts.OriginalTerragruntConfigPath))
@@ -166,7 +167,7 @@ func (runner *UnitRunner) Run(
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := run.Run(ctx, jsonLogger, run.NewOptions(jsonOptions), adhocReport, cfg, credsGetter); err != nil {
+		if err := run.Run(ctx, jsonLogger, configbridge.NewRunOptions(jsonOptions), adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 
