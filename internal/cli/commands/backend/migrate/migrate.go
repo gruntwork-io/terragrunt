@@ -80,7 +80,7 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	}
 
 	if !opts.ForceBackendMigrate {
-		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcOpts)
+		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -90,5 +90,5 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, srcOpts, dstOpts, dstRemoteState)
+	return srcRemoteState.Migrate(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts), configbridge.RemoteStateOptsFromOpts(dstOpts), dstRemoteState)
 }

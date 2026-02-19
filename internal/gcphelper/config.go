@@ -8,8 +8,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/impersonate"
@@ -28,14 +26,85 @@ type GCPSessionConfig struct {
 	ImpersonateServiceAccountDelegates []string
 }
 
-// CreateGCSClient creates a GCS client using the provided GCP configuration.
-func CreateGCSClient(
-	ctx context.Context,
-	l log.Logger,
-	config *GCPSessionConfig,
-	opts *options.TerragruntOptions,
-) (*storage.Client, error) {
-	clientOpts, err := CreateGCPConfig(ctx, config, opts)
+// GCPConfigBuilder builds GCP client options using the builder pattern.
+// Use NewGCPConfigBuilder to create, chain With* methods for optional parameters, then call Build().
+type GCPConfigBuilder struct {
+	sessionConfig *GCPSessionConfig
+	env           map[string]string
+}
+
+// NewGCPConfigBuilder creates a new builder for GCP config.
+func NewGCPConfigBuilder() *GCPConfigBuilder {
+	return &GCPConfigBuilder{
+		env: make(map[string]string),
+	}
+}
+
+// WithSessionConfig sets the GCP session configuration (credentials, access token, impersonation, etc.).
+func (b *GCPConfigBuilder) WithSessionConfig(cfg *GCPSessionConfig) *GCPConfigBuilder {
+	b.sessionConfig = cfg
+	return b
+}
+
+// WithEnv sets environment variables used for credential resolution.
+func (b *GCPConfigBuilder) WithEnv(env map[string]string) *GCPConfigBuilder {
+	b.env = env
+	return b
+}
+
+// Build creates the GCP client options from the builder's configuration.
+func (b *GCPConfigBuilder) Build(ctx context.Context) ([]option.ClientOption, error) {
+	var clientOpts []option.ClientOption
+
+	if envCreds := createGCPCredentialsFromEnv(b.env); envCreds != nil {
+		clientOpts = append(clientOpts, envCreds)
+	} else if b.sessionConfig != nil && b.sessionConfig.Credentials != "" {
+		// Use credentials file from config
+		clientOpts = append(clientOpts, option.WithCredentialsFile(b.sessionConfig.Credentials))
+	} else if b.sessionConfig != nil && b.sessionConfig.AccessToken != "" {
+		// Use access token from config
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: b.sessionConfig.AccessToken,
+		})
+		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
+	} else if oauthAccessToken := b.env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
+		// Use OAuth access token from environment
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: oauthAccessToken,
+		})
+		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
+	} else if b.env["GOOGLE_CREDENTIALS"] != "" {
+		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
+		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, b.env)
+		if err != nil {
+			return nil, err
+		}
+
+		if clientOpt != nil {
+			clientOpts = append(clientOpts, clientOpt)
+		}
+	}
+
+	// Handle service account impersonation
+	if b.sessionConfig != nil && b.sessionConfig.ImpersonateServiceAccount != "" {
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: b.sessionConfig.ImpersonateServiceAccount,
+			Scopes:          []string{storage.ScopeFullControl},
+			Delegates:       b.sessionConfig.ImpersonateServiceAccountDelegates,
+		})
+		if err != nil {
+			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
+		}
+
+		clientOpts = append(clientOpts, option.WithTokenSource(ts))
+	}
+
+	return clientOpts, nil
+}
+
+// BuildGCSClient creates a GCS storage client from the builder's configuration.
+func (b *GCPConfigBuilder) BuildGCSClient(ctx context.Context) (*storage.Client, error) {
+	clientOpts, err := b.Build(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,69 +117,15 @@ func CreateGCSClient(
 	return gcsClient, nil
 }
 
-// CreateGCPConfig returns GCP client options for the given GCPSessionConfig and TerragruntOptions.
-func CreateGCPConfig(
-	ctx context.Context,
-	gcpCfg *GCPSessionConfig,
-	opts *options.TerragruntOptions,
-) ([]option.ClientOption, error) {
-	var clientOpts []option.ClientOption
-
-	if envCreds := createGCPCredentialsFromEnv(opts); envCreds != nil {
-		clientOpts = append(clientOpts, envCreds)
-	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
-		// Use credentials file from config
-		clientOpts = append(clientOpts, option.WithCredentialsFile(gcpCfg.Credentials))
-	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
-		// Use access token from config
-		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: gcpCfg.AccessToken,
-		})
-		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if oauthAccessToken := opts.Env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
-		// Use OAuth access token from environment
-		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: oauthAccessToken,
-		})
-		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
-	} else if opts.Env["GOOGLE_CREDENTIALS"] != "" {
-		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
-		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, opts)
-		if err != nil {
-			return nil, err
-		}
-
-		if clientOpt != nil {
-			clientOpts = append(clientOpts, clientOpt)
-		}
-	}
-
-	// Handle service account impersonation
-	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
-		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
-			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
-			Scopes:          []string{storage.ScopeFullControl},
-			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		})
-		if err != nil {
-			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
-		}
-
-		clientOpts = append(clientOpts, option.WithTokenSource(ts))
-	}
-
-	return clientOpts, nil
-}
-
-// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in opts.Env
+// createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable.
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientOption {
-	if opts == nil || opts.Env == nil {
+func createGCPCredentialsFromEnv(env map[string]string) option.ClientOption {
+	if len(env) == 0 {
 		return nil
 	}
 
-	credentialsFile := opts.Env["GOOGLE_APPLICATION_CREDENTIALS"]
+	credentialsFile := env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
 		return nil
 	}
@@ -120,7 +135,7 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientO
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
-func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *options.TerragruntOptions) (option.ClientOption, error) {
+func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, env map[string]string) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
 		PrivateKey   string `json:"private_key"`
@@ -129,7 +144,7 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *opt
 	}{}
 
 	// to mirror how Terraform works, we have to accept either the file path or the contents
-	creds := opts.Env["GOOGLE_CREDENTIALS"]
+	creds := env["GOOGLE_CREDENTIALS"]
 
 	contents, err := util.FileOrData(creds)
 	if err != nil {

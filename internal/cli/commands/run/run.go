@@ -141,7 +141,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}()
 
-	runErr = run.Run(ctx, l, run.NewOptions(tgOpts), r, runCfg, credsGetter)
+	runErr = run.Run(ctx, l, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
 
 	return runErr
 }
@@ -198,22 +198,27 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, err = run.PopulateTFVersion(ctx, l, opts)
+	runOpts := configbridge.NewRunOptions(opts)
+
+	l, terraformVersion, tfImplementation, err := run.PopulateTFVersion(ctx, l, runOpts)
 	if err != nil {
 		return l, err
 	}
+
+	opts.TerraformVersion = terraformVersion
+	opts.TofuImplementation = tfImplementation
 
 	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersion(terraformVersionConstraint, opts); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(opts.TerraformVersion, terraformVersionConstraint); err != nil {
 		return l, err
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := run.CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, opts); err != nil {
+		if err := run.CheckTerragruntVersionMeetsConstraint(opts.TerragruntVersion, partialTerragruntConfig.TerragruntVersionConstraint); err != nil {
 			return l, err
 		}
 	}

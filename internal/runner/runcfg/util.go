@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-getter"
 )
 
@@ -29,7 +28,7 @@ const DefaultEngineType = "rpc"
 //
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder.
-func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, destinationFolder string) error {
+func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
@@ -37,14 +36,14 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 		l.Debugf(
 			"Copying lock file from %s to %s",
 			util.RelPathForLog(
-				opts.RootWorkingDir,
+				rootWorkingDir,
 				sourceLockFilePath,
-				opts.LogShowAbsPaths,
+				logShowAbsPaths,
 			),
 			util.RelPathForLog(
-				opts.RootWorkingDir,
+				rootWorkingDir,
 				destinationLockFilePath,
-				opts.LogShowAbsPaths,
+				logShowAbsPaths,
 			),
 		)
 
@@ -60,12 +59,12 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (string, error) {
+func GetTerraformSourceURL(source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig) (string, error) {
 	switch {
-	case opts.Source != "":
-		return opts.Source, nil
+	case source != "":
+		return source, nil
 	case cfg != nil && cfg.Terraform.Source != "":
-		return AdjustSourceWithMap(opts.SourceMap, cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
+		return AdjustSourceWithMap(sourceMap, cfg.Terraform.Source, originalConfigPath)
 	default:
 		return ".", nil
 	}

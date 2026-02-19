@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -236,18 +235,18 @@ func TestGetTerraformSourceURL(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name           string
-		opts           *options.TerragruntOptions
-		cfg            *runcfg.RunConfig
-		expectedResult string
-		expectedError  string
+		name               string
+		source             string
+		sourceMap          map[string]string
+		originalConfigPath string
+		cfg                *runcfg.RunConfig
+		expectedResult     string
+		expectedError      string
 	}{
 		{
-			name: "source from options takes precedence",
-			opts: &options.TerragruntOptions{
-				Source:    "git::ssh://git@github.com/org/repo.git",
-				SourceMap: map[string]string{},
-			},
+			name:      "source from options takes precedence",
+			source:    "git::ssh://git@github.com/org/repo.git",
+			sourceMap: map[string]string{},
 			cfg: &runcfg.RunConfig{
 				Terraform: runcfg.TerraformConfig{
 					Source: "git::ssh://git@github.com/org/other-repo.git",
@@ -257,14 +256,12 @@ func TestGetTerraformSourceURL(t *testing.T) {
 			expectedError:  "",
 		},
 		{
-			name: "source from config with source map",
-			opts: &options.TerragruntOptions{
-				Source: "",
-				SourceMap: map[string]string{
-					"git::ssh://git@github.com/org/repo.git": "/local/path",
-				},
-				OriginalTerragruntConfigPath: "/path/to/config.hcl",
+			name:   "source from config with source map",
+			source: "",
+			sourceMap: map[string]string{
+				"git::ssh://git@github.com/org/repo.git": "/local/path",
 			},
+			originalConfigPath: "/path/to/config.hcl",
 			cfg: &runcfg.RunConfig{
 				Terraform: runcfg.TerraformConfig{
 					Source: "git::ssh://git@github.com/org/repo.git//module?ref=master",
@@ -274,21 +271,17 @@ func TestGetTerraformSourceURL(t *testing.T) {
 			expectedError:  "",
 		},
 		{
-			name: "no source returns current directory",
-			opts: &options.TerragruntOptions{
-				Source:    "",
-				SourceMap: map[string]string{},
-			},
+			name:           "no source returns current directory",
+			source:         "",
+			sourceMap:      map[string]string{},
 			cfg:            &runcfg.RunConfig{},
 			expectedResult: ".",
 			expectedError:  "",
 		},
 		{
-			name: "nil terraform config returns current directory",
-			opts: &options.TerragruntOptions{
-				Source:    "",
-				SourceMap: map[string]string{},
-			},
+			name:           "nil terraform config returns current directory",
+			source:         "",
+			sourceMap:      map[string]string{},
 			cfg:            &runcfg.RunConfig{},
 			expectedResult: ".",
 			expectedError:  "",
@@ -300,7 +293,7 @@ func TestGetTerraformSourceURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := runcfg.GetTerraformSourceURL(tc.opts, tc.cfg)
+			result, err := runcfg.GetTerraformSourceURL(tc.source, tc.sourceMap, tc.originalConfigPath, tc.cfg)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)

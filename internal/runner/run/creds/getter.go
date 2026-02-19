@@ -9,32 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
-
-// shellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
-// This is a local helper to avoid an import cycle with configbridge.
-func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
-	return &shell.RunOptions{
-		WorkingDir:              opts.WorkingDir,
-		Writer:                  opts.Writer,
-		ErrWriter:               opts.ErrWriter,
-		Env:                     opts.Env,
-		TFPath:                  opts.TFPath,
-		Engine:                  opts.Engine,
-		Experiments:             opts.Experiments,
-		NoEngine:                opts.NoEngine,
-		Telemetry:               opts.Telemetry,
-		RootWorkingDir:          opts.RootWorkingDir,
-		LogShowAbsPaths:         opts.LogShowAbsPaths,
-		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
-		Headless:                opts.Headless,
-		ForwardTFStdout:         opts.ForwardTFStdout,
-		EngineCachePath:         opts.EngineCachePath,
-		EngineLogLevel:          opts.EngineLogLevel,
-		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
-	}
-}
 
 type Getter struct {
 	obtainedCreds map[string]*providers.Credentials
@@ -76,9 +51,9 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 // credentials, and populates env before HCL parsing.
 // Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
-func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, opts *options.TerragruntOptions) (*Getter, error) {
+func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, shellOpts *shell.RunOptions) (*Getter, error) {
 	g := NewGetter()
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shellRunOptsFromOpts(opts))); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shellOpts)); err != nil {
 		return nil, err
 	}
 
