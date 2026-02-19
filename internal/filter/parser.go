@@ -142,6 +142,7 @@ func (p *Parser) parseExpression(precedence int) Expression {
 		}
 
 		leftExpr = attr
+
 		p.nextToken()
 	case ILLEGAL:
 		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "Unrecognized character '"+p.curToken.Literal+"'")

@@ -35,23 +35,33 @@ func TestRestrictToStacks(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "path filter",
-			exprFn:   func(t *testing.T) filter.Expression { return mustPath(t, "./apps/*") },
+			name: "path filter",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return mustPath(t, "./apps/*")
+			},
 			expected: false,
 		},
 		{
-			name:     "attribute filter restricted to stacks",
-			exprFn:   func(t *testing.T) filter.Expression { return mustAttr(t, "type", "stack") },
+			name: "attribute filter restricted to stacks",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return mustAttr(t, "type", "stack")
+			},
 			expected: true,
 		},
 		{
-			name:     "attribute filter not restricted to stacks",
-			exprFn:   func(t *testing.T) filter.Expression { return mustAttr(t, "name", "foo") },
+			name: "attribute filter not restricted to stacks",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return mustAttr(t, "name", "foo")
+			},
 			expected: false,
 		},
 		{
 			name: "prefix expression restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewPrefixExpression("!", mustAttr(t, "type", "unit"))
 			},
 			expected: true,
@@ -59,6 +69,7 @@ func TestRestrictToStacks(t *testing.T) {
 		{
 			name: "prefix expression not restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewPrefixExpression("!", mustAttr(t, "name", "foo"))
 			},
 			expected: false,
@@ -66,6 +77,7 @@ func TestRestrictToStacks(t *testing.T) {
 		{
 			name: "infix expression restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewInfixExpression(mustAttr(t, "type", "stack"), "|", mustAttr(t, "external", "true"))
 			},
 			expected: true,
@@ -73,6 +85,7 @@ func TestRestrictToStacks(t *testing.T) {
 		{
 			name: "infix expression also restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewInfixExpression(mustAttr(t, "external", "true"), "|", mustAttr(t, "type", "stack"))
 			},
 			expected: true,
@@ -80,6 +93,7 @@ func TestRestrictToStacks(t *testing.T) {
 		{
 			name: "infix expression not restricted to stacks",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewInfixExpression(mustAttr(t, "name", "foo"), "|", mustAttr(t, "external", "true"))
 			},
 			expected: false,
@@ -87,6 +101,7 @@ func TestRestrictToStacks(t *testing.T) {
 		{
 			name: "graph expression",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewGraphExpression(mustAttr(t, "name", "foo"), true, false, false)
 			},
 			expected: false,

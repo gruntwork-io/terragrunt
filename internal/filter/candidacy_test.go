@@ -16,13 +16,17 @@ func TestIsNegated(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "path expression",
-			exprFn:   func(t *testing.T) filter.Expression { return mustPath(t, "./foo") },
+			name: "path expression",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return mustPath(t, "./foo")
+			},
 			expected: false,
 		},
 		{
 			name: "negated path",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewPrefixExpression("!", mustPath(t, "./foo"))
 			},
 			expected: true,
@@ -30,6 +34,7 @@ func TestIsNegated(t *testing.T) {
 		{
 			name: "double negation",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
 				return filter.NewPrefixExpression("!", filter.NewPrefixExpression("!", mustPath(t, "./foo")))
 			},
 			expected: true,
@@ -37,6 +42,8 @@ func TestIsNegated(t *testing.T) {
 		{
 			name: "infix with negated left",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+
 				return filter.NewInfixExpression(
 					filter.NewPrefixExpression("!", mustPath(t, "./foo")),
 					"|",
@@ -48,6 +55,8 @@ func TestIsNegated(t *testing.T) {
 		{
 			name: "infix with non-negated left",
 			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+
 				return filter.NewInfixExpression(
 					mustPath(t, "./foo"),
 					"|",
