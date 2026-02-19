@@ -67,7 +67,7 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
         key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
-          ${{ runner.os }}-go-build-
+          ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
 
     - name: Go Mod Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -75,6 +75,8 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
         key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
+          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
+          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-
           ${{ runner.os }}-go-mod-
 
     - name: golangci-lint Cache
@@ -83,6 +85,7 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
+          ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-golangci-lint-
 
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
