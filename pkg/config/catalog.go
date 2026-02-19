@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -80,15 +79,14 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
 // Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
-func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.TerragruntOptions) (*CatalogConfig, error) {
-	configPath, configString, err := findCatalogConfig(parentCtx, l, opts)
+func ReadCatalogConfig(parentCtx context.Context, l log.Logger, pctx *ParsingContext) (*CatalogConfig, error) {
+	configPath, configString, err := findCatalogConfig(parentCtx, l, pctx)
 	if err != nil || configPath == "" {
 		return nil, err
 	}
 
-	opts.TerragruntConfigPath = configPath
-
-	parentCtx, pctx := NewParsingContext(parentCtx, l, opts)
+	pctx = pctx.Clone()
+	pctx.TerragruntConfigPath = configPath
 	pctx.ParserOptions = append(pctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	pctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
@@ -100,19 +98,14 @@ func ReadCatalogConfig(parentCtx context.Context, l log.Logger, opts *options.Te
 	return config.Catalog, nil
 }
 
-func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, string, error) {
+func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingContext) (string, string, error) {
 	var (
-		configPath        = filepath.Join(filepath.Dir(opts.TerragruntConfigPath), opts.ScaffoldRootFileName)
-		configName        = opts.ScaffoldRootFileName
+		configPath        = filepath.Join(filepath.Dir(outerPctx.TerragruntConfigPath), outerPctx.ScaffoldRootFileName)
+		configName        = outerPctx.ScaffoldRootFileName
 		catalogConfigPath string
 	)
 
 	for {
-		opts = &options.TerragruntOptions{
-			TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
-			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
-		}
-
 		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
 		// it can happen if the functions of the `filepath` package do not work correctly under a certain operating system.
 		select {
@@ -121,7 +114,9 @@ func findCatalogConfig(ctx context.Context, l log.Logger, opts *options.Terragru
 		default: // continue
 		}
 
-		parseCtx, pctx := NewParsingContext(ctx, l, opts)
+		parseCtx, pctx := NewParsingContext(ctx, l, outerPctx.StrictControls)
+		pctx.TerragruntConfigPath = filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName)
+		pctx.MaxFoldersToCheck = outerPctx.MaxFoldersToCheck
 
 		newConfigPath, err := FindInParentFolders(parseCtx, pctx, l, []string{configName})
 		if err != nil {

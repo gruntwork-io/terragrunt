@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -87,7 +88,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return err
 	}
@@ -235,7 +238,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 }
 
 func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
-	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
+	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,

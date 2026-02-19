@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -43,7 +44,7 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -70,7 +71,7 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -106,7 +107,7 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -129,7 +130,7 @@ remote_state = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
@@ -155,7 +156,7 @@ generate = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -181,7 +182,7 @@ generate = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 }
@@ -200,7 +201,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -222,7 +223,7 @@ remote_state {}
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Missing required argument; The argument \"backend\" is required")
@@ -249,7 +250,7 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -293,7 +294,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 `
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
@@ -324,7 +325,7 @@ retryable_errors = [".*Error.*"]
 `
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retryable_errors")
@@ -342,7 +343,7 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "retryable_errors")
@@ -357,7 +358,7 @@ func TestParseIamRole(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -378,7 +379,7 @@ func TestParseIamAssumeRoleDuration(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -399,7 +400,7 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -422,7 +423,7 @@ func TestParseIamWebIdentity(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -447,7 +448,7 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -475,7 +476,7 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -516,7 +517,7 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -567,7 +568,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
@@ -611,7 +612,7 @@ include {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
@@ -641,7 +642,7 @@ include {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
@@ -683,7 +684,7 @@ remote_state {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, opts.TerragruntConfigPath, cfg, nil)
 	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
@@ -733,7 +734,7 @@ dependencies {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, opts.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
@@ -784,7 +785,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, opts.TerragruntConfigPath, cfg, nil)
 	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
@@ -817,7 +818,7 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	_, actualErr := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
 
@@ -843,7 +844,7 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	_, actualErr := config.ParseConfigString(ctx, pctx, l, configPath, cfg, nil)
 
@@ -867,7 +868,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -886,7 +887,7 @@ func TestParseTerragruntConfigEmptyConfigOldConfig(t *testing.T) {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	cfg, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfgString, nil)
 	if err != nil {
@@ -905,7 +906,7 @@ terraform {}
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -930,7 +931,7 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -965,7 +966,7 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -1028,7 +1029,7 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -1087,7 +1088,7 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -1354,7 +1355,7 @@ prevent_destroy = true
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -1376,7 +1377,7 @@ prevent_destroy = false
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -1398,7 +1399,7 @@ skip = true
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
@@ -1415,7 +1416,7 @@ skip = false
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	_, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
@@ -1443,7 +1444,7 @@ terraform {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	if err != nil {
@@ -1567,7 +1568,8 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 
 			b.ResetTimer()
 			b.StartTimer()
-			actual, err := config.ReadTerragruntConfig(b.Context(), l, terragruntOptions, config.DefaultParserOptions(l, terragruntOptions.StrictControls))
+			_, pctx := configbridge.NewParsingContext(b.Context(), l, terragruntOptions)
+			actual, err := config.ReadTerragruntConfig(b.Context(), l, pctx, config.DefaultParserOptions(l, terragruntOptions.StrictControls))
 			b.StopTimer()
 			require.NoError(b, err)
 			assert.NotNil(b, actual)
@@ -1638,7 +1640,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 
 			l := createLogger()
 
-			ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 			terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, tt.cfg, nil)
 			if tt.expectError {
@@ -1661,7 +1663,7 @@ func TestParseConfigWithMissingIfExists(t *testing.T) {
 }`
 
 	l := createLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)
@@ -1706,7 +1708,7 @@ dependency "dep" {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
 	pctx.WorkingDir = unitPath
 
@@ -1897,7 +1899,7 @@ inputs = {
 
 	l := createLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 

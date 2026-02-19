@@ -14,6 +14,7 @@ package prepare
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -45,7 +46,9 @@ func PrepareConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		return nil, err
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return nil, err
 	}
