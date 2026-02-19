@@ -53,8 +53,6 @@ const (
 
 	DefaultTFDataDir = ".terraform"
 
-	DefaultIAMAssumeRoleDuration = 3600
-
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
 
@@ -371,11 +369,6 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	opts.DownloadDir = downloadDir
 
 	return opts, nil
-}
-
-// GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
-func GetDefaultIAMAssumeRoleSessionName() string {
-	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
 // NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
