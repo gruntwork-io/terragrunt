@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -359,7 +360,11 @@ func TestHCLFmtFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	tgOptions.WorkingDir = tmpPath
-	tgOptions.FilterQueries = []string{"./a/b/**"}
+
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{"./a/b/**"})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
@@ -425,10 +430,13 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	tgOptions.FilterQueries = []string{
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
 		filepath.Join(tmpPath, "terragrunt.hcl"),
 		"./a/b/c/d/e/**",
-	}
+	})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
@@ -494,10 +502,13 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	tgOptions.FilterQueries = []string{
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
 		"./a/**",
 		"!./a/b/c/d/**",
-	}
+	})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)

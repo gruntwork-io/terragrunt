@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -262,7 +263,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 					}
 
 					for _, v := range value {
-						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+						attrExpr, err := filter.NewAttributeExpression(filter.AttributeReading, v)
+						if err != nil {
+							return err
+						}
+
+						opts.Filters = append(opts.Filters, filter.NewFilter(attrExpr, attrExpr.String()))
 					}
 
 					return nil

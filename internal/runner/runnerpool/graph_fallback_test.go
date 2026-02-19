@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -65,7 +66,10 @@ dependency "db" {
 	// Enable the filter-flag experiment
 	require.NoError(t, optsOn.Experiments.EnableExperiment("filter-flag"))
 	// Inject graph filter for dependents of target
-	optsOn.FilterQueries = []string{`...{` + vpcDir + `}`}
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{`...{` + vpcDir + `}`})
+	require.NoError(t, parseErr)
+
+	optsOn.Filters = parsedFilters
 	// Build runner
 	runnerOn, err := runnerpool.Build(ctx, l, optsOn)
 	require.NoError(t, err)

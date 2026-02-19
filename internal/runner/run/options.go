@@ -73,8 +73,6 @@ type Options struct {
 	BackendBootstrap             bool
 	FailIfBucketCreationRequired bool
 	DisableBucketUpdate          bool
-	CheckDependentUnits          bool
-	SkipOutput                   bool
 	SourceUpdate                 bool
 	ForwardTFStdout              bool
 }

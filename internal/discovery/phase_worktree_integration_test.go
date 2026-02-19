@@ -456,7 +456,10 @@ unit "unit_to_be_untouched" {
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = tmpDir
 	opts.RootWorkingDir = tmpDir
-	opts.FilterQueries = []string{"[HEAD~1...HEAD]"}
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
 	opts.Experiments = experiment.NewExperiments()
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)

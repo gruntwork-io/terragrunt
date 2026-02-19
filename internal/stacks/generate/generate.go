@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -273,9 +274,9 @@ func ListStackFiles(
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
 	discovery, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
 	})
 	if err != nil {
 		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
@@ -355,9 +356,9 @@ func worktreeStacksToGenerate(
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-				WorkingDir:    pair.FromWorktree.Path,
-				FilterQueries: []string{"type=stack"},
-				Experiments:   experiments,
+				WorkingDir:  pair.FromWorktree.Path,
+				Filters:     stackTypeFilter(),
+				Experiments: experiments,
 			})
 			if err != nil {
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
@@ -368,9 +369,9 @@ func worktreeStacksToGenerate(
 
 		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
 			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-				WorkingDir:    pair.ToWorktree.Path,
-				FilterQueries: []string{"type=stack"},
-				Experiments:   experiments,
+				WorkingDir:  pair.ToWorktree.Path,
+				Filters:     stackTypeFilter(),
+				Experiments: experiments,
 			})
 			if err != nil {
 				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
@@ -422,4 +423,11 @@ func worktreeStacksToGenerate(
 	}
 
 	return stacksToGenerate.ToComponents(), nil
+}
+
+// stackTypeFilter returns a filter.Filters that restricts to stack components.
+func stackTypeFilter() filter.Filters {
+	attrExpr, _ := filter.NewAttributeExpression(filter.AttributeType, filter.AttributeTypeValueStack)
+
+	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
 }

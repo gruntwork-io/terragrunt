@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-isatty"
 )
 
@@ -51,36 +50,6 @@ type TFOptions struct {
 
 	OriginalTerragruntConfigPath string
 	JSONLogFormat                bool
-}
-
-// shellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-// This is a local helper to avoid an import cycle with configbridge.
-func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         opts.Writers,
-		EngineOptions:   opts.EngineOptions,
-		WorkingDir:      opts.WorkingDir,
-		Env:             opts.Env,
-		TFPath:          opts.TFPath,
-		EngineConfig:    opts.EngineConfig,
-		Experiments:     opts.Experiments,
-		Telemetry:       opts.Telemetry,
-		RootWorkingDir:  opts.RootWorkingDir,
-		Headless:        opts.Headless,
-		ForwardTFStdout: opts.ForwardTFStdout,
-	}
-}
-
-// TFOptionsFromOpts constructs RunOptions from TerragruntOptions.
-func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
-	return &TFOptions{
-		JSONLogFormat:                opts.JSONLogFormat,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		TofuImplementation:           opts.TofuImplementation,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		ShellOptions:                 shellRunOptsFromOpts(opts),
-	}
 }
 
 // RunCommand runs the given Terraform command.

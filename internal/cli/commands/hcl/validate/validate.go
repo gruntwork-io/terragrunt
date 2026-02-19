@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -91,9 +90,9 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// Create discovery with filter support if experiment enabled
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
 	})
 	if err != nil {
 		return processDiagnostics(l, opts, diags, errors.New(err))
@@ -101,12 +100,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if parseErr != nil {
-		return fmt.Errorf("failed to parse filters: %w", parseErr)
-	}
-
-	gitFilters := filters.UniqueGitFilters()
+	gitFilters := opts.Filters.UniqueGitFilters()
 
 	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 	if parseErr != nil {
@@ -243,25 +237,20 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	opts.NonInteractive = true
 
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
 	})
 	if err != nil {
 		return err
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
-		if parseErr != nil {
-			return fmt.Errorf("failed to parse filters: %w", parseErr)
-		}
+		gitFilters := opts.Filters.UniqueGitFilters()
 
-		gitFilters := filters.UniqueGitFilters()
-
-		worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-		if parseErr != nil {
-			return errors.Errorf("failed to create worktrees: %w", parseErr)
+		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		if worktreeErr != nil {
+			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 		}
 
 		defer func() {
