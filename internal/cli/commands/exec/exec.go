@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -74,7 +75,7 @@ func runTargetCommand(
 	runOpts := run.NewOptions(opts)
 
 	return run.RunActionWithHooks(ctx, l, command, runOpts, cfg, r, func(ctx context.Context) error {
-		_, err := shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), dir, false, false, command, cmdArgs...)
+		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...)
 		if err != nil {
 			return errors.Errorf("failed to run command in directory %s: %w", dir, err)
 		}

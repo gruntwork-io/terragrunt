@@ -92,6 +92,29 @@ func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provi
 	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
 }
 
+// ShellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
+func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
+}
+
 // TFRunOptsFromOpts constructs tf.RunOptions from TerragruntOptions.
 func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
 	return &tf.RunOptions{
@@ -102,7 +125,7 @@ func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
 		JSONLogFormat:                opts.JSONLogFormat,
 		Headless:                     opts.Headless,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		ShellRunOpts:                 ShellRunOptsFromOpts(opts),
 		HookData:                     opts,
 	}
 }
