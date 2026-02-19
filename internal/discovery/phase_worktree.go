@@ -81,7 +81,10 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 
 	for _, pair := range w.WorktreePairs {
 		discoveryGroup.Go(func() error {
-			fromFilters, toFilters := pair.Expand()
+			fromFilters, toFilters, err := pair.Expand()
+			if err != nil {
+				return err
+			}
 
 			fromToG, fromToCtx := errgroup.WithContext(discoveryCtx)
 
@@ -141,7 +144,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
-			status, reason, graphIdx = input.Classifier.Classify(l, c, classCtx)
+			status, reason, graphIdx = input.Classifier.Classify(c, classCtx)
 		}
 
 		result := DiscoveryResult{

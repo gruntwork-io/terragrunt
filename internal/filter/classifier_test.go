@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,14 +161,16 @@ func TestClassifier_MixedNegatedAndNonNegatedGraphFilters(t *testing.T) {
 func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 	t.Parallel()
 
-	target := filter.NewPathFilter("./db")
+	target, err := filter.NewPathFilter("./db")
+	require.NoError(t, err)
+
 	graphExpr := filter.NewGraphExpression(target, false, true, false)
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!./db...")
 
 	classifier := filter.NewClassifier()
-	err := classifier.Analyze(filter.Filters{f})
+	err = classifier.Analyze(filter.Filters{f})
 	require.NoError(t, err)
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
@@ -185,14 +186,16 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 	t.Parallel()
 
-	target := filter.NewPathFilter("./db")
+	target, err := filter.NewPathFilter("./db")
+	require.NoError(t, err)
+
 	graphExpr := filter.NewGraphExpression(target, true, true, false)
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!...db...")
 
 	classifier := filter.NewClassifier()
-	err := classifier.Analyze(filter.Filters{f})
+	err = classifier.Analyze(filter.Filters{f})
 	require.NoError(t, err)
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
@@ -394,7 +397,7 @@ func TestClassifier_Classify(t *testing.T) {
 				comp = newTestComponent(tt.componentPath)
 			}
 
-			status, reason, idx := classifier.Classify(logger.CreateLogger(), comp, filter.ClassificationContext{
+			status, reason, idx := classifier.Classify(comp, filter.ClassificationContext{
 				ParseDataAvailable: tt.parseDataAvailable,
 			})
 
