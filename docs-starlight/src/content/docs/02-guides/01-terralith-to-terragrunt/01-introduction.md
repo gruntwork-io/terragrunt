@@ -1,7 +1,7 @@
 ---
 title: Introduction
 description: Introduction to the Terralith to Terragrunt guide
-slug: docs/guides/terralith-to-terragrunt
+slug: guides/terralith-to-terragrunt
 sidebar:
   order: 1
 prev: false

@@ -1,7 +1,7 @@
 ---
 title: License
 description: This code is released under the MIT License. Read more here.
-slug: docs/community/license
+slug: community/license
 sidebar:
   order: 3
 ---

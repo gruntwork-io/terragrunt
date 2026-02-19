@@ -85,7 +85,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Running multiple units
 
-Note that the `run` command is a more explicit and flexible way to run OpenTofu/Terraform commands in comparison to [OpenTofu shortcuts](/docs/reference/cli/commands/opentofu-shortcuts).
+Note that the `run` command is a more explicit and flexible way to run OpenTofu/Terraform commands in comparison to [OpenTofu shortcuts](/reference/cli/commands/opentofu-shortcuts).
 
 The `run` command also supports the following flags that can be used to drive runs in multiple units:
 
@@ -143,7 +143,7 @@ terragrunt run --all --filter 'app1' --filter 'app2' -- plan
 
 <Aside type="tip" title="Learn More About Filtering">
 
-For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/docs/features/filter).
+For comprehensive examples and advanced usage patterns, see the [Filters feature documentation](/features/filter).
 
 </Aside>
 
@@ -158,11 +158,11 @@ terragrunt run -- plan -no-color
 <Aside type="caution">
 When using `run --all plan` with units that have dependencies (e.g. via `dependency` or `dependencies` blocks), the command will fail if those dependencies have never been deployed. This is because Terragrunt cannot resolve dependency outputs without existing state.
 
-To work around this issue, use [mock outputs in dependency blocks](/docs/reference/hcl/blocks/#dependency).
+To work around this issue, use [mock outputs in dependency blocks](/reference/hcl/blocks/#dependency).
 </Aside>
 
 <Aside type="caution">
-Do not set `TF_PLUGIN_CACHE_DIR` when using `run --all`. This can cause concurrent access issues with the provider cache. Instead, use Terragrunt's built-in [Provider Cache Server](/docs/features/provider-cache-server/).
+Do not set `TF_PLUGIN_CACHE_DIR` when using `run --all`. This can cause concurrent access issues with the provider cache. Instead, use Terragrunt's built-in [Provider Cache Server](/features/provider-cache-server/).
 
 We are working with the OpenTofu team to improve this behavior in the future.
 </Aside>

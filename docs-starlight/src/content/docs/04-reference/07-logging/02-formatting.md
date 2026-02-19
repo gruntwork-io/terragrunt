@@ -1,7 +1,7 @@
 ---
 title: Formatting
 description: Learn how to customize Terragrunt logging.
-slug: docs/reference/logging/formatting
+slug: reference/logging/formatting
 sidebar:
   order: 2
 ---
@@ -52,7 +52,7 @@ Placeholders have preset names:
 
 * `%msg` - Log message.
 
-* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](https://terragrunt.gruntwork.io/docs/reference/cli-options/#tf-path)).
+* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](https://docs.terragrunt.com/reference/cli-options/#tf-path)).
 
 * `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
 
@@ -303,5 +303,3 @@ The examples below replicate the preset formats specified with `--log-format`. T
 ```shell
 --log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
 ```
-
-

@@ -1,7 +1,7 @@
 ---
 title: Terragrunt Cache
 description: Learn what the `.terragrunt-cache` directory is and how to manage it.
-slug: docs/reference/terragrunt-cache
+slug: reference/terragrunt-cache
 sidebar:
   order: 10
 ---
@@ -30,4 +30,4 @@ find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
 
 Also consider setting the `TG_DOWNLOAD_DIR` environment variable if you wish to place the cache directories somewhere else.
 
-If the reason you are clearing out your Terragrunt cache is that you are struggling with running out of disk space, consider using the [Provider Cache](/docs/features/provider-cache-server) feature to store OpenTofu/Terraform provider plugins in a shared location, as those are typically the largest files stored in the `.terragrunt-cache` directory.
+If the reason you are clearing out your Terragrunt cache is that you are struggling with running out of disk space, consider using the [Provider Cache](/features/provider-cache-server) feature to store OpenTofu/Terraform provider plugins in a shared location, as those are typically the largest files stored in the `.terragrunt-cache` directory.

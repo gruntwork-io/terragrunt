@@ -1,7 +1,7 @@
 ---
 title: Support
 description: Get help with Terragrunt
-slug: docs/community/support
+slug: community/support
 sidebar:
   order: 2
 ---
