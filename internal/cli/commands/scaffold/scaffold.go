@@ -251,6 +251,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 // CLI flags take precedence over config file settings.
 func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) {
 	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
 	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
@@ -387,6 +388,7 @@ func prepareBoilerplateFiles(
 	// if boilerplate dir is not found, create one with default template
 	if !util.IsDir(boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
 			return "", errors.New(err)

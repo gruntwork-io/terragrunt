@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,14 +10,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -41,64 +46,64 @@ func TestPathRelativeToInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		include           map[string]config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
-		expectedPath      string
-		params            []string
+		include      map[string]config.IncludeConfig
+		configPath   string
+		expectedPath string
+		params       []string
 	}{
 		{
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      ".",
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: ".",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "child",
+			include:      map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "child",
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "child/sub-child/sub-sub-child",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "child/sub-child/sub-sub-child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "child/sub-child/sub-sub-child",
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "child/sub-child/sub-sub-child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../child/sub-child",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../child/sub-child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "child/sub-child",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   "../child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "child/sub-child",
 		},
 		{
 			include: map[string]config.IncludeConfig{
 				"root":  {Path: "../../" + config.DefaultTerragruntConfigPath},
 				"child": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath},
 			},
-			params:            []string{"child"},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../child/sub-child",
+			params:       []string{"child"},
+			configPath:   "../child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../child/sub-child",
 		},
 	}
 
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
 		l := logger.CreateLogger()
-		ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", tc.include, tc.terragruntOptions, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and options %v", tc.include, tc.terragruntOptions)
+		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
+		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -106,64 +111,64 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		include           map[string]config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
-		expectedPath      string
-		params            []string
+		include      map[string]config.IncludeConfig
+		configPath   string
+		expectedPath string
+		params       []string
 	}{
 		{
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      ".",
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: ".",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "..",
+			include:      map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "..",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "..",
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "..",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../../..",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../../..",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../../..",
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../../..",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../../other-child",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../../other-child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../..",
+			include:      map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   "../child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../..",
 		},
 		{
 			include: map[string]config.IncludeConfig{
 				"root":  {Path: "../../" + config.DefaultTerragruntConfigPath},
 				"child": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath},
 			},
-			params:            []string{"child"},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      "../../other-child",
+			params:       []string{"child"},
+			configPath:   helpers.RootFolder + "child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: "../../other-child",
 		},
 	}
 
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
 		l := logger.CreateLogger()
-		ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", tc.include, tc.terragruntOptions, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and options %v", tc.include, tc.terragruntOptions)
+		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
+		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -177,82 +182,82 @@ func TestRunCommand(t *testing.T) {
 	homeDir := os.Getenv("HOME")
 
 	testCases := []struct {
-		expectedErr       error
-		terragruntOptions *options.TerragruntOptions
-		expectedOutput    string
-		params            []string
+		expectedErr    error
+		configPath     string
+		expectedOutput string
+		params         []string
 	}{
 		{
-			params:            []string{"/bin/bash", "-c", "echo -n foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"/bin/bash", "-c", "echo -n foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo -n foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-quiet", "--terragrunt-global-cache", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedOutput:    "foo",
+			params:         []string{"--terragrunt-quiet", "--terragrunt-no-cache", "/bin/bash", "-c", "echo foo"},
+			configPath:     homeDir,
+			expectedOutput: "foo",
 		},
 		{
-			params:            []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
+			params:      []string{"--terragrunt-no-cache", "--terragrunt-global-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath:  homeDir,
+			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
 		},
 		{
-			params:            []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedErr:       config.ConflictingRunCmdCacheOptionsError{},
+			params:      []string{"--terragrunt-global-cache", "--terragrunt-no-cache", "--terragrunt-quiet", "/bin/bash", "-c", "echo foo"},
+			configPath:  homeDir,
+			expectedErr: config.ConflictingRunCmdCacheOptionsError{},
 		},
 		{
-			terragruntOptions: terragruntOptionsForTest(t, homeDir),
-			expectedErr:       config.EmptyStringNotAllowedError("{run_cmd()}"),
+			configPath:  homeDir,
+			expectedErr: config.EmptyStringNotAllowedError("{run_cmd()}"),
 		},
 	}
 	for _, tc := range testCases {
-		t.Run(tc.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+		t.Run(tc.configPath, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+			ctx, pctx := newTestParsingContext(t, tc.configPath)
 
 			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
@@ -285,288 +290,82 @@ func TestFindInParentFolders(t *testing.T) {
 
 	testCases := []struct {
 		expectedErr       error
-		terragruntOptions *options.TerragruntOptions
+		configPath        string
 		name              string
 		expectedPath      string
 		params            []string
+		maxFoldersToCheck int
 	}{
 		{
-			name:   "simple-lookup",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"terragrunt-in-root",
-					"child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"terragrunt-in-root",
-					"root.hcl",
-				),
-			),
+			name:         "simple-lookup",
+			params:       []string{"root.hcl"},
+			configPath:   "../../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 		},
 		{
-			name:   "nested-lookup",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"terragrunt-in-root",
-					"child",
-					"sub-child",
-					"sub-sub-child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"terragrunt-in-root",
-					"root.hcl",
-				),
-			),
+			name:         "nested-lookup",
+			params:       []string{"root.hcl"},
+			configPath:   "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 		},
 		{
-			name:   "lookup-with-max-folders",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTestWithMaxFolders(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"no-terragrunt-in-root",
-					"child",
-					"sub-child",
-					config.DefaultTerragruntConfigPath,
-				),
-				3,
-			),
+			name:              "lookup-with-max-folders",
+			params:            []string{"root.hcl"},
+			configPath:        "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/" + config.DefaultTerragruntConfigPath,
+			maxFoldersToCheck: 3,
+			expectedErr:       config.ParentFileNotFoundError{},
+		},
+		{
+			name:         "multiple-terragrunt-in-parents",
+			params:       []string{"root.hcl"},
+			configPath:   "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
+		},
+		{
+			name:         "multiple-terragrunt-in-parents-under-child",
+			params:       []string{"root.hcl"},
+			configPath:   "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
+		},
+		{
+			name:         "multiple-terragrunt-in-parents-under-sub-child",
+			params:       []string{"root.hcl"},
+			configPath:   "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
+		},
+		{
+			name:         "parent-file-that-isnt-terragrunt",
+			params:       []string{"foo.txt"},
+			configPath:   "../../test/fixtures/parent-folders/other-file-names/child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/other-file-names/foo.txt"),
+		},
+		{
+			name:         "parent-file-that-isnt-terragrunt-in-another-subfolder",
+			params:       []string{"common/foo.txt"},
+			configPath:   "../../test/fixtures/parent-folders/in-another-subfolder/live/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
+		},
+		{
+			name:         "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
+			params:       []string{"tfwork"},
+			configPath:   "../../test/fixtures/parent-folders/with-params/tfwork/tg/" + config.DefaultTerragruntConfigPath,
+			expectedPath: absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
+		},
+		{
+			name:        "not-found",
+			configPath:  "/",
 			expectedErr: config.ParentFileNotFoundError{},
 		},
 		{
-			name:   "multiple-terragrunt-in-parents",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"root.hcl",
-				),
-			),
+			name:        "not-found-with-path",
+			configPath:  "/fake/path",
+			expectedErr: config.ParentFileNotFoundError{},
 		},
 		{
-			name:   "multiple-terragrunt-in-parents-under-child",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"child",
-					"sub-child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"child",
-					"root.hcl",
-				),
-			),
-		},
-		{
-			name:   "multiple-terragrunt-in-parents-under-sub-child",
-			params: []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"child",
-					"sub-child",
-					"sub-sub-child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"multiple-terragrunt-in-parents",
-					"child",
-					"sub-child",
-					"root.hcl",
-				),
-			),
-		},
-		{
-			name:   "parent-file-that-isnt-terragrunt",
-			params: []string{"foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"other-file-names",
-					"child",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"other-file-names",
-					"foo.txt",
-				),
-			),
-		},
-		{
-			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder",
-			params: []string{"common/foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"in-another-subfolder",
-					"live",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"in-another-subfolder",
-					"common",
-					"foo.txt",
-				),
-			),
-		},
-		{
-			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
-			params: []string{"tfwork"},
-			terragruntOptions: terragruntOptionsForTest(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"with-params",
-					"tfwork",
-					"tg",
-					config.DefaultTerragruntConfigPath,
-				),
-			),
-			expectedPath: absPath(
-				t,
-				filepath.Join(
-					"..",
-					"..",
-					"test",
-					"fixtures",
-					"parent-folders",
-					"with-params",
-					"tfwork",
-				),
-			),
-		},
-		{
-			name:              "not-found",
-			terragruntOptions: terragruntOptionsForTest(t, "/"),
-			expectedErr:       config.ParentFileNotFoundError{},
-		},
-		{
-			name:              "not-found-with-path",
-			terragruntOptions: terragruntOptionsForTest(t, "/fake/path"),
-			expectedErr:       config.ParentFileNotFoundError{},
-		},
-		{
-			name:              "fallback",
-			params:            []string{"foo.txt", "fallback.txt"},
-			terragruntOptions: terragruntOptionsForTest(t, "/fake/path"),
-			expectedPath:      "fallback.txt",
+			name:         "fallback",
+			params:       []string{"foo.txt", "fallback.txt"},
+			configPath:   "/fake/path",
+			expectedPath: "fallback.txt",
 		},
 	}
 
@@ -575,7 +374,11 @@ func TestFindInParentFolders(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+			ctx, pctx := newTestParsingContext(t, tc.configPath)
+
+			if tc.maxFoldersToCheck != 0 {
+				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
+			}
 
 			actualPath, actualErr := config.FindInParentFolders(ctx, pctx, l, tc.params)
 			if tc.expectedErr != nil {
@@ -620,12 +423,9 @@ unit "test" {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	opts, err := options.NewTerragruntOptionsForTest(stackHclPath)
-	require.NoError(t, err)
+	_, pctx := newTestParsingContext(t, stackHclPath)
+	pctx.WorkingDir = tempDir
 
-	opts.WorkingDir = tempDir
-
-	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
 	stackConfig, err := config.ReadStackConfigFile(t.Context(), l, pctx, stackHclPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stackConfig)
@@ -639,57 +439,55 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		str               string
 		include           *config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
+		str               string
+		configPath        string
 		expectedOut       string
 		expectedErr       string
+		maxFoldersToCheck int
 	}{
 		{
-			"terraform { source = path_relative_to_include() }",
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			".",
-			"",
+			str:         "terraform { source = path_relative_to_include() }",
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: ".",
 		},
 		{
-			"terraform { source = path_relative_to_include() }",
-			&config.IncludeConfig{Path: "../" + config.DefaultTerragruntConfigPath},
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"child",
-			"",
+			str:         "terraform { source = path_relative_to_include() }",
+			include:     &config.IncludeConfig{Path: "../" + config.DefaultTerragruntConfigPath},
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "child",
 		},
 		{
-			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			nil,
-			terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
-			"",
+			str:         "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath:  "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 		},
 		{
-			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
-			"",
-			"ParentFileNotFoundError",
+			str:               "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath:        "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedErr:       "ParentFileNotFoundError",
+			maxFoldersToCheck: 1,
 		},
 		{
-			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
-			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
-			"",
-			"ParentFileNotFoundError",
+			str:               "terraform { source = find_in_parent_folders(\"root.hcl\") }",
+			configPath:        "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedErr:       "ParentFileNotFoundError",
+			maxFoldersToCheck: 3,
 		},
 	}
 
 	for _, tc := range testCases {
 		// The following is necessary to make sure tc's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s--%s", tc.str, tc.configPath), func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+			ctx, pctx := newTestParsingContext(t, tc.configPath)
+
+			if tc.maxFoldersToCheck != 0 {
+				pctx.MaxFoldersToCheck = tc.maxFoldersToCheck
+			}
 
 			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
 			if tc.expectedErr != "" {
@@ -710,74 +508,61 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		str               string
-		include           *config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
-		expectedOut       string
-		expectedErr       string
+		include     *config.IncludeConfig
+		env         map[string]string
+		str         string
+		configPath  string
+		expectedOut string
+		expectedErr string
 	}{
 		{
-			`iam_role = "foo/${get_env()}/bar"`,
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"",
-			"InvalidGetEnvParamsError",
+			str:         `iam_role = "foo/${get_env()}/bar"`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
-			`iam_role = "foo/${get_env("","")}/bar"`,
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"",
-			"InvalidEnvParamNameError",
+			str:         `iam_role = "foo/${get_env("","")}/bar"`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedErr: "InvalidEnvParamNameError",
 		},
 		{
-			`iam_role = get_env()`,
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"",
-			"InvalidGetEnvParamsError",
+			str:         `iam_role = get_env()`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
-			`iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"",
-			"InvalidGetEnvParamsError",
+			str:         `iam_role = get_env("TEST_VAR_1", "TEST_VAR_2", "TEST_VAR_3")`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedErr: "InvalidGetEnvParamsError",
 		},
 		{
-			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
-			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+config.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
-			"SOMETHING",
-			"",
+			str:         `iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "SOMETHING",
+			env:         map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"},
 		},
 		{
-			`iam_role = get_env("SOME_VAR", "SOME_VALUE")`,
-			nil,
-			terragruntOptionsForTest(t, "/root/child/"+config.DefaultTerragruntConfigPath),
-			"SOME_VALUE",
-			"",
+			str:         `iam_role = get_env("SOME_VAR", "SOME_VALUE")`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "SOME_VALUE",
 		},
 		{
-			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar"`,
-			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+config.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
-			"foo//bar",
-			"",
+			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","")}/bar"`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "foo//bar",
+			env:         map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
-			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar"`,
-			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+config.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"}),
-			"foo/DEFAULT/bar",
-			"",
+			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_HIT","DEFAULT")}/bar"`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "foo/DEFAULT/bar",
+			env:         map[string]string{"TEST_ENV_TERRAGRUNT_OTHER": "SOMETHING"},
 		},
 		{
-			`iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_VAR")}/bar"`,
-			nil,
-			terragruntOptionsForTestWithEnv(t, "/root/child/"+config.DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
-			"foo/SOMETHING/bar",
-			"",
+			str:         `iam_role = "foo/${get_env("TEST_ENV_TERRAGRUNT_VAR")}/bar"`,
+			configPath:  "/root/child/" + config.DefaultTerragruntConfigPath,
+			expectedOut: "foo/SOMETHING/bar",
+			env:         map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"},
 		},
 	}
 
@@ -788,7 +573,11 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+			ctx, pctx := newTestParsingContext(t, tc.configPath)
+
+			if tc.env != nil {
+				pctx.Env = tc.env
+			}
 
 			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
 			if tc.expectedErr != "" {
@@ -806,28 +595,25 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		str               string
-		include           *config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
-		expectedFooInput  []string
+		include          *config.IncludeConfig
+		str              string
+		configPath       string
+		expectedFooInput []string
 	}{
 		{
-			"inputs = { foo = get_terraform_commands_that_need_locking() }",
-			nil,
-			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TerraformCommandsNeedLocking,
+			str:              "inputs = { foo = get_terraform_commands_that_need_locking() }",
+			configPath:       config.DefaultTerragruntConfigPath,
+			expectedFooInput: config.TerraformCommandsNeedLocking,
 		},
 		{
-			`inputs = { foo = get_terraform_commands_that_need_vars() }`,
-			nil,
-			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TerraformCommandsNeedVars,
+			str:              `inputs = { foo = get_terraform_commands_that_need_vars() }`,
+			configPath:       config.DefaultTerragruntConfigPath,
+			expectedFooInput: config.TerraformCommandsNeedVars,
 		},
 		{
-			"inputs = { foo = get_terraform_commands_that_need_parallelism() }",
-			nil,
-			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TerraformCommandsNeedParallelism,
+			str:              "inputs = { foo = get_terraform_commands_that_need_parallelism() }",
+			configPath:       config.DefaultTerragruntConfigPath,
+			expectedFooInput: config.TerraformCommandsNeedParallelism,
 		},
 	}
 
@@ -838,9 +624,9 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+			ctx, pctx := newTestParsingContext(t, tc.configPath)
 			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
-			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", tc.str, tc.include, tc.terragruntOptions, actualErr)
+			require.NoError(t, actualErr, "For string '%s' include %v and configPath %v, unexpected error: %v", tc.str, tc.include, tc.configPath, actualErr)
 
 			assert.NotNil(t, actualOut)
 
@@ -852,7 +638,7 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 
 			fooSlice := toStringSlice(t, foo)
 
-			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
+			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and configPath %v", tc.str, tc.include, tc.configPath)
 		})
 	}
 }
@@ -861,8 +647,6 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 	t.Parallel()
 
 	for _, cliArgs := range [][]string{nil, {}, {"apply"}, {"plan", "-out=planfile"}} {
-		opts := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-		opts.TerraformCliArgs = iacargs.New(cliArgs...)
 		expectedFooInput := cliArgs
 		// Expecting nil to be returned for get_terraform_cli_args() call for
 		// either nil or empty array of input args
@@ -870,24 +654,16 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			expectedFooInput = nil
 		}
 
-		tc := struct {
-			str               string
-			include           *config.IncludeConfig
-			terragruntOptions *options.TerragruntOptions
-			expectedFooInput  []string
-		}{
-			"inputs = { foo = get_terraform_cli_args() }",
-			nil,
-			opts,
-			expectedFooInput,
-		}
-		t.Run(tc.str, func(t *testing.T) {
+		str := "inputs = { foo = get_terraform_cli_args() }"
+		t.Run(str, func(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
-			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", tc.str, tc.include)
-			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", tc.str, tc.include, tc.terragruntOptions, actualErr)
+			ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+			pctx.TerraformCliArgs = iacargs.New(cliArgs...)
+
+			actualOut, actualErr := config.ParseConfigString(ctx, pctx, l, "mock-path-for-test.hcl", str, nil)
+			require.NoError(t, actualErr, "For string '%s', unexpected error: %v", str, actualErr)
 
 			assert.NotNil(t, actualOut)
 
@@ -898,7 +674,7 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			assert.True(t, containsFoo)
 
 			fooSlice := toStringSlice(t, foo)
-			assert.Equal(t, tc.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", tc.str, tc.include, tc.terragruntOptions)
+			assert.Equal(t, expectedFooInput, fooSlice, "For string '%s'", str)
 		})
 	}
 }
@@ -949,42 +725,43 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
 	t.Helper()
 
-	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
-	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
-
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, terragruntOptions)
+	ctx, pctx := newTestParsingContext(t, configPath)
 	actualPath, err := config.GetTerragruntDir(ctx, pctx, l)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.Equal(t, expectedPath, actualPath)
 }
 
-func terragruntOptionsForTest(t *testing.T, configPath string) *options.TerragruntOptions {
-	t.Helper()
+// newTestParsingContext creates a ParsingContext with sensible test defaults.
+// Replicates NewTerragruntOptionsForTest + configbridge.populateFromOpts.
+func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *config.ParsingContext) {
+	tb.Helper()
 
-	opts, err := options.NewTerragruntOptionsForTest(configPath)
-	require.NoError(t, err)
+	l := logger.CreateLogger()
+	ctx, pctx := config.NewParsingContext(tb.Context(), l, controls.New())
 
-	return opts
-}
+	workingDir, downloadDir, err := util.DefaultWorkingAndDownloadDirs(configPath)
+	require.NoError(tb, err)
 
-func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, maxFoldersToCheck int) *options.TerragruntOptions {
-	t.Helper()
+	pctx.TerragruntConfigPath = configPath
+	pctx.WorkingDir = workingDir
+	pctx.RootWorkingDir = workingDir
+	pctx.DownloadDir = downloadDir
+	pctx.TFPath = "tofu"
+	pctx.AutoInit = true
+	pctx.Env = map[string]string{}
+	pctx.SourceMap = map[string]string{}
+	pctx.TerraformCliArgs = iacargs.New()
+	pctx.Writer = os.Stdout
+	pctx.ErrWriter = os.Stderr
+	pctx.MaxFoldersToCheck = 100
+	pctx.TofuImplementation = tfimpl.Unknown
+	pctx.Experiments = experiment.NewExperiments()
+	pctx.Telemetry = new(telemetry.Options)
+	pctx.FeatureFlags = xsync.NewMapOf[string, string]()
 
-	opts := terragruntOptionsForTest(t, configPath)
-	opts.MaxFoldersToCheck = maxFoldersToCheck
-
-	return opts
-}
-
-func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[string]string) *options.TerragruntOptions {
-	t.Helper()
-
-	opts := terragruntOptionsForTest(t, configPath)
-	opts.Env = env
-
-	return opts
+	return ctx, pctx
 }
 
 func TestGetParentTerragruntDir(t *testing.T) {
@@ -996,64 +773,64 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	parentDir := filepath.Dir(currentDir)
 
 	testCases := []struct {
-		include           map[string]config.IncludeConfig
-		terragruntOptions *options.TerragruntOptions
-		expectedPath      string
-		params            []string
+		include      map[string]config.IncludeConfig
+		configPath   string
+		expectedPath string
+		params       []string
 	}{
 		{
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      helpers.RootFolder + "child",
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: helpers.RootFolder + "child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      helpers.RootFolder,
+			include:      map[string]config.IncludeConfig{"": {Path: "../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      helpers.RootFolder,
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      helpers.RootFolder,
+			include:      map[string]config.IncludeConfig{"": {Path: "../../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      helpers.RootFolder,
+			include:      map[string]config.IncludeConfig{"": {Path: helpers.RootFolder + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: helpers.RootFolder,
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
+			include:      map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
+			configPath:   helpers.RootFolder + "child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
 		},
 		{
-			include:           map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
-			terragruntOptions: terragruntOptionsForTest(t, "../child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      parentDir,
+			include:      map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
+			configPath:   "../child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: parentDir,
 		},
 		{
 			include: map[string]config.IncludeConfig{
 				"root":  {Path: "../../" + config.DefaultTerragruntConfigPath},
 				"child": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath},
 			},
-			params:            []string{"child"},
-			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
+			params:       []string{"child"},
+			configPath:   helpers.RootFolder + "child/sub-child/" + config.DefaultTerragruntConfigPath,
+			expectedPath: filepath.VolumeName(parentDir) + "/other-child",
 		},
 	}
 
 	for _, tc := range testCases {
 		trackInclude := getTrackIncludeFromTestData(tc.include, tc.params)
 		l := logger.CreateLogger()
-		ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.terragruntOptions)
+		ctx, pctx := newTestParsingContext(t, tc.configPath)
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.GetParentTerragruntDir(ctx, pctx, l, tc.params)
-		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", tc.include, tc.terragruntOptions, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and options %v", tc.include, tc.terragruntOptions)
+		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
+		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -1102,12 +879,12 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 
-			terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+			cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, terragruntOptions)
-			actual, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
-			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", tc.input, nil, terragruntOptions, err)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+			require.NoError(t, err, "For hcl '%s', unexpected error: %v", tc.input, err)
 
 			assert.NotNil(t, actual)
 
@@ -1117,7 +894,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			test, containsTest := inputs["test"]
 			assert.True(t, containsTest)
 
-			assert.Equal(t, tc.expected, test, "For hcl '%s' include %v and options %v", tc.input, nil, terragruntOptions)
+			assert.Equal(t, tc.expected, test, "For hcl '%s'", tc.input)
 		})
 	}
 }
@@ -1191,10 +968,8 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 func TestReadTerragruntConfigInputs(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/inputs/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
@@ -1230,9 +1005,8 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/terragrunt/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
@@ -1264,9 +1038,8 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 func TestReadTerragruntConfigHooks(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
@@ -1309,9 +1082,8 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 func TestReadTerragruntConfigLocals(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/locals/canonical/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
@@ -1332,16 +1104,16 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 		source   string
 		expected string
 	}{
-		{mockConfigWithSource(""), "", ""},
-		{mockConfigWithSource(""), "/source/modules", ""},
-		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), "/source/modules", "/source/modules//foo/bar"},
-		{mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), "/source/modules", "/source/modules//foo/bar"},
-		{mockConfigWithSource("git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs"), "/source/modules", "/source/modules//emr_cluster"},
-		{mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"), "/source/modules", "/source/modules//some-module"},
-		{mockConfigWithSource("github.com/hashicorp/example"), "/source/modules", "/source/modules//example"},
-		{mockConfigWithSource("github.com/hashicorp/example//subdir"), "/source/modules", "/source/modules//subdir"},
-		{mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"), "/source/modules", "/source/modules//subdir"},
-		{mockConfigWithSource("./some/path//to/modulename"), "/source/modules", "/source/modules//to/modulename"},
+		{config: mockConfigWithSource(""), source: "", expected: ""},
+		{config: mockConfigWithSource(""), source: "/source/modules", expected: ""},
+		{config: mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar"), source: "/source/modules", expected: "/source/modules//foo/bar"},
+		{config: mockConfigWithSource("git::git@github.com:acme/modules.git//foo/bar?ref=v0.0.1"), source: "/source/modules", expected: "/source/modules//foo/bar"},
+		{config: mockConfigWithSource("git::git@github.com:acme/emr_cluster.git?ref=feature/fix_bugs"), source: "/source/modules", expected: "/source/modules//emr_cluster"},
+		{config: mockConfigWithSource("git::ssh://git@ghe.ourcorp.com/OurOrg/some-module.git"), source: "/source/modules", expected: "/source/modules//some-module"},
+		{config: mockConfigWithSource("github.com/hashicorp/example"), source: "/source/modules", expected: "/source/modules//example"},
+		{config: mockConfigWithSource("github.com/hashicorp/example//subdir"), source: "/source/modules", expected: "/source/modules//subdir"},
+		{config: mockConfigWithSource("git@github.com:hashicorp/example.git//subdir"), source: "/source/modules", expected: "/source/modules//subdir"},
+		{config: mockConfigWithSource("./some/path//to/modulename"), source: "/source/modules", expected: "/source/modules//to/modulename"},
 	}
 
 	for _, tc := range testCases {
@@ -1359,30 +1131,28 @@ func TestStartsWith(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config *options.TerragruntOptions
-		args   []string
-		value  bool
+		args     []string
+		expected bool
 	}{
-		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, true},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, false},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
-		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
-		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
-		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+		{args: []string{"hello world", "hello"}, expected: true},
+		{args: []string{"hello world", "world"}, expected: false},
+		{args: []string{"hello world", ""}, expected: true},
+		{args: []string{"hello world", " "}, expected: false},
+		{args: []string{"", ""}, expected: true},
+		{args: []string{"", " "}, expected: false},
+		{args: []string{" ", ""}, expected: true},
+		{args: []string{"", "hello"}, expected: false},
+		{args: []string{" ", "hello"}, expected: false},
 	}
 
 	for id, tc := range testCases {
 		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.config)
+			ctx, pctx := newTestParsingContext(t, "")
 			actual, err := config.StartsWith(ctx, pctx, tc.args)
 			require.NoError(t, err)
-			assert.Equal(t, tc.value, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -1391,30 +1161,28 @@ func TestEndsWith(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config *options.TerragruntOptions
-		args   []string
-		value  bool
+		args     []string
+		expected bool
 	}{
-		{terragruntOptionsForTest(t, ""), []string{"hello world", "world"}, true},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", "hello"}, false},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"hello world", " "}, false},
-		{terragruntOptionsForTest(t, ""), []string{"", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"", " "}, false},
-		{terragruntOptionsForTest(t, ""), []string{" ", ""}, true},
-		{terragruntOptionsForTest(t, ""), []string{"", "hello"}, false},
-		{terragruntOptionsForTest(t, ""), []string{" ", "hello"}, false},
+		{args: []string{"hello world", "world"}, expected: true},
+		{args: []string{"hello world", "hello"}, expected: false},
+		{args: []string{"hello world", ""}, expected: true},
+		{args: []string{"hello world", " "}, expected: false},
+		{args: []string{"", ""}, expected: true},
+		{args: []string{"", " "}, expected: false},
+		{args: []string{" ", ""}, expected: true},
+		{args: []string{"", "hello"}, expected: false},
+		{args: []string{" ", "hello"}, expected: false},
 	}
 
 	for id, tc := range testCases {
 		t.Run(fmt.Sprintf("%v %v", id, tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.config)
+			ctx, pctx := newTestParsingContext(t, "")
 			actual, err := config.EndsWith(ctx, pctx, tc.args)
 			require.NoError(t, err)
-			assert.Equal(t, tc.value, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -1423,48 +1191,39 @@ func TestTimeCmp(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config *options.TerragruntOptions
-		err    string
-		args   []string
-		value  int64
+		err   string
+		args  []string
+		value int64
 	}{
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"},
+			args: []string{"2017-11-22T00:00:00Z", "2017-11-22T00:00:00Z"},
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"},
+			args: []string{"2017-11-22T00:00:00Z", "2017-11-22T01:00:00+01:00"},
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T00:00:01Z", "2017-11-22T01:00:00+01:00"},
-			value:  1,
+			args:  []string{"2017-11-22T00:00:01Z", "2017-11-22T01:00:00+01:00"},
+			value: 1,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"},
-			value:  -1,
+			args:  []string{"2017-11-22T01:00:00Z", "2017-11-22T00:59:00-01:00"},
+			value: -1,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"},
-			value:  -1,
+			args:  []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"},
+			value: -1,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"},
-			value:  1,
+			args:  []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"},
+			value: 1,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22T00:00:00Z", "bloop"},
-			err:    `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`,
+			args: []string{"2017-11-22T00:00:00Z", "bloop"},
+			err:  `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"},
-			err:    `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`,
+			args: []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"},
+			err:  `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`,
 		},
 	}
 
@@ -1473,7 +1232,7 @@ func TestTimeCmp(t *testing.T) {
 			t.Parallel()
 
 			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.config)
+			ctx, pctx := newTestParsingContext(t, "")
 
 			actual, err := config.TimeCmp(ctx, pctx, l, tc.args)
 			if tc.err != "" {
@@ -1491,29 +1250,24 @@ func TestStrContains(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config *options.TerragruntOptions
-		err    string
-		args   []string
-		value  bool
+		err   string
+		args  []string
+		value bool
 	}{
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"hello world", "hello"},
-			value:  true,
+			args:  []string{"hello world", "hello"},
+			value: true,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"hello world", "world"},
-			value:  true,
+			args:  []string{"hello world", "world"},
+			value: true,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"hello world0", "0"},
-			value:  true,
+			args:  []string{"hello world0", "0"},
+			value: true,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"hello world", "test"},
+			args: []string{"hello world", "test"},
 		},
 	}
 
@@ -1521,8 +1275,7 @@ func TestStrContains(t *testing.T) {
 		t.Run(fmt.Sprintf("StrContains %v", tc.args), func(t *testing.T) {
 			t.Parallel()
 
-			l := logger.CreateLogger()
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.config)
+			ctx, pctx := newTestParsingContext(t, "")
 
 			actual, err := config.StrContains(ctx, pctx, tc.args)
 			if tc.err != "" {
@@ -1539,9 +1292,8 @@ func TestStrContains(t *testing.T) {
 func TestReadTFVarsFiles(t *testing.T) {
 	t.Parallel()
 
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	l := logger.CreateLogger()
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
@@ -1605,37 +1357,31 @@ func TestConstraintCheck(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		config *options.TerragruntOptions
-		err    string
-		args   []string
-		value  bool
+		err   string
+		args  []string
+		value bool
 	}{
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"1.2", ">= 1.0, < 1.4"},
-			value:  true,
+			args:  []string{"1.2", ">= 1.0, < 1.4"},
+			value: true,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"1.0", ">= 1.0, < 1.4"},
-			value:  true,
+			args:  []string{"1.0", ">= 1.0, < 1.4"},
+			value: true,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"1.4", ">= 1.0, < 1.4"},
-			value:  false,
+			args:  []string{"1.4", ">= 1.0, < 1.4"},
+			value: false,
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"1.E", ">= 1.0, < 1.4"},
-			value:  false,
-			err:    "invalid version 1.E: malformed version: 1.E",
+			args:  []string{"1.E", ">= 1.0, < 1.4"},
+			value: false,
+			err:   "invalid version 1.E: malformed version: 1.E",
 		},
 		{
-			config: terragruntOptionsForTest(t, ""),
-			args:   []string{"1.4", ">== 1.0, < 1.4"},
-			value:  false,
-			err:    "invalid constraint >== 1.0, < 1.4: malformed constraint: >== 1.0",
+			args:  []string{"1.4", ">== 1.0, < 1.4"},
+			value: false,
+			err:   "invalid constraint >== 1.0, < 1.4: malformed constraint: >== 1.0",
 		},
 	}
 
@@ -1643,9 +1389,7 @@ func TestConstraintCheck(t *testing.T) {
 		t.Run(fmt.Sprintf("constraint_check(%#v, %#v)", tc.args[0], tc.args[1]), func(t *testing.T) {
 			t.Parallel()
 
-			l := logger.CreateLogger()
-
-			ctx, pctx := configbridge.NewParsingContext(t.Context(), l, tc.config)
+			ctx, pctx := newTestParsingContext(t, "")
 
 			actual, err := config.ConstraintCheck(ctx, pctx, tc.args)
 			if tc.err != "" {

@@ -66,11 +66,11 @@ type ParsingContext struct {
 	Source                       string
 	TerraformCommand             string
 	OriginalTerraformCommand     string
-	AuthProviderCmd               string
-	TFPath                        string
-	ScaffoldRootFileName          string
-	TerragruntStackConfigPath     string
-	TofuImplementation            tfimpl.Type
+	AuthProviderCmd              string
+	TFPath                       string
+	ScaffoldRootFileName         string
+	TerragruntStackConfigPath    string
+	TofuImplementation           tfimpl.Type
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions

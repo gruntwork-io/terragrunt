@@ -31,35 +31,41 @@ import (
 )
 
 const (
-	defaultTFDataDir  = ".terraform"
+	defaultTFDataDir   = ".terraform"
 	defaultSignalsFile = "error-signals.json"
 )
 
 // Options contains the configuration needed by run.Run and its helpers.
 // This is a focused subset of options.TerragruntOptions.
 type Options struct {
+	Writer                       io.Writer
+	ErrWriter                    io.Writer
+	TerraformCliArgs             *iacargs.IacArgs
+	Engine                       *enginecfg.Options
+	Errors                       *errorconfig.Config
+	FeatureFlags                 *xsync.MapOf[string, string]
+	Telemetry                    *telemetry.Options
+	SourceMap                    map[string]string
+	Env                          map[string]string
+	ProviderCacheToken           string
+	RootWorkingDir               string
+	TofuImplementation           tfimpl.Type
+	EngineLogLevel               string
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
 	WorkingDir                   string
-	RootWorkingDir               string
+	EngineCachePath              string
 	DownloadDir                  string
 	TerraformCommand             string
 	OriginalTerraformCommand     string
-	TerraformCliArgs             *iacargs.IacArgs
 	Source                       string
-	SourceMap                    map[string]string
-	Writer                       io.Writer
-	ErrWriter                    io.Writer
-	Env                          map[string]string
+	TFPath                       string
+	AuthProviderCmd              string
 	IAMRoleOptions               iam.RoleOptions
 	OriginalIAMRoleOptions       iam.RoleOptions
-	Engine                       *enginecfg.Options
-	Errors                       *errorconfig.Config
-	Experiments                  experiment.Experiments
 	StrictControls               strict.Controls
-	FeatureFlags                 *xsync.MapOf[string, string]
-	TFPath                       string
-	TofuImplementation           tfimpl.Type
+	ProviderCacheRegistryNames   []string
+	Experiments                  experiment.Experiments
 	ForwardTFStdout              bool
 	JSONLogFormat                bool
 	Headless                     bool
@@ -71,15 +77,7 @@ type Options struct {
 	NoEngine                     bool
 	LogShowAbsPaths              bool
 	LogDisableErrorSummary       bool
-	Telemetry                    *telemetry.Options
-
-	// Fields used only by shell/tf/engine/remotestate internally via toTerragruntOptions().
-	AuthProviderCmd              string
 	EngineSkipChecksumCheck      bool
-	EngineCachePath              string
-	EngineLogLevel               string
-	ProviderCacheToken           string
-	ProviderCacheRegistryNames   []string
 	FailIfBucketCreationRequired bool
 	DisableBucketUpdate          bool
 	CheckDependentUnits          bool
