@@ -283,7 +283,7 @@ func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*get
 
 		// Load in custom getters that are only supported in Terragrunt
 		client.Getters["tfr"] = &tf.RegistryGetter{
-			TerragruntOptions: opts.toTerragruntOptions(),
+			TofuImplementation: opts.TofuImplementation,
 		}
 
 		return nil

@@ -13,10 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writerutil"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-isatty"
 )
 
@@ -45,33 +45,17 @@ type RunOptions struct {
 	ErrWriter    io.Writer
 	ShellRunOpts *shell.RunOptions
 
-	// TerragruntOptions is the full options struct. It is needed when the
-	// TerraformCommandHook fires (e.g. for provider caching) because the hook
-	// implementation requires full access to TerragruntOptions.
-	// Callers that only need basic TF command execution may leave this nil,
-	// as long as the TerraformCommandHook is not set in the context.
-	TerragruntOptions *options.TerragruntOptions
+	// HookData is an opaque value passed through to the TerraformCommandHook.
+	// Typically this carries a *options.TerragruntOptions so that the hook
+	// (e.g. provider caching) has full access to TerragruntOptions, but the
+	// tf package itself never inspects or depends on that type.
+	HookData any
 
 	TFPath                       string
 	OriginalTerragruntConfigPath string
 	ForwardTFStdout              bool
 	JSONLogFormat                bool
 	Headless                     bool
-}
-
-// RunOptionsFromOpts constructs RunOptions from TerragruntOptions.
-func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
-	return &RunOptions{
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		Writer:                       opts.Writer,
-		ErrWriter:                    opts.ErrWriter,
-		TFPath:                       opts.TFPath,
-		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
-		TerragruntOptions:            opts,
-	}
 }
 
 // RunCommand runs the given Terraform command.
@@ -87,7 +71,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		return fn(ctx, l, runOpts.TerragruntOptions, args)
+		return fn(ctx, l, runOpts, args)
 	}
 
 	needsPTY, err := isCommandThatNeedsPty(args)
@@ -130,8 +114,8 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 
 func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		originalOutWriter           = options.NewOriginalWriter(runOpts.Writer)
-		originalErrWriter           = options.NewOriginalWriter(runOpts.ErrWriter)
+		originalOutWriter           = writerutil.NewOriginalWriter(runOpts.Writer)
+		originalErrWriter           = writerutil.NewOriginalWriter(runOpts.ErrWriter)
 		outWriter         io.Writer = originalOutWriter
 		errWriter         io.Writer = originalErrWriter
 	)
@@ -154,8 +138,8 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 			errWriter,
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writerutil.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writerutil.NewWrappedWriter(wrappedErr, originalErrWriter)
 	} else if !shouldForceForwardTFStdout(args) {
 		wrappedOut := buildOutWriter(
 			logger,
@@ -172,8 +156,8 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writerutil.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writerutil.NewWrappedWriter(wrappedErr, originalErrWriter)
 	}
 
 	return outWriter, errWriter

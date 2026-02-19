@@ -34,7 +34,7 @@ import (
 	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/internal/writerutil"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -73,7 +73,7 @@ type (
 type ExecutionOptions struct {
 	CmdStdout               io.Writer
 	CmdStderr               io.Writer
-	Engine                  *options.EngineOptions
+	Engine                  *enginecfg.Options
 	Env                     map[string]string
 	Writer                  io.Writer // original pre-wrap writer for log routing
 	ErrWriter               io.Writer // original pre-wrap error writer
@@ -679,13 +679,13 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	stdoutLogLevel := log.StdoutLevel
 	stderrLogLevel := log.StderrLevel
 
-	stdoutWriter := options.ExtractOriginalWriter(runOptions.Writer)
-	stderrWriter := options.ExtractOriginalWriter(runOptions.ErrWriter)
+	stdoutWriter := writerutil.ExtractOriginalWriter(runOptions.Writer)
+	stderrWriter := writerutil.ExtractOriginalWriter(runOptions.ErrWriter)
 
 	if runOptions.Headless && !runOptions.ForwardTFStdout {
 		stdoutLogLevel = log.InfoLevel
 		stderrLogLevel = log.ErrorLevel
-		stdoutWriter = options.ExtractOriginalWriter(runOptions.ErrWriter)
+		stdoutWriter = writerutil.ExtractOriginalWriter(runOptions.ErrWriter)
 	}
 
 	var (

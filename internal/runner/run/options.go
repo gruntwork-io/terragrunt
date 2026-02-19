@@ -318,7 +318,23 @@ func (o *Options) tfRunOptions() *tf.RunOptions {
 		Headless:                     o.Headless,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		ShellRunOpts:                 o.shellRunOptions(),
-		TerragruntOptions:            o.toTerragruntOptions(),
+		HookData:                     o.toTerragruntOptions(),
+	}
+}
+
+// tfRunOptsFromPkgOpts constructs tf.RunOptions from *options.TerragruntOptions.
+// This is a package-level helper to avoid an import cycle with configbridge.
+func tfRunOptsFromPkgOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		HookData:                     opts,
 	}
 }
 
