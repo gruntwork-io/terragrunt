@@ -724,7 +724,7 @@ For example, if `destroy` was called on the `Valkey` unit, you'd be asked for co
 ## Visualizing the DAG
 
 <Aside type="note">
-CLI runtime behavior: for command-specific details, see [`dag graph`](/docs/reference/cli/commands/dag/graph), [`list`](/docs/reference/cli/commands/list), and [`run`](/docs/reference/cli/commands/run).
+This section shows the DAG shape, while command behavior (execution order, parallelism, and filtering) is documented in [`dag graph`](/docs/reference/cli/commands/dag/graph), [`list`](/docs/reference/cli/commands/list), and [`run`](/docs/reference/cli/commands/run).
 </Aside>
 
 To visualize the dependency graph you can use the `dag graph` command (similar to the `terraform graph` command), or its equivalent `list --format=dot --dependencies --external` command.

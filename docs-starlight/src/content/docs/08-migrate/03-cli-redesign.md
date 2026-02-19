@@ -221,10 +221,7 @@ This usually isn't necessary, except when combining a complicated series of flag
 
 In addition to allowing for explicit invocation of OpenTofu/Terraform instead of using shortcuts, the `run` command also takes on the responsibilities of the now deprecated `run-all` and `graph` commands using flags.
 
-For example, if you are currently using the `terragrunt run-all` command, you can switch to the `run` command with the `--all` flag instead.
-
-- **Before:** `terragrunt run-all plan`
-- **After:** `terragrunt run --all plan`
+For example, here's a direct before/after migration from `run-all` to `run --all`:
 
 Before:
 
