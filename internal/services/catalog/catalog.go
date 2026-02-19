@@ -99,6 +99,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	// If no specific repoURL was provided to the service, try to read from catalog config.
 	if s.repoURL == "" {
 		_, pctx := configbridge.NewParsingContext(ctx, l, s.opts)
+
 		catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
 			return errors.Errorf("failed to read catalog configuration: %w", err)

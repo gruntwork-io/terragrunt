@@ -10,7 +10,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -232,8 +231,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -252,8 +250,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)

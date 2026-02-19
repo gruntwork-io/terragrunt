@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -33,8 +32,7 @@ stack "projects" {
 }
 
 `
-	opts := mockOptionsForTest(t)
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -106,8 +104,7 @@ stack "network" {
     no_dot_terragrunt_stack = true
 }
 `
-	opts := mockOptionsForTest(t)
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
@@ -164,8 +161,7 @@ locals {
 	project = "my-project
 }
 `
-	opts := mockOptionsForTest(t)
-	ctx, pctx := configbridge.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")

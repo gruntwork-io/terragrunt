@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,16 +78,12 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	t.Run("existing_process_env_preserved", func(t *testing.T) { //nolint:paralleltest // mutates process env
 		t.Setenv(authKey, "real-ci-token")
 
-		opts, err := options.NewTerragruntOptionsForTest(secretFile)
-		require.NoError(t, err)
-
-		opts.WorkingDir = filepath.Dir(secretFile)
-		// opts.Env has empty value for authKey (like auth-provider returning empty session token)
-		opts.Env = map[string]string{authKey: ""}
-
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, opts)
+		_, pctx := NewParsingContext(ctx, l, controls.New())
+		pctx.WorkingDir = filepath.Dir(secretFile)
+		// pctx.Env has empty value for authKey (like auth-provider returning empty session token)
+		pctx.Env = map[string]string{authKey: ""}
 
 		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.NoError(t, err, "decrypt must succeed using existing process env credentials")
@@ -103,15 +99,11 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	t.Run("new_creds_set_when_absent_from_process_env", func(t *testing.T) { //nolint:paralleltest // mutates process env
 		os.Unsetenv(authKey) //nolint:errcheck
 
-		opts, err := options.NewTerragruntOptionsForTest(secretFile)
-		require.NoError(t, err)
-
-		opts.WorkingDir = filepath.Dir(secretFile)
-		opts.Env = map[string]string{authKey: "fresh-token"}
-
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, opts)
+		_, pctx := NewParsingContext(ctx, l, controls.New())
+		pctx.WorkingDir = filepath.Dir(secretFile)
+		pctx.Env = map[string]string{authKey: "fresh-token"}
 
 		result, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.NoError(t, err, "decrypt must succeed with fresh credentials from opts.Env")
@@ -129,18 +121,14 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 	t.Run("missing_creds_fails_decrypt", func(t *testing.T) { //nolint:paralleltest // mutates process env
 		os.Unsetenv(authKey) //nolint:errcheck
 
-		opts, err := options.NewTerragruntOptionsForTest(secretFile)
-		require.NoError(t, err)
-
-		opts.WorkingDir = filepath.Dir(secretFile)
-		// Empty env — simulates auth-provider NOT having run (the original bug)
-		opts.Env = map[string]string{}
-
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, opts)
+		_, pctx := NewParsingContext(ctx, l, controls.New())
+		pctx.WorkingDir = filepath.Dir(secretFile)
+		// Empty env — simulates auth-provider NOT having run (the original bug)
+		pctx.Env = map[string]string{}
 
-		_, err = sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
+		_, err := sopsDecryptFileImpl(ctx, pctx, l, secretFile, "json", authRequiringDecryptFn)
 		require.Error(t, err,
 			"decrypt must fail without auth credentials — reproduces original issue #5515")
 	})
@@ -173,16 +161,6 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 				expectedToken := fmt.Sprintf("token-%d", idx)
 
-				opts, err := options.NewTerragruntOptionsForTest(filePath)
-				if !assert.NoError(t, err) {
-					failures.Add(1)
-
-					return
-				}
-
-				opts.WorkingDir = filepath.Dir(filePath)
-				opts.Env = map[string]string{authKey: expectedToken}
-
 				// Each goroutine's decryptFn verifies it sees ITS OWN token
 				tokenCheckFn := func(path string, _ string) ([]byte, error) {
 					actual := os.Getenv(authKey)
@@ -194,7 +172,9 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 				}
 
 				l := logger.CreateLogger()
-				_, pctx := NewParsingContext(ctx, l, opts)
+				_, pctx := NewParsingContext(ctx, l, controls.New())
+				pctx.WorkingDir = filepath.Dir(filePath)
+				pctx.Env = map[string]string{authKey: expectedToken}
 
 				result, decryptErr := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", tokenCheckFn)
 				if decryptErr != nil {
