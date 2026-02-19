@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -233,7 +234,7 @@ func parseComponent(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	ctx, parsingCtx := config.NewParsingContext(ctx, l, parseOpts)
+	ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
 	parsingCtx = parsingCtx.WithDecodeList(
 		config.TerraformSource,
 		config.DependenciesBlock,

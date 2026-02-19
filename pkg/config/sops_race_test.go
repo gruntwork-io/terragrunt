@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,16 +68,10 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 
 			<-barrier
 
-			opts, err := options.NewTerragruntOptionsForTest(filePath)
-			if !assert.NoError(t, err) {
-				return
-			}
-
-			opts.WorkingDir = filepath.Dir(filePath)
-			opts.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
-
 			l := logger.CreateLogger()
-			_, pctx := NewParsingContext(ctx, l, opts)
+			_, pctx := NewParsingContext(ctx, l, controls.New())
+			pctx.WorkingDir = filepath.Dir(filePath)
+			pctx.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
 
 			result, err := sopsDecryptFileImpl(ctx, pctx, l, filePath, "json", mockDecryptFn)
 			assert.NoError(t, err)

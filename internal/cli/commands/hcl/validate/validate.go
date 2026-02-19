@@ -24,6 +24,7 @@ import (
 
 	"maps"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -138,7 +139,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
+			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
 
 			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
@@ -171,7 +172,8 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
+		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, errors.New(err))
 		}
 	}

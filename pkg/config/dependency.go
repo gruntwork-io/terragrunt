@@ -20,8 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -35,6 +33,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
@@ -42,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -1254,8 +1253,8 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	// Construct opts inline for run.Run — the only place that needs full opts
-	runOpts := &options.TerragruntOptions{
+	// Build run.Options directly from ParsingContext fields
+	runOpts := &run.Options{
 		TerragruntConfigPath:         pctx.TerragruntConfigPath,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		WorkingDir:                   pctx.WorkingDir,
@@ -1275,19 +1274,19 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
 		Engine:                       pctx.Engine,
-		LogShowAbsPaths:              pctx.LogShowAbsPaths,
-		AuthProviderCmd:              pctx.AuthProviderCmd,
 		TFPath:                       pctx.TFPath,
+		TofuImplementation:           pctx.TofuImplementation,
 		ForwardTFStdout:              false,
 		JSONLogFormat:                false,
+		Headless:                     pctx.Headless,
 		Debug:                        pctx.Debug,
 		AutoInit:                     pctx.AutoInit,
 		BackendBootstrap:             pctx.BackendBootstrap,
-		TofuImplementation:           pctx.TofuImplementation,
-		Telemetry:                    pctx.Telemetry,
 		NoEngine:                     pctx.NoEngine,
-		Headless:                     pctx.Headless,
+		LogShowAbsPaths:              pctx.LogShowAbsPaths,
 		LogDisableErrorSummary:       pctx.LogDisableErrorSummary,
+		Telemetry:                    pctx.Telemetry,
+		AuthProviderCmd:              pctx.AuthProviderCmd,
 	}
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)

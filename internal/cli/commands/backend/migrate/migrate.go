@@ -4,6 +4,7 @@ package migrate
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -56,7 +57,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcOpts)
+	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
+
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstOpts)
+	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
+
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
 		return err
 	}

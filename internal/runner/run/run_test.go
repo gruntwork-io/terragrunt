@@ -74,12 +74,14 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts.Env = tc.envVarsInOpts
 
+			runOpts := run.NewOptions(opts)
+
 			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg))
 
-			assert.Equal(t, tc.expected, opts.Env)
+			assert.Equal(t, tc.expected, runOpts.Env)
 		})
 	}
 }
@@ -165,7 +167,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(run.NewOptions(opts))
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -233,11 +235,8 @@ func TestToTerraformEnvVars(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest("")
-			require.NoError(t, err)
-
 			l := logger.CreateLogger()
-			actual, err := run.ToTerraformEnvVars(l, opts, tc.vars)
+			actual, err := run.ToTerraformEnvVars(l, tc.vars)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -349,7 +348,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
+		out := run.FilterTerraformExtraArgs(l, run.NewOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }

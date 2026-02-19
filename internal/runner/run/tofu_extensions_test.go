@@ -323,7 +323,7 @@ resource "aws_vpc" "main" {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(run.NewOptions(opts))
 
 			if tc.expectValid {
 				assert.NoError(t, err, "Expected no error for valid directory: %s", tc.description)
