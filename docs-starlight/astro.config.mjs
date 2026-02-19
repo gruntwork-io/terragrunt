@@ -124,17 +124,12 @@ export default defineConfig({
   output: isVercel ? "server" : "static",
   adapter: isVercel
     ? vercel({
-      imageService: false,
+      imageService: true,
       isr: {
         expiration: 60 * 60 * 24, // 24 hours
       },
     })
     : undefined,
-  image: {
-    service: {
-      entrypoint: 'astro/assets/services/noop' // Disables all image optimization
-    }
-  },
   integrations: [
     // We use React for the shadcn/ui components.
     react(),
