@@ -33,6 +33,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
@@ -1251,7 +1253,43 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	err = pctx.OutputRunFunc(ctx, l, pctx, stdoutBufferWriter, runCfg, credsGetter)
+	// Build run.Options directly from ParsingContext fields
+	runOpts := &run.Options{
+		TerragruntConfigPath:         pctx.TerragruntConfigPath,
+		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
+		WorkingDir:                   pctx.WorkingDir,
+		RootWorkingDir:               pctx.RootWorkingDir,
+		DownloadDir:                  pctx.DownloadDir,
+		Source:                       pctx.Source,
+		SourceMap:                    pctx.SourceMap,
+		TerraformCommand:             pctx.TerraformCommand,
+		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
+		TerraformCliArgs:             pctx.TerraformCliArgs,
+		Writer:                       stdoutBufferWriter,
+		ErrWriter:                    pctx.ErrWriter,
+		Env:                          pctx.Env,
+		IAMRoleOptions:               pctx.IAMRoleOptions,
+		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
+		Experiments:                  pctx.Experiments,
+		StrictControls:               pctx.StrictControls,
+		FeatureFlags:                 pctx.FeatureFlags,
+		Engine:                       pctx.Engine,
+		TFPath:                       pctx.TFPath,
+		TofuImplementation:           pctx.TofuImplementation,
+		ForwardTFStdout:              false,
+		JSONLogFormat:                false,
+		Headless:                     pctx.Headless,
+		Debug:                        pctx.Debug,
+		AutoInit:                     pctx.AutoInit,
+		BackendBootstrap:             pctx.BackendBootstrap,
+		NoEngine:                     pctx.NoEngine,
+		LogShowAbsPaths:              pctx.LogShowAbsPaths,
+		LogDisableErrorSummary:       pctx.LogDisableErrorSummary,
+		Telemetry:                    pctx.Telemetry,
+		AuthProviderCmd:              pctx.AuthProviderCmd,
+	}
+
+	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
 	if err != nil {
 		return nil, errors.New(err)
 	}

@@ -5,14 +5,9 @@ package configbridge
 
 import (
 	"context"
-	"io"
 
-	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
-	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -23,15 +18,6 @@ import (
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *config.ParsingContext) {
 	ctx, pctx := config.NewParsingContext(ctx, l, opts.StrictControls)
 	populateFromOpts(pctx, opts)
-
-	pctx.OutputRunFunc = func(ctx context.Context, l log.Logger, currentPctx *config.ParsingContext, stdoutWriter io.Writer, runCfg *runcfg.RunConfig, credsGetter *creds.Getter) error {
-		runOpts := optsFromParsingContext(currentPctx)
-		runOpts.Writer = stdoutWriter
-		runOpts.ForwardTFStdout = false
-		runOpts.JSONLogFormat = false
-
-		return run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
-	}
 
 	return ctx, pctx
 }
@@ -79,43 +65,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
-}
-
-// optsFromParsingContext constructs a *options.TerragruntOptions from ParsingContext flat fields.
-// Used by the OutputRunFunc callback to bridge back to run.Run which requires opts.
-func optsFromParsingContext(pctx *config.ParsingContext) *options.TerragruntOptions {
-	return &options.TerragruntOptions{
-		TerragruntConfigPath:         pctx.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		WorkingDir:                   pctx.WorkingDir,
-		RootWorkingDir:               pctx.RootWorkingDir,
-		DownloadDir:                  pctx.DownloadDir,
-		Source:                       pctx.Source,
-		SourceMap:                    pctx.SourceMap,
-		TerraformCommand:             pctx.TerraformCommand,
-		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
-		TerraformCliArgs:             pctx.TerraformCliArgs,
-		Writer:                       pctx.Writer,
-		ErrWriter:                    pctx.ErrWriter,
-		Env:                          pctx.Env,
-		IAMRoleOptions:               pctx.IAMRoleOptions,
-		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
-		Experiments:                  pctx.Experiments,
-		StrictControls:               pctx.StrictControls,
-		FeatureFlags:                 pctx.FeatureFlags,
-		Engine:                       pctx.Engine,
-		LogShowAbsPaths:              pctx.LogShowAbsPaths,
-		AuthProviderCmd:              pctx.AuthProviderCmd,
-		TFPath:                       pctx.TFPath,
-		Debug:                        pctx.Debug,
-		AutoInit:                     pctx.AutoInit,
-		BackendBootstrap:             pctx.BackendBootstrap,
-		TofuImplementation:           pctx.TofuImplementation,
-		Telemetry:                    pctx.Telemetry,
-		NoEngine:                     pctx.NoEngine,
-		Headless:                     pctx.Headless,
-		LogDisableErrorSummary:       pctx.LogDisableErrorSummary,
-	}
 }
 
 // ShellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
