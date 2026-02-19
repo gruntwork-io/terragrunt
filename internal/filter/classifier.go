@@ -112,7 +112,7 @@ func NewClassifier() *Classifier {
 
 // Analyze categorizes all filter expressions for efficient component classification.
 // It separates filters into filesystem-evaluable, parse-required, and graph expressions.
-func (c *Classifier) Analyze(filters Filters) error {
+func (c *Classifier) Analyze(filters Filters) {
 	c.filesystemExprs = nil
 	c.parseExprs = nil
 	c.graphExprs = nil
@@ -128,8 +128,6 @@ func (c *Classifier) Analyze(filters Filters) error {
 
 		c.analyzeExpression(expr, i)
 	}
-
-	return nil
 }
 
 // Classify determines whether a component should be discovered, is a candidate,

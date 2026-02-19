@@ -25,9 +25,7 @@ func (d *Discovery) Discover(
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
 	classifier := filter.NewClassifier()
-	if err := classifier.Analyze(d.filters); err != nil {
-		return nil, err
-	}
+	classifier.Analyze(d.filters)
 
 	d.classifier = classifier
 

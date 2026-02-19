@@ -491,8 +491,7 @@ func TestCandidacyClassifier_AnalyzesFiltersCorrectly(t *testing.T) {
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier.Analyze(filters)
 
 			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
 			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
@@ -601,8 +600,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier.Analyze(filters)
 
 			// Create a test component
 			c := component.NewUnit(tt.componentPath)
@@ -629,8 +627,7 @@ func TestClassifier_ParseExpressions(t *testing.T) {
 	require.NoError(t, err)
 
 	classifier := filter.NewClassifier()
-	err = classifier.Analyze(filters)
-	require.NoError(t, err)
+	classifier.Analyze(filters)
 
 	parseExprs := classifier.ParseExpressions()
 	assert.Len(t, parseExprs, 2, "Should have 2 parse expressions")
@@ -646,8 +643,7 @@ func TestClassifier_NegatedExpressions(t *testing.T) {
 	require.NoError(t, err)
 
 	classifier := filter.NewClassifier()
-	err = classifier.Analyze(filters)
-	require.NoError(t, err)
+	classifier.Analyze(filters)
 
 	negatedExprs := classifier.NegatedExpressions()
 	assert.Len(t, negatedExprs, 2, "Should have 2 negated expressions")
@@ -704,8 +700,7 @@ func TestClassifier_HasDependentFilters(t *testing.T) {
 			require.NoError(t, err)
 
 			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier.Analyze(filters)
 
 			assert.Equal(t, tt.expectResult, classifier.HasDependentFilters(), "HasDependentFilters mismatch")
 		})
