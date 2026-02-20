@@ -218,8 +218,12 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // Later args override earlier args for overlapping keys.
 func deepMergeMapValuesAsFuncImpl() function.Function {
 	return function.New(&function.Spec{
-		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
-		Type:     function.StaticReturnType(cty.DynamicPseudoType),
+		VarParam: &function.Parameter{
+			Type:             cty.DynamicPseudoType,
+			AllowNull:        true,
+			AllowDynamicType: true,
+		},
+		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			outVal := cty.EmptyObjectVal
 
