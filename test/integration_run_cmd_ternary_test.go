@@ -32,13 +32,13 @@ func TestRunCmdTernaryOnlyRunsSelectedBranch(t *testing.T) {
 			name:        "true condition runs only true branch",
 			fixturePath: testFixtureRunCmdTernaryTrue,
 			wantCmd:     "Running command: echo branch_true",
-			forbidCmd:   "Running command: echo branch_false",
+			forbidCmd:   "Running command: __nonexistent_terragrunt_test_command__",
 		},
 		{
 			name:        "false condition runs only false branch",
 			fixturePath: testFixtureRunCmdTernaryFalse,
 			wantCmd:     "Running command: echo branch_false",
-			forbidCmd:   "Running command: echo branch_true",
+			forbidCmd:   "Running command: __nonexistent_terragrunt_test_command__",
 		},
 	}
 
