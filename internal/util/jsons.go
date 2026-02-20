@@ -13,12 +13,12 @@ import (
 var interpolationEscaper = strings.NewReplacer("$${", "$${", "${", "$${")
 
 // AsTerraformEnvVarJSONValue converts the given value to a JSON value that can be passed to
-// Terraform as an environment variable. For the most part, this converts the value directly
+// OpenTofu/Terraform as an environment variable. For the most part, this converts the value directly
 // to JSON using Go's built-in json.Marshal. However, we have special handling
-// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to Terraform via
+// for strings, which with normal JSON conversion would be wrapped in quotes, but when passing them to OpenTofu/Terraform via
 // env vars, we need to NOT wrap them in quotes, so this method adds special handling for that case.
 // For complex types (maps, lists, objects), string values containing ${...} patterns are escaped to $${...}
-// to prevent Terraform's HCL parser from treating them as variable interpolations.
+// to prevent OpenTofu/Terraform's HCL parser from treating them as variable interpolations.
 func AsTerraformEnvVarJSONValue(value any) (string, error) {
 	switch val := value.(type) {
 	case string:
