@@ -63,8 +63,7 @@ func TestClassifier_NegatedGraphExpression_HasGraphFilters(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			classifier := filter.NewClassifier()
-			classifier.Analyze(filter.Filters{f})
+			classifier := filter.NewClassifier(filter.Filters{f})
 
 			assert.Equal(t, tt.expectGraphFilter, classifier.HasGraphFilters(),
 				"HasGraphFilters() mismatch for filter %q", tt.filterStr)
@@ -111,8 +110,7 @@ func TestClassifier_NegatedGraphExpression_IsNegatedFlag(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			classifier := filter.NewClassifier()
-			classifier.Analyze(filter.Filters{f})
+			classifier := filter.NewClassifier(filter.Filters{f})
 
 			graphExprs := classifier.GraphExpressions()
 			require.Len(t, graphExprs, len(tt.expectIsNegated),
@@ -135,8 +133,7 @@ func TestClassifier_MixedNegatedAndNonNegatedGraphFilters(t *testing.T) {
 	barFilter, err := filter.Parse("!...bar")
 	require.NoError(t, err)
 
-	classifier := filter.NewClassifier()
-	classifier.Analyze(filter.Filters{fooFilter, barFilter})
+	classifier := filter.NewClassifier(filter.Filters{fooFilter, barFilter})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.True(t, classifier.HasDependentFilters(), "should have dependent filters")
@@ -166,8 +163,7 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 
 	f := filter.NewFilter(negatedExpr, "!./db...")
 
-	classifier := filter.NewClassifier()
-	classifier.Analyze(filter.Filters{f})
+	classifier := filter.NewClassifier(filter.Filters{f})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.False(t, classifier.HasDependentFilters(), "should not have dependent filters (db... is dependencies)")
@@ -190,8 +186,7 @@ func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 
 	f := filter.NewFilter(negatedExpr, "!...db...")
 
-	classifier := filter.NewClassifier()
-	classifier.Analyze(filter.Filters{f})
+	classifier := filter.NewClassifier(filter.Filters{f})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.True(t, classifier.HasDependentFilters(), "should have dependent filters")
@@ -381,8 +376,7 @@ func TestClassifier_Classify(t *testing.T) {
 				filters = append(filters, f)
 			}
 
-			classifier := filter.NewClassifier()
-			classifier.Analyze(filters)
+			classifier := filter.NewClassifier(filters)
 
 			var comp component.Component
 			if tt.componentRef != "" {

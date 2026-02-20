@@ -24,10 +24,7 @@ func (d *Discovery) Discover(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 ) (component.Components, error) {
-	classifier := filter.NewClassifier()
-	classifier.Analyze(d.filters)
-
-	d.classifier = classifier
+	d.classifier = filter.NewClassifier(d.filters)
 
 	results, err := d.runFilesystemPhase(ctx, l, opts)
 	if err != nil && !d.suppressParseErrors {
@@ -36,7 +33,7 @@ func (d *Discovery) Discover(
 
 	discovered, candidates := results.Discovered, results.Candidates
 
-	if d.requiresParse || classifier.HasParseRequiredFilters() {
+	if d.requiresParse || d.classifier.HasParseRequiredFilters() {
 		results, err = d.runParsePhase(ctx, l, opts, discovered, candidates)
 		if err != nil && !d.suppressParseErrors {
 			return nil, err
@@ -45,8 +42,8 @@ func (d *Discovery) Discover(
 		discovered, candidates = results.Discovered, results.Candidates
 	}
 
-	if classifier.HasGraphFilters() {
-		if classifier.HasDependentFilters() && d.gitRoot == "" {
+	if d.classifier.HasGraphFilters() {
+		if d.classifier.HasDependentFilters() && d.gitRoot == "" {
 			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts.Env, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)

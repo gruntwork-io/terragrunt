@@ -105,20 +105,11 @@ type Classifier struct {
 	hasPositiveFilters bool
 }
 
-// NewClassifier creates a new Classifier.
-func NewClassifier() *Classifier {
-	return &Classifier{}
-}
-
-// Analyze categorizes all filter expressions for efficient component classification.
+// NewClassifier creates a new Classifier that categorizes all filter expressions
+// for efficient component classification.
 // It separates filters into filesystem-evaluable, parse-required, and graph expressions.
-func (c *Classifier) Analyze(filters Filters) {
-	c.filesystemExprs = nil
-	c.parseExprs = nil
-	c.graphExprs = nil
-	c.gitExprs = nil
-	c.negatedExprs = nil
-	c.hasPositiveFilters = false
+func NewClassifier(filters Filters) *Classifier {
+	c := &Classifier{}
 
 	for i, f := range filters {
 		expr := f.Expression()
@@ -128,6 +119,8 @@ func (c *Classifier) Analyze(filters Filters) {
 
 		c.analyzeExpression(expr, i)
 	}
+
+	return c
 }
 
 // Classify determines whether a component should be discovered, is a candidate,
