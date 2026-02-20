@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -256,19 +255,6 @@ func (u *Unit) String() string {
 		"Unit %s (excluded: %v, dependencies: [%s])",
 		path, u.excluded, strings.Join(deps, ", "),
 	)
-}
-
-// AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, logs the error and returns the original path.
-func (u *Unit) AbsolutePath(l log.Logger) string {
-	absPath, err := filepath.Abs(u.path)
-	if err != nil {
-		l.Errorf("Error converting unit path %s to absolute path: %v", u.path, err)
-
-		return u.path
-	}
-
-	return absPath
 }
 
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
