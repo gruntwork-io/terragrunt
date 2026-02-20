@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,8 +58,10 @@ func TestRunCmdTernaryOnlyRunsSelectedBranch(t *testing.T) {
 
 			combined := stdout + stderr
 
-			assert.Contains(t, combined, tt.wantCmd)
-			assert.NotContains(t, combined, tt.forbidCmd)
+			assert.Equal(t, 1, strings.Count(combined, tt.wantCmd),
+				"expected selected command exactly once in output")
+			assert.Zero(t, strings.Count(combined, tt.forbidCmd),
+				"expected unselected command absent from output")
 		})
 	}
 }

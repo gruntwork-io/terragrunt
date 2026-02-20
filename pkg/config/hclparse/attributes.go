@@ -3,8 +3,10 @@ package hclparse
 import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/customdecode"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 type Attributes []*Attribute
@@ -211,6 +213,22 @@ func evalObjectConsLazily(e *hclsyntax.ObjectConsExpr, evalCtx *hcl.EvalContext)
 // argument is the only one that executes, while all function-level logic (lookup,
 // type-checking, ExpandFinal handling) is preserved unchanged.
 func evalFunctionCallLazily(e *hclsyntax.FunctionCallExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	// Check function existence before evaluating any args — mirrors HCL's own evaluation
+	// order: an unknown function returns DynamicVal without touching its arguments.
+	// Without this guard, run_cmd (or any side-effectful arg) would execute even when the
+	// function itself doesn't exist.
+	f, exists := lookupFunctionInCtx(evalCtx, e.Name)
+	if !exists {
+		return e.Value(evalCtx)
+	}
+
+	// Functions that use custom expression decoders (try, can, …) receive the raw
+	// expression AST rather than a pre-evaluated value.  Converting their args to
+	// LiteralValueExpr would break their error-catching semantics.
+	if functionHasCustomArgDecoder(f) {
+		return e.Value(evalCtx)
+	}
+
 	lazyArgs := make([]hclsyntax.Expression, len(e.Args))
 
 	var diags hcl.Diagnostics
@@ -278,4 +296,39 @@ func evalTemplateLazily(e *hclsyntax.TemplateExpr, evalCtx *hcl.EvalContext) (ct
 	val, callDiags := modifiedExpr.Value(evalCtx)
 
 	return val, append(diags, callDiags...)
+}
+
+// lookupFunctionInCtx walks the EvalContext parent chain to find a named function,
+// mirroring the lookup order used by hclsyntax.FunctionCallExpr.Value().
+func lookupFunctionInCtx(ctx *hcl.EvalContext, name string) (function.Function, bool) {
+	for ctx != nil {
+		if ctx.Functions != nil {
+			if f, ok := ctx.Functions[name]; ok {
+				return f, true
+			}
+		}
+
+		ctx = ctx.Parent()
+	}
+
+	return function.Function{}, false
+}
+
+// functionHasCustomArgDecoder returns true if any of f's parameters uses a custom
+// expression decoder (e.g. try, can). Those functions need the original expression
+// AST rather than a pre-evaluated LiteralValueExpr.
+func functionHasCustomArgDecoder(f function.Function) bool {
+	for _, p := range f.Params() {
+		if customdecode.CustomExpressionDecoderForType(p.Type) != nil {
+			return true
+		}
+	}
+
+	if vp := f.VarParam(); vp != nil {
+		if customdecode.CustomExpressionDecoderForType(vp.Type) != nil {
+			return true
+		}
+	}
+
+	return false
 }

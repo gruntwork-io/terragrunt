@@ -193,6 +193,7 @@ func TestEvaluateLocalsBlockTernaryOnlyRunsSelectedBranch(t *testing.T) {
 		cfg       string
 		targetKey string
 		wantVal   string
+		wantErr   bool
 	}{
 		{
 			name: "direct ternary true condition runs only true branch",
@@ -249,6 +250,31 @@ locals {
 			targetKey: "result",
 			wantVal:   "branch_true",
 		},
+		{
+			// Critical 2 regression: LiteralValueExpr substitution must not break try/can.
+			// try() needs the original expression AST to catch errors internally.
+			// If evalFunctionCallLazily substitutes args, try() errors instead of falling back.
+			name: "try with failing run_cmd returns fallback not error",
+			cfg: `
+locals {
+  result = try(run_cmd("__nonexistent_terragrunt_test_command__"), "fallback")
+}
+`,
+			targetKey: "result",
+			wantVal:   "fallback",
+		},
+		{
+			// Critical 1 regression: args must not be evaluated before function existence check.
+			// Before fix, run_cmd executes before the unknown-function error is raised.
+			// After fix, HCL returns function-not-found without running run_cmd.
+			name:    "unknown function does not execute run_cmd arg",
+			wantErr: true,
+			cfg: `
+locals {
+  result = __nonexistent_terragrunt_test_function__(run_cmd("__nonexistent_terragrunt_test_command__"))
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -262,6 +288,12 @@ locals {
 
 			ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
 			evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 
 			switch {
