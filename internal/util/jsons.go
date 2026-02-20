@@ -39,16 +39,16 @@ func AsTerraformEnvVarJSONValue(value any) (string, error) {
 }
 
 // escapeInterpolationPatternsInValue recursively walks a value tree and escapes
-// HCL interpolation patterns (${...}) in string values to prevent Terraform from
+// HCL interpolation patterns (${...}) in string values to prevent OpenTofu/Terraform from
 // treating them as variable references when parsing complex type TF_VAR_* env vars.
 //
 // This unconditionally escapes ${...} in all string values within complex types.
-// This is intentional: Terraform's HCL parser would error on unescaped ${...} in
+// This is intentional: OpenTofu/Terraform's HCL parser would error on unescaped ${...} in
 // complex TF_VAR values anyway (behaviour change: previously errored; now passes the
 // literal value through).
 //
 // Nil maps and slices are preserved as nil so json.Marshal serializes them as null
-// rather than {} or [], keeping Terraform's null-vs-empty-collection semantics intact.
+// rather than {} or [], keeping OpenTofu/Terraform's null-vs-empty-collection semantics intact.
 //
 // Returns an error if the value tree is deeper than maxDepth (100), which prevents
 // infinite recursion on malformed inputs.
