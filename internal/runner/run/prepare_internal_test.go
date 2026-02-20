@@ -27,9 +27,9 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 	testCases := []struct {
 		remoteStateCfg       *remotestate.Config
 		name                 string
+		expectBootstrapCalls int
 		backendBootstrap     bool
 		expectBackendArgs    bool
-		expectBootstrapCalls int
 	}{
 		{
 			name:                 "nil remote state config - no args inserted",
