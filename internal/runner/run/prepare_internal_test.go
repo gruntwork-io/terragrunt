@@ -130,13 +130,13 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectBootstrapCalls, bootstrapCalled, "unexpected bootstrap call count")
 
-			flags := opts.TerraformCliArgs.Flags
+			allArgs := opts.TerraformCliArgs.Slice()
 			if tc.expectBackendArgs {
-				assert.NotContains(t, flags, "-backend=false", "disable_init should not pass -backend=false to terraform")
+				assert.NotContains(t, allArgs, "-backend=false", "disable_init should not pass -backend=false to terraform")
 
 				hasBackendConfig := false
 
-				for _, f := range flags {
+				for _, f := range allArgs {
 					if strings.HasPrefix(f, "-backend-config=") {
 						hasBackendConfig = true
 
@@ -144,9 +144,9 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 					}
 				}
 
-				assert.True(t, hasBackendConfig, "expected -backend-config= flag in CLI args, got: %v", flags)
+				assert.True(t, hasBackendConfig, "expected -backend-config= flag in CLI args, got: %v", allArgs)
 			} else {
-				assert.Empty(t, flags, "expected no CLI args, got: %v", flags)
+				assert.Empty(t, allArgs, "expected no CLI args, got: %v", allArgs)
 			}
 		})
 	}
