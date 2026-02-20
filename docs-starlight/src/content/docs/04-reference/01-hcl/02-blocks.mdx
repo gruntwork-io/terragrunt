@@ -318,7 +318,9 @@ The `remote_state` block supports the following arguments:
   two backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
   but Terraform will still initialize the backend normally. Defaults to `false`.
 
-  **Note:** When using `generate` with `disable_init = true`, the backend configuration is written to the generated `.tf` file. Terraform will still attempt to connect to the backend during init.
+  **Note:** When using `generate` with `disable_init = true`, the backend configuration is written to the generated `.tf` file. OpenTofu/Terraform will still attempt to connect to the backend during init.
+
+  The `--backend-bootstrap` flag controls whether Terragrunt creates backend resources (e.g., S3 buckets) before running `init`. It defaults to `false`.
 
   | `disable_init` | `--backend-bootstrap` | Backend exists | Result |
   |---|---|---|---|

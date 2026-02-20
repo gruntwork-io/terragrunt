@@ -169,7 +169,9 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Prerequisite**: When `disable_init = true`, backend resources must already exist and valid credentials to access the backend are still required by OpenTofu/Terraform.
 
-> **Migration note (v0.80+):** In previous versions, `disable_init = true` passed `-backend=false` to `terraform init`, preventing OpenTofu/Terraform from initializing the backend entirely. The new behavior passes `-backend-config=` arguments instead — OpenTofu/Terraform **will** attempt to connect to the backend. Ensure backend resources exist and credentials are valid before using `disable_init = true`.
+> **Migration note:** In previous versions, `disable_init = true` passed `-backend=false` to `terraform init`, preventing OpenTofu/Terraform from initializing the backend entirely. The new behavior passes `-backend-config=` arguments instead — OpenTofu/Terraform **will** attempt to connect to the backend. Ensure backend resources exist and credentials are valid before using `disable_init = true`.
+>
+> Note that `--backend-bootstrap` defaults to `false`, so Terragrunt does not create backend resources by default regardless of `disable_init`. The `disable_init` flag additionally prevents bootstrap even when `--backend-bootstrap` is explicitly passed.
 
 > **CI/CD impact:** If you use `disable_init = true` to run `terragrunt run --all validate` in CI without backend credentials or pre-existing buckets, this workflow will fail after upgrading with errors such as "bucket not found" or "access denied" during `terraform init`. Use the `extra_arguments` workaround below to restore the previous behavior.
 
