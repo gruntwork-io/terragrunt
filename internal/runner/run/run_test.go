@@ -227,6 +227,21 @@ func TestToTerraformEnvVars(t *testing.T) {
 			vars:        map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
 			expected:    map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
 		},
+		{
+			description: "map value with interpolation pattern",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
+			description: "plain string with interpolation pattern not escaped",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "typed slice with interpolation pattern",
+			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
+		},
 	}
 
 	for _, tc := range testCases {
