@@ -86,7 +86,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return fmt.Errorf("failed to create path filter for %s: %w", opts.WorkingDir, err)
 	}
 
-	graphExpr := filter.NewGraphExpression(pathExpr, true, false, false)
+	graphExpr := filter.NewGraphExpression(pathExpr).WithDependents()
 	graphOpts.Filters = filter.Filters{filter.NewFilter(graphExpr, graphExpr.String())}
 
 	if opts.ReportSchemaFile != "" {

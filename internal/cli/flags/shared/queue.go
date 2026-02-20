@@ -82,7 +82,7 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 						return err
 					}
 
-					graphExpr := filter.NewGraphExpression(pathExpr, false, true, false)
+					graphExpr := filter.NewGraphExpression(pathExpr).WithDependencies()
 					opts.Filters = append(opts.Filters, filter.NewFilter(graphExpr, graphExpr.String()))
 
 					return nil

@@ -90,7 +90,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 					return err
 				}
 
-				graphExpr := filter.NewGraphExpression(pathExpr, false, true, false)
+				graphExpr := filter.NewGraphExpression(pathExpr).WithDependencies()
 				opts.Filters = append(opts.Filters, filter.NewFilter(graphExpr, graphExpr.String()))
 
 				return nil

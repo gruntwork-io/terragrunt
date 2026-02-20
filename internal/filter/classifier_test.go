@@ -161,7 +161,7 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 	target, err := filter.NewPathFilter("./db")
 	require.NoError(t, err)
 
-	graphExpr := filter.NewGraphExpression(target, false, true, false)
+	graphExpr := filter.NewGraphExpression(target).WithDependencies()
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!./db...")
@@ -185,7 +185,7 @@ func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 	target, err := filter.NewPathFilter("./db")
 	require.NoError(t, err)
 
-	graphExpr := filter.NewGraphExpression(target, true, true, false)
+	graphExpr := filter.NewGraphExpression(target).WithDependents().WithDependencies()
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!...db...")
