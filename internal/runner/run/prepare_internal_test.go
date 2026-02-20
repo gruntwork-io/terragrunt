@@ -1,6 +1,7 @@
 package run
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
@@ -22,7 +23,6 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 	}
 
 	testCases := []struct {
-		// remoteStateCfg before name: *Config (8 bytes) then string (16 bytes) → 16 GC pointer bytes.
 		remoteStateCfg    *remotestate.Config
 		name              string
 		backendBootstrap  bool
@@ -106,7 +106,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				hasBackendConfig := false
 
 				for _, f := range flags {
-					if len(f) > 16 && f[:16] == "-backend-config=" {
+					if strings.HasPrefix(f, "-backend-config=") {
 						hasBackendConfig = true
 
 						break

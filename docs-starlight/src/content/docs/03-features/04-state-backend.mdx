@@ -169,6 +169,8 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Prerequisite**: When `disable_init = true`, backend resources must already exist and valid credentials to access the backend are still required by Terraform.
 
+> **Migration note:** Prior to this change, `disable_init = true` passed `-backend=false` to `terraform init`, preventing Terraform from initializing the backend entirely. The new behavior passes `-backend-config=` arguments instead — Terraform **will** attempt to connect to the backend. Ensure backend resources exist and credentials are valid before using `disable_init = true`.
+
 The following example demonstrates using an environment variable to configure this option:
 
 ```hcl

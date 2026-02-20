@@ -226,10 +226,12 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath2, configPath2, s3BucketName2, "", helpers.TerraformRemoteStateS3Region)
 
 	// Intentionally do NOT create s3BucketName2 — it must not exist.
-	_, noBucketOut, noBucketErr := helpers.RunTerragruntCommandWithOutput(
+	noBucketStdout, noBucketStderr, noBucketErr := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run plan --non-interactive --working-dir "+rootPath2,
 	)
+	noBucketOut := noBucketStdout + noBucketStderr
+
 	require.Error(t, noBucketErr, "Expected plan to fail when backend bucket does not exist")
 	// "Initializing the backend" confirms Terraform received backend-config args and attempted
 	// to initialize the backend. If -backend=false had been passed instead, this line would
