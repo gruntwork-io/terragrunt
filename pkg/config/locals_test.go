@@ -190,42 +190,64 @@ func TestEvaluateLocalsBlockTernaryOnlyRunsSelectedBranch(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		condition string
 		cfg       string
+		targetKey string
 		wantVal   string
 	}{
 		{
-			name:      "true condition runs only true branch",
-			condition: "true",
+			name: "direct ternary true condition runs only true branch",
 			cfg: `
 locals {
   condition = true
   result    = local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")
 }
 `,
-			wantVal: "branch_true",
+			targetKey: "result",
+			wantVal:   "branch_true",
 		},
 		{
-			name:      "false condition runs only false branch",
-			condition: "false",
+			name: "direct ternary false condition runs only false branch",
 			cfg: `
 locals {
   condition = false
   result    = local.condition ? run_cmd("__nonexistent_terragrunt_test_command__") : run_cmd("echo", "branch_false")
 }
 `,
-			wantVal: "branch_false",
+			targetKey: "result",
+			wantVal:   "branch_false",
 		},
 		{
-			name:      "nested ternary inside tuple runs only selected branch",
-			condition: "true",
+			name: "ternary nested inside tuple runs only selected branch",
 			cfg: `
 locals {
   condition = true
   results   = [local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")]
 }
 `,
-			wantVal: "",
+			targetKey: "results",
+			wantVal:   "branch_true",
+		},
+		{
+			name: "ternary nested inside object value runs only selected branch",
+			cfg: `
+locals {
+  condition = true
+  result    = {key = local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")}
+}
+`,
+			targetKey: "result",
+			wantVal:   "",
+		},
+		{
+			name: "ternary nested inside function arg runs only selected branch",
+			cfg: `
+locals {
+  condition = true
+  result    = tostring(local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__"))
+}
+`,
+			targetKey: "result",
+			wantVal:   "branch_true",
 		},
 	}
 
@@ -242,10 +264,24 @@ locals {
 			evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 			require.NoError(t, err)
 
-			if tt.wantVal != "" {
+			switch {
+			case tt.targetKey == "results":
+				// Tuple case: cty.TupleVal is a heterogeneous tuple, not a list; use AsValueSlice.
+				tupleVal := evaluatedLocals["results"]
+				elems := tupleVal.AsValueSlice()
+				require.Len(t, elems, 1)
+
+				var elem string
+				require.NoError(t, gocty.FromCtyValue(elems[0], &elem))
+				assert.Equal(t, tt.wantVal, elem)
+			case tt.wantVal != "":
 				var result string
-				require.NoError(t, gocty.FromCtyValue(evaluatedLocals["result"], &result))
+				require.NoError(t, gocty.FromCtyValue(evaluatedLocals[tt.targetKey], &result))
 				assert.Equal(t, tt.wantVal, result)
+			default:
+				// Object and other complex-type cases: no error is the assertion
+				// (if unselected branch ran, __nonexistent_terragrunt_test_command__ would error)
+				assert.NotNil(t, evaluatedLocals[tt.targetKey])
 			}
 		})
 	}

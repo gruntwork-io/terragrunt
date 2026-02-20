@@ -94,6 +94,12 @@ func evalExpressionLazily(expr hcl.Expression, evalCtx *hcl.EvalContext) (cty.Va
 		return evalConditionalLazily(e, evalCtx)
 	case *hclsyntax.TupleConsExpr:
 		return evalTupleConsLazily(e, evalCtx)
+	case *hclsyntax.ObjectConsExpr:
+		return evalObjectConsLazily(e, evalCtx)
+	case *hclsyntax.FunctionCallExpr:
+		return evalFunctionCallLazily(e, evalCtx)
+	case *hclsyntax.TemplateExpr:
+		return evalTemplateLazily(e, evalCtx)
 	case *hclsyntax.TemplateWrapExpr:
 		// TemplateWrapExpr is generated for a string that is a single interpolation,
 		// e.g. "${cond ? run_cmd_a : run_cmd_b}". Delegate to the inner expression.
@@ -158,4 +164,115 @@ func evalTupleConsLazily(e *hclsyntax.TupleConsExpr, evalCtx *hcl.EvalContext) (
 	}
 
 	return cty.TupleVal(vals), diags
+}
+
+// evalObjectConsLazily evaluates an object construction expression by applying
+// evalExpressionLazily to each value expression. Key expressions are kept as-is
+// so that the original ObjectConsExpr.Value() can handle unknown keys, mark
+// propagation, and object type construction as normal.
+func evalObjectConsLazily(e *hclsyntax.ObjectConsExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	lazyItems := make([]hclsyntax.ObjectConsItem, len(e.Items))
+
+	var diags hcl.Diagnostics
+
+	for i, item := range e.Items {
+		val, valDiags := evalExpressionLazily(item.ValueExpr, evalCtx)
+
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
+			return e.Value(evalCtx)
+		}
+
+		lazyItems[i] = hclsyntax.ObjectConsItem{
+			KeyExpr: item.KeyExpr,
+			ValueExpr: &hclsyntax.LiteralValueExpr{
+				Val:      val,
+				SrcRange: item.ValueExpr.Range(),
+			},
+		}
+	}
+
+	modifiedExpr := &hclsyntax.ObjectConsExpr{
+		Items:     lazyItems,
+		SrcRange:  e.SrcRange,
+		OpenRange: e.OpenRange,
+	}
+
+	val, callDiags := modifiedExpr.Value(evalCtx)
+
+	return val, append(diags, callDiags...)
+}
+
+// evalFunctionCallLazily evaluates a function call expression by applying
+// evalExpressionLazily to each argument before passing control to the original
+// FunctionCallExpr.Value(). This ensures the selected branch of any conditional
+// argument is the only one that executes, while all function-level logic (lookup,
+// type-checking, ExpandFinal handling) is preserved unchanged.
+func evalFunctionCallLazily(e *hclsyntax.FunctionCallExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	lazyArgs := make([]hclsyntax.Expression, len(e.Args))
+
+	var diags hcl.Diagnostics
+
+	for i, arg := range e.Args {
+		val, argDiags := evalExpressionLazily(arg, evalCtx)
+
+		diags = append(diags, argDiags...)
+		if argDiags.HasErrors() {
+			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
+			return e.Value(evalCtx)
+		}
+
+		lazyArgs[i] = &hclsyntax.LiteralValueExpr{
+			Val:      val,
+			SrcRange: arg.Range(),
+		}
+	}
+
+	modifiedExpr := &hclsyntax.FunctionCallExpr{
+		Name:            e.Name,
+		Args:            lazyArgs,
+		ExpandFinal:     e.ExpandFinal,
+		NameRange:       e.NameRange,
+		OpenParenRange:  e.OpenParenRange,
+		CloseParenRange: e.CloseParenRange,
+	}
+
+	val, callDiags := modifiedExpr.Value(evalCtx)
+
+	return val, append(diags, callDiags...)
+}
+
+// evalTemplateLazily evaluates a template expression by applying evalExpressionLazily
+// to each part and substituting results as LiteralValueExpr nodes. The modified
+// TemplateExpr.Value() then handles string concatenation, unknown propagation, and
+// mark handling as normal.
+func evalTemplateLazily(e *hclsyntax.TemplateExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	lazyParts := make([]hclsyntax.Expression, len(e.Parts))
+
+	var diags hcl.Diagnostics
+
+	for i, part := range e.Parts {
+		val, partDiags := evalExpressionLazily(part, evalCtx)
+
+		diags = append(diags, partDiags...)
+		if partDiags.HasErrors() {
+			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
+			return e.Value(evalCtx)
+		}
+
+		lazyParts[i] = &hclsyntax.LiteralValueExpr{
+			Val:      val,
+			SrcRange: part.Range(),
+		}
+	}
+
+	modifiedExpr := &hclsyntax.TemplateExpr{
+		Parts:    lazyParts,
+		SrcRange: e.SrcRange,
+	}
+
+	val, callDiags := modifiedExpr.Value(evalCtx)
+
+	return val, append(diags, callDiags...)
 }
