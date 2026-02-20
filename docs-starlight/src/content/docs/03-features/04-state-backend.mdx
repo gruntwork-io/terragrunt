@@ -167,6 +167,8 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`. This will skip the automatic creation of remote state resources (S3 buckets, DynamoDB tables, GCS buckets) by Terragrunt, while still allowing Terraform to initialize the backend normally. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want Terragrunt to create or modify remote state resources.
 
+**Prerequisite**: When `disable_init = true`, backend resources must already exist and valid credentials to access the backend are still required by Terraform.
+
 The following example demonstrates using an environment variable to configure this option:
 
 ```hcl

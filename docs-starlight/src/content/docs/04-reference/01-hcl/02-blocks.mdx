@@ -318,6 +318,13 @@ The `remote_state` block supports the following arguments:
   two backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
   but Terraform will still initialize the backend normally. Defaults to `false`.
 
+  | `disable_init` | `--backend-bootstrap` | Backend exists | Result |
+  |---|---|---|---|
+  | `false` | `true` | No | Terragrunt creates backend resources, init succeeds |
+  | `false` | `false` | Yes | No creation, init succeeds |
+  | `true` | any | Yes | No creation, Terraform inits normally ✓ |
+  | `true` | any | No | No creation, Terraform init fails (bucket not found) |
+
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
   modules using this `remote_state` block. See the documentation for [dependency block](#dependency) for more details.
 
