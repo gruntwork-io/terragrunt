@@ -70,14 +70,25 @@ type (
 )
 
 type ExecutionOptions struct {
-	CmdStdout         io.Writer
-	CmdStderr         io.Writer
-	TerragruntOptions *options.TerragruntOptions
-	WorkingDir        string
-	Command           string
-	Args              []string
-	SuppressStdout    bool
-	AllocatePseudoTty bool
+	CmdStdout               io.Writer
+	CmdStderr               io.Writer
+	Engine                  *options.EngineOptions
+	Env                     map[string]string
+	Writer                  io.Writer // original pre-wrap writer for log routing
+	ErrWriter               io.Writer // original pre-wrap error writer
+	WorkingDir              string
+	RootWorkingDir          string
+	EngineCachePath         string
+	EngineLogLevel          string
+	Command                 string
+	Args                    []string
+	Headless                bool
+	ForwardTFStdout         bool
+	SuppressStdout          bool
+	AllocatePseudoTty       bool
+	EngineSkipChecksumCheck bool
+	LogShowAbsPaths         bool
+	LogDisableErrorSummary  bool
 }
 
 type engineInstance struct {
@@ -97,16 +108,16 @@ func Run(
 		return nil, errors.New(err)
 	}
 
-	workingDir := runOptions.TerragruntOptions.WorkingDir
+	workingDir := runOptions.WorkingDir
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
 		// download engine if not available
-		if err = DownloadEngine(ctx, l, runOptions.TerragruntOptions); err != nil {
+		if err = downloadEngine(ctx, l, runOptions); err != nil {
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, createEngineErr := createEngine(ctx, l, runOptions.TerragruntOptions)
+		terragruntEngine, client, createEngineErr := createEngine(ctx, l, runOptions)
 		if createEngineErr != nil {
 			return nil, errors.New(createEngineErr)
 		}
@@ -148,12 +159,8 @@ func WithEngineValues(ctx context.Context) context.Context {
 	return ctx
 }
 
-// DownloadEngine downloads the engine for the given options.
-func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
-		return nil
-	}
-
+// downloadEngine downloads the engine for the given options.
+func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) error {
 	e := opts.Engine
 	if e == nil {
 		return nil
@@ -260,7 +267,7 @@ func DownloadEngine(ctx context.Context, l log.Logger, opts *options.TerragruntO
 	return nil
 }
 
-func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
+func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, error) {
 	repository := strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
@@ -345,13 +352,13 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 }
 
 // engineDir returns the directory path where engine files are stored.
-func engineDir(terragruntOptions *options.TerragruntOptions) (string, error) {
-	engine := terragruntOptions.Engine
+func engineDir(opts *ExecutionOptions) (string, error) {
+	engine := opts.Engine
 	if util.FileExists(engine.Source) {
 		return filepath.Dir(engine.Source), nil
 	}
 
-	cacheDir := terragruntOptions.EngineCachePath
+	cacheDir := opts.EngineCachePath
 	if len(cacheDir) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -458,8 +465,8 @@ const (
 )
 
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	if !opts.Experiments.Evaluate(experiment.IacEngine) || opts.NoEngine {
+func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experiments, noEngine bool) error {
+	if !experiments.Evaluate(experiment.IacEngine) || noEngine {
 		return nil
 	}
 
@@ -542,7 +549,7 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	opts *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
 	if opts.Engine == nil {
 		return nil, nil, errors.Errorf("engine options are nil")
@@ -576,6 +583,7 @@ func createEngine(
 	l.Debugf("Creating engine %s", localEnginePath)
 
 	engineLogLevel := opts.EngineLogLevel
+
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()
 		// update log level if it is different from info
@@ -649,9 +657,7 @@ func createEngine(
 func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	l = l.WithField(placeholders.TFPathKeyName, "engine")
 
-	opts := runOptions.TerragruntOptions
-
-	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -662,7 +668,7 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
 		WorkingDir:        runOptions.WorkingDir,
 		Meta:              meta,
-		EnvVars:           runOptions.TerragruntOptions.Env,
+		EnvVars:           runOptions.Env,
 	})
 	if err != nil {
 		return nil, errors.New(err)
@@ -672,13 +678,13 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	stdoutLogLevel := log.StdoutLevel
 	stderrLogLevel := log.StderrLevel
 
-	stdoutWriter := options.ExtractOriginalWriter(opts.Writer)
-	stderrWriter := options.ExtractOriginalWriter(opts.ErrWriter)
+	stdoutWriter := options.ExtractOriginalWriter(runOptions.Writer)
+	stderrWriter := options.ExtractOriginalWriter(runOptions.ErrWriter)
 
-	if opts.Headless && !opts.ForwardTFStdout {
+	if runOptions.Headless && !runOptions.ForwardTFStdout {
 		stdoutLogLevel = log.InfoLevel
 		stderrLogLevel = log.ErrorLevel
-		stdoutWriter = options.ExtractOriginalWriter(opts.ErrWriter)
+		stdoutWriter = options.ExtractOriginalWriter(runOptions.ErrWriter)
 	}
 
 	var (
@@ -751,18 +757,18 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 		return nil, errors.New(err)
 	}
 
-	l.Debugf("Engine execution done in %v", opts.WorkingDir)
+	l.Debugf("Engine execution done in %v", runOptions.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
 			Err:             errors.Errorf("command failed with exit code %d", resultCode),
 			Output:          output,
-			WorkingDir:      opts.WorkingDir,
-			RootWorkingDir:  opts.RootWorkingDir,
-			LogShowAbsPaths: opts.LogShowAbsPaths,
+			WorkingDir:      runOptions.WorkingDir,
+			RootWorkingDir:  runOptions.RootWorkingDir,
+			LogShowAbsPaths: runOptions.LogShowAbsPaths,
 			Command:         runOptions.Command,
 			Args:            runOptions.Args,
-			DisableSummary:  opts.LogDisableErrorSummary,
+			DisableSummary:  runOptions.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)
@@ -803,7 +809,7 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
 func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
-	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -811,7 +817,7 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 	l.Debugf("Running init for engine in %s", runOptions.WorkingDir)
 
 	request, err := (*client).Init(ctx, &proto.InitRequest{
-		EnvVars:    runOptions.TerragruntOptions.Env,
+		EnvVars:    runOptions.Env,
 		WorkingDir: runOptions.WorkingDir,
 		Meta:       meta,
 	})
@@ -867,7 +873,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory
 func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
-	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -875,7 +881,7 @@ func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, t
 	request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 		WorkingDir: runOptions.WorkingDir,
 		Meta:       meta,
-		EnvVars:    runOptions.TerragruntOptions.Env,
+		EnvVars:    runOptions.Env,
 	})
 	if err != nil {
 		return errors.New(err)

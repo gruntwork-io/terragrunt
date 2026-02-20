@@ -1561,7 +1561,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
 		pctx.IAMRoleOptions = pctx.OriginalIAMRoleOptions
-		pctx.TerragruntOptions.IAMRoleOptions = pctx.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
 		var (
@@ -1585,7 +1584,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 			pctx.OriginalIAMRoleOptions,
 		)
 		pctx.IAMRoleOptions = merged
-		pctx.TerragruntOptions.IAMRoleOptions = merged
 	}
 
 	return nil

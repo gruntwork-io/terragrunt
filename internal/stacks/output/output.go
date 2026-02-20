@@ -99,7 +99,7 @@ func StackOutput(
 			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, valuesErr)
 		}
 
-		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, opts, path, values)
+		stackFile, stackErr := config.ReadStackConfigFile(ctx, l, pctx, path, values)
 		if stackErr != nil {
 			return cty.NilVal, errors.Errorf("Failed to read stack file %s: %w", path, stackErr)
 		}
