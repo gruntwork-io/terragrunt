@@ -26,14 +26,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 		remoteStateCfg    *remotestate.Config
 		name              string
 		backendBootstrap  bool
-		expectError       bool
 		expectBackendArgs bool
 	}{
 		{
 			name:              "nil remote state config - no args inserted",
 			remoteStateCfg:    nil,
 			backendBootstrap:  false,
-			expectError:       false,
 			expectBackendArgs: false,
 		},
 		{
@@ -44,7 +42,6 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				BackendConfig: s3Config,
 			},
 			backendBootstrap:  false,
-			expectError:       false,
 			expectBackendArgs: true,
 		},
 		{
@@ -55,14 +52,16 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				BackendConfig: s3Config,
 			},
 			backendBootstrap:  false,
-			expectError:       false,
 			expectBackendArgs: true,
 		},
 		{
 			// Key regression test for #1422: even with BackendBootstrap=true, Bootstrap must be
-			// skipped when DisableInit=true. If Bootstrap were called with a fake S3 config
-			// (no real AWS), it would return an AWS connectivity error — returning nil proves
-			// Bootstrap was correctly skipped.
+			// skipped when DisableInit=true.
+			//
+			// Proof that Bootstrap is skipped: NewTerragruntOptionsForTest creates options with
+			// no AWS credentials. If Bootstrap were called, it would immediately fail with an AWS
+			// auth error (no credentials → no S3 API call possible). require.NoError therefore
+			// deterministically proves Bootstrap was not invoked — no real AWS access occurs.
 			name: "disable_init=true, bootstrap=true - backend-config args inserted, bootstrap SKIPPED",
 			remoteStateCfg: &remotestate.Config{
 				BackendName:   "s3",
@@ -70,7 +69,6 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				BackendConfig: s3Config,
 			},
 			backendBootstrap:  true,
-			expectError:       false,
 			expectBackendArgs: true,
 		},
 	}
@@ -90,12 +88,6 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			}
 
 			err = prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
-
-			if tc.expectError {
-				require.Error(t, err)
-
-				return
-			}
 
 			require.NoError(t, err)
 

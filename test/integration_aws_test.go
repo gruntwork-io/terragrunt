@@ -189,43 +189,37 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureS3BackendDisableInit)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendDisableInit)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureS3BackendDisableInit)
 
-	testID := strings.ToLower(helpers.UniqueID())
-	s3BucketName := "terragrunt-test-bucket-" + testID
+	// setupEnv copies the fixture, fills placeholders, and returns the working dir root path.
+	setupEnv := func(bucketName string) string {
+		tmpPath := helpers.CopyEnvironment(t, testFixtureS3BackendDisableInit)
+		root := filepath.Join(tmpPath, testFixtureS3BackendDisableInit)
+		cfgPath := filepath.Join(root, "terragrunt.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, cfgPath, cfgPath, bucketName, "", helpers.TerraformRemoteStateS3Region)
 
-	configPath := filepath.Join(rootPath, "terragrunt.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath, configPath, s3BucketName, "", helpers.TerraformRemoteStateS3Region)
-
-	// Pre-create the S3 bucket, simulating externally managed infrastructure.
-	// disable_init=true is designed for cases where backend resources are managed outside Terragrunt.
-	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+		return root
+	}
 
 	// Case 1: pre-existing bucket + disable_init=true → plan SUCCEEDS.
 	// Terragrunt passes -backend-config= args (not -backend=false), so Terraform
 	// can initialize the backend and run plan against the pre-existing bucket.
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	rootPath := setupEnv(s3BucketName)
+
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath,
 	)
 	require.NoError(t, err, "Expected plan to succeed with disable_init=true and pre-existing S3 bucket. stdout: %s, stderr: %s", stdout, stderr)
 
-	// Case 2: no bucket + disable_init=true → Terraform still attempts backend init.
-	// This behaviorally proves that disable_init=true passes -backend-config= args to terraform
-	// (not -backend=false which would silently disable backend init).
-	// The plan fails because the bucket doesn't exist, but the key assertion is that Terraform
-	// reached the "Initializing the backend" stage — it received the backend-config args.
-	testID2 := strings.ToLower(helpers.UniqueID())
-	s3BucketName2 := "terragrunt-test-bucket-" + testID2
+	// Case 2: no bucket + disable_init=true (no --backend-bootstrap) → Terraform attempts backend init.
+	// Proves disable_init=true passes -backend-config= args (not -backend=false): the plan fails at
+	// the Terraform backend-init stage (bucket not found), not silently with disabled backend.
+	rootPath2 := setupEnv("terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID()))
 
-	tmpEnvPath2 := helpers.CopyEnvironment(t, testFixtureS3BackendDisableInit)
-	rootPath2 := filepath.Join(tmpEnvPath2, testFixtureS3BackendDisableInit)
-	configPath2 := filepath.Join(rootPath2, "terragrunt.hcl")
-	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath2, configPath2, s3BucketName2, "", helpers.TerraformRemoteStateS3Region)
-
-	// Intentionally do NOT create s3BucketName2 — it must not exist.
 	noBucketStdout, noBucketStderr, noBucketErr := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt run plan --non-interactive --working-dir "+rootPath2,
@@ -233,10 +227,25 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	noBucketOut := noBucketStdout + noBucketStderr
 
 	require.Error(t, noBucketErr, "Expected plan to fail when backend bucket does not exist")
-	// "Initializing the backend" confirms Terraform received backend-config args and attempted
-	// to initialize the backend. If -backend=false had been passed instead, this line would
-	// never appear because Terraform would skip backend initialization entirely.
 	assert.Contains(t, noBucketOut, "Initializing the backend", "Terraform should have attempted backend init, proving -backend-config= args were passed (not -backend=false)")
+
+	// Case 3: no bucket + disable_init=true + --backend-bootstrap → bootstrap is still SKIPPED.
+	// This directly exercises the run.go:619 guard: even with BackendBootstrap=true,
+	// DisableInit=true must prevent Terragrunt from creating backend resources.
+	// Expected: plan fails at Terraform backend-init (bucket not found), not from Terragrunt bootstrap.
+	rootPath3 := setupEnv("terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID()))
+
+	bootstrapStdout, bootstrapStderr, bootstrapErr := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run plan --backend-bootstrap --non-interactive --working-dir "+rootPath3,
+	)
+	bootstrapOut := bootstrapStdout + bootstrapStderr
+
+	require.Error(t, bootstrapErr, "Expected plan to fail when backend bucket does not exist even with --backend-bootstrap")
+	// Terraform must have reached backend init (received -backend-config= args, not -backend=false).
+	assert.Contains(t, bootstrapOut, "Initializing the backend", "Terraform should have attempted backend init with --backend-bootstrap + disable_init=true")
+	// Terragrunt bootstrap must NOT have run — it would have printed this if it tried to create the bucket.
+	assert.NotContains(t, bootstrapOut, "Creating S3 bucket", "Terragrunt must not attempt bucket creation when disable_init=true, even with --backend-bootstrap")
 }
 
 func TestAwsDualLockingBackend(t *testing.T) {
