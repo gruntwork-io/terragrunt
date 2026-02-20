@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -359,7 +360,9 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.TerragruntConfigPath = filepath.Clean(opts.TerragruntConfigPath)
 
-	opts.TFPath = filepath.Clean(opts.TFPath)
+	if !filepath.IsAbs(opts.TFPath) && strings.Contains(opts.TFPath, string(filepath.Separator)) {
+		opts.TFPath = filepath.Join(opts.WorkingDir, opts.TFPath)
+	}
 
 	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
