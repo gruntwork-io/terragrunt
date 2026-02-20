@@ -116,10 +116,11 @@ func (pc *ProviderCache) Init(l log.Logger, opts *options.TerragruntOptions) err
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
-	var err error
-	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
-		return errors.New(err)
+	if !filepath.IsAbs(opts.ProviderCacheDir) {
+		opts.ProviderCacheDir = filepath.Join(opts.RootWorkingDir, opts.ProviderCacheDir)
 	}
+
+	opts.ProviderCacheDir = filepath.Clean(opts.ProviderCacheDir)
 
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
@@ -191,15 +192,6 @@ func (pc *ProviderCache) TerraformCommandHook(
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
-
-	if !filepath.IsAbs(cliConfigFilename) {
-		absPath, err := filepath.Abs(cliConfigFilename)
-		if err != nil {
-			return nil, errors.New(err)
-		}
-
-		cliConfigFilename = absPath
-	}
 
 	var skipRunTargetCommand bool
 

@@ -52,15 +52,17 @@ type Repo struct {
 
 	walkWithSymlinks bool
 	allowCAS         bool
+	rootWorkingDir   string
 }
 
-func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool, rootWorkingDir string) (*Repo, error) {
 	repo := &Repo{
 		logger:           l,
 		cloneURL:         cloneURL,
 		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
 		allowCAS:         allowCAS,
+		rootWorkingDir:   rootWorkingDir,
 	}
 
 	if err := repo.clone(ctx, l); err != nil {
@@ -214,12 +216,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 
 func (repo *Repo) resolveCloneURL() (string, error) {
 	if repo.cloneURL == "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return "", errors.New(err)
-		}
-
-		return currentDir, nil
+		return repo.rootWorkingDir, nil
 	}
 
 	return repo.cloneURL, nil
@@ -227,11 +224,7 @@ func (repo *Repo) resolveCloneURL() (string, error) {
 
 func (repo *Repo) handleLocalDir(repoPath string) error {
 	if !filepath.IsAbs(repoPath) {
-		absRepoPath, err := filepath.Abs(repoPath)
-		if err != nil {
-			return errors.New(err)
-		}
-
+		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
 		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
 

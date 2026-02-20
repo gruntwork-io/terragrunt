@@ -90,12 +90,7 @@ func CanonicalPath(path string, basePath string) (string, error) {
 		path = filepath.Join(basePath, path)
 	}
 
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	return CleanPath(absPath), nil
+	return filepath.Clean(path), nil
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
@@ -130,7 +125,7 @@ func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]st
 		matches, err := zglob.Glob(globPath)
 		if err == nil {
 			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
+		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(filepath.Clean(globPath), stackDir) {
 			// when using the stack feature, the directory may not exist yet,
 			// as stack generation occurs after parsing the argument flags.
 			paths = append(paths, globPath)
@@ -314,17 +309,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		basePath = "."
 	}
 
-	inputFolderAbs, err := filepath.Abs(basePath)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	fileAbs, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
+	relPath, err := filepath.Rel(basePath, path)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -589,28 +574,12 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	return os.WriteFile(destination, contents, fileInfo.Mode())
 }
 
-// SplitPath splits the given path into a list.
-// E.g. "foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
-// E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
-// Notice that if path is absolute the resulting list will begin with an empty string.
-func SplitPath(path string) []string {
-	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
-}
-
-// CleanPath is a wrapper around filepath.Clean.
-//
-// Use this function when cleaning paths to ensure the returned
-// path uses / as the path separator to improve cross-platform compatibility
-func CleanPath(path string) string {
-	return filepath.ToSlash(filepath.Clean(path))
-}
-
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitSubpath := SplitPath(CleanPath(subpath))
+	splitPath := filepath.SplitList(filepath.Clean(path))
+	splitSubpath := filepath.SplitList(filepath.Clean(subpath))
 	contains := ListContainsSublist(splitPath, splitSubpath)
 
 	return contains
@@ -621,8 +590,8 @@ func ContainsPath(path, subpath string) bool {
 // E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
 // path)
 func HasPathPrefix(path, prefix string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitPrefix := SplitPath(CleanPath(prefix))
+	splitPath := filepath.SplitList(filepath.Clean(path))
+	splitPrefix := filepath.SplitList(filepath.Clean(prefix))
 	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
 
 	return hasPrefix

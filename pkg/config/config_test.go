@@ -807,14 +807,15 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.RecommendedParentConfigName
+	configPathRel := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.RecommendedParentConfigName
+	configPath := absPath(t, configPathRel)
 
-	cfg, err := util.ReadFileAsString(configPath)
+	cfg, err := util.ReadFileAsString(configPathRel)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	opts := mockOptionsForTestWithConfigPath(t, configPath)
+	opts := mockOptionsForTestWithConfigPath(t, configPathRel)
 	l := createLogger()
 
 	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
@@ -833,14 +834,15 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
+	configPathRel := "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
+	configPath := absPath(t, configPathRel)
 
-	cfg, err := util.ReadFileAsString(configPath)
+	cfg, err := util.ReadFileAsString(configPathRel)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	opts := mockOptionsForTestWithConfigPath(t, configPath)
+	opts := mockOptionsForTestWithConfigPath(t, configPathRel)
 	l := createLogger()
 
 	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
@@ -1272,10 +1274,9 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	t.Parallel()
 
-	cwd, err := os.Getwd()
+	workingDir, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"))
 	require.NoError(t, err)
 
-	workingDir := filepath.Join(cwd, "../../test/fixtures/config-files/ignore-terraform-data-dir/")
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 	require.NoError(t, err)
 
@@ -1286,9 +1287,9 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 
 	// Create expected paths using filepath.Join for cross-platform compatibility
 	expected := []string{
-		filepath.Join(cwd, "../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
-		filepath.Join(cwd, "../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
-		filepath.Join(cwd, "../../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".terraform", "modules", "mod", "terragrunt.hcl"),
+		filepath.Join(workingDir, "subdir", ".tf_data", "modules", "mod", "terragrunt.hcl"),
 	}
 
 	// Sort both slices to ensure consistent order for comparison
@@ -1434,8 +1435,11 @@ terraform {
 	source = path_relative_to_include()
 }
 `
+	configPathRel := "../../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath
+	configPathAbs := absPath(t, configPathRel)
 	opts := &options.TerragruntOptions{
-		TerragruntConfigPath: "../../test/fixtures/parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
+		TerragruntConfigPath: configPathAbs,
+		WorkingDir:           filepath.Dir(configPathAbs),
 		NonInteractive:       true,
 		MaxFoldersToCheck:    5,
 		StrictControls:       controls.New(),
@@ -1445,7 +1449,7 @@ terraform {
 
 	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, configPathAbs, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1533,9 +1537,6 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	// Setup
 	b.StopTimer()
 
-	cwd, err := os.Getwd()
-	require.NoError(b, err)
-
 	testDir := "../test"
 
 	fixtureDirs := []struct {
@@ -1552,7 +1553,8 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 	// Run benchmarks
 	for _, fixture := range fixtureDirs {
 		b.Run(fixture.description, func(b *testing.B) {
-			workingDir := filepath.Join(cwd, testDir, fixture.workingDir)
+			workingDir, err := filepath.Abs(filepath.Join(testDir, fixture.workingDir))
+			require.NoError(b, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 			if fixture.usePartialParseCache {
