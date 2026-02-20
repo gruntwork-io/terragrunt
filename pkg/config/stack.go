@@ -212,17 +212,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts *options.Terragru
 	dest := filepath.Join(cmp.targetDir, cmp.path)
 
 	// validate destination path is within the stack directory
-	// get the absolute path of the destination directory
-	absDest, err := filepath.Abs(dest)
-	if err != nil {
-		return errors.Errorf("failed to get absolute path for destination '%s': %w", cmp.name, err)
-	}
-
-	// get the absolute path of the stack directory
-	absStackDir, err := filepath.Abs(cmp.targetDir)
-	if err != nil {
-		return errors.Errorf("failed to get absolute path for stack directory '%s': %w", cmp.name, err)
-	}
+	absDest := filepath.Clean(dest)
+	absStackDir := filepath.Clean(cmp.targetDir)
 
 	// validate that the destination path is within the stack directory
 	if !strings.HasPrefix(absDest, absStackDir) {
@@ -310,12 +301,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 			localSrc = filepath.Join(sourceDir, src)
 		}
 
-		localSrc, err := filepath.Abs(localSrc)
-		if err != nil {
-			l.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
-			// fallback to original source
-			localSrc = src
-		}
+		localSrc = filepath.Clean(localSrc)
 
 		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true

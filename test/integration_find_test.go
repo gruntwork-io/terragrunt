@@ -58,7 +58,7 @@ func TestFindHidden(t *testing.T) {
 	}{
 		{
 			name:     "default (includes hidden)",
-			expected: ".hide/unit\nstack\nunit\n",
+			expected: filepath.Join(".hide", "unit") + "\nstack\nunit\n",
 		},
 		{
 			name:     "no-hidden flag excludes hidden",
@@ -83,9 +83,7 @@ func TestFindHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			// Normalize path separators in the output for cross-platform compatibility
-			normalizedStdout := filepath.ToSlash(stdout)
-			assert.Equal(t, tc.expected, normalizedStdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }
@@ -192,9 +190,7 @@ func TestFindExternalDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	// Normalize path separators in the output for cross-platform compatibility
-	normalizedStdout := filepath.ToSlash(stdout)
-	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
+	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -220,9 +216,7 @@ func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	// Normalize path separators in the output for cross-platform compatibility
-	normalizedStdout := filepath.ToSlash(stdout)
-	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
+	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
 	require.NoError(t, err)
@@ -336,28 +330,28 @@ func TestFindQueueConstructAs(t *testing.T) {
 			name: "up command",
 			args: "--queue-construct-as plan",
 			expectedPaths: []string{
-				"stacks/live/dev",
-				"stacks/live/prod",
-				"units/live/dev/vpc",
-				"units/live/prod/vpc",
-				"units/live/dev/db",
-				"units/live/prod/db",
-				"units/live/dev/ec2",
-				"units/live/prod/ec2",
+				filepath.Join("stacks", "live", "dev"),
+				filepath.Join("stacks", "live", "prod"),
+				filepath.Join("units", "live", "dev", "vpc"),
+				filepath.Join("units", "live", "prod", "vpc"),
+				filepath.Join("units", "live", "dev", "db"),
+				filepath.Join("units", "live", "prod", "db"),
+				filepath.Join("units", "live", "dev", "ec2"),
+				filepath.Join("units", "live", "prod", "ec2"),
 			},
 		},
 		{
 			name: "down command",
 			args: "--queue-construct-as destroy",
 			expectedPaths: []string{
-				"stacks/live/dev",
-				"stacks/live/prod",
-				"units/live/dev/ec2",
-				"units/live/prod/ec2",
-				"units/live/dev/db",
-				"units/live/prod/db",
-				"units/live/dev/vpc",
-				"units/live/prod/vpc",
+				filepath.Join("stacks", "live", "dev"),
+				filepath.Join("stacks", "live", "prod"),
+				filepath.Join("units", "live", "dev", "ec2"),
+				filepath.Join("units", "live", "prod", "ec2"),
+				filepath.Join("units", "live", "dev", "db"),
+				filepath.Join("units", "live", "prod", "db"),
+				filepath.Join("units", "live", "dev", "vpc"),
+				filepath.Join("units", "live", "prod", "vpc"),
 			},
 		},
 	}
@@ -380,8 +374,7 @@ func TestFindQueueConstructAs(t *testing.T) {
 
 			paths := make([]string, 0, len(configs))
 			for _, config := range configs {
-				// Normalize path separators for cross-platform compatibility
-				paths = append(paths, filepath.ToSlash(config.Path))
+				paths = append(paths, config.Path)
 			}
 
 			assert.Equal(t, tc.expectedPaths, paths)

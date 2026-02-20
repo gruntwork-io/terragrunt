@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -254,13 +255,10 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 
 	// Make sure the cache directory is absolute
 	if !filepath.IsAbs(providerCacheDir) {
-		absPath, err := filepath.Abs(providerCacheDir)
-		if err != nil {
-			return errors.Errorf("failed to get absolute path for provider cache directory: %w", err)
-		}
-
-		providerCacheDir = absPath
+		providerCacheDir = filepath.Join(opts.RootWorkingDir, providerCacheDir)
 	}
+
+	providerCacheDir = filepath.Clean(providerCacheDir)
 
 	const cacheDirMode = 0755
 
@@ -320,18 +318,20 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		}
 
 		opts.WorkingDir = currentDir
+	} else if !filepath.IsAbs(opts.WorkingDir) {
+		workingDir, err := filepath.Abs(opts.WorkingDir)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		opts.WorkingDir = workingDir
 	}
 
-	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+	opts.WorkingDir = filepath.Clean(opts.WorkingDir)
 
-	workingDir, err := filepath.Abs(opts.WorkingDir)
-	if err != nil {
-		return errors.New(err)
-	}
+	l = l.WithField(placeholders.WorkDirKeyName, opts.WorkingDir)
 
-	l = l.WithField(placeholders.WorkDirKeyName, workingDir)
-
-	opts.RootWorkingDir = filepath.ToSlash(workingDir)
+	opts.RootWorkingDir = opts.WorkingDir
 
 	if err := l.Formatter().SetBaseDir(opts.RootWorkingDir); err != nil {
 		return err
@@ -344,14 +344,11 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	// --- Download Dir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = filepath.Join(opts.WorkingDir, util.TerragruntCacheDir)
+	} else if !filepath.IsAbs(opts.DownloadDir) {
+		opts.DownloadDir = filepath.Join(opts.RootWorkingDir, opts.DownloadDir)
 	}
 
-	downloadDir, err := filepath.Abs(opts.DownloadDir)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	opts.DownloadDir = filepath.ToSlash(downloadDir)
+	opts.DownloadDir = filepath.Clean(opts.DownloadDir)
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
@@ -361,12 +358,11 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		opts.TerragruntConfigPath = filepath.Join(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
-	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
-	if err != nil {
-		return errors.New(err)
-	}
+	opts.TerragruntConfigPath = filepath.Clean(opts.TerragruntConfigPath)
 
-	opts.TFPath = filepath.ToSlash(opts.TFPath)
+	if !filepath.IsAbs(opts.TFPath) && strings.Contains(opts.TFPath, string(filepath.Separator)) {
+		opts.TFPath = filepath.Join(opts.WorkingDir, opts.TFPath)
+	}
 
 	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {

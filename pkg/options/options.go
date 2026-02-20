@@ -370,6 +370,22 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
+
+	// Ensure config path is absolute so downstream code can rely on it.
+	// Skip resolution for empty paths (sentinel meaning "not set").
+	if terragruntConfigPath != "" {
+		if !filepath.IsAbs(terragruntConfigPath) {
+			absPath, err := filepath.Abs(terragruntConfigPath)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			terragruntConfigPath = filepath.Clean(absPath)
+		}
+
+		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
+	}
+
 	opts.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
@@ -389,12 +405,9 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
-	if err != nil {
-		return "", "", errors.New(err)
-	}
+	downloadDir := filepath.Clean(filepath.Join(workingDir, util.TerragruntCacheDir))
 
-	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
+	return workingDir, downloadDir, nil
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
@@ -451,14 +464,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(opts.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -640,12 +648,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
-	reportDir, err := filepath.Abs(reportWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	reportDir = util.CleanPath(reportDir)
+	reportDir := filepath.Clean(reportWorkingDir)
 
 	for {
 		err := operation()

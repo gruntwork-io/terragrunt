@@ -269,11 +269,14 @@ func TestRunCommand(t *testing.T) {
 func absPath(t *testing.T, path string) string {
 	t.Helper()
 
-	out, err := filepath.Abs(path)
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+
+	absPath, err := filepath.Abs(path)
 	require.NoError(t, err)
-	// Convert the path to use forward slashes for consistency with the FindInParentFolders function
-	// which uses filepath.ToSlash internally
-	return filepath.ToSlash(out)
+
+	return filepath.Clean(absPath)
 }
 
 func TestFindInParentFolders(t *testing.T) {
@@ -287,58 +290,266 @@ func TestFindInParentFolders(t *testing.T) {
 		params            []string
 	}{
 		{
-			name:              "simple-lookup",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			name:   "simple-lookup",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"root.hcl",
+				),
+			),
 		},
 		{
-			name:              "nested-lookup",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
+			name:   "nested-lookup",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"child",
+					"sub-child",
+					"sub-sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"terragrunt-in-root",
+					"root.hcl",
+				),
+			),
 		},
 		{
-			name:              "lookup-with-max-folders",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTestWithMaxFolders(t, "../../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
-			expectedErr:       config.ParentFileNotFoundError{},
+			name:   "lookup-with-max-folders",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTestWithMaxFolders(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"no-terragrunt-in-root",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+				3,
+			),
+			expectedErr: config.ParentFileNotFoundError{},
 		},
 		{
-			name:              "multiple-terragrunt-in-parents",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
+			name:   "multiple-terragrunt-in-parents",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"root.hcl",
+				),
+			),
 		},
 		{
-			name:              "multiple-terragrunt-in-parents-under-child",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
+			name:   "multiple-terragrunt-in-parents-under-child",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"root.hcl",
+				),
+			),
 		},
 		{
-			name:              "multiple-terragrunt-in-parents-under-sub-child",
-			params:            []string{"root.hcl"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
+			name:   "multiple-terragrunt-in-parents-under-sub-child",
+			params: []string{"root.hcl"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"sub-child",
+					"sub-sub-child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"multiple-terragrunt-in-parents",
+					"child",
+					"sub-child",
+					"root.hcl",
+				),
+			),
 		},
 		{
-			name:              "parent-file-that-isnt-terragrunt",
-			params:            []string{"foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/other-file-names/foo.txt"),
+			name:   "parent-file-that-isnt-terragrunt",
+			params: []string{"foo.txt"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"other-file-names",
+					"child",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"other-file-names",
+					"foo.txt",
+				),
+			),
 		},
 		{
-			name:              "parent-file-that-isnt-terragrunt-in-another-subfolder",
-			params:            []string{"common/foo.txt"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
+			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder",
+			params: []string{"common/foo.txt"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"in-another-subfolder",
+					"live",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"in-another-subfolder",
+					"common",
+					"foo.txt",
+				),
+			),
 		},
 		{
-			name:              "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
-			params:            []string{"tfwork"},
-			terragruntOptions: terragruntOptionsForTest(t, "../../test/fixtures/parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      absPath(t, "../../test/fixtures/parent-folders/with-params/tfwork"),
+			name:   "parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
+			params: []string{"tfwork"},
+			terragruntOptions: terragruntOptionsForTest(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"with-params",
+					"tfwork",
+					"tg",
+					config.DefaultTerragruntConfigPath,
+				),
+			),
+			expectedPath: absPath(
+				t,
+				filepath.Join(
+					"..",
+					"..",
+					"test",
+					"fixtures",
+					"parent-folders",
+					"with-params",
+					"tfwork",
+				),
+			),
 		},
 		{
 			name:              "not-found",
@@ -730,9 +941,7 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 
-	workingDir = filepath.ToSlash(workingDir)
-
-	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", workingDir+"/foo/bar")
+	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", filepath.Join(workingDir, "foo", "bar"))
 }
 
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
@@ -753,9 +962,7 @@ func terragruntOptionsForTest(t *testing.T, configPath string) *options.Terragru
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
-	if err != nil {
-		t.Fatalf("Failed to create TerragruntOptions: %v", err)
-	}
+	require.NoError(t, err)
 
 	return opts
 }
@@ -784,7 +991,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	currentDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 
-	parentDir := filepath.ToSlash(filepath.Dir(currentDir))
+	parentDir := filepath.Dir(currentDir)
 
 	testCases := []struct {
 		include           map[string]config.IncludeConfig
@@ -819,7 +1026,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		{
 			include:           map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
 			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
 		},
 		{
 			include:           map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
@@ -833,7 +1040,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			},
 			params:            []string{"child"},
 			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
 		},
 	}
 

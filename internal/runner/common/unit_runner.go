@@ -62,7 +62,7 @@ func (runner *UnitRunner) runTerragrunt(
 	// Only create report entries if report is not nil
 	if r != nil {
 		unitPath := runner.Unit.Path()
-		unitPath = util.CleanPath(unitPath)
+		unitPath = filepath.Clean(unitPath)
 
 		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
@@ -101,7 +101,7 @@ func (runner *UnitRunner) runTerragrunt(
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
 		unitPath := runner.Unit.Path()
-		unitPath = util.CleanPath(unitPath)
+		unitPath = filepath.Clean(unitPath)
 
 		if runErr != nil {
 			if endErr := r.EndRun(

@@ -274,10 +274,10 @@ func (u *Unit) DisplayPath() string {
 // FindInPaths returns true if the unit is located in one of the target directories.
 // Paths are normalized before comparison to handle absolute/relative path mismatches.
 func (u *Unit) FindInPaths(targetDirs []string) bool {
-	cleanUnitPath := util.CleanPath(u.path)
+	cleanUnitPath := filepath.Clean(u.path)
 
 	for _, dir := range targetDirs {
-		cleanDir := util.CleanPath(dir)
+		cleanDir := filepath.Clean(dir)
 		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
 			return true
 		}
@@ -328,19 +328,10 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	dir := filepath.Join(outputFolder, relPath)
 
 	if !filepath.IsAbs(dir) {
-		base := rootWorkingDir
-		if !filepath.IsAbs(base) {
-			if absBase, err := filepath.Abs(base); err == nil {
-				base = absBase
-			}
-		}
-
-		dir = filepath.Join(base, dir)
-
-		if absDir, err := filepath.Abs(dir); err == nil {
-			dir = absDir
-		}
+		dir = filepath.Join(rootWorkingDir, dir)
 	}
+
+	dir = filepath.Clean(dir)
 
 	return filepath.Join(dir, fileName)
 }

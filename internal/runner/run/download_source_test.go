@@ -37,7 +37,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
@@ -63,7 +63,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	fixturePath := absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed")
 	canonicalURL := "file://" + fixturePath
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-local-hash-failed", downloadDir)
@@ -91,7 +91,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world-local-hash")
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
@@ -176,7 +176,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
@@ -187,7 +187,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 
 	canonicalURL := "file://" + absPath(t, "../../../test/fixtures/download-source/hello-world")
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
@@ -200,7 +200,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalURL, downloadDir, false, "# Hello, World", false)
@@ -211,7 +211,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
@@ -224,7 +224,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world?ref=v0.83.2"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-2", downloadDir)
@@ -237,7 +237,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote?ref=v0.83.2"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
@@ -250,7 +250,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world?ref=v0.83.2"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
@@ -263,7 +263,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	canonicalURL := "github.com/totallyfakedoesnotexist/notreal.git//foo?ref=v1.2.3"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
@@ -293,7 +293,7 @@ func TestInvalidModulePath(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world-version-remote/non-existent-path?ref=v0.83.2"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
@@ -317,7 +317,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 
 	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world/main.tf?ref=v0.83.2"
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	defer os.Remove(downloadDir)
 
 	copyFolder(t, "../../../test/fixtures/download-source/hello-world-version-remote", downloadDir)
@@ -342,13 +342,13 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	t.Parallel()
 
-	downloadDir := tmpDir(t)
+	downloadDir := helpers.TmpDirWOSymlinks(t)
 	t.Cleanup(func() {
 		os.RemoveAll(downloadDir)
 	})
 
 	// used to test if an empty folder gets copied
-	testDir := tmpDir(t)
+	testDir := helpers.TmpDirWOSymlinks(t)
 	require.NoError(t, os.Mkdir(path.Join(testDir, "sub2"), 0700))
 	t.Cleanup(func() {
 		os.Remove(testDir)
@@ -512,23 +512,17 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
 
-func tmpDir(t *testing.T) string {
-	t.Helper()
-
-	dir := helpers.TmpDirWOSymlinks(t)
-
-	return filepath.FromSlash(dir)
-}
-
 func absPath(t *testing.T, path string) string {
 	t.Helper()
 
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		t.Fatal(err)
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
 	}
 
-	return abs
+	absPath, err := filepath.Abs(path)
+	require.NoError(t, err)
+
+	return filepath.Clean(absPath)
 }
 
 func parseURL(t *testing.T, str string) *url.URL {
