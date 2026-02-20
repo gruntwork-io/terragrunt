@@ -180,8 +180,9 @@ func evalObjectConsLazily(e *hclsyntax.ObjectConsExpr, evalCtx *hcl.EvalContext)
 
 		diags = append(diags, valDiags...)
 		if valDiags.HasErrors() {
-			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
-			return e.Value(evalCtx)
+			// Return DynamicVal on error — matches HCL's own error-path return value
+			// and avoids re-evaluating already-executed side-effectful args.
+			return cty.DynamicVal, diags
 		}
 
 		lazyItems[i] = hclsyntax.ObjectConsItem{
@@ -219,8 +220,9 @@ func evalFunctionCallLazily(e *hclsyntax.FunctionCallExpr, evalCtx *hcl.EvalCont
 
 		diags = append(diags, argDiags...)
 		if argDiags.HasErrors() {
-			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
-			return e.Value(evalCtx)
+			// Return DynamicVal on error — matches HCL's own error-path return value
+			// and avoids re-evaluating already-executed side-effectful args.
+			return cty.DynamicVal, diags
 		}
 
 		lazyArgs[i] = &hclsyntax.LiteralValueExpr{
@@ -257,8 +259,9 @@ func evalTemplateLazily(e *hclsyntax.TemplateExpr, evalCtx *hcl.EvalContext) (ct
 
 		diags = append(diags, partDiags...)
 		if partDiags.HasErrors() {
-			// Fall back to standard HCL evaluation to preserve error-path type behaviour.
-			return e.Value(evalCtx)
+			// Return DynamicVal on error — matches HCL's own error-path return value
+			// and avoids re-evaluating already-executed side-effectful args.
+			return cty.DynamicVal, diags
 		}
 
 		lazyParts[i] = &hclsyntax.LiteralValueExpr{

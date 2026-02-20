@@ -279,9 +279,15 @@ locals {
 				require.NoError(t, gocty.FromCtyValue(evaluatedLocals[tt.targetKey], &result))
 				assert.Equal(t, tt.wantVal, result)
 			default:
-				// Object and other complex-type cases: no error is the assertion
-				// (if unselected branch ran, __nonexistent_terragrunt_test_command__ would error)
-				assert.NotNil(t, evaluatedLocals[tt.targetKey])
+				// Object case: assert the "key" attribute holds the selected branch value.
+				// If the unselected branch ran, __nonexistent_terragrunt_test_command__ would
+				// have errored and EvaluateLocalsBlock would have returned an error above.
+				resultObj := evaluatedLocals[tt.targetKey]
+				require.True(t, resultObj.Type().IsObjectType())
+
+				var keyStr string
+				require.NoError(t, gocty.FromCtyValue(resultObj.GetAttr("key"), &keyStr))
+				assert.Equal(t, "branch_true", keyStr)
 			}
 		})
 	}
