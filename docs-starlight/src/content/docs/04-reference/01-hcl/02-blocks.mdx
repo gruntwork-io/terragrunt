@@ -322,13 +322,13 @@ The `remote_state` block supports the following arguments:
 
   The `--backend-bootstrap` flag controls whether Terragrunt creates backend resources (e.g., S3 buckets) before running `init`. It defaults to `false`.
 
-  | `disable_init` | `--backend-bootstrap` | Backend exists | Result |
-  |---|---|---|---|
-  | `false` | `true` | No | Terragrunt creates backend resources, init succeeds |
-  | `false` | `false` | No | No creation, OpenTofu/Terraform init fails (bucket not found) |
-  | `false` | `false` | Yes | No creation, init succeeds |
-  | `true` | any | Yes | No creation, OpenTofu/Terraform inits normally |
-  | `true` | any | No | No creation, OpenTofu/Terraform init fails (bucket not found) |
+  | `disable_init` | `--backend-bootstrap` | Backend exists | Result                                                        |
+  |----------------|-----------------------|----------------|---------------------------------------------------------------|
+  | `false`        | `true`                | No             | Terragrunt creates backend resources, init succeeds           |
+  | `false`        | `false`               | No             | No creation, OpenTofu/Terraform init fails (bucket not found) |
+  | `false`        | `false`               | Yes            | No creation, init succeeds                                    |
+  | `true`         | any                   | Yes            | No creation, OpenTofu/Terraform inits normally                |
+  | `true`         | any                   | No             | No creation, OpenTofu/Terraform init fails (bucket not found) |
 
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
   modules using this `remote_state` block. See the documentation for [dependency block](#dependency) for more details.
