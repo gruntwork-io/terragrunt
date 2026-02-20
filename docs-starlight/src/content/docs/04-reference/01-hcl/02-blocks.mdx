@@ -325,7 +325,7 @@ The `remote_state` block supports the following arguments:
   | `false` | `true` | No | Terragrunt creates backend resources, init succeeds |
   | `false` | `false` | No | No creation, Terraform init fails (bucket not found) |
   | `false` | `false` | Yes | No creation, init succeeds |
-  | `true` | any | Yes | No creation, Terraform inits normally ✓ |
+  | `true` | any | Yes | No creation, Terraform inits normally |
   | `true` | any | No | No creation, Terraform init fails (bucket not found) |
 
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt

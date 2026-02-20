@@ -218,7 +218,10 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	// Case 2: no bucket + disable_init=true (no --backend-bootstrap) → Terraform attempts backend init.
 	// Proves disable_init=true passes -backend-config= args (not -backend=false): the plan fails at
 	// the Terraform backend-init stage (bucket not found), not silently with disabled backend.
-	rootPath2 := setupEnv("terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID()))
+	s3BucketName2 := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName2)
+
+	rootPath2 := setupEnv(s3BucketName2)
 
 	noBucketStdout, noBucketStderr, noBucketErr := helpers.RunTerragruntCommandWithOutput(
 		t,
@@ -233,7 +236,10 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	// This directly exercises the run.go:619 guard: even with BackendBootstrap=true,
 	// DisableInit=true must prevent Terragrunt from creating backend resources.
 	// Expected: plan fails at Terraform backend-init (bucket not found), not from Terragrunt bootstrap.
-	rootPath3 := setupEnv("terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID()))
+	s3BucketName3 := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName3)
+
+	rootPath3 := setupEnv(s3BucketName3)
 
 	bootstrapStdout, bootstrapStderr, bootstrapErr := helpers.RunTerragruntCommandWithOutput(
 		t,

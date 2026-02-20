@@ -146,7 +146,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 
 				assert.True(t, hasBackendConfig, "expected -backend-config= flag in CLI args, got: %v", flags)
 			} else {
-				assert.Empty(t, flags, "expected no CLI args for nil config, got: %v", flags)
+				assert.Empty(t, flags, "expected no CLI args, got: %v", flags)
 			}
 		})
 	}

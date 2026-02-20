@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 /**
@@ -218,6 +221,29 @@ func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
 			assert.ElementsMatch(t, tc.expectedArgs, args)
 		})
 	}
+}
+
+func TestNeedsBootstrapDisableInit(t *testing.T) {
+	t.Parallel()
+
+	cfg := &remotestate.Config{
+		BackendName: "s3",
+		DisableInit: true,
+		BackendConfig: map[string]any{
+			"bucket": "my-bucket",
+			"key":    "terraform.tfstate",
+			"region": "us-east-1",
+		},
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("mock.hcl")
+	require.NoError(t, err)
+
+	remote := remotestate.New(cfg)
+	needsBootstrap, err := remote.NeedsBootstrap(t.Context(), logger.CreateLogger(), opts)
+
+	require.NoError(t, err)
+	assert.False(t, needsBootstrap, "NeedsBootstrap must return false when DisableInit=true")
 }
 
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
