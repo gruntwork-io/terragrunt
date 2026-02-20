@@ -558,14 +558,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		&shell.RunOptions{
-			WorkingDir:      pctx.WorkingDir,
-			Writer:          pctx.Writer,
-			ErrWriter:       pctx.ErrWriter,
-			Env:             pctx.Env,
-			RootWorkingDir:  pctx.RootWorkingDir,
-			LogShowAbsPaths: pctx.LogShowAbsPaths,
-		},
+		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
 		false,
