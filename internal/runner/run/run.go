@@ -245,7 +245,7 @@ func runTerragruntWithConfig(
 	}
 
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
-		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg); err != nil {
+		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg, cfg.RemoteState.Bootstrap); err != nil {
 			return err
 		}
 	} else {
@@ -609,22 +609,30 @@ func filterTerraformEnvVarsFromExtraArgsRunCfg(opts *options.TerragruntOptions, 
 }
 
 // prepareInitCommandRunCfg prepares for terraform init using runcfg types.
-func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
+// bootstrapFn is the function called to create/update remote state resources; callers pass
+// cfg.RemoteState.Bootstrap. Accepting it as a parameter allows unit tests to inject a spy
+// and assert directly that Bootstrap is not invoked when DisableInit=true.
+func prepareInitCommandRunCfg(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	cfg *runcfg.RunConfig,
+	bootstrapFn func(context.Context, log.Logger, *options.TerragruntOptions) error,
+) error {
 	if cfg.RemoteState.Config == nil {
 		return nil
 	}
 
 	opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
 
-	if !opts.BackendBootstrap {
+	// Bootstrap is skipped when either BackendBootstrap is false (the default) or DisableInit is true.
+	// DisableInit is also enforced in RemoteState.NeedsBootstrap (non-init auto-init path);
+	// both must stay in sync to ensure consistent behavior across all command types.
+	if !opts.BackendBootstrap || cfg.RemoteState.DisableInit {
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
-		return err
-	}
-
-	return nil
+	return bootstrapFn(ctx, l, opts)
 }
 
 // PrepareNonInitCommand prepares for non-init commands using runcfg types.
