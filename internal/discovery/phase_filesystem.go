@@ -73,10 +73,10 @@ func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInp
 		}
 
 		if d.IsDir() {
-			return p.skipDirIfIgnorable(discovery, path)
+			return p.skipDirIfIgnorable(discovery, d.Name())
 		}
 
-		result := p.processFile(l, input, path, filenames)
+		result := p.processFile(input, path, filenames)
 		if result == nil {
 			return nil
 		}
@@ -97,14 +97,13 @@ func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInp
 }
 
 // skipDirIfIgnorable determines if a directory should be skipped during traversal.
-func (p *FilesystemPhase) skipDirIfIgnorable(discovery *Discovery, path string) error {
-	if err := skipDirIfIgnorable(path); err != nil {
+func (p *FilesystemPhase) skipDirIfIgnorable(discovery *Discovery, dir string) error {
+	if err := util.SkipDirIfIgnorable(dir); err != nil {
 		return err
 	}
 
 	if discovery.noHidden {
-		base := filepath.Base(path)
-		if strings.HasPrefix(base, ".") && base != "." && base != ".." {
+		if strings.HasPrefix(dir, ".") && dir != "." && dir != ".." {
 			return filepath.SkipDir
 		}
 	}
@@ -115,7 +114,6 @@ func (p *FilesystemPhase) skipDirIfIgnorable(discovery *Discovery, path string) 
 // processFile processes a single file to determine if it's a Terragrunt configuration
 // and classifies it as discovered, candidate, or excluded.
 func (p *FilesystemPhase) processFile(
-	l log.Logger,
 	input *PhaseInput,
 	path string,
 	filenames []string,
@@ -129,7 +127,7 @@ func (p *FilesystemPhase) processFile(
 
 	if input.Classifier != nil {
 		ctx := filter.ClassificationContext{}
-		status, reason, graphIdx := input.Classifier.Classify(l, c, ctx)
+		status, reason, graphIdx := input.Classifier.Classify(c, ctx)
 
 		return &DiscoveryResult{
 			Component:            c,

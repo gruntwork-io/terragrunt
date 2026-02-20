@@ -423,7 +423,7 @@ func parseVariables(
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, opts, moduleDir)
+	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
@@ -549,7 +549,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -588,7 +588,7 @@ func addRefToModuleURL(
 			return nil, errors.New(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {

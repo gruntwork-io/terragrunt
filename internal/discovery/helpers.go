@@ -121,19 +121,6 @@ func componentFromDependencyPath(path string, components *component.ThreadSafeCo
 	return component.NewUnit(path)
 }
 
-// skipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's
-// in a directory that should never have components discovered in it.
-func skipDirIfIgnorable(path string) error {
-	base := filepath.Base(path)
-
-	switch base {
-	case ".git", ".terraform", ".terragrunt-cache":
-		return filepath.SkipDir
-	}
-
-	return nil
-}
-
 // createComponentFromPath creates a component from a file path if it matches one of the config filenames.
 // Returns nil if the file doesn't match any of the provided filenames.
 func createComponentFromPath(

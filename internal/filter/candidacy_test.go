@@ -11,41 +11,58 @@ func TestIsNegated(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		expr     filter.Expression
+		exprFn   func(t *testing.T) filter.Expression
 		name     string
 		expected bool
 	}{
 		{
-			name:     "path expression",
-			expr:     filter.NewPathFilter("./foo"),
+			name: "path expression",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return mustPath(t, "./foo")
+			},
 			expected: false,
 		},
 		{
-			name:     "negated path",
-			expr:     filter.NewPrefixExpression("!", filter.NewPathFilter("./foo")),
+			name: "negated path",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return filter.NewPrefixExpression("!", mustPath(t, "./foo"))
+			},
 			expected: true,
 		},
 		{
-			name:     "double negation",
-			expr:     filter.NewPrefixExpression("!", filter.NewPrefixExpression("!", filter.NewPathFilter("./foo"))),
+			name: "double negation",
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+				return filter.NewPrefixExpression("!", filter.NewPrefixExpression("!", mustPath(t, "./foo")))
+			},
 			expected: true,
 		},
 		{
 			name: "infix with negated left",
-			expr: filter.NewInfixExpression(
-				filter.NewPrefixExpression("!", filter.NewPathFilter("./foo")),
-				"|",
-				filter.NewPathFilter("./bar"),
-			),
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+
+				return filter.NewInfixExpression(
+					filter.NewPrefixExpression("!", mustPath(t, "./foo")),
+					"|",
+					mustPath(t, "./bar"),
+				)
+			},
 			expected: true,
 		},
 		{
 			name: "infix with non-negated left",
-			expr: filter.NewInfixExpression(
-				filter.NewPathFilter("./foo"),
-				"|",
-				filter.NewPrefixExpression("!", filter.NewPathFilter("./bar")),
-			),
+			exprFn: func(t *testing.T) filter.Expression {
+				t.Helper()
+
+				return filter.NewInfixExpression(
+					mustPath(t, "./foo"),
+					"|",
+					filter.NewPrefixExpression("!", mustPath(t, "./bar")),
+				)
+			},
 			expected: false,
 		},
 	}
@@ -54,7 +71,7 @@ func TestIsNegated(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := filter.IsNegated(tt.expr)
+			result := filter.IsNegated(tt.exprFn(t))
 			assert.Equal(t, tt.expected, result)
 		})
 	}

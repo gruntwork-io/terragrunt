@@ -211,7 +211,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			})
 
 			ctx := filter.ClassificationContext{}
-			status, reason, index := classifier.Classify(l, c, ctx)
+			status, reason, index := classifier.Classify(c, ctx)
 
 			assert.Equal(t, tt.expectStatus, status, "status mismatch")
 			assert.Equal(t, tt.expectReason, reason, "reason mismatch")

@@ -115,7 +115,7 @@ terragrunt find --filter '[main]'
 terragrunt find --filter '[abc123...def456]'
 ```
 
-For more details and examples, see the [Filters feature documentation](/docs/features/filter#git-based-expressions).
+For more details and examples, see the [Filters feature documentation](/docs/features/filter/git).
 
 ### Graph-Based Filtering
 
@@ -155,7 +155,7 @@ terragrunt find --filter 'service... | external=false'
 <Aside type="note">
 Graph expressions require dependency discovery to work correctly. When using graph expressions, Terragrunt automatically discovers dependency relationships between components. This may add some overhead compared to simple name or path filters.
 
-For more detailed examples and explanations, see the [Filters feature documentation](/docs/features/filter#graph-based-expressions).
+For more detailed examples and explanations, see the [Filters feature documentation](/docs/features/filter/graph).
 </Aside>
 
 ### Union (Multiple Filters)

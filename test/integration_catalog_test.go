@@ -168,7 +168,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts))
+	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts.StrictControls))
 	require.NoError(t, err)
 
 	return cfg
