@@ -102,7 +102,7 @@ const (
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
-  FuncNameDeepMerge                               = "deep_merge"
+	FuncNameDeepMerge                               = "deep_merge"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
