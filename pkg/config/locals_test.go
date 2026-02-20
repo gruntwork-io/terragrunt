@@ -179,6 +179,78 @@ locals {
 }
 `
 
+// TestEvaluateLocalsBlockTernaryOnlyRunsSelectedBranch verifies that a ternary
+// expression in locals only executes the selected branch of run_cmd.
+// The unselected branch uses a non-existent command: if the fix is broken and
+// the unselected branch executes, run_cmd fails and EvaluateLocalsBlock returns
+// an error, which causes the test to fail.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/1448
+func TestEvaluateLocalsBlockTernaryOnlyRunsSelectedBranch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		condition string
+		cfg       string
+		wantVal   string
+	}{
+		{
+			name:      "true condition runs only true branch",
+			condition: "true",
+			cfg: `
+locals {
+  condition = true
+  result    = local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")
+}
+`,
+			wantVal: "branch_true",
+		},
+		{
+			name:      "false condition runs only false branch",
+			condition: "false",
+			cfg: `
+locals {
+  condition = false
+  result    = local.condition ? run_cmd("__nonexistent_terragrunt_test_command__") : run_cmd("echo", "branch_false")
+}
+`,
+			wantVal: "branch_false",
+		},
+		{
+			name:      "nested ternary inside tuple runs only selected branch",
+			condition: "true",
+			cfg: `
+locals {
+  condition = true
+  results   = [local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")]
+}
+`,
+			wantVal: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			terragruntOptions := mockOptionsForTest(t)
+
+			file, err := hclparse.NewParser().ParseFromString(tt.cfg, config.DefaultTerragruntConfigPath)
+			require.NoError(t, err)
+
+			ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+			evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
+			require.NoError(t, err)
+
+			if tt.wantVal != "" {
+				var result string
+				require.NoError(t, gocty.FromCtyValue(evaluatedLocals["result"], &result))
+				assert.Equal(t, tt.wantVal, result)
+			}
+		})
+	}
+}
+
 const MultipleLocalsBlockConfig = `
 locals {
   a = "a"
