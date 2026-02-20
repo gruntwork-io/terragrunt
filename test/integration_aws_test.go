@@ -237,7 +237,7 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 
 	bootstrapStdout, bootstrapStderr, bootstrapErr := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run plan --backend-bootstrap --non-interactive --working-dir "+rootPath3,
+		"terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath3,
 	)
 	bootstrapOut := bootstrapStdout + bootstrapStderr
 
