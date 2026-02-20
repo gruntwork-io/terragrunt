@@ -385,8 +385,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	if r.Stack.Execution != nil && r.Stack.Execution.Report != nil {
 		for _, u := range r.Stack.Units {
 			if u.Execution != nil && u.Execution.FlagExcluded {
-				// Ensure path is absolute for reporting
-				unitPath := u.AbsolutePath()
+				unitPath := u.Path()
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
@@ -521,8 +520,7 @@ func (r *Runner) Run(ctx context.Context, l log.Logger, opts *options.Terragrunt
 					continue
 				}
 
-				// Ensure path is absolute for reporting
-				unitPath := unit.AbsolutePath()
+				unitPath := unit.Path()
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption

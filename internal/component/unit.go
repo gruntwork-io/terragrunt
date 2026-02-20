@@ -286,21 +286,6 @@ func (u *Unit) String() string {
 	)
 }
 
-// AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, returns the original path and logs a warning if a logger is available.
-func (u *Unit) AbsolutePath() string {
-	absPath, err := filepath.Abs(u.path)
-	if err != nil {
-		if u.Execution != nil && u.Execution.Logger != nil {
-			u.Execution.Logger.Warnf("Failed to convert unit path %q to absolute path: %v", u.path, err)
-		}
-
-		return u.path
-	}
-
-	return absPath
-}
-
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (u *Unit) DisplayPath() string {
