@@ -616,7 +616,7 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.T
 
 	opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
 
-	if !opts.BackendBootstrap {
+	if !opts.BackendBootstrap || cfg.RemoteState.DisableInit {
 		return nil
 	}
 

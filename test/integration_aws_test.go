@@ -55,6 +55,7 @@ const (
 	testFixtureS3Backend                         = "fixtures/s3-backend"
 	testFixtureS3BackendDualLocking              = "fixtures/s3-backend/dual-locking"
 	testFixtureS3BackendUseLockfile              = "fixtures/s3-backend/use-lockfile"
+	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
 	qaMyAppRelPath = "qa/my-app"
@@ -179,6 +180,40 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName, err)
 		})
 	}
+}
+
+// TestAwsDisableInitS3Backend verifies that remote_state.disable_init=true prevents
+// Terragrunt from bootstrapping S3 resources while still allowing Terraform to initialize
+// the backend normally. Regression test for issue #1422.
+func TestAwsDisableInitS3Backend(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3BackendDisableInit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureS3BackendDisableInit)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureS3BackendDisableInit)
+
+	testID := strings.ToLower(helpers.UniqueID())
+	s3BucketName := "terragrunt-test-bucket-" + testID
+
+	configPath := filepath.Join(rootPath, "terragrunt.hcl")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, configPath, configPath, s3BucketName, "", helpers.TerraformRemoteStateS3Region)
+
+	// Pre-create the S3 bucket, simulating externally managed infrastructure.
+	// disable_init=true is designed for cases where backend resources are managed outside Terragrunt.
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	// Run plan with disable_init=true. With the fix, Terragrunt passes backend-config args
+	// to terraform init (not -backend=false), allowing Terraform to initialize the pre-existing
+	// backend and run plan successfully.
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "Expected plan to succeed with disable_init=true and pre-existing S3 bucket. stdout: %s, stderr: %s", stdout, stderr)
+
+	// Verify Terragrunt did NOT attempt to bootstrap the bucket (no "Creating S3 bucket" messages).
+	assert.NotContains(t, stdout+stderr, "Creating S3 bucket", "Terragrunt should not have attempted to create S3 bucket when disable_init=true")
 }
 
 func TestAwsDualLockingBackend(t *testing.T) {
