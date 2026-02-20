@@ -233,7 +233,7 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 	assert.Contains(t, noBucketOut, "Initializing the backend", "Terraform should have attempted backend init, proving -backend-config= args were passed (not -backend=false)")
 
 	// Case 3: no bucket + disable_init=true + --backend-bootstrap → bootstrap is still SKIPPED.
-	// This directly exercises the run.go:619 guard: even with BackendBootstrap=true,
+	// This directly exercises the prepareInitCommandRunCfg guard: even with BackendBootstrap=true,
 	// DisableInit=true must prevent Terragrunt from creating backend resources.
 	// Expected: plan fails at Terraform backend-init (bucket not found), not from Terragrunt bootstrap.
 	s3BucketName3 := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
