@@ -109,6 +109,16 @@ func evalExpressionLazily(expr hcl.Expression, evalCtx *hcl.EvalContext) (cty.Va
 	case *hclsyntax.ParenthesesExpr:
 		return evalExpressionLazily(e.Expression, evalCtx)
 	default:
+		// The following hclsyntax expression types are NOT handled and fall through
+		// to standard (eager) HCL evaluation. Nested conditionals inside them will
+		// NOT benefit from lazy branch selection:
+		//   - ForExpr: requires child EvalContext with iteration variables; complex to replicate
+		//   - IndexExpr: collection[key] — key sub-expression evaluated eagerly
+		//   - BinaryOpExpr / UnaryOpExpr: operand sub-expressions evaluated eagerly
+		//   - RelativeTraversalExpr: source sub-expression evaluated eagerly
+		//   - SplatExpr: source sub-expression evaluated eagerly
+		// These are unlikely to wrap run_cmd ternaries in practice. If user demand arises,
+		// IndexExpr and BinaryOpExpr are the simplest to add (same LiteralValueExpr pattern).
 		return expr.Value(evalCtx)
 	}
 }
@@ -118,12 +128,18 @@ func evalExpressionLazily(expr hcl.Expression, evalCtx *hcl.EvalContext) (cty.Va
 // This prevents side-effectful functions like run_cmd from executing in the
 // unselected branch.
 //
-// Known divergence from upstream HCL behaviour: standard HCL's ConditionalExpr
-// evaluates both branches to perform branch type-consistency checks (requiring the
-// true and false result types to be unifiable). This implementation skips that check
-// for known-boolean conditions. The selected branch's value is returned as-is.
-// Users who rely on HCL rejecting mismatched branch types should be aware that
-// Terragrunt will not surface that error when the condition is resolvable at parse time.
+// Known divergences from upstream HCL behaviour for known-boolean conditions:
+//  1. Type-consistency: standard HCL evaluates both branches to perform type-unification
+//     checks (requiring true/false result types to be unifiable) and converts the selected
+//     branch to the unified type. This implementation returns the selected branch as-is,
+//     so mismatched branch types (e.g. string vs number) are not detected/converted.
+//  2. Mark propagation: standard HCL collects cty marks from ALL three sub-expressions
+//     (condition + both branches) and applies them to the result. This implementation only
+//     propagates marks from the condition and the selected branch; marks on the unselected
+//     branch are lost. Terragrunt does not use cty marks for sensitivity, so this is benign.
+//
+// For non-resolvable conditions (unknown, null, marked, non-bool), the fallback path
+// delegates to standard HCL evaluation which preserves both behaviours.
 func evalConditionalLazily(e *hclsyntax.ConditionalExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	condVal, condDiags := evalExpressionLazily(e.Condition, evalCtx)
 	if condDiags.HasErrors() {

@@ -189,11 +189,12 @@ func TestEvaluateLocalsBlockTernaryOnlyRunsSelectedBranch(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		cfg       string
-		targetKey string
-		wantVal   string
-		wantErr   bool
+		name       string
+		cfg        string
+		targetKey  string
+		wantVal    string
+		assertMode string // "string" (default), "tuple", "object"
+		wantErr    bool
 	}{
 		{
 			name: "direct ternary true condition runs only true branch",
@@ -225,8 +226,9 @@ locals {
   results   = [local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")]
 }
 `,
-			targetKey: "results",
-			wantVal:   "branch_true",
+			targetKey:  "results",
+			wantVal:    "branch_true",
+			assertMode: "tuple",
 		},
 		{
 			name: "ternary nested inside object value runs only selected branch",
@@ -236,8 +238,9 @@ locals {
   result    = {key = local.condition ? run_cmd("echo", "branch_true") : run_cmd("__nonexistent_terragrunt_test_command__")}
 }
 `,
-			targetKey: "result",
-			wantVal:   "",
+			targetKey:  "result",
+			wantVal:    "branch_true",
+			assertMode: "object",
 		},
 		{
 			name: "ternary nested inside function arg runs only selected branch",
@@ -249,6 +252,29 @@ locals {
 `,
 			targetKey: "result",
 			wantVal:   "branch_true",
+		},
+		{
+			name: "ternary inside string interpolation runs only selected branch",
+			cfg: `
+locals {
+  condition = true
+  result    = "prefix-${local.condition ? run_cmd("echo", "val") : run_cmd("__nonexistent_terragrunt_test_command__")}-suffix"
+}
+`,
+			targetKey: "result",
+			wantVal:   "prefix-val-suffix",
+		},
+		{
+			name: "nested ternary runs only selected inner branch",
+			cfg: `
+locals {
+  cond_outer = true
+  cond_inner = false
+  result     = local.cond_outer ? (local.cond_inner ? run_cmd("__nonexistent_terragrunt_test_command__") : run_cmd("echo", "inner_false")) : run_cmd("__nonexistent_terragrunt_test_command__")
+}
+`,
+			targetKey: "result",
+			wantVal:   "inner_false",
 		},
 		{
 			// Critical 2 regression: LiteralValueExpr substitution must not break try/can.
@@ -296,30 +322,26 @@ locals {
 
 			require.NoError(t, err)
 
-			switch {
-			case tt.targetKey == "results":
-				// Tuple case: cty.TupleVal is a heterogeneous tuple, not a list; use AsValueSlice.
-				tupleVal := evaluatedLocals["results"]
+			switch tt.assertMode {
+			case "tuple":
+				tupleVal := evaluatedLocals[tt.targetKey]
 				elems := tupleVal.AsValueSlice()
 				require.Len(t, elems, 1)
 
 				var elem string
 				require.NoError(t, gocty.FromCtyValue(elems[0], &elem))
 				assert.Equal(t, tt.wantVal, elem)
-			case tt.wantVal != "":
-				var result string
-				require.NoError(t, gocty.FromCtyValue(evaluatedLocals[tt.targetKey], &result))
-				assert.Equal(t, tt.wantVal, result)
-			default:
-				// Object case: assert the "key" attribute holds the selected branch value.
-				// If the unselected branch ran, __nonexistent_terragrunt_test_command__ would
-				// have errored and EvaluateLocalsBlock would have returned an error above.
+			case "object":
 				resultObj := evaluatedLocals[tt.targetKey]
 				require.True(t, resultObj.Type().IsObjectType())
 
 				var keyStr string
 				require.NoError(t, gocty.FromCtyValue(resultObj.GetAttr("key"), &keyStr))
-				assert.Equal(t, "branch_true", keyStr)
+				assert.Equal(t, tt.wantVal, keyStr)
+			default:
+				var result string
+				require.NoError(t, gocty.FromCtyValue(evaluatedLocals[tt.targetKey], &result))
+				assert.Equal(t, tt.wantVal, result)
 			}
 		})
 	}
