@@ -50,7 +50,7 @@ func FlushOutput(u *Unit) error {
 
 	// Use parent writer's address as lock key to serialize flushes to same parent.
 	// Falls back to unit path for writers without parentWriterProvider.
-	key := u.AbsolutePath()
+	key := u.Path()
 	if pwp, ok := u.Execution.TerragruntOptions.Writer.(parentWriterProvider); ok {
 		key = fmt.Sprintf("%p", pwp.ParentWriter())
 	}

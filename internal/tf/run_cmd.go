@@ -74,7 +74,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, opts *options.Terra
 		}
 
 		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
-			exitCode.Set(opts.WorkingDir, code)
+			exitCode.Set(filepath.Dir(opts.OriginalTerragruntConfigPath), code)
 		}
 
 		if code != 1 {

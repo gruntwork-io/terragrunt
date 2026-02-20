@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
@@ -65,8 +64,7 @@ func (runner *UnitRunner) runTerragrunt(
 
 	// Only create report entries if report is not nil
 	if r != nil {
-		unitPath := runner.Unit.AbsolutePath()
-		unitPath = util.CleanPath(unitPath)
+		unitPath := runner.Unit.Path()
 
 		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
@@ -98,15 +96,14 @@ func (runner *UnitRunner) runTerragrunt(
 	// Store the unit exit code in the global map using the unit path as key
 	// Get the exit code from the unit-scoped map (stored with empty string key in run_cmd.go)
 	if globalExitCode != nil {
-		unitPath := filepath.Clean(runner.Unit.AbsolutePath())
+		unitPath := runner.Unit.Path()
 		code := unitExitCode.Get(opts.WorkingDir)
 		globalExitCode.Set(unitPath, code)
 	}
 
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
-		unitPath := runner.Unit.AbsolutePath()
-		unitPath = util.CleanPath(unitPath)
+		unitPath := runner.Unit.Path()
 
 		if runErr != nil {
 			if endErr := r.EndRun(
