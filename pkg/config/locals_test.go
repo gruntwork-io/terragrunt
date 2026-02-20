@@ -317,6 +317,9 @@ locals {
 
 			if tt.wantErr {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), "Call to unknown function",
+					"expected function-not-found error, not command execution error")
+
 				return
 			}
 
@@ -338,10 +341,12 @@ locals {
 				var keyStr string
 				require.NoError(t, gocty.FromCtyValue(resultObj.GetAttr("key"), &keyStr))
 				assert.Equal(t, tt.wantVal, keyStr)
-			default:
+			case "string", "":
 				var result string
 				require.NoError(t, gocty.FromCtyValue(evaluatedLocals[tt.targetKey], &result))
 				assert.Equal(t, tt.wantVal, result)
+			default:
+				t.Fatalf("unknown assertMode: %q", tt.assertMode)
 			}
 		})
 	}

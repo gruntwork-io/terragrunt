@@ -46,10 +46,10 @@ func TestRunCmdTernaryOnlyRunsSelectedBranch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			helpers.CleanupTerraformFolder(t, tt.fixturePath)
-
 			tmpEnvPath := helpers.CopyEnvironment(t, tt.fixturePath)
 			rootPath := filepath.Join(tmpEnvPath, tt.fixturePath)
+
+			helpers.CleanupTerraformFolder(t, rootPath)
 
 			cmd := "terragrunt plan --non-interactive --log-level debug --working-dir " + rootPath
 

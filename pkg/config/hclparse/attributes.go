@@ -164,7 +164,9 @@ func evalConditionalLazily(e *hclsyntax.ConditionalExpr, evalCtx *hcl.EvalContex
 			SrcRange:    e.SrcRange,
 		}
 
-		return modifiedExpr.Value(evalCtx)
+		val, fbDiags := modifiedExpr.Value(evalCtx)
+
+		return val, append(condDiags, fbDiags...)
 	}
 
 	if condVal.True() {
