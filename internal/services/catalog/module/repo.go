@@ -44,15 +44,15 @@ var (
 type Repo struct {
 	logger log.Logger
 
-	cloneURL string
-	path     string
+	cloneURL       string
+	path           string
+	rootWorkingDir string
 
 	RemoteURL  string
 	BranchName string
 
 	walkWithSymlinks bool
 	allowCAS         bool
-	rootWorkingDir   string
 }
 
 func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool, rootWorkingDir string) (*Repo, error) {
@@ -183,10 +183,7 @@ type CloneOptions struct {
 }
 
 func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
-	cloneURL, err := repo.resolveCloneURL()
-	if err != nil {
-		return err
-	}
+	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
 	if files.IsDir(cloneURL) {
@@ -214,12 +211,12 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	return repo.performClone(ctx, l, &opts)
 }
 
-func (repo *Repo) resolveCloneURL() (string, error) {
+func (repo *Repo) resolveCloneURL() string {
 	if repo.cloneURL == "" {
-		return repo.rootWorkingDir, nil
+		return repo.rootWorkingDir
 	}
 
-	return repo.cloneURL, nil
+	return repo.cloneURL
 }
 
 func (repo *Repo) handleLocalDir(repoPath string) error {

@@ -941,9 +941,7 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 
-	workingDir = filepath.ToSlash(workingDir)
-
-	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", workingDir+"/foo/bar")
+	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", filepath.Join(workingDir, "foo", "bar"))
 }
 
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
@@ -993,7 +991,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 	currentDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 
-	parentDir := filepath.ToSlash(filepath.Dir(currentDir))
+	parentDir := filepath.Dir(currentDir)
 
 	testCases := []struct {
 		include           map[string]config.IncludeConfig
@@ -1028,7 +1026,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		{
 			include:           map[string]config.IncludeConfig{"": {Path: "../../other-child/" + config.DefaultTerragruntConfigPath}},
 			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
 		},
 		{
 			include:           map[string]config.IncludeConfig{"": {Path: "../../" + config.DefaultTerragruntConfigPath}},
@@ -1042,7 +1040,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			},
 			params:            []string{"child"},
 			terragruntOptions: terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+config.DefaultTerragruntConfigPath),
-			expectedPath:      filepath.VolumeName(parentDir) + "/other-child",
+			expectedPath:      filepath.Join(filepath.VolumeName(parentDir)+string(filepath.Separator), "other-child"),
 		},
 	}
 

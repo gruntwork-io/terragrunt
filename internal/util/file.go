@@ -314,7 +314,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.New(err)
 	}
 
-	return filepath.ToSlash(relPath), nil
+	return relPath, nil
 }
 
 // ReadFileAsString returns the contents of the file at the given path as a string.
@@ -367,7 +367,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			return nil, err
 		}
 
-		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
+		includeExpandedGlobs = append(includeExpandedGlobs, filepath.ToSlash(relativeExpandGlobPath))
 
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
@@ -426,6 +426,7 @@ func CopyFolderContents(
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		relativePath = filepath.ToSlash(relativePath)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
 		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
@@ -578,11 +579,10 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
-	splitPath := filepath.SplitList(filepath.Clean(path))
-	splitSubpath := filepath.SplitList(filepath.Clean(subpath))
-	contains := ListContainsSublist(splitPath, splitSubpath)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitSubpath := strings.Split(filepath.Clean(subpath), string(filepath.Separator))
 
-	return contains
+	return ListContainsSublist(splitPath, splitSubpath)
 }
 
 // HasPathPrefix returns true if path starts with the given path prefix
@@ -590,11 +590,10 @@ func ContainsPath(path, subpath string) bool {
 // E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
 // path)
 func HasPathPrefix(path, prefix string) bool {
-	splitPath := filepath.SplitList(filepath.Clean(path))
-	splitPrefix := filepath.SplitList(filepath.Clean(prefix))
-	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitPrefix := strings.Split(filepath.Clean(prefix), string(filepath.Separator))
 
-	return hasPrefix
+	return ListHasPrefix(splitPath, splitPrefix)
 }
 
 // JoinTerraformModulePath joins two paths together with a double-slash between them, as this is what

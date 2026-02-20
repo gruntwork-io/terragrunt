@@ -295,7 +295,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(repoRelPath)
+		result = repoRelPath
 
 		return nil
 	})
@@ -323,7 +323,7 @@ func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(strings.TrimSpace(repoRootPathAbs))
+		result = strings.TrimSpace(repoRootPathAbs)
 
 		return nil
 	})
@@ -392,7 +392,7 @@ func GetParentTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Log
 
 		parentPath = filepath.Clean(filepath.Join(currentPath, parentPath))
 
-		result = filepath.ToSlash(parentPath)
+		result = parentPath
 
 		return nil
 	})
@@ -719,7 +719,7 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for range pctx.MaxFoldersToCheck {
-		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
+		currentDir := filepath.Dir(previousDir)
 		if currentDir == previousDir {
 			if numParams == matchedPats {
 				return fallbackParam, nil
