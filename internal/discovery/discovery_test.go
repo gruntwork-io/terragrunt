@@ -100,9 +100,7 @@ func TestCandidacyClassifier_Analyze(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier := filter.NewClassifier(filters)
 
 			assert.Equal(t, tt.expectHasPositive, classifier.HasPositiveFilters(), "HasPositiveFilters mismatch")
 			assert.Equal(t, tt.expectHasParseRequired, classifier.HasParseRequiredFilters(), "HasParseRequiredFilters mismatch")
@@ -200,9 +198,7 @@ func TestCandidacyClassifier_ClassifyComponent(t *testing.T) {
 			filters, err := filter.ParseFilterQueries(l, tt.filterStrings)
 			require.NoError(t, err)
 
-			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier := filter.NewClassifier(filters)
 
 			// Create a test component
 			c := component.NewUnit(tt.componentPath)

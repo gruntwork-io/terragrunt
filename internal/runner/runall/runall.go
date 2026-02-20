@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
@@ -79,15 +78,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return errors.Errorf("failed to parse filters: %w", err)
-	}
-
-	gitFilters := filters.UniqueGitFilters()
+	gitFilters := opts.Filters.UniqueGitFilters()
 
 	// Only create worktrees when git filter expressions are present
-	var wts *worktrees.Worktrees
+	var (
+		wts *worktrees.Worktrees
+		err error
+	)
 	if len(gitFilters) > 0 {
 		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
 		if err != nil {

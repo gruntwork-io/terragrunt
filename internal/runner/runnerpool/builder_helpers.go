@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -55,15 +54,6 @@ func buildConfigFilenames(opts *options.TerragruntOptions) []string {
 	return configFilenames
 }
 
-// parseFilters wraps filter parsing for readability.
-func parseFilters(l log.Logger, queries []string) (filter.Filters, error) {
-	if len(queries) == 0 {
-		return filter.Filters{}, nil
-	}
-
-	return filter.ParseFilterQueries(l, queries)
-}
-
 // extractWorktrees finds WorktreeOption in options and returns worktrees.
 func extractWorktrees(opts []common.Option) *worktrees.Worktrees {
 	for _, opt := range opts {
@@ -103,23 +93,17 @@ func newBaseDiscovery(
 
 // prepareDiscovery constructs a configured discovery instance based on Terragrunt options and flags.
 func prepareDiscovery(
-	l log.Logger,
 	opts *options.TerragruntOptions,
 	runnerOpts ...common.Option,
-) (*discovery.Discovery, error) {
+) *discovery.Discovery {
 	workingDir := resolveWorkingDir(opts)
 	configFilenames := buildConfigFilenames(opts)
 
 	d := newBaseDiscovery(opts, workingDir, configFilenames, runnerOpts...)
 
-	// Apply filter queries when provided
-	if len(opts.FilterQueries) > 0 {
-		filters, err := parseFilters(l, opts.FilterQueries)
-		if err != nil {
-			return nil, errors.Errorf("failed to parse filter queries in %s: %w", workingDir, err)
-		}
-
-		d = d.WithFilters(filters)
+	// Apply pre-parsed filters when provided
+	if len(opts.Filters) > 0 {
+		d = d.WithFilters(opts.Filters)
 	}
 
 	// Apply worktrees for git filter expressions
@@ -127,7 +111,7 @@ func prepareDiscovery(
 		d = d.WithWorktrees(w)
 	}
 
-	return d, nil
+	return d
 }
 
 // discoverWithRetry runs discovery and retries without exclude-by-default if zero results
@@ -139,14 +123,11 @@ func discoverWithRetry(
 	runnerOpts ...common.Option,
 ) (component.Components, error) {
 	// Initial discovery with current excludeByDefault setting
-	d, err := prepareDiscovery(l, opts, runnerOpts...)
-	if err != nil {
-		return nil, err
-	}
+	d := prepareDiscovery(opts, runnerOpts...)
 
 	var discovered component.Components
 
-	err = doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
+	err := doWithTelemetry(ctx, telemetryDiscovery, map[string]any{
 		"working_dir":       opts.WorkingDir,
 		"terraform_command": opts.TerraformCommand,
 	}, func(childCtx context.Context) error {

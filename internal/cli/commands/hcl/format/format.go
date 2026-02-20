@@ -67,10 +67,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		err     error
 	)
 
-	filters, err = filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return errors.New(err)
-	}
+	filters = opts.Filters
 
 	// We use lightweight discovery here instead of the full discovery used by
 	// the discovery package because we want to find non-comps like includes.

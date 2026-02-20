@@ -234,19 +234,31 @@ type GraphExpression struct {
 	DependencyDepth     int
 }
 
-// NewGraphExpression creates a new GraphExpression.
-func NewGraphExpression(
-	target Expression,
-	includeDependents bool,
-	includeDependencies bool,
-	excludeTarget bool,
-) *GraphExpression {
+// NewGraphExpression creates a new GraphExpression for the given target.
+// Use the builder methods WithDependents, WithDependencies, and WithExcludeTarget
+// to configure graph traversal behavior.
+func NewGraphExpression(target Expression) *GraphExpression {
 	return &GraphExpression{
-		Target:              target,
-		IncludeDependents:   includeDependents,
-		IncludeDependencies: includeDependencies,
-		ExcludeTarget:       excludeTarget,
+		Target: target,
 	}
+}
+
+// WithDependents includes dependents (reverse dependencies) in the graph traversal.
+func (g *GraphExpression) WithDependents() *GraphExpression {
+	g.IncludeDependents = true
+	return g
+}
+
+// WithDependencies includes dependencies in the graph traversal.
+func (g *GraphExpression) WithDependencies() *GraphExpression {
+	g.IncludeDependencies = true
+	return g
+}
+
+// WithExcludeTarget excludes the target itself from the graph traversal results.
+func (g *GraphExpression) WithExcludeTarget() *GraphExpression {
+	g.ExcludeTarget = true
+	return g
 }
 
 func (g *GraphExpression) expressionNode() {}

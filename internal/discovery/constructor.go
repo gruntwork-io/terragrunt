@@ -15,7 +15,7 @@ import (
 type DiscoveryCommandOptions struct {
 	WorkingDir        string
 	QueueConstructAs  string
-	FilterQueries     []string
+	Filters           filter.Filters
 	Experiments       experiment.Experiments
 	NoHidden          bool
 	Exclude           bool
@@ -27,16 +27,16 @@ type DiscoveryCommandOptions struct {
 
 // HCLCommandOptions contains options for HCL commands like hcl validate & format.
 type HCLCommandOptions struct {
-	WorkingDir    string
-	FilterQueries []string
-	Experiments   experiment.Experiments
+	WorkingDir  string
+	Filters     filter.Filters
+	Experiments experiment.Experiments
 }
 
 // StackGenerateOptions contains options for stack generate commands.
 type StackGenerateOptions struct {
-	WorkingDir    string
-	FilterQueries []string
-	Experiments   experiment.Experiments
+	WorkingDir  string
+	Filters     filter.Filters
+	Experiments experiment.Experiments
 }
 
 // NewForDiscoveryCommand creates a Discovery configured for discovery commands (find/list).
@@ -94,13 +94,8 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 		})
 	}
 
-	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-		if err != nil {
-			return nil, err
-		}
-
-		d = d.WithFilters(filters)
+	if len(opts.Filters) > 0 {
+		d = d.WithFilters(opts.Filters)
 	}
 
 	return d, nil
@@ -110,13 +105,8 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-		if err != nil {
-			return nil, err
-		}
-
-		d = d.WithFilters(filters)
+	if len(opts.Filters) > 0 {
+		d = d.WithFilters(opts.Filters)
 	}
 
 	return d, nil
@@ -126,13 +116,8 @@ func NewForHCLCommand(l log.Logger, opts HCLCommandOptions) (*Discovery, error) 
 func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, error) {
 	d := NewDiscovery(opts.WorkingDir)
 
-	if len(opts.FilterQueries) > 0 {
-		filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-		if err != nil {
-			return nil, err
-		}
-
-		d = d.WithFilters(filters.RestrictToStacks())
+	if len(opts.Filters) > 0 {
+		d = d.WithFilters(opts.Filters.RestrictToStacks())
 	}
 
 	return d, nil
