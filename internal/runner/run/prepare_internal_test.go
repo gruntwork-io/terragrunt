@@ -74,6 +74,34 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			expectBackendArgs:    true,
 			expectBootstrapCalls: 0,
 		},
+		{
+			// Positive path: verifies the spy IS wired and the bootstrap code path (run.go:bootstrapFn)
+			// actually fires when both conditions allow it. Without this case, a guard-condition bug
+			// (e.g., reversing || to &&) would go undetected by the other four cases.
+			name: "disable_init=false, bootstrap=true - backend-config args inserted, bootstrap IS called",
+			remoteStateCfg: &remotestate.Config{
+				BackendName:   "s3",
+				DisableInit:   false,
+				BackendConfig: s3Config,
+			},
+			backendBootstrap:     true,
+			expectBackendArgs:    true,
+			expectBootstrapCalls: 1,
+		},
+		{
+			// When generate is set, backend config goes into the generated .tf file,
+			// not via -backend-config= CLI args. Bootstrap is still skipped with DisableInit=true.
+			name: "disable_init=true, bootstrap=true, generate=true - no backend-config args, bootstrap SKIPPED",
+			remoteStateCfg: &remotestate.Config{
+				BackendName:   "s3",
+				DisableInit:   true,
+				Generate:      &remotestate.ConfigGenerate{Path: "backend.tf", IfExists: "overwrite"},
+				BackendConfig: s3Config,
+			},
+			backendBootstrap:     true,
+			expectBackendArgs:    false,
+			expectBootstrapCalls: 0,
+		},
 	}
 
 	for _, tc := range testCases {

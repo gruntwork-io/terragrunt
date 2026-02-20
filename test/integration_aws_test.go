@@ -222,7 +222,7 @@ func TestAwsDisableInitS3Backend(t *testing.T) {
 
 	noBucketStdout, noBucketStderr, noBucketErr := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run plan --non-interactive --working-dir "+rootPath2,
+		"terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath2,
 	)
 	noBucketOut := noBucketStdout + noBucketStderr
 
