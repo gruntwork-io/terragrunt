@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -97,8 +98,13 @@ func TestEscapeInterpolationInString(t *testing.T) {
 		{"$${foo} and ${bar}", "$${foo} and $${bar}"},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.input, func(t *testing.T) {
+	for i, tc := range testCases {
+		name := tc.input
+		if name == "" {
+			name = fmt.Sprintf("case-%d", i)
+		}
+
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			actual := util.EscapeInterpolationInString(tc.input)
