@@ -33,6 +33,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	var (
 		goRoutinesExecutingSimultaneously uint32
 		waitForAllGoRoutinesToFinish      sync.WaitGroup
+		maxConcurrentGoroutines           uint32
 	)
 
 	endGoRoutine := func() {
@@ -52,8 +53,12 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 		// Increment the total number of running goroutines
 		totalGoRoutinesExecutingSimultaneously := atomic.AddUint32(&goRoutinesExecutingSimultaneously, 1)
 
-		if totalGoRoutinesExecutingSimultaneously > uint32(permits) {
-			t.Fatalf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but has allowed %d", permits, totalGoRoutinesExecutingSimultaneously)
+		// Record the maximum number of concurrent goroutines
+		for {
+			current := atomic.LoadUint32(&maxConcurrentGoroutines)
+			if totalGoRoutinesExecutingSimultaneously <= current || atomic.CompareAndSwapUint32(&maxConcurrentGoroutines, current, totalGoRoutinesExecutingSimultaneously) {
+				break
+			}
 		}
 
 		// Sleep for a random amount of time to represent this goroutine doing work
@@ -69,4 +74,10 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	}
 
 	waitForAllGoRoutinesToFinish.Wait()
+
+	// Check the results after all goroutines have finished
+	maxObserved := atomic.LoadUint32(&maxConcurrentGoroutines)
+	if maxObserved > uint32(permits) {
+		t.Fatalf("The semaphore was only supposed to allow %d goroutines to run simultaneously, but allowed %d", permits, maxObserved)
+	}
 }
