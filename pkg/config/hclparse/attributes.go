@@ -127,13 +127,28 @@ func evalExpressionLazily(expr hcl.Expression, evalCtx *hcl.EvalContext) (cty.Va
 func evalConditionalLazily(e *hclsyntax.ConditionalExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	condVal, condDiags := evalExpressionLazily(e.Condition, evalCtx)
 	if condDiags.HasErrors() {
-		return cty.NilVal, condDiags
+		return cty.DynamicVal, condDiags
 	}
 
 	// Fall back to standard HCL evaluation for edge cases where the condition
 	// value cannot be used for a short-circuit decision.
+	// Substitute the already-evaluated condition as a LiteralValueExpr to
+	// prevent double evaluation of side-effectful condition expressions.
+	// Note: this fallback still evaluates BOTH branches eagerly (required by
+	// HCL for type-unification). This is acceptable because the fallback only
+	// triggers for unknown/null/marked/non-bool conditions, which are rare.
 	if !condVal.IsKnown() || condVal.IsNull() || condVal.Type() != cty.Bool || condVal.IsMarked() {
-		return e.Value(evalCtx)
+		modifiedExpr := &hclsyntax.ConditionalExpr{
+			Condition: &hclsyntax.LiteralValueExpr{
+				Val:      condVal,
+				SrcRange: e.Condition.Range(),
+			},
+			TrueResult:  e.TrueResult,
+			FalseResult: e.FalseResult,
+			SrcRange:    e.SrcRange,
+		}
+
+		return modifiedExpr.Value(evalCtx)
 	}
 
 	if condVal.True() {
@@ -151,7 +166,7 @@ func evalConditionalLazily(e *hclsyntax.ConditionalExpr, evalCtx *hcl.EvalContex
 // inside list literals to benefit from lazy branch selection.
 func evalTupleConsLazily(e *hclsyntax.TupleConsExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	if len(e.Exprs) == 0 {
-		return cty.TupleVal(nil), nil
+		return cty.EmptyTupleVal, nil
 	}
 
 	vals := make([]cty.Value, len(e.Exprs))
@@ -160,9 +175,13 @@ func evalTupleConsLazily(e *hclsyntax.TupleConsExpr, evalCtx *hcl.EvalContext) (
 
 	for i, expr := range e.Exprs {
 		val, valDiags := evalExpressionLazily(expr, evalCtx)
-		vals[i] = val
 
 		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			return cty.DynamicVal, diags
+		}
+
+		vals[i] = val
 	}
 
 	return cty.TupleVal(vals), diags
