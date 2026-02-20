@@ -184,7 +184,7 @@ func TestAwsBootstrapBackend(t *testing.T) {
 
 // TestAwsDisableInitS3Backend verifies that remote_state.disable_init=true prevents
 // Terragrunt from bootstrapping S3 resources while still allowing Terraform to initialize
-// the backend normally. Regression test for issue #1422.
+// the backend normally.
 func TestAwsDisableInitS3Backend(t *testing.T) {
 	t.Parallel()
 

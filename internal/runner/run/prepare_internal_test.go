@@ -61,7 +61,7 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 			expectBootstrapCalls: 0,
 		},
 		{
-			// Key regression test for #1422: even with BackendBootstrap=true, Bootstrap must be
+			// Even with BackendBootstrap=true, Bootstrap must be
 			// skipped when DisableInit=true. The spy directly proves this: if Bootstrap were
 			// invoked, expectBootstrapCalls=0 would fail — no inference from error behavior needed.
 			name: "disable_init=true, bootstrap=true - backend-config args inserted, bootstrap SKIPPED",

@@ -165,15 +165,13 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket or DynamoDB table.
 
-**Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`. This will skip the automatic creation of remote state resources (S3 buckets, DynamoDB tables, GCS buckets) by Terragrunt, while still allowing OpenTofu/Terraform to initialize the backend normally. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want Terragrunt to create or modify remote state resources. See the migration note below for important changes to this behavior.
+**Note**: You can disable automatic remote state initialization by setting `remote_state.disable_init`. This will skip the automatic creation of remote state resources (S3 buckets, DynamoDB tables, GCS buckets) by Terragrunt, while still allowing OpenTofu/Terraform to initialize the backend normally. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want Terragrunt to create or modify remote state resources.
 
-> **Prerequisite:** When `disable_init = true`, backend resources must already exist and valid credentials to access the backend are still required by OpenTofu/Terraform.
->
+**Prerequisite**: When `disable_init = true`, backend resources must already exist and valid credentials to access the backend are still required by OpenTofu/Terraform.
+
 > **Migration note:** In previous versions, `disable_init = true` passed `-backend=false` to `terraform init`, preventing OpenTofu/Terraform from initializing the backend entirely. The new behavior passes `-backend-config=` arguments instead — OpenTofu/Terraform **will** attempt to connect to the backend. Ensure backend resources exist and credentials are valid before using `disable_init = true`.
 >
 > Note that `--backend-bootstrap` defaults to `false`, so Terragrunt does not create backend resources by default regardless of `disable_init`. The `disable_init` flag additionally prevents bootstrap even when `--backend-bootstrap` is explicitly passed.
->
-> **CI/CD impact:** If you use `disable_init = true` to run `terragrunt run --all validate` in CI without backend credentials or pre-existing buckets, this workflow will fail after upgrading with errors such as "bucket not found" or "access denied" during `tofu`/`terraform init`. Use the `extra_arguments` workaround below to restore the previous behavior.
 
 > **If you need to skip backend initialization entirely** (the previous behavior), pass `-backend=false` directly to Terraform via `extra_arguments`:
 >
