@@ -921,6 +921,37 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 		input    string
 	}{
 		{
+			input:    `deep_merge()`,
+			expected: map[string]any{},
+		},
+		{
+			input: `deep_merge(
+				{ service = { retries = 1, mode = "safe" } },
+				{ service = { retries = 3 } }
+			)`,
+			expected: map[string]any{
+				"service": map[string]any{
+					"retries": 3.,
+					"mode":    "safe",
+				},
+			},
+		},
+		{
+			input: `deep_merge(
+				{ base = { enabled = true } },
+				null,
+				{ extra = { enabled = false } }
+			)`,
+			expected: map[string]any{
+				"base": map[string]any{
+					"enabled": true,
+				},
+				"extra": map[string]any{
+					"enabled": false,
+				},
+			},
+		},
+		{
 			input: `deep_merge(
 				jsondecode("{\"env\":{\"region\":\"us-east-1\",\"tags\":{\"owner\":\"platform\"}},\"allow\":[1]}"),
 				jsondecode("{\"env\":{\"tags\":{\"app\":\"api\"}},\"allow\":[2]}")
@@ -1021,6 +1052,43 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	_, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+}
+
+func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	terragruntOptions := terragruntOptionsForTest(
+		t,
+		"../../test/fixtures/deep-merge-fileset/"+config.DefaultTerragruntConfigPath,
+	)
+	l := logger.CreateLogger()
+	ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Inputs)
+
+	expected := map[string]any{
+		"app": map[string]any{
+			"name": "svc-prod",
+			"settings": map[string]any{
+				"retries": 2.,
+				"timeout": 30.,
+				"tags": map[string]any{
+					"owner": "platform",
+					"team":  "core",
+				},
+			},
+		},
+		"ports": []any{80., 443.},
+		"env":   "prod",
+		"extra": map[string]any{
+			"enabled": true,
+		},
+	}
+
+	assert.Equal(t, expected, cfg.Inputs)
 }
 
 func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {

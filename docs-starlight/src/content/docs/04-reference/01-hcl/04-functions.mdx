@@ -834,6 +834,10 @@ This caching behavior can be modified using the special parameters described in 
 
 When merging multiple files, precedence follows argument order. With `sort(fileset(...))`, later filenames in alphabetical order take precedence for overlapping keys.
 
+Any `null` arguments are ignored.
+
+This function is additive and does not change the behavior of OpenTofu/Terraform `merge(...)`.
+
 This is useful when composing nested configuration from multiple files:
 
 ```hcl

@@ -1,0 +1,14 @@
+{
+  "app": {
+    "settings": {
+      "retries": 2,
+      "tags": {
+        "team": "core"
+      }
+    }
+  },
+  "ports": [443],
+  "extra": {
+    "enabled": true
+  }
+}
