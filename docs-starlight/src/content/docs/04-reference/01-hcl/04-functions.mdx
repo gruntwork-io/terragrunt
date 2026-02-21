@@ -830,15 +830,22 @@ This caching behavior can be modified using the special parameters described in 
 
 ## deep_merge
 
-`deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended.
-
-When merging multiple files, precedence follows argument order. With `sort(fileset(...))`, later filenames in alphabetical order take precedence for overlapping keys.
+`deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended. This function takes positional arguments.
 
 Any `null` arguments are ignored.
 
-This function is additive and does not change the behavior of OpenTofu/Terraform `merge(...)`.
+Basic example:
 
-This is useful when composing nested configuration from multiple files:
+```hcl
+locals {
+  config = deep_merge(
+    { service = { retries = 1, mode = "safe" } },
+    { service = { retries = 3 }, tags = { env = "dev" } },
+  )
+}
+```
+
+Example with multiple JSON files (`...` expands a list into positional arguments):
 
 ```hcl
 locals {

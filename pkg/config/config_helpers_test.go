@@ -1050,8 +1050,10 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
 	_, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
+
+	var multiErr *errors.MultiError
+	require.ErrorAs(t, err, &multiErr)
+	require.ErrorContains(t, err, `Call to function "deep_merge" failed: Expected param of type map or object but got string.`)
 }
 
 func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
