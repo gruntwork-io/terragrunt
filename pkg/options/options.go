@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -105,9 +106,9 @@ type TerragruntOptions struct {
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
-	EngineConfig *EngineConfig
+	EngineConfig *engine.EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
-	EngineOptions *EngineOptions
+	EngineOptions *engine.EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -351,7 +352,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Experiments:                experiment.NewExperiments(),
 		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
-		EngineOptions:              new(EngineOptions),
+		EngineOptions:              new(engine.EngineOptions),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
@@ -578,26 +579,6 @@ func identifyDefaultWrappedExecutable(ctx context.Context) string {
 	}
 	// fallback to Terraform if tofu is not available
 	return TerraformDefaultPath
-}
-
-// EngineOptions groups CLI-supplied engine options.
-type EngineOptions struct {
-	// CachePath is the path to the cache directory for engine files.
-	CachePath string
-	// LogLevel is the custom log level for engine.
-	LogLevel string
-	// SkipChecksumCheck skips checksum verification for engine packages.
-	SkipChecksumCheck bool
-	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
-	NoEngine bool
-}
-
-// EngineConfig represents the configurations for a Terragrunt engine.
-type EngineConfig struct {
-	Meta    map[string]any
-	Source  string
-	Version string
-	Type    string
 }
 
 // ErrorsConfig extracted errors handling configuration.

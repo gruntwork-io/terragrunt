@@ -38,6 +38,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -2040,7 +2041,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*options.EngineConfig, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -2069,7 +2070,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineConfig, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineConfig{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

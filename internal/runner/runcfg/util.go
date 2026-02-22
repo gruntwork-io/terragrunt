@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -179,7 +180,7 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 }
 
 // EngineOptions fetches engine options from the RunConfig.
-func (cfg *RunConfig) EngineOptions() (*options.EngineConfig, error) {
+func (cfg *RunConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if !cfg.Engine.Enable {
 		return nil, nil
 	}
@@ -203,7 +204,7 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineConfig, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineConfig{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

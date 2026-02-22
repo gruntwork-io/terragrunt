@@ -34,7 +34,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -72,8 +71,8 @@ type (
 
 type ExecutionOptions struct {
 	Writers           writer.Writers
-	EngineOptions     *options.EngineOptions
-	EngineConfig      *options.EngineConfig
+	EngineOptions     *EngineOptions
+	EngineConfig      *EngineConfig
 	Env               map[string]string
 	WorkingDir        string
 	RootWorkingDir    string
@@ -369,7 +368,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 }
 
 // engineFileName returns the file name for the engine.
-func engineFileName(e *options.EngineConfig) string {
+func engineFileName(e *EngineConfig) string {
 	engineName := filepath.Base(e.Source)
 	if util.FileExists(e.Source) {
 		// return file name if source is absolute path
@@ -384,7 +383,7 @@ func engineFileName(e *options.EngineConfig) string {
 }
 
 // engineChecksumName returns the file name of engine checksum file
-func engineChecksumName(e *options.EngineConfig) string {
+func engineChecksumName(e *EngineConfig) string {
 	engineName := filepath.Base(e.Source)
 
 	engineName = strings.TrimPrefix(engineName, prefixTrim)
@@ -393,12 +392,12 @@ func engineChecksumName(e *options.EngineConfig) string {
 }
 
 // engineChecksumSigName returns the file name of engine checksum file signature
-func engineChecksumSigName(e *options.EngineConfig) string {
+func engineChecksumSigName(e *EngineConfig) string {
 	return engineChecksumName(e) + ".sig"
 }
 
 // enginePackageName returns the package name for the engine.
-func enginePackageName(e *options.EngineConfig) string {
+func enginePackageName(e *EngineConfig) string {
 	return engineFileName(e) + ".zip"
 }
 

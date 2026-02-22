@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -40,8 +41,8 @@ type ParsingContext struct {
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	Engine           *options.EngineConfig
-	EngineOptions    *options.EngineOptions
+	Engine           *engine.EngineConfig
+	EngineOptions    *engine.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
