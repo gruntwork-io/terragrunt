@@ -71,20 +71,18 @@ type (
 )
 
 type ExecutionOptions struct {
-	Writers                 writer.Writers
-	Engine                  *options.EngineOptions
-	Env                     map[string]string
-	WorkingDir              string
-	RootWorkingDir          string
-	EngineCachePath         string
-	EngineLogLevel          string
-	Command                 string
-	Args                    []string
-	Headless                bool
-	ForwardTFStdout         bool
-	SuppressStdout          bool
-	AllocatePseudoTty       bool
-	EngineSkipChecksumCheck bool
+	Writers           writer.Writers
+	EngineOptions     options.EngineOptions
+	Engine            *options.EngineConfig
+	Env               map[string]string
+	WorkingDir        string
+	RootWorkingDir    string
+	Command           string
+	Args              []string
+	Headless          bool
+	ForwardTFStdout   bool
+	SuppressStdout    bool
+	AllocatePseudoTty bool
 }
 
 type engineInstance struct {
@@ -244,7 +242,7 @@ func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) e
 	checksumFile = result.ChecksumFile
 	checksumSigFile = result.ChecksumSigFile
 
-	if !opts.EngineSkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
+	if !opts.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		l.Infof("Verifying checksum for %s", downloadFile)
 
 		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -354,7 +352,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 		return filepath.Dir(engine.Source), nil
 	}
 
-	cacheDir := opts.EngineCachePath
+	cacheDir := opts.EngineOptions.CachePath
 	if len(cacheDir) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -371,7 +369,7 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 }
 
 // engineFileName returns the file name for the engine.
-func engineFileName(e *options.EngineOptions) string {
+func engineFileName(e *options.EngineConfig) string {
 	engineName := filepath.Base(e.Source)
 	if util.FileExists(e.Source) {
 		// return file name if source is absolute path
@@ -386,7 +384,7 @@ func engineFileName(e *options.EngineOptions) string {
 }
 
 // engineChecksumName returns the file name of engine checksum file
-func engineChecksumName(e *options.EngineOptions) string {
+func engineChecksumName(e *options.EngineConfig) string {
 	engineName := filepath.Base(e.Source)
 
 	engineName = strings.TrimPrefix(engineName, prefixTrim)
@@ -395,12 +393,12 @@ func engineChecksumName(e *options.EngineOptions) string {
 }
 
 // engineChecksumSigName returns the file name of engine checksum file signature
-func engineChecksumSigName(e *options.EngineOptions) string {
+func engineChecksumSigName(e *options.EngineConfig) string {
 	return engineChecksumName(e) + ".sig"
 }
 
 // enginePackageName returns the package name for the engine.
-func enginePackageName(e *options.EngineOptions) string {
+func enginePackageName(e *options.EngineConfig) string {
 	return engineFileName(e) + ".zip"
 }
 
@@ -566,7 +564,7 @@ func createEngine(
 	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.Engine))
 
 	// validate engine before loading if verification is not disabled
-	skipCheck := opts.EngineSkipChecksumCheck
+	skipCheck := opts.EngineOptions.SkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
@@ -578,7 +576,7 @@ func createEngine(
 
 	l.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := opts.EngineLogLevel
+	engineLogLevel := opts.EngineOptions.LogLevel
 
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()

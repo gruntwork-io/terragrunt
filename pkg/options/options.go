@@ -104,8 +104,10 @@ type TerragruntOptions struct {
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Options to use engine for running IaC operations.
-	Engine *EngineOptions
+	// Engine holds the resolved engine configuration from HCL.
+	Engine *EngineConfig
+	// EngineOptions groups CLI-supplied engine options.
+	EngineOptions EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -151,10 +153,6 @@ type TerragruntOptions struct {
 	JSONOut string
 	// The path to store unpacked providers.
 	ProviderCacheDir string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
 	// The command and arguments that can be used to fetch authentication configurations.
 	AuthProviderCmd string
 	// Folder to store JSON representation of output files.
@@ -249,8 +247,6 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -585,8 +581,18 @@ func identifyDefaultWrappedExecutable(ctx context.Context) string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine.
+// EngineOptions groups CLI-supplied engine options.
 type EngineOptions struct {
+	// CachePath is the path to the cache directory for engine files.
+	CachePath string
+	// LogLevel is the custom log level for engine.
+	LogLevel string
+	// SkipChecksumCheck skips checksum verification for engine packages.
+	SkipChecksumCheck bool
+}
+
+// EngineConfig represents the configurations for a Terragrunt engine.
+type EngineConfig struct {
 	Meta    map[string]any
 	Source  string
 	Version string

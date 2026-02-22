@@ -2040,7 +2040,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*options.EngineConfig, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -2069,7 +2069,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &options.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

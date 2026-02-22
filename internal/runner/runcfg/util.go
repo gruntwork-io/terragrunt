@@ -179,7 +179,7 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 }
 
 // EngineOptions fetches engine options from the RunConfig.
-func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *RunConfig) EngineOptions() (*options.EngineConfig, error) {
 	if !cfg.Engine.Enable {
 		return nil, nil
 	}
@@ -203,7 +203,7 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &options.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

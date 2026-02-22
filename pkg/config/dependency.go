@@ -1280,6 +1280,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
 		Engine:                       pctx.Engine,
+		EngineOptions:                pctx.EngineOptions,
 		AuthProviderCmd:              pctx.AuthProviderCmd,
 		TFPath:                       pctx.TFPath,
 		ForwardTFStdout:              false,
@@ -1315,6 +1316,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 	return &shell.RunOptions{
 		Writers:         pctx.Writers,
+		EngineOptions:   pctx.EngineOptions,
 		WorkingDir:      pctx.WorkingDir,
 		Env:             pctx.Env,
 		TFPath:          pctx.TFPath,

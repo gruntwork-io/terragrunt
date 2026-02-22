@@ -40,7 +40,8 @@ type ParsingContext struct {
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	Engine           *options.EngineOptions
+	Engine           *options.EngineConfig
+	EngineOptions    options.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
@@ -122,6 +123,7 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
 	ctx.AuthProviderCmd = opts.AuthProviderCmd
 	ctx.Engine = opts.Engine
+	ctx.EngineOptions = opts.EngineOptions
 	ctx.TFPath = opts.TFPath
 	ctx.TofuImplementation = opts.TofuImplementation
 	ctx.ForwardTFStdout = opts.ForwardTFStdout

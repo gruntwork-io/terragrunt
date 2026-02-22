@@ -32,40 +32,36 @@ const SignalForwardingDelay = time.Second * 15
 
 // RunOptions contains the configuration needed to run shell commands.
 type RunOptions struct {
-	Writers   writer.Writers
-	Telemetry *telemetry.Options
-	Env       map[string]string
-	Engine    *options.EngineOptions
+	Writers       writer.Writers
+	EngineOptions options.EngineOptions
+	Telemetry     *telemetry.Options
+	Env           map[string]string
+	Engine        *options.EngineConfig
 
-	RootWorkingDir          string
-	WorkingDir              string
-	TFPath                  string
-	EngineCachePath         string
-	EngineLogLevel          string
-	Experiments             experiment.Experiments
-	Headless                bool
-	ForwardTFStdout         bool
-	NoEngine                bool
-	EngineSkipChecksumCheck bool
+	RootWorkingDir  string
+	WorkingDir      string
+	TFPath          string
+	Experiments     experiment.Experiments
+	Headless        bool
+	ForwardTFStdout bool
+	NoEngine        bool
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
 func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 	return &RunOptions{
-		Writers:                 opts.Writers,
-		WorkingDir:              opts.WorkingDir,
-		Env:                     opts.Env,
-		TFPath:                  opts.TFPath,
-		Engine:                  opts.Engine,
-		Experiments:             opts.Experiments,
-		NoEngine:                opts.NoEngine,
-		Telemetry:               opts.Telemetry,
-		RootWorkingDir:          opts.RootWorkingDir,
-		Headless:                opts.Headless,
-		ForwardTFStdout:         opts.ForwardTFStdout,
-		EngineCachePath:         opts.EngineCachePath,
-		EngineLogLevel:          opts.EngineLogLevel,
-		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		Engine:          opts.Engine,
+		Experiments:     opts.Experiments,
+		NoEngine:        opts.NoEngine,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
 	}
 }
 
@@ -138,19 +134,17 @@ func RunCommandWithOutput(
 						LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
 						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
 					},
-					Engine:                  runOpts.Engine,
-					Env:                     runOpts.Env,
-					WorkingDir:              commandDir,
-					RootWorkingDir:          runOpts.RootWorkingDir,
-					EngineCachePath:         runOpts.EngineCachePath,
-					EngineLogLevel:          runOpts.EngineLogLevel,
-					Command:                 command,
-					Args:                    args,
-					Headless:                runOpts.Headless,
-					ForwardTFStdout:         runOpts.ForwardTFStdout,
-					SuppressStdout:          suppressStdout,
-					AllocatePseudoTty:       needsPTY,
-					EngineSkipChecksumCheck: runOpts.EngineSkipChecksumCheck,
+					EngineOptions:     runOpts.EngineOptions,
+					Engine:            runOpts.Engine,
+					Env:               runOpts.Env,
+					WorkingDir:        commandDir,
+					RootWorkingDir:    runOpts.RootWorkingDir,
+					Command:           command,
+					Args:              args,
+					Headless:          runOpts.Headless,
+					ForwardTFStdout:   runOpts.ForwardTFStdout,
+					SuppressStdout:    suppressStdout,
+					AllocatePseudoTty: needsPTY,
 				})
 				if err != nil {
 					return errors.New(err)
