@@ -58,7 +58,7 @@ func runTFHelp(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 
 	terraformHelpCmd := []string{tf.FlagNameHelpLong, cliCtx.Command.Name}
 
-	out, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), terraformHelpCmd...)
+	out, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(opts), terraformHelpCmd...)
 	if err != nil {
 		var processError util.ProcessExecutionError
 		if ok := errors.As(err, &processError); ok {

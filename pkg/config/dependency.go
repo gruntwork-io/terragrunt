@@ -1196,7 +1196,7 @@ func setupTFRunOptsForBareTerraform(
 	workingDir string,
 	iamRoleOpts iam.RoleOptions,
 	credsGetter *creds.Getter,
-) (*tf.RunOptions, error) {
+) (*tf.TFOptions, error) {
 	// Merge IAM options
 	mergedIAM := iam.MergeRoleOptions(iamRoleOpts, pctx.OriginalIAMRoleOptions)
 
@@ -1213,12 +1213,14 @@ func setupTFRunOptsForBareTerraform(
 		return nil, err
 	}
 
-	return &tf.RunOptions{
-		Writer:                       io.Discard,
-		ErrWriter:                    pctx.Writers.ErrWriter,
+	return &tf.TFOptions{
+		Writers: writer.Writers{
+			Writer:    io.Discard,
+			ErrWriter: pctx.Writers.ErrWriter,
+		},
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shellOpts,
+		ShellOptions:                 shellOpts,
 	}, nil
 }
 
@@ -1309,8 +1311,8 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 }
 
 // shellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
-func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
-	return &shell.RunOptions{
+func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
+	return &shell.ShellOptions{
 		Writers:         pctx.Writers,
 		EngineOptions:   pctx.EngineOptions,
 		WorkingDir:      pctx.WorkingDir,
@@ -1327,13 +1329,12 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.
-func tfRunOptsFromPctx(pctx *ParsingContext) *tf.RunOptions {
-	return &tf.RunOptions{
-		Writer:                       pctx.Writers.Writer,
-		ErrWriter:                    pctx.Writers.ErrWriter,
+func tfRunOptsFromPctx(pctx *ParsingContext) *tf.TFOptions {
+	return &tf.TFOptions{
+		Writers:                      pctx.Writers,
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shellRunOptsFromPctx(pctx),
+		ShellOptions:                 shellRunOptsFromPctx(pctx),
 	}
 }
 
@@ -1384,9 +1385,9 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	stderr := bytes.Buffer{}
 
 	initRunOpts := tfRunOptsFromPctx(pctx)
-	initRunOpts.ShellRunOpts.WorkingDir = workingDir
-	initRunOpts.ErrWriter = &stderr
-	initRunOpts.ShellRunOpts.Writers.ErrWriter = &stderr
+	initRunOpts.ShellOptions.WorkingDir = workingDir
+	initRunOpts.Writers.ErrWriter = &stderr
+	initRunOpts.ShellOptions.Writers.ErrWriter = &stderr
 
 	if err := tf.RunCommand(ctx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")

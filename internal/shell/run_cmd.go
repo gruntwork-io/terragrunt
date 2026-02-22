@@ -30,8 +30,8 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
-// RunOptions contains the configuration needed to run shell commands.
-type RunOptions struct {
+// ShellOptions contains the configuration needed to run shell commands.
+type ShellOptions struct {
 	Writers       writer.Writers
 	EngineOptions *options.EngineOptions
 	EngineConfig  *options.EngineConfig
@@ -48,8 +48,8 @@ type RunOptions struct {
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
-func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
-	return &RunOptions{
+func RunOptionsFromOpts(opts *options.TerragruntOptions) *ShellOptions {
+	return &ShellOptions{
 		Writers:         opts.Writers,
 		EngineOptions:   opts.EngineOptions,
 		WorkingDir:      opts.WorkingDir,
@@ -66,7 +66,7 @@ func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 }
 
 // RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, command string, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
 
 	return err
@@ -80,7 +80,7 @@ func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, command 
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	runOpts *RunOptions,
+	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
 	needsPTY bool,

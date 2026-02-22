@@ -21,12 +21,12 @@ import (
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
-	runOpts         *shell.RunOptions
+	runOpts         *shell.ShellOptions
 	authProviderCmd string
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.RunOptions) providers.Provider {
+func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.ShellOptions) providers.Provider {
 	return &Provider{
 		authProviderCmd: authProviderCmd,
 		runOpts:         runOpts,

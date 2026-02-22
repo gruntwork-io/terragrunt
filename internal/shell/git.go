@@ -32,7 +32,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &RunOptions{
+	gitRunOpts := &ShellOptions{
 		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
 		WorkingDir: path,
 		Env:        env,
@@ -65,7 +65,7 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &RunOptions{
+	gitRunOpts := &ShellOptions{
 		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
 		WorkingDir: workingDir,
 		Env:        env,
