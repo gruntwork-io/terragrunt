@@ -119,21 +119,19 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	// render outputs
 
-	writer := opts.Writers.Writer
-
 	switch opts.StackOutputFormat {
 	default:
-		if err := PrintOutputs(writer, filteredOutputs); err != nil {
+		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := PrintRawOutputs(opts, writer, filteredOutputs); err != nil {
+		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case jsonOutputFormat:
-		if err := PrintJSONOutput(writer, filteredOutputs); err != nil {
+		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 	}

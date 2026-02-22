@@ -33,7 +33,7 @@ const SignalForwardingDelay = time.Second * 15
 // RunOptions contains the configuration needed to run shell commands.
 type RunOptions struct {
 	Writers       writer.Writers
-	EngineOptions options.EngineOptions
+	EngineOptions *options.EngineOptions
 	Telemetry     *telemetry.Options
 	Env           map[string]string
 	Engine        *options.EngineConfig
@@ -57,7 +57,7 @@ func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 		TFPath:          opts.TFPath,
 		Engine:          opts.Engine,
 		Experiments:     opts.Experiments,
-		NoEngine:        opts.NoEngine,
+		NoEngine:        opts.EngineOptions.NoEngine,
 		Telemetry:       opts.Telemetry,
 		RootWorkingDir:  opts.RootWorkingDir,
 		Headless:        opts.Headless,
@@ -135,7 +135,7 @@ func RunCommandWithOutput(
 						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
 					},
 					EngineOptions:     runOpts.EngineOptions,
-					Engine:            runOpts.Engine,
+					EngineConfig:      runOpts.Engine,
 					Env:               runOpts.Env,
 					WorkingDir:        commandDir,
 					RootWorkingDir:    runOpts.RootWorkingDir,

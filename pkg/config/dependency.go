@@ -1290,7 +1290,6 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		BackendBootstrap:             pctx.BackendBootstrap,
 		TofuImplementation:           pctx.TofuImplementation,
 		Telemetry:                    pctx.Telemetry,
-		NoEngine:                     pctx.NoEngine,
 		Headless:                     pctx.Headless,
 	}
 
@@ -1322,11 +1321,11 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 		TFPath:          pctx.TFPath,
 		Engine:          pctx.Engine,
 		Experiments:     pctx.Experiments,
-		NoEngine:        pctx.NoEngine,
 		Telemetry:       pctx.Telemetry,
 		RootWorkingDir:  pctx.RootWorkingDir,
 		Headless:        pctx.Headless,
 		ForwardTFStdout: pctx.ForwardTFStdout,
+		NoEngine:        pctx.EngineOptions.NoEngine,
 	}
 }
 

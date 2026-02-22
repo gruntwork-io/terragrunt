@@ -113,7 +113,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.NoEngine); err != nil {
+		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)

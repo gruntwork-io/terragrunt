@@ -41,7 +41,7 @@ type ParsingContext struct {
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
 	Engine           *options.EngineConfig
-	EngineOptions    options.EngineOptions
+	EngineOptions    *options.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
@@ -88,7 +88,6 @@ type ParsingContext struct {
 	AutoInit            bool
 	Headless            bool
 	BackendBootstrap    bool
-	NoEngine            bool
 	CheckDependentUnits bool
 
 	NoDependencyFetchOutputFromState bool
@@ -132,7 +131,6 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.AutoInit = opts.AutoInit
 	ctx.Headless = opts.Headless
 	ctx.BackendBootstrap = opts.BackendBootstrap
-	ctx.NoEngine = opts.NoEngine
 	ctx.CheckDependentUnits = opts.CheckDependentUnits
 	ctx.Telemetry = opts.Telemetry
 	ctx.NoStackValidate = opts.NoStackValidate
@@ -164,6 +162,11 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
+	}
+
+	if ctx.EngineOptions != nil {
+		eo := *ctx.EngineOptions
+		clone.EngineOptions = &eo
 	}
 
 	return &clone

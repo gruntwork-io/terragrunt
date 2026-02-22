@@ -107,7 +107,7 @@ type TerragruntOptions struct {
 	// Engine holds the resolved engine configuration from HCL.
 	Engine *EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
-	EngineOptions EngineOptions
+	EngineOptions *EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -289,8 +289,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
-	NoEngine bool
 	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
 	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
@@ -353,6 +351,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Experiments:                experiment.NewExperiments(),
 		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
+		EngineOptions:              new(EngineOptions),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
@@ -589,6 +588,8 @@ type EngineOptions struct {
 	LogLevel string
 	// SkipChecksumCheck skips checksum verification for engine packages.
 	SkipChecksumCheck bool
+	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
+	NoEngine bool
 }
 
 // EngineConfig represents the configurations for a Terragrunt engine.

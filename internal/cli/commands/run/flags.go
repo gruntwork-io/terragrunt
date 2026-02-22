@@ -409,7 +409,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoEngineFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoEngineFlagName),
-			Destination: &opts.NoEngine,
+			Destination: &opts.EngineOptions.NoEngine,
 			Usage:       "Disable IaC engines even when the iac-engine experiment is enabled.",
 			Hidden:      true,
 		}),

@@ -72,8 +72,8 @@ type (
 
 type ExecutionOptions struct {
 	Writers           writer.Writers
-	EngineOptions     options.EngineOptions
-	Engine            *options.EngineConfig
+	EngineOptions     *options.EngineOptions
+	EngineConfig      *options.EngineConfig
 	Env               map[string]string
 	WorkingDir        string
 	RootWorkingDir    string
@@ -155,7 +155,7 @@ func WithEngineValues(ctx context.Context) context.Context {
 
 // downloadEngine downloads the engine for the given options.
 func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) error {
-	e := opts.Engine
+	e := opts.EngineConfig
 	if e == nil {
 		return nil
 	}
@@ -262,7 +262,7 @@ func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) e
 }
 
 func lastReleaseVersion(ctx context.Context, opts *ExecutionOptions) (string, error) {
-	repository := strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot)
+	repository := strings.TrimPrefix(opts.EngineConfig.Source, defaultEngineRepoRoot)
 
 	versionCache, err := engineVersionsCacheFromContext(ctx)
 	if err != nil {
@@ -347,7 +347,7 @@ func extractArchive(l log.Logger, downloadFile string, engineFile string) error 
 
 // engineDir returns the directory path where engine files are stored.
 func engineDir(opts *ExecutionOptions) (string, error) {
-	engine := opts.Engine
+	engine := opts.EngineConfig
 	if util.FileExists(engine.Source) {
 		return filepath.Dir(engine.Source), nil
 	}
@@ -545,12 +545,12 @@ func createEngine(
 	l log.Logger,
 	opts *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
-	if opts.Engine == nil {
+	if opts.EngineConfig == nil {
 		return nil, nil, errors.Errorf("engine options are nil")
 	}
 
 	// If source is empty, we cannot determine the engine file path
-	if opts.Engine.Source == "" {
+	if opts.EngineConfig.Source == "" {
 		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
 	}
 
@@ -559,9 +559,9 @@ func createEngine(
 		return nil, nil, errors.New(err)
 	}
 
-	localEnginePath := filepath.Join(path, engineFileName(opts.Engine))
-	localChecksumFile := filepath.Join(path, engineChecksumName(opts.Engine))
-	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.Engine))
+	localEnginePath := filepath.Join(path, engineFileName(opts.EngineConfig))
+	localChecksumFile := filepath.Join(path, engineChecksumName(opts.EngineConfig))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.EngineConfig))
 
 	// validate engine before loading if verification is not disabled
 	skipCheck := opts.EngineOptions.SkipChecksumCheck
@@ -651,7 +651,7 @@ func createEngine(
 func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	l = l.WithField(placeholders.TFPathKeyName, "engine")
 
-	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -803,7 +803,7 @@ var ErrEngineInitFailed = errors.New("engine init failed")
 
 // initialize engine for working directory
 func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) error {
-	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -867,7 +867,7 @@ var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory
 func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
-	meta, err := ConvertMetaToProtobuf(runOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 	if err != nil {
 		return errors.New(err)
 	}
