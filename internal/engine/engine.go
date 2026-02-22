@@ -86,45 +86,45 @@ type ExecutionOptions struct {
 }
 
 type engineInstance struct {
-	terragruntEngine *proto.EngineClient
-	client           *plugin.Client
-	executionOptions *ExecutionOptions
+	engineClient *proto.EngineClient
+	client       *plugin.Client
+	execOptions  *ExecutionOptions
 }
 
 // Run executes the given command with the experimental engine.
 func Run(
 	ctx context.Context,
 	l log.Logger,
-	runOptions *ExecutionOptions,
+	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	workingDir := runOptions.WorkingDir
+	workingDir := execOptions.WorkingDir
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
 		// download engine if not available
-		if err = downloadEngine(ctx, l, runOptions); err != nil {
+		if err = downloadEngine(ctx, l, execOptions); err != nil {
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, createEngineErr := createEngine(ctx, l, runOptions)
+		terragruntEngine, client, createEngineErr := createEngine(ctx, l, execOptions)
 		if createEngineErr != nil {
 			return nil, errors.New(createEngineErr)
 		}
 
 		engineClients.Store(workingDir, &engineInstance{
-			terragruntEngine: terragruntEngine,
-			client:           client,
-			executionOptions: runOptions,
+			engineClient: terragruntEngine,
+			client:       client,
+			execOptions:  execOptions,
 		})
 
 		instance, _ = engineClients.Load(workingDir)
 
-		if err = initialize(ctx, l, runOptions, terragruntEngine); err != nil {
+		if err = initialize(ctx, l, execOptions, terragruntEngine); err != nil {
 			return nil, errors.New(err)
 		}
 	}
@@ -134,9 +134,9 @@ func Run(
 		return nil, errors.Errorf("failed to fetch engine instance %s", workingDir)
 	}
 
-	terragruntEngine := engInst.terragruntEngine
+	terragruntEngine := engInst.engineClient
 
-	output, err := invoke(ctx, l, runOptions, terragruntEngine)
+	output, err := invoke(ctx, l, execOptions, terragruntEngine)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -154,8 +154,8 @@ func WithEngineValues(ctx context.Context) context.Context {
 }
 
 // downloadEngine downloads the engine for the given options.
-func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) error {
-	e := opts.EngineConfig
+func downloadEngine(ctx context.Context, l log.Logger, execOptions *ExecutionOptions) error {
+	e := execOptions.EngineConfig
 	if e == nil {
 		return nil
 	}
@@ -176,7 +176,7 @@ func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) e
 	// identify engine version if not specified
 	if len(e.Version) == 0 {
 		if !strings.Contains(e.Source, "://") {
-			tag, err := lastReleaseVersion(ctx, opts)
+			tag, err := lastReleaseVersion(ctx, execOptions)
 			if err != nil {
 				return errors.New(err)
 			}
@@ -185,7 +185,7 @@ func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) e
 		}
 	}
 
-	path, err := engineDir(opts)
+	path, err := engineDir(execOptions)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -242,7 +242,7 @@ func downloadEngine(ctx context.Context, l log.Logger, opts *ExecutionOptions) e
 	checksumFile = result.ChecksumFile
 	checksumSigFile = result.ChecksumSigFile
 
-	if !opts.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
+	if !execOptions.EngineOptions.SkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		l.Infof("Verifying checksum for %s", downloadFile)
 
 		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -472,7 +472,7 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 
 	engineClients.Range(func(key, value any) bool {
 		instance := value.(*engineInstance)
-		l.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
+		l.Debugf("Shutting down engine for %s", instance.execOptions.WorkingDir)
 
 		// We use without cancel here to ensure that the shutdown isn't cancelled by the main context,
 		// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
@@ -480,8 +480,8 @@ func Shutdown(ctx context.Context, l log.Logger, experiments experiment.Experime
 		if err := shutdown(
 			context.WithoutCancel(ctx),
 			l,
-			instance.executionOptions,
-			instance.terragruntEngine,
+			instance.execOptions,
+			instance.engineClient,
 		); err != nil {
 			l.Errorf("Error shutting down engine: %v", err)
 		}
@@ -543,28 +543,28 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
-	executionOptions *ExecutionOptions,
+	execOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
-	if executionOptions.EngineConfig == nil {
+	if execOptions.EngineConfig == nil {
 		return nil, nil, errors.Errorf("engine options are nil")
 	}
 
 	// If source is empty, we cannot determine the engine file path
-	if executionOptions.EngineConfig.Source == "" {
+	if execOptions.EngineConfig.Source == "" {
 		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
 	}
 
-	path, err := engineDir(executionOptions)
+	path, err := engineDir(execOptions)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
 
-	localEnginePath := filepath.Join(path, engineFileName(executionOptions.EngineConfig))
-	localChecksumFile := filepath.Join(path, engineChecksumName(executionOptions.EngineConfig))
-	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(executionOptions.EngineConfig))
+	localEnginePath := filepath.Join(path, engineFileName(execOptions.EngineConfig))
+	localChecksumFile := filepath.Join(path, engineChecksumName(execOptions.EngineConfig))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(execOptions.EngineConfig))
 
 	// validate engine before loading if verification is not disabled
-	skipCheck := executionOptions.EngineOptions.SkipChecksumCheck
+	skipCheck := execOptions.EngineOptions.SkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
@@ -576,7 +576,7 @@ func createEngine(
 
 	l.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := executionOptions.EngineOptions.LogLevel
+	engineLogLevel := execOptions.EngineOptions.LogLevel
 
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()
