@@ -53,22 +53,16 @@ type RunOptions struct {
 	// as long as the TerraformCommandHook is not set in the context.
 	TerragruntOptions *options.TerragruntOptions
 
-	TFPath                       string
 	OriginalTerragruntConfigPath string
-	ForwardTFStdout              bool
 	JSONLogFormat                bool
-	Headless                     bool
 }
 
 // RunOptionsFromOpts constructs RunOptions from TerragruntOptions.
 func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 	return &RunOptions{
-		ForwardTFStdout:              opts.ForwardTFStdout,
 		Writer:                       opts.Writers.Writer,
 		ErrWriter:                    opts.Writers.ErrWriter,
-		TFPath:                       opts.TFPath,
 		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
 		TerragruntOptions:            opts,
@@ -97,7 +91,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 	}
 
 	shellOpts := runOpts.ShellRunOpts
-	if !runOpts.ForwardTFStdout {
+	if !runOpts.ShellRunOpts.ForwardTFStdout {
 		// Copy the shell opts to avoid mutating the caller's struct.
 		shellOptsCopy := *shellOpts
 		shellOpts = &shellOptsCopy
@@ -107,7 +101,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 		shellOpts.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.ShellRunOpts.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -138,20 +132,20 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 	)
 
 	logger := l.
-		WithField(placeholders.TFPathKeyName, filepath.Base(runOpts.TFPath)).
+		WithField(placeholders.TFPathKeyName, filepath.Base(runOpts.ShellRunOpts.TFPath)).
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
 	if runOpts.JSONLogFormat && !args.Normalize(clihelper.SingleDashFlag).Contains(FlagNameJSON) {
 		wrappedOut := buildOutWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellRunOpts.Headless,
 			outWriter,
 			errWriter,
 		)
 		wrappedErr := buildErrWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellRunOpts.Headless,
 			errWriter,
 		)
 
@@ -160,14 +154,14 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 	} else if !shouldForceForwardTFStdout(args) {
 		wrappedOut := buildOutWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellRunOpts.Headless,
 			outWriter,
 			errWriter,
 			logwriter.WithMsgSeparator(logMsgSeparator),
 		)
 		wrappedErr := buildErrWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellRunOpts.Headless,
 			errWriter,
 			logwriter.WithMsgSeparator(logMsgSeparator),
 			logwriter.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),

@@ -34,9 +34,9 @@ const SignalForwardingDelay = time.Second * 15
 type RunOptions struct {
 	Writers       writer.Writers
 	EngineOptions *options.EngineOptions
+	EngineConfig  *options.EngineConfig
 	Telemetry     *telemetry.Options
 	Env           map[string]string
-	Engine        *options.EngineConfig
 
 	RootWorkingDir  string
 	WorkingDir      string
@@ -55,7 +55,7 @@ func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 		WorkingDir:      opts.WorkingDir,
 		Env:             opts.Env,
 		TFPath:          opts.TFPath,
-		Engine:          opts.Engine,
+		EngineConfig:    opts.EngineConfig,
 		Experiments:     opts.Experiments,
 		NoEngine:        opts.EngineOptions.NoEngine,
 		Telemetry:       opts.Telemetry,
@@ -124,7 +124,7 @@ func RunCommandWithOutput(
 
 		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if runOpts.Engine != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine {
+			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
@@ -135,7 +135,7 @@ func RunCommandWithOutput(
 						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
 					},
 					EngineOptions:     runOpts.EngineOptions,
-					EngineConfig:      runOpts.Engine,
+					EngineConfig:      runOpts.EngineConfig,
 					Env:               runOpts.Env,
 					WorkingDir:        commandDir,
 					RootWorkingDir:    runOpts.RootWorkingDir,

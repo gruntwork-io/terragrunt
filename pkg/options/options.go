@@ -104,8 +104,8 @@ type TerragruntOptions struct {
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Engine holds the resolved engine configuration from HCL.
-	Engine *EngineConfig
+	// EngineConfig holds the resolved engine configuration from HCL.
+	EngineConfig *EngineConfig
 	// EngineOptions groups CLI-supplied engine options.
 	EngineOptions *EngineOptions
 	// Telemetry are telemetry options.

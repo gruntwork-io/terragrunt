@@ -1214,12 +1214,9 @@ func setupTFRunOptsForBareTerraform(
 	}
 
 	return &tf.RunOptions{
-		ForwardTFStdout:              pctx.ForwardTFStdout,
 		Writer:                       io.Discard,
 		ErrWriter:                    pctx.Writers.ErrWriter,
-		TFPath:                       pctx.TFPath,
 		JSONLogFormat:                pctx.JSONLogFormat,
-		Headless:                     pctx.Headless,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellRunOpts:                 shellOpts,
 	}, nil
@@ -1279,7 +1276,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		Experiments:                  pctx.Experiments,
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
-		Engine:                       pctx.Engine,
+		EngineConfig:                 pctx.Engine,
 		EngineOptions:                pctx.EngineOptions,
 		AuthProviderCmd:              pctx.AuthProviderCmd,
 		TFPath:                       pctx.TFPath,
@@ -1319,7 +1316,7 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 		WorkingDir:      pctx.WorkingDir,
 		Env:             pctx.Env,
 		TFPath:          pctx.TFPath,
-		Engine:          pctx.Engine,
+		EngineConfig:    pctx.Engine,
 		Experiments:     pctx.Experiments,
 		Telemetry:       pctx.Telemetry,
 		RootWorkingDir:  pctx.RootWorkingDir,
@@ -1332,12 +1329,9 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.RunOptions {
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.
 func tfRunOptsFromPctx(pctx *ParsingContext) *tf.RunOptions {
 	return &tf.RunOptions{
-		ForwardTFStdout:              pctx.ForwardTFStdout,
 		Writer:                       pctx.Writers.Writer,
 		ErrWriter:                    pctx.Writers.ErrWriter,
-		TFPath:                       pctx.TFPath,
 		JSONLogFormat:                pctx.JSONLogFormat,
-		Headless:                     pctx.Headless,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellRunOpts:                 shellRunOptsFromPctx(pctx),
 	}

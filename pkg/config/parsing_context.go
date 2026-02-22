@@ -121,7 +121,7 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.SkipOutput = opts.SkipOutput
 	ctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
 	ctx.AuthProviderCmd = opts.AuthProviderCmd
-	ctx.Engine = opts.Engine
+	ctx.Engine = opts.EngineConfig
 	ctx.EngineOptions = opts.EngineOptions
 	ctx.TFPath = opts.TFPath
 	ctx.TofuImplementation = opts.TofuImplementation

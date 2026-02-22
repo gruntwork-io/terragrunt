@@ -543,28 +543,28 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
-	opts *ExecutionOptions,
+	executionOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
-	if opts.EngineConfig == nil {
+	if executionOptions.EngineConfig == nil {
 		return nil, nil, errors.Errorf("engine options are nil")
 	}
 
 	// If source is empty, we cannot determine the engine file path
-	if opts.EngineConfig.Source == "" {
+	if executionOptions.EngineConfig.Source == "" {
 		return nil, nil, errors.Errorf("engine source is empty, cannot create engine")
 	}
 
-	path, err := engineDir(opts)
+	path, err := engineDir(executionOptions)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
 
-	localEnginePath := filepath.Join(path, engineFileName(opts.EngineConfig))
-	localChecksumFile := filepath.Join(path, engineChecksumName(opts.EngineConfig))
-	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(opts.EngineConfig))
+	localEnginePath := filepath.Join(path, engineFileName(executionOptions.EngineConfig))
+	localChecksumFile := filepath.Join(path, engineChecksumName(executionOptions.EngineConfig))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(executionOptions.EngineConfig))
 
 	// validate engine before loading if verification is not disabled
-	skipCheck := opts.EngineOptions.SkipChecksumCheck
+	skipCheck := executionOptions.EngineOptions.SkipChecksumCheck
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err = verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
@@ -576,7 +576,7 @@ func createEngine(
 
 	l.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := opts.EngineOptions.LogLevel
+	engineLogLevel := executionOptions.EngineOptions.LogLevel
 
 	if len(engineLogLevel) == 0 {
 		engineLogLevel = hclog.Warn.String()
