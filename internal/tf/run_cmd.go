@@ -42,7 +42,6 @@ var commandsThatNeedPty = []string{
 
 // TFOptions contains the configuration needed to run TF commands.
 type TFOptions struct {
-	Writers      writer.Writers
 	ShellOptions *shell.ShellOptions
 
 	// TerragruntOptions is the full options struct. It is needed when the
@@ -59,7 +58,6 @@ type TFOptions struct {
 // TFOptionsFromOpts constructs RunOptions from TerragruntOptions.
 func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
 	return &TFOptions{
-		Writers:                      opts.Writers,
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		ShellOptions:                 shell.RunOptionsFromOpts(opts),
@@ -123,8 +121,8 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 
 func logTFOutput(l log.Logger, runOpts *TFOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		originalOutWriter           = writer.NewOriginalWriter(runOpts.Writers.Writer)
-		originalErrWriter           = writer.NewOriginalWriter(runOpts.Writers.ErrWriter)
+		originalOutWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.Writer)
+		originalErrWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.ErrWriter)
 		outWriter         io.Writer = originalOutWriter
 		errWriter         io.Writer = originalErrWriter
 	)

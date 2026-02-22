@@ -1214,10 +1214,6 @@ func setupTFRunOptsForBareTerraform(
 	}
 
 	return &tf.TFOptions{
-		Writers: writer.Writers{
-			Writer:    io.Discard,
-			ErrWriter: pctx.Writers.ErrWriter,
-		},
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellOptions:                 shellOpts,
@@ -1331,7 +1327,6 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.
 func tfRunOptsFromPctx(pctx *ParsingContext) *tf.TFOptions {
 	return &tf.TFOptions{
-		Writers:                      pctx.Writers,
 		JSONLogFormat:                pctx.JSONLogFormat,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		ShellOptions:                 shellRunOptsFromPctx(pctx),
@@ -1386,7 +1381,6 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 
 	initRunOpts := tfRunOptsFromPctx(pctx)
 	initRunOpts.ShellOptions.WorkingDir = workingDir
-	initRunOpts.Writers.ErrWriter = &stderr
 	initRunOpts.ShellOptions.Writers.ErrWriter = &stderr
 
 	if err := tf.RunCommand(ctx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
