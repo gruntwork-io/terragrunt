@@ -18,7 +18,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -33,6 +33,7 @@ import (
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -70,12 +71,9 @@ type (
 )
 
 type ExecutionOptions struct {
-	CmdStdout               io.Writer
-	CmdStderr               io.Writer
+	Writers                 writer.Writers
 	Engine                  *options.EngineOptions
 	Env                     map[string]string
-	Writer                  io.Writer // original pre-wrap writer for log routing
-	ErrWriter               io.Writer // original pre-wrap error writer
 	WorkingDir              string
 	RootWorkingDir          string
 	EngineCachePath         string
@@ -87,8 +85,6 @@ type ExecutionOptions struct {
 	SuppressStdout          bool
 	AllocatePseudoTty       bool
 	EngineSkipChecksumCheck bool
-	LogShowAbsPaths         bool
-	LogDisableErrorSummary  bool
 }
 
 type engineInstance struct {
@@ -678,13 +674,13 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 	stdoutLogLevel := log.StdoutLevel
 	stderrLogLevel := log.StderrLevel
 
-	stdoutWriter := options.ExtractOriginalWriter(runOptions.Writer)
-	stderrWriter := options.ExtractOriginalWriter(runOptions.ErrWriter)
+	stdoutWriter := writer.ExtractOriginalWriter(runOptions.Writers.Writer)
+	stderrWriter := writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
 
 	if runOptions.Headless && !runOptions.ForwardTFStdout {
 		stdoutLogLevel = log.InfoLevel
 		stderrLogLevel = log.ErrorLevel
-		stdoutWriter = options.ExtractOriginalWriter(runOptions.ErrWriter)
+		stdoutWriter = writer.ExtractOriginalWriter(runOptions.Writers.ErrWriter)
 	}
 
 	var (
@@ -692,15 +688,15 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 
 		// Use the original output writers (before they were wrapped by logTFOutput)
 		// and create new writers with the engine logger
-		engineStdout = writer.New(
-			writer.WithLogger(l.WithOptions(log.WithOutput(stdoutWriter))),
-			writer.WithDefaultLevel(stdoutLogLevel),
-			writer.WithMsgSeparator("\n"),
+		engineStdout = logwriter.New(
+			logwriter.WithLogger(l.WithOptions(log.WithOutput(stdoutWriter))),
+			logwriter.WithDefaultLevel(stdoutLogLevel),
+			logwriter.WithMsgSeparator("\n"),
 		)
-		engineStderr = writer.New(
-			writer.WithLogger(l.WithOptions(log.WithOutput(stderrWriter))),
-			writer.WithDefaultLevel(stderrLogLevel),
-			writer.WithMsgSeparator("\n"),
+		engineStderr = logwriter.New(
+			logwriter.WithLogger(l.WithOptions(log.WithOutput(stderrWriter))),
+			logwriter.WithDefaultLevel(stderrLogLevel),
+			logwriter.WithMsgSeparator("\n"),
 		)
 
 		stdout = io.MultiWriter(engineStdout, &output.Stdout)
@@ -765,10 +761,10 @@ func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, cli
 			Output:          output,
 			WorkingDir:      runOptions.WorkingDir,
 			RootWorkingDir:  runOptions.RootWorkingDir,
-			LogShowAbsPaths: runOptions.LogShowAbsPaths,
+			LogShowAbsPaths: runOptions.Writers.LogShowAbsPaths,
 			Command:         runOptions.Command,
 			Args:            runOptions.Args,
-			DisableSummary:  runOptions.LogDisableErrorSummary,
+			DisableSummary:  runOptions.Writers.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)
@@ -947,8 +943,8 @@ type outputFn func() (*OutputLine, error)
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
 func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output outputFn) error {
-	cmdStdout := runOptions.CmdStdout
-	cmdStderr := runOptions.CmdStderr
+	cmdStdout := runOptions.Writers.Writer
+	cmdStderr := runOptions.Writers.ErrWriter
 
 	for {
 		response, err := output()

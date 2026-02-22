@@ -75,7 +75,7 @@ func (writer *UnitWriter) Flush() error {
 	return nil
 }
 
-// ParentWriter returns the underlying output writer that this UnitWriter wraps.
-func (writer *UnitWriter) ParentWriter() io.Writer {
+// Unwrap returns the underlying output writer that this UnitWriter wraps.
+func (writer *UnitWriter) Unwrap() io.Writer {
 	return writer.out
 }

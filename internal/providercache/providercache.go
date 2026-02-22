@@ -422,7 +422,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		return nil, err
 	}
 
-	cloneOpts.Writer = io.Discard
+	cloneOpts.Writers.Writer = io.Discard
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = iacargs.New(args...)
 	cloneOpts.Env = envs
@@ -437,8 +437,8 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(opts.ErrWriter)
-			cloneOpts.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(opts.Writers.ErrWriter)
+			cloneOpts.Writers.ErrWriter = errWriter
 
 			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
 			finalOutput = output

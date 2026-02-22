@@ -25,6 +25,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -98,10 +99,7 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
+	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -273,10 +271,6 @@ type TerragruntOptions struct {
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.
 	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
@@ -342,6 +336,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
+		Writers:                    writer.Writers{Writer: stdout, ErrWriter: stderr},
 		TFPath:                     DefaultWrappedPath,
 		ExcludesFile:               defaultExcludesFile,
 		FiltersFile:                defaultFiltersFile,
@@ -350,8 +345,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
 		TerraformCliArgs:           iacargs.New(),
-		Writer:                     stdout,
-		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
 		AutoRetry:                  true,
 		Parallelism:                DefaultParallelism,

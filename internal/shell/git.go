@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -32,10 +33,9 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 	stderr := bytes.Buffer{}
 
 	gitRunOpts := &RunOptions{
+		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
 		WorkingDir: path,
 		Env:        env,
-		Writer:     &stdout,
-		ErrWriter:  &stderr,
 	}
 
 	cmd, err := RunCommandWithOutput(ctx, l, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
@@ -66,10 +66,9 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 	stderr := bytes.Buffer{}
 
 	gitRunOpts := &RunOptions{
+		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
 		WorkingDir: workingDir,
 		Env:        env,
-		Writer:     &stdout,
-		ErrWriter:  &stderr,
 	}
 
 	output, err := RunCommandWithOutput(ctx, l, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)

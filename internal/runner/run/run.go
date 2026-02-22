@@ -461,7 +461,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 
 	if !slices.Contains(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writer = io.Discard
+		initOptions.Writers.Writer = io.Discard
 	}
 
 	if l.Formatter().DisabledColors() || terragruntOptions.TerraformCliArgs.Contains(tf.FlagNameNoColor) {

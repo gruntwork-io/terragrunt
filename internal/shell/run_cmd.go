@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -31,8 +32,7 @@ const SignalForwardingDelay = time.Second * 15
 
 // RunOptions contains the configuration needed to run shell commands.
 type RunOptions struct {
-	Writer    io.Writer
-	ErrWriter io.Writer
+	Writers   writer.Writers
 	Telemetry *telemetry.Options
 	Env       map[string]string
 	Engine    *options.EngineOptions
@@ -47,16 +47,13 @@ type RunOptions struct {
 	ForwardTFStdout         bool
 	NoEngine                bool
 	EngineSkipChecksumCheck bool
-	LogShowAbsPaths         bool
-	LogDisableErrorSummary  bool
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
 func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 	return &RunOptions{
+		Writers:                 opts.Writers,
 		WorkingDir:              opts.WorkingDir,
-		Writer:                  opts.Writer,
-		ErrWriter:               opts.ErrWriter,
 		Env:                     opts.Env,
 		TFPath:                  opts.TFPath,
 		Engine:                  opts.Engine,
@@ -64,8 +61,6 @@ func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 		NoEngine:                opts.NoEngine,
 		Telemetry:               opts.Telemetry,
 		RootWorkingDir:          opts.RootWorkingDir,
-		LogShowAbsPaths:         opts.LogShowAbsPaths,
-		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
 		Headless:                opts.Headless,
 		ForwardTFStdout:         opts.ForwardTFStdout,
 		EngineCachePath:         opts.EngineCachePath,
@@ -113,8 +108,8 @@ func RunCommandWithOutput(
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
-			cmdStderr = io.MultiWriter(runOpts.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(runOpts.Writer, &output.Stdout)
+			cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
@@ -137,12 +132,14 @@ func RunCommandWithOutput(
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
-					CmdStdout:               cmdStdout,
-					CmdStderr:               cmdStderr,
+					Writers: writer.Writers{
+						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
+						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
+						LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
+						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
+					},
 					Engine:                  runOpts.Engine,
 					Env:                     runOpts.Env,
-					Writer:                  runOpts.Writer,
-					ErrWriter:               runOpts.ErrWriter,
 					WorkingDir:              commandDir,
 					RootWorkingDir:          runOpts.RootWorkingDir,
 					EngineCachePath:         runOpts.EngineCachePath,
@@ -154,8 +151,6 @@ func RunCommandWithOutput(
 					SuppressStdout:          suppressStdout,
 					AllocatePseudoTty:       needsPTY,
 					EngineSkipChecksumCheck: runOpts.EngineSkipChecksumCheck,
-					LogShowAbsPaths:         runOpts.LogShowAbsPaths,
-					LogDisableErrorSummary:  runOpts.LogDisableErrorSummary,
 				})
 				if err != nil {
 					return errors.New(err)
@@ -185,8 +180,8 @@ func RunCommandWithOutput(
 				Command:         command,
 				WorkingDir:      cmd.Dir,
 				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.LogShowAbsPaths,
-				DisableSummary:  runOpts.LogDisableErrorSummary,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -203,8 +198,8 @@ func RunCommandWithOutput(
 				Output:          output,
 				WorkingDir:      cmd.Dir,
 				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.LogShowAbsPaths,
-				DisableSummary:  runOpts.LogDisableErrorSummary,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

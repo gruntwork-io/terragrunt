@@ -13,9 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-isatty"
 )
@@ -63,8 +64,8 @@ type RunOptions struct {
 func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
 	return &RunOptions{
 		ForwardTFStdout:              opts.ForwardTFStdout,
-		Writer:                       opts.Writer,
-		ErrWriter:                    opts.ErrWriter,
+		Writer:                       opts.Writers.Writer,
+		ErrWriter:                    opts.Writers.ErrWriter,
 		TFPath:                       opts.TFPath,
 		JSONLogFormat:                opts.JSONLogFormat,
 		Headless:                     opts.Headless,
@@ -102,8 +103,8 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 		shellOpts = &shellOptsCopy
 
 		outWriter, errWriter := logTFOutput(l, runOpts, args)
-		shellOpts.Writer = outWriter
-		shellOpts.ErrWriter = errWriter
+		shellOpts.Writers.Writer = outWriter
+		shellOpts.Writers.ErrWriter = errWriter
 	}
 
 	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.TFPath, args...)
@@ -130,8 +131,8 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 
 func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		originalOutWriter           = options.NewOriginalWriter(runOpts.Writer)
-		originalErrWriter           = options.NewOriginalWriter(runOpts.ErrWriter)
+		originalOutWriter           = writer.NewOriginalWriter(runOpts.Writer)
+		originalErrWriter           = writer.NewOriginalWriter(runOpts.ErrWriter)
 		outWriter         io.Writer = originalOutWriter
 		errWriter         io.Writer = originalErrWriter
 	)
@@ -154,26 +155,26 @@ func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Wri
 			errWriter,
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writer.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writer.NewWrappedWriter(wrappedErr, originalErrWriter)
 	} else if !shouldForceForwardTFStdout(args) {
 		wrappedOut := buildOutWriter(
 			logger,
 			runOpts.Headless,
 			outWriter,
 			errWriter,
-			writer.WithMsgSeparator(logMsgSeparator),
+			logwriter.WithMsgSeparator(logMsgSeparator),
 		)
 		wrappedErr := buildErrWriter(
 			logger,
 			runOpts.Headless,
 			errWriter,
-			writer.WithMsgSeparator(logMsgSeparator),
-			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
+			logwriter.WithMsgSeparator(logMsgSeparator),
+			logwriter.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writer.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writer.NewWrappedWriter(wrappedErr, originalErrWriter)
 	}
 
 	return outWriter, errWriter
@@ -234,7 +235,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 // stdout to the STDOUT log level.
 //
 // Also accepts any additional writer options desired.
-func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
 	logLevel := log.StdoutLevel
 
 	if headless {
@@ -242,14 +243,14 @@ func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer,
 		outWriter = errWriter
 	}
 
-	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
+	opts := make([]logwriter.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(l.WithOptions(log.WithOutput(outWriter))),
-		writer.WithDefaultLevel(logLevel),
+		logwriter.WithLogger(l.WithOptions(log.WithOutput(outWriter))),
+		logwriter.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
 
-	return writer.New(opts...)
+	return logwriter.New(opts...)
 }
 
 // buildErrWriter returns the writer for the command's stderr.
@@ -259,19 +260,19 @@ func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer,
 // stderr to the STDERR log level.
 //
 // Also accepts any additional writer options desired.
-func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
 	logLevel := log.StderrLevel
 
 	if headless {
 		logLevel = log.ErrorLevel
 	}
 
-	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
+	opts := make([]logwriter.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(l.WithOptions(log.WithOutput(errWriter))),
-		writer.WithDefaultLevel(logLevel),
+		logwriter.WithLogger(l.WithOptions(log.WithOutput(errWriter))),
+		logwriter.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
 
-	return writer.New(opts...)
+	return logwriter.New(opts...)
 }

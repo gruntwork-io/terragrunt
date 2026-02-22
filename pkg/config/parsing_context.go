@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -35,8 +36,7 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	Writer    io.Writer
-	ErrWriter io.Writer
+	Writers writer.Writers
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
@@ -79,18 +79,16 @@ type ParsingContext struct {
 	MaxFoldersToCheck int
 	ParseDepth        int
 
-	LogShowAbsPaths        bool
-	TFPathExplicitlySet    bool
-	SkipOutput             bool
-	ForwardTFStdout        bool
-	JSONLogFormat          bool
-	Debug                  bool
-	AutoInit               bool
-	Headless               bool
-	BackendBootstrap       bool
-	NoEngine               bool
-	CheckDependentUnits    bool
-	LogDisableErrorSummary bool
+	TFPathExplicitlySet bool
+	SkipOutput          bool
+	ForwardTFStdout     bool
+	JSONLogFormat       bool
+	Debug               bool
+	AutoInit            bool
+	Headless            bool
+	BackendBootstrap    bool
+	NoEngine            bool
+	CheckDependentUnits bool
 
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool
@@ -113,8 +111,7 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.Experiments = opts.Experiments
 	ctx.StrictControls = opts.StrictControls
 	ctx.FeatureFlags = opts.FeatureFlags
-	ctx.Writer = opts.Writer
-	ctx.ErrWriter = opts.ErrWriter
+	ctx.Writers = opts.Writers
 	ctx.Env = opts.Env
 	ctx.IAMRoleOptions = opts.IAMRoleOptions
 	ctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
@@ -123,7 +120,6 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	ctx.SkipOutput = opts.SkipOutput
 	ctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
-	ctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	ctx.AuthProviderCmd = opts.AuthProviderCmd
 	ctx.Engine = opts.Engine
 	ctx.TFPath = opts.TFPath
@@ -136,7 +132,6 @@ func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
 	ctx.BackendBootstrap = opts.BackendBootstrap
 	ctx.NoEngine = opts.NoEngine
 	ctx.CheckDependentUnits = opts.CheckDependentUnits
-	ctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	ctx.Telemetry = opts.Telemetry
 	ctx.NoStackValidate = opts.NoStackValidate
 }

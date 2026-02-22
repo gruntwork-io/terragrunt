@@ -1158,7 +1158,7 @@ func ReadTerragruntConfig(ctx context.Context,
 	opts *options.TerragruntOptions,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.Writers.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	ctx, parsingCtx := NewParsingContext(ctx, l, opts)

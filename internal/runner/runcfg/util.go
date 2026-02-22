@@ -37,12 +37,12 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				sourceLockFilePath,
-				opts.LogShowAbsPaths,
+				opts.Writers.LogShowAbsPaths,
 			),
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				destinationLockFilePath,
-				opts.LogShowAbsPaths,
+				opts.Writers.LogShowAbsPaths,
 			),
 		)
 
