@@ -3,6 +3,7 @@ package filter
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -307,6 +308,23 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string
 	return f.Evaluate(l, comps)
 }
 
+// canonicalFilterKey returns a stable deduplication key for a component that is
+// independent of whether the component was discovered from the real filesystem
+// or from a temporary git worktree. Both cases produce the same relative path
+// when normalised against their respective DiscoveryContext.WorkingDir, which is
+// the same normalisation that matchPath() applies before glob matching.
+// Falls back to the raw path when WorkingDir is unavailable.
+func canonicalFilterKey(c component.Component) string {
+	ctx := c.DiscoveryContext()
+	if ctx != nil && ctx.WorkingDir != "" {
+		if rel, err := filepath.Rel(ctx.WorkingDir, c.Path()); err == nil {
+			return rel
+		}
+	}
+
+	return c.Path()
+}
+
 func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
@@ -321,7 +339,25 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 		}
 
 		for _, c := range result {
-			seen[c.Path()] = c
+			key := canonicalFilterKey(c)
+
+			existing, exists := seen[key]
+			if !exists {
+				seen[key] = c
+				continue
+			}
+
+			// When the same logical module is matched by both a git-range filter
+			// (worktree component, Ref set) and a glob/path filter (filesystem
+			// component, no Ref), prefer the filesystem component so that downstream
+			// operations (e.g. run --all) execute in the real working directory rather
+			// than the temporary worktree directory.
+			existingIsWorktree := existing.DiscoveryContext() != nil && existing.DiscoveryContext().Ref != ""
+			newIsFilesystem := c.DiscoveryContext() == nil || c.DiscoveryContext().Ref == ""
+
+			if existingIsWorktree && newIsFilesystem {
+				seen[key] = c
+			}
 		}
 	}
 

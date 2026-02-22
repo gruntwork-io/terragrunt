@@ -211,6 +211,59 @@ func TestFilters_Evaluate(t *testing.T) {
 		assert.Len(t, result, 3)
 	})
 
+	t.Run("git range filter combined with glob filter does not produce duplicates", func(t *testing.T) {
+		t.Parallel()
+
+		// Verifies that combining a git-range filter with a glob filter deduplicates
+		// results correctly. Each logical module should appear exactly once even though
+		// it is matched by both filters via different path representations (real
+		// filesystem path vs. temporary git worktree path).
+
+		makeUnit := func(path, workingDir, ref string) component.Component {
+			u := component.NewUnit(path)
+			u.SetDiscoveryContext(&component.DiscoveryContext{
+				WorkingDir: workingDir,
+				Ref:        ref,
+			})
+			return u
+		}
+
+		// Regular filesystem components — matched by the glob filter only.
+		regularComponents := component.Components{
+			makeUnit("/workdir/projects/prod/us-east-1/postgres/app-db", "/workdir", ""),
+			makeUnit("/workdir/projects/prod/us-east-1/postgres/analytics-db", "/workdir", ""),
+			makeUnit("/workdir/projects/staging/us-east-1/postgres/app-db", "/workdir", ""),
+		}
+
+		// Worktree component for app-db — the one unit changed directly in the branch.
+		// Matched by the git filter (Ref == "origin/main") AND by the glob filter
+		// (matchPath normalises to the same relative path as the filesystem copy).
+		worktreeComponents := component.Components{
+			makeUnit("/tmp/worktree-abc/projects/prod/us-east-1/postgres/app-db", "/tmp/worktree-abc", "origin/main"),
+		}
+
+		allComponents := append(regularComponents, worktreeComponents...)
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{
+			"[origin/main...HEAD]",
+			"projects/**/postgres/**",
+		})
+		require.NoError(t, err)
+
+		result, err := filters.Evaluate(log.New(), allComponents)
+		require.NoError(t, err)
+
+		// app-db is matched by both filters (git filter via worktree, glob filter via
+		// filesystem). The other two are matched by the glob filter only. All three
+		// should appear exactly once, using the filesystem component for app-db.
+		expected := component.Components{
+			makeUnit("/workdir/projects/prod/us-east-1/postgres/app-db", "/workdir", ""),
+			makeUnit("/workdir/projects/prod/us-east-1/postgres/analytics-db", "/workdir", ""),
+			makeUnit("/workdir/projects/staging/us-east-1/postgres/app-db", "/workdir", ""),
+		}
+		assert.ElementsMatch(t, expected, result)
+	})
+
 	t.Run("positive filters then negative filter removes results", func(t *testing.T) {
 		t.Parallel()
 
