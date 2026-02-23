@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -115,10 +114,7 @@ func PrepareSource(
 		return nil, err
 	}
 
-	_, defaultDownloadDir, err := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
+	_, defaultDownloadDir := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 
 	// if the download dir hasn't been changed from default, and is set in the config,
 	// then use it
