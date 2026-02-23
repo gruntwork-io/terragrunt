@@ -346,7 +346,10 @@ func worktreeStacksToGenerate(
 	fullDiscoveries := map[string]*discovery.Discovery{}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters := pair.Expand()
+		fromFilters, toFilters, err := pair.Expand()
+		if err != nil {
+			return nil, errors.Errorf("failed to expand worktree pair: %w", err)
+		}
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{

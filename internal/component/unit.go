@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -258,19 +257,6 @@ func (u *Unit) String() string {
 	)
 }
 
-// AbsolutePath returns the absolute path of the unit.
-// If path conversion fails, logs the error and returns the original path.
-func (u *Unit) AbsolutePath(l log.Logger) string {
-	absPath, err := filepath.Abs(u.path)
-	if err != nil {
-		l.Errorf("Error converting unit path %s to absolute path: %v", u.path, err)
-
-		return u.path
-	}
-
-	return absPath
-}
-
 // DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
 // Falls back to the original path if relative path calculation fails or WorkingDir is empty.
 func (u *Unit) DisplayPath() string {
@@ -288,10 +274,10 @@ func (u *Unit) DisplayPath() string {
 // FindInPaths returns true if the unit is located in one of the target directories.
 // Paths are normalized before comparison to handle absolute/relative path mismatches.
 func (u *Unit) FindInPaths(targetDirs []string) bool {
-	cleanUnitPath := util.CleanPath(u.path)
+	cleanUnitPath := filepath.Clean(u.path)
 
 	for _, dir := range targetDirs {
-		cleanDir := util.CleanPath(dir)
+		cleanDir := filepath.Clean(dir)
 		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
 			return true
 		}
@@ -342,19 +328,10 @@ func (u *Unit) planFilePath(rootWorkingDir, outputFolder, fileName string) strin
 	dir := filepath.Join(outputFolder, relPath)
 
 	if !filepath.IsAbs(dir) {
-		base := rootWorkingDir
-		if !filepath.IsAbs(base) {
-			if absBase, err := filepath.Abs(base); err == nil {
-				base = absBase
-			}
-		}
-
-		dir = filepath.Join(base, dir)
-
-		if absDir, err := filepath.Abs(dir); err == nil {
-			dir = absDir
-		}
+		dir = filepath.Join(rootWorkingDir, dir)
 	}
+
+	dir = filepath.Clean(dir)
 
 	return filepath.Join(dir, fileName)
 }

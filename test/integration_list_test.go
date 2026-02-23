@@ -215,7 +215,7 @@ func TestListHidden(t *testing.T) {
 	}{
 		{
 			name:     "default (includes hidden)",
-			expected: ".hide/unit  stack       unit        \n",
+			expected: filepath.Join(".hide", "unit") + "  stack       unit        \n",
 		},
 		{
 			name:     "no-hidden flag excludes hidden",
@@ -240,9 +240,7 @@ func TestListHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			// Normalize path separators in the output for cross-platform compatibility
-			normalizedStdout := filepath.ToSlash(stdout)
-			assert.Equal(t, tc.expected, normalizedStdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }

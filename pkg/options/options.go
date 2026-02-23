@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -82,7 +83,7 @@ var (
 	}
 
 	// Pattern used to clean error message when looking for retry and ignore patterns.
-	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
+	ErrorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 )
 
 type ctxKey byte
@@ -122,9 +123,9 @@ type TerragruntOptions struct {
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
+	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
@@ -333,36 +334,6 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	}
 }
 
-// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
-type IAMRoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
-}
-
-func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	out := target
-
-	if source.RoleARN != "" {
-		out.RoleARN = source.RoleARN
-	}
-
-	if source.AssumeRoleDuration != 0 {
-		out.AssumeRoleDuration = source.AssumeRoleDuration
-	}
-
-	if source.AssumeRoleSessionName != "" {
-		out.AssumeRoleSessionName = source.AssumeRoleSessionName
-	}
-
-	if source.WebIdentityToken != "" {
-		out.WebIdentityToken = source.WebIdentityToken
-	}
-
-	return out
-}
-
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
@@ -399,6 +370,22 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
+
+	// Ensure config path is absolute so downstream code can rely on it.
+	// Skip resolution for empty paths (sentinel meaning "not set").
+	if terragruntConfigPath != "" {
+		if !filepath.IsAbs(terragruntConfigPath) {
+			absPath, err := filepath.Abs(terragruntConfigPath)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			terragruntConfigPath = filepath.Clean(absPath)
+		}
+
+		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
+	}
+
 	opts.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
@@ -418,12 +405,9 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
-	if err != nil {
-		return "", "", errors.New(err)
-	}
+	downloadDir := filepath.Clean(filepath.Join(workingDir, util.TerragruntCacheDir))
 
-	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
+	return workingDir, downloadDir, nil
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
@@ -480,14 +464,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(opts.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -669,12 +648,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
-	reportDir, err := filepath.Abs(reportWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	reportDir = util.CleanPath(reportDir)
+	reportDir := filepath.Clean(reportWorkingDir)
 
 	for {
 		err := operation()
@@ -819,14 +793,14 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 		return nil, nil
 	}
 
-	errStr := extractErrorMessage(err)
+	errStr := ExtractErrorMessage(err)
 	action := &ErrorAction{}
 
 	l.Debugf("Attempting error recovery for error: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
-		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
+		isIgnorable := MatchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
 		if !isIgnorable {
 			continue
 		}
@@ -844,7 +818,7 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
-		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
+		isRetryable := MatchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
 		if !isRetryable {
 			continue
 		}
@@ -869,16 +843,26 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 	return nil, nil
 }
 
-func extractErrorMessage(err error) string {
-	// fetch the error string and remove any ASCII escape sequences
-	multilineText := log.RemoveAllASCISeq(err.Error())
-	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
+func ExtractErrorMessage(err error) string {
+	var errText string
+
+	// For ProcessExecutionError, match only against stderr and the underlying error,
+	// not the full command string with flags.
+	var processErr util.ProcessExecutionError
+	if errors.As(err, &processErr) {
+		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
+	} else {
+		errText = err.Error()
+	}
+
+	multilineText := log.RemoveAllASCISeq(errText)
+	errorText := ErrorCleanPattern.ReplaceAllString(multilineText, " ")
 
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
-// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
-func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
+// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
+func MatchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 	for _, pattern := range patterns {
 		isNegative := pattern.Negative
 		matched := pattern.Pattern.MatchString(input)

@@ -181,7 +181,7 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 			return nil, canonicalPathErr
 		}
 
-		rootSourceURL.Path = canonicalFilePath
+		rootSourceURL.Path = filepath.ToSlash(canonicalFilePath)
 	}
 
 	rootPath, err := encodeSourceName(rootSourceURL)

@@ -73,12 +73,7 @@ func evaluatePathFilter(filter *PathExpression, components component.Components)
 	result := make(component.Components, 0, len(components))
 
 	for _, c := range components {
-		matches, err := matchPath(c, filter)
-		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to match path pattern: "+filter.Value, err)
-		}
-
-		if matches {
+		if matchPath(c, filter) {
 			result = append(result, c)
 		}
 	}
@@ -92,10 +87,7 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 
 	switch filter.Key {
 	case AttributeName:
-		g, err := filter.CompileGlob()
-		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for name filter: "+filter.Value, err)
-		}
+		g := filter.Glob()
 
 		for _, c := range components {
 			if g.Match(filepath.Base(c.Path())) {
@@ -138,10 +130,7 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			return nil, NewEvaluationError("invalid external value: " + filter.Value + " (expected 'true' or 'false')")
 		}
 	case AttributeReading:
-		g, err := filter.CompileGlob()
-		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for reading filter: "+filter.Value, err)
-		}
+		g := filter.Glob()
 
 		for _, c := range components {
 			if slices.ContainsFunc(c.Reading(), g.Match) {
@@ -170,10 +159,7 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 			}
 		}
 	case AttributeSource:
-		g, err := filter.CompileGlob()
-		if err != nil {
-			return nil, NewEvaluationErrorWithCause("failed to compile glob pattern for source filter: "+filter.Value, err)
-		}
+		g := filter.Glob()
 
 		for _, c := range components {
 			if slices.ContainsFunc(c.Sources(), g.Match) {

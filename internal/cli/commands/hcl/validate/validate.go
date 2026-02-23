@@ -138,12 +138,12 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			values, err := config.ReadValues(ctx, l, parseOpts, c.Path())
+			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
+
+			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
-
-			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
 
 			parser = parser.WithParseOption(parseOptions)
 			if values != nil {
@@ -410,7 +410,7 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, opts, cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +499,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
-func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromVarFiles(l log.Logger, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
 	}
@@ -509,7 +509,7 @@ func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOp
 		varFiles = append(varFiles, arg.GetVarFiles(l)...)
 	}
 
-	return getVarNamesFromVarFiles(l, opts, varFiles)
+	return getVarNamesFromVarFiles(l, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -535,7 +535,7 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(l, opts, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(l, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -574,16 +574,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(l log.Logger, opts *options.Ter
 
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
 
-	return getVarNamesFromVarFiles(l, opts, automaticVarFiles)
+	return getVarNamesFromVarFiles(l, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(l, opts, varFile)
+		fileVars, err := getVarNamesFromVarFile(l, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -596,7 +596,7 @@ func getVarNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, varF
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFile string) ([]string, error) {
+func getVarNamesFromVarFile(l log.Logger, varFile string) ([]string, error) {
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
@@ -608,7 +608,7 @@ func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFi
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(l, opts, varFile, fileContents, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(l, varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}

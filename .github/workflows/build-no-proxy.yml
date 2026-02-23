@@ -27,6 +27,16 @@ jobs:
             arch: amd64
 
     steps:
+      - name: "Mount tmpfs"
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          sudo mount -t tmpfs -o size=12G tmpfs /tmp
+          mkdir -p /home/runner/go
+          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
+          mkdir -p /home/runner/.cache/go-build
+          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -47,10 +57,18 @@ jobs:
       - name: Go Build Cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
-          path: |
-            ${{ steps.go-cache-paths.outputs.go-build }}
-            ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
 
       - name: Build Terragrunt without Go proxy
         env:

@@ -76,7 +76,9 @@ type Stack struct {
 func GenerateStackFile(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, pool *worker.Pool, stackFilePath string) error {
 	stackSourceDir := filepath.Dir(stackFilePath)
 
-	values, err := ReadValues(ctx, l, opts, stackSourceDir)
+	ctx, pctx := NewParsingContext(ctx, l, opts)
+
+	values, err := ReadValues(ctx, pctx, l, stackSourceDir)
 	if err != nil {
 		return errors.Errorf("failed to read values from directory %s: %w", stackSourceDir, err)
 	}
@@ -210,17 +212,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts *options.Terragru
 	dest := filepath.Join(cmp.targetDir, cmp.path)
 
 	// validate destination path is within the stack directory
-	// get the absolute path of the destination directory
-	absDest, err := filepath.Abs(dest)
-	if err != nil {
-		return errors.Errorf("failed to get absolute path for destination '%s': %w", cmp.name, err)
-	}
-
-	// get the absolute path of the stack directory
-	absStackDir, err := filepath.Abs(cmp.targetDir)
-	if err != nil {
-		return errors.Errorf("failed to get absolute path for stack directory '%s': %w", cmp.name, err)
-	}
+	absDest := filepath.Clean(dest)
+	absStackDir := filepath.Clean(cmp.targetDir)
 
 	// validate that the destination path is within the stack directory
 	if !strings.HasPrefix(absDest, absStackDir) {
@@ -308,12 +301,7 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 			localSrc = filepath.Join(sourceDir, src)
 		}
 
-		localSrc, err := filepath.Abs(localSrc)
-		if err != nil {
-			l.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
-			// fallback to original source
-			localSrc = src
-		}
+		localSrc = filepath.Clean(localSrc)
 
 		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true
@@ -538,7 +526,7 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 }
 
 // ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
-func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, directory string) (*cty.Value, error) {
+func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directory string) (*cty.Value, error) {
 	if directory == "" {
 		return nil, errors.New("ReadValues: directory path cannot be empty")
 	}
@@ -550,14 +538,13 @@ func ReadValues(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 	}
 
 	l.Debugf("Reading Terragrunt stack values file at %s", filePath)
-	ctx, parser := NewParsingContext(ctx, l, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(filePath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

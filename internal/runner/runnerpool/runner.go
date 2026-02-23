@@ -364,8 +364,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 	if r != nil {
 		for _, u := range rnr.Stack.Units {
 			if u.Excluded() {
-				// Ensure path is absolute for reporting
-				unitPath := u.AbsolutePath(l)
+				unitPath := u.Path()
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
@@ -441,7 +440,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			// get_aws_account_id() in locals need auth-provider credentials
 			// available in opts.Env during HCL evaluation.
 			// See https://github.com/gruntwork-io/terragrunt/issues/5515
-			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts)
+			credsGetter, err := creds.ObtainCredsForParsing(childCtx, unitLogger, unitOpts.AuthProviderCmd, unitOpts.Env, unitOpts)
 			if err != nil {
 				return err
 			}
@@ -450,7 +449,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				childCtx,
 				unitLogger,
 				unitOpts,
-				config.DefaultParserOptions(unitLogger, unitOpts),
+				config.DefaultParserOptions(unitLogger, unitOpts.StrictControls),
 			)
 			if err != nil {
 				return err
@@ -506,8 +505,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 					continue
 				}
 
-				// Ensure path is absolute for reporting
-				unitPath := unit.AbsolutePath(l)
+				unitPath := unit.Path()
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption

@@ -272,7 +272,8 @@ func TestExpressionExpansion(t *testing.T) {
 				Diffs: tt.diffs,
 			}
 
-			fromFilters, toFilters := wp.Expand()
+			fromFilters, toFilters, err := wp.Expand()
+			require.NoError(t, err)
 
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")
@@ -418,7 +419,8 @@ func TestExpansionAttributeReadingFilters(t *testing.T) {
 				Diffs: tt.diffs,
 			}
 
-			_, toFilters := wp.Expand()
+			_, toFilters, err := wp.Expand()
+			require.NoError(t, err)
 
 			// Extract reading filters
 			readings := []string{}
@@ -647,7 +649,8 @@ func TestExpandWithUnitDirectoryDetection(t *testing.T) {
 				},
 			}
 
-			fromFilters, toFilters := wp.Expand()
+			fromFilters, toFilters, err := wp.Expand()
+			require.NoError(t, err)
 
 			// Verify from filters count
 			assert.Len(t, fromFilters, tt.expectedFrom, "From filters count should match")

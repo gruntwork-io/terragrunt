@@ -54,15 +54,15 @@ func (runner *UnitRunner) runTerragrunt(
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
-		if err := component.FlushOutput(l, runner.Unit, opts.Writer); err != nil {
+		if err := component.FlushOutput(runner.Unit, opts.Writer); err != nil {
 			l.Errorf("Error flushing output for unit %s: %v", runner.Unit.Path(), err)
 		}
 	}()
 
 	// Only create report entries if report is not nil
 	if r != nil {
-		unitPath := runner.Unit.AbsolutePath(l)
-		unitPath = util.CleanPath(unitPath)
+		unitPath := runner.Unit.Path()
+		unitPath = filepath.Clean(unitPath)
 
 		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
@@ -91,18 +91,17 @@ func (runner *UnitRunner) runTerragrunt(
 
 	runErr := run.Run(ctx, l, opts, r, cfg, credsGetter)
 
-	// Store the unit exit code in the global map using the unit path as key
-	// (matches key used in run_cmd.go via filepath.Dir(opts.OriginalTerragruntConfigPath))
+	// Store the unit exit code in the global map using the unit path as key.
 	if globalExitCode != nil {
-		unitPath := filepath.Clean(runner.Unit.AbsolutePath(l))
+		unitPath := runner.Unit.Path()
 		code := unitExitCode.Get(unitPath)
 		globalExitCode.Set(unitPath, code)
 	}
 
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
-		unitPath := runner.Unit.AbsolutePath(l)
-		unitPath = util.CleanPath(unitPath)
+		unitPath := runner.Unit.Path()
+		unitPath = filepath.Clean(unitPath)
 
 		if runErr != nil {
 			if endErr := r.EndRun(

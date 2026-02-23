@@ -59,7 +59,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, logger.CreateLogger(), tc.repoPath, "", false, false)
+			repo, err := module.NewRepo(ctx, logger.CreateLogger(), tc.repoPath, "", false, false, "")
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)

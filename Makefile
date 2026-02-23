@@ -27,7 +27,7 @@ clean:
 
 IGNORE_TAGS := windows|linux|darwin|freebsd|openbsd|netbsd|dragonfly|solaris|plan9|js|wasip1|aix|android|illumos|ios|386|amd64|arm|arm64|mips|mips64|mips64le|mipsle|ppc64|ppc64le|riscv64|s390x|wasm
 
-LINT_TAGS := $(shell grep -rh 'go:build' . | \
+LINT_TAGS := $(shell grep -rh --include='*.go' 'go:build' . | \
 	sed 's/.*go:build\s*//' | \
 	tr -cs '[:alnum:]_' '\n' | \
 	grep -vE '^($(IGNORE_TAGS))$$' | \
@@ -38,6 +38,10 @@ LINT_TAGS := $(shell grep -rh 'go:build' . | \
 run-lint:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
 	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m ./...
+
+run-lint-incremental:
+	@echo "Incremental lint (new issues only) with feature flags: [$(LINT_TAGS)]"
+	GOFLAGS="-tags=$(LINT_TAGS)" golangci-lint run -v --timeout=30m --new-from-merge-base=main ./...
 
 run-lint-fix:
 	@echo "Linting with feature flags: [$(LINT_TAGS)]"
