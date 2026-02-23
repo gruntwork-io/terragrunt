@@ -616,15 +616,14 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.T
 
 	opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
 
-	if !opts.BackendBootstrap {
+	// Bootstrap is skipped when either BackendBootstrap is false (the default) or DisableInit is true.
+	// DisableInit is also enforced in RemoteState.NeedsBootstrap (non-init auto-init path);
+	// both must stay in sync to ensure consistent behavior across all command types.
+	if !opts.BackendBootstrap || cfg.RemoteState.DisableInit {
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.RemoteState.Bootstrap(ctx, l, opts)
 }
 
 // PrepareNonInitCommand prepares for non-init commands using runcfg types.
