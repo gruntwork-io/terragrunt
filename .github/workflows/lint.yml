@@ -102,6 +102,15 @@ jobs:
         echo "GOGC=100" >> "$GITHUB_ENV"
         echo "GOMEMLIMIT=10GiB" >> "$GITHUB_ENV"
 
+    # Linux runners have ~28GB RAM but GOGC=400 still causes the heap to grow beyond available
+    # physical memory when linting with many build tags, triggering runner shutdown signals.
+    # Cap the heap to keep golangci-lint stable on Linux.
+    - name: Set memory limits (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        echo "GOGC=100" >> "$GITHUB_ENV"
+        echo "GOMEMLIMIT=20GiB" >> "$GITHUB_ENV"
+
     - name: Check for lint config changes
       id: lint-config
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'

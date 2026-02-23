@@ -295,7 +295,7 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(repoRelPath)
+		result = repoRelPath
 
 		return nil
 	})
@@ -323,7 +323,7 @@ func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(strings.TrimSpace(repoRootPathAbs))
+		result = strings.TrimSpace(repoRootPathAbs)
 
 		return nil
 	})
@@ -341,14 +341,7 @@ func GetTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terragrunt_dir", attrs, func(childCtx context.Context) error {
-		path := pctx.TerragruntConfigPath
-
-		terragruntConfigFileAbsPath, innerErr := filepath.Abs(path)
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
-
-		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+		result = filepath.Dir(pctx.TerragruntConfigPath)
 
 		return nil
 	})
@@ -369,12 +362,7 @@ func getOriginalTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.L
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_original_terragrunt_dir", attrs, func(childCtx context.Context) error {
-		terragruntConfigFileAbsPath, innerErr := filepath.Abs(pctx.OriginalTerragruntConfigPath)
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
-
-		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+		result = filepath.Dir(pctx.OriginalTerragruntConfigPath)
 
 		return nil
 	})
@@ -402,12 +390,9 @@ func GetParentTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Log
 
 		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
-		parentPath, innerErr = filepath.Abs(filepath.Join(currentPath, parentPath))
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
+		parentPath = filepath.Clean(filepath.Join(currentPath, parentPath))
 
-		result = filepath.ToSlash(parentPath)
+		result = parentPath
 
 		return nil
 	})
@@ -710,12 +695,7 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return "", errors.New(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(pctx.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	previousDir = filepath.ToSlash(previousDir)
+	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
 		allControls := pctx.StrictControls
@@ -739,7 +719,7 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
 	for range pctx.MaxFoldersToCheck {
-		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
+		currentDir := filepath.Dir(previousDir)
 		if currentDir == previousDir {
 			if numParams == matchedPats {
 				return fallbackParam, nil
@@ -1154,7 +1134,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
 
-	return util.CleanPath(targetConfig)
+	return filepath.Clean(targetConfig)
 }
 
 // GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the

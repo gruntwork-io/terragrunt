@@ -192,29 +192,6 @@ func TestFileManifest(t *testing.T) {
 	}
 }
 
-func TestSplitPath(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		path     string
-		expected []string
-	}{
-		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
-		{"/foo/bar/.tf/tg.hcl", []string{"", "foo", "bar", ".tf", "tg.hcl"}},
-		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
-		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
-	}
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			actual := util.SplitPath(tc.path)
-			assert.Equal(t, tc.expected, actual, "For path %s", tc.path)
-		})
-	}
-}
-
 func TestContainsPath(t *testing.T) {
 	t.Parallel()
 
@@ -474,8 +451,8 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Normalize path separators to forward slashes for cross-platform compatibility
-		paths = append(paths, filepath.ToSlash(relPath))
+
+		paths = append(paths, relPath)
 
 		return nil
 	})
@@ -488,14 +465,14 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	expectedPaths := []string{
 		".",
 		"a",
-		"a/test.txt",
+		filepath.Join("a", "test.txt"),
 		"b",
-		"b/test.txt",
+		filepath.Join("b", "test.txt"),
 		"c",
-		"c/test.txt",
+		filepath.Join("c", "test.txt"),
 		"d",
-		"d/a",
-		"d/a/test.txt",
+		filepath.Join("d", "a"),
+		filepath.Join("d", "a", "test.txt"),
 	}
 	sort.Strings(expectedPaths)
 
@@ -539,8 +516,8 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Normalize path separators to forward slashes for cross-platform compatibility
-		paths = append(paths, filepath.ToSlash(relPath))
+
+		paths = append(paths, relPath)
 
 		return nil
 	})
@@ -553,21 +530,21 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	expectedPaths := []string{
 		".",
 		"a",
-		"a/link-to-d",
-		"a/link-to-d/link-to-a",
-		"a/link-to-d/link-to-a/link-to-d",
-		"a/link-to-d/link-to-a/test.txt",
-		"a/test.txt",
+		filepath.Join("a", "link-to-d"),
+		filepath.Join("a", "link-to-d", "link-to-a"),
+		filepath.Join("a", "link-to-d", "link-to-a", "link-to-d"),
+		filepath.Join("a", "link-to-d", "link-to-a", "test.txt"),
+		filepath.Join("a", "test.txt"),
 		"b",
-		"b/link-to-a",
-		"b/link-to-a/link-to-d",
-		"b/link-to-a/test.txt",
+		filepath.Join("b", "link-to-a"),
+		filepath.Join("b", "link-to-a", "link-to-d"),
+		filepath.Join("b", "link-to-a", "test.txt"),
 		"c",
-		"c/another-link-to-a",
-		"c/another-link-to-a/link-to-d",
-		"c/another-link-to-a/test.txt",
+		filepath.Join("c", "another-link-to-a"),
+		filepath.Join("c", "another-link-to-a", "link-to-d"),
+		filepath.Join("c", "another-link-to-a", "test.txt"),
 		"d",
-		"d/link-to-a",
+		filepath.Join("d", "link-to-a"),
 	}
 	sort.Strings(expectedPaths)
 
