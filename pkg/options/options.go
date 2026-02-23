@@ -369,7 +369,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 				return nil, errors.New(err)
 			}
 
-			terragruntConfigPath = filepath.Clean(absPath)
+			terragruntConfigPath = absPath
 		}
 
 		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
@@ -377,10 +377,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	opts.TerragruntConfigPath = terragruntConfigPath
 
-	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	workingDir, downloadDir := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
@@ -391,12 +388,12 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 // DefaultWorkingAndDownloadDirs gets the default working and download
 // directories for the given Terragrunt config path.
-func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
+func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	downloadDir := filepath.Clean(filepath.Join(workingDir, util.TerragruntCacheDir))
 
-	return workingDir, downloadDir, nil
+	return workingDir, downloadDir
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
