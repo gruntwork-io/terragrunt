@@ -499,11 +499,7 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	require.Len(t, paths, len(expectedPaths))
-
-	for i, expected := range expectedPaths {
-		assert.Equal(t, expected, paths[i], "path mismatch at index %d", i)
-	}
+	assert.Equal(t, expectedPaths, paths)
 }
 
 //nolint:funlen
@@ -575,11 +571,7 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	require.Len(t, paths, len(expectedPaths))
-
-	for i, expected := range expectedPaths {
-		assert.Equal(t, expected, paths[i], "path mismatch at index %d", i)
-	}
+	assert.Equal(t, expectedPaths, paths)
 }
 
 func TestWalkDirWithSymlinksErrors(t *testing.T) {
@@ -646,16 +638,7 @@ func TestWalkDirWithSymlinksRoot(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	require.Len(t, paths, len(expectedPaths))
-
-	for i, expected := range expectedPaths {
-		assert.Equal(t, expected, paths[i])
-	}
-
-	// No path should reference the physical "actual" directory
-	for _, p := range paths {
-		assert.NotContains(t, p, "actual", "Path should not use physical location: %s", p)
-	}
+	assert.Equal(t, expectedPaths, paths)
 }
 
 func Test_sanitizePath(t *testing.T) {

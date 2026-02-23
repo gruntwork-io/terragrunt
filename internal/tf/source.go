@@ -64,8 +64,6 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
-			// Returns logical (symlink-preserved) paths (see WalkDirWithSymlinks godoc), so the
-			// hash may differ when sourceDir is a symlink, causing one-time cache invalidation.
 			walkDir = util.WalkDirWithSymlinks
 		}
 
