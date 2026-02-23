@@ -314,7 +314,7 @@ The `remote_state` block supports the following arguments:
   [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic creation and management of remote state resources by Terragrunt.
-  Some backends have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
+  Some backends can be automatically created if the storage backend does not already exist. Currently, `s3` and `gcs` are the
   two backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
   but OpenTofu/Terraform will still initialize the backend normally. Defaults to `false`.
 

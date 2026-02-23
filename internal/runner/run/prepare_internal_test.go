@@ -1,20 +1,25 @@
 package run
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestPrepareInitCommandRunCfg verifies that prepareInitCommandRunCfg inserts
+// the correct CLI args for various remote_state configurations.
+//
+// Bootstrap skip behavior (DisableInit=true preventing bootstrap even when
+// BackendBootstrap=true) is tested by:
+//   - TestNeedsBootstrapDisableInit in internal/remotestate/remote_state_test.go
+//   - TestAwsDisableInitS3Backend in test/integration_aws_test.go
 func TestPrepareInitCommandRunCfg(t *testing.T) {
 	t.Parallel()
 
@@ -25,82 +30,59 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 	}
 
 	testCases := []struct {
-		remoteStateCfg       *remotestate.Config
-		name                 string
-		expectBootstrapCalls int
-		backendBootstrap     bool
-		expectBackendArgs    bool
+		remoteStateCfg    *remotestate.Config
+		name              string
+		backendBootstrap  bool
+		expectBackendArgs bool
 	}{
 		{
-			name:                 "nil remote state config - no args inserted",
-			remoteStateCfg:       nil,
-			backendBootstrap:     false,
-			expectBackendArgs:    false,
-			expectBootstrapCalls: 0,
+			name:              "nil remote state config - no args inserted",
+			remoteStateCfg:    nil,
+			backendBootstrap:  false,
+			expectBackendArgs: false,
 		},
 		{
-			name: "disable_init=false, bootstrap=false - backend-config args inserted, no bootstrap",
+			name: "disable_init=false, bootstrap=false - backend-config args inserted",
 			remoteStateCfg: &remotestate.Config{
 				BackendName:   "s3",
 				DisableInit:   false,
 				BackendConfig: s3Config,
 			},
-			backendBootstrap:     false,
-			expectBackendArgs:    true,
-			expectBootstrapCalls: 0,
+			backendBootstrap:  false,
+			expectBackendArgs: true,
 		},
 		{
-			name: "disable_init=true, bootstrap=false - backend-config args inserted, no bootstrap",
+			name: "disable_init=true, bootstrap=false - backend-config args inserted",
 			remoteStateCfg: &remotestate.Config{
 				BackendName:   "s3",
 				DisableInit:   true,
 				BackendConfig: s3Config,
 			},
-			backendBootstrap:     false,
-			expectBackendArgs:    true,
-			expectBootstrapCalls: 0,
+			backendBootstrap:  false,
+			expectBackendArgs: true,
 		},
 		{
-			// Even with BackendBootstrap=true, Bootstrap must be
-			// skipped when DisableInit=true. The spy directly proves this: if Bootstrap were
-			// invoked, expectBootstrapCalls=0 would fail — no inference from error behavior needed.
-			name: "disable_init=true, bootstrap=true - backend-config args inserted, bootstrap SKIPPED",
+			name: "disable_init=true, bootstrap=true - backend-config args inserted",
 			remoteStateCfg: &remotestate.Config{
 				BackendName:   "s3",
 				DisableInit:   true,
 				BackendConfig: s3Config,
 			},
-			backendBootstrap:     true,
-			expectBackendArgs:    true,
-			expectBootstrapCalls: 0,
-		},
-		{
-			// Positive path: verifies the spy IS wired and the bootstrap code path (run.go:bootstrapFn)
-			// actually fires when both conditions allow it. Without this case, a guard-condition bug
-			// (e.g., reversing || to &&) would go undetected by the other four cases.
-			name: "disable_init=false, bootstrap=true - backend-config args inserted, bootstrap IS called",
-			remoteStateCfg: &remotestate.Config{
-				BackendName:   "s3",
-				DisableInit:   false,
-				BackendConfig: s3Config,
-			},
-			backendBootstrap:     true,
-			expectBackendArgs:    true,
-			expectBootstrapCalls: 1,
+			backendBootstrap:  true,
+			expectBackendArgs: true,
 		},
 		{
 			// When generate is set, backend config goes into the generated .tf file,
-			// not via -backend-config= CLI args. Bootstrap is still skipped with DisableInit=true.
-			name: "disable_init=true, bootstrap=true, generate=true - no backend-config args, bootstrap SKIPPED",
+			// not via -backend-config= CLI args.
+			name: "disable_init=true, generate=true - no backend-config args",
 			remoteStateCfg: &remotestate.Config{
 				BackendName:   "s3",
 				DisableInit:   true,
 				Generate:      &remotestate.ConfigGenerate{Path: "backend.tf", IfExists: "overwrite"},
 				BackendConfig: s3Config,
 			},
-			backendBootstrap:     true,
-			expectBackendArgs:    false,
-			expectBootstrapCalls: 0,
+			backendBootstrap:  false,
+			expectBackendArgs: false,
 		},
 	}
 
@@ -118,17 +100,9 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			bootstrapCalled := 0
-			spy := func(_ context.Context, _ log.Logger, _ *options.TerragruntOptions) error {
-				bootstrapCalled++
-
-				return nil
-			}
-
-			err = prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg, spy)
+			err = prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
 
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectBootstrapCalls, bootstrapCalled, "unexpected bootstrap call count")
 
 			allArgs := opts.TerraformCliArgs.Slice()
 			if tc.expectBackendArgs {
