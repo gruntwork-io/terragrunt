@@ -27,6 +27,7 @@ linters:
     - goconst
     - gocritic
     - gosmopolitan
+    - lll
     - loggercheck
     - makezero
     - misspell
@@ -100,7 +101,6 @@ linters:
           - dupl
           - errcheck
           - gocyclo
-          - lll
           - mnd
           - unparam
           - wsl
@@ -109,6 +109,12 @@ linters:
       - linters:
           - dupl
         path: cli/flags/shared
+      # Incrementally linting lines that are too long to ensure that
+      # we don't have conflicts on every file in the codebase while
+      # trying to get this merged in.
+      - linters:
+          - lll
+        path-except: '^(internal/awshelper/|internal/cas/)'
     paths:
       - docs
       - _ci

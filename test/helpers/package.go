@@ -214,7 +214,11 @@ func CreateS3ClientForTest(t *testing.T, awsRegion string, opts ...options.Terra
 
 	awsConfig := &awshelper.AwsSessionConfig{Region: awsRegion}
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), awsConfig, mockOptions)
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithSessionConfig(awsConfig).
+		WithEnv(mockOptions.Env).
+		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
+		Build(t.Context(), logger.CreateLogger())
 	require.NoError(t, err, "Error creating S3 client")
 
 	return s3.NewFromConfig(cfg)
@@ -233,7 +237,11 @@ func CreateDynamoDBClientForTest(t *testing.T, awsRegion, awsProfile, iamRoleArn
 		RoleArn: iamRoleArn,
 	}
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), logger.CreateLogger(), sessionConfig, mockOptions)
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithSessionConfig(sessionConfig).
+		WithEnv(mockOptions.Env).
+		WithIAMRoleOptions(mockOptions.IAMRoleOptions).
+		Build(t.Context(), logger.CreateLogger())
 	require.NoError(t, err, "Error creating DynamoDB client")
 
 	return dynamodb.NewFromConfig(cfg)
@@ -1034,10 +1042,15 @@ func RunTerragruntCommandWithContext(
 
 	t.Log(args)
 
-	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
+	// Wrap writers with SyncWriter to prevent race conditions when multiple
+	// goroutines write concurrently (e.g., during "run --all" operations).
+	syncWriter := util.NewSyncWriter(writer)
+	syncErrWriter := util.NewSyncWriter(errwriter)
+
+	opts := options.NewTerragruntOptionsWithWriters(syncWriter, syncErrWriter)
 
 	l := log.New(
-		log.WithOutput(errwriter),
+		log.WithOutput(syncErrWriter),
 		log.WithLevel(options.DefaultLogLevel),
 		log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
 	)

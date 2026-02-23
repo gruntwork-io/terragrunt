@@ -23,7 +23,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 
 	"github.com/hashicorp/go-getter"
@@ -93,7 +95,7 @@ var (
 		DefaultTerragruntConfigPath,
 	}
 
-	DefaultParserOptions = func(l log.Logger, opts *options.TerragruntOptions) []hclparse.Option {
+	DefaultParserOptions = func(l log.Logger, strictControls strict.Controls) []hclparse.Option {
 		writer := writer.New(
 			writer.WithLogger(l),
 			writer.WithDefaultLevel(log.ErrorLevel),
@@ -106,7 +108,7 @@ var (
 			hclparse.WithLogger(l),
 		)
 
-		strictControl := opts.StrictControls.Find(controls.BareInclude)
+		strictControl := strictControls.Find(controls.BareInclude)
 
 		// If we can't find the strict control, we're probably in a test
 		// where the option is being hand written. In that case,
@@ -170,7 +172,7 @@ func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.Terragru
 		return nil, nil
 	}
 
-	sourceURL, err := GetTerraformSourceURL(opts, cfg)
+	sourceURL, err := GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -194,9 +196,9 @@ func (cfg *TerragruntConfig) String() string {
 }
 
 // GetIAMRoleOptions is a helper function that converts the Terragrunt config IAM role attributes to
-// options.IAMRoleOptions struct.
-func (cfg *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
-	configIAMRoleOptions := options.IAMRoleOptions{
+// iam.RoleOptions struct.
+func (cfg *TerragruntConfig) GetIAMRoleOptions() iam.RoleOptions {
+	configIAMRoleOptions := iam.RoleOptions{
 		RoleARN:               cfg.IamRole,
 		AssumeRoleSessionName: cfg.IamAssumeRoleSessionName,
 		WebIdentityToken:      cfg.IamWebIdentityToken,
@@ -953,12 +955,12 @@ func (args *TerraformExtraArguments) GetVarFiles(l log.Logger) []string {
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-func GetTerraformSourceURL(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
+func GetTerraformSourceURL(source string, sourceMap map[string]string, originalConfigPath string, terragruntConfig *TerragruntConfig) (string, error) {
 	switch {
-	case terragruntOptions.Source != "":
-		return terragruntOptions.Source, nil
+	case source != "":
+		return source, nil
 	case terragruntConfig.Terraform != nil && terragruntConfig.Terraform.Source != nil:
-		return adjustSourceWithMap(terragruntOptions.SourceMap, *terragruntConfig.Terraform.Source, terragruntOptions.OriginalTerragruntConfigPath)
+		return adjustSourceWithMap(sourceMap, *terragruntConfig.Terraform.Source, originalConfigPath)
 	default:
 		return ".", nil
 	}
@@ -1053,16 +1055,33 @@ func GetDefaultConfigPath(workingDir string) string {
 	return configPath
 }
 
-// FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
-// config file if it has a name as returned by the DefaultConfigPath method
-func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
+// FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path.
+//
+// Parameters:
+//   - rootPath: the root directory to search
+//   - experiments: experiment flags (for symlink support)
+//   - configPath: the terragrunt config path (to detect non-default config filenames)
+//   - env: environment variables (to resolve TF_DATA_DIR)
+//   - downloadDir: the terragrunt download directory to skip
+func FindConfigFilesInPath(
+	rootPath string,
+	experiments experiment.Experiments,
+	configPath string,
+	env map[string]string,
+	downloadDir string,
+) ([]string, error) {
 	configFiles := []string{}
 
 	walkFunc := filepath.WalkDir
 
-	if opts.Experiments.Evaluate(experiment.Symlinks) {
+	if experiments.Evaluate(experiment.Symlinks) {
 		// Returns logical (symlink-preserved) paths; see WalkDirWithSymlinks godoc.
 		walkFunc = util.WalkDirWithSymlinks
+	}
+
+	tfDataDir := options.DefaultTFDataDir
+	if d, ok := env["TF_DATA_DIR"]; ok {
+		tfDataDir = d
 	}
 
 	err := walkFunc(rootPath, func(path string, d fs.DirEntry, err error) error {
@@ -1074,13 +1093,13 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 			return nil
 		}
 
-		if ok, err := isTerragruntModuleDir(path, opts); err != nil {
+		if ok, err := isTerragruntModuleDir(path, tfDataDir, downloadDir); err != nil {
 			return err
 		} else if !ok {
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath)) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(configPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = filepath.Join(path, configFile)
 			}
@@ -1099,20 +1118,19 @@ func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]
 
 // isTerragruntModuleDir returns true if the given path contains a Terragrunt module and false otherwise. The path
 // can not contain a cache, data, or download dir.
-func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) (bool, error) {
 	// Skip the Terragrunt cache dir
 	if util.ContainsPath(path, util.TerragruntCacheDir) {
 		return false, nil
 	}
 
 	// Skip the Terraform data dir
-	dataDir := terragruntOptions.TerraformDataDir()
-	if filepath.IsAbs(dataDir) {
-		if util.HasPathPrefix(path, dataDir) {
+	if filepath.IsAbs(tfDataDir) {
+		if util.HasPathPrefix(path, tfDataDir) {
 			return false, nil
 		}
 	} else {
-		if util.ContainsPath(path, dataDir) {
+		if util.ContainsPath(path, tfDataDir) {
 			return false, nil
 		}
 	}
@@ -1122,7 +1140,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 		return false, err
 	}
 
-	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DownloadDir, "")
+	canonicalDownloadPath, err := util.CanonicalPath(downloadDir, "")
 	if err != nil {
 		return false, err
 	}
@@ -1192,7 +1210,7 @@ func ParseConfigFile(
 
 	cacheKey := fmt.Sprintf("%v-%v-%v-%v-%v",
 		configPath,
-		pctx.TerragruntOptions.WorkingDir,
+		pctx.WorkingDir,
 		childKey,
 		decodeListKey,
 		fileInfo.ModTime().UnixMicro(),
@@ -1206,7 +1224,7 @@ func ParseConfigFile(
 	err = TraceParseConfigFile(
 		ctx,
 		configPath,
-		pctx.TerragruntOptions.WorkingDir,
+		pctx.WorkingDir,
 		isPartial,
 		pctx.PartialParseDecodeList,
 		includeFromChild,
@@ -1307,7 +1325,7 @@ func ParseConfig(
 	}
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, l, pctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -1434,7 +1452,7 @@ func DetectDeprecatedConfigurations(ctx context.Context, pctx *ParsingContext, l
 	}
 
 	if detectBareIncludeUsage(file) {
-		allControls := pctx.TerragruntOptions.StrictControls
+		allControls := pctx.StrictControls
 
 		bareInclude := allControls.Find(controls.BareInclude)
 		if bareInclude == nil {
@@ -1537,13 +1555,14 @@ func detectBareIncludeUsage(file *hclparse.File) bool {
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
+var iamRoleCache = cache.NewCache[iam.RoleOptions](iamRoleCacheName)
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
-	if pctx.TerragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
-		pctx.TerragruntOptions.IAMRoleOptions = pctx.TerragruntOptions.OriginalIAMRoleOptions
+	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
+		pctx.IAMRoleOptions = pctx.OriginalIAMRoleOptions
+		pctx.TerragruntOptions.IAMRoleOptions = pctx.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
 		var (
@@ -1562,10 +1581,12 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 		}
 		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 		// precedence.
-		pctx.TerragruntOptions.IAMRoleOptions = options.MergeIAMRoleOptions(
+		merged := iam.MergeRoleOptions(
 			config,
-			pctx.TerragruntOptions.OriginalIAMRoleOptions,
+			pctx.OriginalIAMRoleOptions,
 		)
+		pctx.IAMRoleOptions = merged
+		pctx.TerragruntOptions.IAMRoleOptions = merged
 	}
 
 	return nil
@@ -1894,7 +1915,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := filepath.FromSlash(dependencyPath)
 		if !filepath.IsAbs(fullPath) {
-			fullPath = path.Join(ctx.TerragruntOptions.WorkingDir, fullPath)
+			fullPath = path.Join(ctx.WorkingDir, fullPath)
 		}
 
 		if !util.IsDir(fullPath) {
@@ -2170,7 +2191,7 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 // ParseRemoteState reads the Terragrunt config file from its default location
 // and parses and returns the `remote_state` block.
 func ParseRemoteState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
-	cfg, err := ReadTerragruntConfig(ctx, l, opts, DefaultParserOptions(l, opts))
+	cfg, err := ReadTerragruntConfig(ctx, l, opts, DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return nil, err
 	}

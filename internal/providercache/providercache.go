@@ -213,7 +213,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, opts, args...)
+		return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -322,7 +322,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return tf.RunCommandWithOutput(ctx, l, cloneOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -448,7 +448,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 			errWriter := util.NewTrapWriter(opts.ErrWriter)
 			cloneOpts.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, cloneOpts, cloneOpts.TerraformCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

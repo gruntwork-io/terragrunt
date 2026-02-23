@@ -28,11 +28,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
-	if _, err := creds.ObtainCredsForParsing(ctx, l, opts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, opts); err != nil {
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -59,7 +59,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	stackOpts := make([]common.Option, 0, 1)
+	runnerOpts := make([]common.Option, 0, 1)
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -79,8 +79,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// The prefix ellipsis means "include dependents"; target is included by default.
 	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
-
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
 	}
@@ -93,10 +91,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		defer r.WriteSummary(opts.Writer) //nolint:errcheck
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, graphOpts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
+	return runall.RunAllOnStack(ctx, l, graphOpts, rnr, r)
 }

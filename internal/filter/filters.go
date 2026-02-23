@@ -63,7 +63,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 // HasPositiveFilter returns true if the filters have any positive filters.
 func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
-		if !startsWithNegation(filter.expr) {
+		if !IsNegated(filter.expr) {
 			return true
 		}
 	}
@@ -148,121 +148,62 @@ func (f Filters) RestrictToStacks() Filters {
 	})
 }
 
-// collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.
+// collectGraphExpressionTargetsWithDependencies collects target expressions from GraphExpression nodes that have IncludeDependencies set.
 func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
 	var targets []Expression
 
-	if graphExpr, ok := expr.(*GraphExpression); ok {
-		if graphExpr.IncludeDependencies {
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
 			targets = append(targets, graphExpr.Target)
 		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependencies(graphExpr.Target)...)
 
-		return targets
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGraphExpressionTargetsWithDependencies(node.Right)
-	case *InfixExpression:
-		leftTargets := collectGraphExpressionTargetsWithDependencies(node.Left)
-		rightTargets := collectGraphExpressionTargetsWithDependencies(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		if node.IncludeDependencies {
-			targets = append(targets, node.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependencies(node.Target)...)
-	}
+		return true
+	})
 
 	return targets
 }
 
-// collectGraphExpressionTargetsWithDependents recursively collects target expressions from GraphExpression nodes that have IncludeDependents set.
+// collectGraphExpressionTargetsWithDependents collects target expressions from GraphExpression nodes that have IncludeDependents set.
 func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
 	var targets []Expression
 
-	if graphExpr, ok := expr.(*GraphExpression); ok {
-		if graphExpr.IncludeDependents {
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
 			targets = append(targets, graphExpr.Target)
 		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependents(graphExpr.Target)...)
 
-		return targets
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGraphExpressionTargetsWithDependents(node.Right)
-	case *InfixExpression:
-		leftTargets := collectGraphExpressionTargetsWithDependents(node.Left)
-		rightTargets := collectGraphExpressionTargetsWithDependents(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		if node.IncludeDependents {
-			targets = append(targets, node.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependents(node.Target)...)
-	}
+		return true
+	})
 
 	return targets
 }
 
-// collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
+// collectWorktreeExpressions collects worktree expressions from GitExpression nodes.
 func collectWorktreeExpressions(expr Expression) []*GitExpression {
 	var targets []*GitExpression
 
-	if gitFilter, ok := expr.(*GitExpression); ok {
-		targets = append(targets, gitFilter)
-	}
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			targets = append(targets, gitExpr)
+		}
 
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectWorktreeExpressions(node.Right)
-	case *InfixExpression:
-		leftTargets := collectWorktreeExpressions(node.Left)
-		rightTargets := collectWorktreeExpressions(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		targets = append(targets, collectWorktreeExpressions(node.Target)...)
-	}
+		return true
+	})
 
 	return targets
 }
 
-// collectGitReferences recursively collects Git references from GitFilter nodes.
+// collectGitReferences collects Git references from GitExpression nodes.
 func collectGitReferences(expr Expression) []string {
 	var refs []string
 
-	if gitFilter, ok := expr.(*GitExpression); ok {
-		refs = append(refs, gitFilter.FromRef, gitFilter.ToRef)
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			refs = append(refs, gitExpr.FromRef, gitExpr.ToRef)
+		}
 
-		return refs
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGitReferences(node.Right)
-	case *InfixExpression:
-		leftRefs := collectGitReferences(node.Left)
-		rightRefs := collectGitReferences(node.Right)
-
-		return append(leftRefs, rightRefs...)
-	case *GraphExpression:
-		// Git filters can be nested inside graph expressions
-		return collectGitReferences(node.Target)
-	}
+		return true
+	})
 
 	return refs
 }
@@ -284,7 +225,7 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 	)
 
 	for _, filter := range f {
-		if startsWithNegation(filter.expr) {
+		if IsNegated(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
 
 			continue
@@ -405,16 +346,4 @@ func (f Filters) String() string {
 	}
 
 	return string(jsonBytes)
-}
-
-// startsWithNegation checks if an expression starts with a negation operator.
-func startsWithNegation(expr Expression) bool {
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return node.Operator == "!"
-	case *InfixExpression:
-		return startsWithNegation(node.Left)
-	default:
-		return false
-	}
 }

@@ -92,7 +92,9 @@ func StackOutput(
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		values, valuesErr := config.ReadValues(ctx, l, opts, dir)
+		ctx, pctx := config.NewParsingContext(ctx, l, opts)
+
+		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
 			return cty.NilVal, errors.Errorf("Failed to read values from %s: %w", dir, valuesErr)
 		}

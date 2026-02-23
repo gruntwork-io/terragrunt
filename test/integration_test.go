@@ -143,6 +143,10 @@ func TestCLIFlagHints(t *testing.T) {
 			expectedError: flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
 			args:          "run --no-include-root",
 		},
+		{
+			expectedError: flags.NewPassthroughFlagHintError("platform"),
+			args:          "run --platform",
+		},
 	}
 
 	for i, tc := range testCases {
@@ -404,6 +408,32 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+
 			rootPath+
 			" -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
+}
+
+// TestDetailedExitCodeChangesPresentAllWithSource verifies that run --all correctly
+// propagates the detailed exit code when units use terraform { source = "." }.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5586
+func TestDetailedExitCodeChangesPresentAllWithSource(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes-with-source")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+
+	exitCode := tf.NewDetailedExitCodeMap()
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())

@@ -35,6 +35,8 @@ jobs:
             ${{ steps.go-cache-paths.outputs.go-build }}
             ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-linux-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-build-
 
       - name: Run pre-commit hooks
         env:

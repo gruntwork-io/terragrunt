@@ -20,7 +20,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const bareIncludeKey = ""
@@ -30,13 +29,13 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
 	}
 
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
@@ -109,7 +108,7 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 		if errors.As(err, &configNotFoundError) {
 			return nil, IncludeConfigNotFoundError{
 				IncludePath: includePath,
-				SourcePath:  pctx.TerragruntOptions.TerragruntConfigPath,
+				SourcePath:  pctx.TerragruntConfigPath,
 			}
 		}
 
@@ -164,7 +163,7 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 		case ShallowMerge:
 			l.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.Path)
 
-			if err := parsedIncludeConfig.Merge(l, baseConfig, pctx.TerragruntOptions); err != nil {
+			if err := parsedIncludeConfig.Merge(l, baseConfig); err != nil {
 				return nil, err
 			}
 
@@ -172,7 +171,7 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 		case DeepMerge:
 			l.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.Path)
 
-			if err := parsedIncludeConfig.DeepMerge(l, baseConfig, pctx.TerragruntOptions); err != nil {
+			if err := parsedIncludeConfig.DeepMerge(l, baseConfig); err != nil {
 				return nil, err
 			}
 
@@ -218,18 +217,18 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 			l.Debugf(
 				"Included config %s has strategy no merge: not merging config in for dependency.",
 				util.RelPathForLog(
-					pctx.TerragruntOptions.RootWorkingDir,
+					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.TerragruntOptions.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 		case ShallowMerge:
 			l.Debugf(
 				"Included config %s has strategy shallow merge: merging config in (shallow) for dependency.",
 				util.RelPathForLog(
-					pctx.TerragruntOptions.RootWorkingDir,
+					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.TerragruntOptions.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 
@@ -239,9 +238,9 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 			l.Debugf(
 				"Included config %s has strategy deep merge: merging config in (deep) for dependency.",
 				util.RelPathForLog(
-					pctx.TerragruntOptions.RootWorkingDir,
+					pctx.RootWorkingDir,
 					includeConfig.Path,
-					pctx.TerragruntOptions.LogShowAbsPaths,
+					pctx.LogShowAbsPaths,
 				),
 			)
 
@@ -273,7 +272,7 @@ func handleIncludeForDependency(ctx context.Context, pctx *ParsingContext, l log
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
-func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -395,7 +394,7 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig,
 //   - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
 //     the parsing step, not after the full config is decoded]
 //   - locals [These blocks are not merged by design]
-func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (cfg *TerragruntConfig) DeepMerge(l log.Logger, sourceConfig *TerragruntConfig) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
 		cfg.DownloadDir = sourceConfig.DownloadDir
@@ -814,7 +813,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
 		err := errors.New(TooManyLevelsOfInheritanceError{
-			ConfigPath:             ctx.TerragruntOptions.TerragruntConfigPath,
+			ConfigPath:             ctx.TerragruntConfigPath,
 			FirstLevelIncludePath:  includeFromChild.Path,
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
 		})

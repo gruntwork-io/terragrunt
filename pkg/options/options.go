@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -82,7 +83,7 @@ var (
 	}
 
 	// Pattern used to clean error message when looking for retry and ignore patterns.
-	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
+	ErrorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 )
 
 type ctxKey byte
@@ -122,9 +123,9 @@ type TerragruntOptions struct {
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
+	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
@@ -331,36 +332,6 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.WebIdentityToken = token
 	}
-}
-
-// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
-type IAMRoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
-}
-
-func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	out := target
-
-	if source.RoleARN != "" {
-		out.RoleARN = source.RoleARN
-	}
-
-	if source.AssumeRoleDuration != 0 {
-		out.AssumeRoleDuration = source.AssumeRoleDuration
-	}
-
-	if source.AssumeRoleSessionName != "" {
-		out.AssumeRoleSessionName = source.AssumeRoleSessionName
-	}
-
-	if source.WebIdentityToken != "" {
-		out.WebIdentityToken = source.WebIdentityToken
-	}
-
-	return out
 }
 
 // NewTerragruntOptions creates a new TerragruntOptions object with
@@ -819,14 +790,14 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 		return nil, nil
 	}
 
-	errStr := extractErrorMessage(err)
+	errStr := ExtractErrorMessage(err)
 	action := &ErrorAction{}
 
 	l.Debugf("Attempting error recovery for error: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
-		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
+		isIgnorable := MatchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
 		if !isIgnorable {
 			continue
 		}
@@ -844,7 +815,7 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
-		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
+		isRetryable := MatchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
 		if !isRetryable {
 			continue
 		}
@@ -869,16 +840,26 @@ func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAtte
 	return nil, nil
 }
 
-func extractErrorMessage(err error) string {
-	// fetch the error string and remove any ASCII escape sequences
-	multilineText := log.RemoveAllASCISeq(err.Error())
-	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
+func ExtractErrorMessage(err error) string {
+	var errText string
+
+	// For ProcessExecutionError, match only against stderr and the underlying error,
+	// not the full command string with flags.
+	var processErr util.ProcessExecutionError
+	if errors.As(err, &processErr) {
+		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
+	} else {
+		errText = err.Error()
+	}
+
+	multilineText := log.RemoveAllASCISeq(errText)
+	errorText := ErrorCleanPattern.ReplaceAllString(multilineText, " ")
 
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
-// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
-func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
+// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
+func MatchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 	for _, pattern := range patterns {
 		isNegative := pattern.Negative
 		matched := pattern.Pattern.MatchString(input)

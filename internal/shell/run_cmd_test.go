@@ -22,10 +22,10 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -44,7 +44,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -57,7 +57,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), l, terragruntOptions, "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")
@@ -95,9 +95,9 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 
 	l := logger.CreateLogger()
 	path := "."
-	path1, err := shell.GitTopLevelDir(ctx, l, terragruntOptions, path)
+	path1, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, path)
 	require.NoError(t, err)
-	path2, err := shell.GitTopLevelDir(ctx, l, terragruntOptions, path)
+	path2, err := shell.GitTopLevelDir(ctx, l, terragruntOptions.Env, path)
 	require.NoError(t, err)
 	assert.Equal(t, path1, path2)
 	assert.Len(t, c.Cache, 1)

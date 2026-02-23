@@ -76,7 +76,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, tf.RunOptionsFromOpts(terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
