@@ -262,7 +262,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 func TestFilterTerraformExtraArgs(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.ToSlash(helpers.TmpDirWOSymlinks(t))
+	workingDir := helpers.TmpDirWOSymlinks(t)
 
 	temporaryFile := createTempFile(t)
 
@@ -452,7 +452,7 @@ func createTempFile(t *testing.T) string {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
-	return filepath.ToSlash(tmpFile.Name())
+	return tmpFile.Name()
 }
 
 func TestShouldCopyLockFile(t *testing.T) {

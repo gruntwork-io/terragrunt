@@ -2664,8 +2664,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, filepath.Join(tmpEnvPath, testFixtureReadConfig))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_original_terragrunt_dir")
 
-	rootPathAbs, err := filepath.Abs(rootPath)
-	require.NoError(t, err)
+	rootPathAbs := filepath.Clean(rootPath)
 
 	fooPathAbs := filepath.Join(rootPathAbs, "foo")
 	depPathAbs := filepath.Join(rootPathAbs, "dep")
