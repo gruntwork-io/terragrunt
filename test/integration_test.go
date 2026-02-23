@@ -77,6 +77,7 @@ const (
 	testFixtureInitError                      = "fixtures/init-error"
 	testFixtureInitOnce                       = "fixtures/init-once"
 	testFixtureInputs                         = "fixtures/inputs"
+	testFixtureInputsInterpolation            = "fixtures/inputs-interpolation"
 	testFixtureLogFormatter                   = "fixtures/log/formatter"
 	testFixtureLogStdoutLevel                 = "fixtures/log/levels"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
@@ -1464,6 +1465,34 @@ func TestRunCommand(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	validateInputs(t, outputs)
+}
+
+// TestInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
+// are passed to Terraform without triggering HCL interpolation errors (issue #3368).
+func TestInputsWithInterpolationPatterns(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureInputsInterpolation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputsInterpolation)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputsInterpolation)
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	// map_with_interpolation.foo should be the literal string "test ${bar} test" (not interpolated)
+	mapOutput, ok := outputs["map_with_interpolation"]
+	require.True(t, ok, "map_with_interpolation output not found")
+	mapValue, ok := mapOutput.Value.(map[string]any)
+	require.True(t, ok, "map_with_interpolation value is not a map")
+	assert.Equal(t, "test ${bar} test", mapValue["foo"])
+	assert.Equal(t, "no interpolation here", mapValue["baz"])
 }
 
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
