@@ -301,6 +301,58 @@ locals {
 }
 `,
 		},
+		{
+			// TemplateWrapExpr: bare "${...}" generates TemplateWrapExpr (not TemplateExpr).
+			// Verifies the TemplateWrapExpr → evalExpressionLazily(e.Wrapped) delegation.
+			name: "template wrap expr runs only selected branch",
+			cfg: `
+locals {
+  condition = true
+  result    = "${local.condition ? run_cmd("echo", "wrapped") : run_cmd("__nonexistent_terragrunt_test_command__")}"
+}
+`,
+			targetKey: "result",
+			wantVal:   "wrapped",
+		},
+		{
+			// Multi-element tuple: verifies evalTupleConsLazily processes all elements
+			// and nested ternaries in any position benefit from lazy eval.
+			name: "multi-element tuple with ternary runs only selected branch",
+			cfg: `
+locals {
+  condition = true
+  results   = [run_cmd("echo", "first"), local.condition ? run_cmd("echo", "second") : run_cmd("__nonexistent_terragrunt_test_command__")]
+}
+`,
+			targetKey:  "results",
+			wantVal:    "second",
+			assertMode: "multi_tuple",
+		},
+		{
+			// can() uses the same custom expression decoder as try().
+			// Verifies functionHasCustomArgDecoder correctly bypasses lazy eval for can().
+			name: "can with failing run_cmd returns false not error",
+			cfg: `
+locals {
+  result = can(run_cmd("__nonexistent_terragrunt_test_command__")) ? "reachable" : "unreachable"
+}
+`,
+			targetKey: "result",
+			wantVal:   "unreachable",
+		},
+		{
+			// Condition is itself a ternary: verifies recursive lazy eval on the condition.
+			name: "ternary condition is itself a ternary",
+			cfg: `
+locals {
+  outer = true
+  inner = true
+  result = (local.outer ? local.inner : false) ? run_cmd("echo", "both_true") : run_cmd("__nonexistent_terragrunt_test_command__")
+}
+`,
+			targetKey: "result",
+			wantVal:   "both_true",
+		},
 	}
 
 	for _, tt := range tests {
@@ -334,6 +386,14 @@ locals {
 				var elem string
 				require.NoError(t, gocty.FromCtyValue(elems[0], &elem))
 				assert.Equal(t, tt.wantVal, elem)
+			case "multi_tuple":
+				tupleVal := evaluatedLocals[tt.targetKey]
+				elems := tupleVal.AsValueSlice()
+				require.GreaterOrEqual(t, len(elems), 2)
+
+				var lastElem string
+				require.NoError(t, gocty.FromCtyValue(elems[len(elems)-1], &lastElem))
+				assert.Equal(t, tt.wantVal, lastElem)
 			case "object":
 				resultObj := evaluatedLocals[tt.targetKey]
 				require.True(t, resultObj.Type().IsObjectType())

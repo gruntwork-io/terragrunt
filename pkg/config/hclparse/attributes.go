@@ -182,6 +182,8 @@ func evalConditionalLazily(e *hclsyntax.ConditionalExpr, evalCtx *hcl.EvalContex
 // evalTupleConsLazily evaluates a tuple construction expression by applying
 // evalExpressionLazily to each element. This allows nested conditional expressions
 // inside list literals to benefit from lazy branch selection.
+// Note: unlike standard HCL TupleConsExpr.Value(), this short-circuits on the
+// first element error to prevent executing further side-effectful expressions.
 func evalTupleConsLazily(e *hclsyntax.TupleConsExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	if len(e.Exprs) == 0 {
 		return cty.EmptyTupleVal, nil
@@ -209,6 +211,8 @@ func evalTupleConsLazily(e *hclsyntax.TupleConsExpr, evalCtx *hcl.EvalContext) (
 // evalExpressionLazily to each value expression. Key expressions are kept as-is
 // so that the original ObjectConsExpr.Value() can handle unknown keys, mark
 // propagation, and object type construction as normal.
+// Note: key expressions are evaluated eagerly by the delegated ObjectConsExpr.Value().
+// Ternary expressions with side effects in object keys will not benefit from lazy eval.
 func evalObjectConsLazily(e *hclsyntax.ObjectConsExpr, evalCtx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
 	lazyItems := make([]hclsyntax.ObjectConsItem, len(e.Items))
 
