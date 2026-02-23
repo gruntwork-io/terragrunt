@@ -325,6 +325,7 @@ The `remote_state` block supports the following arguments:
   | `disable_init` | `--backend-bootstrap` | Backend exists | Result                                                        |
   |----------------|-----------------------|----------------|---------------------------------------------------------------|
   | `false`        | `true`                | No             | Terragrunt creates backend resources, init succeeds           |
+  | `false`        | `true`                | Yes            | Terragrunt verifies backend config, init succeeds             |
   | `false`        | `false`               | No             | No creation, OpenTofu/Terraform init fails (bucket not found) |
   | `false`        | `false`               | Yes            | No creation, init succeeds                                    |
   | `true`         | any                   | Yes            | No creation, OpenTofu/Terraform inits normally                |
