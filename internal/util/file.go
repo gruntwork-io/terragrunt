@@ -1021,9 +1021,9 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 		logical  string
 	}
 
-	// visitKey identifies a unique symlink traversal (physical target + logical entry point)
+	// visitKey identifies a unique symlink traversal (resolved target + physical entry point)
 	// to prevent infinite loops while allowing the same target via different symlinks.
-	type visitKey struct{ physical, logical string }
+	type visitKey struct{ physical, entry string }
 
 	visited := make(map[visitKey]bool)
 

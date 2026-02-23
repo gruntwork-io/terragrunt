@@ -417,7 +417,6 @@ func TestEmptyDir(t *testing.T) {
 	}
 }
 
-//nolint:funlen
 func TestWalkWithSimpleSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create a temporary test directory structure
@@ -479,7 +478,6 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	assert.Equal(t, expectedPaths, paths)
 }
 
-//nolint:funlen
 func TestWalkWithCircularSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create temporary test directory structure

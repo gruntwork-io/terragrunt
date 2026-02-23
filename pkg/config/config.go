@@ -1075,7 +1075,6 @@ func FindConfigFilesInPath(
 	walkFunc := filepath.WalkDir
 
 	if experiments.Evaluate(experiment.Symlinks) {
-		// Returns logical (symlink-preserved) paths; see WalkDirWithSymlinks godoc.
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
