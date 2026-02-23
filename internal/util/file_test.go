@@ -499,20 +499,10 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
+	require.Len(t, paths, len(expectedPaths))
 
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
-		}
+	for i, expected := range expectedPaths {
+		assert.Equal(t, expected, paths[i], "path mismatch at index %d", i)
 	}
 }
 
@@ -585,20 +575,10 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
+	require.Len(t, paths, len(expectedPaths))
 
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
-		}
+	for i, expected := range expectedPaths {
+		assert.Equal(t, expected, paths[i], "path mismatch at index %d", i)
 	}
 }
 
