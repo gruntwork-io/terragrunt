@@ -1248,8 +1248,13 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	// Build run.Options directly from ParsingContext fields
+	// Build run.Options directly from ParsingContext fields.
+	// Override Writers.Writer to capture stdout, and force ForwardTFStdout/JSONLogFormat off.
+	runWriters := pctx.Writers
+	runWriters.Writer = stdoutBufferWriter
+
 	runOpts := &run.Options{
+		Writers:                      runWriters,
 		TerragruntConfigPath:         pctx.TerragruntConfigPath,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		WorkingDir:                   pctx.WorkingDir,
@@ -1260,8 +1265,6 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		TerraformCommand:             pctx.TerraformCommand,
 		OriginalTerraformCommand:     pctx.OriginalTerraformCommand,
 		TerraformCliArgs:             pctx.TerraformCliArgs,
-		Writer:                       stdoutBufferWriter,
-		ErrWriter:                    pctx.ErrWriter,
 		Env:                          pctx.Env,
 		IAMRoleOptions:               pctx.IAMRoleOptions,
 		OriginalIAMRoleOptions:       pctx.OriginalIAMRoleOptions,
@@ -1269,6 +1272,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
 		Engine:                       pctx.Engine,
+		EngineOptions:                pctx.EngineOptions,
 		TFPath:                       pctx.TFPath,
 		TofuImplementation:           pctx.TofuImplementation,
 		ForwardTFStdout:              false,
@@ -1277,9 +1281,6 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		Debug:                        pctx.Debug,
 		AutoInit:                     pctx.AutoInit,
 		BackendBootstrap:             pctx.BackendBootstrap,
-		NoEngine:                     pctx.NoEngine,
-		LogShowAbsPaths:              pctx.LogShowAbsPaths,
-		LogDisableErrorSummary:       pctx.LogDisableErrorSummary,
 		Telemetry:                    pctx.Telemetry,
 		AuthProviderCmd:              pctx.AuthProviderCmd,
 	}

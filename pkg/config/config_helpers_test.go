@@ -753,8 +753,8 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.Env = map[string]string{}
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
-	pctx.Writer = os.Stdout
-	pctx.ErrWriter = os.Stderr
+	pctx.Writers.Writer = os.Stdout
+	pctx.Writers.ErrWriter = os.Stderr
 	pctx.MaxFoldersToCheck = 100
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()

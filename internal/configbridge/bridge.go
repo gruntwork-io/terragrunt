@@ -37,8 +37,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
-	pctx.Writer = opts.Writer
-	pctx.ErrWriter = opts.ErrWriter
+	pctx.Writers = opts.Writers
 	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
@@ -47,9 +46,9 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput
 	pctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
-	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.AuthProviderCmd = opts.AuthProviderCmd
-	pctx.Engine = opts.Engine
+	pctx.Engine = opts.EngineConfig
+	pctx.EngineOptions = opts.EngineOptions
 	pctx.TFPath = opts.TFPath
 	pctx.TofuImplementation = opts.TofuImplementation
 	pctx.ForwardTFStdout = opts.ForwardTFStdout
@@ -58,32 +57,33 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.AutoInit = opts.AutoInit
 	pctx.Headless = opts.Headless
 	pctx.BackendBootstrap = opts.BackendBootstrap
-	pctx.NoEngine = opts.NoEngine
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
-	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.Telemetry = opts.Telemetry
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 }
 
-// ShellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
+// ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 // Exported so configbridge callbacks and external callers can use it.
-func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.RunOptions {
-	return &shell.RunOptions{
-		WorkingDir:             pctx.WorkingDir,
-		Writer:                 pctx.Writer,
-		ErrWriter:              pctx.ErrWriter,
-		Env:                    pctx.Env,
-		TFPath:                 pctx.TFPath,
-		Engine:                 pctx.Engine,
-		Experiments:            pctx.Experiments,
-		NoEngine:               pctx.NoEngine,
-		Telemetry:              pctx.Telemetry,
-		RootWorkingDir:         pctx.RootWorkingDir,
-		LogShowAbsPaths:        pctx.LogShowAbsPaths,
-		LogDisableErrorSummary: pctx.LogDisableErrorSummary,
+func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
+	opts := &shell.ShellOptions{
+		Writers:        pctx.Writers,
+		WorkingDir:     pctx.WorkingDir,
+		Env:            pctx.Env,
+		TFPath:         pctx.TFPath,
+		EngineConfig:   pctx.Engine,
+		EngineOptions:  pctx.EngineOptions,
+		Experiments:    pctx.Experiments,
+		Telemetry:      pctx.Telemetry,
+		RootWorkingDir: pctx.RootWorkingDir,
 	}
+
+	if pctx.EngineOptions != nil {
+		opts.NoEngine = pctx.EngineOptions.NoEngine
+	}
+
+	return opts
 }
 
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.

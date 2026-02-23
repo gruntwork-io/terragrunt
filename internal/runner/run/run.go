@@ -89,7 +89,7 @@ func Run(
 		return err
 	}
 
-	opts.EngineConfig = engine
+	opts.Engine = engine
 
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
