@@ -32,14 +32,10 @@ type Task func() error
 // Pool manages concurrent task execution with a configurable number of workers
 type Pool struct {
 	semaphore   chan struct{}
-	resultChan  chan error
-	doneChan    chan struct{}
 	allErrors   *errors.MultiError
-	errorsSlice []error
 	wg          sync.WaitGroup
 	maxWorkers  int
 	mu          sync.RWMutex
-	resultMu    sync.RWMutex
 	allErrorsMu sync.RWMutex
 	isStopping  atomic.Bool
 	isRunning   bool
@@ -52,13 +48,10 @@ func NewWorkerPool(maxWorkers int) *Pool {
 	}
 
 	return &Pool{
-		maxWorkers:  maxWorkers,
-		semaphore:   make(chan struct{}, maxWorkers),
-		resultChan:  make(chan error),
-		doneChan:    make(chan struct{}),
-		isRunning:   false,
-		errorsSlice: make([]error, 0),
-		allErrors:   &errors.MultiError{},
+		maxWorkers: maxWorkers,
+		semaphore:  make(chan struct{}, maxWorkers),
+		isRunning:  false,
+		allErrors:  &errors.MultiError{},
 	}
 }
 
@@ -74,13 +67,7 @@ func (wp *Pool) Start() {
 	wp.isRunning = true
 	wp.isStopping.Store(false)
 
-	// Recreate the channels if they've been closed
-	wp.resultChan = make(chan error)
-	wp.doneChan = make(chan struct{})
 	wp.semaphore = make(chan struct{}, wp.maxWorkers)
-
-	// Clear previous errors
-	wp.errorsSlice = make([]error, 0)
 
 	// Reset allErrors
 	wp.allErrorsMu.Lock()
@@ -88,35 +75,6 @@ func (wp *Pool) Start() {
 	wp.allErrorsMu.Unlock()
 
 	wp.mu.Unlock()
-
-	// Start the error collector
-	go wp.collectResults()
-}
-
-// collectResults collects the errors from the result channel
-func (wp *Pool) collectResults() {
-	for {
-		select {
-		case err, ok := <-wp.resultChan:
-			if !ok {
-				return
-			}
-
-			if err != nil {
-				// Add to allErrors safely
-				wp.allErrorsMu.Lock()
-				wp.allErrors = wp.allErrors.Append(err)
-				wp.allErrorsMu.Unlock()
-
-				// Also keep the slice for backward compatibility
-				wp.resultMu.Lock()
-				wp.errorsSlice = append(wp.errorsSlice, err)
-				wp.resultMu.Unlock()
-			}
-		case <-wp.doneChan:
-			return
-		}
-	}
 }
 
 // appendError safely appends an error to allErrors
@@ -156,21 +114,8 @@ func (wp *Pool) Submit(task Task) {
 		defer func() { <-wp.semaphore }()
 
 		err := task()
-
-		// If there's an error, always record it directly first
 		if err != nil {
 			wp.appendError(err)
-		}
-
-		// Only try to send result to channel if there's an error and pool isn't stopping
-		if err != nil {
-			select {
-			case <-wp.doneChan:
-				// Pool is stopping, error already recorded directly via appendError
-			case wp.resultChan <- err:
-				// Successfully sent the error
-			default: // Channel might be closed or full, but we already recorded the error via appendError, so we can safely continue without panic
-			}
 		}
 	}()
 }
@@ -197,23 +142,11 @@ func (wp *Pool) Stop() {
 		// Mark as stopping to prevent new task submissions
 		wp.isStopping.Store(true)
 
-		// Signal done to all running goroutines first
-		close(wp.doneChan)
-
-		// Wait for a small cleanup period to allow goroutines to observe doneChan closure
-		// before closing the result channel
 		go func() {
-			// Wait for all tasks to complete
 			wp.wg.Wait()
 
-			// Now it's truly safe to close resultChan as all goroutines are done
 			wp.mu.Lock()
-
-			if wp.isRunning {
-				close(wp.resultChan)
-				wp.isRunning = false
-			}
-
+			wp.isRunning = false
 			wp.mu.Unlock()
 		}()
 	}
@@ -221,19 +154,17 @@ func (wp *Pool) Stop() {
 
 // GracefulStop waits for all tasks to complete before stopping the pool
 func (wp *Pool) GracefulStop() error {
-	// Mark as stopping to prevent new task submissions, but don't close channels yet
+	// Mark as stopping to prevent new task submissions
 	wp.isStopping.Store(true)
 
 	// Wait for all tasks to complete and capture any errors
 	err := wp.Wait()
 
-	// Now fully stop the pool by closing channels
+	// Now fully stop the pool
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
 	if wp.isRunning {
-		close(wp.doneChan)
-		close(wp.resultChan)
 		wp.isRunning = false
 	}
 

@@ -94,6 +94,14 @@ Maintainers will frequently update the build system to use the latest version of
 
 If you are impacted by a Golang version upgrade and would like to request a policy adjustment, please reach out to the maintainers by starting a GitHub discussion or reaching out in the Terragrunt Discord.
 
+### Golang Library Compatibility
+
+Using Terragrunt as a Go library has no backwards compatibility guarantees. Most Go code in the Terragrunt repository lives in [`internal`](https://github.com/gruntwork-io/terragrunt/tree/main/internal), and maintainers don't expect external parties to depend on Terragrunt packages directly.
+
+When packages are generally useful to internal Gruntwork parties, they will be migrated to [`pkg`](https://github.com/gruntwork-io/terragrunt/tree/main/pkg). Breaking changes to packages in `pkg` are still possible at any time, but maintainers will coordinate directly with known consumers to help prevent upgrade issues.
+
+When external parties need a stable dependency on shared code, dedicated libraries will be created in separate, versioned repositories (e.g., [terragrunt-engine-go](https://github.com/gruntwork-io/terragrunt-engine-go)). If you are relying on code in `pkg` or vendoring code from `internal`, you are heavily encouraged to start a conversation with Terragrunt maintainers so that we can plan out a path to an external library that you can rely on to be stable and independently versioned from Terragrunt.
+
 ## Versioning Policy
 
 For the duration of 1.x, only the minor and patch versions of Terragrunt releases will be used in the [semantic versioning scheme](https://semver.org/), just like it was in Terragrunt 0.x.

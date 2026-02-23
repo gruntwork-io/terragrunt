@@ -49,7 +49,7 @@ func (d *Discovery) Discover(
 
 	if classifier.HasGraphFilters() {
 		if classifier.HasDependentFilters() && d.gitRoot == "" {
-			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts, d.workingDir); gitErr == nil {
+			if gitRootPath, gitErr := shell.GitTopLevelDir(ctx, l, opts.Env, d.workingDir); gitErr == nil {
 				d.gitRoot = gitRootPath
 				l.Debugf("Set gitRoot for dependent discovery: %s", d.gitRoot)
 			}
@@ -105,12 +105,7 @@ func (d *Discovery) Discover(
 	}
 
 	if d.graphTarget != "" {
-		var err error
-
-		components, err = d.filterGraphTarget(components)
-		if err != nil {
-			return nil, err
-		}
+		components = d.filterGraphTarget(components)
 	}
 
 	components = d.applyQueueFilters(opts, components)
@@ -446,27 +441,24 @@ func removeCycles(components component.Components) (component.Components, error)
 }
 
 // filterGraphTarget prunes components to the target path and its dependents.
-func (d *Discovery) filterGraphTarget(components component.Components) (component.Components, error) {
+func (d *Discovery) filterGraphTarget(components component.Components) component.Components {
 	if d.graphTarget == "" {
-		return components, nil
+		return components
 	}
 
-	targetPath, err := canonicalizeGraphTarget(d.workingDir, d.graphTarget)
-	if err != nil {
-		return nil, err
-	}
+	targetPath := canonicalizeGraphTarget(d.workingDir, d.graphTarget)
 
 	dependentUnits := buildDependentsIndex(components)
 	propagateTransitiveDependents(dependentUnits)
 
 	allowed := buildAllowSet(targetPath, dependentUnits)
 
-	return filterByAllowSet(components, allowed), nil
+	return filterByAllowSet(components, allowed)
 }
 
 // canonicalizeGraphTarget resolves the graph target to an absolute, cleaned path with symlinks resolved.
 // Returns an error if the path cannot be made absolute.
-func canonicalizeGraphTarget(baseDir, target string) (string, error) {
+func canonicalizeGraphTarget(baseDir, target string) string {
 	var abs string
 
 	// If already absolute, just clean it
@@ -476,15 +468,8 @@ func canonicalizeGraphTarget(baseDir, target string) (string, error) {
 		// Try canonical path first
 		abs = canonicalAbs
 	} else {
-		// Fallback: join with baseDir and make absolute
-		joined := filepath.Join(baseDir, filepath.Clean(target))
-
-		var absErr error
-
-		abs, absErr = filepath.Abs(joined)
-		if absErr != nil {
-			return "", errors.Errorf("failed to resolve graph target %q relative to %q: %w", target, baseDir, absErr)
-		}
+		// Fallback: join with baseDir and clean
+		abs = filepath.Clean(filepath.Join(baseDir, target))
 	}
 
 	// Resolve symlinks for consistent path comparison (important on macOS where /var -> /private/var)
@@ -493,10 +478,10 @@ func canonicalizeGraphTarget(baseDir, target string) (string, error) {
 	// absolute path is acceptable - the path will be validated later when used.
 	resolved, evalErr := filepath.EvalSymlinks(abs)
 	if evalErr != nil {
-		return abs, nil //nolint:nilerr
+		return abs
 	}
 
-	return resolved, nil
+	return resolved
 }
 
 // buildDependentsIndex builds an index mapping each unit path to the list of units

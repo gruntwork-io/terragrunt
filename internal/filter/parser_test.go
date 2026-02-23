@@ -17,77 +17,54 @@ func TestParser_SimpleExpressions(t *testing.T) {
 		input    string
 	}{
 		{
-			name:  "simple name filter",
-			input: "foo",
-			expected: &filter.AttributeExpression{
-				Key:   "name",
-				Value: "foo",
-			},
+			name:     "simple name filter",
+			input:    "foo",
+			expected: mustAttr(t, "name", "foo"),
 		},
 		{
-			name:  "attribute filter",
-			input: "name=bar",
-			expected: &filter.AttributeExpression{
-				Key:   "name",
-				Value: "bar",
-			},
+			name:     "attribute filter",
+			input:    "name=bar",
+			expected: mustAttr(t, "name", "bar"),
 		},
 		{
-			name:  "type attribute filter",
-			input: "type=unit",
-			expected: &filter.AttributeExpression{
-				Key:   "type",
-				Value: "unit",
-			},
+			name:     "type attribute filter",
+			input:    "type=unit",
+			expected: mustAttr(t, "type", "unit"),
 		},
 		{
-			name:  "path filter relative",
-			input: "./apps/foo",
-			expected: &filter.PathExpression{
-				Value: "./apps/foo",
-			},
+			name:     "path filter relative",
+			input:    "./apps/foo",
+			expected: mustPath(t, "./apps/foo"),
 		},
 		{
-			name:  "path filter absolute",
-			input: "/absolute/path",
-			expected: &filter.PathExpression{
-				Value: "/absolute/path",
-			},
+			name:     "path filter absolute",
+			input:    "/absolute/path",
+			expected: mustPath(t, "/absolute/path"),
 		},
 		{
-			name:  "path filter with wildcard",
-			input: "./apps/*",
-			expected: &filter.PathExpression{
-				Value: "./apps/*",
-			},
+			name:     "path filter with wildcard",
+			input:    "./apps/*",
+			expected: mustPath(t, "./apps/*"),
 		},
 		{
-			name:  "path filter with recursive wildcard",
-			input: "./apps/**/foo",
-			expected: &filter.PathExpression{
-				Value: "./apps/**/foo",
-			},
+			name:     "path filter with recursive wildcard",
+			input:    "./apps/**/foo",
+			expected: mustPath(t, "./apps/**/foo"),
 		},
 		{
-			name:  "braced path filter",
-			input: "{./apps/*}",
-			expected: &filter.PathExpression{
-				Value: "./apps/*",
-			},
+			name:     "braced path filter",
+			input:    "{./apps/*}",
+			expected: mustPath(t, "./apps/*"),
 		},
 		{
-			name:  "braced path without prefix",
-			input: "{apps}",
-			expected: &filter.PathExpression{
-				Value: "apps",
-			},
+			name:     "braced path without prefix",
+			input:    "{apps}",
+			expected: mustPath(t, "apps"),
 		},
 		{
-			name:  "braced path with spaces",
-			input: "{my path/file}",
-			expected: &filter.PathExpression{
-				Value: "my path/file",
-			},
+			name:     "braced path with spaces",
+			input:    "{my path/file}",
+			expected: mustPath(t, "my path/file"),
 		},
 	}
 
@@ -118,10 +95,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			input: "!foo",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Right:    mustAttr(t, "name", "foo"),
 			},
 		},
 		{
@@ -129,10 +103,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			input: "!name=bar",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
@@ -140,9 +111,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			input: "!./apps/legacy",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.PathExpression{
-					Value: "./apps/legacy",
-				},
+				Right:    mustPath(t, "./apps/legacy"),
 			},
 		},
 		{
@@ -150,9 +119,7 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			input: "!{./apps/legacy}",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.PathExpression{
-					Value: "./apps/legacy",
-				},
+				Right:    mustPath(t, "./apps/legacy"),
 			},
 		},
 		{
@@ -160,52 +127,36 @@ func TestParser_PrefixExpressions(t *testing.T) {
 			input: "!{/absolute/path}",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.PathExpression{
-					Value: "/absolute/path",
-				},
+				Right:    mustPath(t, "/absolute/path"),
 			},
 		},
 		{
-			name:  "double negation collapses to positive",
-			input: "!!foo",
-			expected: &filter.AttributeExpression{
-				Key:   "name",
-				Value: "foo",
-			},
+			name:     "double negation collapses to positive",
+			input:    "!!foo",
+			expected: mustAttr(t, "name", "foo"),
 		},
 		{
 			name:  "triple negation collapses to single negative",
 			input: "!!!foo",
 			expected: &filter.PrefixExpression{
 				Operator: "!",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Right:    mustAttr(t, "name", "foo"),
 			},
 		},
 		{
-			name:  "quadruple negation collapses to positive",
-			input: "!!!!foo",
-			expected: &filter.AttributeExpression{
-				Key:   "name",
-				Value: "foo",
-			},
+			name:     "quadruple negation collapses to positive",
+			input:    "!!!!foo",
+			expected: mustAttr(t, "name", "foo"),
 		},
 		{
-			name:  "double negation with attribute filter",
-			input: "!!name=bar",
-			expected: &filter.AttributeExpression{
-				Key:   "name",
-				Value: "bar",
-			},
+			name:     "double negation with attribute filter",
+			input:    "!!name=bar",
+			expected: mustAttr(t, "name", "bar"),
 		},
 		{
-			name:  "double negation with path filter",
-			input: "!!./apps/foo",
-			expected: &filter.PathExpression{
-				Value: "./apps/foo",
-			},
+			name:     "double negation with path filter",
+			input:    "!!./apps/foo",
+			expected: mustPath(t, "./apps/foo"),
 		},
 	}
 
@@ -235,44 +186,27 @@ func TestParser_InfixExpressions(t *testing.T) {
 			name:  "union of two name filters",
 			input: "foo | bar",
 			expected: &filter.InfixExpression{
-				Left: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Left:     mustAttr(t, "name", "foo"),
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
 			name:  "union of attribute filters",
 			input: "name=foo | name=bar",
 			expected: &filter.InfixExpression{
-				Left: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Left:     mustAttr(t, "name", "foo"),
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
 			name:  "union of path and name filter",
 			input: "./apps/* | name=bar",
 			expected: &filter.InfixExpression{
-				Left: &filter.PathExpression{
-					Value: "./apps/*",
-				},
+				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
@@ -280,21 +214,12 @@ func TestParser_InfixExpressions(t *testing.T) {
 			input: "foo | bar | baz",
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
-					Left: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "foo",
-					},
+					Left:     mustAttr(t, "name", "foo"),
 					Operator: "|",
-					Right: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "bar",
-					},
+					Right:    mustAttr(t, "name", "bar"),
 				},
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "baz",
-				},
+				Right:    mustAttr(t, "name", "baz"),
 			},
 		},
 	}
@@ -327,33 +252,21 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left: &filter.PrefixExpression{
 					Operator: "!",
-					Right: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "foo",
-					},
+					Right:    mustAttr(t, "name", "foo"),
 				},
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
 			name:  "union with negated second operand",
 			input: "foo | !bar",
 			expected: &filter.InfixExpression{
-				Left: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Left:     mustAttr(t, "name", "foo"),
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
-					Right: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "bar",
-					},
+					Right:    mustAttr(t, "name", "bar"),
 				},
 			},
 		},
@@ -362,22 +275,15 @@ func TestParser_ComplexExpressions(t *testing.T) {
 			input: "./apps/* | !./legacy | name=foo",
 			expected: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
-					Left: &filter.PathExpression{
-						Value: "./apps/*",
-					},
+					Left:     mustPath(t, "./apps/*"),
 					Operator: "|",
 					Right: &filter.PrefixExpression{
 						Operator: "!",
-						Right: &filter.PathExpression{
-							Value: "./legacy",
-						},
+						Right:    mustPath(t, "./legacy"),
 					},
 				},
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Right:    mustAttr(t, "name", "foo"),
 			},
 		},
 	}
@@ -541,10 +447,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "prefix ellipsis - dependents only",
 			input: "...foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -554,10 +457,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "postfix ellipsis - dependencies only",
 			input: "foo...",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -567,10 +467,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "both prefix and postfix ellipsis",
 			input: "...foo...",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -580,10 +477,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "caret - exclude target only",
 			input: "^foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: false,
 				ExcludeTarget:       true,
@@ -593,10 +487,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "caret with prefix ellipsis",
 			input: "...^foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       true,
@@ -606,10 +497,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "caret with postfix ellipsis",
 			input: "^foo...",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       true,
@@ -619,10 +507,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "caret with both ellipsis",
 			input: "...^foo...",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       true,
@@ -632,9 +517,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with path filter",
 			input: "...{./apps/foo}",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "./apps/foo",
-				},
+				Target:              mustPath(t, "./apps/foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -644,9 +527,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with path filter and postfix ellipsis",
 			input: "./apps/foo...",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "./apps/foo",
-				},
+				Target:              mustPath(t, "./apps/foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -656,10 +537,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with attribute filter",
 			input: "...name=bar",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Target:              mustAttr(t, "name", "bar"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -669,9 +547,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with braced path and postfix ellipsis",
 			input: "{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "./apps/foo",
-				},
+				Target:              mustPath(t, "./apps/foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -681,9 +557,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with braced path and both ellipsis",
 			input: "...{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "./apps/foo",
-				},
+				Target:              mustPath(t, "./apps/foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -693,9 +567,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "graph expression with braced path, caret, and both ellipsis",
 			input: "...^{./apps/foo}...",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "./apps/foo",
-				},
+				Target:              mustPath(t, "./apps/foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       true,
@@ -705,10 +577,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "depth-limited prefix - direct dependents only",
 			input: "1...foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -719,10 +588,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "depth-limited postfix - direct dependencies only",
 			input: "foo...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -733,10 +599,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "depth-limited both directions",
 			input: "2...foo...3",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -748,10 +611,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "depth-limited with caret",
 			input: "1...^foo...2",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       true,
@@ -763,10 +623,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "depth-limited with multi-digit depth",
 			input: "10...foo...25",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -778,10 +635,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "very large depth clamps to max",
 			input: "999999999...foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -792,10 +646,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "overflow depth falls back to unlimited",
 			input: "99999999999999999999999...foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Target:              mustAttr(t, "name", "foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -807,10 +658,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir with depth - number before ellipsis is depth",
 			input: "1...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "1",
-				},
+				Target:              mustAttr(t, "name", "1"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -821,9 +669,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir escape hatch - braced path for target with dependency depth",
 			input: "{1}...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "1",
-				},
+				Target:              mustPath(t, "1"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -834,9 +680,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir escape hatch - braced path for target with dependent depth",
 			input: "1...{1}",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "1",
-				},
+				Target:              mustPath(t, "1"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -847,10 +691,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir escape hatch - explicit name attribute with dependency depth",
 			input: "name=1...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "1",
-				},
+				Target:              mustAttr(t, "name", "1"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -861,10 +702,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir escape hatch - explicit name attribute with dependent depth",
 			input: "1...name=1",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "1",
-				},
+				Target:              mustAttr(t, "name", "1"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -875,9 +713,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "numeric dir full escape - both directions with braces",
 			input: "1...{1}...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.PathExpression{
-					Value: "1",
-				},
+				Target:              mustPath(t, "1"),
 				IncludeDependents:   true,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -889,10 +725,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "alphanumeric dir not confused with depth",
 			input: "1...1foo",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "1foo",
-				},
+				Target:              mustAttr(t, "name", "1foo"),
 				IncludeDependents:   true,
 				IncludeDependencies: false,
 				ExcludeTarget:       false,
@@ -903,10 +736,7 @@ func TestParser_GraphExpressions(t *testing.T) {
 			name:  "alphanumeric dir not confused with depth - postfix",
 			input: "foo1...1",
 			expected: &filter.GraphExpression{
-				Target: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo1",
-				},
+				Target:              mustAttr(t, "name", "foo1"),
 				IncludeDependents:   false,
 				IncludeDependencies: true,
 				ExcludeTarget:       false,
@@ -951,35 +781,23 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			input: "...foo | bar",
 			expected: &filter.InfixExpression{
 				Left: &filter.GraphExpression{
-					Target: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "foo",
-					},
+					Target:              mustAttr(t, "name", "foo"),
 					IncludeDependents:   true,
 					IncludeDependencies: false,
 					ExcludeTarget:       false,
 				},
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "bar",
-				},
+				Right:    mustAttr(t, "name", "bar"),
 			},
 		},
 		{
 			name:  "graph expression in union - right side",
 			input: "foo | bar...",
 			expected: &filter.InfixExpression{
-				Left: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "foo",
-				},
+				Left:     mustAttr(t, "name", "foo"),
 				Operator: "|",
 				Right: &filter.GraphExpression{
-					Target: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "bar",
-					},
+					Target:              mustAttr(t, "name", "bar"),
 					IncludeDependents:   false,
 					IncludeDependencies: true,
 					ExcludeTarget:       false,
@@ -992,10 +810,7 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			expected: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.GraphExpression{
-					Target: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "foo",
-					},
+					Target:              mustAttr(t, "name", "foo"),
 					IncludeDependents:   true,
 					IncludeDependencies: false,
 					ExcludeTarget:       false,
@@ -1008,10 +823,7 @@ func TestParser_GraphExpressionCombinations(t *testing.T) {
 			expected: &filter.GraphExpression{
 				Target: &filter.PrefixExpression{
 					Operator: "!",
-					Right: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "foo",
-					},
+					Right:    mustAttr(t, "name", "foo"),
 				},
 				IncludeDependents:   true,
 				IncludeDependencies: false,
@@ -1193,18 +1005,14 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left:     filter.NewGitExpression("main", "HEAD"),
 				Operator: "|",
-				Right: &filter.PathExpression{
-					Value: "./apps/*",
-				},
+				Right:    mustPath(t, "./apps/*"),
 			},
 		},
 		{
 			name:  "path filter with Git filter intersection",
 			input: "./apps/* | [main...HEAD]",
 			expected: &filter.InfixExpression{
-				Left: &filter.PathExpression{
-					Value: "./apps/*",
-				},
+				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
 				Right:    filter.NewGitExpression("main", "HEAD"),
 			},
@@ -1215,10 +1023,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 			expected: &filter.InfixExpression{
 				Left:     filter.NewGitExpression("main", "HEAD"),
 				Operator: "|",
-				Right: &filter.AttributeExpression{
-					Key:   "name",
-					Value: "app",
-				},
+				Right:    mustAttr(t, "name", "app"),
 			},
 		},
 		{
@@ -1228,10 +1033,7 @@ func TestParser_GitFilterWithOtherExpressions(t *testing.T) {
 				Left:     filter.NewGitExpression("main", "HEAD"),
 				Operator: "|",
 				Right: &filter.GraphExpression{
-					Target: &filter.AttributeExpression{
-						Key:   "name",
-						Value: "app",
-					},
+					Target:              mustAttr(t, "name", "app"),
 					IncludeDependencies: true,
 					IncludeDependents:   false,
 					ExcludeTarget:       false,

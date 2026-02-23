@@ -20,6 +20,7 @@ const (
 	ErrorCodeMissingOperand
 	ErrorCodeEmptyGitFilter
 	ErrorCodeMissingGitRef
+	ErrorCodeInvalidGlob
 )
 
 // ParseError represents an error that occurred during parsing.

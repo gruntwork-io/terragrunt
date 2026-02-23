@@ -28,11 +28,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
-	if _, err := creds.ObtainCredsForParsing(ctx, l, opts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, opts); err != nil {
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}

@@ -313,9 +313,23 @@ The `remote_state` block supports the following arguments:
 - `backend` (attribute): Specifies which remote state backend will be configured. This should be one of the
   [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
-- `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
-  have support in Terragrunt to be automatically created if the storage does not exist. Currently, `s3` and `gcs` are the
-  two backends with support for automatic creation. Defaults to `false`.
+- `disable_init` (attribute): When `true`, skip automatic creation and management of remote state resources by Terragrunt.
+  Some backends can be automatically created if the storage backend does not already exist. Currently, `s3` and `gcs` are the
+  two backends with support for automatic creation. Setting this to `true` prevents Terragrunt from creating or modifying these resources,
+  but OpenTofu/Terraform will still initialize the backend normally. Defaults to `false`.
+
+  **Note:** When using `generate` with `disable_init = true`, the backend configuration is written to the generated `.tf` file. OpenTofu/Terraform will still attempt to connect to the backend during init.
+
+  The `--backend-bootstrap` flag controls whether Terragrunt creates backend resources (e.g., S3 buckets) before running `init`. It defaults to `false`.
+
+  | `disable_init` | `--backend-bootstrap` | Backend exists | Result                                                        |
+  |----------------|-----------------------|----------------|---------------------------------------------------------------|
+  | `false`        | `true`                | No             | Terragrunt creates backend resources, init succeeds           |
+  | `false`        | `true`                | Yes            | Terragrunt verifies backend config, init succeeds             |
+  | `false`        | `false`               | No             | No creation, OpenTofu/Terraform init fails (bucket not found) |
+  | `false`        | `false`               | Yes            | No creation, init succeeds                                    |
+  | `true`         | any                   | Yes            | No creation, OpenTofu/Terraform inits normally                |
+  | `true`         | any                   | No             | No creation, OpenTofu/Terraform init fails (bucket not found) |
 
 - `disable_dependency_optimization` (attribute): When `true`, disable optimized dependency fetching for terragrunt
   modules using this `remote_state` block. See the documentation for [dependency block](#dependency) for more details.

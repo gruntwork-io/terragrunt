@@ -76,8 +76,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		opts,
-		externalcmd.NewProvider(l, opts),
+		opts.Env,
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, opts),
 	); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
 	if err != nil {
 		return err
 	}
@@ -101,12 +101,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	absWorkingDir, err := filepath.Abs(opts.RootWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	unitPath := util.CleanPath(absWorkingDir)
+	unitPath := filepath.Clean(opts.RootWorkingDir)
 
 	if _, err := r.EnsureRun(l, unitPath); err != nil {
 		return err
@@ -160,7 +155,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, opts, opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
@@ -273,7 +268,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

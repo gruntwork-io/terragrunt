@@ -174,7 +174,7 @@ func (p *ParsePhase) parseAndReclassify(
 		}
 
 		classCtx := filter.ClassificationContext{ParseDataAvailable: true}
-		status, reason, graphIdx := discovery.classifier.Classify(l, c, classCtx)
+		status, reason, graphIdx := discovery.classifier.Classify(c, classCtx)
 
 		return &DiscoveryResult{
 			Component:            c,

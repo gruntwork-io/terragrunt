@@ -3,7 +3,6 @@ package filter
 import (
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/gobwas/glob"
 )
@@ -32,27 +31,24 @@ type Expressions []Expression
 // PathExpression represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
 type PathExpression struct {
 	compiledGlob glob.Glob
-	compileErr   error
 	Value        string
-	compileOnce  sync.Once
 }
 
-// NewPathFilter creates a new PathFilter with lazy glob compilation.
-func NewPathFilter(value string) *PathExpression {
-	return &PathExpression{Value: value}
+// NewPathFilter creates a new PathFilter with eager glob compilation.
+func NewPathFilter(value string) (*PathExpression, error) {
+	pattern := filepath.Clean(filepath.ToSlash(value))
+
+	compiled, err := glob.Compile(pattern, '/')
+	if err != nil {
+		return nil, err
+	}
+
+	return &PathExpression{Value: value, compiledGlob: compiled}, nil
 }
 
-// CompileGlob returns the compiled glob pattern, compiling it on first call.
-// Subsequent calls return the cached compiled glob and any error.
-// Uses sync.Once for thread-safe lazy initialization.
-func (p *PathExpression) CompileGlob() (glob.Glob, error) {
-	p.compileOnce.Do(func() {
-		pattern := p.Value
-		pattern = filepath.Clean(filepath.ToSlash(pattern))
-		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
-	})
-
-	return p.compiledGlob, p.compileErr
+// Glob returns the pre-compiled glob pattern.
+func (p *PathExpression) Glob() glob.Glob {
+	return p.compiledGlob
 }
 
 func (p *PathExpression) expressionNode()                       {}
@@ -65,37 +61,36 @@ func (p *PathExpression) Negated() Expression                   { return NewPref
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
 	compiledGlob glob.Glob
-	compileErr   error
 	Key          string
 	Value        string
-	compileOnce  sync.Once
 }
 
-// NewAttributeExpression creates a new AttributeFilter with lazy glob compilation.
-func NewAttributeExpression(key string, value string) *AttributeExpression {
-	return &AttributeExpression{Key: key, Value: value}
-}
+// NewAttributeExpression creates a new AttributeExpression with eager glob compilation
+// for attributes that support glob matching (name, reading, source).
+func NewAttributeExpression(key string, value string) (*AttributeExpression, error) {
+	expr := &AttributeExpression{Key: key, Value: value}
 
-// CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
-// Returns an error if called on unsupported attributes (e.g. type, external).
-// Uses sync.Once for thread-safe lazy initialization.
-func (a *AttributeExpression) CompileGlob() (glob.Glob, error) {
-	// Only compile for attributes that support glob matching
-	if !a.supportsGlob() {
-		return nil, NewEvaluationError("attribute '" + a.Key + "' does not support glob patterns")
-	}
+	if expr.supportsGlob() {
+		pattern := value
 
-	a.compileOnce.Do(func() {
-		pattern := a.Value
-
-		if a.Key == AttributeReading {
+		if key == AttributeReading {
 			pattern = filepath.Clean(filepath.ToSlash(pattern))
 		}
 
-		a.compiledGlob, a.compileErr = glob.Compile(pattern, '/')
-	})
+		compiled, err := glob.Compile(pattern, '/')
+		if err != nil {
+			return nil, err
+		}
 
-	return a.compiledGlob, a.compileErr
+		expr.compiledGlob = compiled
+	}
+
+	return expr, nil
+}
+
+// Glob returns the pre-compiled glob pattern.
+func (a *AttributeExpression) Glob() glob.Glob {
+	return a.compiledGlob
 }
 
 // supportsGlob returns true if the attribute filter supports glob patterns.
