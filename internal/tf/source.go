@@ -157,10 +157,7 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkDirWithSymlinks bool) (*Source, error) {
-	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
-	if err != nil {
-		return nil, err
-	}
+	canonicalWorkingDir := filepath.Clean(workingDir)
 
 	canonicalSourceURL, err := ToSourceURL(source, canonicalWorkingDir)
 	if err != nil {
@@ -176,12 +173,7 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 		// Always use canonical file paths for local source folders, rather than relative paths, to ensure
 		// that the same local folder always maps to the same download folder, no matter how the local folder
 		// path is specified
-		canonicalFilePath, canonicalPathErr := util.CanonicalPath(rootSourceURL.Path, "")
-		if canonicalPathErr != nil {
-			return nil, canonicalPathErr
-		}
-
-		rootSourceURL.Path = filepath.ToSlash(canonicalFilePath)
+		rootSourceURL.Path = filepath.ToSlash(filepath.Clean(rootSourceURL.Path))
 	}
 
 	rootPath, err := encodeSourceName(rootSourceURL)

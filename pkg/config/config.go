@@ -1093,9 +1093,7 @@ func FindConfigFilesInPath(
 			return nil
 		}
 
-		if ok, err := isTerragruntModuleDir(path, tfDataDir, downloadDir); err != nil {
-			return err
-		} else if !ok {
+		if !isTerragruntModuleDir(path, tfDataDir, downloadDir) {
 			return filepath.SkipDir
 		}
 
@@ -1118,39 +1116,29 @@ func FindConfigFilesInPath(
 
 // isTerragruntModuleDir returns true if the given path contains a Terragrunt module and false otherwise. The path
 // can not contain a cache, data, or download dir.
-func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) (bool, error) {
+func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) bool {
 	// Skip the Terragrunt cache dir
 	if util.ContainsPath(path, util.TerragruntCacheDir) {
-		return false, nil
+		return false
 	}
 
 	// Skip the Terraform data dir
 	if filepath.IsAbs(tfDataDir) {
 		if util.HasPathPrefix(path, tfDataDir) {
-			return false, nil
+			return false
 		}
 	} else {
 		if util.ContainsPath(path, tfDataDir) {
-			return false, nil
+			return false
 		}
 	}
 
-	canonicalPath, err := util.CanonicalPath(path, "")
-	if err != nil {
-		return false, err
-	}
-
-	canonicalDownloadPath, err := util.CanonicalPath(downloadDir, "")
-	if err != nil {
-		return false, err
-	}
-
 	// Skip any custom download dir specified by the user
-	if strings.Contains(canonicalPath, canonicalDownloadPath) {
-		return false, nil
+	if strings.Contains(filepath.Clean(path), filepath.Clean(downloadDir)) {
+		return false
 	}
 
-	return true, nil
+	return true
 }
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location

@@ -1588,7 +1588,7 @@ func TestBestEffortParseConfigString(t *testing.T) {
 			name: "Simple",
 			cfg: `locals {
 	simple        = "value"
-	requires_auth = run_cmd("exit", "1") // intentional error
+	requires_auth = run_cmd("bash", "-c", "exit 1") // intentional error
 }
 `,
 			expectError: true,
@@ -1678,12 +1678,12 @@ func TestBestEffortParseConfigStringWDependency(t *testing.T) {
 
 	depCfg := `locals {
 	simple = "value"
-	fail   = run_cmd("exit", "1") // intentional error
+	fail   = run_cmd("bash", "-c", "exit 1") // intentional error
 }`
 
 	cfg := `locals {
 	simple = "value"
-	fail   = run_cmd("exit", "1") // intentional error
+	fail   = run_cmd("bash", "-c", "exit 1") // intentional error
 }
 
 dependency "dep" {
