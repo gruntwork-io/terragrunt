@@ -805,6 +805,55 @@ func TestTerragruntProviderCache(t *testing.T) {
 	}
 }
 
+// TestTerragruntProviderCacheWithDependency verifies that the provider cache server
+// is used when resolving dependency outputs. Before the fix, ReadTerragruntConfig and
+// NewParsingContext cleared the provider cache hook from the Go context, causing
+// dependency init to bypass the cache server and download providers directly.
+func TestTerragruntProviderCacheWithDependency(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDependency)
+
+	cacheDir := helpers.TmpDirWOSymlinks(t)
+
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-dependency")
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --all init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+			providerCacheDir,
+			rootPath,
+		),
+	)
+
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
+	}
+
+	// Verify that the provider cache directory contains providers from both units.
+	// dep uses hashicorp/local, app uses hashicorp/null — if both are cached,
+	// the provider cache server was used for both the dependency and the dependent.
+	for _, provider := range []string{
+		"hashicorp/local/2.7.0",
+		"hashicorp/null/3.2.4",
+	} {
+		providerPath := filepath.Join(providerCacheDir, registryName, provider)
+		assert.True(t, util.FileExists(providerPath), "Provider cache dir should contain %s at %s", provider, providerPath)
+	}
+
+	// Verify both units have been initialized by checking for .terraform directories
+	for _, unit := range []string{"dep", "app"} {
+		unitPath := filepath.Join(rootPath, unit)
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, unitPath)
+		require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", unitPath)
+
+		terraformDir := filepath.Join(cacheWorkingDir, ".terraform")
+		assert.DirExists(t, terraformDir, ".terraform directory should exist in cache for %s", unit)
+	}
+}
+
 func TestParseTFLog(t *testing.T) {
 	t.Setenv("TF_LOG", "info")
 
