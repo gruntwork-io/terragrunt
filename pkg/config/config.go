@@ -38,6 +38,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -1158,7 +1159,7 @@ func ReadTerragruntConfig(ctx context.Context,
 	opts *options.TerragruntOptions,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.Writers.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	ctx, parsingCtx := NewParsingContext(ctx, l, opts)
@@ -1561,7 +1562,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
 		pctx.IAMRoleOptions = pctx.OriginalIAMRoleOptions
-		pctx.TerragruntOptions.IAMRoleOptions = pctx.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
 		var (
@@ -1585,7 +1585,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 			pctx.OriginalIAMRoleOptions,
 		)
 		pctx.IAMRoleOptions = merged
-		pctx.TerragruntOptions.IAMRoleOptions = merged
 	}
 
 	return nil
@@ -2042,7 +2041,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -2071,7 +2070,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

@@ -90,7 +90,7 @@ func Run(
 		return err
 	}
 
-	opts.Engine = engine
+	opts.EngineConfig = engine
 
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
@@ -275,7 +275,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.TFOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -461,7 +461,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 
 	if !slices.Contains(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writer = io.Discard
+		initOptions.Writers.Writer = io.Discard
 	}
 
 	if l.Formatter().DisabledColors() || terragruntOptions.TerraformCliArgs.Contains(tf.FlagNameNoColor) {

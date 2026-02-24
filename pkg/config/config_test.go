@@ -1708,7 +1708,7 @@ dependency "dep" {
 
 	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
 
-	pctx.TerragruntOptions.WorkingDir = unitPath
+	pctx.WorkingDir = unitPath
 
 	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.Error(t, err)

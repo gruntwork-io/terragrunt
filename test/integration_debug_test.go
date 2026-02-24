@@ -56,7 +56,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, tf.RunOptionsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(t.Context(), l, tf.TFOptionsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(

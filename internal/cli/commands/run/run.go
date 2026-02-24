@@ -77,7 +77,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		ctx,
 		l,
 		opts.Env,
-		externalcmd.NewProvider(l, opts.AuthProviderCmd, opts),
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, shell.RunOptionsFromOpts(opts)),
 	); err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, tf.TFOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
@@ -254,13 +254,13 @@ func confirmActionWithDependentUnits(
 ) bool {
 	units := findDependentUnits(ctx, l, opts, cfg)
 	if len(units) != 0 {
-		if _, err := opts.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
+		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
 		for _, unit := range units {
-			if _, err := opts.ErrWriter.Write([]byte(unit + "\n")); err != nil {
+			if _, err := opts.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -268,7 +268,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

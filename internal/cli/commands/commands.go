@@ -337,7 +337,7 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		return err
 	}
 
-	if opts.LogShowAbsPaths {
+	if opts.Writers.LogShowAbsPaths {
 		l.Formatter().DisableRelativePaths()
 	}
 
