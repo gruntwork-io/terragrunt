@@ -156,7 +156,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, parseOpts, file, values); err != nil {
+			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
 
@@ -225,7 +225,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.Writer, render)
+	writer := view.NewWriter(opts.Writers.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)

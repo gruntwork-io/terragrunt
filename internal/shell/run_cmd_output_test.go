@@ -58,8 +58,8 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writer = &allOutputBuffer
-	terragruntOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Writers.Writer = &allOutputBuffer
+	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 

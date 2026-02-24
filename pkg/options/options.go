@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -25,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -98,16 +100,15 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
+	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Options to use engine for running IaC operations.
-	Engine *EngineOptions
+	// EngineConfig holds the resolved engine configuration from HCL.
+	EngineConfig *engine.EngineConfig
+	// EngineOptions groups CLI-supplied engine options.
+	EngineOptions *engine.EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -153,10 +154,6 @@ type TerragruntOptions struct {
 	JSONOut string
 	// The path to store unpacked providers.
 	ProviderCacheDir string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
 	// The command and arguments that can be used to fetch authentication configurations.
 	AuthProviderCmd string
 	// Folder to store JSON representation of output files.
@@ -251,8 +248,6 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -273,10 +268,6 @@ type TerragruntOptions struct {
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.
 	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
@@ -299,8 +290,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
-	NoEngine bool
 	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
 	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
@@ -342,6 +331,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
+		Writers:                    writer.Writers{Writer: stdout, ErrWriter: stderr},
 		TFPath:                     DefaultWrappedPath,
 		ExcludesFile:               defaultExcludesFile,
 		FiltersFile:                defaultFiltersFile,
@@ -350,8 +340,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
 		TerraformCliArgs:           iacargs.New(),
-		Writer:                     stdout,
-		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
 		AutoRetry:                  true,
 		Parallelism:                DefaultParallelism,
@@ -364,12 +352,29 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Experiments:                experiment.NewExperiments(),
 		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
+		EngineOptions:              new(engine.EngineOptions),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
+
+	// Ensure config path is absolute so downstream code can rely on it.
+	// Skip resolution for empty paths (sentinel meaning "not set").
+	if terragruntConfigPath != "" {
+		if !filepath.IsAbs(terragruntConfigPath) {
+			absPath, err := filepath.Abs(terragruntConfigPath)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			terragruntConfigPath = filepath.Clean(absPath)
+		}
+
+		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
+	}
+
 	opts.TerragruntConfigPath = terragruntConfigPath
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
@@ -389,12 +394,9 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
-	if err != nil {
-		return "", "", errors.New(err)
-	}
+	downloadDir := filepath.Clean(filepath.Join(workingDir, util.TerragruntCacheDir))
 
-	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
+	return workingDir, downloadDir, nil
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
@@ -451,14 +453,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(opts.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -584,14 +581,6 @@ func identifyDefaultWrappedExecutable(ctx context.Context) string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine.
-type EngineOptions struct {
-	Meta    map[string]any
-	Source  string
-	Version string
-	Type    string
-}
-
 // ErrorsConfig extracted errors handling configuration.
 type ErrorsConfig struct {
 	Retry  map[string]*RetryConfig
@@ -640,12 +629,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
-	reportDir, err := filepath.Abs(reportWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	reportDir = util.CleanPath(reportDir)
+	reportDir := filepath.Clean(reportWorkingDir)
 
 	for {
 		err := operation()

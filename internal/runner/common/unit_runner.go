@@ -50,11 +50,11 @@ func (runner *UnitRunner) runTerragrunt(
 	cfg *runcfg.RunConfig,
 	credsGetter *creds.Getter,
 ) error {
-	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
+	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.Writers.LogShowAbsPaths))
 
 	defer func() {
 		// Flush buffered output for this unit, if the writer supports it.
-		if err := component.FlushOutput(runner.Unit, opts.Writer); err != nil {
+		if err := component.FlushOutput(runner.Unit, opts.Writers.Writer); err != nil {
 			l.Errorf("Error flushing output for unit %s: %v", runner.Unit.Path(), err)
 		}
 	}()
@@ -62,7 +62,7 @@ func (runner *UnitRunner) runTerragrunt(
 	// Only create report entries if report is not nil
 	if r != nil {
 		unitPath := runner.Unit.Path()
-		unitPath = util.CleanPath(unitPath)
+		unitPath = filepath.Clean(unitPath)
 
 		// Pass the discovery context fields for worktree scenarios
 		var ensureOpts []report.EndOption
@@ -101,7 +101,7 @@ func (runner *UnitRunner) runTerragrunt(
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
 		unitPath := runner.Unit.Path()
-		unitPath = util.CleanPath(unitPath)
+		unitPath = filepath.Clean(unitPath)
 
 		if runErr != nil {
 			if endErr := r.EndRun(
@@ -159,7 +159,7 @@ func (runner *UnitRunner) Run(
 		stdout := bytes.Buffer{}
 		jsonOptions.ForwardTFStdout = true
 		jsonOptions.JSONLogFormat = false
-		jsonOptions.Writer = &stdout
+		jsonOptions.Writers.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
 		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand))
 

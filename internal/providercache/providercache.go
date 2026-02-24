@@ -116,10 +116,11 @@ func (pc *ProviderCache) Init(l log.Logger, opts *options.TerragruntOptions) err
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
-	var err error
-	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
-		return errors.New(err)
+	if !filepath.IsAbs(opts.ProviderCacheDir) {
+		opts.ProviderCacheDir = filepath.Join(opts.RootWorkingDir, opts.ProviderCacheDir)
 	}
+
+	opts.ProviderCacheDir = filepath.Clean(opts.ProviderCacheDir)
 
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
@@ -192,15 +193,6 @@ func (pc *ProviderCache) TerraformCommandHook(
 
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
 
-	if !filepath.IsAbs(cliConfigFilename) {
-		absPath, err := filepath.Abs(cliConfigFilename)
-		if err != nil {
-			return nil, errors.New(err)
-		}
-
-		cliConfigFilename = absPath
-	}
-
 	var skipRunTargetCommand bool
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
@@ -213,7 +205,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(opts), args...)
+		return tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(opts), args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -322,7 +314,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), args...)
+	return tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(cloneOpts), args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -430,7 +422,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		return nil, err
 	}
 
-	cloneOpts.Writer = io.Discard
+	cloneOpts.Writers.Writer = io.Discard
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = iacargs.New(args...)
 	cloneOpts.Env = envs
@@ -445,10 +437,10 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(opts.ErrWriter)
-			cloneOpts.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(opts.Writers.ErrWriter)
+			cloneOpts.Writers.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

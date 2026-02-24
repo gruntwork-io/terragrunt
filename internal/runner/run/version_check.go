@@ -121,8 +121,8 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 		return l, nil, options.UnknownImpl, err
 	}
 
-	optsCopy.Writer = io.Discard
-	optsCopy.ErrWriter = io.Discard
+	optsCopy.Writers.Writer = io.Discard
+	optsCopy.Writers.ErrWriter = io.Discard
 
 	for key := range optsCopy.Env {
 		if strings.HasPrefix(key, "TF_CLI_ARGS") {
@@ -130,7 +130,7 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 		}
 	}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tf.RunOptionsFromOpts(optsCopy), tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(optsCopy), tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, options.UnknownImpl, err
 	}

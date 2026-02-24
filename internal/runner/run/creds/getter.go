@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -53,7 +54,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
 func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, opts *options.TerragruntOptions) (*Getter, error) {
 	g := NewGetter()
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, opts)); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shell.RunOptionsFromOpts(opts))); err != nil {
 		return nil, err
 	}
 

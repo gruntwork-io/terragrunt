@@ -11,10 +11,10 @@ type flusher interface {
 	Flush() error
 }
 
-// parentWriterProvider is any writer that can provide its underlying parent writer.
+// writerUnwrapper is any writer that can provide its underlying parent writer.
 // This is used to create writer-based locks that serialize flushes to the same parent.
-type parentWriterProvider interface {
-	ParentWriter() io.Writer
+type writerUnwrapper interface {
+	Unwrap() io.Writer
 }
 
 // unitOutputLocks provides locks for serializing flushes to the same parent writer.
@@ -49,10 +49,10 @@ func FlushOutput(u *Unit, w io.Writer) error {
 	}
 
 	// Use parent writer's address as lock key to serialize flushes to same parent.
-	// Falls back to unit path for writers without parentWriterProvider.
+	// Falls back to unit path for writers without writerUnwrapper.
 	key := u.Path()
-	if pwp, ok := w.(parentWriterProvider); ok {
-		key = fmt.Sprintf("%p", pwp.ParentWriter())
+	if u, ok := w.(writerUnwrapper); ok {
+		key = fmt.Sprintf("%p", u.Unwrap())
 	}
 
 	mu := unitOutputLock(key)

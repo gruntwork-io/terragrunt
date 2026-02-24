@@ -53,8 +53,8 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = opts.Writer
-	app.ErrWriter = opts.ErrWriter
+	app.Writer = opts.Writers.Writer
+	app.ErrWriter = opts.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.Before = beforeAction(opts)
@@ -113,7 +113,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.l, app.opts); err != nil {
+		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)

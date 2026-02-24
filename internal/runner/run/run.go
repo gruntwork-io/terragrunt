@@ -90,7 +90,7 @@ func Run(
 		return err
 	}
 
-	opts.Engine = engine
+	opts.EngineConfig = engine
 
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
@@ -275,7 +275,7 @@ func runTerragruntWithConfig(
 
 	return RunActionWithHooks(ctx, l, "terraform", opts, cfg, r, func(childCtx context.Context) error {
 		// Execute the underlying command once; retries and ignores are handled by outer RunWithErrorHandling
-		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.RunOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
+		out, runTerraformError := tf.RunCommandWithOutput(childCtx, l, tf.TFOptionsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 
 		var lockFileError error
 		if ShouldCopyLockFile(opts.TerraformCliArgs, &cfg.Terraform) {
@@ -461,7 +461,7 @@ func prepareInitOptions(l log.Logger, terragruntOptions *options.TerragruntOptio
 
 	if !slices.Contains(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writer = io.Discard
+		initOptions.Writers.Writer = io.Discard
 	}
 
 	if l.Formatter().DisabledColors() || terragruntOptions.TerraformCliArgs.Contains(tf.FlagNameNoColor) {
@@ -616,15 +616,14 @@ func prepareInitCommandRunCfg(ctx context.Context, l log.Logger, opts *options.T
 
 	opts.InsertTerraformCliArgs(cfg.RemoteState.GetTFInitArgs()...)
 
-	if !opts.BackendBootstrap {
+	// Bootstrap is skipped when either BackendBootstrap is false (the default) or DisableInit is true.
+	// DisableInit is also enforced in RemoteState.NeedsBootstrap (non-init auto-init path);
+	// both must stay in sync to ensure consistent behavior across all command types.
+	if !opts.BackendBootstrap || cfg.RemoteState.DisableInit {
 		return nil
 	}
 
-	if err := cfg.RemoteState.Bootstrap(ctx, l, opts); err != nil {
-		return err
-	}
-
-	return nil
+	return cfg.RemoteState.Bootstrap(ctx, l, opts)
 }
 
 // PrepareNonInitCommand prepares for non-init commands using runcfg types.

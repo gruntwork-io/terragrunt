@@ -53,7 +53,7 @@ func CloneUnitOptions(
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
 	// unless --log-show-abs-paths is set
-	if !stackOpts.LogShowAbsPaths {
+	if !stackOpts.Writers.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
@@ -421,7 +421,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		// Wrap ErrWriter with plan error buffer for plan commands
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.ErrWriter = io.MultiWriter(buf, unitOpts.ErrWriter)
+				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
 			}
 		}
 
@@ -432,8 +432,8 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writer)
-			unitOpts.Writer = unitWriter
+			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
+			unitOpts.Writers.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
