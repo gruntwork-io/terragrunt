@@ -3,7 +3,7 @@ package run
 import (
 	"fmt"
 
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Custom error types

@@ -1,0 +1,267 @@
+package config
+
+import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"slices"
+
+	"github.com/puzpuzpuz/xsync/v3"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+)
+
+const (
+	// MaxParseDepth limits nested parsing to prevent stack overflow
+	// from deeply recursive config structures (includes, dependencies, etc.).
+	MaxParseDepth = 1000
+)
+
+// ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
+// Using `ParsingContext` makes the code more readable.
+// Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
+type ParsingContext struct {
+	Writer    io.Writer
+	ErrWriter io.Writer
+
+	TerraformCliArgs *iacargs.IacArgs
+	TrackInclude     *TrackInclude
+	Engine           *options.EngineOptions
+	FeatureFlags     *xsync.MapOf[string, string]
+	FilesRead        *[]string
+
+	// TerragruntOptions is kept temporarily during the migration. New code should
+	// use the flat fields below instead of accessing TerragruntOptions directly.
+	TerragruntOptions *options.TerragruntOptions
+
+	DecodedDependencies *cty.Value
+	Values              *cty.Value
+	Features            *cty.Value
+	Locals              *cty.Value
+
+	Env                 map[string]string
+	SourceMap           map[string]string
+	PredefinedFunctions map[string]function.Function
+
+	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+
+	TerragruntConfigPath         string
+	OriginalTerragruntConfigPath string
+	WorkingDir                   string
+	RootWorkingDir               string
+	DownloadDir                  string
+	Source                       string
+
+	TerraformCommand         string
+	OriginalTerraformCommand string
+	AuthProviderCmd          string
+
+	IAMRoleOptions         iam.RoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
+
+	Experiments            experiment.Experiments
+	StrictControls         strict.Controls
+	PartialParseDecodeList []PartialDecodeSectionType
+	ParserOptions          []hclparse.Option
+
+	MaxFoldersToCheck int
+	ParseDepth        int
+
+	LogShowAbsPaths                  bool
+	TFPathExplicitlySet              bool
+	SkipOutput                       bool
+	NoDependencyFetchOutputFromState bool
+	UsePartialParseConfigCache       bool
+	SkipOutputsResolution            bool
+}
+
+// populateFromOpts copies fields from TerragruntOptions into the flat fields.
+func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
+	ctx.TerragruntConfigPath = opts.TerragruntConfigPath
+	ctx.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
+	ctx.WorkingDir = opts.WorkingDir
+	ctx.RootWorkingDir = opts.RootWorkingDir
+	ctx.DownloadDir = opts.DownloadDir
+	ctx.TerraformCommand = opts.TerraformCommand
+	ctx.OriginalTerraformCommand = opts.OriginalTerraformCommand
+	ctx.TerraformCliArgs = opts.TerraformCliArgs
+	ctx.Source = opts.Source
+	ctx.SourceMap = opts.SourceMap
+	ctx.Experiments = opts.Experiments
+	ctx.StrictControls = opts.StrictControls
+	ctx.FeatureFlags = opts.FeatureFlags
+	ctx.Writer = opts.Writer
+	ctx.ErrWriter = opts.ErrWriter
+	ctx.Env = opts.Env
+	ctx.IAMRoleOptions = opts.IAMRoleOptions
+	ctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
+	ctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
+	ctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
+	ctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
+	ctx.SkipOutput = opts.SkipOutput
+	ctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
+	ctx.LogShowAbsPaths = opts.LogShowAbsPaths
+	ctx.AuthProviderCmd = opts.AuthProviderCmd
+	ctx.Engine = opts.Engine
+}
+
+func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
+	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	filesRead := make([]string, 0)
+
+	pctx := &ParsingContext{
+		TerragruntOptions: opts,
+		ParserOptions:     DefaultParserOptions(l, opts.StrictControls),
+		FilesRead:         &filesRead,
+	}
+	pctx.populateFromOpts(opts)
+
+	return ctx, pctx
+}
+
+// Clone returns a shallow copy of the ParsingContext.
+func (ctx *ParsingContext) Clone() *ParsingContext {
+	clone := *ctx
+	return &clone
+}
+
+func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
+	c := ctx.Clone()
+	c.PartialParseDecodeList = decodeList
+
+	return c
+}
+
+func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
+	c := ctx.Clone()
+	c.TerragruntOptions = opts
+	c.populateFromOpts(opts)
+
+	return c
+}
+
+func (ctx *ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Locals = locals
+
+	return c
+}
+
+func (ctx *ParsingContext) WithValues(values *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Values = values
+
+	return c
+}
+
+// WithFeatures sets the feature flags to be used in evaluation context.
+func (ctx *ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.Features = features
+
+	return c
+}
+
+func (ctx *ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
+	c := ctx.Clone()
+	c.TrackInclude = trackInclude
+
+	return c
+}
+
+func (ctx *ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+	c := ctx.Clone()
+	c.ParserOptions = parserOptions
+
+	return c
+}
+
+// WithDiagnosticsSuppressed returns a new ParsingContext with diagnostics suppressed.
+// Diagnostics are written to stderr in debug mode for troubleshooting, otherwise discarded.
+// This avoids false positive "There is no variable named dependency" errors during parsing
+// when dependency outputs haven't been resolved yet.
+func (ctx *ParsingContext) WithDiagnosticsSuppressed(l log.Logger) *ParsingContext {
+	var diagWriter = io.Discard
+	if l.Level() >= log.DebugLevel {
+		diagWriter = os.Stderr
+	}
+
+	c := ctx.Clone()
+	c.ParserOptions = slices.Concat(ctx.ParserOptions, []hclparse.Option{hclparse.WithDiagnosticsWriter(diagWriter, true)})
+
+	return c
+}
+
+func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
+	c := ctx.Clone()
+	c.SkipOutputsResolution = true
+
+	return c
+}
+
+func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
+	c := ctx.Clone()
+	c.DecodedDependencies = v
+
+	return c
+}
+
+// WithIncrementedDepth returns a new ParsingContext with incremented parse depth.
+// Returns an error if the maximum depth would be exceeded.
+func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
+	if ctx.ParseDepth > MaxParseDepth {
+		return nil, errors.New(MaxParseDepthError{
+			Depth: ctx.ParseDepth,
+			Max:   MaxParseDepth,
+		})
+	}
+
+	c := ctx.Clone()
+	c.ParseDepth = ctx.ParseDepth + 1
+
+	return c, nil
+}
+
+// WithConfigPath returns a new ParsingContext with the config path updated.
+// It normalizes the path to an absolute path, updates WorkingDir to the directory
+// containing the config, and adjusts the logger's working directory field if it changed.
+// During the transition period, it also updates TerragruntOptions to stay in sync.
+func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+	configPath = filepath.Clean(configPath)
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
+	}
+
+	workingDir := filepath.Dir(configPath)
+
+	if workingDir != ctx.WorkingDir {
+		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+	}
+
+	c := ctx.Clone()
+	c.TerragruntConfigPath = configPath
+	c.WorkingDir = workingDir
+
+	// Keep TerragruntOptions in sync during the transition period.
+	if c.TerragruntOptions != nil {
+		newOpts := c.TerragruntOptions.Clone()
+		newOpts.TerragruntConfigPath = configPath
+		newOpts.WorkingDir = workingDir
+		c.TerragruntOptions = newOpts
+	}
+
+	return l, c, nil
+}

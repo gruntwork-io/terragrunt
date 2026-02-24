@@ -1,0 +1,17 @@
+---
+import { Image } from 'astro:assets';
+import AirplaneIcon from '@assets/icons/airplane-takeoff-white.svg';
+import ArrowRightIcon from '@assets/icons/arrow-right-white.svg';
+
+import '@styles/global.css';
+---
+
+<a href="https://www.gruntwork.io/blog/announcing-the-terragrunt-scale-free-tier" target="_blank" rel="noopener noreferrer" class="block w-full bg-accent-1 fixed top-0 z-60 no-underline hover:bg-accent focus:outline-none focus:ring-2 focus:ring-white focus:ring-inset transition-colorscursor-pointer">
+  <div class="flex items-center justify-center gap-4 px-5 py-2 mx-auto max-w-[900px]">
+    <Image src={AirplaneIcon} alt="" class="w-6 h-6 flex-shrink-0" />
+    <p class="text-white text-sm md:text-base m-0 text-left">
+      HCP is taking away Terraform Free. So we're launching Terragrunt Scale Free tier.
+    </p>
+    <Image src={ArrowRightIcon} alt="" class="w-5 h-5 flex-shrink-0" />
+  </div>
+</a>

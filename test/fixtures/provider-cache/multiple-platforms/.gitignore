@@ -1,0 +1,7 @@
+# The fixtures in this directory are used to test the interaction between
+# the Terragrunt provider cache server and generated OpenTofu/Terraform lock files.
+#
+# As such, we need to make sure we don't commit any particular lock file here so
+# that we can test what is generated when the provider cache server is used without one.
+.terraform.lock.hcl
+

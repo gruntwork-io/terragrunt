@@ -3,6 +3,14 @@ name: CI
 on:
   push:
 
+# Restrict default GITHUB_TOKEN to read-only; jobs needing more (e.g. checks: write) declare it explicitly
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
@@ -24,12 +32,23 @@ jobs:
     uses: ./.github/workflows/markdownlint.yml
     secrets: inherit
 
+  install_script_test:
+    uses: ./.github/workflows/install-script-test.yml
+    secrets: inherit
+
   license_check:
     uses: ./.github/workflows/license-check.yml
     secrets: inherit
 
+  fuzz:
+    uses: ./.github/workflows/fuzz.yml
+    secrets: inherit
+
+  # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
+  # markdownlint, license_check, install_script_test) run in parallel and are enforced
+  # by branch protection rules, not by job dependencies.
   base_tests:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
@@ -37,14 +56,14 @@ jobs:
     secrets: inherit
 
   build:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
     if: github.ref == 'refs/heads/main'
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build-no-proxy.yml
     secrets: inherit
 

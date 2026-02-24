@@ -6,8 +6,6 @@ sidebar:
   order: 4
 ---
 
-## Preamble
-
 Infrastructure as Code (IaC) tooling necessarily requires a lot of terminology to describe various concepts and features due to the breadth of the domain.
 
 Whenever possible, Terragrunt terminology attempts to align with wider industry standards, but there are always exceptions. There are going to be times when certain terms are used in different tools, but have special meaning in Terragrunt, and there are times when the same term might have different meaning in different contexts.
@@ -46,9 +44,9 @@ e.g. A unit might represent a single VPC, a single database, or a single server.
 
 While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/hcl/blocks#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
 
-A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
+A common pattern used in the repository structure for Terragrunt projects is to have a single `root.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the `root.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the `root.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
 
-Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--config](/docs/reference/cli/commands/run#config)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
+Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--config](/docs/reference/cli/commands/run#config)), and users don't technically need to use `root.hcl` as the root configuration file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
 
 ### Stack
 
@@ -59,6 +57,12 @@ Stacks typically represent a collection of units that need to be managed in conc
 e.g. A stack might represent a collection of units that together form a single application environment, a business unit, or a region.
 
 The design of `terragrunt.stack.hcl` files is to ensure that they function entirely as a convenient shorthand for an equivalent directory structure of units. This is to ensure that users are able to easily transition between the two paradigms, and are able to decide for themselves which approach to structuring infrastructure is most appropriate for their use case.
+
+### Component
+
+Component is a generic term to refer to something that is either a unit or a stack.
+
+Certain Terragrunt commands operate on components (e.g. [`find`](/docs/reference/cli/commands/find) and [`list`](/docs/reference/cli/commands/list)) while others operate on particular types of components (e.g. [`run`](/docs/reference/cli/commands/run) only runs units whereas [`stack generate`](/docs/reference/cli/commands/stack/generate) and [`stack output`](/docs/reference/cli/commands/stack/output) commands run on stacks).
 
 ### Module
 
@@ -166,7 +170,7 @@ Terragrunt will always attempt to run until the Run Queue is empty.
 
 The Runner Pool is the pool of available resources that Terragrunt can use to execute runs.
 
-Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [parallelism](/docs/reference/cli/commands/run#parallelism) and the DAG.
+Units are dequeued from the Run Queue into the Runner Pool depending on factors like [parallelism](/docs/reference/cli/commands/run#parallelism) and the DAG.
 
 Units are only considered "running" when they are in the Runner Pool.
 

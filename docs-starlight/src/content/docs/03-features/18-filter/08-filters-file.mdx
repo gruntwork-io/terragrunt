@@ -1,0 +1,38 @@
+---
+title: Filters File
+description: Use a filters file to define reusable filter expressions for Terragrunt
+slug: docs/features/filter/filters-file
+sidebar:
+  order: 8
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+If you want to ensure that certain units are always included or excluded, you can use a filters file.
+
+Filters files are simple text files that contain filter expressions delimited by newlines. Empty lines and lines starting with `#` are ignored.
+
+```text
+# filters.txt
+
+./subtree/**
+!./subtree/dependency/**
+```
+
+```bash
+terragrunt run --all --filters-file filters.txt -- plan
+```
+
+Running Terragrunt like this is equivalent to running it with the following flags:
+
+```bash
+terragrunt run --all --filter './subtree/**' --filter '!./subtree/dependency/**' -- plan
+```
+
+<Aside type="tip">
+
+If you want to automatically configure certain filters to be applied by default, you can name the filters file `.terragrunt-filters`.
+
+Terragrunt will automatically read filters from this file if it exists in the current working directory.
+
+</Aside>

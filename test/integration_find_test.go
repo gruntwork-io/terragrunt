@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/find"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,16 +54,16 @@ func TestFindHidden(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected string
-		hidden   bool
+		noHidden bool
 	}{
 		{
-			name:     "visible",
-			expected: "stack\nunit\n",
+			name:     "default (includes hidden)",
+			expected: filepath.Join(".hide", "unit") + "\nstack\nunit\n",
 		},
 		{
-			name:     "hidden",
-			hidden:   true,
-			expected: ".hide/unit\nstack\nunit\n",
+			name:     "no-hidden flag excludes hidden",
+			noHidden: true,
+			expected: "stack\nunit\n",
 		},
 	}
 
@@ -75,17 +75,15 @@ func TestFindHidden(t *testing.T) {
 
 			cmd := "terragrunt find --no-color --working-dir " + testFixtureFindHidden
 
-			if tc.hidden {
-				cmd += " --hidden"
+			if tc.noHidden {
+				cmd += " --no-hidden"
 			}
 
 			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			// Normalize path separators in the output for cross-platform compatibility
-			normalizedStdout := filepath.ToSlash(stdout)
-			assert.Equal(t, tc.expected, normalizedStdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }
@@ -181,24 +179,23 @@ func jsonStringsEqual(t *testing.T, expected, actual string, msgAndArgs ...any) 
 func TestFindExternalDependencies(t *testing.T) {
 	t.Parallel()
 
-	if helpers.IsExperimentMode(t) {
-		t.Skip(`This functionality will break once the filter flag experiment is generally available.
-We don't automatically discover external dependencies when going through discovery via the filter flag.`)
-	}
-
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 
 	internalDir := filepath.Join(testFixtureFindInternalVExternal, "internal")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external")
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies --external",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	// Normalize path separators in the output for cross-platform compatibility
-	normalizedStdout := filepath.ToSlash(stdout)
-	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
+	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt find --no-color --working-dir "+internalDir+" --dependencies",
+	)
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
@@ -207,10 +204,6 @@ We don't automatically discover external dependencies when going through discove
 
 func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	t.Parallel()
-
-	if !helpers.IsExperimentMode(t) {
-		t.Skip("This only works when the filter flag experiment is enabled until it is generally available.")
-	}
 
 	helpers.CleanupTerraformFolder(t, testFixtureFindInternalVExternal)
 
@@ -223,9 +216,7 @@ func TestFindExternalDependenciesWithFilterFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, stderr)
-	// Normalize path separators in the output for cross-platform compatibility
-	normalizedStdout := filepath.ToSlash(stdout)
-	assert.Equal(t, "../external/c-dependency\na-dependent\nb-dependency\n", normalizedStdout)
+	assert.Equal(t, filepath.Join("..", "external", "c-dependency")+"\na-dependent\nb-dependency\n", stdout)
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt find --no-color --working-dir "+internalDir+" --dependencies")
 	require.NoError(t, err)
@@ -296,7 +287,7 @@ func TestFindExclude(t *testing.T) {
 				err = json.Unmarshal([]byte(stdout), &configs)
 				require.NoError(t, err)
 
-				var paths []string
+				paths := make([]string, 0, len(configs))
 				for _, config := range configs {
 					paths = append(paths, config.Path)
 					if strings.Contains(tc.args, "--exclude") {
@@ -339,28 +330,28 @@ func TestFindQueueConstructAs(t *testing.T) {
 			name: "up command",
 			args: "--queue-construct-as plan",
 			expectedPaths: []string{
-				"stacks/live/dev",
-				"stacks/live/prod",
-				"units/live/dev/vpc",
-				"units/live/prod/vpc",
-				"units/live/dev/db",
-				"units/live/prod/db",
-				"units/live/dev/ec2",
-				"units/live/prod/ec2",
+				filepath.Join("stacks", "live", "dev"),
+				filepath.Join("stacks", "live", "prod"),
+				filepath.Join("units", "live", "dev", "vpc"),
+				filepath.Join("units", "live", "prod", "vpc"),
+				filepath.Join("units", "live", "dev", "db"),
+				filepath.Join("units", "live", "prod", "db"),
+				filepath.Join("units", "live", "dev", "ec2"),
+				filepath.Join("units", "live", "prod", "ec2"),
 			},
 		},
 		{
 			name: "down command",
 			args: "--queue-construct-as destroy",
 			expectedPaths: []string{
-				"stacks/live/dev",
-				"stacks/live/prod",
-				"units/live/dev/ec2",
-				"units/live/prod/ec2",
-				"units/live/dev/db",
-				"units/live/prod/db",
-				"units/live/dev/vpc",
-				"units/live/prod/vpc",
+				filepath.Join("stacks", "live", "dev"),
+				filepath.Join("stacks", "live", "prod"),
+				filepath.Join("units", "live", "dev", "ec2"),
+				filepath.Join("units", "live", "prod", "ec2"),
+				filepath.Join("units", "live", "dev", "db"),
+				filepath.Join("units", "live", "prod", "db"),
+				filepath.Join("units", "live", "dev", "vpc"),
+				filepath.Join("units", "live", "prod", "vpc"),
 			},
 		},
 	}
@@ -381,10 +372,9 @@ func TestFindQueueConstructAs(t *testing.T) {
 			err = json.Unmarshal([]byte(stdout), &configs)
 			require.NoError(t, err)
 
-			var paths []string
+			paths := make([]string, 0, len(configs))
 			for _, config := range configs {
-				// Normalize path separators for cross-platform compatibility
-				paths = append(paths, filepath.ToSlash(config.Path))
+				paths = append(paths, config.Path)
 			}
 
 			assert.Equal(t, tc.expectedPaths, paths)

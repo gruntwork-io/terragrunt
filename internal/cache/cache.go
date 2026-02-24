@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 )
 
 // Cache - generic cache implementation

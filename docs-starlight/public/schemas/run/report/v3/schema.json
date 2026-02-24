@@ -1,0 +1,66 @@
+{
+  "items": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://terragrunt.gruntwork.io/schemas/run/report/v3/schema.json",
+    "properties": {
+      "Started": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Ended": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "Reason": {
+        "type": "string",
+        "enum": [
+          "retry succeeded",
+          "error ignored",
+          "run error",
+          "exclude block",
+          "ancestor error"
+        ]
+      },
+      "Cause": {
+        "type": "string"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Result": {
+        "type": "string",
+        "enum": [
+          "succeeded",
+          "failed",
+          "early exit",
+          "excluded"
+        ]
+      },
+      "Ref": {
+        "type": "string"
+      },
+      "Cmd": {
+        "type": "string"
+      },
+      "Args": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "Started",
+      "Ended",
+      "Name",
+      "Result"
+    ],
+    "title": "Terragrunt Run Report Schema",
+    "description": "Schema for Terragrunt run report"
+  },
+  "type": "array",
+  "title": "Terragrunt Run Report Schema",
+  "description": "Array of Terragrunt runs"
+}

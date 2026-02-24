@@ -8,18 +8,33 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 )
+
+// exampleLogger creates a logger for examples with a proper formatter.
+func exampleLogger() log.Logger {
+	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
+	formatter.SetDisabledColors(true)
+
+	return log.New(log.WithFormatter(formatter))
+}
 
 // Example_basicPathFilter demonstrates filtering components by path with a glob pattern.
 func Example_basicPathFilter() {
 	components := []component.Component{
-		component.NewUnit("./apps/app1"),
-		component.NewUnit("./apps/app2"),
-		component.NewUnit("./libs/db"),
+		component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/*", ".", components)
+	result, _ := filter.Apply(l, "./apps/*", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -32,13 +47,19 @@ func Example_basicPathFilter() {
 // Example_attributeFilter demonstrates filtering components by name attribute.
 func Example_attributeFilter() {
 	components := []component.Component{
-		component.NewUnit("./apps/frontend"),
-		component.NewUnit("./apps/backend"),
-		component.NewUnit("./services/api"),
+		component.NewUnit("./apps/frontend").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/backend").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./services/api").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "name=api", ".", components)
+	result, _ := filter.Apply(l, "name=api", components)
 
 	for _, c := range result {
 		fmt.Println(c.Path())
@@ -50,13 +71,19 @@ func Example_attributeFilter() {
 // Example_exclusionFilter demonstrates excluding components using the negation operator.
 func Example_exclusionFilter() {
 	components := []component.Component{
-		component.NewUnit("./apps/app1"),
-		component.NewUnit("./apps/app2"),
-		component.NewUnit("./apps/legacy"),
+		component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/legacy").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	l := log.New()
-	result, _ := filter.Apply(l, "!legacy", ".", components)
+	result, _ := filter.Apply(l, "!legacy", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -69,15 +96,23 @@ func Example_exclusionFilter() {
 // Example_intersectionFilter demonstrates refining results with the intersection operator.
 func Example_intersectionFilter() {
 	components := []component.Component{
-		component.NewUnit("./apps/frontend"),
-		component.NewUnit("./apps/backend"),
-		component.NewUnit("./libs/db"),
-		component.NewUnit("./libs/api"),
+		component.NewUnit("./apps/frontend").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/backend").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	// Select components in ./apps/ that are named "frontend"
 	l := log.New()
-	result, _ := filter.Apply(l, "./apps/* | frontend", ".", components)
+	result, _ := filter.Apply(l, "./apps/* | frontend", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -89,16 +124,26 @@ func Example_intersectionFilter() {
 // Example_complexQuery demonstrates a complex filter combining paths and negation.
 func Example_complexQuery() {
 	components := []component.Component{
-		component.NewUnit("./services/web"),
-		component.NewUnit("./services/worker"),
-		component.NewUnit("./libs/db"),
-		component.NewUnit("./libs/api"),
-		component.NewUnit("./libs/cache"),
+		component.NewUnit("./services/web").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./services/worker").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/cache").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	// Select all services except worker
 	l := log.New()
-	result, _ := filter.Apply(l, "./services/* | !worker", ".", components)
+	result, _ := filter.Apply(l, "./services/* | !worker", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -110,12 +155,16 @@ func Example_complexQuery() {
 // Example_parseAndEvaluate demonstrates the two-step process of parsing and evaluating.
 func Example_parseAndEvaluate() {
 	components := []component.Component{
-		component.NewUnit("./apps/app1"),
-		component.NewUnit("./apps/app2"),
+		component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	// Parse the filter once
-	f, err := filter.Parse("app1", ".")
+	f, err := filter.Parse("app1")
 	if err != nil {
 		fmt.Println("Parse error:", err)
 		return
@@ -137,14 +186,20 @@ func Example_parseAndEvaluate() {
 // Example_recursiveWildcard demonstrates using recursive wildcards to match nested paths.
 func Example_recursiveWildcard() {
 	components := []component.Component{
-		component.NewUnit("./infrastructure/networking/vpc"),
-		component.NewUnit("./infrastructure/networking/subnets"),
-		component.NewUnit("./infrastructure/compute/app-server"),
+		component.NewUnit("./infrastructure/networking/vpc").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./infrastructure/networking/subnets").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./infrastructure/compute/app-server").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
 	// Match all infrastructure components at any depth
 	l := log.New()
-	result, _ := filter.Apply(l, "./infrastructure/**", ".", components)
+	result, _ := filter.Apply(l, "./infrastructure/**", components)
 
 	for _, c := range result {
 		fmt.Println(filepath.Base(c.Path()))
@@ -158,13 +213,13 @@ func Example_recursiveWildcard() {
 // Example_errorHandling demonstrates handling parsing errors.
 func Example_errorHandling() {
 	// Invalid syntax - missing value after =
-	_, err := filter.Parse("name=", ".")
+	_, err := filter.Parse("name=")
 	if err != nil {
 		fmt.Println("Error occurred")
 	}
 
 	// Valid syntax
-	_, err = filter.Parse("name=foo", ".")
+	_, err = filter.Parse("name=foo")
 	if err == nil {
 		fmt.Println("Successfully parsed")
 	}
@@ -177,19 +232,27 @@ func Example_errorHandling() {
 // Example_multipleFilters demonstrates using multiple filters with union semantics.
 func Example_multipleFilters() {
 	components := []component.Component{
-		component.NewUnit("./apps/app1"),
-		component.NewUnit("./apps/app2"),
-		component.NewUnit("./libs/db"),
-		component.NewUnit("./libs/api"),
+		component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./apps/app2").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
+		component.NewUnit("./libs/api").WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: ".",
+		}),
 	}
 
+	l := exampleLogger()
+
 	// Parse multiple filters - results are unioned
-	filters, _ := filter.ParseFilterQueries([]string{
+	filters, _ := filter.ParseFilterQueries(l, []string{
 		"./apps/*",
 		"name=db",
-	}, ".")
-
-	l := log.New()
+	})
 	result, _ := filters.Evaluate(l, components)
 
 	// Sort for consistent output

@@ -18,23 +18,38 @@ func TestDagGraphFlagsRegistration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
 
-	assert.Contains(t, stdout, "--queue-exclude-dir", "queue-exclude-dir flag should be present")
-	assert.Contains(t, stdout, "--queue-exclude-external", "queue-exclude-external flag should be present")
-	assert.Contains(t, stdout, "--queue-excludes-file", "queue-excludes-file flag should be present")
 	assert.Contains(t, stdout, "--queue-ignore-dag-order", "queue-ignore-dag-order flag should be present")
 	assert.Contains(t, stdout, "--queue-ignore-errors", "queue-ignore-errors flag should be present")
-	assert.Contains(t, stdout, "--queue-include-dir", "queue-include-dir flag should be present")
 }
 
 func TestIncludeExternalInDagGraphCmd(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGraphDAG)
-	workDir := filepath.Join(testFixtureGraphDAG, "region-1")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraphDAG)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGraphDAG)
+	helpers.CleanupTerraformFolder(t, rootPath)
+	workDir := filepath.Join(rootPath, "region-1")
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
-	cmd := "terragrunt dag graph --queue-include-external --working-dir " + workDir
+	cmd := "terragrunt dag graph --working-dir " + workDir
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "unit-a\" ->")
+}
+
+func TestIncludeExternalInDagGraphCmdWithList(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraphDAG)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGraphDAG)
+	helpers.CleanupTerraformFolder(t, rootPath)
+	workDir := filepath.Join(rootPath, "region-1")
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
+	cmd := "terragrunt list --format=dot --dependencies --working-dir " + workDir
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)

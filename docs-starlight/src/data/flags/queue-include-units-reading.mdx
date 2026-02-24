@@ -6,65 +6,24 @@ env:
   - TG_QUEUE_INCLUDE_UNITS_READING
 ---
 
-import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This flag works very similarly to the [`--queue-units-that-include`](/docs/reference/cli/commands/run#queue-units-that-include) flag, but instead of looking only for included configurations,
-it also looks for configurations that read a given file.
+<Aside type="tip" title="Alias for --filter">
 
-When passed in, the `--all` command will include all units (modules) that read a given file into the queue. This is useful
-when you want to trigger an update on all units that read or include a given file using HCL functions in their configurations.
+This flag is an alias for the [`--filter` flag](/docs/reference/cli/commands/run#filter).
 
-Consider the following folder structure:
+When using this flag, the equivalent filter expression is used instead.
 
-<FileTree>
+e.g.
 
-- reading-shared-hcl
-  - terragrunt.hcl
-- also-reading-shared-hcl
-  - terragrunt.hcl
-- not-reading-shared-hcl
-  - terragrunt.hcl
-- shared.hcl
-
-</FileTree>
-
-Suppose that `reading-shared-hcl` and `also-reading-shared-hcl` both read `shared.hcl` in their configurations, like so:
-
-```hcl
-# terragrunt.hcl
-
-locals {
- shared = read_terragrunt_config(find_in_parent_folders("shared.hcl"))
-}
+```bash
+terragrunt run --all --queue-include-units-reading shared.hcl -- plan
 ```
 
-If you run the command `run --all init --queue-include-units-reading shared.hcl` from the root folder, both
-`reading-shared-hcl` and `also-reading-shared-hcl` will be run; not `not-reading-shared-hcl`.
+is equivalent to:
 
-This is because the `read_terragrunt_config` HCL function has a special hook that allows Terragrunt to track that it has
-read the file `shared.hcl`. This hook is used by all native HCL functions that Terragrunt supports which read files.
-
-Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
-
-For example, you may be using a bash script to read a file via [`run_cmd`](/docs/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu code. To support these
-use-cases, the [`mark_as_read`](/docs/reference/hcl/functions/#mark_as_read) function can be used to manually mark a file as read.
-
-That would look something like this:
-
-```hcl
-# terragrunt.hcl
-
-locals {
-  filename = mark_as_read("file-read-by-tofu.txt")
-}
-
-inputs = {
-  filename = local.filename
-}
+```bash
+terragrunt run --all --filter 'reading=shared.hcl' -- plan
 ```
-<Aside type="caution">
-Due to how Terragrunt parses configurations during `run --all`, functions will only properly mark files as read if they are used in the `locals` block.
 
-Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs` block is not evaluated until after the queue has already been populated.
 </Aside>

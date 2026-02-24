@@ -7,30 +7,90 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
-Terragrunt and OpenTofu/Terraform usually play well together in helping you
-write DRY, reusable infrastructure. But how do we figure out what
-went wrong in the rare case that they _don't_ play well?
+## Support
 
-Terragrunt provides a way to configure logging level through the `--log-level`
-command flag. Additionally, Terragrunt provides `--inputs-debug`, that can be used
-to generate `terragrunt-debug.tfvars.json`.
+If you are running into issues with Terragrunt, join the [Terragrunt Community Discord Server](/community/invite).
 
-For example you could use it like this to debug an `apply` that's producing
-unexpected output:
+<Aside type="tip" title="Enterprise Support">
+
+[Terragrunt Enterprise Support](https://www.gruntwork.io/services/terragrunt) is available for users who need additional support beyond the Terragrunt Community Discord Server.
+
+</Aside>
+
+## Logging
+
+The easiest way to get more information for debugging an error you are experiencing in Terragrunt is to increase the log level.
+
+```bash
+terragrunt run --log-level debug -- plan
+```
+
+Increasing the log level using the [`--log-level`](/docs/reference/cli/global-flags/#log-level) flag will output more information about what Terragrunt is doing and why. This is useful information for your debugging, and for sharing with others if you want their help in understanding what went wrong in your run.
+
+Terragrunt has a fairly sophisticated logging system, and it can be helpful to read through the documentation on [Logging](/docs/reference/logging/) to understand how it works.
+
+## Telemetry
+
+If you have [Docker](https://www.docker.com/) installed, and you want to gain deeper insight as to what Terragrunt is doing, you can also enable the [OpenTelemetry](https://opentelemetry.io/) integration in Terragrunt to send telemetry data to a locally running container to better visualize what Terragrunt is doing and when.
+
+First, run the following in a terminal:
+
+```bash
+docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
+```
+
+This spins up a local instance of [Jaeger](https://www.jaegertracing.io/), which is a distributed tracing system that can be used to see what Terragrunt is doing.
+
+Next, run the following in the terminal where you want to run Terragrunt:
+
+```bash
+export TG_TELEMETRY_TRACE_EXPORTER=http
+export TG_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TG_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+```
+
+This tells Terragrunt that it should send telemetry data to the Jaeger instance running in the Docker container.
+
+Now you'll want to do whatever you want to trace with Terragrunt by running Terragrunt normally.
+
+```bash
+terragrunt run -- plan
+```
+
+Finally, visit the Jaeger UI at [http://localhost:16686](http://localhost:16686/) to see traces of your runs.
+
+<Aside type="tip" title="Exporting traces">
+
+You can export traces using the "Download Results" button in the UI and upload them using the "Upload" pane on the left.
+
+This can be useful if you want to share traces with others, though you should be mindful that you might have sensitive data in these traces you don't want shared with untrusted parties. Sharing traces with other trusted members of your team can be a good way to visually analyze the results of runs in addition to reading through logs.
+
+</Aside>
+
+<Aside type="note" title="Learn More About OpenTelemetry">
+
+To learn more about Terragrunt's integration with OpenTelemetry, see the dedicated [OpenTelemetry documentation](/docs/troubleshooting/open-telemetry/).
+
+</Aside>
+
+## Debugging OpenTofu/Terraform Behavior
+
+Terragrunt and OpenTofu/Terraform usually play well together in helping you write scalable, reusable infrastructure. But how can you figure out what went wrong in the rare case that things _do_ go wrong?
+
+Terragrunt provides a way to configure its logging level through the [`--log-level`](https://terragrunt.gruntwork.io/docs/reference/cli/global-flags/#log-level) flag. Additionally, Terragrunt provides an [`--inputs-debug`](https://terragrunt.gruntwork.io/docs/reference/cli/commands/run/#inputs-debug) flag that can generate a `terragrunt-debug.tfvars.json` file to help you understand what inputs it is setting when calling OpenTofu/Terraform.
+
+For example, you could use it like this to debug a `plan` that's producing unexpected outcomes.
 
 ```shell
-terragrunt apply --log-level debug --inputs-debug
+terragrunt run --log-level debug --inputs-debug -- plan
 ```
 
 Running this command will do two things for you:
 
-- Output a file named `terragrunt-debug.tfvars.json` to your terragrunt
-    working directory (the same one containing your `terragrunt.hcl`)
-- Print instructions on how to invoke tofu/terraform against the generated file to
-    reproduce exactly the same tofu/terraform output as you saw when invoking
-    `terragrunt`. This will help you to determine where the problem's root cause
-    lies.
+- Output a file named `terragrunt-debug.tfvars.json` to your current working directory (the same one containing your `terragrunt.hcl`)
+- Print instructions on how to invoke `tofu`/`terraform` against the generated file to reproduce exactly the same `tofu`/`terraform` output as you saw when invoking `terragrunt`. This will help you to determine where the problem's root cause lies.
 
 Using those features is helpful when you want determine which of these three major areas is the
 root cause of your problem:
@@ -38,10 +98,6 @@ root cause of your problem:
 1. Misconfiguration of your infrastructure code.
 2. An error in `terragrunt`.
 3. An error in `tofu/terraform`.
-
-Let's run through a few use-cases.
-
-## Debugging OpenTofu/Terraform Behavior
 
 Consider this file structure for a fictional production environment where we
 have configured an application to deploy as many tasks as there are minimum
@@ -89,20 +145,20 @@ inputs = {
 }
 ```
 
-You perform a `terragrunt apply`, and find that `outputs.task_ids` has 7
+You perform a `terragrunt plan`, and find that `outputs.task_ids` has 7
 elements, but you know that the cluster only has 4 VMs in it! What's happening?
 Let's figure it out. Run this:
 
 ```shell
-terragrunt apply --log-level debug --inputs-debug
+terragrunt plan --log-level debug --inputs-debug
 ```
 
-After applying, you will see this output on standard error
+After planning, you will see output like this in stderr:
 
 ```log
 [terragrunt] Variables passed to tofu/terraform are located in "~/live/prod/app/terragrunt-debug.tfvars"
 [terragrunt] Run this command to replicate how tofu/terraform was invoked:
-[terragrunt]     tofu/terraform apply -var-file="~/live/prod/app/terragrunt-debug.tfvars.json" "~/live/prod/app"
+[terragrunt]     tofu plan -var-file="~/live/prod/app/terragrunt-debug.tfvars.json" "~/live/prod/app"
 ```
 
 Well we may have to do all that, but first let's just take a look at `terragrunt-debug.tfvars.json`
@@ -125,14 +181,14 @@ output "cluster_min_size" {
 ```
 
 Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
-we should be golden! We fix the problem in time to take a nice afternoon walk in
-the sun.
-
-In this example we've seen how debug options can help us root cause issues
-in dependency and local variable resolution.
+we should be golden!
 
 ## Additional OpenTofu/Terraform Debugging
 
 If you're still having trouble, you may want to try adjusting the `TF_LOG` environment variables to instruct OpenTofu/Terraform to emit more detailed logs.
+
+```bash
+TF_LOG=debug terragrunt run -- plan
+```
 
 You can learn more about OpenTofu/Terraform debug logging [here](https://opentofu.org/docs/internals/debugging/).

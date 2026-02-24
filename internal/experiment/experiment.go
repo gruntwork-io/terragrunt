@@ -34,6 +34,11 @@ const (
 	AutoProviderCacheDir = "auto-provider-cache-dir"
 	// FilterFlag is the experiment that enables usage of the filter flag for filtering components
 	FilterFlag = "filter-flag"
+	// IacEngine is the experiment that enables usage of Terragrunt IaC engines for running IaC operations.
+	IacEngine = "iac-engine"
+	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
+	// directly from state files instead of using terraform/tofu output commands.
+	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 )
 
 const (
@@ -77,14 +82,21 @@ func NewExperiments() Experiments {
 			Status: StatusCompleted,
 		},
 		{
-			Name: FilterFlag,
+			Name:   FilterFlag,
+			Status: StatusCompleted,
+		},
+		{
+			Name: IacEngine,
+		},
+		{
+			Name: DependencyFetchOutputFromState,
 		},
 	}
 }
 
 // Names returns all experiment names.
 func (exps Experiments) Names() []string {
-	names := []string{}
+	names := make([]string, 0, len(exps))
 
 	for _, exp := range exps {
 		names = append(names, exp.Name)
@@ -154,7 +166,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 		return
 	}
 
-	logger.Warnf(NewCompletedExperimentsWarning(completed.Names()).String())
+	logger.Warnf("%s", NewCompletedExperimentsWarning(completed.Names()).String())
 }
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.

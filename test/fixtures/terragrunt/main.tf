@@ -1,9 +1,11 @@
 terraform {
   backend "s3" {}
 
+  required_version = ">= 1.0"
+
   required_providers {
     external = {
-      source  = "hashicorp/external"
+      source  = "registry.opentofu.org/hashicorp/external"
       version = "2.3.3"
     }
   }

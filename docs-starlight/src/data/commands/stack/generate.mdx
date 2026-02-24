@@ -8,15 +8,15 @@ usage: |
 sidebar:
   order: 400
 examples:
-  - description: Generate a stack of units using the configurations in a terragrunt.stack.hcl file.
+  - description: Generate stacks of units using the configurations in all terragrunt.stack.hcl files found, starting in the current directory.
     code: |
       terragrunt stack generate
 flags:
   - stack-generate-filter
 ---
 
-import FileTree from '@components/vendored/starlight/FileTree.astro';
-import { Aside } from '@astrojs/starlight/components';
+import FileTree from "@components/vendored/starlight/FileTree.astro";
+import { Aside } from "@astrojs/starlight/components";
 
 ## Generating a stack
 
@@ -87,7 +87,8 @@ terragrunt stack generate --no-stack-validate
 </Aside>
 
 <Aside type="caution">
-Path Restrictions: If an absolute path is provided as an argument, `generate` will throw an error. Only relative paths within the working directory are supported.
+  Path Restrictions: If an absolute path is provided as an argument, `generate` will throw an error. Only relative paths
+  within the working directory are supported.
 </Aside>
 
 <Aside type="caution">
@@ -106,4 +107,5 @@ You can also pass `--source-update` when running commands via `stack run`:
 ```bash
 terragrunt stack run plan --source-update
 ```
+
 </Aside>

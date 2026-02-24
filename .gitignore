@@ -10,7 +10,6 @@ vendor
 .terragrunt-cache
 .bundle
 .ruby-version
-.terraform.lock.hcl
 terragrunt
 .DS_Store
 .go-version

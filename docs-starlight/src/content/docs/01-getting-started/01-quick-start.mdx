@@ -189,13 +189,13 @@ You can also see what to expect in your filesystem at each step [here](https://g
    mkdir shared
    ```
 
-   Now, move the `main.tf` file from `foo` to `shared`:
+   Now, copy the `main.tf` file from `foo` to `shared`:
 
    ```bash
-   mv foo/main.tf shared/main.tf
+   cp foo/main.tf shared/main.tf
    ```
 
-   Finally, let's update the `foo` and `bar` directories to reference the `shared` directory. Update the `main.tf` files in both `foo` and `bar` to look like this:
+   Finally, let's update the `foo` and `bar` main.tf files to reference the `shared` directory. Update the `main.tf` files in both `foo` and `bar` to look like this:
 
    ```hcl
    # foo/main.tf
@@ -384,6 +384,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    }
 
    inputs = {
+    output_dir = get_terragrunt_dir()
     content = "Foo content: ${dependency.foo.outputs.content}"
    }
    ```
@@ -447,6 +448,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    }
 
    inputs = {
+     output_dir = get_terragrunt_dir()
      content = "Foo content: ${dependency.foo.outputs.content}"
    }
    ```
@@ -525,6 +527,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    }
 
    inputs = {
+     output_dir = get_terragrunt_dir()
      content = "Foo content: ${dependency.foo.outputs.content}"
    }
    ```
@@ -541,6 +544,6 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs/features/units) section of the documentation.
 
-   If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](https://discord.gg/YENaT9h8jh) server, and become part of the Terragrunt community.
+   If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](/community/invite) server, and become part of the Terragrunt community.
 
 </Steps>

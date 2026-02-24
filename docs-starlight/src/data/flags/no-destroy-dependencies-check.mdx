@@ -1,7 +1,7 @@
 ---
 name: no-destroy-dependencies-check
 description: |
-  Disables Terragrunt's dependency validation during destroy operations.
+  **Deprecated**: This flag is ignored and no longer affects behavior. Use `--destroy-dependencies-check` to explicitly enable dependency checks during destroy operations.
 type: bool
 env:
   - TG_NO_DESTROY_DEPENDENCIES_CHECK
@@ -9,10 +9,8 @@ env:
 
 import { Aside } from '@astrojs/starlight/components';
 
-When enabled, Terragrunt will not verify if there are dependent units that would be affected by destroying the current unit.
+<Aside type="warning">
+This flag is deprecated and ignored. Dependency checks are disabled by default during destroy operations. Use `--destroy-dependencies-check` to enable them.
 
-This results in faster destroy operations, but may result in orphaned resources.
-
-<Aside type="caution">
-Disabling dependency checks during destroy operations can lead to orphaned resources or broken infrastructure dependencies.
+To enable dependency checks during destroy operations, use the `--destroy-dependencies-check` flag instead.
 </Aside>

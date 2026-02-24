@@ -4,14 +4,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
-	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,12 +25,12 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 }
 
@@ -39,9 +39,9 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -54,9 +54,9 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -72,7 +72,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	assert.NotNil(t, auroraModule)
 
-	testPath := t.TempDir()
+	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
@@ -96,9 +96,9 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	ctx := t.Context()
 
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -114,7 +114,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	assert.NotNil(t, auroraModule)
 
-	testPath := t.TempDir()
+	testPath := helpers.TmpDirWOSymlinks(t)
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
 	require.NoError(t, err)
 
@@ -140,7 +140,7 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCatalogLocalTemplate, ".boilerplate")
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureCatalogLocalTemplate)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureCatalogLocalTemplate)
 
 	targetPath := filepath.Join(rootPath, "app")
 	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"
@@ -168,7 +168,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts))
+	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts.StrictControls))
 	require.NoError(t, err)
 
 	return cfg

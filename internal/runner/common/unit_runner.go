@@ -6,14 +6,19 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
+	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// UnitStatus represents the status of a unit that we are
-// trying to apply or destroy as part of the run --all apply or run --all destroy command
+// UnitStatus represents the status of a unit during execution.
 type UnitStatus int
 
 const (
@@ -22,50 +27,57 @@ const (
 	Finished
 )
 
-// UnitRunner handles the logic for running a single unit.
+// UnitRunner handles the logic for running a single component.Unit.
 type UnitRunner struct {
 	Err    error
-	Unit   *Unit
+	Unit   *component.Unit
 	Status UnitStatus
 }
 
-var outputLocks = util.NewKeyLocks()
-
-func NewUnitRunner(unit *Unit) *UnitRunner {
+// NewUnitRunner creates a UnitRunner from a component.Unit.
+func NewUnitRunner(unit *component.Unit) *UnitRunner {
 	return &UnitRunner{
 		Unit:   unit,
 		Status: Waiting,
 	}
 }
 
-func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
-	runner.Unit.Logger.Debugf("Running %s", runner.Unit.Path)
-
-	opts.Writer = NewUnitWriter(opts.Writer)
+func (runner *UnitRunner) runTerragrunt(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+	cfg *runcfg.RunConfig,
+	credsGetter *creds.Getter,
+) error {
+	l.Debugf("Running %s", util.RelPathForLog(opts.RootWorkingDir, runner.Unit.Path(), opts.LogShowAbsPaths))
 
 	defer func() {
-		outputLocks.Lock(runner.Unit.Path)
-		defer outputLocks.Unlock(runner.Unit.Path)
-
-		runner.Unit.FlushOutput() //nolint:errcheck
+		// Flush buffered output for this unit, if the writer supports it.
+		if err := component.FlushOutput(runner.Unit, opts.Writer); err != nil {
+			l.Errorf("Error flushing output for unit %s: %v", runner.Unit.Path(), err)
+		}
 	}()
 
 	// Only create report entries if report is not nil
 	if r != nil {
-		// Ensure path is absolute and normalized for reporting
-		unitPath, err := EnsureAbsolutePath(runner.Unit.Path)
-		if err != nil {
-			return err
+		unitPath := runner.Unit.Path()
+		unitPath = filepath.Clean(unitPath)
+
+		// Pass the discovery context fields for worktree scenarios
+		var ensureOpts []report.EndOption
+
+		if discoveryCtx := runner.Unit.DiscoveryContext(); discoveryCtx != nil {
+			ensureOpts = append(
+				ensureOpts,
+				report.WithDiscoveryWorkingDir(discoveryCtx.WorkingDir),
+				report.WithRef(discoveryCtx.Ref),
+				report.WithCmd(discoveryCtx.Cmd),
+				report.WithArgs(discoveryCtx.Args),
+			)
 		}
 
-		unitPath = util.CleanPath(unitPath)
-
-		run, err := report.NewRun(unitPath)
-		if err != nil {
-			return err
-		}
-
-		if err := r.AddRun(run); err != nil {
+		if _, err := r.EnsureRun(l, unitPath, ensureOpts...); err != nil {
 			return err
 		}
 	}
@@ -73,36 +85,41 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	// Use a unit-scoped detailed exit code so retries in this unit don't clobber global state
 	globalExitCode := tf.DetailedExitCodeFromContext(ctx)
 
-	var unitExitCode tf.DetailedExitCode
+	unitExitCode := tf.NewDetailedExitCodeMap()
 
-	ctx = tf.ContextWithDetailedExitCode(ctx, &unitExitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, unitExitCode)
 
-	runErr := opts.RunTerragrunt(ctx, runner.Unit.Logger, opts, r)
+	runErr := run.Run(ctx, l, opts, r, cfg, credsGetter)
 
-	// Only merge the final unit exit code when the unit run completed without error
-	// and the exit code isn't stuck at 1 from a prior retry attempt.
-	if runErr == nil && globalExitCode != nil && unitExitCode.Get() != tf.DetailedExitCodeError {
-		globalExitCode.Set(unitExitCode.Get())
+	// Store the unit exit code in the global map using the unit path as key.
+	if globalExitCode != nil {
+		unitPath := runner.Unit.Path()
+		code := unitExitCode.Get(unitPath)
+		globalExitCode.Set(unitPath, code)
 	}
 
 	// End the run with appropriate result (only if report is not nil)
 	if r != nil {
-		// Get the unit path (already computed above)
-		unitPath := runner.Unit.AbsolutePath(runner.Unit.Logger)
-		unitPath = util.CleanPath(unitPath)
+		unitPath := runner.Unit.Path()
+		unitPath = filepath.Clean(unitPath)
 
 		if runErr != nil {
 			if endErr := r.EndRun(
+				l,
 				unitPath,
 				report.WithResult(report.ResultFailed),
 				report.WithReason(report.ReasonRunError),
 				report.WithCauseRunError(runErr.Error()),
 			); endErr != nil {
-				runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		} else {
-			if endErr := r.EndRun(unitPath, report.WithResult(report.ResultSucceeded)); endErr != nil {
-				runner.Unit.Logger.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+			if endErr := r.EndRun(
+				l,
+				unitPath,
+				report.WithResult(report.ResultSucceeded),
+			); endErr != nil {
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
 			}
 		}
 	}
@@ -110,22 +127,31 @@ func (runner *UnitRunner) runTerragrunt(ctx context.Context, opts *options.Terra
 	return runErr
 }
 
-// Run a unit right now by executing the runTerragrunt command of its TerragruntOptions field.
-func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptions, r *report.Report) error {
+// Run executes a component.Unit right now.
+func (runner *UnitRunner) Run(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	r *report.Report,
+	cfg *runcfg.RunConfig,
+	credsGetter *creds.Getter,
+) error {
 	runner.Status = Running
 
-	if runner.Unit.AssumeAlreadyApplied {
-		runner.Unit.Logger.Debugf("Assuming unit %s has already been applied and skipping it", runner.Unit.Path)
+	if opts == nil {
 		return nil
 	}
 
-	if err := runner.runTerragrunt(ctx, runner.Unit.TerragruntOptions, r); err != nil {
+	if err := runner.runTerragrunt(ctx, l, opts, r, cfg, credsGetter); err != nil {
 		return err
 	}
 
 	// convert terragrunt output to json
-	if runner.Unit.OutputJSONFile(runner.Unit.Logger, runner.Unit.TerragruntOptions) != "" {
-		l, jsonOptions, err := runner.Unit.TerragruntOptions.CloneWithConfigPath(runner.Unit.Logger, runner.Unit.TerragruntOptions.TerragruntConfigPath)
+	if runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder) != "" {
+		jsonLogger, jsonOptions, err := opts.CloneWithConfigPath(
+			l,
+			opts.TerragruntConfigPath,
+		)
 		if err != nil {
 			return err
 		}
@@ -135,18 +161,16 @@ func (runner *UnitRunner) Run(ctx context.Context, opts *options.TerragruntOptio
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", runner.Unit.PlanFile(l, opts)}
+		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand))
 
-		// Use an ad-hoc report to avoid polluting the main report with entries
-		// for the cache directory, while still satisfying RunTerragrunt's
-		// expectation for a non-nil report parameter.
+		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := jsonOptions.RunTerragrunt(ctx, l, jsonOptions, adhocReport); err != nil {
+		if err := run.Run(ctx, jsonLogger, jsonOptions, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 
 		// save the json output to the file plan file
-		outputFile := runner.Unit.OutputJSONFile(l, opts)
+		outputFile := runner.Unit.OutputJSONFile(opts.RootWorkingDir, opts.JSONOutputFolder)
 		jsonDir := filepath.Dir(outputFile)
 
 		if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {

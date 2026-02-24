@@ -7,9 +7,9 @@ import (
 	"path"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const BackendName = "s3"
@@ -65,7 +65,12 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 // Bootstrap the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Bootstrap(
+	ctx context.Context,
+	l log.Logger,
+	backendConfig backend.Config,
+	opts *options.TerragruntOptions,
+) error {
 	extS3Cfg, err := Config(backendConfig).ExtendedS3Config(l)
 	if err != nil {
 		return err
@@ -83,7 +88,10 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	defer mu.Unlock()
 
 	if backend.IsConfigInited(s3Cfg) {
-		l.Debugf("%s bucket %s has already been confirmed to be initialized, skipping initialization checks", backend.Name(), bucketName)
+		l.Debugf(
+			"%s bucket %s has already been confirmed to be initialized, skipping initialization checks",
+			backend.Name(), bucketName,
+		)
 
 		return nil
 	}
@@ -212,7 +220,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		tableKey := path.Join(bucketName, bucketKey+stateIDSuffix)
 
 		prompt := fmt.Sprintf("DynamoDB table %s key %s will be deleted. Do you want to continue?", tableName, tableKey)
-		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableItemIfNecessary(ctx, l, tableName, tableKey); err != nil {
@@ -222,7 +230,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s key %s will be deleted. Do you want to continue?", bucketName, bucketKey)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3ObjectIfNecessary(ctx, l, bucketName, bucketKey)
@@ -250,7 +258,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 
 	if tableName != "" {
 		prompt := fmt.Sprintf("DynamoDB table %s will be completely deleted. Do you want to continue?", tableName)
-		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+		if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 			return err
 		} else if yes {
 			if err := client.DeleteTableIfNecessary(ctx, l, tableName); err != nil {
@@ -260,7 +268,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	}
 
 	prompt := fmt.Sprintf("S3 bucket %s will be completely deleted. Do you want to continue?", bucketName)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteS3BucketIfNecessary(ctx, l, bucketName)

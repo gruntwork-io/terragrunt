@@ -4,20 +4,20 @@ import (
 	"context"
 	"os"
 
-	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/flags/global"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/tf"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // The main entrypoint for Terragrunt
 func main() {
-	var exitCode tf.DetailedExitCode
+	exitCode := tf.NewDetailedExitCodeMap()
 
 	opts := options.NewTerragruntOptions()
 
@@ -33,46 +33,57 @@ func main() {
 		os.Exit(1)
 	}
 
-	defer errors.Recover(checkForErrorsAndExit(l, exitCode.Get()))
+	defer func() {
+		if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
+			errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode()))
+			return
+		}
+
+		errors.Recover(checkForErrorsAndExit(l, exitCode.GetFinalExitCode()))
+	}()
 
 	app := cli.NewApp(l, opts)
 
-	ctx := setupContext(l, &exitCode)
+	ctx := setupContext(l, exitCode)
 	err := app.RunContext(ctx, os.Args)
 
-	checkForErrorsAndExit(l, exitCode.Get())(err)
+	if opts.TerraformCliArgs.Contains(tf.FlagNameDetailedExitCode) {
+		checkForErrorsAndExit(l, exitCode.GetFinalDetailedExitCode())(err)
+
+		return
+	}
+
+	checkForErrorsAndExit(l, exitCode.GetFinalExitCode())(err)
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
-func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
+func checkForErrorsAndExit(l log.Logger, exitCode int) func(error) {
 	return func(err error) {
 		if err == nil {
 			os.Exit(exitCode)
-		} else {
-			logger.Error(err.Error())
-
-			if errStack := errors.ErrorStack(err); errStack != "" {
-				logger.Trace(errStack)
-			}
-
-			// exit with the underlying error code
-			exitCoder, exitCodeErr := util.GetExitCode(err)
-			if exitCodeErr != nil {
-				exitCoder = 1
-
-				logger.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")
-			}
-
-			if explain := shell.ExplainError(err); len(explain) > 0 {
-				logger.Errorf("Suggested fixes: \n%s", explain)
-			}
-
-			os.Exit(exitCoder)
 		}
+
+		l.Error(err.Error())
+
+		if errStack := errors.ErrorStack(err); errStack != "" {
+			l.Trace(errStack)
+		}
+
+		// exit with the underlying error code
+		exitCoder, exitCodeErr := util.GetExitCode(err)
+		if exitCodeErr != nil {
+			exitCoder = 1
+		}
+
+		if explain := shell.ExplainError(err); len(explain) > 0 {
+			l.Errorf("Suggested fixes: \n%s", explain)
+		}
+
+		os.Exit(exitCoder)
 	}
 }
 
-func setupContext(l log.Logger, exitCode *tf.DetailedExitCode) context.Context {
+func setupContext(l log.Logger, exitCode *tf.DetailedExitCodeMap) context.Context {
 	ctx := context.Background()
 	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
 

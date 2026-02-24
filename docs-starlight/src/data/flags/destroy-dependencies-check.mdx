@@ -1,0 +1,17 @@
+---
+name: destroy-dependencies-check
+description: |
+  Enables Terragrunt's dependency validation during destroy operations.
+type: bool
+env:
+  - TG_DESTROY_DEPENDENCIES_CHECK
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When enabled, Terragrunt will verify if there are dependent units that would be affected by destroying the current unit and show a warning with the list of dependent modules.
+
+<Aside type="tip">
+Enabling dependency checks during destroy operations helps prevent accidental destruction of infrastructure that other units depend on.
+</Aside>
+

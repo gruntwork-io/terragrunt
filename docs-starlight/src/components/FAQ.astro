@@ -1,0 +1,24 @@
+---
+import '@styles/global.css';
+
+import Eyebrow from '@components/dv-Eyebrow.astro';
+---
+
+<section class="relative flex justify-center items-center px-5 md:px-0">
+    <div class="flex flex-col w-full md:w-[680px] lg:w-[850px]">
+        <!-- Header Section -->
+        <div class="flex flex-col gap-4 md:gap-8 pb-6 md:pb-[60px] md:pl-12 md:pr-8">
+            <Eyebrow text="FAQ" />
+            <h2 class="text-4xl md:text-[42px] font-sans m-0 text-dark-blue-1">
+              <span class="text-accent">Frequently</span> Asked Questions
+            </h2>
+            <p class="text-gray-1 font-sans">
+              Still have questions? Please <a href="/contact-tgs">contact us</a>.
+            </p>
+        </div>
+        <!-- Content Wrapper -->
+        <div class="flex flex-col gap-0">
+            <slot />
+        </div>
+    </div>
+</section>

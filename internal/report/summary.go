@@ -26,14 +26,6 @@ type Summary struct {
 	showUnitLevelSummary bool
 }
 
-// These are undocumented temporary environment variables that are used
-// to play with the summary, so that we can experiment with it.
-const (
-	envTmpUndocumentedReportPadder                  = "TMP_UNDOCUMENTED_REPORT_PADDER"
-	envTmpUndocumentedReportUnitColorize            = "TMP_UNDOCUMENTED_REPORT_UNIT_COLORIZE"
-	envTmpUndocumentedColorizeDefaultSummaryPadding = "TMP_UNDOCUMENTED_COLORIZE_DEFAULT_SUMMARY_PADDING"
-)
-
 // Summarize returns a summary of the report.
 func (r *Report) Summarize() *Summary {
 	summary := &Summary{
@@ -42,10 +34,6 @@ func (r *Report) Summarize() *Summary {
 		showUnitLevelSummary: r.showUnitLevelSummary,
 		padder:               ".",
 		runs:                 r.Runs,
-	}
-
-	if os.Getenv(envTmpUndocumentedReportPadder) != "" {
-		summary.padder = os.Getenv(envTmpUndocumentedReportPadder)
 	}
 
 	if len(r.Runs) == 0 {
@@ -158,7 +146,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.successColorizer(successLabel),
 			colorizer.successUnitColorizer(strconv.Itoa(s.UnitsSucceeded)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -169,7 +156,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.failureColorizer(failureLabel),
 			colorizer.failureUnitColorizer(strconv.Itoa(s.UnitsFailed)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -180,7 +166,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.exitColorizer(earlyExitLabel),
 			colorizer.exitUnitColorizer(strconv.Itoa(s.EarlyExits)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -191,7 +176,6 @@ func (s *Summary) Write(w io.Writer) error {
 			w,
 			colorizer.excludeColorizer(excludeLabel),
 			colorizer.excludeUnitColorizer(strconv.Itoa(s.Excluded)),
-			colorizer,
 		); err != nil {
 			return err
 		}
@@ -225,8 +209,8 @@ func (s *Summary) writeSummaryHeader(w io.Writer, value string) error {
 	return nil
 }
 
-func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string, colorizer *Colorizer) error {
-	_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, label, s.padding(label, colorizer), value)
+func (s *Summary) writeSummaryEntry(w io.Writer, label string, value string) error {
+	_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, label, s.padding(label), value)
 	if err != nil {
 		return err
 	}
@@ -376,7 +360,7 @@ func (s *Summary) writeUnitDuration(w io.Writer, run *Run, colorizer *Colorizer,
 	return nil
 }
 
-func (s *Summary) padding(label string, colorizer *Colorizer) string {
+func (s *Summary) padding(label string) string {
 	headerUnitCountVisualPosition := s.visualLength(runSummaryHeader) + headerUnitCountSpacing
 
 	currentLabelLength := s.visualLength(label)
@@ -399,10 +383,6 @@ func (s *Summary) padding(label string, colorizer *Colorizer) string {
 	}
 
 	padding = " " + padding[1:len(padding)-1] + " "
-
-	if os.Getenv(envTmpUndocumentedColorizeDefaultSummaryPadding) == "true" {
-		return colorizer.paddingColorizer(padding)
-	}
 
 	return strings.ReplaceAll(padding, s.padder, " ")
 }

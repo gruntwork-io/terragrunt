@@ -1,8 +1,8 @@
 
 /* Search Box */
 @media (width < 800px) {
-  site-search>button {
-    width: calc(100% - 40px);
+  #search-and-buttons {
+    width: calc(100% - 50px) !important;
   }
 }
 
@@ -11,7 +11,9 @@ site-search button {
   border: 1px solid var(--color-opacity-10);
   border-radius: 6px;
   color: var(--color-gray-2);
+  height: 100%;
   max-width: none;
+  min-height: 44px;
   padding: 6px 12px;
 }
 
@@ -177,8 +179,5 @@ input.pagefind-ui__search-input:focus {
 @media (width <= 768px) {
   body.tg site-search > button {
     width: 100%;
-  }
-  site-search > button {
-    width: calc(100% - 40px);
   }
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestStore(t *testing.T) {
 
 	t.Run("custom path", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		customPath := filepath.Join(tempDir, "custom-store")
 
 		store := cas.NewStore(customPath)
@@ -26,7 +27,7 @@ func TestStore(t *testing.T) {
 
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	store := cas.NewStore(tempDir)
 
 	// Create a fake content file
@@ -67,7 +68,7 @@ func TestStore_NeedsWrite(t *testing.T) {
 
 func TestStore_AcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	store := cas.NewStore(tempDir)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -87,7 +88,7 @@ func TestStore_AcquireLock(t *testing.T) {
 
 func TestStore_TryAcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	store := cas.NewStore(tempDir)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -120,7 +121,7 @@ func TestStore_TryAcquireLock(t *testing.T) {
 
 func TestStore_LockConcurrency(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	store := cas.NewStore(tempDir)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -168,7 +169,7 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
-	tempDir := t.TempDir()
+	tempDir := helpers.TmpDirWOSymlinks(t)
 	store := cas.NewStore(tempDir)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 

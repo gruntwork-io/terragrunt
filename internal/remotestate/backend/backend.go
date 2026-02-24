@@ -4,8 +4,8 @@ package backend
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 type Backends []Backend

@@ -9,14 +9,14 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/hashicorp/go-getter/v2"
 	"gopkg.in/ini.v1"
 )
@@ -44,8 +44,9 @@ var (
 type Repo struct {
 	logger log.Logger
 
-	cloneURL string
-	path     string
+	cloneURL       string
+	path           string
+	rootWorkingDir string
 
 	RemoteURL  string
 	BranchName string
@@ -54,13 +55,14 @@ type Repo struct {
 	allowCAS         bool
 }
 
-func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool, rootWorkingDir string) (*Repo, error) {
 	repo := &Repo{
 		logger:           l,
 		cloneURL:         cloneURL,
 		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
 		allowCAS:         allowCAS,
+		rootWorkingDir:   rootWorkingDir,
 	}
 
 	if err := repo.clone(ctx, l); err != nil {
@@ -181,10 +183,7 @@ type CloneOptions struct {
 }
 
 func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
-	cloneURL, err := repo.resolveCloneURL()
-	if err != nil {
-		return err
-	}
+	cloneURL := repo.resolveCloneURL()
 
 	// Handle local directory case
 	if files.IsDir(cloneURL) {
@@ -212,26 +211,17 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	return repo.performClone(ctx, l, &opts)
 }
 
-func (repo *Repo) resolveCloneURL() (string, error) {
+func (repo *Repo) resolveCloneURL() string {
 	if repo.cloneURL == "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			return "", errors.New(err)
-		}
-
-		return currentDir, nil
+		return repo.rootWorkingDir
 	}
 
-	return repo.cloneURL, nil
+	return repo.cloneURL
 }
 
 func (repo *Repo) handleLocalDir(repoPath string) error {
 	if !filepath.IsAbs(repoPath) {
-		absRepoPath, err := filepath.Abs(repoPath)
-		if err != nil {
-			return errors.New(err)
-		}
-
+		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
 		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
 

@@ -11,10 +11,10 @@ package test_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +24,7 @@ func TestSSHSourceMapWithSlashInRef(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSourceMapSlashes)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	testPath := filepath.Join(tmpEnvPath, testFixtureSourceMapSlashes)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -38,7 +38,7 @@ func TestSSHTerragruntNoWarningRemotePath(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoSubmodules)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNoSubmodules)
+	testPath := filepath.Join(tmpEnvPath, testFixtureNoSubmodules)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -53,7 +53,7 @@ func TestSSHDownloadSourceWithRef(t *testing.T) {
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRefSource)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureRefSource)
+	testPath := filepath.Join(tmpEnvPath, testFixtureRefSource)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}

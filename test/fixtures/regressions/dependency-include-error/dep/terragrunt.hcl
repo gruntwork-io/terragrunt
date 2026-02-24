@@ -1,0 +1,4 @@
+# Dependency module
+terraform {
+  source = "."
+}

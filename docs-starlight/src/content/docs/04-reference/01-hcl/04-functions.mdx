@@ -523,6 +523,10 @@ terraform {
 `/tofu-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call
 `get_original_terragrunt_dir()`, you'll get back `/tofu-code`.
 
+During stack generation, this function returns the
+directory of the `terragrunt.stack.hcl` currently being read, even when invoked from other Terragrunt
+configs via `read_terragrunt_config()`.
+
 ## get_terraform_commands_that_need_vars
 
 `get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).

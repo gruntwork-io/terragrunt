@@ -1,3 +1,3 @@
 module "vpc" {
-  source = "cloudposse/module/example"
+  source = "github.com/cloudposse/terraform-example-module?ref=3.0.1"
 }

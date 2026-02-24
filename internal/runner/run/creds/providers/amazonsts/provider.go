@@ -8,20 +8,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
-	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Provider obtains credentials by making API requests to Amazon STS.
 type Provider struct {
-	terragruntOptions *options.TerragruntOptions
+	env         map[string]string
+	iamRoleOpts iam.RoleOptions
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, opts *options.TerragruntOptions) providers.Provider {
+func NewProvider(l log.Logger, iamRoleOpts iam.RoleOptions, env map[string]string) providers.Provider {
 	return &Provider{
-		terragruntOptions: opts,
+		iamRoleOpts: iamRoleOpts,
+		env:         env,
 	}
 }
 
@@ -32,7 +34,7 @@ func (provider *Provider) Name() string {
 
 // GetCredentials implements providers.GetCredentials
 func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*providers.Credentials, error) {
-	iamRoleOpts := provider.terragruntOptions.IAMRoleOptions
+	iamRoleOpts := provider.iamRoleOpts
 	if iamRoleOpts.RoleARN == "" {
 		return nil, nil
 	}
@@ -44,7 +46,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 
 	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
 
-	resp, err := awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.terragruntOptions)
+	resp, err := awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
 	if err != nil {
 		return nil, err
 	}

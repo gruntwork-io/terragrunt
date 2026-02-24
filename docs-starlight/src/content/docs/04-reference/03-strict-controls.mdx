@@ -6,7 +6,7 @@ sidebar:
   order: 3
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside } from "@astrojs/starlight/components";
 
 Terragrunt supports operating in a mode referred to as "Strict Mode".
 
@@ -104,16 +104,6 @@ $ terragrunt run-all plan --strict-control deprecated-commands
 
 The following strict mode controls are available:
 
-### skip-dependencies-inputs
-
-Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
-
-<Aside type="tip">
-Skipping dependency inputs is a performance optimization. For more details on performance optimizations, their tradeoffs, and other performance tips, read the dedicated [Performance documentation](/docs/troubleshooting/performance).
-</Aside>
-
-**Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
-
 ### root-terragrunt-hcl
 
 Throw an error when users try to reference a root `terragrunt.hcl` file using `find_in_parent_folders`.
@@ -121,13 +111,6 @@ Throw an error when users try to reference a root `terragrunt.hcl` file using `f
 This control will also try to find other scenarios where users may be using `terragrunt.hcl` as the root configuration, including when using commands like `scaffold` and `catalog`, which can generate a `terragrunt.hcl` file expecting a `terragrunt.hcl` file at the root of the project. Enabling this flag adjusts the defaults for those commands so that they expect a recommended `root.hcl` file by default, and will throw an error if a `terragrunt.hcl` file is explicitly set.
 
 **Reason**: Using a root `terragrunt.hcl` file was previously the recommended pattern to use with Terragrunt, but that is no longer the case. For more information see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl/).
-
-### terragrunt-prefix-flags
-
-Throw an error when using the `--terragrunt-` prefix for flags.
-
-**Reason**: This is no longer necessary, due to the work in RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445).
-**Example**: The `--terragrunt-non-interactive` flag is deprecated and will be removed in a future version. Use `--non-interactive` instead.
 
 ### terragrunt-prefix-env-vars
 
@@ -167,31 +150,93 @@ Throw an error when using a bare include.
 
 **Reason**: Backwards compatibility for supporting bare includes results in a performance penalty for Terragrunt, and deprecating support provides a significant performance improvement. For more information, see the [Bare Include Migration Guide](/docs/migrate/bare-include/).
 
-### double-star
+### queue-exclude-external
 
-Opts in to a breaking change to `**` and `**/*` behavior in [queue-exclude-dir](/docs/reference/cli/commands/run#queue-exclude-dir)
-and [queue-include-dir](/docs/reference/cli/commands/run#queue-include-dir).
+Throw an error when using the deprecated `--queue-exclude-external` flag.
 
-Without the strict control enabled, to match units in all subdirectories a glob pattern must end in `**/*`.
-With the strict control enabled, the pattern `**/*` will match all subdirectories with a depth of at least one
-as indicated by the `/` character. The glob pattern `**` will now match all subdirectories regardless of depth.
+**Reason**: External dependencies are now excluded by default. The `--queue-exclude-external` flag is no longer needed and has been deprecated. Use `--queue-include-external` if you need to include external dependencies.
 
-With the following directory layout, glob behavior for * characters with the strict control enabled is:
+**Example**:
 
-```
-└── units
-    ├── subdir1
-    │   └── subdir2
-    │       └── unit-c
-    ├── unit-a
-    └── unit-b
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-exclude-external
+WARN  The `--queue-exclude-external` flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default.
 ```
 
-The `*` wildcard indicates any character except `/` e.g. `units/*` matches unit-a
-and unit-b.
+### queue-strict-include
 
-The `**` double wildcard indicates any character including `/`, this allows
-matching multiple directory depths e.g. `units/**` matches unit-a, unit-b, and unit-c.
+Throw an error when using the deprecated `--queue-strict-include` flag.
+
+**Reason**: The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior. The `--queue-strict-include` flag is no longer needed and has been deprecated.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --queue-strict-include
+WARN  The `--queue-strict-include` flag is deprecated and will be removed in a future version of Terragrunt. The behavior of Terragrunt when using `--queue-strict-include` is now the default behavior.
+```
+
+### units-that-include
+
+Throw an error when using the deprecated `--units-that-include` flag.
+
+**Reason**: The `--units-that-include` flag has been deprecated. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --units-that-include=root.hcl
+WARN  The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.
+```
+
+### disable-command-validation
+
+Throw an error when using the deprecated `--disable-command-validation` flag.
+
+**Reason**: Command validation has been removed entirely from Terragrunt. The `run` command now accepts any command and passes it through to the underlying OpenTofu/Terraform binary. The `--disable-command-validation` flag is no longer needed and does nothing.
+
+### no-destroy-dependencies-check
+
+Throw an error when using the deprecated `--no-destroy-dependencies-check` flag.
+
+**Reason**: The `--no-destroy-dependencies-check` flag is deprecated and no longer affects Terragrunt's behavior. Dependency checks are now disabled by default during destroy operations. Use `--destroy-dependencies-check` to explicitly enable dependency checks when needed.
+
+### legacy-internal-tflint
+
+Force the use of external tflint binary.
+
+**Reason**: The embedded version of tflint has been held back by upstream's adoption of the BUSL license. As a result, the embedded version is horribly out of date, and we are deprecating it for removal in a future version of Terragrunt. You may use `--terragrunt-external-tflint` in your `tflint` hook to opt in to the use of an external tflint binary, or enable this strict control.
+
+### deprecated-hidden-flag
+
+Throw an error when using the deprecated `--hidden` flag.
+
+**Reason**: Hidden directories are now included by default in `find` and `list` command results. The `--hidden` flag is no longer needed and has been deprecated. Use `--no-hidden` if you need to exclude hidden directories.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt find --hidden
+WARN  The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.
+```
+
+### disable-dependent-modules
+
+Throw an error when using the deprecated `--disable-dependent-modules` flag.
+
+**Reason**: Dependent modules discovery has been removed from `terragrunt render`. The `--disable-dependent-modules` flag is no longer needed and has no effect.
+
+**Example**:
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt render --format=json --disable-dependent-modules
+WARN  The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.
+```
 
 ## Control Categories
 
@@ -216,7 +261,13 @@ Throw an error when using the deprecated flags.
 
 **Controls**:
 
-- [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+- [queue-exclude-external](#queue-exclude-external)
+- [no-destroy-dependencies-check](#no-destroy-dependencies-check)
+- [deprecated-hidden-flag](#deprecated-hidden-flag)
+- [queue-strict-include](#queue-strict-include)
+- [units-that-include](#units-that-include)
+- [disable-command-validation](#disable-command-validation)
+- [disable-dependent-modules](#disable-dependent-modules)
 
 ### deprecated-env-vars
 
@@ -225,14 +276,6 @@ Throw an error when using the deprecated environment variables.
 **Controls**:
 
 - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
-
-### deprecated-configs
-
-Throw an error when using the deprecated Terragrunt configuration.
-
-**Controls**:
-
-- [skip-dependencies-inputs](#skip-dependencies-inputs)
 
 ## Completed Controls
 
@@ -246,6 +289,27 @@ The following strict controls have been completed and are no longer needed:
 - [destroy-all](#destroy-all)
 - [output-all](#output-all)
 - [validate-all](#validate-all)
+- [skip-dependencies-inputs](#skip-dependencies-inputs)
+- [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+- [double-star](#double-star)
+
+### skip-dependencies-inputs
+
+**Status**: Completed - Dependency inputs are now disabled by default.
+
+Reading inputs from dependencies has been deprecated and is now disabled by default for performance. Use dependency outputs instead.
+
+### terragrunt-prefix-flags
+
+**Status**: Completed - The `--terragrunt-` prefix for flags has been removed from Terragrunt.
+
+**Reason**: The `--terragrunt-` prefix for flags is no longer necessary, due to the work in RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445). Use the flag name without the prefix instead (e.g., `--non-interactive` instead of `--terragrunt-non-interactive`).
+
+### double-star
+
+**Status**: Completed - The `**` glob pattern now matches all subdirectories regardless of depth by default.
+
+The `**` glob pattern in [queue-exclude-dir](/docs/reference/cli/commands/run#queue-exclude-dir) and [queue-include-dir](/docs/reference/cli/commands/run#queue-include-dir) now matches all subdirectories regardless of depth, and `**/*` matches subdirectories with a depth of at least one. This behavior is now the default and this strict control is no longer needed.
 
 ### require-explicit-bootstrap
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestCAS_Clone(t *testing.T) {
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
@@ -42,7 +43,7 @@ func TestCAS_Clone(t *testing.T) {
 
 	t.Run("clone with specific branch", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
@@ -64,7 +65,7 @@ func TestCAS_Clone(t *testing.T) {
 
 	t.Run("clone with included git files", func(t *testing.T) {
 		t.Parallel()
-		tempDir := t.TempDir()
+		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 

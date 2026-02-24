@@ -1,0 +1,38 @@
+---
+import { getCollection } from 'astro:content';
+
+interface Props {
+  tool: 'opentofu' | 'terraform';
+}
+
+const { tool } = Astro.props;
+const entries = (await getCollection('compatibility'))
+  .filter(e => e.data.tool === tool)
+  .sort((a, b) => b.data.order - a.data.order);
+
+const label = tool === 'opentofu' ? 'OpenTofu' : 'Terraform';
+const baseUrl = 'https://github.com/gruntwork-io/terragrunt/releases/tag/v';
+---
+
+<table>
+  <thead>
+    <tr>
+      <th>{label} Version</th>
+      <th>Terragrunt Version</th>
+    </tr>
+  </thead>
+  <tbody>
+    {entries.map(e => (
+      <tr>
+        <td>{e.data.version}</td>
+        <td>
+          {e.data.terragrunt_max ? (
+            <><a href={`${baseUrl}${e.data.terragrunt_min}`}>{e.data.terragrunt_min}</a> - <a href={`${baseUrl}${e.data.terragrunt_max}`}>{e.data.terragrunt_max}</a></>
+          ) : (
+            <>&gt;= <a href={`${baseUrl}${e.data.terragrunt_min}`}>{e.data.terragrunt_min}</a></>
+          )}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>

@@ -24,41 +24,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/NYTimes/gziphandler"
 )
-
-func getPathRelativeTo(t *testing.T, path string, basePath string) string {
-	t.Helper()
-
-	relPath, err := util.GetPathRelativeTo(path, basePath)
-	require.NoError(t, err)
-
-	return relPath
-}
-
-func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
-	t.Helper()
-
-	relPaths := make([]string, len(paths))
-
-	for i, path := range paths {
-		relPath, err := util.GetPathRelativeTo(path, basePath)
-		require.NoError(t, err)
-
-		relPaths[i] = relPath
-	}
-
-	return relPaths
-}
 
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
@@ -72,10 +47,10 @@ func testRunAllPlan(t *testing.T, tgArgs string, tfArgs string) (string, string,
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := filepath.Join(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --log-level trace --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run --all --non-interactive --working-dir %s %s -- plan %s", testPath, tgArgs, tfArgs))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -124,6 +99,62 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 		Scheme: "https",
 		Host:   ln.Addr().String(),
 		Path:   urlPrefix,
+	}
+}
+
+// runMockRegistryWithAbsoluteModuleURL runs a mock Terraform registry server that returns
+// an absolute URL for modules.v1 in its .well-known/terraform.json discovery response.
+// This is used to test the fix for https://github.com/gruntwork-io/terragrunt/issues/5156
+func runMockRegistryWithAbsoluteModuleURL(t *testing.T, ctx context.Context, providerDir, absoluteModulesURL string) *url.URL {
+	t.Helper()
+
+	serverTLSConf, clientTLSConf := certSetup(t)
+
+	http.DefaultTransport = &http.Transport{
+		TLSClientConfig: clientTLSConf,
+	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/.well-known/terraform.json", func(resp http.ResponseWriter, req *http.Request) {
+		discovery := map[string]string{
+			"modules.v1":   absoluteModulesURL,
+			"providers.v1": "/v1/providers/",
+		}
+
+		resp.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(resp).Encode(discovery); err != nil {
+			t.Logf("Error encoding discovery response: %v", err)
+			http.Error(resp, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	fs := http.FileServer(http.Dir(providerDir))
+	mux.Handle("/v1/providers/", http.StripPrefix("/v1/providers/", fs))
+
+	ln, err := tls.Listen("tcp", "localhost:0", serverTLSConf)
+	require.NoError(t, err)
+
+	server := &http.Server{
+		Addr:    ln.Addr().String(),
+		Handler: mux,
+	}
+
+	go func() {
+		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(ctx) //nolint:errcheck
+	}()
+
+	return &url.URL{
+		Scheme: "https",
+		Host:   ln.Addr().String(),
 	}
 }
 
@@ -377,15 +408,6 @@ func wrappedBinary() string {
 	}
 
 	return filepath.Base(value)
-}
-
-// expectedWrongCommandErr - return expected error message for wrong command
-func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == helpers.TofuBinary {
-		return run.WrongTofuCommand(command)
-	}
-
-	return run.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {

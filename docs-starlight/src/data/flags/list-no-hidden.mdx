@@ -1,0 +1,26 @@
+---
+name: no-hidden
+description: Exclude hidden directories from list results.
+type: bool
+env:
+  - TG_LIST_NO_HIDDEN
+---
+
+By default, Terragrunt includes hidden directories (those starting with a dot) in the list results. Use this flag to exclude them.
+
+Example:
+
+```bash
+# Default: includes hidden directories
+$ terragrunt list -l
+Type  Path
+unit  .hide/unit
+stack stack
+unit  unit
+
+# With --no-hidden: excludes hidden directories
+$ terragrunt list -l --no-hidden
+Type  Path
+stack stack
+unit  unit
+```

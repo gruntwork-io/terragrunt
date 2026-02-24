@@ -17,3 +17,44 @@ You can expect that Gruntwork will take any report of a security vulnerability s
 ## Thank you
 
 We appreciate your help in making Terragrunt more secure. Thank you for your efforts in responsibly disclosing security issues, and for your patience as we work to address them.
+
+## Verifying Release Signatures
+
+All Terragrunt releases are signed with both GPG and Cosign. You can verify the authenticity of downloaded binaries using either method.
+
+### Download Verification Files
+
+```bash
+VERSION="v0.XX.X"  # Replace with actual version
+curl -LO "https://github.com/gruntwork-io/terragrunt/releases/download/${VERSION}/SHA256SUMS"
+curl -LO "https://github.com/gruntwork-io/terragrunt/releases/download/${VERSION}/SHA256SUMS.gpgsig"
+curl -LO "https://github.com/gruntwork-io/terragrunt/releases/download/${VERSION}/SHA256SUMS.sig"
+curl -LO "https://github.com/gruntwork-io/terragrunt/releases/download/${VERSION}/SHA256SUMS.pem"
+```
+
+### GPG Verification
+
+```bash
+# Import the public key (first time only)
+curl -s https://gruntwork.io/.well-known/pgp-key.txt | gpg --import
+
+# Verify the signature
+gpg --verify SHA256SUMS.gpgsig SHA256SUMS
+
+# Verify binary checksum
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+### Cosign Verification
+
+```bash
+# Install cosign: https://docs.sigstore.dev/cosign/system_config/installation/
+cosign verify-blob SHA256SUMS \
+  --signature SHA256SUMS.sig \
+  --certificate SHA256SUMS.pem \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
+
+# Verify binary checksum
+sha256sum -c SHA256SUMS --ignore-missing
+```

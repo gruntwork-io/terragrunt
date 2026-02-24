@@ -16,10 +16,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -82,18 +82,23 @@ type Client struct {
 func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
-	cfg, err := awshelper.CreateAwsConfig(ctx, l, awsConfig, opts)
+	builder := awshelper.NewAWSConfigBuilder().
+		WithSessionConfig(awsConfig).
+		WithEnv(opts.Env).
+		WithIAMRoleOptions(opts.IAMRoleOptions)
+
+	cfg, err := builder.Build(ctx, l)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	if !config.SkipCredentialsValidation {
-		if err = awshelper.ValidateAwsConfig(ctx, cfg); err != nil {
+		if err = awshelper.ValidateAwsConfig(ctx, &cfg); err != nil {
 			return nil, err
 		}
 	}
 
-	s3Client, err := awshelper.CreateS3Client(ctx, l, awsConfig, opts)
+	s3Client, err := builder.BuildS3Client(ctx, l)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -135,7 +140,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", bucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -152,7 +157,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
 			err := client.CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, l, opts)
 			if err != nil {
-				if isBucketErrorRetriable(err) {
+				if isBucketErrorRetriable(l, err) {
 					return err
 				}
 				// return FatalError so that retry loop will not continue
@@ -185,7 +190,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 
 	prompt := fmt.Sprintf("Remote state S3 bucket %s is out of date. Would you like Terragrunt to update it?", bucketName)
 
-	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldUpdateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -246,8 +251,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 		} else {
 			if client.AccessLoggingBucketName != "" {
 				if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
-					// TODO: Remove lint suppression
-					return nil //nolint:nilerr
+					return err
 				}
 			} else {
 				l.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", bucketName)
@@ -471,13 +475,13 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 		if isBucketAlreadyOwnedByYouError(err) {
 			l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", cfg.Bucket)
-			return client.WaitUntilS3BucketExists(ctx, l)
+			return client.WaitUntilS3BucketExists(ctx, l, cfg.Bucket)
 		}
 
 		return err
 	}
 
-	if err := client.WaitUntilS3BucketExists(ctx, l); err != nil {
+	if err := client.WaitUntilS3BucketExists(ctx, l, cfg.Bucket); err != nil {
 		return err
 	}
 
@@ -521,8 +525,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	if client.AccessLoggingBucketName != "" {
 		if err := client.configureAccessLogBucket(ctx, l, opts); err != nil {
-			// TODO: Remove lint suppression
-			return nil //nolint:nilerr
+			return err
 		}
 	} else {
 		l.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", cfg.Bucket)
@@ -546,13 +549,13 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 
 	prompt := fmt.Sprintf("Logs S3 bucket %s for the remote state does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", logsBucketName)
 
-	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	shouldCreateBucket, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter)
 	if err != nil {
 		return err
 	}
 
 	if shouldCreateBucket {
-		return client.CreateS3Bucket(ctx, l, logsBucketName)
+		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName)
 	}
 
 	return nil
@@ -642,33 +645,26 @@ func convertTags(tags map[string]string) []types.Tag {
 	return tagsConverted
 }
 
-// WaitUntilS3BucketExists waits until the given S3 bucket exists.
+// WaitUntilS3BucketExists waits until the S3 bucket with the given name exists.
 //
 // AWS is eventually consistent, so after creating an S3 bucket, this method can be used to wait until the information
 // about that S3 bucket has propagated everywhere.
-func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger) error {
-	if client.ExtendedRemoteStateConfigS3 == nil {
-		return errors.Errorf("client configuration is nil - cannot wait for S3 bucket")
-	}
-
-	cfg := &client.ExtendedRemoteStateConfigS3.RemoteStateConfigS3
-
-	l.Debugf("Waiting for bucket %s to be created", cfg.Bucket)
+func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger, bucketName string) error {
+	l.Debugf("Waiting for bucket %s to be created", bucketName)
 
 	for retries := range maxRetriesWaitingForS3Bucket {
-		if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, cfg.Bucket); err != nil {
+		if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, bucketName); err != nil {
 			return err
 		} else if exists {
-			l.Debugf("S3 bucket %s created.", cfg.Bucket)
-
+			l.Debugf("S3 bucket %s created.", bucketName)
 			return nil
 		} else if retries < maxRetriesWaitingForS3Bucket-1 {
-			l.Debugf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", cfg.Bucket, sleepBetweenRetriesWaitingForS3Bucket)
+			l.Debugf("S3 bucket %s has not been created yet. Sleeping for %s and will check again.", bucketName, sleepBetweenRetriesWaitingForS3Bucket)
 			time.Sleep(sleepBetweenRetriesWaitingForS3Bucket)
 		}
 	}
 
-	return errors.New(MaxRetriesWaitingForS3BucketExceeded(cfg.Bucket))
+	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
 }
 
 // CreateS3Bucket creates the S3 bucket specified in the given config.
@@ -704,6 +700,32 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 	return nil
 }
 
+// CreateS3BucketWithRetry creates an S3 bucket with full safeguards:
+// - Retry logic for transient errors
+// - Concurrent creation handling (BucketAlreadyOwnedByYou)
+// - Eventual consistency waiting after creation
+func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string) error {
+	description := "Create S3 bucket '" + bucketName + "' with retry"
+
+	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
+		err := client.CreateS3Bucket(ctx, l, bucketName)
+		if err != nil {
+			if isBucketAlreadyOwnedByYouError(err) {
+				l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", bucketName)
+				return client.WaitUntilS3BucketExists(ctx, l, bucketName)
+			}
+
+			if isBucketErrorRetriable(l, err) {
+				return err
+			}
+
+			return util.FatalError{Underlying: err}
+		}
+
+		return client.WaitUntilS3BucketExists(ctx, l, bucketName)
+	})
+}
+
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYouError(err error) bool {
 	var apiErr smithy.APIError
@@ -715,13 +737,26 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 }
 
 // isBucketErrorRetriable returns true if the error is temporary and can be retried.
-func isBucketErrorRetriable(err error) bool {
+func isBucketErrorRetriable(l log.Logger, err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" || apiErr.ErrorCode() == "InvalidParameter"
+		unrecoverable := apiErr.ErrorCode() == "InternalError" || apiErr.ErrorCode() == "OperationAborted" || apiErr.ErrorCode() == "InvalidParameter"
+
+		if !unrecoverable {
+			l.Debugf(
+				"Encountered AWS API error '%s' during bucket creation. Assuming it's retriable and will retry.",
+				apiErr.ErrorCode(),
+			)
+		}
+
+		return unrecoverable
 	}
 
-	// If it's not a known AWS error, assume it's retriable
+	l.Debugf(
+		"Encountered error '%s'. Assuming it's retriable and will retry.",
+		err.Error(),
+	)
+
 	return true
 }
 
@@ -749,7 +784,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		return errors.Errorf("AWS config region is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
 
-	accountID, err := awshelper.GetAWSAccountID(ctx, client.awsConfig)
+	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucket, err)
 	}
@@ -758,7 +793,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 		return errors.Errorf("AWS account ID is empty - cannot enable root access to S3 bucket %s", bucket)
 	}
 
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
@@ -842,7 +877,7 @@ func (client *Client) EnableRootAccesstoS3Bucket(ctx context.Context, l log.Logg
 }
 
 func (client *Client) EnableEnforcedTLSAccesstoS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucket, err)
 	}
@@ -955,7 +990,7 @@ func (client *Client) EnableAccessLoggingForS3BucketWide(ctx context.Context, l 
 	}
 
 	loggingInput := client.CreateS3LoggingInput()
-	l.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%s", bucket, logsBucket, logsBucketPrefix, loggingInput)
+	l.Debugf("Putting bucket logging on S3 bucket %s with TargetBucket %s and TargetPrefix %s\n%v", bucket, logsBucket, logsBucketPrefix, loggingInput)
 
 	if _, err := client.s3Client.PutBucketLogging(ctx, &loggingInput); err != nil {
 		return errors.Errorf("error enabling bucket-wide Access Logging on AWS S3 bucket %s: %w", cfg.RemoteStateConfigS3.Bucket, err)
@@ -1051,7 +1086,7 @@ func (client *Client) DeleteS3BucketIfNecessary(ctx context.Context, l log.Logge
 			return nil
 		}
 
-		if isBucketErrorRetriable(err) {
+		if isBucketErrorRetriable(l, err) {
 			return err
 		}
 		// return FatalError so that retry loop will not continue
@@ -1143,7 +1178,8 @@ func (client *Client) DeleteS3BucketVersionObjects(ctx context.Context, l log.Lo
 			}
 		}
 
-		for _, item := range res.Versions {
+		for i := range res.Versions {
+			item := &res.Versions[i]
 			if len(keys) != 0 && !slices.Contains(keys, aws.ToString(item.Key)) {
 				continue
 			}
@@ -1235,7 +1271,7 @@ func (client *Client) DeleteS3ObjectIfNecessary(ctx context.Context, l log.Logge
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
 		if err := client.DeleteS3BucketObject(ctx, l, bucketName, key, nil); err != nil {
-			if isBucketErrorRetriable(err) {
+			if isBucketErrorRetriable(l, err) {
 				return err
 			}
 			// return FatalError so that retry loop will not continue
@@ -1587,7 +1623,7 @@ func (client *Client) DeleteTableItemIfNecessary(ctx context.Context, l log.Logg
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
 		if err := client.DeleteTableItem(ctx, l, tableName, key); err != nil {
-			if isBucketErrorRetriable(err) {
+			if isBucketErrorRetriable(l, err) {
 				return err
 			}
 			// return FatalError so that retry loop will not continue
@@ -1703,12 +1739,12 @@ func (client *Client) EnableVersioningForS3Bucket(ctx context.Context, l log.Log
 func (client *Client) EnableSSEForS3BucketWide(ctx context.Context, l log.Logger, bucketName string, algorithm string) error {
 	l.Debugf("Enabling server-side encryption for S3 bucket %s", bucketName)
 
-	accountID, err := awshelper.GetAWSAccountID(ctx, client.awsConfig)
+	accountID, err := awshelper.GetAWSAccountID(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS account ID %s for bucket %s: %w", accountID, bucketName, err)
 	}
 
-	partition, err := awshelper.GetAWSPartition(ctx, client.awsConfig)
+	partition, err := awshelper.GetAWSPartition(ctx, &client.awsConfig)
 	if err != nil {
 		return errors.Errorf("error getting AWS partition %s for bucket %s: %w", partition, bucketName, err)
 	}
@@ -1938,7 +1974,7 @@ func (client *Client) MoveS3ObjectIfNecessary(ctx context.Context, l log.Logger,
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
 		if err := client.MoveS3Object(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
-			if isBucketErrorRetriable(err) {
+			if isBucketErrorRetriable(l, err) {
 				return err
 			}
 			// return FatalError so that retry loop will not continue
@@ -1962,7 +1998,7 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
 		if err := client.CreateTableItem(ctx, l, tableName, key); err != nil {
-			if isBucketErrorRetriable(err) {
+			if isBucketErrorRetriable(l, err) {
 				return err
 			}
 			// return FatalError so that retry loop will not continue

@@ -6,8 +6,9 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 type Getter struct {
@@ -20,8 +21,8 @@ func NewGetter() *Getter {
 	}
 }
 
-// ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to `opts.Env`.
-func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
+// ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to the provided env map.
+func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.Logger, env map[string]string, authProviders ...providers.Provider) error {
 	for _, provider := range authProviders {
 		creds, err := provider.GetCredentials(ctx, l)
 		if err != nil {
@@ -40,8 +41,21 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 
 		getter.obtainedCreds[provider.Name()] = creds
 
-		maps.Copy(opts.Env, creds.Envs)
+		maps.Copy(env, creds.Envs)
 	}
 
 	return nil
+}
+
+// ObtainCredsForParsing creates a new Getter, obtains external-command
+// credentials, and populates env before HCL parsing.
+// Use when sops_decrypt_file() or get_aws_account_id() may appear in locals.
+// See https://github.com/gruntwork-io/terragrunt/issues/5515
+func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, opts *options.TerragruntOptions) (*Getter, error) {
+	g := NewGetter()
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, opts)); err != nil {
+		return nil, err
+	}
+
+	return g, nil
 }

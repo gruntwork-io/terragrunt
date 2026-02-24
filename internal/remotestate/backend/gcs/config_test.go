@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_IsEqual(t *testing.T) {
@@ -101,4 +102,120 @@ func TestConfig_IsEqual(t *testing.T) {
 			assert.Equal(t, tc.shouldBeEqual, actual)
 		})
 	}
+}
+
+// TestParseExtendedGCSConfig_StringBoolCoercion verifies that boolean config values
+// passed as strings (e.g. from HCL ternary type unification) are correctly parsed.
+// See https://github.com/gruntwork-io/terragrunt/issues/5475
+func TestParseExtendedGCSConfig_StringBoolCoercion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct { //nolint: govet
+		name   string
+		config gcs.Config
+		check  func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS)
+	}{
+		{
+			"skip-bucket-versioning-string-true",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "true",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketVersioning)
+			},
+		},
+		{
+			"skip-bucket-versioning-string-false",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "false",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.False(t, cfg.SkipBucketVersioning)
+			},
+		},
+		{
+			"skip-bucket-creation-string-true",
+			gcs.Config{
+				"bucket":               "my-bucket",
+				"skip_bucket_creation": "true",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketCreation)
+			},
+		},
+		{
+			"enable-bucket-policy-only-string-true",
+			gcs.Config{
+				"bucket":                    "my-bucket",
+				"enable_bucket_policy_only": "true",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.EnableBucketPolicyOnly)
+			},
+		},
+		{
+			"native-bool-still-works",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": true,
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketVersioning)
+			},
+		},
+		{
+			"empty-string-coerces-to-false",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.False(t, cfg.SkipBucketVersioning)
+			},
+		},
+		{
+			"numeric-one-coerces-to-true",
+			gcs.Config{
+				"bucket":                 "my-bucket",
+				"skip_bucket_versioning": "1",
+			},
+			func(t *testing.T, cfg *gcs.ExtendedRemoteStateConfigGCS) {
+				t.Helper()
+				assert.True(t, cfg.SkipBucketVersioning)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			extGCSCfg, err := tc.config.ParseExtendedGCSConfig()
+			require.NoError(t, err)
+
+			tc.check(t, extGCSCfg)
+		})
+	}
+}
+
+// TestParseExtendedGCSConfig_InvalidStringBool verifies invalid string values
+// for bool fields are rejected (e.g. "maybe" is not a valid bool).
+func TestParseExtendedGCSConfig_InvalidStringBool(t *testing.T) {
+	t.Parallel()
+
+	cfg := gcs.Config{
+		"bucket":                 "my-bucket",
+		"skip_bucket_versioning": "maybe",
+	}
+
+	_, err := cfg.ParseExtendedGCSConfig()
+	require.Error(t, err)
 }

@@ -1,0 +1,36 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import Perks from '@components/ta-Perks.astro';
+import Ambassadors from '@components/ta-AmbassadorGallery.astro';
+import Footer from '@components/dv-Footer.astro';
+import Header from '@components/Header.astro';
+import Hero from '@components/ta-Hero.astro';
+import CenteredSection from '@components/ta-CenteredSection.astro';
+import PageContainer from '@components/PageContainer.astro';
+import BecomeCTA from '@components/ta-BecomeCTA.astro';
+import StillHaveQuestions from '@components/ta-StillHaveQuestions.astro';
+
+import '@styles/global.css';
+import '@styles/custom-page.css';
+---
+
+<BaseLayout
+  title='Terragrunt | Terragrunt Ambassador Program'
+  url='https://terragrunt.gruntwork.io/terragrunt-ambassador/'
+>
+  <Header showThemeToggle={false} />
+  <Hero />
+
+  <PageContainer>
+
+    <div class="flex flex-col gap-12 md:gap-38 z-10">
+      <CenteredSection />
+      <Perks />
+      <Ambassadors />
+      <BecomeCTA />
+      <StillHaveQuestions />
+      <Footer />
+    </div>
+
+  </PageContainer>
+</BaseLayout>

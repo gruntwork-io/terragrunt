@@ -1,133 +1,43 @@
 package cli
 
-import (
-	"slices"
-	"strings"
+// AppHelpTemplate is the main CLI help template.
+const AppHelpTemplate = `Usage: {{ if .App.UsageText }}{{ wrap .App.UsageText 3 }}{{ else }}{{ .App.HelpName }} [global options] <command> [options]{{ end }}{{ $description := .App.Usage }}{{ if .App.Description }}{{ $description = .App.Description }}{{ end }}{{ if $description }}
 
-	"maps"
+   {{ wrap $description 3 }}{{ end }}{{ $commands := .App.VisibleCommands }}{{ if $commands }}{{ $cv := offsetCommands $commands 5 }}
+{{ $categories := $commands.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ $categoryCommands := $commands.FilterByCategory $category }}{{ if $index }}
+{{ end }}
+{{ $category.Name }}:{{ range $categoryCommands }}
+   {{ $s := .HelpName }}{{ $s }}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{ wrap .Usage $cv }}{{ end }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/urfave/cli/v2"
-)
+Global Options:
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
+   {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if not .App.HideVersion }}
 
-var (
-	// AppVersionTemplate is the text template for the Default version topic.
-	AppVersionTemplate = ""
+Version: {{ .App.Version }}{{ end }}{{ if len .App.Authors }}
 
-	// AppHelpTemplate is the text template for the Default help topic.
-	AppHelpTemplate = ""
+Author: {{ range .App.Authors }}{{ . }}{{ end }} {{ end }}
+`
 
-	// CommandHelpTemplate is the text template for the command help topic.
-	CommandHelpTemplate = ""
-)
+// CommandHelpTemplate is the command CLI help template.
+const CommandHelpTemplate = `Usage: {{ if .Command.UsageText }}{{ wrap .Command.UsageText 3 }}{{ else }}{{ range $index, $parent := parentCommands . }}{{ $parent.HelpName }} {{ end }}{{ .Command.HelpName }}{{ if .Command.VisibleSubcommands }} <command>{{ end }}{{ if .Command.VisibleFlags }} [options]{{ end }}{{ end }}{{ $description := .Command.Usage }}{{ if .Command.Description }}{{ $description = .Command.Description }}{{ end }}{{ if $description }}
 
-// ShowAppHelp prints App help.
-func ShowAppHelp(ctx *Context) error {
-	tpl := ctx.CustomAppHelpTemplate
-	if tpl == "" {
-		tpl = AppHelpTemplate
-	}
+   {{ wrap $description 3 }}{{ end }}{{ if .Command.Examples }}
 
-	if tpl == "" {
-		return errors.Errorf("app help template not defined")
-	}
+Examples:
+   {{ $s := join .Command.Examples "\n\n" }}{{ wrap $s 3 }}{{ end }}{{ if .Command.VisibleSubcommands }}
 
-	if ctx.HelpName == "" {
-		ctx.HelpName = ctx.Name
-	}
+Commands:{{ $cv := offsetCommands .Command.VisibleSubcommands 5 }}{{ range .Command.VisibleSubcommands }}
+   {{ $s := .HelpName }}{{ $s }}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{ wrap .Usage $cv }}{{ end }}{{ end }}{{ if .Command.VisibleFlags }}
 
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, map[string]any{
-		"parentCommands": parentCommands,
-		"offsetCommands": offsetCommands,
-	})
+Options:
+   {{ range $index, $option := .Command.VisibleFlags.Sort }}{{ if $index }}
+   {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}{{ if .App.VisibleFlags }}
 
-	return NewExitError(nil, ExitCodeSuccess)
-}
+Global Options:
+   {{ range $index, $option := .App.VisibleFlags }}{{ if $index }}
+   {{ end }}{{ wrap $option.String 6 }}{{ end }}{{ end }}
 
-// ShowCommandHelp prints command help for the given `ctx`.
-func ShowCommandHelp(ctx *Context) error {
-	if ctx.Command.HelpName == "" {
-		ctx.Command.HelpName = ctx.Command.Name
-	}
+`
 
-	if ctx.Command.CustomHelp != nil {
-		if err := ctx.Command.CustomHelp(ctx); err != nil {
-			return err
-		}
-
-		return NewExitError(nil, ExitCodeSuccess)
-	}
-
-	tpl := ctx.Command.CustomHelpTemplate
-	if tpl == "" {
-		tpl = CommandHelpTemplate
-	}
-
-	if tpl == "" {
-		return errors.Errorf("command help template not defined")
-	}
-
-	HelpPrinterCustom(ctx, tpl, nil)
-
-	return NewExitError(nil, ExitCodeSuccess)
-}
-
-func HelpPrinterCustom(ctx *Context, tpl string, customFuncs map[string]any) {
-	var funcs = map[string]any{
-		"parentCommands": parentCommands,
-		"offsetCommands": offsetCommands,
-	}
-
-	if customFuncs != nil {
-		maps.Copy(funcs, customFuncs)
-	}
-
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, funcs)
-}
-
-func ShowVersion(ctx *Context) error {
-	tpl := ctx.CustomAppVersionTemplate
-	if tpl == "" {
-		tpl = AppVersionTemplate
-	}
-
-	if tpl == "" {
-		return errors.Errorf("app version template not defined")
-	}
-
-	cli.HelpPrinterCustom(ctx.Writer, tpl, ctx, nil)
-
-	return NewExitError(nil, ExitCodeSuccess)
-}
-
-func parentCommands(ctx *Context) Commands {
-	var cmds Commands
-
-	for parent := ctx.Parent(); parent != nil; parent = parent.Parent() {
-		if cmd := parent.Command; cmd != nil {
-			if cmd.HelpName == "" {
-				cmd.HelpName = cmd.Name
-			}
-
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	slices.Reverse(cmds)
-
-	return cmds
-}
-
-// offsetCommands tries to find the max width of the names column.
-func offsetCommands(cmds Commands, fixed int) int {
-	var width = 0
-
-	for _, cmd := range cmds {
-		s := strings.Join(cmd.Names(), ", ")
-		if len(s) > width {
-			width = len(s)
-		}
-	}
-
-	return width + fixed
-}
+const AppVersionTemplate = `{{ .App.Name }} version {{ .App.Version }}
+`

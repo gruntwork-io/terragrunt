@@ -7,9 +7,9 @@ import (
 	"path"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -48,7 +48,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		bucketName = gcsCfg.Bucket
 	)
 
-	client, err := NewClient(ctx, extGCSCfg)
+	client, err := NewClient(ctx, l, extGCSCfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -74,7 +74,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return err
 	}
 
-	client, err := NewClient(ctx, extGCSCfg)
+	client, err := NewClient(ctx, l, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -110,8 +110,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	}
 	// If bucket is specified and skip_bucket_versioning is false then warn user if versioning is disabled on bucket
 	if !extGCSCfg.SkipBucketVersioning && bucketName != "" {
-		// TODO: Remove lint suppression
-		if _, err := client.CheckIfGCSVersioningEnabled(ctx, l, bucketName); err != nil { //nolint:contextcheck
+		if _, err := client.CheckIfGCSVersioningEnabled(ctx, l, bucketName); err != nil {
 			return err
 		}
 	}
@@ -130,7 +129,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 
-	client, err := NewClient(ctx, extGCSCfg)
+	client, err := NewClient(ctx, l, extGCSCfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -157,7 +156,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
 	)
 
-	client, err := NewClient(ctx, srcExtGCSCfg)
+	client, err := NewClient(ctx, l, srcExtGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -177,13 +176,13 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
 	)
 
-	client, err := NewClient(ctx, extGCSCfg)
+	client, err := NewClient(ctx, l, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
 
 	prompt := fmt.Sprintf("GCS bucket %s objects with prefix %s will be deleted. Do you want to continue?", bucketName, prefix)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSObjectIfNecessary(ctx, l, bucketName, prefix)
@@ -199,7 +198,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		return err
 	}
 
-	client, err := NewClient(ctx, extGCSCfg)
+	client, err := NewClient(ctx, l, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -207,7 +206,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 
 	prompt := fmt.Sprintf("GCS bucket %s will be completely deleted. Do you want to continue?", bucketName)
-	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts); err != nil {
+	if yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.ErrWriter); err != nil {
 		return err
 	} else if yes {
 		return client.DeleteGCSBucketIfNecessary(ctx, l, bucketName)

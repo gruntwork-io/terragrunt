@@ -8,22 +8,21 @@ env:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Specifies directories to exclude when running commands with [`all`](/docs/reference/cli/commands/run#all).
+<Aside type="tip" title="Alias for --filter">
 
-This flag can be specified multiple times to exclude multiple directories. When using the `TG_QUEUE_EXCLUDE_DIR` environment variable, specify the directories as a comma-separated list.
+This flag is an alias for the [`--filter` flag](/docs/reference/cli/commands/run#filter).
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+When using this flag, the equivalent filter expression is used instead.
 
-<Aside type="note">
-When using `--queue-exclude-dir`, only the specified units are excluded, not their dependencies.
+e.g.
 
-Dependencies of excluded units will still be run unless they are also explicitly excluded.
-</Aside>
+```bash
+terragrunt run --all --queue-exclude-dir "prod/**" -- plan
+```
 
-<Aside type="note">
-Glob patterns must use Unix forward slashes `/` to separate directories, even on Windows machines.
+is equivalent to:
 
-Glob behavior for `**` and `**/*` will change in a future version of Terragrunt.
-
-See the [double-star strict control](/docs/reference/strict-controls/#double-star) for full details.
+```bash
+terragrunt run --all --filter "!{./prod/**}" -- plan
+```
 </Aside>

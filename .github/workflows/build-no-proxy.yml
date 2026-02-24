@@ -2,6 +2,7 @@ name: Build Without Go Proxy
 
 on:
   workflow_call:
+  workflow_dispatch:
 
 jobs:
   build-no-proxy:
@@ -26,13 +27,23 @@ jobs:
             arch: amd64
 
     steps:
+      - name: "Mount tmpfs"
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          sudo mount -t tmpfs -o size=12G tmpfs /tmp
+          mkdir -p /home/runner/go
+          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
+          mkdir -p /home/runner/.cache/go-build
+          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
         with:
-          version: 2025.8.16
+          version: 2026.1.9
           experimental: true
         env:
           # Adding token here to reduce the likelihood of hitting rate limit issues.
@@ -41,12 +52,23 @@ jobs:
       - id: go-cache-paths
         run: |
           echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Go Build Cache
-        uses: actions/cache@v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ matrix.arch }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
 
       - name: Build Terragrunt without Go proxy
         env:

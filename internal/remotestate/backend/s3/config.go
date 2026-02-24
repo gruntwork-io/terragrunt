@@ -1,24 +1,20 @@
 package s3
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
-
-	"maps"
-
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
 	configLockTableKey                 = "lock_table"
 	configDynamoDBTableKey             = "dynamodb_table"
-	configEncryptKey                   = "encrypt"
-	configKeyKey                       = "key"
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
@@ -105,11 +101,11 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 		extendedConfig ExtendedRemoteStateConfigS3
 	)
 
-	if err := mapstructure.Decode(cfg, &s3Config); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &s3Config); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.Decode(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 

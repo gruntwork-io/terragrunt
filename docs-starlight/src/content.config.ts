@@ -78,4 +78,16 @@ const testimonials = defineCollection({
 	}),
 });
 
-export const collections = { brands, commands, docs, flags, testimonials };
+const compatibility = defineCollection({
+	loader: file("src/data/compatibility/compatibility.json"),
+	schema: z.object({
+		id: z.string(),
+		tool: z.enum(["opentofu", "terraform"]),
+		version: z.string(),
+		terragrunt_min: z.string(),
+		terragrunt_max: z.string().nullable(),
+		order: z.number(),
+	}),
+});
+
+export const collections = { brands, commands, compatibility, docs, flags, testimonials };

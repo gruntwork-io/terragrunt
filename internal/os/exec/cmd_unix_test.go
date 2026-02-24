@@ -4,6 +4,7 @@
 package exec_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,6 +61,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second)
+
 	start := time.Now()
 
 	cmd.Process.Signal(os.Interrupt)
@@ -118,4 +120,44 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	require.NoError(t, err)
 	assert.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
 	assert.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
+}
+
+// TestGracefulShutdownOnContextCancelUnix verifies that when the context is cancelled
+// without a signal cause, the Cancel callback sends SIGINT (not SIGKILL) to allow
+// processes like Terraform to gracefully shutdown their child processes.
+// The test script traps SIGINT and exits with code 42, while SIGKILL would terminate
+// it immediately without running the trap handler.
+func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	cmd := exec.Command(ctx, "testdata/test_graceful_shutdown.sh")
+
+	cmd.Configure(exec.WithGracefulShutdownDelay(5 * time.Second))
+
+	runChannel := make(chan error)
+
+	go func() {
+		runChannel <- cmd.Run()
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+
+	cancel()
+
+	err := <-runChannel
+	require.Error(t, err)
+
+	retCode, err := util.GetExitCode(err)
+	require.NoError(t, err)
+
+	assert.Equal(
+		t,
+		42,
+		retCode,
+		"Expected exit code 42 (SIGINT received), but got %d. "+
+			"This suggests SIGKILL was sent instead of SIGINT.",
+		retCode,
+	)
 }

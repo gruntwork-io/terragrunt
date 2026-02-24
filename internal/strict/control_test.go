@@ -216,7 +216,16 @@ func TestEnableControl(t *testing.T) {
 
 			logger, output := newTestLogger()
 
+			requestedNames := make([]string, 0, len(tc.enableControls))
+
+			for _, ec := range tc.enableControls {
+				if ec.expectedErr == nil {
+					requestedNames = append(requestedNames, ec.controlName)
+				}
+			}
+
 			controls.LogEnabled(logger)
+			controls.LogCompletedControls(logger, requestedNames)
 
 			if tc.expectedCompletedMsg == "" {
 				assert.Empty(t, output.String())
@@ -278,6 +287,72 @@ func TestEnableStrictMode(t *testing.T) {
 			assert.Empty(t, output.String())
 		})
 	}
+}
+
+// TestLogCompletedControlsWithParentAndCompletedSubcontrol tests that LogCompletedControls
+// only warns about explicitly requested controls, not implicitly enabled subcontrols.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5293
+func TestLogCompletedControlsWithParentAndCompletedSubcontrol(t *testing.T) {
+	t.Parallel()
+
+	completedSubControl := &controls.Control{
+		Name:    "completed-sub",
+		Status:  strict.CompletedStatus,
+		Error:   errors.New("completed error"),
+		Warning: "completed warning",
+	}
+
+	parentControl := &controls.Control{
+		Name: "parent-control",
+		Subcontrols: strict.Controls{
+			completedSubControl,
+		},
+	}
+
+	testControls := strict.Controls{
+		parentControl,
+		completedSubControl,
+	}
+
+	err := testControls.EnableControl("parent-control")
+	require.NoError(t, err)
+
+	assert.True(t, completedSubControl.GetEnabled(), "subcontrol should be enabled")
+
+	logger, output := newTestLogger()
+	testControls.LogCompletedControls(logger, []string{"parent-control"})
+
+	assert.Empty(t, output.String(), "should not warn about implicitly enabled completed subcontrols")
+}
+
+// TestLogCompletedControlsWithExplicitlyRequestedCompletedControl tests that LogCompletedControls
+// DOES warn when a completed control is explicitly requested.
+func TestLogCompletedControlsWithExplicitlyRequestedCompletedControl(t *testing.T) {
+	t.Parallel()
+
+	completedControl := &controls.Control{
+		Name:    "completed-control",
+		Status:  strict.CompletedStatus,
+		Error:   errors.New("completed error"),
+		Warning: "completed warning",
+	}
+
+	testControls := strict.Controls{
+		completedControl,
+	}
+
+	err := testControls.EnableControl("completed-control")
+	require.NoError(t, err)
+
+	logger, output := newTestLogger()
+	testControls.LogCompletedControls(logger, []string{"completed-control"})
+
+	assert.Contains(
+		t,
+		output.String(),
+		"completed-control",
+		"should warn about explicitly requested completed control",
+	)
 }
 
 func TestEvaluateControl(t *testing.T) {

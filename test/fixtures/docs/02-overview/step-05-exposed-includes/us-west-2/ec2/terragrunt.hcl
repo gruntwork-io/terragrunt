@@ -4,7 +4,7 @@ include "root" {
 }
 
 terraform {
-  source = "tfr:///terraform-aws-modules/ec2-instance/aws?version=5.7.1"
+  source = "tfr:///terraform-aws-modules/ec2-instance/aws?version=6.2.0"
 }
 
 dependency "vpc" {

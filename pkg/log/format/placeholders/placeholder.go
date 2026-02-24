@@ -66,14 +66,18 @@ func (phs Placeholders) Names() []string {
 func (phs Placeholders) Format(data *options.Data) (string, error) {
 	var str string
 
+	var strSb69 strings.Builder
+
 	for _, ph := range phs {
 		s, err := ph.Format(data)
 		if err != nil {
 			return "", err
 		}
 
-		str += s
+		strSb69.WriteString(s)
 	}
+
+	str += strSb69.String()
 
 	return str, nil
 }

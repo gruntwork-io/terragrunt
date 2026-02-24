@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
-	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
 
 	"github.com/gruntwork-io/terragrunt/internal/queue"
@@ -17,55 +16,52 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mockUnit creates a common.Unit with the given path and dependencies.
-func mockUnit(path string, deps ...*common.Unit) *common.Unit {
-	return &common.Unit{
-		Path:         path,
-		Dependencies: deps,
-	}
-}
+// buildComponentUnits creates component units and wires dependencies based on path relationships.
+func buildComponentUnits(paths []string, depMap map[string][]string) []*component.Unit {
+	unitMap := make(map[string]*component.Unit)
 
-// Add a helper to convert units to discovered components
-func discoveryFromUnits(units []*common.Unit) component.Components {
-	discovered := make(component.Components, 0, len(units))
-	unitMap := make(map[*common.Unit]*component.Unit)
-	// First pass: create components
-	for _, u := range units {
-		cfg := component.NewUnit(u.Path)
-		unitMap[u] = cfg
-		discovered = append(discovered, cfg)
+	// First pass: create units
+	for _, path := range paths {
+		unitMap[path] = component.NewUnit(path)
 	}
+
 	// Second pass: wire dependencies
-	for i, u := range units {
-		for _, dep := range u.Dependencies {
-			if depCfg, ok := unitMap[dep]; ok {
-				discovered[i].AddDependency(depCfg)
+	for path, deps := range depMap {
+		unit := unitMap[path]
+		for _, depPath := range deps {
+			if depUnit, ok := unitMap[depPath]; ok {
+				unit.AddDependency(depUnit)
 			}
 		}
 	}
 
-	return discovered
+	// Collect in order
+	units := make([]*component.Unit, 0, len(paths))
+	for _, path := range paths {
+		units = append(units, unitMap[path])
+	}
+
+	return units
 }
 
 func TestRunnerPool_LinearDependency(t *testing.T) {
 	t.Parallel()
 
 	// A -> B -> C
-	// Build Component objects directly
-	compA := component.NewUnit("A")
-	compB := component.NewUnit("B")
-	compB.AddDependency(compA)
+	units := buildComponentUnits(
+		[]string{"A", "B", "C"},
+		map[string][]string{
+			"B": {"A"},
+			"C": {"B"},
+		},
+	)
 
-	compC := component.NewUnit("C")
-	compC.AddDependency(compB)
-	components := component.Components{compA, compB, compC}
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
 
-	unitA := mockUnit("A")
-	unitB := mockUnit("B", unitA)
-	unitC := mockUnit("C", unitB)
-	units := []*common.Unit{unitA, unitB, unitC}
-
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
@@ -87,16 +83,24 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 	//   A
 	//  / \
 	// B   C
-	unitA := mockUnit("A")
-	unitB := mockUnit("B", unitA)
-	unitC := mockUnit("C", unitA)
-	units := []*common.Unit{unitA, unitB, unitC}
+	units := buildComponentUnits(
+		[]string{"A", "B", "C"},
+		map[string][]string{
+			"B": {"A"},
+			"C": {"A"},
+		},
+	)
 
-	runner := func(ctx context.Context, u *common.Unit) error {
+	runner := func(ctx context.Context, u *component.Unit) error {
 		return nil
 	}
 
-	q, err := queue.NewQueue(discoveryFromUnits(units))
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	dagRunner := runnerpool.NewController(
@@ -112,20 +116,28 @@ func TestRunnerPool_ParallelExecution(t *testing.T) {
 func TestRunnerPool_FailFast(t *testing.T) {
 	t.Parallel()
 	// A -> B -> C
-	unitA := mockUnit("A")
-	unitB := mockUnit("B", unitA)
-	unitC := mockUnit("C", unitB)
-	units := []*common.Unit{unitA, unitB, unitC}
+	units := buildComponentUnits(
+		[]string{"A", "B", "C"},
+		map[string][]string{
+			"B": {"A"},
+			"C": {"B"},
+		},
+	)
 
-	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "A" {
+	runner := func(ctx context.Context, u *component.Unit) error {
+		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
 
 		return nil
 	}
 
-	q, err := queue.NewQueue(discoveryFromUnits(units))
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	q.FailFast = true
@@ -138,7 +150,7 @@ func TestRunnerPool_FailFast(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit A failed", "unit B did not run due to early exit", "unit C did not run due to early exit"} {
+	for _, want := range []string{"unit A failed", "Unit 'B' did not run", "Unit 'C' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
@@ -151,14 +163,16 @@ func TestRunnerPool_FailFast(t *testing.T) {
 //	/ \
 //
 // D   E
-func buildComplexUnits() []*common.Unit {
-	unitA := mockUnit("A")
-	unitB := mockUnit("B", unitA)
-	unitC := mockUnit("C", unitA)
-	unitD := mockUnit("D", unitB)
-	unitE := mockUnit("E", unitB)
-
-	return []*common.Unit{unitA, unitB, unitC, unitD, unitE}
+func buildComplexUnits() []*component.Unit {
+	return buildComponentUnits(
+		[]string{"A", "B", "C", "D", "E"},
+		map[string][]string{
+			"B": {"A"},
+			"C": {"A"},
+			"D": {"B"},
+			"E": {"B"},
+		},
+	)
 }
 
 func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
@@ -166,15 +180,20 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "B" {
+	runner := func(ctx context.Context, u *component.Unit) error {
+		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}
 
 		return nil
 	}
 
-	q, err := queue.NewQueue(discoveryFromUnits(units))
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	dagRunner := runnerpool.NewController(
@@ -186,7 +205,7 @@ func TestRunnerPool_ComplexDependency_BFails(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
@@ -196,15 +215,20 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "A" {
+	runner := func(ctx context.Context, u *component.Unit) error {
+		if u.Path() == "A" {
 			return errors.New("unit A failed")
 		}
 
 		return nil
 	}
 
-	q, err := queue.NewQueue(discoveryFromUnits(units))
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	q.FailFast = true
@@ -219,10 +243,10 @@ func TestRunnerPool_ComplexDependency_AFails_FailFast(t *testing.T) {
 
 	for _, want := range []string{
 		"unit A failed",
-		"unit B did not run due to early exit",
-		"unit C did not run due to early exit",
-		"unit D did not run due to early exit",
-		"unit E did not run due to early exit",
+		"Unit 'B' did not run",
+		"Unit 'C' did not run",
+		"Unit 'D' did not run",
+		"Unit 'E' did not run",
 	} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
@@ -233,15 +257,20 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 
 	units := buildComplexUnits()
 
-	runner := func(ctx context.Context, u *common.Unit) error {
-		if u.Path == "B" {
+	runner := func(ctx context.Context, u *component.Unit) error {
+		if u.Path() == "B" {
 			return errors.New("unit B failed")
 		}
 
 		return nil
 	}
 
-	q, err := queue.NewQueue(discoveryFromUnits(units))
+	components := make(component.Components, len(units))
+	for i, u := range units {
+		components[i] = u
+	}
+
+	q, err := queue.NewQueue(components)
 	require.NoError(t, err)
 
 	q.FailFast = true
@@ -254,7 +283,7 @@ func TestRunnerPool_ComplexDependency_BFails_FailFast(t *testing.T) {
 	err = dagRunner.Run(t.Context(), logger.CreateLogger())
 	require.Error(t, err)
 
-	for _, want := range []string{"unit B failed", "unit D did not run due to early exit", "unit E did not run due to early exit"} {
+	for _, want := range []string{"unit B failed", "Unit 'D' did not run", "Unit 'E' did not run"} {
 		assert.Contains(t, err.Error(), want, "Expected error message '%s' in errors", want)
 	}
 }
