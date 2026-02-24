@@ -229,7 +229,7 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		}
 	}
 
-	if err := checkForDependencyBlockCycles(ctx, pctx, l, file.ConfigPath, decodedDependency); err != nil {
+	if err := checkForDependencyBlockCycles(ctx, pctx, l, pctx.TerragruntConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
 
