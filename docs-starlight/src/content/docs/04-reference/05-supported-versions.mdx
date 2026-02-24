@@ -38,16 +38,16 @@ relax the version constraint.
 
 Version compatibility data is available via JSON API:
 
-| Endpoint | Description |
-|----------|-------------|
-| `/api/v1/compatibility` | All entries |
-| `/api/v1/compatibility?tool=opentofu` | OpenTofu only |
-| `/api/v1/compatibility?tool=terraform` | Terraform only |
+| Endpoint                               | Description    |
+|----------------------------------------|----------------|
+| `/api/v1/compatibility/index.json`     | All entries    |
+| `/api/v1/compatibility/opentofu.json`  | OpenTofu only  |
+| `/api/v1/compatibility/terraform.json` | Terraform only |
 
 **Example:**
 
 ```bash
-curl https://terragrunt.gruntwork.io/api/v1/compatibility?tool=opentofu
+curl https://terragrunt.gruntwork.io/api/v1/compatibility/opentofu.json
 ```
 
 **Response format:**
@@ -63,9 +63,9 @@ curl https://terragrunt.gruntwork.io/api/v1/compatibility?tool=opentofu
 ]
 ```
 
-| Field | Description |
-|-------|-------------|
-| `tool` | IaC tool name: `opentofu` or `terraform` |
-| `version` | Tool version pattern (e.g., `1.11.x`) |
-| `terragrunt_min` | Minimum compatible Terragrunt version |
+| Field            | Description                                                  |
+|------------------|--------------------------------------------------------------|
+| `tool`           | IaC tool name: `opentofu` or `terraform`                     |
+| `version`        | Tool version pattern (e.g., `1.11.x`)                        |
+| `terragrunt_min` | Minimum compatible Terragrunt version                        |
 | `terragrunt_max` | Maximum compatible version, or `null` for open-ended support |

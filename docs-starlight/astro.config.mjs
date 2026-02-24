@@ -321,7 +321,25 @@ export default defineConfig({
     "/community/invite": "https://discord.com/invite/YENaT9h8jh",
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [
+      tailwindcss(),
+      {
+        name: 'compatibility-query-redirect',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => {
+            if (req.url?.startsWith('/api/v1/compatibility?')) {
+              const tool = new URLSearchParams(req.url.split('?')[1]).get('tool');
+              if (tool === 'opentofu' || tool === 'terraform') {
+                req.url = `/api/v1/compatibility/${tool}.json`;
+              } else {
+                req.url = '/api/v1/compatibility/index.json';
+              }
+            }
+            next();
+          });
+        },
+      },
+    ],
   },
   tailwind: {
     // We include this extra Tailwind config to support the shadcn/ui components.
