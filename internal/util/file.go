@@ -577,7 +577,9 @@ func WriteFileWithSamePermissions(source string, destination string, contents io
 	if err != nil {
 		return err
 	}
+
 	_, err = io.Copy(file, contents)
+
 	return err
 }
 
