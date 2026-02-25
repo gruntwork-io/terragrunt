@@ -1283,6 +1283,9 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		BackendBootstrap:             pctx.BackendBootstrap,
 		Telemetry:                    pctx.Telemetry,
 		AuthProviderCmd:              pctx.AuthProviderCmd,
+		ProviderCacheDir:             pctx.ProviderCacheDir,
+		ProviderCacheToken:           pctx.ProviderCacheToken,
+		ProviderCacheRegistryNames:   pctx.ProviderCacheRegistryNames,
 	}
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)

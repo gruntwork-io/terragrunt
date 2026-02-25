@@ -71,32 +71,37 @@ type ParsingContext struct {
 	ScaffoldRootFileName         string
 	TerragruntStackConfigPath    string
 	TofuImplementation           tfimpl.Type
+	ProviderCacheDir             string
+	ProviderCacheHostname        string
+	ProviderCacheToken           string
 
 	IAMRoleOptions         iam.RoleOptions
 	OriginalIAMRoleOptions iam.RoleOptions
 
-	Experiments            experiment.Experiments
-	StrictControls         strict.Controls
-	PartialParseDecodeList []PartialDecodeSectionType
-	ParserOptions          []hclparse.Option
+	Experiments                experiment.Experiments
+	StrictControls             strict.Controls
+	PartialParseDecodeList     []PartialDecodeSectionType
+	ParserOptions              []hclparse.Option
+	ProviderCacheRegistryNames []string
 
 	MaxFoldersToCheck int
 	ParseDepth        int
+	ProviderCachePort int
 
-	TFPathExplicitlySet bool
-	SkipOutput          bool
-	ForwardTFStdout     bool
-	JSONLogFormat       bool
-	Debug               bool
-	AutoInit            bool
-	Headless            bool
-	BackendBootstrap    bool
-	CheckDependentUnits bool
-
+	TFPathExplicitlySet              bool
+	SkipOutput                       bool
+	ForwardTFStdout                  bool
+	JSONLogFormat                    bool
+	Debug                            bool
+	AutoInit                         bool
+	Headless                         bool
+	BackendBootstrap                 bool
+	CheckDependentUnits              bool
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
+	ProviderCache                    bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
