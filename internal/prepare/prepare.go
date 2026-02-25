@@ -80,7 +80,11 @@ func PrepareSource(
 		return nil, err
 	}
 
-	opts.Errors = errConfig
+	// Only overwrite when the config actually defines error rules;
+	// otherwise preserve the built-in default retryable errors.
+	if errConfig != nil {
+		opts.Errors = errConfig
+	}
 
 	runCfg := cfg.ToRunConfig(l)
 

@@ -96,7 +96,11 @@ func Run(
 		return err
 	}
 
-	opts.Errors = errConfig
+	// Only overwrite when the config actually defines error rules;
+	// otherwise preserve the built-in default retryable errors.
+	if errConfig != nil {
+		opts.Errors = errConfig
+	}
 
 	l, terragruntOptionsClone, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
@@ -187,9 +191,8 @@ func GenerateConfig(l log.Logger, opts *Options, cfg *runcfg.RunConfig) error {
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(opts.DownloadDir, &sync.Mutex{})
 
 	actualLock := rawActualLock.(*sync.Mutex)
-	defer actualLock.Unlock()
-
 	actualLock.Lock()
+	defer actualLock.Unlock()
 
 	for _, genCfg := range cfg.GenerateConfigs {
 		if err := codegen.WriteToFile(l, opts.WorkingDir, &genCfg); err != nil {
