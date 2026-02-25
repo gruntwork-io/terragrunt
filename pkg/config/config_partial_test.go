@@ -128,13 +128,14 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/" + config.DefaultTerragruntConfigPath
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "ignore-bad-block-in-parent", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
 	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
-	_, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
 	require.NoError(t, err)
 
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
@@ -145,7 +146,8 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../../test/fixtures/partial-parse/partial-inheritance/child/" + config.DefaultTerragruntConfigPath
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
@@ -166,7 +168,8 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../../test/fixtures/partial-parse/partial-inheritance/child/" + config.DefaultTerragruntConfigPath
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
