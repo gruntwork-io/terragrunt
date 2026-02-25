@@ -980,7 +980,13 @@ func getTerragruntOutputJSONFromInitFolder(
 		),
 	)
 
-	out, err := tf.RunCommandWithOutput(ctx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	// Strip the provider cache hook from context because bare tofu/terraform calls
+	// don't carry full TerragruntOptions and the hook would panic on nil access.
+	//
+	// This won't be necessary once we reduce dependency on opts.
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1116,7 +1122,13 @@ func getTerragruntOutputJSONFromRemoteState(
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := tf.RunCommandWithOutput(ctx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	// Strip the provider cache hook from context because bare tofu/terraform calls
+	// don't carry full TerragruntOptions and the hook would panic on nil access.
+	//
+	// This won't be necessary once we reduce dependency on opts.
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1382,7 +1394,13 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 	initRunOpts.ShellOptions.Writers.ErrWriter = &stderr
 
-	if err := tf.RunCommand(ctx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	// Strip the provider cache hook from context because bare tofu/terraform calls
+	// don't carry full TerragruntOptions and the hook would panic on nil access.
+	//
+	// This won't be necessary once we reduce dependency on opts.
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	if err := tf.RunCommand(bareCtx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())
