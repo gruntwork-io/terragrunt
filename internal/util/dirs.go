@@ -16,5 +16,5 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 		return "", "", errors.New(err)
 	}
 
-	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
+	return workingDir, downloadDir, nil
 }
