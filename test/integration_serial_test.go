@@ -821,9 +821,9 @@ func TestTerragruntProviderCacheWithDependency(t *testing.T) {
 	helpers.RunTerragrunt(
 		t,
 		fmt.Sprintf(
-			"terragrunt run --all init --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s",
+			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
 			providerCacheDir,
-			rootPath,
+			filepath.Join(rootPath, "app"),
 		),
 	)
 
@@ -840,7 +840,7 @@ func TestTerragruntProviderCacheWithDependency(t *testing.T) {
 		"hashicorp/null/3.2.4",
 	} {
 		providerPath := filepath.Join(providerCacheDir, registryName, provider)
-		assert.FileExists(t, providerPath, "Provider cache dir should contain %s at %s", provider, providerPath)
+		assert.DirExists(t, providerPath, "Provider cache dir should contain %s at %s", provider, providerPath)
 	}
 
 	// Verify both units have been initialized by checking for .terraform directories
