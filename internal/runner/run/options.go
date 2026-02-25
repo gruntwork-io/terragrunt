@@ -39,7 +39,7 @@ const (
 type Options struct {
 	Writers                      writer.Writers
 	TerraformCliArgs             *iacargs.IacArgs
-	Engine                       *engine.EngineConfig
+	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
 	Errors                       *errorconfig.Config
 	FeatureFlags                 *xsync.MapOf[string, string]
@@ -95,7 +95,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		Env:                          opts.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		Engine:                       opts.EngineConfig,
+		EngineConfig:                 opts.EngineConfig,
 		EngineOptions:                opts.EngineOptions,
 		Errors:                       opts.Errors,
 		Experiments:                  opts.Experiments,
@@ -142,7 +142,7 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		Env:                          o.Env,
 		IAMRoleOptions:               o.IAMRoleOptions,
 		OriginalIAMRoleOptions:       o.OriginalIAMRoleOptions,
-		EngineConfig:                 o.Engine,
+		EngineConfig:                 o.EngineConfig,
 		EngineOptions:                o.EngineOptions,
 		Errors:                       o.Errors,
 		Experiments:                  o.Experiments,
@@ -277,7 +277,7 @@ func (o *Options) shellRunOptions() *shell.ShellOptions {
 		WorkingDir:      o.WorkingDir,
 		Env:             o.Env,
 		TFPath:          o.TFPath,
-		EngineConfig:    o.Engine,
+		EngineConfig:    o.EngineConfig,
 		EngineOptions:   o.EngineOptions,
 		Experiments:     o.Experiments,
 		Telemetry:       o.Telemetry,

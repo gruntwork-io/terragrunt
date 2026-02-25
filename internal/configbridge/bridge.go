@@ -47,7 +47,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.SkipOutput = opts.SkipOutput
 	pctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
 	pctx.AuthProviderCmd = opts.AuthProviderCmd
-	pctx.Engine = opts.EngineConfig
+	pctx.EngineConfig = opts.EngineConfig
 	pctx.EngineOptions = opts.EngineOptions
 	pctx.TFPath = opts.TFPath
 	pctx.TofuImplementation = opts.TofuImplementation
@@ -72,7 +72,7 @@ func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
 		WorkingDir:      pctx.WorkingDir,
 		Env:             pctx.Env,
 		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.Engine,
+		EngineConfig:    pctx.EngineConfig,
 		EngineOptions:   pctx.EngineOptions,
 		Experiments:     pctx.Experiments,
 		Telemetry:       pctx.Telemetry,

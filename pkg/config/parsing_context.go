@@ -41,7 +41,7 @@ type ParsingContext struct {
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	Engine           *engine.EngineConfig
+	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string

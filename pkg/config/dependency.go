@@ -860,7 +860,7 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	pctx.Engine = engineOpts
+	pctx.EngineConfig = engineOpts
 
 	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.NoDependencyFetchOutputFromState &&
@@ -1271,7 +1271,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		Experiments:                  pctx.Experiments,
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
-		Engine:                       pctx.Engine,
+		EngineConfig:                 pctx.EngineConfig,
 		EngineOptions:                pctx.EngineOptions,
 		TFPath:                       pctx.TFPath,
 		TofuImplementation:           pctx.TofuImplementation,
@@ -1311,7 +1311,7 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		WorkingDir:      pctx.WorkingDir,
 		Env:             pctx.Env,
 		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.Engine,
+		EngineConfig:    pctx.EngineConfig,
 		Experiments:     pctx.Experiments,
 		Telemetry:       pctx.Telemetry,
 		RootWorkingDir:  pctx.RootWorkingDir,
