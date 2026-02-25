@@ -20,7 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/test"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terratest/modules/retry"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
 	// Retry to handle intermittent failures due to network issues on CICD
-	retry.DoWithRetry(t, "Run terragrunt init with provider cache", 3, 0, func() (string, error) {
+	require.NoError(t, util.DoWithRetry(t.Context(), "Run terragrunt init with provider cache", 3, 0, logger.CreateLogger(), log.DebugLevel, func(ctx context.Context) error {
 		// Clean up before each attempt
 		helpers.CleanupTerraformFolder(t, appPath)
 
@@ -98,30 +99,30 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		err = helpers.RunTerragruntCommandWithContext(t, ctx, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
 		if err != nil {
-			return "", fmt.Errorf("terragrunt command failed: %w", err)
+			return fmt.Errorf("terragrunt command failed: %w", err)
 		}
 
 		// Verify the config was created correctly - it's now in the cache directory
 		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
 		if cacheWorkingDir == "" {
-			return "", fmt.Errorf("failed to find cache working directory for %s", appPath)
+			return fmt.Errorf("failed to find cache working directory for %s", appPath)
 		}
 
 		terraformrcBytes, readErr := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		if readErr != nil {
-			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
+			return fmt.Errorf("failed to read .terraformrc: %w", readErr)
 		}
 
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
 		if !strings.Contains(terraformrc, expectedProviderInstallation) {
-			return "", fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
+			return fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
 		}
 
-		return "Success", nil
-	})
+		return nil
+	}))
 }
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
