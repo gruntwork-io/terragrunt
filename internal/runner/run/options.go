@@ -23,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -180,14 +179,14 @@ func (o *Options) Clone() *Options {
 func (o *Options) CloneWithConfigPath(l log.Logger, configPath string) (log.Logger, *Options, error) {
 	newOpts := o.Clone()
 
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
 		absConfigPath, err := filepath.Abs(configPath)
 		if err != nil {
 			return l, nil, err
 		}
 
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(absConfigPath)
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -320,7 +319,7 @@ func (o *Options) RunWithErrorHandling(
 		return err
 	}
 
-	reportDir = util.CleanPath(reportDir)
+	reportDir = filepath.Clean(reportDir)
 
 	for {
 		err := operation()

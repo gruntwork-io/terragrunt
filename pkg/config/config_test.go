@@ -1243,8 +1243,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	workingDir, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "config-files", "ignore-terraform-data-dir"))
 	require.NoError(t, err)
 
-	workingDir := filepath.Join(cwd, "../../test/fixtures/config-files/ignore-terraform-data-dir/")
-
 	actual, err := config.FindConfigFilesInPath(workingDir, experiment.NewExperiments(), workingDir, map[string]string{"TF_DATA_DIR": filepath.Join(workingDir, ".tf_data")}, testDownloadDir(t, workingDir))
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -1381,7 +1379,7 @@ terraform {
 	ctx, pctx := newTestParsingContext(t, "../../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath)
 	pctx.MaxFoldersToCheck = 5
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, configPathAbs, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, pctx.TerragruntConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
