@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"syscall"
@@ -84,6 +85,11 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 // IsOfflineError returns true if the given error is an offline error and can be use default URL.
 func IsOfflineError(err error) bool {
 	if errors.As(err, &NotFoundWellKnownURLError{}) {
+		return true
+	}
+
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
 		return true
 	}
 
