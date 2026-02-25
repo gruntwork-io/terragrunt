@@ -273,16 +273,17 @@ func (o *Options) DataDir() string {
 // shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
 	return &shell.ShellOptions{
-		Writers:        o.Writers,
-		WorkingDir:     o.WorkingDir,
-		Env:            o.Env,
-		TFPath:         o.TFPath,
-		EngineConfig:   o.Engine,
-		EngineOptions:  o.EngineOptions,
-		Experiments:    o.Experiments,
-		NoEngine:       o.EngineOptions.NoEngine,
-		Telemetry:      o.Telemetry,
-		RootWorkingDir: o.RootWorkingDir,
+		Writers:         o.Writers,
+		WorkingDir:      o.WorkingDir,
+		Env:             o.Env,
+		TFPath:          o.TFPath,
+		EngineConfig:    o.Engine,
+		EngineOptions:   o.EngineOptions,
+		Experiments:     o.Experiments,
+		Telemetry:       o.Telemetry,
+		RootWorkingDir:  o.RootWorkingDir,
+		Headless:        o.Headless,
+		ForwardTFStdout: o.ForwardTFStdout,
 	}
 }
 
@@ -314,12 +315,7 @@ func (o *Options) RunWithErrorHandling(
 		reportWorkingDir = filepath.Dir(o.OriginalTerragruntConfigPath)
 	}
 
-	reportDir, err := filepath.Abs(reportWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	reportDir = filepath.Clean(reportDir)
+	reportDir := filepath.Clean(reportWorkingDir)
 
 	for {
 		err := operation()

@@ -67,23 +67,19 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 // ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 // Exported so configbridge callbacks and external callers can use it.
 func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
-	opts := &shell.ShellOptions{
-		Writers:        pctx.Writers,
-		WorkingDir:     pctx.WorkingDir,
-		Env:            pctx.Env,
-		TFPath:         pctx.TFPath,
-		EngineConfig:   pctx.Engine,
-		EngineOptions:  pctx.EngineOptions,
-		Experiments:    pctx.Experiments,
-		Telemetry:      pctx.Telemetry,
-		RootWorkingDir: pctx.RootWorkingDir,
+	return &shell.ShellOptions{
+		Writers:         pctx.Writers,
+		WorkingDir:      pctx.WorkingDir,
+		Env:             pctx.Env,
+		TFPath:          pctx.TFPath,
+		EngineConfig:    pctx.Engine,
+		EngineOptions:   pctx.EngineOptions,
+		Experiments:     pctx.Experiments,
+		Telemetry:       pctx.Telemetry,
+		RootWorkingDir:  pctx.RootWorkingDir,
+		Headless:        pctx.Headless,
+		ForwardTFStdout: pctx.ForwardTFStdout,
 	}
-
-	if pctx.EngineOptions != nil {
-		opts.NoEngine = pctx.EngineOptions.NoEngine
-	}
-
-	return opts
 }
 
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.

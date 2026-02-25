@@ -1317,7 +1317,6 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		RootWorkingDir:  pctx.RootWorkingDir,
 		Headless:        pctx.Headless,
 		ForwardTFStdout: pctx.ForwardTFStdout,
-		NoEngine:        pctx.EngineOptions.NoEngine,
 	}
 }
 
