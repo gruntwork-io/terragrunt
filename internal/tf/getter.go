@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-cleanhttp"
@@ -107,7 +108,7 @@ func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
-	if opts.TofuImplementation == options.OpenTofuImpl {
+	if opts.TofuImplementation == tfimpl.OpenTofu {
 		return defaultOtRegistryDomain
 	}
 
