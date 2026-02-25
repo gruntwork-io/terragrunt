@@ -840,7 +840,7 @@ func TestTerragruntProviderCacheWithDependency(t *testing.T) {
 		"hashicorp/null/3.2.4",
 	} {
 		providerPath := filepath.Join(providerCacheDir, registryName, provider)
-		assert.True(t, util.FileExists(providerPath), "Provider cache dir should contain %s at %s", provider, providerPath)
+		assert.FileExists(t, providerPath, "Provider cache dir should contain %s at %s", provider, providerPath)
 	}
 
 	// Verify both units have been initialized by checking for .terraform directories
