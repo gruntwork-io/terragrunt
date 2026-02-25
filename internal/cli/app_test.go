@@ -658,7 +658,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheRegistryNames, "For args %q", tc.args)
+				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheOptions.RegistryNames, "For args %q", tc.args)
 			}
 		})
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -115,9 +116,9 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		BackendBootstrap:             opts.BackendBootstrap,
 		Telemetry:                    opts.Telemetry,
 		AuthProviderCmd:              opts.AuthProviderCmd,
-		ProviderCacheToken:           opts.ProviderCacheToken,
-		ProviderCacheDir:             opts.ProviderCacheDir,
-		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
+		ProviderCacheToken:           opts.ProviderCacheOptions.Token,
+		ProviderCacheDir:             opts.ProviderCacheOptions.Dir,
+		ProviderCacheRegistryNames:   opts.ProviderCacheOptions.RegistryNames,
 		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
@@ -163,11 +164,13 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		AutoRetry:                    o.AutoRetry,
 		BackendBootstrap:             o.BackendBootstrap,
 		Telemetry:                    o.Telemetry,
-		AuthProviderCmd:              o.AuthProviderCmd,
-		ProviderCacheToken:           o.ProviderCacheToken,
-		ProviderCacheDir:             o.ProviderCacheDir,
-		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
-		MaxFoldersToCheck:            o.MaxFoldersToCheck,
+		AuthProviderCmd: o.AuthProviderCmd,
+		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
+			Token:         o.ProviderCacheToken,
+			Dir:           o.ProviderCacheDir,
+			RegistryNames: o.ProviderCacheRegistryNames,
+		},
+		MaxFoldersToCheck: o.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 		CheckDependentUnits:          o.CheckDependentUnits,

@@ -13,12 +13,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/services"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -279,9 +279,9 @@ func TestProviderCacheHomeless(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	require.NoError(t, os.Unsetenv("XDG_CACHE_HOME"))
 
-	_, err := providercache.InitServer(logger.CreateLogger(), &options.TerragruntOptions{
-		ProviderCacheDir: cacheDir,
-	})
+	_, err := providercache.InitServer(logger.CreateLogger(), &pcoptions.ProviderCacheOptions{
+		Dir: cacheDir,
+	}, "")
 	require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
 }
 
@@ -300,9 +300,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache().WithFS(memFs)
 		err := server.Init(
 			logger.CreateLogger(),
-			&options.TerragruntOptions{
-				ProviderCacheDir: cacheDir,
+			&pcoptions.ProviderCacheOptions{
+				Dir: cacheDir,
 			},
+			"",
 		)
 		require.NoError(t, err)
 
@@ -321,9 +322,10 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		server := providercache.NewProviderCache().WithFS(memFs)
 		err := server.Init(
 			logger.CreateLogger(),
-			&options.TerragruntOptions{
-				ProviderCacheDir: cacheDir,
+			&pcoptions.ProviderCacheOptions{
+				Dir: cacheDir,
 			},
+			"",
 		)
 		require.NoError(t, err)
 		require.NotNil(t, server, "Init should return a valid server when using VFS")
