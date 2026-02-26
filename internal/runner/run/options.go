@@ -16,8 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
-	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -164,13 +164,13 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		AutoRetry:                    o.AutoRetry,
 		BackendBootstrap:             o.BackendBootstrap,
 		Telemetry:                    o.Telemetry,
-		AuthProviderCmd: o.AuthProviderCmd,
+		AuthProviderCmd:              o.AuthProviderCmd,
 		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
 			Token:         o.ProviderCacheToken,
 			Dir:           o.ProviderCacheDir,
 			RegistryNames: o.ProviderCacheRegistryNames,
 		},
-		MaxFoldersToCheck: o.MaxFoldersToCheck,
+		MaxFoldersToCheck:            o.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 		CheckDependentUnits:          o.CheckDependentUnits,
