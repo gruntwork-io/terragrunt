@@ -25,7 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -42,7 +41,7 @@ type ParsingContext struct {
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	Engine           *engine.EngineConfig
+	EngineConfig     *engine.EngineConfig
 	EngineOptions    *engine.EngineOptions
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
@@ -69,6 +68,8 @@ type ParsingContext struct {
 	OriginalTerraformCommand     string
 	AuthProviderCmd              string
 	TFPath                       string
+	ScaffoldRootFileName         string
+	TerragruntStackConfigPath    string
 	TofuImplementation           tfimpl.Type
 
 	IAMRoleOptions         iam.RoleOptions
@@ -98,56 +99,16 @@ type ParsingContext struct {
 	NoStackValidate                  bool
 }
 
-// populateFromOpts copies fields from TerragruntOptions into the flat fields.
-func (ctx *ParsingContext) populateFromOpts(opts *options.TerragruntOptions) {
-	ctx.TerragruntConfigPath = opts.TerragruntConfigPath
-	ctx.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
-	ctx.WorkingDir = opts.WorkingDir
-	ctx.RootWorkingDir = opts.RootWorkingDir
-	ctx.DownloadDir = opts.DownloadDir
-	ctx.TerraformCommand = opts.TerraformCommand
-	ctx.OriginalTerraformCommand = opts.OriginalTerraformCommand
-	ctx.TerraformCliArgs = opts.TerraformCliArgs
-	ctx.Source = opts.Source
-	ctx.SourceMap = opts.SourceMap
-	ctx.Experiments = opts.Experiments
-	ctx.StrictControls = opts.StrictControls
-	ctx.FeatureFlags = opts.FeatureFlags
-	ctx.Writers = opts.Writers
-	ctx.Env = opts.Env
-	ctx.IAMRoleOptions = opts.IAMRoleOptions
-	ctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
-	ctx.UsePartialParseConfigCache = opts.UsePartialParseConfigCache
-	ctx.MaxFoldersToCheck = opts.MaxFoldersToCheck
-	ctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
-	ctx.SkipOutput = opts.SkipOutput
-	ctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
-	ctx.AuthProviderCmd = opts.AuthProviderCmd
-	ctx.Engine = opts.EngineConfig
-	ctx.EngineOptions = opts.EngineOptions
-	ctx.TFPath = opts.TFPath
-	ctx.TofuImplementation = opts.TofuImplementation
-	ctx.ForwardTFStdout = opts.ForwardTFStdout
-	ctx.JSONLogFormat = opts.JSONLogFormat
-	ctx.Debug = opts.Debug
-	ctx.AutoInit = opts.AutoInit
-	ctx.Headless = opts.Headless
-	ctx.BackendBootstrap = opts.BackendBootstrap
-	ctx.CheckDependentUnits = opts.CheckDependentUnits
-	ctx.Telemetry = opts.Telemetry
-	ctx.NoStackValidate = opts.NoStackValidate
-}
-
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
+func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
-		ParserOptions: DefaultParserOptions(l, opts.StrictControls),
-		FilesRead:     &filesRead,
+		ParserOptions:  DefaultParserOptions(l, strictControls),
+		StrictControls: strictControls,
+		FilesRead:      &filesRead,
 	}
-	pctx.populateFromOpts(opts)
 
 	return ctx, pctx
 }

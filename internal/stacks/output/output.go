@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -92,7 +93,7 @@ func StackOutput(
 	for _, path := range foundFiles {
 		dir := filepath.Dir(path)
 
-		ctx, pctx := config.NewParsingContext(ctx, l, opts)
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 		values, valuesErr := config.ReadValues(ctx, pctx, l, dir)
 		if valuesErr != nil {
@@ -125,7 +126,7 @@ func StackOutput(
 			}, func(ctx context.Context) error {
 				var outputErr error
 
-				output, outputErr = unit.ReadOutputs(ctx, l, opts, unitDir)
+				output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
 
 				return outputErr
 			})

@@ -121,6 +121,7 @@ func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt in
 	return nil, nil
 }
 
+// ExtractErrorMessage extracts and cleans the error message for pattern matching.
 func ExtractErrorMessage(err error) string {
 	var errText string
 

@@ -32,9 +32,8 @@ stack "projects" {
 }
 
 `
-	opts := mockOptionsForTest(t)
-	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
 	assert.NotNil(t, terragruntStackConfig)
@@ -105,9 +104,8 @@ stack "network" {
     no_dot_terragrunt_stack = true
 }
 `
-	opts := mockOptionsForTest(t)
-	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
-	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, cfg, nil)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	terragruntStackConfig, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, cfg, nil)
 	require.NoError(t, err)
 
 	// Check that config is not nil
@@ -163,9 +161,8 @@ locals {
 	project = "my-project
 }
 `
-	opts := mockOptionsForTest(t)
-	ctx, _ := config.NewParsingContext(t.Context(), logger.CreateLogger(), opts)
-	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), opts, config.DefaultStackFile, invalidCfg, nil)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	_, err := config.ReadStackConfigString(ctx, logger.CreateLogger(), pctx, config.DefaultStackFile, invalidCfg, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid multi-line string")
 }

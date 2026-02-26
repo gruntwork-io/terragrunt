@@ -231,8 +231,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -251,8 +250,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)

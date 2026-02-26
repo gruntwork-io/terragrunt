@@ -43,7 +43,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -167,27 +166,27 @@ type TerragruntConfig struct {
 	IsPartial                   bool
 }
 
-func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
+func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
 	if cfg.RemoteState == nil {
 		l.Debug("Did not find remote `remote_state` block in the config")
 
 		return nil, nil
 	}
 
-	sourceURL, err := GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
+	sourceURL, err := GetTerraformSourceURL(pctx.Source, pctx.SourceMap, pctx.OriginalTerragruntConfigPath, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	if sourceURL != "" {
-		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+		walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
 
-		tfSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+		tfSource, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return nil, err
 		}
 
-		opts.WorkingDir = tfSource.WorkingDir
+		pctx.WorkingDir = tfSource.WorkingDir
 	}
 
 	return cfg.RemoteState, nil
@@ -1154,19 +1153,19 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) (b
 	return true, nil
 }
 
-// ReadTerragruntConfig reads the Terragrunt config file from its default location
+// ReadTerragruntConfig reads the Terragrunt config file from its default location.
+// The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	pctx *ParsingContext,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.Writers.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.Writers.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-	ctx, parsingCtx := NewParsingContext(ctx, l, opts)
-	parsingCtx = parsingCtx.WithParseOption(parserOptions)
+	pctx = pctx.WithParseOption(parserOptions)
 
-	return ParseConfigFile(ctx, parsingCtx, l, opts.TerragruntConfigPath, nil)
+	return ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
@@ -2189,11 +2188,12 @@ func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 
 // ParseRemoteState reads the Terragrunt config file from its default location
 // and parses and returns the `remote_state` block.
-func ParseRemoteState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
-	cfg, err := ReadTerragruntConfig(ctx, l, opts, DefaultParserOptions(l, opts.StrictControls))
+// The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
+func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
+	cfg, err := ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return cfg.GetRemoteState(l, opts)
+	return cfg.GetRemoteState(l, pctx)
 }

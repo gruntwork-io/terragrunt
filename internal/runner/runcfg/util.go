@@ -219,7 +219,13 @@ func (cfg *RunConfig) GetIAMRoleOptions() iam.RoleOptions {
 }
 
 // ErrorsConfig fetches errors configuration from the RunConfig.
+// Returns nil when no retry or ignore blocks are defined, so callers
+// can preserve default error handling (e.g. built-in retryable errors).
 func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
+	if len(cfg.Errors.Retry) == 0 && len(cfg.Errors.Ignore) == 0 {
+		return nil, nil
+	}
+
 	result := &errorconfig.Config{
 		Retry:  make(map[string]*errorconfig.RetryConfig),
 		Ignore: make(map[string]*errorconfig.IgnoreConfig),

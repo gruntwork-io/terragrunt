@@ -44,7 +44,13 @@ type ShellOptions struct {
 	Experiments     experiment.Experiments
 	Headless        bool
 	ForwardTFStdout bool
-	NoEngine        bool
+}
+
+// NoEngine returns true if the user explicitly disabled the engine via --no-engine.
+// Returns false when EngineOptions is nil (default: don't disable), letting the
+// other guards (EngineConfig != nil, experiment enabled) decide whether to run.
+func (o *ShellOptions) NoEngine() bool {
+	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
@@ -57,7 +63,6 @@ func RunOptionsFromOpts(opts *options.TerragruntOptions) *ShellOptions {
 		TFPath:          opts.TFPath,
 		EngineConfig:    opts.EngineConfig,
 		Experiments:     opts.Experiments,
-		NoEngine:        opts.EngineOptions.NoEngine,
 		Telemetry:       opts.Telemetry,
 		RootWorkingDir:  opts.RootWorkingDir,
 		Headless:        opts.Headless,
@@ -124,7 +129,7 @@ func RunCommandWithOutput(
 
 		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine {
+			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{

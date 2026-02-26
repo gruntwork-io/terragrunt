@@ -20,8 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/internal/report"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -35,15 +33,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -862,7 +860,7 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	pctx.Engine = engineOpts
+	pctx.EngineConfig = engineOpts
 
 	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.NoDependencyFetchOutputFromState &&
@@ -1250,14 +1248,13 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return nil, err
 	}
 
-	// Construct opts inline for run.Run — the only place that needs full opts
-	runOpts := &options.TerragruntOptions{
-		Writers: writer.Writers{
-			Writer:                 stdoutBufferWriter,
-			ErrWriter:              pctx.Writers.ErrWriter,
-			LogShowAbsPaths:        pctx.Writers.LogShowAbsPaths,
-			LogDisableErrorSummary: pctx.Writers.LogDisableErrorSummary,
-		},
+	// Build run.Options directly from ParsingContext fields.
+	// Override Writers.Writer to capture stdout, and force ForwardTFStdout/JSONLogFormat off.
+	runWriters := pctx.Writers
+	runWriters.Writer = stdoutBufferWriter
+
+	runOpts := &run.Options{
+		Writers:                      runWriters,
 		TerragruntConfigPath:         pctx.TerragruntConfigPath,
 		OriginalTerragruntConfigPath: pctx.OriginalTerragruntConfigPath,
 		WorkingDir:                   pctx.WorkingDir,
@@ -1274,18 +1271,18 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		Experiments:                  pctx.Experiments,
 		StrictControls:               pctx.StrictControls,
 		FeatureFlags:                 pctx.FeatureFlags,
-		EngineConfig:                 pctx.Engine,
+		EngineConfig:                 pctx.EngineConfig,
 		EngineOptions:                pctx.EngineOptions,
-		AuthProviderCmd:              pctx.AuthProviderCmd,
 		TFPath:                       pctx.TFPath,
+		TofuImplementation:           pctx.TofuImplementation,
 		ForwardTFStdout:              false,
 		JSONLogFormat:                false,
+		Headless:                     pctx.Headless,
 		Debug:                        pctx.Debug,
 		AutoInit:                     pctx.AutoInit,
 		BackendBootstrap:             pctx.BackendBootstrap,
-		TofuImplementation:           pctx.TofuImplementation,
 		Telemetry:                    pctx.Telemetry,
-		Headless:                     pctx.Headless,
+		AuthProviderCmd:              pctx.AuthProviderCmd,
 	}
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
@@ -1314,13 +1311,12 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		WorkingDir:      pctx.WorkingDir,
 		Env:             pctx.Env,
 		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.Engine,
+		EngineConfig:    pctx.EngineConfig,
 		Experiments:     pctx.Experiments,
 		Telemetry:       pctx.Telemetry,
 		RootWorkingDir:  pctx.RootWorkingDir,
 		Headless:        pctx.Headless,
 		ForwardTFStdout: pctx.ForwardTFStdout,
-		NoEngine:        pctx.EngineOptions.NoEngine,
 	}
 }
 

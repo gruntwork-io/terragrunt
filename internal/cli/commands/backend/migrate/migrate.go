@@ -4,6 +4,7 @@ package migrate
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -56,7 +57,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("failed to build opts for dst unit %s: %w", dstPath, err)
 	}
 
-	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcOpts)
+	_, srcPctx := configbridge.NewParsingContext(ctx, l, srcOpts)
+
+	srcRemoteState, err := config.ParseRemoteState(ctx, l, srcPctx)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,14 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
 	}
 
-	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstOpts)
+	// ParseRemoteState updates pctx.WorkingDir to point to the .terragrunt-cache
+	// directory (where backend.tf and .terraform/ live) when a terraform source is
+	// configured. Propagate that back so pullState runs in the correct directory.
+	srcOpts.WorkingDir = srcPctx.WorkingDir
+
+	_, dstPctx := configbridge.NewParsingContext(ctx, l, dstOpts)
+
+	dstRemoteState, err := config.ParseRemoteState(ctx, l, dstPctx)
 	if err != nil {
 		return err
 	}
@@ -73,6 +83,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	if dstRemoteState == nil {
 		return errors.Errorf("missing remote state configuration for destination module: %s", dstPath)
 	}
+
+	// Same for the destination: pushState needs the cache directory.
+	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if !opts.ForceBackendMigrate {
 		enabled, err := srcRemoteState.IsVersionControlEnabled(ctx, l, srcOpts)
