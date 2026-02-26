@@ -1,4 +1,4 @@
-package options_test
+package errorconfig_test
 
 import (
 	"bytes"
@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +26,7 @@ func TestExtractErrorMessage_ExcludesCommandFlags(t *testing.T) {
 		Output:     util.CmdOutput{Stderr: stderr},
 	}
 
-	msg := options.ExtractErrorMessage(err)
+	msg := errorconfig.ExtractErrorMessage(err)
 
 	// The extracted message should only contain stderr and the underlying error,
 	// not the command string with flags.
@@ -54,15 +54,15 @@ func TestExtractErrorMessage_DoesNotFalselyMatchTimeout(t *testing.T) {
 	}
 
 	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*options.ErrorsPattern{
+	patterns := []*errorconfig.Pattern{
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExtractErrorMessage(err)
+	msg := errorconfig.ExtractErrorMessage(err)
 
 	// The timeout pattern should NOT match because the extracted message only
 	// contains stderr and exit error, not the command flags.
-	matched := options.MatchesAnyRegexpPattern(msg, patterns)
+	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
 	assert.False(t, matched, "timeout pattern should NOT match when 'timeout' only appears in command flags; cleaned message: %s", msg)
 }
 
@@ -82,12 +82,12 @@ func TestExtractErrorMessage_StillMatchesRealTimeout(t *testing.T) {
 	}
 
 	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*options.ErrorsPattern{
+	patterns := []*errorconfig.Pattern{
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExtractErrorMessage(err)
-	matched := options.MatchesAnyRegexpPattern(msg, patterns)
+	msg := errorconfig.ExtractErrorMessage(err)
+	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
 }
 
@@ -108,12 +108,12 @@ func TestExtractErrorMessage_StillMatchesTimeoutInStderrWithFlags(t *testing.T) 
 	}
 
 	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*options.ErrorsPattern{
+	patterns := []*errorconfig.Pattern{
 		{Pattern: timeoutPattern},
 	}
 
-	msg := options.ExtractErrorMessage(err)
-	matched := options.MatchesAnyRegexpPattern(msg, patterns)
+	msg := errorconfig.ExtractErrorMessage(err)
+	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match when stderr actually contains 'timeout'; cleaned message: %s", msg)
 }
 
@@ -123,15 +123,15 @@ func TestExtractErrorMessage_NonProcessError(t *testing.T) {
 	// For non-ProcessExecutionError errors, the full error string is used.
 	err := errors.New("some generic error with timeout in it")
 
-	msg := options.ExtractErrorMessage(err)
+	msg := errorconfig.ExtractErrorMessage(err)
 	assert.Contains(t, msg, "timeout")
 
 	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
-	patterns := []*options.ErrorsPattern{
+	patterns := []*errorconfig.Pattern{
 		{Pattern: timeoutPattern},
 	}
 
-	matched := options.MatchesAnyRegexpPattern(msg, patterns)
+	matched := errorconfig.MatchesAnyRegexpPattern(msg, patterns)
 	assert.True(t, matched, "timeout pattern should match for non-ProcessExecutionError; cleaned message: %s", msg)
 }
 
@@ -169,8 +169,32 @@ func TestErrorCleanPattern_PreservesCharacters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := options.ErrorCleanPattern.ReplaceAllString(tt.input, " ")
+			result := errorconfig.ErrorCleanPattern.ReplaceAllString(tt.input, " ")
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestMatchesAnyRegexpPattern_NoMatch(t *testing.T) {
+	t.Parallel()
+
+	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
+	patterns := []*errorconfig.Pattern{
+		{Pattern: timeoutPattern},
+	}
+
+	matched := errorconfig.MatchesAnyRegexpPattern("no match here", patterns)
+	assert.False(t, matched)
+}
+
+func TestMatchesAnyRegexpPattern_NegativePattern(t *testing.T) {
+	t.Parallel()
+
+	timeoutPattern := regexp.MustCompile(`(?s).*timeout.*`)
+	patterns := []*errorconfig.Pattern{
+		{Pattern: timeoutPattern, Negative: true},
+	}
+
+	matched := errorconfig.MatchesAnyRegexpPattern("timeout occurred", patterns)
+	assert.False(t, matched, "negative pattern should invert the match")
 }

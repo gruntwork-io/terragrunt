@@ -768,7 +768,7 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
 	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
+	_, downloadDir, err := util.DefaultWorkingAndDownloadDirs(targetConfig)
 	if err != nil {
 		return nil, errors.New(err)
 	}

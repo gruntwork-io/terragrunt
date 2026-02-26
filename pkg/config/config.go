@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -1079,7 +1080,7 @@ func FindConfigFilesInPath(
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
-	tfDataDir := options.DefaultTFDataDir
+	tfDataDir := tf.DefaultTFDataDir
 	if d, ok := env["TF_DATA_DIR"]; ok {
 		tfDataDir = d
 	}
@@ -2079,14 +2080,14 @@ func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
 }
 
 // ErrorsConfig fetch errors configuration for options package
-func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
+func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 	if cfg.Errors == nil {
 		return nil, nil
 	}
 
-	result := &options.ErrorsConfig{
-		Retry:  make(map[string]*options.RetryConfig),
-		Ignore: make(map[string]*options.IgnoreConfig),
+	result := &errorconfig.Config{
+		Retry:  make(map[string]*errorconfig.RetryConfig),
+		Ignore: make(map[string]*errorconfig.IgnoreConfig),
 	}
 
 	for _, retryBlock := range cfg.Errors.Retry {
@@ -2103,7 +2104,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
@@ -2115,7 +2116,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &options.RetryConfig{
+		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
@@ -2142,7 +2143,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(ignoreBlock.IgnorableErrors))
 
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
@@ -2154,7 +2155,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
@@ -2166,7 +2167,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 }
 
 // Build ErrorsPattern from string
-func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 	isNegative := false
 	p := pattern
 
@@ -2180,7 +2181,7 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 		return nil, err
 	}
 
-	return &options.ErrorsPattern{
+	return &errorconfig.Pattern{
 		Pattern:  compiled,
 		Negative: isNegative,
 	}, nil
