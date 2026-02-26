@@ -19,6 +19,11 @@ import (
 
 const (
 	tokenURL = "https://oauth2.googleapis.com/token"
+
+	credTypeServiceAccount             = "service_account"
+	credTypeAuthorizedUser             = "authorized_user"
+	credTypeImpersonatedServiceAccount = "impersonated_service_account"
+	credTypeExternalAccount            = "external_account"
 )
 
 // GCPSessionConfig is a representation of the configuration options for a GCP Config
@@ -57,21 +62,18 @@ func CreateGCPConfig(
 ) ([]option.ClientOption, error) {
 	var clientOpts []option.ClientOption
 
-	envCreds, err := createGCPCredentialsFromEnv(opts)
-	if err != nil {
+	if envCreds, err := createGCPCredentialsFromEnv(opts); err != nil {
 		return nil, err
-	}
-
-	if envCreds != nil {
+	} else if envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		opt, err := credentialsFileOption(gcpCfg.Credentials)
+		credOpt, err := credentialsFileOption(gcpCfg.Credentials)
 		if err != nil {
 			return nil, err
 		}
 
-		clientOpts = append(clientOpts, opt)
+		clientOpts = append(clientOpts, credOpt)
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
@@ -96,18 +98,19 @@ func CreateGCPConfig(
 		}
 	}
 
-	// Handle service account impersonation
+	// Handle service account impersonation — pass base credentials to impersonate
+	// rather than providing both to the client (which causes "multiple credential options" error).
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		})
+		}, clientOpts...)
 		if err != nil {
 			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
 		}
 
-		clientOpts = append(clientOpts, option.WithTokenSource(ts))
+		return []option.ClientOption{option.WithTokenSource(ts)}, nil
 	}
 
 	return clientOpts, nil
@@ -129,42 +132,44 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) (option.Client
 	return credentialsFileOption(credentialsFile)
 }
 
-// credentialsFileOption reads a credentials JSON file, detects its type, and returns the appropriate ClientOption.
+// credentialsFileOption reads a GCP credentials JSON file, detects its type,
+// and returns the appropriate ClientOption.
 func credentialsFileOption(filename string) (option.ClientOption, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, errors.Errorf("Error reading credentials file %s: %w", filename, err)
 	}
 
-	credType, err := detectCredentialsType(data)
+	var meta struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, errors.Errorf("Error parsing credentials file %s: %w", filename, err)
+	}
+
+	credType, err := credentialsTypeFromString(meta.Type)
 	if err != nil {
 		return nil, err
 	}
 
-	return option.WithAuthCredentialsJSON(credType, data), nil
+	return option.WithAuthCredentialsFile(credType, filename), nil
 }
 
-// detectCredentialsType parses the "type" field from a GCP credentials JSON to determine the credential type.
-func detectCredentialsType(data []byte) (option.CredentialsType, error) {
-	var cred struct {
-		Type string `json:"type"`
-	}
-
-	if err := json.Unmarshal(data, &cred); err != nil {
-		return "", errors.Errorf("Error parsing credentials JSON: %w", err)
-	}
-
-	switch cred.Type {
-	case "service_account":
+// credentialsTypeFromString maps the "type" field in a GCP credentials JSON
+// file to the corresponding option.CredentialsType.
+func credentialsTypeFromString(t string) (option.CredentialsType, error) {
+	switch t {
+	case credTypeServiceAccount:
 		return option.ServiceAccount, nil
-	case "authorized_user":
+	case credTypeAuthorizedUser:
 		return option.AuthorizedUser, nil
-	case "external_account":
-		return option.ExternalAccount, nil
-	case "impersonated_service_account":
+	case credTypeImpersonatedServiceAccount:
 		return option.ImpersonatedServiceAccount, nil
+	case credTypeExternalAccount:
+		return option.ExternalAccount, nil
 	default:
-		return "", errors.Errorf("Unknown GCP credentials type: %q", cred.Type)
+		return "", errors.Errorf("Unsupported GCP credentials type: %q", t)
 	}
 }
 
