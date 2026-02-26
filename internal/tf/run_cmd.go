@@ -78,7 +78,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		return fn(ctx, l, runOpts.TerragruntOptions, args)
+		return fn(ctx, l, runOpts, args)
 	}
 
 	needsPTY, err := isCommandThatNeedsPty(args)

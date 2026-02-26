@@ -4,6 +4,7 @@ package gcphelper
 import (
 	"context"
 	"encoding/json"
+	"os"
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -18,6 +19,11 @@ import (
 
 const (
 	tokenURL = "https://oauth2.googleapis.com/token"
+
+	credTypeServiceAccount             = "service_account"
+	credTypeAuthorizedUser             = "authorized_user"
+	credTypeImpersonatedServiceAccount = "impersonated_service_account"
+	credTypeExternalAccount            = "external_account"
 )
 
 // GCPSessionConfig is a representation of the configuration options for a GCP Config
@@ -56,11 +62,18 @@ func CreateGCPConfig(
 ) ([]option.ClientOption, error) {
 	var clientOpts []option.ClientOption
 
-	if envCreds := createGCPCredentialsFromEnv(opts); envCreds != nil {
+	if envCreds, err := createGCPCredentialsFromEnv(opts); err != nil {
+		return nil, err
+	} else if envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		clientOpts = append(clientOpts, option.WithCredentialsFile(gcpCfg.Credentials))
+		credOpt, err := credentialsFileOption(gcpCfg.Credentials)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOpts = append(clientOpts, credOpt)
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
@@ -105,17 +118,58 @@ func CreateGCPConfig(
 // createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in opts.Env
 // It looks for GOOGLE_APPLICATION_CREDENTIALS and returns a ClientOption that can be used
 // with Google Cloud clients. Returns nil if the environment variable is not set.
-func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientOption {
+func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) (option.ClientOption, error) {
 	if opts == nil || opts.Env == nil {
-		return nil
+		return nil, nil
 	}
 
 	credentialsFile := opts.Env["GOOGLE_APPLICATION_CREDENTIALS"]
 	if credentialsFile == "" {
-		return nil
+		return nil, nil
 	}
 
-	return option.WithCredentialsFile(credentialsFile)
+	return credentialsFileOption(credentialsFile)
+}
+
+// credentialsFileOption reads a GCP credentials JSON file, detects its type,
+// and returns the appropriate ClientOption.
+func credentialsFileOption(filename string) (option.ClientOption, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Errorf("Error reading credentials file %s: %w", filename, err)
+	}
+
+	var meta struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, errors.Errorf("Error parsing credentials file %s: %w", filename, err)
+	}
+
+	credType, err := credentialsTypeFromString(meta.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	return option.WithAuthCredentialsFile(credType, filename), nil
+}
+
+// credentialsTypeFromString maps the "type" field in a GCP credentials JSON
+// file to the corresponding option.CredentialsType.
+func credentialsTypeFromString(t string) (option.CredentialsType, error) {
+	switch t {
+	case credTypeServiceAccount:
+		return option.ServiceAccount, nil
+	case credTypeAuthorizedUser:
+		return option.AuthorizedUser, nil
+	case credTypeImpersonatedServiceAccount:
+		return option.ImpersonatedServiceAccount, nil
+	case credTypeExternalAccount:
+		return option.ExternalAccount, nil
+	default:
+		return "", errors.Errorf("Unsupported GCP credentials type: %q", t)
+	}
 }
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.

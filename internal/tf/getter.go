@@ -14,7 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
@@ -71,9 +70,9 @@ type RegistryServicePath struct {
 // over the file detector. We deferred the implementation for that to a future release.
 // GH issue: https://github.com/gruntwork-io/terragrunt/issues/1772
 type RegistryGetter struct {
-	client            *getter.Client
-	TerragruntOptions *options.TerragruntOptions
-	Logger            log.Logger
+	client             *getter.Client
+	Logger             log.Logger
+	TofuImplementation tfimpl.Type
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
@@ -93,22 +92,18 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 
 // registryDomain returns the default registry domain to use for the getter.
 func (tfrGetter *RegistryGetter) registryDomain() string {
-	return GetDefaultRegistryDomain(tfrGetter.TerragruntOptions)
+	return GetDefaultRegistryDomain(tfrGetter.TofuImplementation)
 }
 
 // GetDefaultRegistryDomain returns the appropriate registry domain based on the terraform implementation and environment variables.
 // This is the canonical function for determining which registry to use throughout Terragrunt.
-func GetDefaultRegistryDomain(opts *options.TerragruntOptions) string {
-	if opts == nil {
-		return defaultRegistryDomain
-	}
-
+func GetDefaultRegistryDomain(impl tfimpl.Type) string {
 	// if is set TG_TF_DEFAULT_REGISTRY env var, use it as default registry
 	if defaultRegistry := os.Getenv(defaultRegistryEnvName); defaultRegistry != "" {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
-	if opts.TofuImplementation == tfimpl.OpenTofu {
+	if impl == tfimpl.OpenTofu {
 		return defaultOtRegistryDomain
 	}
 
