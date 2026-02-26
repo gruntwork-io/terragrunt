@@ -20,7 +20,6 @@ import (
 	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -102,8 +101,6 @@ type ParsingContext struct {
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
-	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
