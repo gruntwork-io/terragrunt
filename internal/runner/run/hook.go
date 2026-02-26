@@ -25,12 +25,13 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-// hookErrorMessage extracts the command output from the error
+// hookErrorMessage extracts command, args and output from the error
 // so users see WHY a hook failed, not just the exit code.
 func hookErrorMessage(hookName string, err error) string {
 	var processErr util.ProcessExecutionError
 	if errors.As(err, &processErr) {
 		exitCode, exitCodeErr := processErr.ExitStatus()
+		cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
 
 		output := strings.TrimSpace(processErr.Output.Stderr.String())
 		if output == "" {
@@ -38,11 +39,11 @@ func hookErrorMessage(hookName string, err error) string {
 		}
 
 		if exitCodeErr == nil && output != "" {
-			return fmt.Sprintf("Hook %q failed (exit code %d):\n%s", hookName, exitCode, output)
+			return fmt.Sprintf("Hook %q (command: %s) failed with exit code %d:\n%s", hookName, cmd, exitCode, output)
 		}
 
 		if exitCodeErr == nil {
-			return fmt.Sprintf("Hook %q failed (exit code %d)", hookName, exitCode)
+			return fmt.Sprintf("Hook %q (command: %s) failed with exit code %d", hookName, cmd, exitCode)
 		}
 	}
 

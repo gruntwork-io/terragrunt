@@ -34,12 +34,15 @@ func TestHookErrorMessage_WithStderr(t *testing.T) {
 	err := util.ProcessExecutionError{
 		Err:        getExitError(t, 2),
 		Command:    "tflint",
+		Args:       []string{"--config", ".tflint.hcl"},
 		WorkingDir: "/tmp",
 		Output:     output,
 	}
 
 	msg := hookErrorMessage("my-lint", errors.New(err))
-	assert.Contains(t, msg, `Hook "my-lint" failed (exit code 2)`)
+	assert.Contains(t, msg, `Hook "my-lint"`)
+	assert.Contains(t, msg, "tflint --config .tflint.hcl")
+	assert.Contains(t, msg, "exit code 2")
 	assert.Contains(t, msg, "resource missing required tags")
 }
 
@@ -52,12 +55,15 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 	err := util.ProcessExecutionError{
 		Err:        getExitError(t, 1),
 		Command:    "custom-lint",
+		Args:       []string{"--fix"},
 		WorkingDir: "/tmp",
 		Output:     output,
 	}
 
 	msg := hookErrorMessage("lint-hook", errors.New(err))
-	assert.Contains(t, msg, `Hook "lint-hook" failed (exit code 1)`)
+	assert.Contains(t, msg, `Hook "lint-hook"`)
+	assert.Contains(t, msg, "custom-lint --fix")
+	assert.Contains(t, msg, "exit code 1")
 	assert.Contains(t, msg, "warning: deprecated feature")
 }
 
@@ -67,9 +73,12 @@ func TestHookErrorMessage_NoOutput(t *testing.T) {
 	err := util.ProcessExecutionError{
 		Err:        getExitError(t, 3),
 		Command:    "check",
+		Args:       []string{"-strict"},
 		WorkingDir: "/tmp",
 	}
 
 	msg := hookErrorMessage("my-hook", errors.New(err))
-	assert.Equal(t, `Hook "my-hook" failed (exit code 3)`, msg)
+	assert.Contains(t, msg, `Hook "my-hook"`)
+	assert.Contains(t, msg, "check -strict")
+	assert.Contains(t, msg, "exit code 3")
 }
