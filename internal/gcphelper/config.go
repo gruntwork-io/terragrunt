@@ -55,10 +55,10 @@ func CreateGCPConfig(
 	gcpCfg *GCPSessionConfig,
 	opts *options.TerragruntOptions,
 ) ([]option.ClientOption, error) {
-	var clientOpts []option.ClientOption
+	var baseOpts []option.ClientOption
 
 	if envCreds := createGCPCredentialsFromEnv(opts); envCreds != nil {
-		clientOpts = append(clientOpts, envCreds)
+		baseOpts = append(baseOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
 		credOpt, err := credentialsFileOption(gcpCfg.Credentials)
@@ -66,19 +66,19 @@ func CreateGCPConfig(
 			return nil, err
 		}
 
-		clientOpts = append(clientOpts, credOpt)
+		baseOpts = append(baseOpts, credOpt)
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: gcpCfg.AccessToken,
 		})
-		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
+		baseOpts = append(baseOpts, option.WithTokenSource(tokenSource))
 	} else if oauthAccessToken := opts.Env["GOOGLE_OAUTH_ACCESS_TOKEN"]; oauthAccessToken != "" {
 		// Use OAuth access token from environment
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
 			AccessToken: oauthAccessToken,
 		})
-		clientOpts = append(clientOpts, option.WithTokenSource(tokenSource))
+		baseOpts = append(baseOpts, option.WithTokenSource(tokenSource))
 	} else if opts.Env["GOOGLE_CREDENTIALS"] != "" {
 		// Use GOOGLE_CREDENTIALS from environment (can be file path or JSON content)
 		clientOpt, err := createGCPCredentialsFromGoogleCredentialsEnv(ctx, opts)
@@ -87,25 +87,26 @@ func CreateGCPConfig(
 		}
 
 		if clientOpt != nil {
-			clientOpts = append(clientOpts, clientOpt)
+			baseOpts = append(baseOpts, clientOpt)
 		}
 	}
 
-	// Handle service account impersonation
+	// Handle service account impersonation — pass base credentials to impersonate
+	// rather than providing both to the client (which causes "multiple credential options" error).
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		})
+		}, baseOpts...)
 		if err != nil {
 			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
 		}
 
-		clientOpts = append(clientOpts, option.WithTokenSource(ts))
+		return []option.ClientOption{option.WithTokenSource(ts)}, nil
 	}
 
-	return clientOpts, nil
+	return baseOpts, nil
 }
 
 // createGCPCredentialsFromEnv creates GCP credentials from GOOGLE_APPLICATION_CREDENTIALS environment variable in opts.Env
