@@ -47,6 +47,7 @@ type Options struct {
 	SourceMap                    map[string]string
 	Env                          map[string]string
 	ProviderCacheToken           string
+	ProviderCacheDir             string
 	RootWorkingDir               string
 	TofuImplementation           tfimpl.Type
 	TerragruntConfigPath         string
@@ -114,6 +115,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		Telemetry:                    opts.Telemetry,
 		AuthProviderCmd:              opts.AuthProviderCmd,
 		ProviderCacheToken:           opts.ProviderCacheToken,
+		ProviderCacheDir:             opts.ProviderCacheDir,
 		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
@@ -161,6 +163,7 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		Telemetry:                    o.Telemetry,
 		AuthProviderCmd:              o.AuthProviderCmd,
 		ProviderCacheToken:           o.ProviderCacheToken,
+		ProviderCacheDir:             o.ProviderCacheDir,
 		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
