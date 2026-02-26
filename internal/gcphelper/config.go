@@ -4,6 +4,7 @@ package gcphelper
 import (
 	"context"
 	"encoding/json"
+	"os"
 
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -60,7 +61,12 @@ func CreateGCPConfig(
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
-		clientOpts = append(clientOpts, option.WithCredentialsFile(gcpCfg.Credentials))
+		credOpt, err := credentialsFileOption(gcpCfg.Credentials)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOpts = append(clientOpts, credOpt)
 	} else if gcpCfg != nil && gcpCfg.AccessToken != "" {
 		// Use access token from config
 		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{
@@ -115,7 +121,12 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) option.ClientO
 		return nil
 	}
 
-	return option.WithCredentialsFile(credentialsFile)
+	credOpt, err := credentialsFileOption(credentialsFile)
+	if err != nil {
+		return nil
+	}
+
+	return credOpt
 }
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
@@ -149,4 +160,36 @@ func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, opts *opt
 	}
 
 	return option.WithHTTPClient(conf.Client(ctx)), nil
+}
+
+// credentialTypeMapping maps GCP credential file "type" field values to option.CredentialsType constants.
+var credentialTypeMapping = map[string]option.CredentialsType{
+	"service_account":              option.ServiceAccount,
+	"authorized_user":              option.AuthorizedUser,
+	"impersonated_service_account": option.ImpersonatedServiceAccount,
+	"external_account":             option.ExternalAccount,
+}
+
+// credentialsFileOption reads a GCP credentials JSON file, detects its type, and returns
+// the appropriate WithAuthCredentialsFile option. Replaces deprecated WithCredentialsFile.
+func credentialsFileOption(filename string) (option.ClientOption, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Errorf("error reading credentials file %s: %w", filename, err)
+	}
+
+	var meta struct {
+		Type string `json:"type"`
+	}
+
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, errors.Errorf("error parsing credentials file %s: %w", filename, err)
+	}
+
+	credType, ok := credentialTypeMapping[meta.Type]
+	if !ok {
+		return nil, errors.Errorf("unsupported credential type %q in %s", meta.Type, filename)
+	}
+
+	return option.WithAuthCredentialsFile(credType, filename), nil
 }
