@@ -98,7 +98,10 @@ func CreateGCPConfig(
 		}
 	}
 
-	// Handle service account impersonation
+	// Handle service account impersonation.
+	// When impersonation is configured, the impersonation token source replaces
+	// any base credentials. The impersonate library uses Application Default
+	// Credentials internally as the source identity.
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
@@ -109,7 +112,7 @@ func CreateGCPConfig(
 			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
 		}
 
-		clientOpts = append(clientOpts, option.WithTokenSource(ts))
+		clientOpts = []option.ClientOption{option.WithTokenSource(ts)}
 	}
 
 	return clientOpts, nil
