@@ -17,12 +17,10 @@ import (
 func TestEvaluateLocalsBlock(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := mockOptionsForTest(t)
-
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.NoError(t, err)
 
@@ -61,12 +59,10 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := mockOptionsForTest(t)
-
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestMultiDeepReferenceConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	evaluatedLocals, err := config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.NoError(t, err)
 
@@ -99,12 +95,10 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := mockOptionsForTest(t)
-
 	file, err := hclparse.NewParser().ParseFromString(LocalsTestImpossibleConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 
@@ -118,12 +112,10 @@ func TestEvaluateLocalsBlockImpossibleWillFail(t *testing.T) {
 func TestEvaluateLocalsBlockMultipleLocalsBlocksWillFail(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := mockOptionsForTest(t)
-
 	file, err := hclparse.NewParser().ParseFromString(MultipleLocalsBlockConfig, config.DefaultTerragruntConfigPath)
 	require.NoError(t, err)
 
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), terragruntOptions)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err = config.EvaluateLocalsBlock(ctx, pctx, logger.CreateLogger(), file)
 	require.Error(t, err)
 }

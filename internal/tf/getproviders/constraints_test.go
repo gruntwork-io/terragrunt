@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TofuImplementation: options.TerraformImpl,
+		TofuImplementation: tfimpl.Terraform,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -49,7 +50,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TofuImplementation: options.OpenTofuImpl,
+		TofuImplementation: tfimpl.OpenTofu,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -80,7 +81,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TofuImplementation: options.TerraformImpl,
+		TofuImplementation: tfimpl.Terraform,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -90,7 +91,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TofuImplementation: options.OpenTofuImpl,
+		TofuImplementation: tfimpl.OpenTofu,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -127,7 +128,7 @@ terraform {
 
 	// Test parsing with Terraform implementation - should use custom registry
 	terraformOpts := &options.TerragruntOptions{
-		TofuImplementation: options.TerraformImpl,
+		TofuImplementation: tfimpl.Terraform,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -139,7 +140,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation - should also use custom registry (environment override takes precedence)
 	openTofuOpts := &options.TerragruntOptions{
-		TofuImplementation: options.OpenTofuImpl,
+		TofuImplementation: tfimpl.OpenTofu,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -185,7 +186,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TofuImplementation: options.OpenTofuImpl,
+		TofuImplementation: tfimpl.OpenTofu,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -196,7 +197,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TofuImplementation: options.TerraformImpl,
+		TofuImplementation: tfimpl.Terraform,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -237,7 +238,7 @@ terraform {
 
 	// Test parsing with Terraform implementation
 	terraformOpts := &options.TerragruntOptions{
-		TofuImplementation: options.TerraformImpl,
+		TofuImplementation: tfimpl.Terraform,
 	}
 	constraints, err := getproviders.ParseProviderConstraints(terraformOpts, testDir)
 	require.NoError(t, err)
@@ -249,7 +250,7 @@ terraform {
 
 	// Test parsing with OpenTofu implementation
 	openTofuOpts := &options.TerragruntOptions{
-		TofuImplementation: options.OpenTofuImpl,
+		TofuImplementation: tfimpl.OpenTofu,
 	}
 	constraints, err = getproviders.ParseProviderConstraints(openTofuOpts, testDir)
 	require.NoError(t, err)
@@ -335,7 +336,7 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			require.NoError(t, err)
 
 			opts := &options.TerragruntOptions{
-				TofuImplementation: options.TerraformImpl,
+				TofuImplementation: tfimpl.Terraform,
 			}
 			constraints, err := getproviders.ParseProviderConstraints(opts, testDir)
 			require.NoError(t, err)

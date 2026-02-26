@@ -20,7 +20,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
@@ -38,8 +37,8 @@ const (
 // DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
 // into a temporary folder, then:
 // 1. Check if module directory exists in temporary folder
-// 2. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
-// 3. Set terragruntOptions.WorkingDir to the temporary folder.
+// 2. Copy the contents of opts.WorkingDir into the temporary folder.
+// 3. Set opts.WorkingDir to the temporary folder.
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
@@ -47,10 +46,10 @@ func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
 	source string,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
-) (*options.TerragruntOptions, error) {
+) (*Options, error) {
 	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	terraformSource, err := tf.NewSource(l, source, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
@@ -64,8 +63,8 @@ func DownloadTerraformSource(
 
 	l.Debugf(
 		"Copying files from %s into %s",
-		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.LogShowAbsPaths),
-		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.LogShowAbsPaths),
+		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 	)
 
 	// Always include the .tflint.hcl file, if it exists
@@ -83,7 +82,7 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	l, updatedTerragruntOptions, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +92,12 @@ func DownloadTerraformSource(
 		util.RelPathForLog(
 			opts.RootWorkingDir,
 			terraformSource.WorkingDir,
-			opts.LogShowAbsPaths,
+			opts.Writers.LogShowAbsPaths,
 		),
 	)
-	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
+	updatedOpts.WorkingDir = terraformSource.WorkingDir
 
-	return updatedTerragruntOptions, nil
+	return updatedOpts, nil
 }
 
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
@@ -106,7 +105,7 @@ func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
 	terraformSource *tf.Source,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
@@ -133,7 +132,7 @@ func DownloadTerraformSourceIfNecessary(
 				util.RelPathForLog(
 					opts.RootWorkingDir,
 					terraformSource.WorkingDir,
-					opts.LogShowAbsPaths,
+					opts.Writers.LogShowAbsPaths,
 				),
 			)
 
@@ -156,18 +155,18 @@ func DownloadTerraformSourceIfNecessary(
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
-	l, terragruntOptionsForDownload, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	l, optsForDownload, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}
 
-	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
+	optsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 
 	downloadErr := RunActionWithHooks(
 		ctx,
 		l,
 		"download source",
-		terragruntOptionsForDownload,
+		optsForDownload,
 		cfg,
 		r,
 		func(childCtx context.Context) error {
@@ -208,7 +207,7 @@ func DownloadTerraformSourceIfNecessary(
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *options.TerragruntOptions) (bool, error) {
+func AlreadyHaveLatestCode(l log.Logger, terraformSource *tf.Source, opts *Options) (bool, error) {
 	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
@@ -257,7 +256,7 @@ func readVersionFile(terraformSource *tf.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func UpdateGetters(l log.Logger, terragruntOptions *options.TerragruntOptions, cfg *runcfg.RunConfig) func(*getter.Client) error {
+func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We iterate over the global getter.Getters map and clone each getter
 		// to avoid race conditions. The global map contains shared getter
@@ -284,7 +283,7 @@ func UpdateGetters(l log.Logger, terragruntOptions *options.TerragruntOptions, c
 
 		// Load in custom getters that are only supported in Terragrunt
 		client.Getters["tfr"] = &tf.RegistryGetter{
-			TerragruntOptions: terragruntOptions,
+			TerragruntOptions: opts.toTerragruntOptions(),
 		}
 
 		return nil
@@ -321,7 +320,7 @@ func downloadSource(
 	ctx context.Context,
 	l log.Logger,
 	src *tf.Source,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
@@ -333,8 +332,8 @@ func downloadSource(
 
 	l.Infof(
 		"Downloading Terraform configurations from %s into %s",
-		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.LogShowAbsPaths),
-		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.LogShowAbsPaths))
+		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
+		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
 	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
 

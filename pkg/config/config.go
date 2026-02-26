@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -38,10 +39,10 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -165,27 +166,27 @@ type TerragruntConfig struct {
 	IsPartial                   bool
 }
 
-func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
+func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
 	if cfg.RemoteState == nil {
 		l.Debug("Did not find remote `remote_state` block in the config")
 
 		return nil, nil
 	}
 
-	sourceURL, err := GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, cfg)
+	sourceURL, err := GetTerraformSourceURL(pctx.Source, pctx.SourceMap, pctx.OriginalTerragruntConfigPath, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	if sourceURL != "" {
-		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+		walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
 
-		tfSource, err := tf.NewSource(l, sourceURL, opts.DownloadDir, opts.WorkingDir, walkWithSymlinks)
+		tfSource, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 		if err != nil {
 			return nil, err
 		}
 
-		opts.WorkingDir = tfSource.WorkingDir
+		pctx.WorkingDir = tfSource.WorkingDir
 	}
 
 	return cfg.RemoteState, nil
@@ -1078,7 +1079,7 @@ func FindConfigFilesInPath(
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
-	tfDataDir := options.DefaultTFDataDir
+	tfDataDir := tf.DefaultTFDataDir
 	if d, ok := env["TF_DATA_DIR"]; ok {
 		tfDataDir = d
 	}
@@ -1152,19 +1153,19 @@ func isTerragruntModuleDir(path string, tfDataDir string, downloadDir string) (b
 	return true, nil
 }
 
-// ReadTerragruntConfig reads the Terragrunt config file from its default location
+// ReadTerragruntConfig reads the Terragrunt config file from its default location.
+// The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
 func ReadTerragruntConfig(ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	pctx *ParsingContext,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(opts.RootWorkingDir, opts.TerragruntConfigPath, opts.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.Writers.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-	ctx, parsingCtx := NewParsingContext(ctx, l, opts)
-	parsingCtx = parsingCtx.WithParseOption(parserOptions)
+	pctx = pctx.WithParseOption(parserOptions)
 
-	return ParseConfigFile(ctx, parsingCtx, l, opts.TerragruntConfigPath, nil)
+	return ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 }
 
 // ParseConfigFile parses the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
@@ -1561,7 +1562,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if pctx.OriginalIAMRoleOptions.RoleARN != "" {
 		pctx.IAMRoleOptions = pctx.OriginalIAMRoleOptions
-		pctx.TerragruntOptions.IAMRoleOptions = pctx.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
 		var (
@@ -1585,7 +1585,6 @@ func setIAMRole(ctx context.Context, pctx *ParsingContext, l log.Logger, file *h
 			pctx.OriginalIAMRoleOptions,
 		)
 		pctx.IAMRoleOptions = merged
-		pctx.TerragruntOptions.IAMRoleOptions = merged
 	}
 
 	return nil
@@ -2042,7 +2041,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -2071,7 +2070,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,
@@ -2080,14 +2079,14 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 }
 
 // ErrorsConfig fetch errors configuration for options package
-func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
+func (cfg *TerragruntConfig) ErrorsConfig() (*errorconfig.Config, error) {
 	if cfg.Errors == nil {
 		return nil, nil
 	}
 
-	result := &options.ErrorsConfig{
-		Retry:  make(map[string]*options.RetryConfig),
-		Ignore: make(map[string]*options.IgnoreConfig),
+	result := &errorconfig.Config{
+		Retry:  make(map[string]*errorconfig.RetryConfig),
+		Ignore: make(map[string]*errorconfig.IgnoreConfig),
 	}
 
 	for _, retryBlock := range cfg.Errors.Retry {
@@ -2104,7 +2103,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
@@ -2116,7 +2115,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &options.RetryConfig{
+		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
@@ -2143,7 +2142,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(ignoreBlock.IgnorableErrors))
 
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
@@ -2155,7 +2154,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
@@ -2167,7 +2166,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 }
 
 // Build ErrorsPattern from string
-func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 	isNegative := false
 	p := pattern
 
@@ -2181,7 +2180,7 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 		return nil, err
 	}
 
-	return &options.ErrorsPattern{
+	return &errorconfig.Pattern{
 		Pattern:  compiled,
 		Negative: isNegative,
 	}, nil
@@ -2189,11 +2188,12 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 
 // ParseRemoteState reads the Terragrunt config file from its default location
 // and parses and returns the `remote_state` block.
-func ParseRemoteState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*remotestate.RemoteState, error) {
-	cfg, err := ReadTerragruntConfig(ctx, l, opts, DefaultParserOptions(l, opts.StrictControls))
+// The caller provides a fully populated ParsingContext (typically via configbridge.NewParsingContext).
+func ParseRemoteState(ctx context.Context, l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
+	cfg, err := ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	return cfg.GetRemoteState(l, opts)
+	return cfg.GetRemoteState(l, pctx)
 }

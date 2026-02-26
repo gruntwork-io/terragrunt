@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
+	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -41,7 +42,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -533,14 +533,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			// This is needed because the command may have first run during discovery phase
 			// with io.Discard writers, so we need to replay the output during execution phase.
 			// We only call Do() when we have a real writer, so it won't fire during discovery.
-			if pctx.Writer != io.Discard {
+			if pctx.Writers.Writer != io.Discard {
 				cachedEntry.replayOnce.Do(func() {
 					if !suppressOutput && cachedEntry.Stdout != "" {
-						_, _ = pctx.Writer.Write([]byte(cachedEntry.Stdout))
+						_, _ = pctx.Writers.Writer.Write([]byte(cachedEntry.Stdout))
 					}
 
 					if cachedEntry.Stderr != "" {
-						_, _ = pctx.ErrWriter.Write([]byte(cachedEntry.Stderr))
+						_, _ = pctx.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
 					}
 				})
 			}
@@ -558,7 +558,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	cmdOutput, err := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		shell.RunOptionsFromOpts(pctx.TerragruntOptions),
+		shellRunOptsFromPctx(pctx),
 		currentPath,
 		true,
 		false,
@@ -582,14 +582,14 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		Stderr: cmdOutput.Stderr.String(),
 	}
 
-	if pctx.Writer != io.Discard {
+	if pctx.Writers.Writer != io.Discard {
 		entry.replayOnce.Do(func() {
 			if !suppressOutput && entry.Stdout != "" {
-				_, _ = pctx.Writer.Write([]byte(entry.Stdout))
+				_, _ = pctx.Writers.Writer.Write([]byte(entry.Stdout))
 			}
 
 			if entry.Stderr != "" {
-				_, _ = pctx.ErrWriter.Write([]byte(entry.Stderr))
+				_, _ = pctx.Writers.ErrWriter.Write([]byte(entry.Stderr))
 			}
 		})
 	}
@@ -930,7 +930,7 @@ func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_default_retryable_errors", attrs, func(childCtx context.Context) error {
-		result = options.DefaultRetryableErrors
+		result = retry.DefaultRetryableErrors
 		return nil
 	})
 
@@ -1031,7 +1031,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, readErr)
 		}
 
-		stackFile, readErr := ReadStackConfigFile(ctx, l, pctx.TerragruntOptions, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, pctx, targetConfig, values)
 		if readErr != nil {
 			return cty.NilVal, errors.New(readErr)
 		}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -32,7 +33,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts.StrictControls))
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return err
 	}
@@ -88,7 +91,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if !opts.SummaryDisable {
-		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+				l.Warnf("Failed to write summary: %v", err)
+			}
+		}()
 	}
 
 	rnr, err := runner.NewStackRunner(ctx, l, graphOpts, runnerOpts...)

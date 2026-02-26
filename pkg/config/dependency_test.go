@@ -2,11 +2,11 @@ package config_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -117,17 +117,15 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename := "../../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
-	ctx, pctx := config.NewParsingContext(t.Context(), logger.CreateLogger(), mockOptionsForTestWithConfigPath(t, filename))
-	opts, err := options.NewTerragruntOptionsForTest(filename)
+	filename, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "regressions", "multiple-dependency-load-sync", "main", "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	pctx.TerragruntOptions = opts
-	err = pctx.TerragruntOptions.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+	ctx, pctx := newTestParsingContext(t, filename)
+	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
-	pctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), opts.TerragruntConfigPath, nil)
+	pctx.Env = env.Parse(os.Environ())
+	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -177,7 +175,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not panic - disabled deps bypass config_path validation
@@ -204,7 +202,7 @@ dependency "enabled" {
 }
 `
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTestWithConfigPath(t, config.DefaultTerragruntConfigPath))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 
 	// Should not error - disabled deps bypass config_path validation

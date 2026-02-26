@@ -523,6 +523,22 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 	return nil
 }
 
+// CopyFolderToTemp creates a temp directory with the given prefix, copies the
+// contents of the source folder into it using the provided filter, and returns
+// the path to the temp directory.
+func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
+	dest, err := os.MkdirTemp("", tempPrefix)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
+		return "", err
+	}
+
+	return dest, nil
+}
+
 // IsSymLink returns true if the given file is a symbolic link
 // Per https://stackoverflow.com/a/18062079/2308858
 func IsSymLink(path string) bool {

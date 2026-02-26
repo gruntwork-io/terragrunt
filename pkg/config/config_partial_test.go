@@ -34,7 +34,7 @@ dependencies {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ prevent_destroy = false
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 
@@ -88,7 +88,7 @@ skip = true
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, "", nil)
 
@@ -128,30 +128,32 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "ignore-bad-block-in-parent", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
-	_, err := config.PartialParseConfigFile(ctx, pctx, l, opts.TerragruntConfigPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
 	require.NoError(t, err)
 
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	_, err = config.PartialParseConfigFile(ctx, pctx, l, opts.TerragruntConfigPath, nil)
+	_, err = config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
 	assert.Error(t, err)
 }
 
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.TerragruntFlags)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, opts.TerragruntConfigPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -166,13 +168,14 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	configPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "partial-parse", "partial-inheritance", "child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, opts)
+	ctx, pctx := newTestParsingContext(t, configPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
-	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, opts.TerragruntConfigPath, nil)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -199,7 +202,7 @@ dependency "vpc" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -226,7 +229,7 @@ dependency "sql" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -255,7 +258,7 @@ dependency "sql" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -285,7 +288,7 @@ dependency "sql" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock, config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -315,7 +318,7 @@ dependency "sql" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -345,7 +348,7 @@ dependency "sql" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -375,7 +378,7 @@ terraform {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.TerraformSource)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -401,7 +404,7 @@ dependency "ec2" {
 
 	l := logger.CreateLogger()
 
-	ctx, pctx := config.NewParsingContext(t.Context(), l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	pctx = pctx.WithDecodeList(config.DependencyBlock)
 	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
@@ -425,9 +428,9 @@ func TestPartialParseSavesToHclCache(t *testing.T) {
 
 	// Setup cache and context
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// Verify cache is empty initially
@@ -462,9 +465,9 @@ func TestPartialParseCacheHitOnSecondParse(t *testing.T) {
 	cacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// First parse - should be cache miss
@@ -497,9 +500,9 @@ func TestPartialParseCacheInvalidationOnFileModification(t *testing.T) {
 	originalCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// Parse original file
@@ -544,9 +547,9 @@ func TestPartialParseCacheWithInvalidFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(invalidContent), 0644))
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	// Parse should fail and not cache an invalid file
@@ -577,9 +580,9 @@ func TestPartialParseCacheKeyFormat(t *testing.T) {
 	expectedCacheKey := fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(baseCtx, l, mockOptionsForTest(t))
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	ctx = context.WithValue(ctx, config.HclCacheContextKey, hclCache)
 	pctx = pctx.WithDecodeList(config.DependenciesBlock)
 
 	_, err = config.PartialParseConfigFile(ctx, pctx, l, configPath, nil)
@@ -644,14 +647,13 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	// Setup shared caches in context so both modules use the same config cache.
 	hclCache := cache.NewCache[*hclparse.File]("test-hcl-cache")
 	configCache := cache.NewCache[*config.TerragruntConfig]("test-config-cache")
-	baseCtx := context.WithValue(t.Context(), config.HclCacheContextKey, hclCache)
-	baseCtx = context.WithValue(baseCtx, config.TerragruntConfigCacheContextKey, configCache)
 	l := logger.CreateLogger()
 
 	// Parse shared config from module A's context.
-	optsA := mockOptionsForTestWithConfigPath(t, moduleAConfigPath)
-	optsA.UsePartialParseConfigCache = true
-	ctxA, pctxA := config.NewParsingContext(baseCtx, l, optsA)
+	ctxA, pctxA := newTestParsingContext(t, moduleAConfigPath)
+	ctxA = context.WithValue(ctxA, config.HclCacheContextKey, hclCache)
+	ctxA = context.WithValue(ctxA, config.TerragruntConfigCacheContextKey, configCache)
+	pctxA.UsePartialParseConfigCache = true
 	pctxA = pctxA.WithDecodeList(config.DependenciesBlock)
 
 	configA, err := config.PartialParseConfigFile(ctxA, pctxA, l, sharedConfigPath, nil)
@@ -659,9 +661,10 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	require.NotNil(t, configA)
 
 	// Parse shared config from module B's context (different TerragruntConfigPath).
-	optsB := mockOptionsForTestWithConfigPath(t, moduleBConfigPath)
-	optsB.UsePartialParseConfigCache = true
-	ctxB, pctxB := config.NewParsingContext(baseCtx, l, optsB)
+	ctxB, pctxB := newTestParsingContext(t, moduleBConfigPath)
+	ctxB = context.WithValue(ctxB, config.HclCacheContextKey, hclCache)
+	ctxB = context.WithValue(ctxB, config.TerragruntConfigCacheContextKey, configCache)
+	pctxB.UsePartialParseConfigCache = true
 	pctxB = pctxB.WithDecodeList(config.DependenciesBlock)
 
 	configB, err := config.PartialParseConfigFile(ctxB, pctxB, l, sharedConfigPath, nil)

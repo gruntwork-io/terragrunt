@@ -13,9 +13,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-isatty"
 )
@@ -39,11 +40,9 @@ var commandsThatNeedPty = []string{
 	CommandNameConsole,
 }
 
-// RunOptions contains the configuration needed to run TF commands.
-type RunOptions struct {
-	Writer       io.Writer
-	ErrWriter    io.Writer
-	ShellRunOpts *shell.RunOptions
+// TFOptions contains the configuration needed to run TF commands.
+type TFOptions struct {
+	ShellOptions *shell.ShellOptions
 
 	// TerragruntOptions is the full options struct. It is needed when the
 	// TerraformCommandHook fires (e.g. for provider caching) because the hook
@@ -52,30 +51,22 @@ type RunOptions struct {
 	// as long as the TerraformCommandHook is not set in the context.
 	TerragruntOptions *options.TerragruntOptions
 
-	TFPath                       string
 	OriginalTerragruntConfigPath string
-	ForwardTFStdout              bool
 	JSONLogFormat                bool
-	Headless                     bool
 }
 
-// RunOptionsFromOpts constructs RunOptions from TerragruntOptions.
-func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
-	return &RunOptions{
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		Writer:                       opts.Writer,
-		ErrWriter:                    opts.ErrWriter,
-		TFPath:                       opts.TFPath,
+// TFOptionsFromOpts constructs RunOptions from TerragruntOptions.
+func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
+	return &TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellRunOpts:                 shell.RunOptionsFromOpts(opts),
+		ShellOptions:                 shell.RunOptionsFromOpts(opts),
 		TerragruntOptions:            opts,
 	}
 }
 
 // RunCommand runs the given Terraform command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, runOpts, args...)
 
 	return err
@@ -83,7 +74,7 @@ func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, args ...
 
 // RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
-func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions, args ...string) (*util.CmdOutput, error) {
+func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
@@ -95,18 +86,18 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 		return nil, err
 	}
 
-	shellOpts := runOpts.ShellRunOpts
-	if !runOpts.ForwardTFStdout {
+	shellOpts := runOpts.ShellOptions
+	if !runOpts.ShellOptions.ForwardTFStdout {
 		// Copy the shell opts to avoid mutating the caller's struct.
 		shellOptsCopy := *shellOpts
 		shellOpts = &shellOptsCopy
 
 		outWriter, errWriter := logTFOutput(l, runOpts, args)
-		shellOpts.Writer = outWriter
-		shellOpts.ErrWriter = errWriter
+		shellOpts.Writers.Writer = outWriter
+		shellOpts.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {
@@ -128,52 +119,52 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *RunOptions
 	return output, err
 }
 
-func logTFOutput(l log.Logger, runOpts *RunOptions, args clihelper.Args) (io.Writer, io.Writer) {
+func logTFOutput(l log.Logger, runOpts *TFOptions, args clihelper.Args) (io.Writer, io.Writer) {
 	var (
-		originalOutWriter           = options.NewOriginalWriter(runOpts.Writer)
-		originalErrWriter           = options.NewOriginalWriter(runOpts.ErrWriter)
+		originalOutWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.Writer)
+		originalErrWriter           = writer.NewOriginalWriter(runOpts.ShellOptions.Writers.ErrWriter)
 		outWriter         io.Writer = originalOutWriter
 		errWriter         io.Writer = originalErrWriter
 	)
 
 	logger := l.
-		WithField(placeholders.TFPathKeyName, filepath.Base(runOpts.TFPath)).
+		WithField(placeholders.TFPathKeyName, filepath.Base(runOpts.ShellOptions.TFPath)).
 		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
 	if runOpts.JSONLogFormat && !args.Normalize(clihelper.SingleDashFlag).Contains(FlagNameJSON) {
 		wrappedOut := buildOutWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellOptions.Headless,
 			outWriter,
 			errWriter,
 		)
 		wrappedErr := buildErrWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellOptions.Headless,
 			errWriter,
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writer.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writer.NewWrappedWriter(wrappedErr, originalErrWriter)
 	} else if !shouldForceForwardTFStdout(args) {
 		wrappedOut := buildOutWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellOptions.Headless,
 			outWriter,
 			errWriter,
-			writer.WithMsgSeparator(logMsgSeparator),
+			logwriter.WithMsgSeparator(logMsgSeparator),
 		)
 		wrappedErr := buildErrWriter(
 			logger,
-			runOpts.Headless,
+			runOpts.ShellOptions.Headless,
 			errWriter,
-			writer.WithMsgSeparator(logMsgSeparator),
-			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
+			logwriter.WithMsgSeparator(logMsgSeparator),
+			logwriter.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
 		)
 
-		outWriter = options.NewWrappedWriter(wrappedOut, originalOutWriter)
-		errWriter = options.NewWrappedWriter(wrappedErr, originalErrWriter)
+		outWriter = writer.NewWrappedWriter(wrappedOut, originalOutWriter)
+		errWriter = writer.NewWrappedWriter(wrappedErr, originalErrWriter)
 	}
 
 	return outWriter, errWriter
@@ -234,7 +225,7 @@ func shouldForceForwardTFStdout(args clihelper.Args) bool {
 // stdout to the STDOUT log level.
 //
 // Also accepts any additional writer options desired.
-func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
 	logLevel := log.StdoutLevel
 
 	if headless {
@@ -242,14 +233,14 @@ func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer,
 		outWriter = errWriter
 	}
 
-	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
+	opts := make([]logwriter.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(l.WithOptions(log.WithOutput(outWriter))),
-		writer.WithDefaultLevel(logLevel),
+		logwriter.WithLogger(l.WithOptions(log.WithOutput(outWriter))),
+		logwriter.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
 
-	return writer.New(opts...)
+	return logwriter.New(opts...)
 }
 
 // buildErrWriter returns the writer for the command's stderr.
@@ -259,19 +250,19 @@ func buildOutWriter(l log.Logger, headless bool, outWriter, errWriter io.Writer,
 // stderr to the STDERR log level.
 //
 // Also accepts any additional writer options desired.
-func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+func buildErrWriter(l log.Logger, headless bool, errWriter io.Writer, writerOptions ...logwriter.Option) io.Writer {
 	logLevel := log.StderrLevel
 
 	if headless {
 		logLevel = log.ErrorLevel
 	}
 
-	opts := make([]writer.Option, 0, defaultWriterOptionsLen+len(writerOptions))
+	opts := make([]logwriter.Option, 0, defaultWriterOptionsLen+len(writerOptions))
 	opts = append(opts,
-		writer.WithLogger(l.WithOptions(log.WithOutput(errWriter))),
-		writer.WithDefaultLevel(logLevel),
+		logwriter.WithLogger(l.WithOptions(log.WithOutput(errWriter))),
+		logwriter.WithDefaultLevel(logLevel),
 	)
 	opts = append(opts, writerOptions...)
 
-	return writer.New(opts...)
+	return logwriter.New(opts...)
 }

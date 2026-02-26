@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -29,49 +30,48 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
-// RunOptions contains the configuration needed to run shell commands.
-type RunOptions struct {
-	Writer    io.Writer
-	ErrWriter io.Writer
-	Telemetry *telemetry.Options
-	Env       map[string]string
-	Engine    *options.EngineOptions
+// ShellOptions contains the configuration needed to run shell commands.
+type ShellOptions struct {
+	Writers       writer.Writers
+	EngineOptions *engine.EngineOptions
+	EngineConfig  *engine.EngineConfig
+	Telemetry     *telemetry.Options
+	Env           map[string]string
 
-	// TerragruntOptions is the full options struct, only needed for the engine path.
-	// When the IaC engine is enabled and the command matches TFPath, this is passed
-	// to engine.ExecutionOptions. Non-engine callers may leave this nil.
-	TerragruntOptions *options.TerragruntOptions
+	RootWorkingDir  string
+	WorkingDir      string
+	TFPath          string
+	Experiments     experiment.Experiments
+	Headless        bool
+	ForwardTFStdout bool
+}
 
-	RootWorkingDir         string
-	WorkingDir             string
-	TFPath                 string
-	Experiments            experiment.Experiments
-	NoEngine               bool
-	LogShowAbsPaths        bool
-	LogDisableErrorSummary bool
+// NoEngine returns true if the user explicitly disabled the engine via --no-engine.
+// Returns false when EngineOptions is nil (default: don't disable), letting the
+// other guards (EngineConfig != nil, experiment enabled) decide whether to run.
+func (o *ShellOptions) NoEngine() bool {
+	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
 // RunOptionsFromOpts constructs a RunOptions from TerragruntOptions.
-func RunOptionsFromOpts(opts *options.TerragruntOptions) *RunOptions {
-	return &RunOptions{
-		WorkingDir:             opts.WorkingDir,
-		Writer:                 opts.Writer,
-		ErrWriter:              opts.ErrWriter,
-		Env:                    opts.Env,
-		TFPath:                 opts.TFPath,
-		Engine:                 opts.Engine,
-		Experiments:            opts.Experiments,
-		NoEngine:               opts.NoEngine,
-		Telemetry:              opts.Telemetry,
-		RootWorkingDir:         opts.RootWorkingDir,
-		LogShowAbsPaths:        opts.LogShowAbsPaths,
-		LogDisableErrorSummary: opts.LogDisableErrorSummary,
-		TerragruntOptions:      opts,
+func RunOptionsFromOpts(opts *options.TerragruntOptions) *ShellOptions {
+	return &ShellOptions{
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		EngineConfig:    opts.EngineConfig,
+		Experiments:     opts.Experiments,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
 	}
 }
 
 // RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, command string, args ...string) error {
+func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
 	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
 
 	return err
@@ -85,7 +85,7 @@ func RunCommand(ctx context.Context, l log.Logger, runOpts *RunOptions, command 
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	runOpts *RunOptions,
+	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
 	needsPTY bool,
@@ -109,8 +109,8 @@ func RunCommandWithOutput(
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
-			cmdStderr = io.MultiWriter(runOpts.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(runOpts.Writer, &output.Stdout)
+			cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
@@ -129,18 +129,27 @@ func RunCommandWithOutput(
 
 		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if runOpts.Engine != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine {
+			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
-					TerragruntOptions: runOpts.TerragruntOptions,
-					CmdStdout:         cmdStdout,
-					CmdStderr:         cmdStderr,
+					Writers: writer.Writers{
+						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
+						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
+						LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
+						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
+					},
+					EngineOptions:     runOpts.EngineOptions,
+					EngineConfig:      runOpts.EngineConfig,
+					Env:               runOpts.Env,
 					WorkingDir:        commandDir,
-					SuppressStdout:    suppressStdout,
-					AllocatePseudoTty: needsPTY,
+					RootWorkingDir:    runOpts.RootWorkingDir,
 					Command:           command,
 					Args:              args,
+					Headless:          runOpts.Headless,
+					ForwardTFStdout:   runOpts.ForwardTFStdout,
+					SuppressStdout:    suppressStdout,
+					AllocatePseudoTty: needsPTY,
 				})
 				if err != nil {
 					return errors.New(err)
@@ -170,8 +179,8 @@ func RunCommandWithOutput(
 				Command:         command,
 				WorkingDir:      cmd.Dir,
 				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.LogShowAbsPaths,
-				DisableSummary:  runOpts.LogDisableErrorSummary,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -188,8 +197,8 @@ func RunCommandWithOutput(
 				Output:          output,
 				WorkingDir:      cmd.Dir,
 				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.LogShowAbsPaths,
-				DisableSummary:  runOpts.LogDisableErrorSummary,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

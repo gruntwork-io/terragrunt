@@ -6,15 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -23,8 +22,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -81,33 +82,21 @@ var (
 		"mise.toml",
 		".mise.toml",
 	}
-
-	// Pattern used to clean error message when looking for retry and ignore patterns.
-	ErrorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 )
 
 type ctxKey byte
 
-type TerraformImplementationType string
-
-const (
-	TerraformImpl TerraformImplementationType = "terraform"
-	OpenTofuImpl  TerraformImplementationType = "tofu"
-	UnknownImpl   TerraformImplementationType = "unknown"
-)
-
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
+	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Options to use engine for running IaC operations.
-	Engine *EngineOptions
+	// EngineConfig holds the resolved engine configuration from HCL.
+	EngineConfig *engine.EngineConfig
+	// EngineOptions groups CLI-supplied engine options.
+	EngineOptions *engine.EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -115,7 +104,7 @@ type TerragruntOptions struct {
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
-	Errors *ErrorsConfig
+	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
 	// Environment variables at runtime
@@ -148,15 +137,11 @@ type TerragruntOptions struct {
 	// Original Terraform command being executed by Terragrunt.
 	OriginalTerraformCommand string
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TofuImplementation TerraformImplementationType
+	TofuImplementation tfimpl.Type
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 	// The path to store unpacked providers.
 	ProviderCacheDir string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
 	// The command and arguments that can be used to fetch authentication configurations.
 	AuthProviderCmd string
 	// Folder to store JSON representation of output files.
@@ -251,8 +236,6 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -273,10 +256,6 @@ type TerragruntOptions struct {
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.
 	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
@@ -299,8 +278,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
-	NoEngine bool
 	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
 	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
@@ -342,6 +319,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
+		Writers:                    writer.Writers{Writer: stdout, ErrWriter: stderr},
 		TFPath:                     DefaultWrappedPath,
 		ExcludesFile:               defaultExcludesFile,
 		FiltersFile:                defaultFiltersFile,
@@ -350,13 +328,11 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Env:                        map[string]string{},
 		SourceMap:                  map[string]string{},
 		TerraformCliArgs:           iacargs.New(),
-		Writer:                     stdout,
-		ErrWriter:                  stderr,
 		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
 		AutoRetry:                  true,
 		Parallelism:                DefaultParallelism,
 		JSONOut:                    DefaultJSONOutName,
-		TofuImplementation:         UnknownImpl,
+		TofuImplementation:         tfimpl.Unknown,
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		FeatureFlags:               xsync.NewMapOf[string, string](),
 		Errors:                     defaultErrorsConfig(),
@@ -364,6 +340,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Experiments:                experiment.NewExperiments(),
 		Tips:                       tips.NewTips(),
 		Telemetry:                  new(telemetry.Options),
+		EngineOptions:              new(engine.EngineOptions),
 		VersionManagerFileName:     defaultVersionManagerFileName,
 	}
 }
@@ -388,7 +365,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	opts.TerragruntConfigPath = terragruntConfigPath
 
-	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
+	workingDir, downloadDir, err := util.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -398,16 +375,6 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	opts.DownloadDir = downloadDir
 
 	return opts, nil
-}
-
-// DefaultWorkingAndDownloadDirs gets the default working and download
-// directories for the given Terragrunt config path.
-func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
-
-	downloadDir := filepath.Clean(filepath.Join(workingDir, util.TerragruntCacheDir))
-
-	return workingDir, downloadDir, nil
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
@@ -592,41 +559,6 @@ func identifyDefaultWrappedExecutable(ctx context.Context) string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine.
-type EngineOptions struct {
-	Meta    map[string]any
-	Source  string
-	Version string
-	Type    string
-}
-
-// ErrorsConfig extracted errors handling configuration.
-type ErrorsConfig struct {
-	Retry  map[string]*RetryConfig
-	Ignore map[string]*IgnoreConfig
-}
-
-// RetryConfig represents the configuration for retrying specific errors.
-type RetryConfig struct {
-	Name             string
-	RetryableErrors  []*ErrorsPattern
-	MaxAttempts      int
-	SleepIntervalSec int
-}
-
-// IgnoreConfig represents the configuration for ignoring specific errors.
-type IgnoreConfig struct {
-	Signals         map[string]any
-	Name            string
-	Message         string
-	IgnorableErrors []*ErrorsPattern
-}
-
-type ErrorsPattern struct {
-	Pattern  *regexp.Regexp `clone:"shadowcopy"`
-	Negative bool
-}
-
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
 func (opts *TerragruntOptions) RunWithErrorHandling(
 	ctx context.Context,
@@ -659,7 +591,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		// Process the error through our error handling configuration
 		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *MaxAttemptsReachedError
+			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
 			if errors.As(recoveryErr, &maxAttemptsReachedError) {
 				return maxAttemptsReachedError
 			}
@@ -764,113 +696,4 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 	}
 
 	return nil
-}
-
-// ErrorAction represents the action to take when an error occurs
-type ErrorAction struct {
-	IgnoreSignals   map[string]any
-	IgnoreBlockName string
-	RetryBlockName  string
-	IgnoreMessage   string
-	RetryAttempts   int
-	RetrySleepSecs  int
-	ShouldIgnore    bool
-	ShouldRetry     bool
-}
-
-type MaxAttemptsReachedError struct {
-	Err        error
-	MaxRetries int
-}
-
-func (e *MaxAttemptsReachedError) Error() string {
-	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
-}
-
-// AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
-func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
-	if err == nil {
-		return nil, nil
-	}
-
-	errStr := ExtractErrorMessage(err)
-	action := &ErrorAction{}
-
-	l.Debugf("Attempting error recovery for error: %s", errStr)
-
-	// First check ignore rules
-	for _, ignoreBlock := range c.Ignore {
-		isIgnorable := MatchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
-		if !isIgnorable {
-			continue
-		}
-
-		action.IgnoreBlockName = ignoreBlock.Name
-		action.ShouldIgnore = true
-		action.IgnoreMessage = ignoreBlock.Message
-		action.IgnoreSignals = make(map[string]any)
-
-		// Convert cty.Value map to regular map
-		maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
-
-		return action, nil
-	}
-
-	// Then check retry rules
-	for _, retryBlock := range c.Retry {
-		isRetryable := MatchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
-		if !isRetryable {
-			continue
-		}
-
-		if currentAttempt >= retryBlock.MaxAttempts {
-			return nil, &MaxAttemptsReachedError{
-				MaxRetries: retryBlock.MaxAttempts,
-				Err:        err,
-			}
-		}
-
-		action.RetryBlockName = retryBlock.Name
-		action.ShouldRetry = true
-		action.RetryAttempts = retryBlock.MaxAttempts
-		action.RetrySleepSecs = retryBlock.SleepIntervalSec
-
-		return action, nil
-	}
-
-	// We encountered no error while attempting error recovery, even though the underlying error
-	// is still present. Recovery did not error, the original error will be handled externally.
-	return nil, nil
-}
-
-func ExtractErrorMessage(err error) string {
-	var errText string
-
-	// For ProcessExecutionError, match only against stderr and the underlying error,
-	// not the full command string with flags.
-	var processErr util.ProcessExecutionError
-	if errors.As(err, &processErr) {
-		errText = processErr.Output.Stderr.String() + "\n" + processErr.Err.Error()
-	} else {
-		errText = err.Error()
-	}
-
-	multilineText := log.RemoveAllASCISeq(errText)
-	errorText := ErrorCleanPattern.ReplaceAllString(multilineText, " ")
-
-	return strings.Join(strings.Fields(errorText), " ")
-}
-
-// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
-func MatchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
-	for _, pattern := range patterns {
-		isNegative := pattern.Negative
-		matched := pattern.Pattern.MatchString(input)
-
-		if matched {
-			return !isNegative
-		}
-	}
-
-	return false
 }

@@ -1,14 +1,28 @@
-package options
+// Package writer provides writer types for Terragrunt I/O.
+package writer
 
 import "io"
 
-// parentWriterProvider is any writer that can provide its underlying parent writer.
-// This interface allows extracting the original writer from wrapped writers.
-type parentWriterProvider interface {
-	ParentWriter() io.Writer
+// Writers groups the writer-related fields that travel together across
+// TerragruntOptions, ParsingContext, shell.RunOptions and engine.ExecutionOptions.
+type Writers struct {
+	// Writer is the primary output writer (defaults to os.Stdout).
+	Writer io.Writer
+	// ErrWriter is the error output writer (defaults to os.Stderr).
+	ErrWriter io.Writer
+	// LogShowAbsPaths disables replacing full paths in logs with short relative paths.
+	LogShowAbsPaths bool
+	// LogDisableErrorSummary is a flag to skip the error summary.
+	LogDisableErrorSummary bool
 }
 
-// OriginalWriter wraps an io.Writer and implements parentWriterProvider to preserve
+// writerUnwrapper is any writer that can provide its underlying parent writer.
+// This interface allows extracting the original writer from wrapped writers.
+type writerUnwrapper interface {
+	Unwrap() io.Writer
+}
+
+// OriginalWriter wraps an io.Writer and implements writerUnwrapper to preserve
 // access to the original writer even after it's been wrapped by other writers.
 // This is used to maintain access to the original stdout/stderr writers after they
 // are wrapped by log writers in logTFOutput.
@@ -26,12 +40,12 @@ func (ow *OriginalWriter) Write(p []byte) (int, error) {
 	return ow.w.Write(p)
 }
 
-// ParentWriter implements parentWriterProvider by returning the wrapped writer.
-func (ow *OriginalWriter) ParentWriter() io.Writer {
+// Unwrap implements writerUnwrapper by returning the wrapped writer.
+func (ow *OriginalWriter) Unwrap() io.Writer {
 	return ow.w
 }
 
-// WrappedWriter wraps an io.Writer and implements parentWriterProvider to preserve
+// WrappedWriter wraps an io.Writer and implements writerUnwrapper to preserve
 // access to an underlying original writer. This is used to wrap the result of
 // buildOutWriter/buildErrWriter so the original writer can still be extracted.
 type WrappedWriter struct {
@@ -53,21 +67,21 @@ func (ww *WrappedWriter) Write(p []byte) (int, error) {
 	return ww.wrapped.Write(p)
 }
 
-// ParentWriter implements parentWriterProvider by returning the original writer.
-func (ww *WrappedWriter) ParentWriter() io.Writer {
+// Unwrap implements writerUnwrapper by returning the original writer.
+func (ww *WrappedWriter) Unwrap() io.Writer {
 	return ww.original
 }
 
 // ExtractOriginalWriter extracts the original writer from a potentially wrapped writer.
-// If the writer implements parentWriterProvider, it recursively extracts the parent.
+// If the writer implements writerUnwrapper, it recursively extracts the parent.
 // Otherwise, it returns the writer as-is.
 func ExtractOriginalWriter(w io.Writer) io.Writer {
 	if w == nil {
 		return nil
 	}
 
-	if pwp, ok := w.(parentWriterProvider); ok {
-		parent := pwp.ParentWriter()
+	if u, ok := w.(writerUnwrapper); ok {
+		parent := u.Unwrap()
 
 		return ExtractOriginalWriter(parent)
 	}

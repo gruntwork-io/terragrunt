@@ -11,6 +11,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -37,12 +39,12 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				sourceLockFilePath,
-				opts.LogShowAbsPaths,
+				opts.Writers.LogShowAbsPaths,
 			),
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				destinationLockFilePath,
-				opts.LogShowAbsPaths,
+				opts.Writers.LogShowAbsPaths,
 			),
 		)
 
@@ -179,7 +181,7 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 }
 
 // EngineOptions fetches engine options from the RunConfig.
-func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *RunConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if !cfg.Engine.Enable {
 		return nil, nil
 	}
@@ -203,7 +205,7 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,
@@ -217,10 +219,16 @@ func (cfg *RunConfig) GetIAMRoleOptions() iam.RoleOptions {
 }
 
 // ErrorsConfig fetches errors configuration from the RunConfig.
-func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
-	result := &options.ErrorsConfig{
-		Retry:  make(map[string]*options.RetryConfig),
-		Ignore: make(map[string]*options.IgnoreConfig),
+// Returns nil when no retry or ignore blocks are defined, so callers
+// can preserve default error handling (e.g. built-in retryable errors).
+func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
+	if len(cfg.Errors.Retry) == 0 && len(cfg.Errors.Ignore) == 0 {
+		return nil, nil
+	}
+
+	result := &errorconfig.Config{
+		Retry:  make(map[string]*errorconfig.RetryConfig),
+		Ignore: make(map[string]*errorconfig.IgnoreConfig),
 	}
 
 	for _, retryBlock := range cfg.Errors.Retry {
@@ -237,7 +245,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
@@ -249,7 +257,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &options.RetryConfig{
+		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
@@ -275,7 +283,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(ignoreBlock.IgnorableErrors))
 
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
@@ -287,7 +295,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
@@ -299,7 +307,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 }
 
 // errorsPattern builds an ErrorsPattern from a string pattern.
-func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 	isNegative := false
 	p := pattern
 
@@ -313,7 +321,7 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 		return nil, err
 	}
 
-	return &options.ErrorsPattern{
+	return &errorconfig.Pattern{
 		Pattern:  compiled,
 		Negative: isNegative,
 	}, nil
