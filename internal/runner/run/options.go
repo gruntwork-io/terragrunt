@@ -64,6 +64,7 @@ type Options struct {
 	StrictControls               strict.Controls
 	ProviderCacheRegistryNames   []string
 	Experiments                  experiment.Experiments
+	MaxFoldersToCheck            int
 	ForwardTFStdout              bool
 	JSONLogFormat                bool
 	Headless                     bool
@@ -117,6 +118,7 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		ProviderCacheToken:           opts.ProviderCacheToken,
 		ProviderCacheDir:             opts.ProviderCacheDir,
 		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
+		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
 		CheckDependentUnits:          opts.CheckDependentUnits,
@@ -165,6 +167,7 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		ProviderCacheToken:           o.ProviderCacheToken,
 		ProviderCacheDir:             o.ProviderCacheDir,
 		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
+		MaxFoldersToCheck:            o.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 		CheckDependentUnits:          o.CheckDependentUnits,
