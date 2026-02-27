@@ -756,7 +756,6 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
-	
 	pctx.FeatureFlags = xsync.NewMapOf[string, string]()
 
 	return ctx, pctx
