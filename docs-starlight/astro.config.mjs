@@ -327,10 +327,12 @@ export default defineConfig({
         name: 'compatibility-query-redirect',
         configureServer(server) {
           server.middlewares.use((req, _res, next) => {
-            if (req.url?.startsWith('/api/v1/compatibility?')) {
-              const tool = new URLSearchParams(req.url.split('?')[1]).get('tool');
+            const url = req.url ?? '';
+            if (url === '/api/v1/compatibility' || url.startsWith('/api/v1/compatibility?')) {
+              const qs = url.includes('?') ? url.split('?')[1] : '';
+              const tool = new URLSearchParams(qs).get('tool');
               if (tool === 'opentofu' || tool === 'terraform') {
-                req.url = `/api/v1/compatibility/${tool}.json`;
+                req.url = `/api/v1/compatibility/${tool}`;
               } else {
                 req.url = '/api/v1/compatibility/index.json';
               }

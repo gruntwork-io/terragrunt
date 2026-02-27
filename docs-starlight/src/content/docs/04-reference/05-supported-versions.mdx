@@ -38,16 +38,16 @@ relax the version constraint.
 
 Version compatibility data is available via JSON API:
 
-| Endpoint                               | Description    |
-|----------------------------------------|----------------|
-| `/api/v1/compatibility/index.json`     | All entries    |
-| `/api/v1/compatibility/opentofu.json`  | OpenTofu only  |
-| `/api/v1/compatibility/terraform.json` | Terraform only |
+| Endpoint | Description |
+|----------|-------------|
+| `/api/v1/compatibility` | All entries |
+| `/api/v1/compatibility?tool=opentofu` | OpenTofu only |
+| `/api/v1/compatibility?tool=terraform` | Terraform only |
 
 **Example:**
 
 ```bash
-curl https://terragrunt.gruntwork.io/api/v1/compatibility/opentofu.json
+curl https://terragrunt.gruntwork.io/api/v1/compatibility?tool=opentofu
 ```
 
 **Response format:**
