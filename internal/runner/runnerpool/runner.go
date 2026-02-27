@@ -447,10 +447,10 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return err
 			}
 
-			childCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
+			parseCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
 
 			cfg, err := config.ReadTerragruntConfig(
-				childCtx,
+				parseCtx,
 				unitLogger,
 				pctx,
 				pctx.ParserOptions,
