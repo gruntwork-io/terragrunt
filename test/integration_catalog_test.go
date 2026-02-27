@@ -28,10 +28,10 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 }
 
@@ -42,7 +42,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -57,7 +57,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -99,7 +99,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)

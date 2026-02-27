@@ -32,10 +32,10 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 	stderr := bytes.Buffer{}
 
 	gitRunOpts := &RunOptions{
-		WorkingDir: path,
-		Env:        env,
 		Writer:     &stdout,
 		ErrWriter:  &stderr,
+		WorkingDir: path,
+		Env:        env,
 	}
 
 	cmd, err := RunCommandWithOutput(ctx, l, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
@@ -66,10 +66,10 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 	stderr := bytes.Buffer{}
 
 	gitRunOpts := &RunOptions{
-		WorkingDir: workingDir,
-		Env:        env,
 		Writer:     &stdout,
 		ErrWriter:  &stderr,
+		WorkingDir: workingDir,
+		Env:        env,
 	}
 
 	output, err := RunCommandWithOutput(ctx, l, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)

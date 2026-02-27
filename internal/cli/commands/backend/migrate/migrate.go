@@ -64,6 +64,11 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		return err
 	}
 
+	// ParseRemoteState updates pctx.WorkingDir to point to the .terragrunt-cache
+	// directory (where backend.tf and .terraform/ live) when a terraform source is
+	// configured. Propagate that back so pullState runs in the correct directory.
+	srcOpts.WorkingDir = srcPctx.WorkingDir
+
 	if srcRemoteState == nil {
 		return errors.Errorf("missing remote state configuration for source module: %s", srcPath)
 	}
@@ -74,6 +79,9 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 	if err != nil {
 		return err
 	}
+
+	// Same for the destination: pushState needs the cache directory.
+	dstOpts.WorkingDir = dstPctx.WorkingDir
 
 	if dstRemoteState == nil {
 		return errors.Errorf("missing remote state configuration for destination module: %s", dstPath)

@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -116,9 +117,11 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename := "../../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
+	filename, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "regressions", "multiple-dependency-load-sync", "main", "terragrunt.hcl"))
+	require.NoError(t, err)
+
 	ctx, pctx := newTestParsingContext(t, filename)
-	err := pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
+	err = pctx.Experiments.EnableExperiment(experiment.DependencyFetchOutputFromState)
 	require.NoError(t, err)
 
 	pctx.Env = env.Parse(os.Environ())

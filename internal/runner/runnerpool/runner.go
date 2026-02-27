@@ -366,7 +366,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		for _, u := range rnr.Stack.Units {
 			if u.Excluded() {
 				// Ensure path is absolute for reporting
-				unitPath := u.AbsolutePath(l)
+				unitPath := filepath.Clean(u.Path())
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption
@@ -510,7 +510,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				}
 
 				// Ensure path is absolute for reporting
-				unitPath := unit.AbsolutePath(l)
+				unitPath := filepath.Clean(unit.Path())
 
 				// Pass the discovery context fields for worktree scenarios
 				var ensureOpts []report.EndOption

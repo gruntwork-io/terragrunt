@@ -67,7 +67,7 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
         key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
-          ${{ runner.os }}-go-build-
+          ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
 
     - name: Go Mod Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -75,6 +75,8 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
         key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
+          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
+          ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-
           ${{ runner.os }}-go-mod-
 
     - name: golangci-lint Cache
@@ -83,6 +85,7 @@ jobs:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
         key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
         restore-keys: |
+          ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-golangci-lint-
 
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
@@ -98,6 +101,15 @@ jobs:
       run: |
         echo "GOGC=100" >> "$GITHUB_ENV"
         echo "GOMEMLIMIT=10GiB" >> "$GITHUB_ENV"
+
+    # Linux runners have ~28GB RAM but GOGC=400 still causes the heap to grow beyond available
+    # physical memory when linting with many build tags, triggering runner shutdown signals.
+    # Cap the heap to keep golangci-lint stable on Linux.
+    - name: Set memory limits (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        echo "GOGC=100" >> "$GITHUB_ENV"
+        echo "GOMEMLIMIT=20GiB" >> "$GITHUB_ENV"
 
     - name: Check for lint config changes
       id: lint-config

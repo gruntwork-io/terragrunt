@@ -118,10 +118,6 @@ func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, opt
 
 // GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.
 func (remote *RemoteState) GetTFInitArgs() []string {
-	if remote.DisableInit {
-		return []string{"-backend=false"}
-	}
-
 	if remote.Generate != nil {
 		// When in generate mode, we don't need to use `-backend-config` to initialize the remote state backend.
 		return []string{}

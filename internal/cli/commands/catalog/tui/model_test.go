@@ -32,7 +32,7 @@ import (
 func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) catalog.CatalogService {
 	t.Helper()
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error) {
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 
@@ -83,7 +83,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
 		}
 
-		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS)
+		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS, "")
 	}
 
 	// Create a temporary root config file

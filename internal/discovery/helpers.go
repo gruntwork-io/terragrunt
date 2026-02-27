@@ -78,24 +78,17 @@ func isExternal(workingDir string, componentPath string) bool {
 		return true
 	}
 
-	workingDirAbs, err := filepath.Abs(workingDir)
+	workingDirClean := filepath.Clean(workingDir)
+	componentPathClean := filepath.Clean(componentPath)
+
+	workingDirResolved, err := filepath.EvalSymlinks(workingDirClean)
 	if err != nil {
-		return true
+		workingDirResolved = workingDirClean
 	}
 
-	componentPathAbs, err := filepath.Abs(componentPath)
+	componentPathResolved, err := filepath.EvalSymlinks(componentPathClean)
 	if err != nil {
-		return true
-	}
-
-	workingDirResolved, err := filepath.EvalSymlinks(workingDirAbs)
-	if err != nil {
-		workingDirResolved = workingDirAbs
-	}
-
-	componentPathResolved, err := filepath.EvalSymlinks(componentPathAbs)
-	if err != nil {
-		componentPathResolved = componentPathAbs
+		componentPathResolved = componentPathClean
 	}
 
 	relPath, err := filepath.Rel(workingDirResolved, componentPathResolved)

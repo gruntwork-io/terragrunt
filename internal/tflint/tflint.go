@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gruntwork-io/terratest/modules/collections"
-
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -154,7 +152,9 @@ func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 	for i := range tfCfg.ExtraArgs {
 		arg := &tfCfg.ExtraArgs[i]
 		// use extra args which will be used on same command as hook
-		if len(collections.ListIntersection(arg.Commands, hook.Commands)) == 0 {
+		if !slices.ContainsFunc(arg.Commands, func(cmd string) bool {
+			return slices.Contains(hook.Commands, cmd)
+		}) {
 			continue
 		}
 

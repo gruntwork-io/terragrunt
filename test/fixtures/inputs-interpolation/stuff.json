@@ -1,0 +1,4 @@
+{
+  "foo": "test ${bar} test",
+  "baz": "no interpolation here"
+}

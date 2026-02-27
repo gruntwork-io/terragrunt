@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,10 +14,8 @@ import (
 func TestCatalogParseConfigFile(t *testing.T) {
 	t.Parallel()
 
-	curDir, err := os.Getwd()
+	basePath, err := filepath.Abs(filepath.Join("..", "..", "test", "fixtures", "catalog"))
 	require.NoError(t, err)
-
-	basePath := filepath.Join(curDir, "../../test/fixtures/catalog")
 
 	testCases := []struct {
 		expectedErr    error

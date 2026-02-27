@@ -76,7 +76,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// - When JSON output is requested (--json or report format is JSON)
 	// - When running 'output' command (typically for programmatic consumption)
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
-		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSummary(opts.Writer); err != nil {
+				l.Warnf("Failed to write summary: %v", err)
+			}
+		}()
 	}
 
 	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)

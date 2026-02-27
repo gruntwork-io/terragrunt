@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // flusher is any writer that supports Flush() error.
@@ -13,10 +11,10 @@ type flusher interface {
 	Flush() error
 }
 
-// parentWriterProvider is any writer that can provide its underlying parent writer.
+// writerUnwrapper is any writer that can provide its underlying parent writer.
 // This is used to create writer-based locks that serialize flushes to the same parent.
-type parentWriterProvider interface {
-	ParentWriter() io.Writer
+type writerUnwrapper interface {
+	Unwrap() io.Writer
 }
 
 // unitOutputLocks provides locks for serializing flushes to the same parent writer.
@@ -40,7 +38,7 @@ func unitOutputLock(key string) *sync.Mutex {
 
 // FlushOutput flushes buffer data to the given writer for this unit, if the writer supports it.
 // This is safe to call even if u or w is nil.
-func FlushOutput(l log.Logger, u *Unit, w io.Writer) error {
+func FlushOutput(u *Unit, w io.Writer) error {
 	if u == nil || w == nil {
 		return nil
 	}
@@ -51,10 +49,10 @@ func FlushOutput(l log.Logger, u *Unit, w io.Writer) error {
 	}
 
 	// Use parent writer's address as lock key to serialize flushes to same parent.
-	// Falls back to unit path for writers without parentWriterProvider.
-	key := u.AbsolutePath(l)
-	if pwp, ok := w.(parentWriterProvider); ok {
-		key = fmt.Sprintf("%p", pwp.ParentWriter())
+	// Falls back to unit path for writers without writerUnwrapper.
+	key := u.Path()
+	if u, ok := w.(writerUnwrapper); ok {
+		key = fmt.Sprintf("%p", u.Unwrap())
 	}
 
 	mu := unitOutputLock(key)

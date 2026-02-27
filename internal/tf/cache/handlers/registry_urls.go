@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
-	"syscall"
+	"net/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -23,15 +22,6 @@ var (
 		ProvidersV1: "/v1/providers",
 	}
 )
-
-var offlineErrors = []error{
-	syscall.ECONNREFUSED,
-	syscall.ECONNRESET,
-	syscall.ECONNABORTED,
-	syscall.EHOSTUNREACH,
-	syscall.ENETUNREACH,
-	syscall.ENETDOWN,
-}
 
 type RegistryURLs struct {
 	ModulesV1   string `json:"modules.v1"`
@@ -81,17 +71,14 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 	return urls, nil
 }
 
-// IsOfflineError returns true if the given error is an offline error and can be use default URL.
+// IsOfflineError returns true if the given error indicates that the registry
+// could not be reached, and default URLs should be used instead.
 func IsOfflineError(err error) bool {
 	if errors.As(err, &NotFoundWellKnownURLError{}) {
 		return true
 	}
 
-	for _, connErr := range offlineErrors {
-		if errors.Is(err, connErr) || strings.Contains(err.Error(), connErr.Error()) {
-			return true
-		}
-	}
+	var urlErr *url.Error
 
-	return false
+	return errors.As(err, &urlErr)
 }

@@ -104,12 +104,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	absWorkingDir, err := filepath.Abs(opts.RootWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	unitPath := util.CleanPath(absWorkingDir)
+	unitPath := filepath.Clean(opts.RootWorkingDir)
 
 	if _, err := r.EnsureRun(l, unitPath); err != nil {
 		return err

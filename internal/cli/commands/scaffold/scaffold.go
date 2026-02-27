@@ -25,7 +25,6 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/go-getter/v2"
 )
 
@@ -387,7 +386,7 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !files.IsExistingDir(boilerplateDir) {
+	if !util.IsDir(boilerplateDir) {
 		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
 		config, err := config.ReadCatalogConfig(ctx, l, pctx)

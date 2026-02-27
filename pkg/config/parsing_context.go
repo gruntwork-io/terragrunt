@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -226,14 +225,9 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 // It normalizes the path to an absolute path, updates WorkingDir to the directory
 // containing the config, and adjusts the logger's working directory field if it changed.
 func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)

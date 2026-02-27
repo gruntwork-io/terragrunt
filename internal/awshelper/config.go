@@ -398,7 +398,10 @@ func ValidatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 }
 
 //nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
-func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.RoleOptions) aws.CredentialsProviderFunc {
+func getWebIdentityCredentialsFromIAMRoleOptions(
+	cfg aws.Config,
+	iamRoleOptions iam.RoleOptions,
+) aws.CredentialsProviderFunc {
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
@@ -441,7 +444,11 @@ func getWebIdentityCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions 
 }
 
 //nolint:gocritic // hugeParam: intentionally pass by value to avoid recursive credential resolution
-func getSTSCredentialsFromIAMRoleOptions(cfg aws.Config, iamRoleOptions iam.RoleOptions, externalID string) aws.CredentialsProviderFunc {
+func getSTSCredentialsFromIAMRoleOptions(
+	cfg aws.Config,
+	iamRoleOptions iam.RoleOptions,
+	externalID string,
+) aws.CredentialsProviderFunc {
 	return func(ctx context.Context) (aws.Credentials, error) {
 		stsClient := sts.NewFromConfig(cfg)
 

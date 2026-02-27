@@ -26,7 +26,7 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
+type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -141,7 +141,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 		// Initialize the repository. This might involve cloning or updating.
 		// Use the newRepo function stored in the service instance.
-		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
+		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS, s.opts.RootWorkingDir)
 		if err != nil {
 			l.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
 
