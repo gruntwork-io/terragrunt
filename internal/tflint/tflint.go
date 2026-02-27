@@ -121,10 +121,10 @@ type ErrorRunningTflint struct {
 
 func (err ErrorRunningTflint) Error() string {
 	if err.Err != nil {
-		return fmt.Sprintf("Error while running tflint with args: %v: %s", err.Args, err.Err)
+		return fmt.Sprintf("Error encountered while running tflint with args: '%v': %s", err.Args, err.Err)
 	}
 
-	return fmt.Sprintf("Error while running tflint with args: %v", err.Args)
+	return fmt.Sprintf("Error encountered while running tflint with args: '%v'", err.Args)
 }
 
 func (err ErrorRunningTflint) Unwrap() error {

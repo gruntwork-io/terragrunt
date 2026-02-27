@@ -62,9 +62,12 @@ func CreateGCPConfig(
 ) ([]option.ClientOption, error) {
 	var clientOpts []option.ClientOption
 
-	if envCreds, err := createGCPCredentialsFromEnv(opts); err != nil {
+	envCreds, err := createGCPCredentialsFromEnv(opts)
+	if err != nil {
 		return nil, err
-	} else if envCreds != nil {
+	}
+
+	if envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
@@ -134,6 +137,9 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) (option.Client
 
 // credentialsFileOption reads a GCP credentials JSON file, detects its type,
 // and returns the appropriate ClientOption.
+// Note: the file is read here for type detection and again by the Google API
+// library when the client is created. This is acceptable for credential files
+// which are stable during a single run.
 func credentialsFileOption(filename string) (option.ClientOption, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {

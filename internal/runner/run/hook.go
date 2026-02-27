@@ -29,25 +29,27 @@ const (
 // so users see WHY a hook failed, not just the exit code.
 func hookErrorMessage(hookName string, err error) string {
 	var processErr util.ProcessExecutionError
-	if errors.As(err, &processErr) {
-		exitCode, exitCodeErr := processErr.ExitStatus()
-		cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
-
-		output := strings.TrimSpace(processErr.Output.Stderr.String())
-		if output == "" {
-			output = strings.TrimSpace(processErr.Output.Stdout.String())
-		}
-
-		if exitCodeErr == nil && output != "" {
-			return fmt.Sprintf("Hook %q (command: %s) failed with exit code %d:\n%s", hookName, cmd, exitCode, output)
-		}
-
-		if exitCodeErr == nil {
-			return fmt.Sprintf("Hook %q (command: %s) failed with exit code %d", hookName, cmd, exitCode)
-		}
+	if !errors.As(err, &processErr) {
+		return fmt.Sprintf("Hook %q failed to execute: %s", hookName, err.Error())
 	}
 
-	return fmt.Sprintf("Hook %q failed: %s", hookName, err.Error())
+	exitCode, exitCodeErr := processErr.ExitStatus()
+	if exitCodeErr != nil {
+		return fmt.Sprintf("Hook %q failed to execute: %s", hookName, err.Error())
+	}
+
+	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
+
+	output := strings.TrimSpace(processErr.Output.Stderr.String())
+	if output == "" {
+		output = strings.TrimSpace(processErr.Output.Stdout.String())
+	}
+
+	if output != "" {
+		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
+	}
+
+	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
 }
 
 func processErrorHooks(

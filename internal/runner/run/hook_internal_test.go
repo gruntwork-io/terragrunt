@@ -42,7 +42,7 @@ func TestHookErrorMessage_WithStderr(t *testing.T) {
 	msg := hookErrorMessage("my-lint", errors.New(err))
 	assert.Contains(t, msg, `Hook "my-lint"`)
 	assert.Contains(t, msg, "tflint --config .tflint.hcl")
-	assert.Contains(t, msg, "exit code 2")
+	assert.Contains(t, msg, "non-zero exit code 2")
 	assert.Contains(t, msg, "resource missing required tags")
 }
 
@@ -63,7 +63,7 @@ func TestHookErrorMessage_StdoutFallback(t *testing.T) {
 	msg := hookErrorMessage("lint-hook", errors.New(err))
 	assert.Contains(t, msg, `Hook "lint-hook"`)
 	assert.Contains(t, msg, "custom-lint --fix")
-	assert.Contains(t, msg, "exit code 1")
+	assert.Contains(t, msg, "non-zero exit code 1")
 	assert.Contains(t, msg, "warning: deprecated feature")
 }
 
@@ -80,5 +80,14 @@ func TestHookErrorMessage_NoOutput(t *testing.T) {
 	msg := hookErrorMessage("my-hook", errors.New(err))
 	assert.Contains(t, msg, `Hook "my-hook"`)
 	assert.Contains(t, msg, "check -strict")
-	assert.Contains(t, msg, "exit code 3")
+	assert.Contains(t, msg, "non-zero exit code 3")
+}
+
+func TestHookErrorMessage_NonProcessError(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New("exec: \"tflint\": executable file not found in $PATH")
+
+	msg := hookErrorMessage("my-hook", err)
+	assert.Equal(t, `Hook "my-hook" failed to execute: exec: "tflint": executable file not found in $PATH`, msg)
 }

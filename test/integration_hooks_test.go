@@ -479,6 +479,6 @@ func TestTerragruntHookExitCodeError(t *testing.T) {
 
 	output := stderr.String()
 	// Error message should show exit code and the actual hook output
-	assert.Contains(t, output, `Hook "hook_exit_nonzero" failed (exit code 2)`)
+	assert.Contains(t, output, `exited with non-zero exit code 2`)
 	assert.Contains(t, output, "lint warning: something is wrong")
 }
