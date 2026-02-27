@@ -25,6 +25,33 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
+// hookErrorMessage extracts command, args and output from the error
+// so users see WHY a hook failed, not just the exit code.
+func hookErrorMessage(hookName string, err error) string {
+	var processErr util.ProcessExecutionError
+	if !errors.As(err, &processErr) {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
+	}
+
+	exitCode, exitCodeErr := processErr.ExitStatus()
+	if exitCodeErr != nil {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
+	}
+
+	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
+
+	output := strings.TrimSpace(processErr.Output.Stderr.String())
+	if output == "" {
+		output = strings.TrimSpace(processErr.Output.Stdout.String())
+	}
+
+	if output != "" {
+		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
+	}
+
+	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
+}
+
 func processErrorHooks(
 	ctx context.Context,
 	l log.Logger,
@@ -87,7 +114,7 @@ func processErrorHooks(
 					actionToExecute, actionParams...,
 				)
 				if possibleError != nil {
-					l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
 					return possibleError
 				}
 
@@ -191,7 +218,7 @@ func runHook(
 		actionToExecute, actionParams...,
 	)
 	if possibleError != nil {
-		l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+		l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
 	}
 
 	return possibleError
@@ -214,7 +241,7 @@ func executeTFLint(
 
 	err := tflint.RunTflintWithOpts(ctx, l, opts.toTerragruntOptions(), cfg, curHook)
 	if err != nil {
-		l.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err
 	}
 

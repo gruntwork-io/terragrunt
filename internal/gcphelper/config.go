@@ -62,9 +62,12 @@ func CreateGCPConfig(
 ) ([]option.ClientOption, error) {
 	var clientOpts []option.ClientOption
 
-	if envCreds, err := createGCPCredentialsFromEnv(opts); err != nil {
+	envCreds, err := createGCPCredentialsFromEnv(opts)
+	if err != nil {
 		return nil, err
-	} else if envCreds != nil {
+	}
+
+	if envCreds != nil {
 		clientOpts = append(clientOpts, envCreds)
 	} else if gcpCfg != nil && gcpCfg.Credentials != "" {
 		// Use credentials file from config
@@ -107,7 +110,7 @@ func CreateGCPConfig(
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
 			Scopes:          []string{storage.ScopeFullControl},
 			Delegates:       gcpCfg.ImpersonateServiceAccountDelegates,
-		})
+		}, clientOpts...)
 		if err != nil {
 			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
 		}

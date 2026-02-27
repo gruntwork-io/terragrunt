@@ -35,6 +35,7 @@ const (
 	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/hooks/init-once/with-source-with-backend"
 	testFixtureTerragruntHookIfParameter                          = "fixtures/hooks/if-parameter"
 	testFixtureHooksPathPreservation                              = "fixtures/hooks/path-preservation"
+	testFixtureHooksExitCodeError                                 = "fixtures/hooks/exit-code-error"
 )
 
 func TestTerragruntHookIfParameter(t *testing.T) {
@@ -459,4 +460,25 @@ func TestTerragruntHookPreservesAbsolutePaths(t *testing.T) {
 	// NOT converted to a relative path like "../../../.terraform.d/plugin-cache"
 	assert.Contains(t, stderr, "/home/testuser/.terraform.d/plugin-cache")
 	assert.NotContains(t, stderr, "../")
+}
+
+func TestTerragruntHookExitCodeError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksExitCodeError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksExitCodeError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksExitCodeError)
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	require.Error(t, err)
+
+	output := stderr.String()
+	// Error message should show exit code and the actual hook output
+	assert.Contains(t, output, `exited with non-zero exit code 2`)
+	assert.Contains(t, output, "lint warning: something is wrong")
 }

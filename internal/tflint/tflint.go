@@ -68,7 +68,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{args: initArgs})
+		return errors.New(ErrorRunningTflint{Args: initArgs, Err: err})
 	}
 
 	// tflint execution
@@ -87,7 +87,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{args: args})
+		return errors.New(ErrorRunningTflint{Args: args, Err: err})
 	}
 
 	l.Info("Tflint has run successfully. No issues found.")
@@ -115,11 +115,20 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 // Custom error types
 
 type ErrorRunningTflint struct {
-	args []string
+	Err  error
+	Args []string
 }
 
 func (err ErrorRunningTflint) Error() string {
-	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
+	if err.Err != nil {
+		return fmt.Sprintf("Error encountered while running tflint with args: '%v': %s", err.Args, err.Err)
+	}
+
+	return fmt.Sprintf("Error encountered while running tflint with args: '%v'", err.Args)
+}
+
+func (err ErrorRunningTflint) Unwrap() error {
+	return err.Err
 }
 
 type IssuesFound struct{}
