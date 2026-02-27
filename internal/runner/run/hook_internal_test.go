@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,33 @@ func TestHookErrorMessage_NoOutput(t *testing.T) {
 	assert.Contains(t, msg, `Hook "my-hook"`)
 	assert.Contains(t, msg, "check -strict")
 	assert.Contains(t, msg, "non-zero exit code 3")
+}
+
+func TestHookErrorMessage_TflintWrapped(t *testing.T) {
+	t.Parallel()
+
+	var output util.CmdOutput
+	output.Stderr.WriteString("3 issue(s) found")
+
+	processErr := util.ProcessExecutionError{
+		Err:        getExitError(t, 2),
+		Command:    "tflint",
+		Args:       []string{"--config", ".tflint.hcl"},
+		WorkingDir: "/tmp",
+		Output:     output,
+	}
+
+	// Simulate the real tflint error chain: ErrorRunningTflint wraps ProcessExecutionError
+	tflintErr := tflint.ErrorRunningTflint{
+		Args: []string{"tflint", "--config", ".tflint.hcl"},
+		Err:  errors.New(processErr),
+	}
+
+	msg := hookErrorMessage("tflint", errors.New(tflintErr))
+	assert.Contains(t, msg, `Hook "tflint"`)
+	assert.Contains(t, msg, "tflint --config .tflint.hcl")
+	assert.Contains(t, msg, "non-zero exit code 2")
+	assert.Contains(t, msg, "3 issue(s) found")
 }
 
 func TestHookErrorMessage_NonProcessError(t *testing.T) {

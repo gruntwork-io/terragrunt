@@ -30,12 +30,12 @@ const (
 func hookErrorMessage(hookName string, err error) string {
 	var processErr util.ProcessExecutionError
 	if !errors.As(err, &processErr) {
-		return fmt.Sprintf("Hook %q failed to execute: %s", hookName, err.Error())
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}
 
 	exitCode, exitCodeErr := processErr.ExitStatus()
 	if exitCodeErr != nil {
-		return fmt.Sprintf("Hook %q failed to execute: %s", hookName, err.Error())
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
 	}
 
 	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
