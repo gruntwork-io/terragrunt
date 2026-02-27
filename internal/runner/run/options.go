@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
-	"github.com/gruntwork-io/terragrunt/internal/engine"
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -23,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -37,10 +37,10 @@ const (
 // Options contains the configuration needed by run.Run and its helpers.
 // This is a focused subset of options.TerragruntOptions.
 type Options struct {
-	Writers                      writer.Writers
+	Writer                       io.Writer
+	ErrWriter                    io.Writer
 	TerraformCliArgs             *iacargs.IacArgs
-	EngineConfig                 *engine.EngineConfig
-	EngineOptions                *engine.EngineOptions
+	Engine                       *enginecfg.Options
 	Errors                       *errorconfig.Config
 	FeatureFlags                 *xsync.MapOf[string, string]
 	Telemetry                    *telemetry.Options
@@ -48,11 +48,14 @@ type Options struct {
 	Env                          map[string]string
 	ProviderCacheToken           string
 	ProviderCacheDir             string
+	ProviderCacheHostname        string
 	RootWorkingDir               string
 	TofuImplementation           tfimpl.Type
+	EngineLogLevel               string
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
 	WorkingDir                   string
+	EngineCachePath              string
 	DownloadDir                  string
 	TerraformCommand             string
 	OriginalTerraformCommand     string
@@ -64,7 +67,7 @@ type Options struct {
 	StrictControls               strict.Controls
 	ProviderCacheRegistryNames   []string
 	Experiments                  experiment.Experiments
-	MaxFoldersToCheck            int
+	ProviderCachePort            int
 	ForwardTFStdout              bool
 	JSONLogFormat                bool
 	Headless                     bool
@@ -73,17 +76,22 @@ type Options struct {
 	AutoInit                     bool
 	AutoRetry                    bool
 	BackendBootstrap             bool
+	NoEngine                     bool
+	LogShowAbsPaths              bool
+	LogDisableErrorSummary       bool
+	EngineSkipChecksumCheck      bool
 	FailIfBucketCreationRequired bool
 	DisableBucketUpdate          bool
 	CheckDependentUnits          bool
 	SkipOutput                   bool
 	SourceUpdate                 bool
+	ProviderCache                bool
+	NoAutoProviderCacheDir       bool
 }
 
 // NewOptions creates an Options from a TerragruntOptions.
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
-		Writers:                      opts.Writers,
 		TerragruntConfigPath:         opts.TerragruntConfigPath,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
 		WorkingDir:                   opts.WorkingDir,
@@ -94,11 +102,12 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		TerraformCliArgs:             opts.TerraformCliArgs,
 		Source:                       opts.Source,
 		SourceMap:                    opts.SourceMap,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
 		Env:                          opts.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
 		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		EngineConfig:                 opts.EngineConfig,
-		EngineOptions:                opts.EngineOptions,
+		Engine:                       opts.Engine,
 		Errors:                       opts.Errors,
 		Experiments:                  opts.Experiments,
 		StrictControls:               opts.StrictControls,
@@ -113,12 +122,21 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		AutoInit:                     opts.AutoInit,
 		AutoRetry:                    opts.AutoRetry,
 		BackendBootstrap:             opts.BackendBootstrap,
+		NoEngine:                     opts.NoEngine,
+		LogShowAbsPaths:              opts.LogShowAbsPaths,
+		LogDisableErrorSummary:       opts.LogDisableErrorSummary,
 		Telemetry:                    opts.Telemetry,
 		AuthProviderCmd:              opts.AuthProviderCmd,
+		EngineSkipChecksumCheck:      opts.EngineSkipChecksumCheck,
+		EngineCachePath:              opts.EngineCachePath,
+		EngineLogLevel:               opts.EngineLogLevel,
 		ProviderCacheToken:           opts.ProviderCacheToken,
 		ProviderCacheDir:             opts.ProviderCacheDir,
+		ProviderCacheHostname:        opts.ProviderCacheHostname,
+		ProviderCachePort:            opts.ProviderCachePort,
 		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
+		ProviderCache:                opts.ProviderCache,
+		NoAutoProviderCacheDir:       opts.NoAutoProviderCacheDir,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
 		CheckDependentUnits:          opts.CheckDependentUnits,
@@ -132,7 +150,6 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 // This is temporary and will be eliminated in a future phase.
 func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 	return &options.TerragruntOptions{
-		Writers:                      o.Writers,
 		TerragruntConfigPath:         o.TerragruntConfigPath,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
 		WorkingDir:                   o.WorkingDir,
@@ -143,11 +160,12 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		TerraformCliArgs:             o.TerraformCliArgs,
 		Source:                       o.Source,
 		SourceMap:                    o.SourceMap,
+		Writer:                       o.Writer,
+		ErrWriter:                    o.ErrWriter,
 		Env:                          o.Env,
 		IAMRoleOptions:               o.IAMRoleOptions,
 		OriginalIAMRoleOptions:       o.OriginalIAMRoleOptions,
-		EngineConfig:                 o.EngineConfig,
-		EngineOptions:                o.EngineOptions,
+		Engine:                       o.Engine,
 		Errors:                       o.Errors,
 		Experiments:                  o.Experiments,
 		StrictControls:               o.StrictControls,
@@ -162,12 +180,21 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		AutoInit:                     o.AutoInit,
 		AutoRetry:                    o.AutoRetry,
 		BackendBootstrap:             o.BackendBootstrap,
+		NoEngine:                     o.NoEngine,
+		LogShowAbsPaths:              o.LogShowAbsPaths,
+		LogDisableErrorSummary:       o.LogDisableErrorSummary,
 		Telemetry:                    o.Telemetry,
 		AuthProviderCmd:              o.AuthProviderCmd,
+		EngineSkipChecksumCheck:      o.EngineSkipChecksumCheck,
+		EngineCachePath:              o.EngineCachePath,
+		EngineLogLevel:               o.EngineLogLevel,
 		ProviderCacheToken:           o.ProviderCacheToken,
 		ProviderCacheDir:             o.ProviderCacheDir,
+		ProviderCacheHostname:        o.ProviderCacheHostname,
+		ProviderCachePort:            o.ProviderCachePort,
 		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
-		MaxFoldersToCheck:            o.MaxFoldersToCheck,
+		ProviderCache:                o.ProviderCache,
+		NoAutoProviderCacheDir:       o.NoAutoProviderCacheDir,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 		CheckDependentUnits:          o.CheckDependentUnits,
@@ -187,12 +214,7 @@ func (o *Options) CloneWithConfigPath(l log.Logger, configPath string) (log.Logg
 
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = filepath.Clean(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(o.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -276,30 +298,81 @@ func (o *Options) DataDir() string {
 	return filepath.Join(o.WorkingDir, tfDataDir)
 }
 
-// shellRunOptions builds a *shell.ShellOptions from this Options.
-func (o *Options) shellRunOptions() *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         o.Writers,
-		WorkingDir:      o.WorkingDir,
-		Env:             o.Env,
-		TFPath:          o.TFPath,
-		EngineConfig:    o.EngineConfig,
-		EngineOptions:   o.EngineOptions,
-		Experiments:     o.Experiments,
-		Telemetry:       o.Telemetry,
-		RootWorkingDir:  o.RootWorkingDir,
-		Headless:        o.Headless,
-		ForwardTFStdout: o.ForwardTFStdout,
+// shellRunOptions builds a *shell.RunOptions from this Options.
+func (o *Options) shellRunOptions() *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              o.WorkingDir,
+		Writer:                  o.Writer,
+		ErrWriter:               o.ErrWriter,
+		Env:                     o.Env,
+		TFPath:                  o.TFPath,
+		Engine:                  o.Engine,
+		Experiments:             o.Experiments,
+		NoEngine:                o.NoEngine,
+		Telemetry:               o.Telemetry,
+		RootWorkingDir:          o.RootWorkingDir,
+		LogShowAbsPaths:         o.LogShowAbsPaths,
+		LogDisableErrorSummary:  o.LogDisableErrorSummary,
+		Headless:                o.Headless,
+		ForwardTFStdout:         o.ForwardTFStdout,
+		EngineCachePath:         o.EngineCachePath,
+		EngineLogLevel:          o.EngineLogLevel,
+		EngineSkipChecksumCheck: o.EngineSkipChecksumCheck,
 	}
 }
 
-// tfRunOptions builds a *tf.TFOptions from this Options.
-func (o *Options) tfRunOptions() *tf.TFOptions {
-	return &tf.TFOptions{
+// tfRunOptions builds a *tf.RunOptions from this Options.
+func (o *Options) tfRunOptions() *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              o.ForwardTFStdout,
+		Writer:                       o.Writer,
+		ErrWriter:                    o.ErrWriter,
+		TFPath:                       o.TFPath,
 		JSONLogFormat:                o.JSONLogFormat,
+		Headless:                     o.Headless,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
-		ShellOptions:                 o.shellRunOptions(),
-		TerragruntOptions:            o.toTerragruntOptions(),
+		ShellRunOpts:                 o.shellRunOptions(),
+		HookData:                     o.toTerragruntOptions(),
+	}
+}
+
+// shellRunOptsFromPkgOpts constructs shell.RunOptions from *options.TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromPkgOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
+}
+
+// tfRunOptsFromPkgOpts constructs tf.RunOptions from *options.TerragruntOptions.
+// This is a package-level helper to avoid an import cycle with configbridge.
+func tfRunOptsFromPkgOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 shellRunOptsFromPkgOpts(opts),
+		HookData:                     opts,
 	}
 }
 

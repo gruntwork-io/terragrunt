@@ -92,7 +92,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if !opts.SummaryDisable {
 		defer func() {
-			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+			if err := r.WriteSummary(opts.Writer); err != nil {
 				l.Warnf("Failed to write summary: %v", err)
 			}
 		}()

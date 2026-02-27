@@ -40,8 +40,8 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stderr := new(bytes.Buffer)
 
 	terragruntOptions.TerraformCliArgs.AppendFlag("--version")
-	terragruntOptions.Writers.Writer = stdout
-	terragruntOptions.Writers.ErrWriter = stderr
+	terragruntOptions.Writer = stdout
+	terragruntOptions.ErrWriter = stderr
 
 	l := logger.CreateLogger()
 
@@ -55,8 +55,8 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stderr = new(bytes.Buffer)
 
 	terragruntOptions.TerraformCliArgs = iacargs.New()
-	terragruntOptions.Writers.Writer = stderr
-	terragruntOptions.Writers.ErrWriter = stderr
+	terragruntOptions.Writer = stderr
+	terragruntOptions.ErrWriter = stderr
 
 	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)

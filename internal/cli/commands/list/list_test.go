@@ -66,7 +66,7 @@ func TestBasicDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	l := logger.CreateLogger()
 
@@ -147,7 +147,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -415,7 +415,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -557,7 +557,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -619,7 +619,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -694,7 +694,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -774,7 +774,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -847,7 +847,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -916,7 +916,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -1000,7 +1000,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writers.Writer = w
+	opts.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)

@@ -89,7 +89,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
-		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
+		logShowAbsPaths: pctx.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
 		noStackValidate: pctx.NoStackValidate,
 		stackConfigPath: pctx.TerragruntStackConfigPath,
@@ -226,8 +226,17 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 	dest := filepath.Join(cmp.targetDir, cmp.path)
 
 	// validate destination path is within the stack directory
-	absDest := filepath.Clean(dest)
-	absStackDir := filepath.Clean(cmp.targetDir)
+	// get the absolute path of the destination directory
+	absDest, err := filepath.Abs(dest)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for destination '%s': %w", cmp.name, err)
+	}
+
+	// get the absolute path of the stack directory
+	absStackDir, err := filepath.Abs(cmp.targetDir)
+	if err != nil {
+		return errors.Errorf("failed to get absolute path for stack directory '%s': %w", cmp.name, err)
+	}
 
 	// validate that the destination path is within the stack directory
 	if !strings.HasPrefix(absDest, absStackDir) {
@@ -315,7 +324,12 @@ func copyFiles(ctx context.Context, l log.Logger, identifier, sourceDir, src, de
 			localSrc = filepath.Join(sourceDir, src)
 		}
 
-		localSrc = filepath.Clean(localSrc)
+		localSrc, err := filepath.Abs(localSrc)
+		if err != nil {
+			l.Warnf("failed to get absolute path for source '%s': %v", identifier, err)
+			// fallback to original source
+			localSrc = src
+		}
 
 		if err := util.CopyFolderContentsWithFilter(l, localSrc, dest, manifestName, func(absolutePath string) bool {
 			return true
@@ -609,7 +623,7 @@ func processLocals(ctx context.Context, l log.Logger, parser *ParsingContext, fi
 			evaluatedLocals,
 		)
 		if evalErr != nil {
-			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.Writers.LogShowAbsPaths))
+			l.Debugf("Encountered error while evaluating locals in file %s", util.RelPathForLog(parser.RootWorkingDir, file.ConfigPath, parser.LogShowAbsPaths))
 
 			return errors.New(evalErr)
 		}

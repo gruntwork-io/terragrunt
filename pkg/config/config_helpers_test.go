@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -751,13 +750,12 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	pctx.Env = map[string]string{}
 	pctx.SourceMap = map[string]string{}
 	pctx.TerraformCliArgs = iacargs.New()
-	pctx.Writers.Writer = os.Stdout
-	pctx.Writers.ErrWriter = os.Stderr
+	pctx.Writer = os.Stdout
+	pctx.ErrWriter = os.Stderr
 	pctx.MaxFoldersToCheck = 100
 	pctx.TofuImplementation = tfimpl.Unknown
 	pctx.Experiments = experiment.NewExperiments()
 	pctx.Telemetry = new(telemetry.Options)
-	pctx.EngineOptions = new(engine.EngineOptions)
 	pctx.FeatureFlags = xsync.NewMapOf[string, string]()
 
 	return ctx, pctx

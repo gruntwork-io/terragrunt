@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
@@ -117,11 +118,10 @@ func (pc *ProviderCache) Init(l log.Logger, opts *options.TerragruntOptions) err
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
-	if !filepath.IsAbs(opts.ProviderCacheDir) {
-		opts.ProviderCacheDir = filepath.Join(opts.RootWorkingDir, opts.ProviderCacheDir)
+	var err error
+	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
+		return errors.New(err)
 	}
-
-	opts.ProviderCacheDir = filepath.Clean(opts.ProviderCacheDir)
 
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
@@ -186,15 +186,24 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
-	tfOpts *tf.TFOptions,
+	runOpts *tf.RunOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
-	opts := tfOpts.TerragruntOptions
-
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
+	opts := runOpts.HookData.(*options.TerragruntOptions)
+
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
+
+	if !filepath.IsAbs(cliConfigFilename) {
+		absPath, err := filepath.Abs(cliConfigFilename)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		cliConfigFilename = absPath
+	}
 
 	var skipRunTargetCommand bool
 
@@ -208,7 +217,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
+		return tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(opts), args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -317,7 +326,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(cloneOpts), args...)
+	return tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(cloneOpts), args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -425,7 +434,7 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		return nil, err
 	}
 
-	cloneOpts.Writers.Writer = io.Discard
+	cloneOpts.Writer = io.Discard
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = iacargs.New(args...)
 	cloneOpts.Env = envs
@@ -440,10 +449,10 @@ func runTerraformCommand(ctx context.Context, l log.Logger, opts *options.Terrag
 		l,
 		log.DebugLevel,
 		func(ctx context.Context) error {
-			errWriter := util.NewTrapWriter(opts.Writers.ErrWriter)
-			cloneOpts.Writers.ErrWriter = errWriter
+			errWriter := util.NewTrapWriter(opts.ErrWriter)
+			cloneOpts.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, configbridge.TFRunOptsFromOpts(cloneOpts), cloneOpts.TerraformCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),

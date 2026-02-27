@@ -265,7 +265,7 @@ func outputJSON(opts *Options, components FoundComponents) error {
 		return errors.New(err)
 	}
 
-	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
+	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -338,7 +338,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := opts.Writer.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }

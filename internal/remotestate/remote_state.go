@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
+	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -146,7 +147,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(opts), args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, tfRunOptsFromOpts(opts), args...)
 	if err != nil {
 		return "", err
 	}
@@ -174,5 +175,45 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, tf.TFOptionsFromOpts(opts), args...)
+	return tf.RunCommand(ctx, l, tfRunOptsFromOpts(opts), args...)
+}
+
+// shellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
+}
+
+// tfRunOptsFromOpts constructs tf.RunOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func tfRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 shellRunOptsFromOpts(opts),
+		HookData:                     opts,
+	}
 }

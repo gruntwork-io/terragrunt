@@ -89,7 +89,7 @@ func Run(
 		return err
 	}
 
-	opts.EngineConfig = engine
+	opts.Engine = engine
 
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {
@@ -463,7 +463,7 @@ func prepareInitOptions(l log.Logger, opts *Options) (log.Logger, *Options, erro
 
 	if !slices.Contains(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
-		initOptions.Writers.Writer = io.Discard
+		initOptions.Writer = io.Discard
 	}
 
 	if l.Formatter().DisabledColors() || opts.TerraformCliArgs.Contains(tf.FlagNameNoColor) {

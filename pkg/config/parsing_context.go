@@ -12,7 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
-	"github.com/gruntwork-io/terragrunt/internal/engine"
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -37,12 +36,12 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	Writers writer.Writers
+	Writer    io.Writer
+	ErrWriter io.Writer
 
 	TerraformCliArgs *iacargs.IacArgs
 	TrackInclude     *TrackInclude
-	EngineConfig     *engine.EngineConfig
-	EngineOptions    *engine.EngineOptions
+	Engine           *enginecfg.Options
 	FeatureFlags     *xsync.MapOf[string, string]
 	FilesRead        *[]string
 	Telemetry        *telemetry.Options
@@ -83,15 +82,18 @@ type ParsingContext struct {
 	MaxFoldersToCheck int
 	ParseDepth        int
 
-	TFPathExplicitlySet bool
-	SkipOutput          bool
-	ForwardTFStdout     bool
-	JSONLogFormat       bool
-	Debug               bool
-	AutoInit            bool
-	Headless            bool
-	BackendBootstrap    bool
-	CheckDependentUnits bool
+	LogShowAbsPaths        bool
+	TFPathExplicitlySet    bool
+	SkipOutput             bool
+	ForwardTFStdout        bool
+	JSONLogFormat          bool
+	Debug                  bool
+	AutoInit               bool
+	Headless               bool
+	BackendBootstrap       bool
+	NoEngine               bool
+	CheckDependentUnits    bool
+	LogDisableErrorSummary bool
 
 	NoDependencyFetchOutputFromState bool
 	UsePartialParseConfigCache       bool
@@ -125,11 +127,6 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 
 	if ctx.SourceMap != nil {
 		clone.SourceMap = maps.Clone(ctx.SourceMap)
-	}
-
-	if ctx.EngineOptions != nil {
-		eo := *ctx.EngineOptions
-		clone.EngineOptions = &eo
 	}
 
 	return &clone

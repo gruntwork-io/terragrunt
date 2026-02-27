@@ -1,4 +1,3 @@
-// Package options provides writer utilities for backward compatibility.
 package options
 
 import (

@@ -11,7 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
-	"github.com/gruntwork-io/terragrunt/internal/engine"
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
@@ -39,12 +39,12 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				sourceLockFilePath,
-				opts.Writers.LogShowAbsPaths,
+				opts.LogShowAbsPaths,
 			),
 			util.RelPathForLog(
 				opts.RootWorkingDir,
 				destinationLockFilePath,
-				opts.Writers.LogShowAbsPaths,
+				opts.LogShowAbsPaths,
 			),
 		)
 
@@ -181,7 +181,7 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 }
 
 // EngineOptions fetches engine options from the RunConfig.
-func (cfg *RunConfig) EngineOptions() (*engine.EngineConfig, error) {
+func (cfg *RunConfig) EngineOptions() (*enginecfg.Options, error) {
 	if !cfg.Engine.Enable {
 		return nil, nil
 	}
@@ -205,7 +205,7 @@ func (cfg *RunConfig) EngineOptions() (*engine.EngineConfig, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &engine.EngineConfig{
+	return &enginecfg.Options{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,
@@ -219,13 +219,7 @@ func (cfg *RunConfig) GetIAMRoleOptions() iam.RoleOptions {
 }
 
 // ErrorsConfig fetches errors configuration from the RunConfig.
-// Returns nil when no retry or ignore blocks are defined, so callers
-// can preserve default error handling (e.g. built-in retryable errors).
 func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
-	if len(cfg.Errors.Retry) == 0 && len(cfg.Errors.Ignore) == 0 {
-		return nil, nil
-	}
-
 	result := &errorconfig.Config{
 		Retry:  make(map[string]*errorconfig.RetryConfig),
 		Ignore: make(map[string]*errorconfig.IgnoreConfig),

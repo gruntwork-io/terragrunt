@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -32,8 +31,9 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &ShellOptions{
-		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
+	gitRunOpts := &RunOptions{
+		Writer:     &stdout,
+		ErrWriter:  &stderr,
 		WorkingDir: path,
 		Env:        env,
 	}
@@ -65,8 +65,9 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &ShellOptions{
-		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
+	gitRunOpts := &RunOptions{
+		Writer:     &stdout,
+		ErrWriter:  &stderr,
 		WorkingDir: workingDir,
 		Env:        env,
 	}

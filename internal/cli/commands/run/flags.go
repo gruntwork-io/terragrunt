@@ -382,7 +382,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        EngineCachePathFlagName,
 			EnvVars:     tgPrefix.EnvVars(EngineCachePathFlagName),
-			Destination: &opts.EngineOptions.CachePath,
+			Destination: &opts.EngineCachePath,
 			Usage:       "Cache path for Terragrunt engine files.",
 			Hidden:      true,
 		},
@@ -391,7 +391,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        EngineSkipCheckFlagName,
 			EnvVars:     tgPrefix.EnvVars(EngineSkipCheckFlagName),
-			Destination: &opts.EngineOptions.SkipChecksumCheck,
+			Destination: &opts.EngineSkipChecksumCheck,
 			Usage:       "Skip checksum check for Terragrunt engine files.",
 			Hidden:      true,
 		},
@@ -400,7 +400,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        EngineLogLevelFlagName,
 			EnvVars:     tgPrefix.EnvVars(EngineLogLevelFlagName),
-			Destination: &opts.EngineOptions.LogLevel,
+			Destination: &opts.EngineLogLevel,
 			Usage:       "Terragrunt engine log level.",
 			Hidden:      true,
 		},
@@ -409,7 +409,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        NoEngineFlagName,
 			EnvVars:     tgPrefix.EnvVars(NoEngineFlagName),
-			Destination: &opts.EngineOptions.NoEngine,
+			Destination: &opts.NoEngine,
 			Usage:       "Disable IaC engines even when the iac-engine experiment is enabled.",
 			Hidden:      true,
 		}),

@@ -72,7 +72,7 @@ func PrepareSource(
 		return nil, err
 	}
 
-	opts.EngineConfig = engine
+	opts.Engine = engine
 
 	errConfig, err := cfg.ErrorsConfig()
 	if err != nil {

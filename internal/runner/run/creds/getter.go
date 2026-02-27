@@ -12,21 +12,27 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-// shellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+// shellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
 // This is a local helper to avoid an import cycle with configbridge.
-func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         opts.Writers,
-		EngineOptions:   opts.EngineOptions,
-		WorkingDir:      opts.WorkingDir,
-		Env:             opts.Env,
-		TFPath:          opts.TFPath,
-		EngineConfig:    opts.EngineConfig,
-		Experiments:     opts.Experiments,
-		Telemetry:       opts.Telemetry,
-		RootWorkingDir:  opts.RootWorkingDir,
-		Headless:        opts.Headless,
-		ForwardTFStdout: opts.ForwardTFStdout,
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
 	}
 }
 

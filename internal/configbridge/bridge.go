@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -37,7 +38,8 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.Experiments = opts.Experiments
 	pctx.StrictControls = opts.StrictControls
 	pctx.FeatureFlags = opts.FeatureFlags
-	pctx.Writers = opts.Writers
+	pctx.Writer = opts.Writer
+	pctx.ErrWriter = opts.ErrWriter
 	pctx.Env = opts.Env
 	pctx.IAMRoleOptions = opts.IAMRoleOptions
 	pctx.OriginalIAMRoleOptions = opts.OriginalIAMRoleOptions
@@ -46,9 +48,9 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoDependencyFetchOutputFromState = opts.NoDependencyFetchOutputFromState
 	pctx.SkipOutput = opts.SkipOutput
 	pctx.TFPathExplicitlySet = opts.TFPathExplicitlySet
+	pctx.LogShowAbsPaths = opts.LogShowAbsPaths
 	pctx.AuthProviderCmd = opts.AuthProviderCmd
-	pctx.EngineConfig = opts.EngineConfig
-	pctx.EngineOptions = opts.EngineOptions
+	pctx.Engine = opts.Engine
 	pctx.TFPath = opts.TFPath
 	pctx.TofuImplementation = opts.TofuImplementation
 	pctx.ForwardTFStdout = opts.ForwardTFStdout
@@ -57,49 +59,73 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.AutoInit = opts.AutoInit
 	pctx.Headless = opts.Headless
 	pctx.BackendBootstrap = opts.BackendBootstrap
+	pctx.NoEngine = opts.NoEngine
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
+	pctx.LogDisableErrorSummary = opts.LogDisableErrorSummary
 	pctx.Telemetry = opts.Telemetry
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 }
 
-// ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
+// ShellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
 // Exported so configbridge callbacks and external callers can use it.
-func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         pctx.Writers,
-		WorkingDir:      pctx.WorkingDir,
-		Env:             pctx.Env,
-		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.EngineConfig,
-		EngineOptions:   pctx.EngineOptions,
-		Experiments:     pctx.Experiments,
-		Telemetry:       pctx.Telemetry,
-		RootWorkingDir:  pctx.RootWorkingDir,
-		Headless:        pctx.Headless,
-		ForwardTFStdout: pctx.ForwardTFStdout,
-	}
-}
-
-// ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
-func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         opts.Writers,
-		EngineOptions:   opts.EngineOptions,
-		WorkingDir:      opts.WorkingDir,
-		Env:             opts.Env,
-		TFPath:          opts.TFPath,
-		EngineConfig:    opts.EngineConfig,
-		Experiments:     opts.Experiments,
-		Telemetry:       opts.Telemetry,
-		RootWorkingDir:  opts.RootWorkingDir,
-		Headless:        opts.Headless,
-		ForwardTFStdout: opts.ForwardTFStdout,
+func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:             pctx.WorkingDir,
+		Writer:                 pctx.Writer,
+		ErrWriter:              pctx.ErrWriter,
+		Env:                    pctx.Env,
+		TFPath:                 pctx.TFPath,
+		Engine:                 pctx.Engine,
+		Experiments:            pctx.Experiments,
+		NoEngine:               pctx.NoEngine,
+		Telemetry:              pctx.Telemetry,
+		RootWorkingDir:         pctx.RootWorkingDir,
+		LogShowAbsPaths:        pctx.LogShowAbsPaths,
+		LogDisableErrorSummary: pctx.LogDisableErrorSummary,
 	}
 }
 
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.
 func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provider {
 	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
+}
+
+// ShellRunOptsFromOpts constructs shell.RunOptions from TerragruntOptions.
+func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.RunOptions {
+	return &shell.RunOptions{
+		WorkingDir:              opts.WorkingDir,
+		Writer:                  opts.Writer,
+		ErrWriter:               opts.ErrWriter,
+		Env:                     opts.Env,
+		TFPath:                  opts.TFPath,
+		Engine:                  opts.Engine,
+		Experiments:             opts.Experiments,
+		NoEngine:                opts.NoEngine,
+		Telemetry:               opts.Telemetry,
+		RootWorkingDir:          opts.RootWorkingDir,
+		LogShowAbsPaths:         opts.LogShowAbsPaths,
+		LogDisableErrorSummary:  opts.LogDisableErrorSummary,
+		Headless:                opts.Headless,
+		ForwardTFStdout:         opts.ForwardTFStdout,
+		EngineCachePath:         opts.EngineCachePath,
+		EngineLogLevel:          opts.EngineLogLevel,
+		EngineSkipChecksumCheck: opts.EngineSkipChecksumCheck,
+	}
+}
+
+// TFRunOptsFromOpts constructs tf.RunOptions from TerragruntOptions.
+func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.RunOptions {
+	return &tf.RunOptions{
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		Writer:                       opts.Writer,
+		ErrWriter:                    opts.ErrWriter,
+		TFPath:                       opts.TFPath,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		ShellRunOpts:                 ShellRunOptsFromOpts(opts),
+		HookData:                     opts,
+	}
 }

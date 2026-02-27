@@ -12,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// ErrorCleanPattern is used to clean error messages when looking for retry and ignore patterns.
-var ErrorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
+// errorCleanPattern is used to clean error messages when looking for retry and ignore patterns.
+var errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"():=\- ]+`)
 
 // Config is the extracted errors handling configuration.
 type Config struct {
@@ -71,14 +71,14 @@ func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt in
 		return nil, nil
 	}
 
-	errStr := ExtractErrorMessage(err)
+	errStr := extractErrorMessage(err)
 	action := &Action{}
 
 	l.Debugf("Attempting error recovery for error: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
-		isIgnorable := MatchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
+		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
 		if !isIgnorable {
 			continue
 		}
@@ -96,7 +96,7 @@ func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt in
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
-		isRetryable := MatchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
+		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
 		if !isRetryable {
 			continue
 		}
@@ -121,8 +121,7 @@ func (c *Config) AttemptErrorRecovery(l log.Logger, err error, currentAttempt in
 	return nil, nil
 }
 
-// ExtractErrorMessage extracts and cleans the error message for pattern matching.
-func ExtractErrorMessage(err error) string {
+func extractErrorMessage(err error) string {
 	var errText string
 
 	// For ProcessExecutionError, match only against stderr and the underlying error,
@@ -135,13 +134,13 @@ func ExtractErrorMessage(err error) string {
 	}
 
 	multilineText := log.RemoveAllASCISeq(errText)
-	errorText := ErrorCleanPattern.ReplaceAllString(multilineText, " ")
+	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
 
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
-// MatchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns.
-func MatchesAnyRegexpPattern(input string, patterns []*Pattern) bool {
+// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns.
+func matchesAnyRegexpPattern(input string, patterns []*Pattern) bool {
 	for _, pattern := range patterns {
 		isNegative := pattern.Negative
 		matched := pattern.Pattern.MatchString(input)

@@ -126,7 +126,7 @@ func printTerragruntContext(l log.Logger, opts *options.TerragruntOptions) error
 		return errors.New(err)
 	}
 
-	if _, err := fmt.Fprintf(opts.Writers.Writer, "%s\n", b); err != nil {
+	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
 		return errors.New(err)
 	}
 

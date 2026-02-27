@@ -391,7 +391,7 @@ func renderLong(opts *Options, components ListedComponents, c *Colorizer) error 
 		buf.WriteString("\n")
 	}
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := opts.Writer.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }
@@ -440,7 +440,7 @@ func renderTabular(opts *Options, components ListedComponents, c *Colorizer) err
 
 	buf.WriteString("\n")
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := opts.Writer.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }
@@ -630,7 +630,7 @@ func renderTree(opts *Options, components ListedComponents, s *TreeStyler, _ str
 
 	t = s.Style(t)
 
-	_, err := opts.Writers.Writer.Write([]byte(t.String() + "\n"))
+	_, err := opts.Writer.Write([]byte(t.String() + "\n"))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -725,7 +725,7 @@ func renderDot(opts *Options, components ListedComponents) error {
 
 	buf.WriteString("}\n")
 
-	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
+	_, err := opts.Writer.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }

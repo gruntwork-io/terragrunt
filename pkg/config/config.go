@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	enginecfg "github.com/gruntwork-io/terragrunt/internal/engine/config"
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -39,7 +40,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
-	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -1160,7 +1160,7 @@ func ReadTerragruntConfig(ctx context.Context,
 	pctx *ParsingContext,
 	parserOptions []hclparse.Option,
 ) (*TerragruntConfig, error) {
-	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.Writers.LogShowAbsPaths))
+	l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, pctx.TerragruntConfigPath, pctx.LogShowAbsPaths))
 
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 	pctx = pctx.WithParseOption(parserOptions)
@@ -2041,7 +2041,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 }
 
 // EngineOptions fetch engine options
-func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
+func (cfg *TerragruntConfig) EngineOptions() (*enginecfg.Options, error) {
 	if cfg.Engine == nil {
 		return nil, nil
 	}
@@ -2070,7 +2070,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*engine.EngineConfig, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &engine.EngineConfig{
+	return &enginecfg.Options{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,

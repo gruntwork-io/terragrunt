@@ -228,8 +228,8 @@ func parseComponent(
 	}
 
 	parseOpts.WorkingDir = workingDir
-	parseOpts.Writers.Writer = io.Discard
-	parseOpts.Writers.ErrWriter = io.Discard
+	parseOpts.Writer = io.Discard
+	parseOpts.ErrWriter = io.Discard
 	parseOpts.SkipOutput = true
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
