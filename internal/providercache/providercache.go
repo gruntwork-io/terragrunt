@@ -186,9 +186,11 @@ func InitServer(l log.Logger, opts *options.TerragruntOptions) (*ProviderCache, 
 func (pc *ProviderCache) TerraformCommandHook(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	tfOpts *tf.TFOptions,
 	args clihelper.Args,
 ) (*util.CmdOutput, error) {
+	opts := tfOpts.TerragruntOptions
+
 	// To prevent a loop
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
@@ -206,7 +208,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(opts), args...)
+		return tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
 	}
 
 	env := providerCacheEnvironment(opts, cliConfigFilename)
@@ -256,7 +258,7 @@ func (pc *ProviderCache) warmUpCache(
 		return nil, err
 	}
 
-	providerConstraints, err := getproviders.ParseProviderConstraints(opts, filepath.Dir(opts.TerragruntConfigPath))
+	providerConstraints, err := getproviders.ParseProviderConstraints(opts.TofuImplementation, filepath.Dir(opts.TerragruntConfigPath))
 	if err != nil {
 		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(opts.TerragruntConfigPath), err)
 

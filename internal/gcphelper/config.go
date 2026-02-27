@@ -101,8 +101,10 @@ func CreateGCPConfig(
 		}
 	}
 
-	// Handle service account impersonation — pass base credentials to impersonate
-	// rather than providing both to the client (which causes "multiple credential options" error).
+	// Handle service account impersonation.
+	// When impersonation is configured, the impersonation token source replaces
+	// any base credentials. The impersonate library uses Application Default
+	// Credentials internally as the source identity.
 	if gcpCfg != nil && gcpCfg.ImpersonateServiceAccount != "" {
 		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 			TargetPrincipal: gcpCfg.ImpersonateServiceAccount,
@@ -113,7 +115,7 @@ func CreateGCPConfig(
 			return nil, errors.Errorf("Error creating impersonation token source: %w", err)
 		}
 
-		return []option.ClientOption{option.WithTokenSource(ts)}, nil
+		clientOpts = []option.ClientOption{option.WithTokenSource(ts)}
 	}
 
 	return clientOpts, nil
@@ -137,9 +139,6 @@ func createGCPCredentialsFromEnv(opts *options.TerragruntOptions) (option.Client
 
 // credentialsFileOption reads a GCP credentials JSON file, detects its type,
 // and returns the appropriate ClientOption.
-// Note: the file is read here for type detection and again by the Google API
-// library when the client is created. This is acceptable for credential files
-// which are stable during a single run.
 func credentialsFileOption(filename string) (option.ClientOption, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {

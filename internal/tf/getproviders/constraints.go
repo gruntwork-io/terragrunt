@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -20,7 +20,7 @@ import (
 type ProviderConstraints map[string]string
 
 // ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints
-func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string) (ProviderConstraints, error) {
+func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	var allFiles []string
@@ -45,7 +45,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 	}
 
 	for _, file := range allFiles {
-		fileConstraints, err := parseProviderConstraintsFromFile(opts, file)
+		fileConstraints, err := parseProviderConstraintsFromFile(impl, file)
 		if err != nil {
 			// Log parsing errors but continue processing other files
 			// This allows partial success when some files have syntax errors
@@ -60,7 +60,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 }
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
-func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename string) (ProviderConstraints, error) {
+func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	content, err := os.ReadFile(filename)
@@ -92,7 +92,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 			}
 
 			// Parse each provider in the required_providers block
-			providerConstraints := parseProvidersFromRequiredProvidersBlock(opts, nestedBlock)
+			providerConstraints := parseProvidersFromRequiredProvidersBlock(impl, nestedBlock)
 
 			// Merge constraints from this required_providers block
 			maps.Copy(constraints, providerConstraints)
@@ -103,7 +103,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 }
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
-func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, block *hclsyntax.Block) ProviderConstraints {
+func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax.Block) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
 	// Parse the attributes in the required_providers block
@@ -175,11 +175,11 @@ func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, b
 		// If we have both source and version, create the constraint mapping
 		if source != "" && version != "" {
 			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(opts, source)
+			providerAddr := normalizeProviderAddress(impl, source)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tf.GetDefaultRegistryDomain(opts)
+			registryDomain := tf.GetDefaultRegistryDomain(impl)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
@@ -189,9 +189,9 @@ func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, b
 }
 
 // normalizeProviderAddress converts provider source to full registry format
-func normalizeProviderAddress(opts *options.TerragruntOptions, source string) string {
+func normalizeProviderAddress(impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tf.GetDefaultRegistryDomain(opts)
+	registryDomain := tf.GetDefaultRegistryDomain(impl)
 
 	const (
 		singlePart    = 1
