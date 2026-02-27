@@ -1,5 +1,21 @@
 {
   "buildCommand": "bun run build",
   "installCommand": "bun install",
-  "framework": "astro"
+  "framework": "astro",
+  "rewrites": [
+    {
+      "source": "/api/v1/compatibility",
+      "has": [{ "type": "query", "key": "tool", "value": "opentofu" }],
+      "destination": "/api/v1/compatibility/opentofu"
+    },
+    {
+      "source": "/api/v1/compatibility",
+      "has": [{ "type": "query", "key": "tool", "value": "terraform" }],
+      "destination": "/api/v1/compatibility/terraform"
+    },
+    {
+      "source": "/api/v1/compatibility",
+      "destination": "/api/v1/compatibility/index.json"
+    }
+  ]
 }
