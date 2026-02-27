@@ -47,6 +47,8 @@ type Options struct {
 	SourceMap                    map[string]string
 	Env                          map[string]string
 	ProviderCacheToken           string
+	ProviderCacheDir             string
+	ProviderCacheHostname        string
 	RootWorkingDir               string
 	TofuImplementation           tfimpl.Type
 	EngineLogLevel               string
@@ -65,6 +67,7 @@ type Options struct {
 	StrictControls               strict.Controls
 	ProviderCacheRegistryNames   []string
 	Experiments                  experiment.Experiments
+	ProviderCachePort            int
 	ForwardTFStdout              bool
 	JSONLogFormat                bool
 	Headless                     bool
@@ -82,6 +85,8 @@ type Options struct {
 	CheckDependentUnits          bool
 	SkipOutput                   bool
 	SourceUpdate                 bool
+	ProviderCache                bool
+	NoAutoProviderCacheDir       bool
 }
 
 // NewOptions creates an Options from a TerragruntOptions.
@@ -126,7 +131,12 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		EngineCachePath:              opts.EngineCachePath,
 		EngineLogLevel:               opts.EngineLogLevel,
 		ProviderCacheToken:           opts.ProviderCacheToken,
+		ProviderCacheDir:             opts.ProviderCacheDir,
+		ProviderCacheHostname:        opts.ProviderCacheHostname,
+		ProviderCachePort:            opts.ProviderCachePort,
 		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
+		ProviderCache:                opts.ProviderCache,
+		NoAutoProviderCacheDir:       opts.NoAutoProviderCacheDir,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
 		CheckDependentUnits:          opts.CheckDependentUnits,
@@ -179,7 +189,12 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		EngineCachePath:              o.EngineCachePath,
 		EngineLogLevel:               o.EngineLogLevel,
 		ProviderCacheToken:           o.ProviderCacheToken,
+		ProviderCacheDir:             o.ProviderCacheDir,
+		ProviderCacheHostname:        o.ProviderCacheHostname,
+		ProviderCachePort:            o.ProviderCachePort,
 		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
+		ProviderCache:                o.ProviderCache,
+		NoAutoProviderCacheDir:       o.NoAutoProviderCacheDir,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
 		CheckDependentUnits:          o.CheckDependentUnits,
