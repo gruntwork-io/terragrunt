@@ -8,8 +8,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-version"
 )
 
@@ -21,7 +21,7 @@ const (
 )
 
 // GitTopLevelDir fetches git repository path from passed directory.
-func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, path string) (string, error) {
 	runCache := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
 	cacheKey := "top-level-dir-" + path
 
@@ -32,16 +32,13 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
-	if err != nil {
-		return "", err
+	gitRunOpts := &ShellOptions{
+		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
+		WorkingDir: path,
+		Env:        env,
 	}
 
-	opts.Env = terragruntOptions.Env
-	opts.Writer = &stdout
-	opts.ErrWriter = &stderr
-
-	cmd, err := RunCommandWithOutput(ctx, l, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(ctx, l, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -60,7 +57,7 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, terragruntOptions *option
 }
 
 // GitRepoTags fetches git repository tags from passed url.
-func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
+func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, workingDir string, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
 	repoPath = strings.TrimPrefix(repoPath, gitPrefix)
@@ -68,16 +65,13 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
-	if err != nil {
-		return nil, err
+	gitRunOpts := &ShellOptions{
+		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
+		WorkingDir: workingDir,
+		Env:        env,
 	}
 
-	gitOpts.Env = opts.Env
-	gitOpts.Writer = &stdout
-	gitOpts.ErrWriter = &stderr
-
-	output, err := RunCommandWithOutput(ctx, l, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, l, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -97,8 +91,8 @@ func GitRepoTags(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 }
 
 // GitLastReleaseTag fetches git repository last release tag.
-func GitLastReleaseTag(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
-	tags, err := GitRepoTags(ctx, l, opts, gitRepo)
+func GitLastReleaseTag(ctx context.Context, l log.Logger, env map[string]string, workingDir string, gitRepo *url.URL) (string, error) {
+	tags, err := GitRepoTags(ctx, l, env, workingDir, gitRepo)
 	if err != nil {
 		return "", err
 	}

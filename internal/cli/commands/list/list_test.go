@@ -49,7 +49,7 @@ func TestBasicDiscovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
+	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1"}
 
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
@@ -66,7 +66,7 @@ func TestBasicDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	l := logger.CreateLogger()
 
@@ -84,11 +84,6 @@ func TestBasicDiscovery(t *testing.T) {
 
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
-
-	// Normalize path separators in the output fields
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
@@ -135,7 +130,7 @@ func TestHiddenDiscovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"}
+	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1", filepath.Join(".hidden", "unit3")}
 
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
@@ -152,7 +147,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -166,11 +161,6 @@ func TestHiddenDiscovery(t *testing.T) {
 
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
-
-	// Normalize path separators in the output fields
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
@@ -235,7 +225,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -313,7 +303,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -425,7 +415,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -567,7 +557,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -629,7 +619,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -704,7 +694,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -784,7 +774,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -857,7 +847,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -926,7 +916,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -938,12 +928,9 @@ exclude {
 
 	outputStr := string(output)
 
-	expectedPaths := []string{"001/unit1", "001/unit3"}
+	expectedPaths := []string{filepath.Join("001", "unit1"), filepath.Join("001", "unit3")}
 
 	fields := strings.Fields(outputStr)
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	assert.Len(t, fields, len(expectedPaths))
 	assert.ElementsMatch(t, expectedPaths, fields)
@@ -1013,7 +1000,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)

@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -46,7 +45,7 @@ func TestAwsS3SSEAES(t *testing.T) {
 
 	helpers.RunTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
-	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
+	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -77,7 +76,7 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, s3SSECustomKeyFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	helpers.RunTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
-	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
+	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -154,7 +153,7 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
 	// verify that encryption key is not reverted
-	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
+	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -190,7 +189,7 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	assert.Contains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 
 	// verify that encryption configuration is set
-	client := terraws.NewS3Client(t, helpers.TerraformRemoteStateS3Region)
+	client := helpers.CreateS3ClientForTest(t, helpers.TerraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(t.Context(), &s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)

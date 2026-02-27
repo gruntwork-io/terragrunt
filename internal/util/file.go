@@ -26,6 +26,8 @@ import (
 const (
 	TerraformLockFile     = ".terraform.lock.hcl"
 	TerragruntCacheDir    = ".terragrunt-cache"
+	TerraformCacheDir     = ".terraform"
+	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
 	TfFileExtension       = ".tf"
 	ChecksumReadBlock     = 8192
@@ -88,12 +90,7 @@ func CanonicalPath(path string, basePath string) (string, error) {
 		path = filepath.Join(basePath, path)
 	}
 
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	return CleanPath(absPath), nil
+	return filepath.Clean(path), nil
 }
 
 // GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
@@ -128,7 +125,7 @@ func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]st
 		matches, err := zglob.Glob(globPath)
 		if err == nil {
 			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
+		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(filepath.Clean(globPath), stackDir) {
 			// when using the stack feature, the directory may not exist yet,
 			// as stack generation occurs after parsing the argument flags.
 			paths = append(paths, globPath)
@@ -312,22 +309,12 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		basePath = "."
 	}
 
-	inputFolderAbs, err := filepath.Abs(basePath)
+	relPath, err := filepath.Rel(basePath, path)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	fileAbs, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	return filepath.ToSlash(relPath), nil
+	return relPath, nil
 }
 
 // ReadFileAsString returns the contents of the file at the given path as a string.
@@ -380,7 +367,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			return nil, err
 		}
 
-		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
+		includeExpandedGlobs = append(includeExpandedGlobs, filepath.ToSlash(relativeExpandGlobPath))
 
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
@@ -398,7 +385,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(
-	logger log.Logger,
+	l log.Logger,
 	source,
 	destination,
 	manifestFile string,
@@ -437,8 +424,9 @@ func CopyFolderContents(
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		relativePath = filepath.ToSlash(relativePath)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
 		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
@@ -455,14 +443,14 @@ func CopyFolderContents(
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(logger, destination, manifestFile)
-	if err := manifest.Clean(); err != nil {
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
 		return errors.New(err)
 	}
 
@@ -473,7 +461,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
-			logger.Warnf("Error closing manifest file: %v", err)
+			l.Warnf("Error closing manifest file: %v", err)
 		}
 	}(manifest)
 
@@ -507,7 +495,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -533,6 +521,22 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	}
 
 	return nil
+}
+
+// CopyFolderToTemp creates a temp directory with the given prefix, copies the
+// contents of the source folder into it using the provided filter, and returns
+// the path to the temp directory.
+func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
+	dest, err := os.MkdirTemp("", tempPrefix)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
+		return "", err
+	}
+
+	return dest, nil
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -587,31 +591,14 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	return os.WriteFile(destination, contents, fileInfo.Mode())
 }
 
-// SplitPath splits the given path into a list.
-// E.g. "foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
-// E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
-// Notice that if path is absolute the resulting list will begin with an empty string.
-func SplitPath(path string) []string {
-	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
-}
-
-// CleanPath is a wrapper around filepath.Clean.
-//
-// Use this function when cleaning paths to ensure the returned
-// path uses / as the path separator to improve cross-platform compatibility
-func CleanPath(path string) string {
-	return filepath.ToSlash(filepath.Clean(path))
-}
-
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitSubpath := SplitPath(CleanPath(subpath))
-	contains := ListContainsSublist(splitPath, splitSubpath)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitSubpath := strings.Split(filepath.Clean(subpath), string(filepath.Separator))
 
-	return contains
+	return ListContainsSublist(splitPath, splitSubpath)
 }
 
 // HasPathPrefix returns true if path starts with the given path prefix
@@ -619,11 +606,10 @@ func ContainsPath(path, subpath string) bool {
 // E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
 // path)
 func HasPathPrefix(path, prefix string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitPrefix := SplitPath(CleanPath(prefix))
-	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitPrefix := strings.Split(filepath.Clean(prefix), string(filepath.Separator))
 
-	return hasPrefix
+	return ListHasPrefix(splitPath, splitPrefix)
 }
 
 // JoinTerraformModulePath joins two paths together with a double-slash between them, as this is what
@@ -661,7 +647,6 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
 	ManifestFolder string
@@ -677,12 +662,12 @@ type fileManifestEntry struct {
 }
 
 // Clean will recursively remove all files specified in the manifest
-func (manifest *fileManifest) Clean() error {
-	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+func (manifest *fileManifest) Clean(l log.Logger) error {
+	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(manifestPath string) error {
+func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
@@ -696,11 +681,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
-			manifest.logger.Warnf("Error closing file %s: %v", name, err)
+			l.Warnf("Error closing file %s: %v", name, err)
 		}
 
 		if err := os.Remove(name); err != nil {
-			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
@@ -720,7 +705,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
 		} else {
@@ -763,8 +748,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors
@@ -1178,6 +1163,18 @@ func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
 	return targetPath
 }
 
+// ResolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+// Returns the original path if symlink resolution fails.
+func ResolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
+}
+
 // MoveFile attempts to rename a file from source to destination, if this fails
 // due to invalid cross-device link it falls back to copying the file contents
 // and deleting the original file.
@@ -1193,6 +1190,17 @@ func MoveFile(source string, destination string) error {
 		}
 
 		return renameErr
+	}
+
+	return nil
+}
+
+// SkipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's
+// in a directory that should never have components discovered in it.
+func SkipDirIfIgnorable(dir string) error {
+	switch dir {
+	case GitDir, TerraformCacheDir, TerragruntCacheDir:
+		return filepath.SkipDir
 	}
 
 	return nil

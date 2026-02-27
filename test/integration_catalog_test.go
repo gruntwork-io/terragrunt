@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -27,10 +28,10 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	_, err = module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 }
 
@@ -41,7 +42,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -56,7 +57,7 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules.git", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -98,7 +99,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false)
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), "https://github.com/gruntwork-io/terraform-fake-modules", tempDir, false, false, "")
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
@@ -168,7 +169,9 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), logger.CreateLogger(), opts, config.DefaultParserOptions(logger.CreateLogger(), opts))
+	l := logger.CreateLogger()
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
 	require.NoError(t, err)
 
 	return cfg

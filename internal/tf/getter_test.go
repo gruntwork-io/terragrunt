@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,9 +40,9 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		moduleURL      url.URL
 		terraformGet   string
 		expectedResult string
+		moduleURL      url.URL
 	}{
 		{
 			name: "BaseWithRoot",
@@ -112,14 +112,14 @@ func TestTFRGetterRootDir(t *testing.T) {
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(tf.RegistryGetter)
 	tfrGetter.TerragruntOptions, err = options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
-	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
 func TestTFRGetterSubModule(t *testing.T) {
@@ -132,13 +132,13 @@ func TestTFRGetterSubModule(t *testing.T) {
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(tf.RegistryGetter)
 	tfrGetter.TerragruntOptions, _ = options.NewTerragruntOptionsForTest("")
 
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
-	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
 func TestBuildRequestUrlFullPath(t *testing.T) {

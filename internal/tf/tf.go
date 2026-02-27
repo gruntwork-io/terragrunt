@@ -66,6 +66,7 @@ const (
 	EnvNameTFTokenFmt       = "TF_TOKEN_%s"
 	EnvNameTFVarFmt         = "TF_VAR_%s"
 
+	DefaultTFDataDir  = ".terraform"
 	TerraformLockFile = ".terraform.lock.hcl"
 
 	TerraformPlanFile     = "tfplan.tfplan"

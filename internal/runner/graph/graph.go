@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -21,7 +23,19 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	// Get credentials BEFORE config parsing — sops_decrypt_file() and
+	// get_aws_account_id() in locals need auth-provider credentials
+	// available in opts.Env during HCL evaluation.
+	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
+	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
+	// different opts after clone).
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, opts); err != nil {
+		return err
+	}
+
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return err
 	}
@@ -35,7 +49,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -48,7 +62,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	stackOpts := make([]common.Option, 0, 1)
+	runnerOpts := make([]common.Option, 0, 1)
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -68,8 +82,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// The prefix ellipsis means "include dependents"; target is included by default.
 	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
-
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
 	}
@@ -79,13 +91,17 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if !opts.SummaryDisable {
-		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+				l.Warnf("Failed to write summary: %v", err)
+			}
+		}()
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, graphOpts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
+	return runall.RunAllOnStack(ctx, l, graphOpts, rnr, r)
 }

@@ -37,7 +37,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 	}{
 		{
 			name:   "exact path match",
-			filter: &filter.PathExpression{Value: "./apps/app1"},
+			filter: mustPath(t, "./apps/app1"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -46,7 +46,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with single wildcard",
-			filter: &filter.PathExpression{Value: "./apps/*"},
+			filter: mustPath(t, "./apps/*"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -61,7 +61,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with single wildcard and partial match",
-			filter: &filter.PathExpression{Value: "./apps/app*"},
+			filter: mustPath(t, "./apps/app*"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -73,7 +73,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:   "glob with recursive wildcard",
-			filter: &filter.PathExpression{Value: "./apps/**"},
+			filter: mustPath(t, "./apps/**"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
 					WorkingDir: ".",
@@ -91,7 +91,7 @@ func TestEvaluate_PathFilter(t *testing.T) {
 		},
 		{
 			name:     "no matches",
-			filter:   &filter.PathExpression{Value: "./nonexistent/*"},
+			filter:   mustPath(t, "./nonexistent/*"),
 			expected: []component.Component{},
 		},
 	}
@@ -127,14 +127,14 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 	}{
 		{
 			name:   "name filter single match",
-			filter: &filter.AttributeExpression{Key: "name", Value: "db"},
+			filter: mustAttr(t, "name", "db"),
 			expected: []component.Component{
 				component.NewUnit("./libs/db"),
 			},
 		},
 		{
 			name:   "name filter multiple matches",
-			filter: &filter.AttributeExpression{Key: "name", Value: "app"},
+			filter: mustAttr(t, "name", "app"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -142,12 +142,12 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:     "name filter no matches",
-			filter:   &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
+			filter:   mustAttr(t, "name", "nonexistent"),
 			expected: []component.Component{},
 		},
 		{
 			name:   "type filter unit",
-			filter: &filter.AttributeExpression{Key: "type", Value: "unit"},
+			filter: mustAttr(t, "type", "unit"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app"),
 				component.NewUnit("./libs/app"),
@@ -157,7 +157,7 @@ func TestEvaluate_AttributeFilter(t *testing.T) {
 		},
 		{
 			name:   "type filter stack",
-			filter: &filter.AttributeExpression{Key: "type", Value: "stack"},
+			filter: mustAttr(t, "type", "stack"),
 			expected: []component.Component{
 				component.NewStack("./libs/api"),
 			},
@@ -183,7 +183,7 @@ func TestEvaluate_AttributeFilter_InvalidKey(t *testing.T) {
 		component.NewUnit("./apps/app"),
 	}
 
-	attrFilter := &filter.AttributeExpression{Key: "invalid", Value: "foo"}
+	attrFilter := mustAttr(t, "invalid", "foo")
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 
@@ -211,14 +211,14 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 	}{
 		{
 			name:   "exact file path match - single match",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "database.hcl"},
+			filter: mustAttr(t, "reading", "database.hcl"),
 			expected: []component.Component{
 				component.NewUnit("./libs/db").WithReading("database.hcl"),
 			},
 		},
 		{
 			name:   "exact file path match - multiple matches",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "shared.hcl"},
+			filter: mustAttr(t, "reading", "shared.hcl"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -227,12 +227,12 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:     "exact file path match - no matches",
-			filter:   &filter.AttributeExpression{Key: "reading", Value: "nonexistent.hcl"},
+			filter:   mustAttr(t, "reading", "nonexistent.hcl"),
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with single wildcard - *.hcl",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
+			filter: mustAttr(t, "reading", "*.hcl"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -242,7 +242,7 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with prefix - shared*",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "shared*"},
+			filter: mustAttr(t, "reading", "shared*"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithReading("shared.hcl", "shared.tfvars"),
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
@@ -251,19 +251,19 @@ func TestEvaluate_AttributeFilter_Reading(t *testing.T) {
 		},
 		{
 			name:   "glob pattern with double wildcard - **/variables.hcl",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "**/variables.hcl"},
+			filter: mustAttr(t, "reading", "**/variables.hcl"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app2").WithReading("shared.hcl", "common/variables.hcl"),
 			},
 		},
 		{
 			name:     "empty Reading slice - no matches",
-			filter:   &filter.AttributeExpression{Key: "reading", Value: "*.hcl"},
+			filter:   mustAttr(t, "reading", "*.hcl"),
 			expected: []component.Component{},
 		},
 		{
 			name:   "glob pattern with question mark - config.???l",
-			filter: &filter.AttributeExpression{Key: "reading", Value: "config.???l"},
+			filter: mustAttr(t, "reading", "config.???l"),
 			expected: []component.Component{
 				component.NewUnit("./apps/app3").WithReading("config.yaml", "settings.json"),
 			},
@@ -318,21 +318,21 @@ func TestEvaluate_AttributeFilter_Source(t *testing.T) {
 	}{
 		{
 			name:   "glob pattern with single wildcard - github.com/acme/*",
-			filter: &filter.AttributeExpression{Key: "source", Value: "github.com/acme/*"},
+			filter: mustAttr(t, "source", "github.com/acme/*"),
 			expected: []component.Component{
 				components[0],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - git::git@github.com:acme/**",
-			filter: &filter.AttributeExpression{Key: "source", Value: "git::git@github.com:acme/**"},
+			filter: mustAttr(t, "source", "git::git@github.com:acme/**"),
 			expected: []component.Component{
 				components[1],
 			},
 		},
 		{
 			name:   "glob pattern with double wildcard - **github.com**",
-			filter: &filter.AttributeExpression{Key: "source", Value: "**github.com**"},
+			filter: mustAttr(t, "source", "**github.com**"),
 			expected: []component.Component{
 				components[0],
 				components[1],
@@ -360,7 +360,7 @@ func TestEvaluate_AttributeFilter_Reading_ComponentAddedOnlyOnce(t *testing.T) {
 	}
 
 	// This glob should match multiple files in the Reading slice, but component should only be added once
-	attrFilter := &filter.AttributeExpression{Key: "reading", Value: "shared*"}
+	attrFilter := mustAttr(t, "reading", "shared*")
 	l := log.New()
 	result, err := filter.Evaluate(l, attrFilter, components)
 	require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by name",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
+				Right:    mustAttr(t, "name", "legacy"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -413,7 +413,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by path",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathExpression{Value: "./apps/legacy"},
+				Right:    mustPath(t, "./apps/legacy"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -431,7 +431,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude by glob",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.PathExpression{Value: "./apps/*"},
+				Right:    mustPath(t, "./apps/*"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./libs/db").WithDiscoveryContext(&component.DiscoveryContext{
@@ -443,7 +443,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude all (double negation effect)",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeExpression{Key: "type", Value: "unit"},
+				Right:    mustAttr(t, "type", "unit"),
 			},
 			expected: []component.Component{},
 		},
@@ -451,7 +451,7 @@ func TestEvaluate_PrefixExpression(t *testing.T) {
 			name: "exclude nothing",
 			expr: &filter.PrefixExpression{
 				Operator: "!",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
+				Right:    mustAttr(t, "name", "nonexistent"),
 			},
 			expected: components,
 		},
@@ -494,9 +494,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection of path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathExpression{Value: "./apps/*"},
+				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
+				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -507,18 +507,18 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection with no overlap",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathExpression{Value: "./apps/*"},
+				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "db"},
+				Right:    mustAttr(t, "name", "db"),
 			},
 			expected: []component.Component{},
 		},
 		{
 			name: "intersection of exact path and name",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathExpression{Value: "./apps/app1"},
+				Left:     mustPath(t, "./apps/app1"),
 				Operator: "|",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
+				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -529,9 +529,9 @@ func TestEvaluate_InfixExpression(t *testing.T) {
 		{
 			name: "intersection of empty results",
 			expr: &filter.InfixExpression{
-				Left:     &filter.AttributeExpression{Key: "name", Value: "nonexistent1"},
+				Left:     mustAttr(t, "name", "nonexistent1"),
 				Operator: "|",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
+				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{},
 		},
@@ -575,11 +575,11 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 		{
 			name: "intersection with negation (refinement)",
 			expr: &filter.InfixExpression{
-				Left:     &filter.PathExpression{Value: "./apps/*"},
+				Left:     mustPath(t, "./apps/*"),
 				Operator: "|",
 				Right: &filter.PrefixExpression{
 					Operator: "!",
-					Right:    &filter.AttributeExpression{Key: "name", Value: "legacy"},
+					Right:    mustAttr(t, "name", "legacy"),
 				},
 			},
 			expected: []component.Component{
@@ -596,9 +596,9 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			expr: &filter.PrefixExpression{
 				Operator: "!",
 				Right: &filter.InfixExpression{
-					Left:     &filter.PathExpression{Value: "./apps/*"},
+					Left:     mustPath(t, "./apps/*"),
 					Operator: "|",
-					Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
+					Right:    mustAttr(t, "name", "app1"),
 				},
 			},
 			expected: []component.Component{
@@ -623,12 +623,12 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			name: "chained intersections (multiple refinements)",
 			expr: &filter.InfixExpression{
 				Left: &filter.InfixExpression{
-					Left:     &filter.PathExpression{Value: "./apps/*"},
+					Left:     mustPath(t, "./apps/*"),
 					Operator: "|",
-					Right:    &filter.PrefixExpression{Operator: "!", Right: &filter.AttributeExpression{Key: "name", Value: "legacy"}},
+					Right:    &filter.PrefixExpression{Operator: "!", Right: mustAttr(t, "name", "legacy")},
 				},
 				Operator: "|",
-				Right:    &filter.AttributeExpression{Key: "name", Value: "app1"},
+				Right:    mustAttr(t, "name", "app1"),
 			},
 			expected: []component.Component{
 				component.NewUnit("./apps/app1").WithDiscoveryContext(&component.DiscoveryContext{
@@ -668,7 +668,7 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("empty components list", func(t *testing.T) {
 		t.Parallel()
 
-		expr := &filter.AttributeExpression{Key: "name", Value: "foo"}
+		expr := mustAttr(t, "name", "foo")
 		l := log.New()
 		result, err := filter.Evaluate(l, expr, []component.Component{})
 
@@ -679,14 +679,8 @@ func TestEvaluate_EdgeCases(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		t.Parallel()
 
-		components := []component.Component{component.NewUnit("./app")}
-		expr := &filter.PathExpression{Value: "[invalid-glob"}
-		l := log.New()
-		result, err := filter.Evaluate(l, expr, components)
-
+		_, err := filter.NewPathFilter("[invalid-glob")
 		require.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to compile glob pattern")
 	})
 }
 
@@ -704,7 +698,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependency traversal - app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
+				Target:              mustAttr(t, "name", "app"),
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       false,
@@ -730,7 +724,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "dependent traversal - ...vpc",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
+				Target:              mustAttr(t, "name", "vpc"),
 				IncludeDependencies: false,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -756,7 +750,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "both directions - ...db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
+				Target:              mustAttr(t, "name", "db"),
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       false,
@@ -782,7 +776,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target - ^app...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
+				Target:              mustAttr(t, "name", "app"),
 				IncludeDependencies: true,
 				IncludeDependents:   false,
 				ExcludeTarget:       true,
@@ -808,7 +802,7 @@ func TestEvaluate_GraphExpression(t *testing.T) {
 		{
 			name: "exclude target with dependents - ...^db...",
 			expr: &filter.GraphExpression{
-				Target:              &filter.AttributeExpression{Key: "name", Value: "db"},
+				Target:              mustAttr(t, "name", "db"),
 				IncludeDependencies: true,
 				IncludeDependents:   true,
 				ExcludeTarget:       true,
@@ -891,7 +885,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "app"},
+			Target:              mustAttr(t, "name", "app"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -928,7 +922,7 @@ func TestEvaluate_GraphExpression_ComplexGraph(t *testing.T) {
 		components := []component.Component{vpc, db, cache, app}
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "vpc"},
+			Target:              mustAttr(t, "name", "vpc"),
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -953,7 +947,7 @@ func TestEvaluate_GraphExpression_EmptyResults(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "nonexistent"},
+			Target:              mustAttr(t, "name", "nonexistent"),
 			IncludeDependencies: true,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -979,7 +973,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
+			Target:              mustAttr(t, "name", "isolated"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -995,7 +989,7 @@ func TestEvaluate_GraphExpression_NoDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "isolated"},
+			Target:              mustAttr(t, "name", "isolated"),
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -1028,7 +1022,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			Target:              mustAttr(t, "name", "a"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1046,7 +1040,7 @@ func TestEvaluate_GraphExpression_CircularDependencies(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			Target:              mustAttr(t, "name", "a"),
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -1089,7 +1083,7 @@ func TestEvaluate_GraphExpression_WithPathFilter(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.PathExpression{Value: "./app"},
+			Target:              mustPath(t, "./app"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1122,7 +1116,7 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			Target:              mustAttr(t, "name", "d"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1139,7 +1133,7 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			Target:              mustAttr(t, "name", "d"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1156,7 +1150,7 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			Target:              mustAttr(t, "name", "a"),
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -1173,7 +1167,7 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "a"},
+			Target:              mustAttr(t, "name", "a"),
 			IncludeDependencies: false,
 			IncludeDependents:   true,
 			ExcludeTarget:       false,
@@ -1190,7 +1184,7 @@ func TestEvaluate_GraphExpression_DepthLimited(t *testing.T) {
 		t.Parallel()
 
 		expr := &filter.GraphExpression{
-			Target:              &filter.AttributeExpression{Key: "name", Value: "d"},
+			Target:              mustAttr(t, "name", "d"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,
@@ -1239,7 +1233,7 @@ func TestEvaluate_GraphExpression_DepthLimited_MultipleTargets(t *testing.T) {
 
 		// Match both targetA and targetB using glob
 		expr := &filter.GraphExpression{
-			Target:              &filter.PathExpression{Value: "./target*"},
+			Target:              mustPath(t, "./target*"),
 			IncludeDependencies: true,
 			IncludeDependents:   false,
 			ExcludeTarget:       false,

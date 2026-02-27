@@ -74,12 +74,14 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts.Env = tc.envVarsInOpts
 
+			runOpts := run.NewOptions(opts)
+
 			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg))
 
-			assert.Equal(t, tc.expected, opts.Env)
+			assert.Equal(t, tc.expected, runOpts.Env)
 		})
 	}
 }
@@ -165,7 +167,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(run.NewOptions(opts))
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -227,17 +229,29 @@ func TestToTerraformEnvVars(t *testing.T) {
 			vars:        map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
 			expected:    map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
 		},
+		{
+			description: "map value with interpolation pattern",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
+			description: "plain string with interpolation pattern not escaped",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "typed slice with interpolation pattern",
+			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest("")
-			require.NoError(t, err)
-
 			l := logger.CreateLogger()
-			actual, err := run.ToTerraformEnvVars(l, opts, tc.vars)
+			actual, err := run.ToTerraformEnvVars(l, tc.vars)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -247,7 +261,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 func TestFilterTerraformExtraArgs(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.ToSlash(helpers.TmpDirWOSymlinks(t))
+	workingDir := helpers.TmpDirWOSymlinks(t)
 
 	temporaryFile := createTempFile(t)
 
@@ -349,7 +363,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
+		out := run.FilterTerraformExtraArgs(l, run.NewOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }
@@ -437,7 +451,7 @@ func createTempFile(t *testing.T) string {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
-	return filepath.ToSlash(tmpFile.Name())
+	return tmpFile.Name()
 }
 
 func TestShouldCopyLockFile(t *testing.T) {

@@ -72,7 +72,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-debug`                              | `--inputs-debug`                                          |
 | `--terragrunt-diff`                               | `--diff`                                                  |
 | `--terragrunt-disable-bucket-update`              | `--disable-bucket-update`                                 |
-| `--terragrunt-disable-command-validation`         | `--disable-command-validation`                            |
+| `--terragrunt-disable-command-validation`         | `--disable-command-validation` (deprecated)               |
 | `--terragrunt-download-dir`                       | `--download-dir`                                          |
 | `--terragrunt-exclude-dir`                        | `--queue-exclude-dir`                                     |
 | `--terragrunt-excludes-file`                      | `--queue-excludes-file`                                   |
@@ -89,10 +89,10 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-iam-web-identity-token`             | `--iam-assume-role-web-identity-token`                    |
 | `--terragrunt-ignore-dependency-errors`           | `--queue-ignore-errors`                                   |
 | `--terragrunt-ignore-dependency-order`            | `--queue-ignore-dag-order`                                |
-| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external`                                |
+| `--terragrunt-ignore-external-dependencies`       | `--queue-exclude-external` (deprecated)                   |
 | `--terragrunt-include-dir`                        | `--queue-include-dir`                                     |
 | `--terragrunt-include-external-dependencies`      | `--queue-include-external`                                |
-| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules`                             |
+| `--terragrunt-json-disable-dependent-modules`     | `--disable-dependent-modules` (deprecated)                |
 | `--terragrunt-json-out-dir`                       | `--json-out-dir`                                          |
 | `--terragrunt-json-out`                           | `--out`                                                   |
 | `--terragrunt-log-custom-format`                  | `--log-custom-format`                                     |
@@ -100,7 +100,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-log-format`                         | `--log-format`                                            |
 | `--terragrunt-log-level`                          | `--log-level`                                             |
 | `--terragrunt-log-show-abs-paths`                 | `--log-show-abs-paths`                                    |
-| `--terragrunt-modules-that-include`               | `--units-that-include`                                    |
+| `--terragrunt-modules-that-include`               | `--units-that-include` (deprecated)                       |
 | `--terragrunt-no-auto-approve`                    | `--no-auto-approve`                                       |
 | `--terragrunt-no-auto-init`                       | `--no-auto-init`                                          |
 | `--terragrunt-no-auto-retry`                      | `--no-auto-retry`                                         |
@@ -118,7 +118,7 @@ Below is a comprehensive mapping of old CLI flag names to their modern counterpa
 | `--terragrunt-source-map`                         | `--source-map`                                            |
 | `--terragrunt-source-update`                      | `--source-update`                                         |
 | `--terragrunt-source`                             | `--source`                                                |
-| `--terragrunt-strict-include`                     | `--queue-strict-include`                                  |
+| `--terragrunt-strict-include`                     | `--queue-strict-include` (deprecated)                     |
 | `--terragrunt-strict-validate`                    | `--strict-validate`                                       |
 | `--terragrunt-tfpath`                             | `--tf-path`                                               |
 | `--terragrunt-use-partial-parse-config-cache`     | `--use-partial-parse-config-cache`                        |
@@ -221,12 +221,12 @@ This usually isn't necessary, except when combining a complicated series of flag
 
 In addition to allowing for explicit invocation of OpenTofu/Terraform instead of using shortcuts, the `run` command also takes on the responsibilities of the now deprecated `run-all` and `graph` commands using flags.
 
-For example, if you are currently using the `terragrunt run --all` command, you can switch to the `run` command with the `--all` flag instead.
+For example, if you are currently using the `terragrunt run-all` command, you can switch to the `run` command with the `--all` flag instead.
 
 Before:
 
 ```bash
-terragrunt run --all plan
+terragrunt run-all plan
 ```
 
 After:

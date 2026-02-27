@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -38,6 +39,7 @@ var knownBadFiles = []string{
 	"fixtures/parsing/exposed-include-with-deprecated-inputs/compcommon.hcl",
 	"fixtures/scaffold/with-shell-and-hooks/.boilerplate/terragrunt.hcl",
 	"fixtures/scaffold/with-shell-commands/.boilerplate/terragrunt.hcl",
+	"fixtures/stacks/errors/unknown-value/units/bad-unit/terragrunt.hcl",
 	// Files that require AWS credentials (will fail/timeout without them)
 	"fixtures/assume-role/external-id-with-comma/terragrunt.hcl",
 	"fixtures/assume-role/external-id/terragrunt.hcl",
@@ -78,7 +80,7 @@ func TestParseAllFixtureFiles(t *testing.T) {
 
 			l := logger.CreateLogger()
 
-			ctx, pctx := config.NewParsingContext(
+			ctx, pctx := configbridge.NewParsingContext(
 				context.TODO(), // Using context.TODO() instead of t.Context() here because we end up storing way too much in context otherwise.
 				l,
 				opts,

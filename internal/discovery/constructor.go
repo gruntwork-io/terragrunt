@@ -62,7 +62,7 @@ func NewForDiscoveryCommand(l log.Logger, opts *DiscoveryCommandOptions) (*Disco
 	}
 
 	if opts.Include {
-		d = d.WithParseInclude()
+		d = d.WithParseIncludes()
 	}
 
 	if opts.Reading {
@@ -138,21 +138,17 @@ func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, e
 	return d, nil
 }
 
-// NewDiscovery creates a new Discovery.
-func NewDiscovery(dir string, opts ...DiscoveryOption) *Discovery {
+// NewDiscovery creates a new Discovery with sensible defaults.
+func NewDiscovery(dir string) *Discovery {
 	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
-	discovery := &Discovery{
+	return &Discovery{
 		numWorkers:         numWorkers,
 		maxDependencyDepth: defaultMaxDependencyDepth,
+		workingDir:         dir,
+		configFilenames:    DefaultConfigFilenames,
 		discoveryContext: &component.DiscoveryContext{
 			WorkingDir: dir,
 		},
 	}
-
-	for _, opt := range opts {
-		opt(discovery)
-	}
-
-	return discovery
 }

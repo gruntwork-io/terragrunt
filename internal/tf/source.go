@@ -62,72 +62,38 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 		var err error
 
+		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
-			err = util.WalkDirWithSymlinks(sourceDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					// If we've encountered an error while walking the tree, give up
-					return err
-				}
-
-				if d.IsDir() {
-					// We don't use any info from directories to calculate our hash
-					return nil
-				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
-				if d.Name() == util.TerraformLockFile {
-					return nil
-				}
-
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-
-				fileModified := info.ModTime().UnixMicro()
-
-				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-				sourceHash.Write([]byte(hashContents))
-
-				return nil
-			})
-		} else {
-			err = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					// If we've encountered an error while walking the tree, give up
-					return err
-				}
-
-				if d.IsDir() {
-					// We don't use any info from directories to calculate our hash
-					return nil
-				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
-				if d.Name() == util.TerraformLockFile {
-					return nil
-				}
-
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-
-				fileModified := info.ModTime().UnixMicro()
-
-				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-				sourceHash.Write([]byte(hashContents))
-
-				return nil
-			})
+			walkDir = util.WalkDirWithSymlinks
 		}
 
+		err = walkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				// If we've encountered an error while walking the tree, give up
+				return err
+			}
+
+			if d.IsDir() {
+				// We don't use any info from directories to calculate our hash
+				return util.SkipDirIfIgnorable(d.Name())
+			}
+			// avoid checking .terraform.lock.hcl file since contents is auto-generated
+			if d.Name() == util.TerraformLockFile {
+				return nil
+			}
+
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			fileModified := info.ModTime().UnixMicro()
+
+			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+			sourceHash.Write([]byte(hashContents))
+
+			return nil
+		})
 		if err == nil {
 			hash := hex.EncodeToString(sourceHash.Sum(nil))
 
@@ -215,7 +181,7 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 			return nil, canonicalPathErr
 		}
 
-		rootSourceURL.Path = canonicalFilePath
+		rootSourceURL.Path = filepath.ToSlash(canonicalFilePath)
 	}
 
 	rootPath, err := encodeSourceName(rootSourceURL)

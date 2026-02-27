@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 /**
@@ -108,7 +111,7 @@ func TestGetTFInitArgsInitDisabled(t *testing.T) {
 	}
 	args := remotestate.New(cfg).GetTFInitArgs()
 
-	assertTerraformInitArgsEqual(t, args, "-backend=false")
+	assertTerraformInitArgsEqual(t, args, "-backend-config=encrypt=true -backend-config=bucket=my-bucket -backend-config=key=terraform.tfstate -backend-config=region=us-east-1")
 }
 
 func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
@@ -123,6 +126,122 @@ func TestGetTFInitArgsNoBackendConfigs(t *testing.T) {
 		args := remotestate.New(cfg).GetTFInitArgs()
 		assert.Empty(t, args)
 	}
+}
+
+// TestGetTFInitArgs_StringBoolCoercion verifies that string boolean values
+// (from HCL ternary type unification) pass through correctly to terraform init -backend-config args.
+func TestGetTFInitArgs_StringBoolCoercion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		backendName  string
+		config       map[string]any
+		expectedArgs []string
+	}{
+		{
+			"s3-string-bool-use-lockfile",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"encrypt":      "true",
+				"use_lockfile": "true",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=encrypt=true",
+				"-backend-config=use_lockfile=true",
+			},
+		},
+		{
+			"s3-native-bool-use-lockfile",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"encrypt":      true,
+				"use_lockfile": true,
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=encrypt=true",
+				"-backend-config=use_lockfile=true",
+			},
+		},
+		{
+			"s3-string-bool-false",
+			"s3",
+			map[string]any{
+				"bucket":       "my-bucket",
+				"key":          "terraform.tfstate",
+				"region":       "us-east-1",
+				"use_lockfile": "false",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=key=terraform.tfstate",
+				"-backend-config=region=us-east-1",
+				"-backend-config=use_lockfile=false",
+			},
+		},
+		{
+			"gcs-string-bool-skip-versioning",
+			"gcs",
+			map[string]any{
+				"bucket":                 "my-bucket",
+				"prefix":                 "terraform.tfstate",
+				"skip_bucket_versioning": "true",
+			},
+			[]string{
+				"-backend-config=bucket=my-bucket",
+				"-backend-config=prefix=terraform.tfstate",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &remotestate.Config{
+				BackendName:   tc.backendName,
+				BackendConfig: tc.config,
+			}
+			args := remotestate.New(cfg).GetTFInitArgs()
+
+			assert.ElementsMatch(t, tc.expectedArgs, args)
+		})
+	}
+}
+
+func TestNeedsBootstrapDisableInit(t *testing.T) {
+	t.Parallel()
+
+	cfg := &remotestate.Config{
+		BackendName: "s3",
+		DisableInit: true,
+		BackendConfig: map[string]any{
+			"bucket": "my-bucket",
+			"key":    "terraform.tfstate",
+			"region": "us-east-1",
+		},
+	}
+
+	opts, err := options.NewTerragruntOptionsForTest("mock.hcl")
+	require.NoError(t, err)
+
+	remote := remotestate.New(cfg)
+	needsBootstrap, err := remote.NeedsBootstrap(t.Context(), logger.CreateLogger(), opts)
+
+	require.NoError(t, err)
+	assert.False(t, needsBootstrap, "NeedsBootstrap must return false when DisableInit=true")
 }
 
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {

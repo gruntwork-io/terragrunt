@@ -13,10 +13,51 @@ jobs:
         os: [ubuntu, macos]
     env:
       MISE_PROFILE: cicd
+      # Reduce GC frequency (default 100) to speed up builds/tests at cost of higher memory
+      GOGC: "400"
 
     steps:
+      - name: "Mount tmpfs"
+        shell: bash
+        if: runner.os == 'Linux'
+        run: |
+          sudo mount -t tmpfs -o size=12G tmpfs /tmp
+          mkdir -p /home/runner/go
+          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
+          mkdir -p /home/runner/.cache/go-build
+          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+          mkdir -p /home/runner/.cache/terragrunt
+          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/terragrunt
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      # RAM disk for go-build cache — persists through post-steps so cache save works.
+      # If ramdisk is unmounted before job cleanup, cache save will fail silently.
+      - name: "Mount RAM disk"
+        shell: bash
+        if: runner.os == 'macOS'
+        run: |
+          RAMDISK=$(hdiutil attach -nomount ram://8388608 | tr -d '[:space:]') || { echo "Failed to create RAM disk"; exit 1; }
+          # Wait for disk device to be registered in kernel (hdiutil may return before kernel is ready)
+          for i in $(seq 1 10); do
+            diskutil info "$RAMDISK" > /dev/null 2>&1 && break
+            sleep 1
+          done
+          diskutil erasevolume HFS+ RAMDisk "$RAMDISK"
+          mkdir -p /Volumes/RAMDisk/go-build
+          rm -rf ~/Library/Caches/go-build
+          ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
+
+      - name: Cache mise tools
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.local/share/mise/installs
+          key: ${{ runner.os }}-mise-tools-${{ hashFiles('mise.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-mise-tools-
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
@@ -38,12 +79,16 @@ jobs:
         with:
           path: ${{ steps.go-cache-paths.outputs.go-build }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-build-
 
       - name: Go Mod Cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
 
       - name: Terragrunt Provider Cache
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5

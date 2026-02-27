@@ -71,8 +71,10 @@ func runTargetCommand(
 		dir = opts.RootWorkingDir
 	}
 
-	return run.RunActionWithHooks(ctx, l, command, opts, cfg, r, func(ctx context.Context) error {
-		_, err := shell.RunCommandWithOutput(ctx, l, opts, dir, false, false, command, cmdArgs...)
+	runOpts := run.NewOptions(opts)
+
+	return run.RunActionWithHooks(ctx, l, command, runOpts, cfg, r, func(ctx context.Context) error {
+		_, err := shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), dir, false, false, command, cmdArgs...)
 		if err != nil {
 			return errors.Errorf("failed to run command in directory %s: %w", dir, err)
 		}

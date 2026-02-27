@@ -35,7 +35,7 @@ func TestWindowsRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata\\test_sigint_wait.bat"
 
 	go func() {
-		_, err := RunCommandWithOutput(ctx, l, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := RunCommandWithOutput(ctx, l, RunOptionsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

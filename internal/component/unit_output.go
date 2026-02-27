@@ -11,10 +11,10 @@ type flusher interface {
 	Flush() error
 }
 
-// parentWriterProvider is any writer that can provide its underlying parent writer.
+// writerUnwrapper is any writer that can provide its underlying parent writer.
 // This is used to create writer-based locks that serialize flushes to the same parent.
-type parentWriterProvider interface {
-	ParentWriter() io.Writer
+type writerUnwrapper interface {
+	Unwrap() io.Writer
 }
 
 // unitOutputLocks provides locks for serializing flushes to the same parent writer.
@@ -36,23 +36,23 @@ func unitOutputLock(key string) *sync.Mutex {
 	return newMu
 }
 
-// FlushOutput flushes buffer data to the output writer for this unit, if the writer supports it.
-// This is safe to call even if Execution or the Writer is nil.
-func FlushOutput(u *Unit) error {
-	if u == nil || u.Execution == nil || u.Execution.TerragruntOptions == nil || u.Execution.TerragruntOptions.Writer == nil {
+// FlushOutput flushes buffer data to the given writer for this unit, if the writer supports it.
+// This is safe to call even if u or w is nil.
+func FlushOutput(u *Unit, w io.Writer) error {
+	if u == nil || w == nil {
 		return nil
 	}
 
-	writer, ok := u.Execution.TerragruntOptions.Writer.(flusher)
+	writer, ok := w.(flusher)
 	if !ok {
 		return nil
 	}
 
 	// Use parent writer's address as lock key to serialize flushes to same parent.
-	// Falls back to unit path for writers without parentWriterProvider.
-	key := u.AbsolutePath()
-	if pwp, ok := u.Execution.TerragruntOptions.Writer.(parentWriterProvider); ok {
-		key = fmt.Sprintf("%p", pwp.ParentWriter())
+	// Falls back to unit path for writers without writerUnwrapper.
+	key := u.Path()
+	if u, ok := w.(writerUnwrapper); ok {
+		key = fmt.Sprintf("%p", u.Unwrap())
 	}
 
 	mu := unitOutputLock(key)

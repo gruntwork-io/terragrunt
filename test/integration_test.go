@@ -77,6 +77,7 @@ const (
 	testFixtureInitError                      = "fixtures/init-error"
 	testFixtureInitOnce                       = "fixtures/init-once"
 	testFixtureInputs                         = "fixtures/inputs"
+	testFixtureInputsInterpolation            = "fixtures/inputs-interpolation"
 	testFixtureLogFormatter                   = "fixtures/log/formatter"
 	testFixtureLogStdoutLevel                 = "fixtures/log/levels"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
@@ -140,6 +141,10 @@ func TestCLIFlagHints(t *testing.T) {
 		{
 			expectedError: flags.NewCommandFlagHintError("run", "no-include-root", "catalog", "no-include-root"),
 			args:          "run --no-include-root",
+		},
+		{
+			expectedError: flags.NewPassthroughFlagHintError("platform"),
+			args:          "run --platform",
 		},
 	}
 
@@ -402,6 +407,32 @@ func TestRunAllDetailedExitCode_RetryableAfterDrift(t *testing.T) {
 		"terragrunt run --all --non-interactive --working-dir "+
 			rootPath+
 			" -- plan -detailed-exitcode",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
+}
+
+// TestDetailedExitCodeChangesPresentAllWithSource verifies that run --all correctly
+// propagates the detailed exit code when units use terraform { source = "." }.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5586
+func TestDetailedExitCodeChangesPresentAllWithSource(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes-with-source")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+
+	exitCode := tf.NewDetailedExitCodeMap()
+
+	ctx := t.Context()
+	ctx = tf.ContextWithDetailedExitCode(ctx, exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(
+		t,
+		ctx,
+		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -detailed-exitcode",
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 2, exitCode.GetFinalDetailedExitCode())
@@ -1434,6 +1465,34 @@ func TestRunCommand(t *testing.T) {
 	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	validateInputs(t, outputs)
+}
+
+// TestInputsWithInterpolationPatterns validates that input variables containing ${...} patterns
+// are passed to Terraform without triggering HCL interpolation errors (issue #3368).
+func TestInputsWithInterpolationPatterns(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureInputsInterpolation)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputsInterpolation)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureInputsInterpolation)
+
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --non-interactive --working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	// map_with_interpolation.foo should be the literal string "test ${bar} test" (not interpolated)
+	mapOutput, ok := outputs["map_with_interpolation"]
+	require.True(t, ok, "map_with_interpolation output not found")
+	mapValue, ok := mapOutput.Value.(map[string]any)
+	require.True(t, ok, "map_with_interpolation value is not a map")
+	assert.Equal(t, "test ${bar} test", mapValue["foo"])
+	assert.Equal(t, "no interpolation here", mapValue["baz"])
 }
 
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
@@ -2605,8 +2664,7 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, filepath.Join(tmpEnvPath, testFixtureReadConfig))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_original_terragrunt_dir")
 
-	rootPathAbs, err := filepath.Abs(rootPath)
-	require.NoError(t, err)
+	rootPathAbs := filepath.Clean(rootPath)
 
 	fooPathAbs := filepath.Join(rootPathAbs, "foo")
 	depPathAbs := filepath.Join(rootPathAbs, "dep")

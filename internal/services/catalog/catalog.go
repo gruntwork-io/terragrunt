@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
@@ -25,7 +26,7 @@ import (
 
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
-type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool) (*module.Repo, error)
+type NewRepoFunc func(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -97,7 +98,9 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 	// If no specific repoURL was provided to the service, try to read from catalog config.
 	if s.repoURL == "" {
-		catalogCfg, err := config.ReadCatalogConfig(ctx, l, s.opts)
+		_, pctx := configbridge.NewParsingContext(ctx, l, s.opts)
+
+		catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
 			return errors.Errorf("failed to read catalog configuration: %w", err)
 		}
@@ -138,7 +141,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 
 		// Initialize the repository. This might involve cloning or updating.
 		// Use the newRepo function stored in the service instance.
-		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS)
+		repo, err := s.newRepo(ctx, l, currentRepoURL, tempPath, walkWithSymlinks, allowCAS, s.opts.RootWorkingDir)
 		if err != nil {
 			l.Errorf("Failed to initialize repository %s: %v", currentRepoURL, err)
 

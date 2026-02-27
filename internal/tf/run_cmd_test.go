@@ -65,8 +65,8 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writer = &allOutputBuffer
-	terragruntOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Writers.Writer = &allOutputBuffer
+	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 	terragruntOptions.TFPath = "testdata/test_outputs.sh"
@@ -76,7 +76,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, tf.TFOptionsFromOpts(terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

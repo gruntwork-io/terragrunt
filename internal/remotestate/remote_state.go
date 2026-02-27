@@ -117,10 +117,6 @@ func (remote *RemoteState) NeedsBootstrap(ctx context.Context, l log.Logger, opt
 
 // GetTFInitArgs converts the RemoteState config into the format used by the `tofu init` command.
 func (remote *RemoteState) GetTFInitArgs() []string {
-	if remote.DisableInit {
-		return []string{"-backend=false"}
-	}
-
 	if remote.Generate != nil {
 		// When in generate mode, we don't need to use `-backend-config` to initialize the remote state backend.
 		return []string{}
@@ -139,10 +135,10 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 }
 
 // GenerateOpenTofuCode generates the OpenTofu/Terraform code for configuring remote state backend.
-func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, opts *options.TerragruntOptions) error {
+func (remote *RemoteState) GenerateOpenTofuCode(l log.Logger, workingDir string) error {
 	backendConfig := remote.backend.GetTFInitArgs(remote.BackendConfig)
 
-	return remote.Config.GenerateOpenTofuCode(l, opts, backendConfig)
+	return remote.Config.GenerateOpenTofuCode(l, workingDir, backendConfig)
 }
 
 func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
@@ -150,7 +146,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, opts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(opts), args...)
 	if err != nil {
 		return "", err
 	}
@@ -178,5 +174,5 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, opts *op
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, opts, args...)
+	return tf.RunCommand(ctx, l, tf.TFOptionsFromOpts(opts), args...)
 }

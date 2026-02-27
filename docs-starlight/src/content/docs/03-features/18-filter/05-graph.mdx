@@ -1,0 +1,153 @@
+---
+title: Graph Expressions
+description: Filter units based on their dependency relationships using graph traversal operators
+slug: docs/features/filter/graph
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Filter units and stacks based on their dependency relationships using graph traversal operators. This allows you to find components that depend on a target, or components that a target depends on.
+
+Graph-based expressions use the ellipsis (`...`) operator to indicate graph traversal direction and the caret (`^`) operator to exclude the target from results.
+
+## Include Dependencies
+
+Use `...` _after_ a target expression to include the target and all of its dependencies:
+
+```bash
+# Find 'service' and everything it depends on
+terragrunt find --filter 'service...'
+```
+
+<FileTree>
+- .
+  - **service** \<-- Matched (target)
+    - terragrunt.hcl (depends on: db, cache, vpc)
+  - **db** \<-- Matched (dependency of service)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (dependency of service)
+    - terragrunt.hcl (depends on: vpc)
+  - **vpc** \<-- Matched (dependency of service, db, cache)
+    - terragrunt.hcl
+</FileTree>
+
+## Include Dependents
+
+Use `...` _before_ a target expression to include the target and all components that depend on it:
+
+```bash
+# Find 'vpc' and everything that depends on it
+terragrunt find --filter '...vpc'
+```
+
+<FileTree>
+- .
+  - **vpc** \<-- Matched (target)
+    - terragrunt.hcl
+  - **db** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on vpc via db and cache)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+## Include Both Directions
+
+Use `...` _before and after_ a target expression to include a target, all its dependencies, and all its dependents:
+
+```bash
+# Find 'db' and its complete dependency graph
+terragrunt find --filter '...db...'
+```
+
+<FileTree>
+- .
+  - **vpc** \<-- Matched (dependency of db)
+    - terragrunt.hcl
+  - **db** \<-- Matched (target)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on db)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+## Exclude Target
+
+Use `^` before a target expression to exclude the target from results. This is useful when you want only the dependencies or dependents, but not the target itself:
+
+```bash
+# Find all dependents of 'vpc' but exclude 'vpc' itself
+terragrunt find --filter '...^vpc'
+```
+
+<FileTree>
+- .
+  - vpc \<-- Not matched (due to '^' operator)
+    - terragrunt.hcl
+  - **db** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (depends on vpc)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (depends on vpc via db and cache)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+## Depth-Limited Traversal
+
+You can limit how many levels of dependencies or dependents to traverse by adding a numeric depth before or after the ellipsis (`...`) operator. This is useful when you only want immediate or nearby relationships rather than the full transitive closure.
+
+```bash
+# Find 'service' and only its direct dependencies (1 level deep)
+terragrunt find --filter 'service...1'
+
+# Find 'vpc' and only components that directly depend on it (1 level)
+terragrunt find --filter '1...vpc'
+
+# Find 'db' with 2 levels of dependencies and 1 level of dependents
+terragrunt find --filter '1...db...2'
+```
+
+Given this dependency graph where service depends on db and cache, which both depend on vpc:
+
+<FileTree>
+- .
+  - vpc
+    - terragrunt.hcl
+  - db
+    - terragrunt.hcl (depends on: vpc)
+  - cache
+    - terragrunt.hcl (depends on: vpc)
+  - service
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+Using `service...1` (dependencies with depth 1):
+
+<FileTree>
+- .
+  - vpc \<-- Not matched (2 hops away, beyond depth limit)
+    - terragrunt.hcl
+  - **db** \<-- Matched (1 hop from service)
+    - terragrunt.hcl (depends on: vpc)
+  - **cache** \<-- Matched (1 hop from service)
+    - terragrunt.hcl (depends on: vpc)
+  - **service** \<-- Matched (target)
+    - terragrunt.hcl (depends on: db, cache)
+</FileTree>
+
+<Aside type="note" title="Multiple Targets and Depth">
+When a filter matches multiple targets, the depth limit applies independently to each target. If a component is reachable from multiple targets at different distances, it will be included if it is within the depth limit of _any_ target.
+
+For example, if target A can reach component X in 3 hops and target B can reach X in 1 hop, with a depth limit of 2, X will be included because it is within 2 hops of target B.
+</Aside>
+
+<Aside type="tip">
+Graph expressions require dependency/dependent information to work correctly.
+
+When using graph expressions, Terragrunt automatically discovers dependency relationships between components to enable graph traversal. This may add some overhead compared to simple name or path filters, as Terragrunt will need to recursively parse and evaluate HCL files to determine whether there are more dependencies or dependents to include.
+
+Note that this overhead is especially noticeable in _dependent_ graph expressions, as Terragrunt will need to recursively parse _all_ units that could _possibly_ depend on the target. Use this expression judiciously.
+</Aside>

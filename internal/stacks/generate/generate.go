@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -110,7 +111,8 @@ func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		}
 
 		wp.Submit(func() error {
-			return config.GenerateStackFile(ctx, l, opts, wp, node.FilePath)
+			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+			return config.GenerateStackFile(ctx, l, pctx, wp, node.FilePath)
 		})
 	}
 
@@ -346,7 +348,10 @@ func worktreeStacksToGenerate(
 	fullDiscoveries := map[string]*discovery.Discovery{}
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters := pair.Expand()
+		fromFilters, toFilters, err := pair.Expand()
+		if err != nil {
+			return nil, errors.Errorf("failed to expand worktree pair: %w", err)
+		}
 
 		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
 			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{

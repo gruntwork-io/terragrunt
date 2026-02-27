@@ -10,34 +10,35 @@ import (
 
 // LoadUserConfig loads the user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
-func LoadUserConfig() (*Config, error) {
-	return loadUserConfig(cliconfig.LoadConfig)
+func LoadUserConfig(opts ...ConfigOption) (*Config, error) {
+	return loadUserConfig(cliconfig.LoadConfig, opts...)
 }
 
 func loadUserConfig(
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
+	opts ...ConfigOption,
 ) (*Config, error) {
 	cfg, diag := loadConfigFn()
 	if diag.HasErrors() {
 		return nil, diag.Err()
 	}
 
-	var (
-		installationMethods = getUserProviderInstallationMethods(cfg)
-		hosts               = getUserHosts(cfg)
-		credentialsHelpers  = getUserCredentialsHelpers(cfg)
-		credentials         = getUserCredentials(cfg)
-	)
+	config := NewConfig().
+		WithPluginCacheDir(cfg.PluginCacheDir).
+		WithCredentials(getUserCredentials(cfg)).
+		WithCredentialsHelpers(getUserCredentialsHelpers(cfg)).
+		WithProviderInstallation(&ProviderInstallation{Methods: getUserProviderInstallationMethods(cfg)}).
+		WithHosts(getUserHosts(cfg))
 
-	return &Config{
-		DisableCheckpoint:          cfg.DisableCheckpoint,
-		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
-		PluginCacheDir:             cfg.PluginCacheDir,
-		Credentials:                credentials,
-		CredentialsHelpers:         credentialsHelpers,
-		ProviderInstallation:       &ProviderInstallation{Methods: installationMethods},
-		Hosts:                      hosts,
-	}, nil
+	if cfg.DisableCheckpoint {
+		config.WithDisableCheckpoint()
+	}
+
+	if cfg.DisableCheckpointSignature {
+		config.WithDisableCheckpointSignature()
+	}
+
+	return config.WithOptions(opts...), nil
 }
 
 func UserProviderDir() (string, error) {

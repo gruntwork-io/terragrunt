@@ -3,17 +3,28 @@ package config
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 
+	"github.com/puzpuzpuz/xsync/v3"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
+	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
 const (
@@ -26,80 +37,107 @@ const (
 // Using `ParsingContext` makes the code more readable.
 // Note: context.Context should be passed explicitly as the first parameter to functions, not embedded in this struct.
 type ParsingContext struct {
-	TerragruntOptions *options.TerragruntOptions
+	Writers writer.Writers
 
-	// TrackInclude represents contexts of included configurations.
-	TrackInclude *TrackInclude
+	TerraformCliArgs *iacargs.IacArgs
+	TrackInclude     *TrackInclude
+	EngineConfig     *engine.EngineConfig
+	EngineOptions    *engine.EngineOptions
+	FeatureFlags     *xsync.MapOf[string, string]
+	FilesRead        *[]string
+	Telemetry        *telemetry.Options
 
-	// Locals are pre-evaluated variable bindings that can be used by reference in the code.
-	Locals *cty.Value
-
-	// Features are the feature flags that are enabled for the current terragrunt config.
-	Features *cty.Value
-
-	// Values of the unit.
-	Values *cty.Value
-
-	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
-	// various fields related to that config:
-	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.
 	DecodedDependencies *cty.Value
+	Values              *cty.Value
+	Features            *cty.Value
+	Locals              *cty.Value
 
-	// These functions have the highest priority and will overwrite any others with the same name
+	Env                 map[string]string
+	SourceMap           map[string]string
 	PredefinedFunctions map[string]function.Function
 
-	// Set a custom converter to TerragruntConfig.
-	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
 	ConvertToTerragruntConfigFunc func(ctx context.Context, pctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
 
-	// FilesRead tracks files that were read during parsing (absolute paths).
-	// This is a pointer so that it's shared across all parsing context copies.
-	FilesRead *[]string
+	TerragruntConfigPath         string
+	OriginalTerragruntConfigPath string
+	WorkingDir                   string
+	RootWorkingDir               string
+	DownloadDir                  string
+	Source                       string
+	TerraformCommand             string
+	OriginalTerraformCommand     string
+	AuthProviderCmd              string
+	TFPath                       string
+	ScaffoldRootFileName         string
+	TerragruntStackConfigPath    string
+	TofuImplementation           tfimpl.Type
 
-	// PartialParseDecodeList is the list of sections that are being decoded in the current config. This can be used to
-	// indicate/detect that the current parsing ctx is partial, meaning that not all configuration values are
-	// expected to be available.
+	IAMRoleOptions         iam.RoleOptions
+	OriginalIAMRoleOptions iam.RoleOptions
+
+	Experiments            experiment.Experiments
+	StrictControls         strict.Controls
 	PartialParseDecodeList []PartialDecodeSectionType
+	ParserOptions          []hclparse.Option
 
-	// ParserOptions is used to configure hcl Parser.
-	ParserOptions []hclparse.Option
+	MaxFoldersToCheck int
+	ParseDepth        int
 
-	// SkipOutputsResolution is used to optionally opt-out of resolving outputs.
-	SkipOutputsResolution bool
+	TFPathExplicitlySet bool
+	SkipOutput          bool
+	ForwardTFStdout     bool
+	JSONLogFormat       bool
+	Debug               bool
+	AutoInit            bool
+	Headless            bool
+	BackendBootstrap    bool
+	CheckDependentUnits bool
 
-	// ParseDepth tracks the current parsing recursion depth.
-	// This prevents stack overflow from deeply nested configs.
-	ParseDepth int
+	NoDependencyFetchOutputFromState bool
+	UsePartialParseConfigCache       bool
+	SkipOutputsResolution            bool
+	NoStackValidate                  bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *ParsingContext) {
+func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
 	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	filesRead := make([]string, 0)
 
-	return ctx, &ParsingContext{
-		TerragruntOptions: opts,
-		ParserOptions:     DefaultParserOptions(l, opts),
-		FilesRead:         &filesRead,
+	pctx := &ParsingContext{
+		ParserOptions:  DefaultParserOptions(l, strictControls),
+		StrictControls: strictControls,
+		FilesRead:      &filesRead,
 	}
+
+	return ctx, pctx
 }
 
-// Clone returns a shallow copy of the ParsingContext.
+// Clone returns a copy of the ParsingContext.
+// Maps are deep-copied so that mutations (e.g. credential injection into Env)
+// on a clone do not affect the original or other clones.
 func (ctx *ParsingContext) Clone() *ParsingContext {
 	clone := *ctx
+
+	if ctx.Env != nil {
+		clone.Env = maps.Clone(ctx.Env)
+	}
+
+	if ctx.SourceMap != nil {
+		clone.SourceMap = maps.Clone(ctx.SourceMap)
+	}
+
+	if ctx.EngineOptions != nil {
+		eo := *ctx.EngineOptions
+		clone.EngineOptions = &eo
+	}
+
 	return &clone
 }
 
 func (ctx *ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	c := ctx.Clone()
 	c.PartialParseDecodeList = decodeList
-
-	return c
-}
-
-func (ctx *ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
-	c := ctx.Clone()
-	c.TerragruntOptions = opts
 
 	return c
 }
@@ -184,4 +222,26 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	c.ParseDepth = ctx.ParseDepth + 1
 
 	return c, nil
+}
+
+// WithConfigPath returns a new ParsingContext with the config path updated.
+// It normalizes the path to an absolute path, updates WorkingDir to the directory
+// containing the config, and adjusts the logger's working directory field if it changed.
+func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+	configPath = filepath.Clean(configPath)
+	if !filepath.IsAbs(configPath) {
+		configPath = filepath.Clean(filepath.Join(ctx.WorkingDir, configPath))
+	}
+
+	workingDir := filepath.Dir(configPath)
+
+	if workingDir != ctx.WorkingDir {
+		l = l.WithField(placeholders.WorkDirKeyName, workingDir)
+	}
+
+	c := ctx.Clone()
+	c.TerragruntConfigPath = configPath
+	c.WorkingDir = workingDir
+
+	return l, c, nil
 }

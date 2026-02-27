@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -102,10 +103,17 @@ func NewFlags(opts *Options, prefix flags.Prefix) clihelper.Flags {
 		),
 
 		flags.NewFlag(&clihelper.BoolFlag{
-			Name:        DisableDependentModulesFlagName,
-			EnvVars:     tgPrefix.EnvVars(DisableDependentModulesFlagName),
-			Destination: &opts.DisableDependentUnits,
-			Usage:       "Disable identification of dependent modules when rendering config.",
+			Name:    DisableDependentModulesFlagName,
+			EnvVars: tgPrefix.EnvVars(DisableDependentModulesFlagName),
+			Hidden:  true,
+			Usage:   "Deprecated: Disable identification of dependent modules when rendering config. This flag has no effect as dependent modules discovery has been removed.",
+			Action: func(ctx context.Context, _ *clihelper.Context, value bool) error {
+				if value {
+					return opts.StrictControls.FilterByNames(controls.DisableDependentModules).Evaluate(ctx)
+				}
+
+				return nil
+			},
 		},
 			flags.WithDeprecatedEnvVars(tgPrefix.EnvVars("render-json-disable-dependent-modules"), terragruntPrefixControl),  // `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES`
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("json-disable-dependent-modules"), terragruntPrefixControl), // `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES`

@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,17 +13,16 @@ import (
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -41,6 +41,7 @@ const (
 	testFixtureStackValidationUnitPath         = "fixtures/stacks/errors/validation-unit"
 	testFixtureStackValidationStackPath        = "fixtures/stacks/errors/validation-stack"
 	testFixtureStackIncorrectSource            = "fixtures/stacks/errors/incorrect-source"
+	testFixtureStacksUnknownValueError         = "fixtures/stacks/errors/unknown-value"
 	testFixtureNoStack                         = "fixtures/stacks/no-stack"
 	testFixtureNestedStacks                    = "fixtures/stacks/nested"
 	testFixtureStackValues                     = "fixtures/stacks/stack-values"
@@ -58,6 +59,7 @@ const (
 	testFixtureStackNoDotTerragruntStackOutput = "fixtures/stacks/no-dot-terragrunt-stack-output"
 	testFixtureStackFindInParentFolders        = "fixtures/stacks/find-in-parent-folders"
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
+	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -197,6 +199,23 @@ func TestStacksGenerateLocalsError(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
+}
+
+func TestStacksRunParseErrorNotSilentlySkipped(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksUnknownValueError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksUnknownValueError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksUnknownValueError, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+	)
+
+	// Command should fail with parsing error, not silently skip the unit
+	require.Error(t, err)
+	assert.Contains(t, stderr, "missing_var")
 }
 
 func TestStacksGenerateRemote(t *testing.T) {
@@ -1044,7 +1063,7 @@ func TestStacksSourceMap(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	if err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
+	if err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, ".terragrunt-test", func(path string) bool {
 		return true
 	}); err != nil {
 		assert.NoError(t, err)
@@ -2137,4 +2156,33 @@ func findStackFiles(t *testing.T, dir string) []string {
 	require.NoError(t, err)
 
 	return stackFiles
+}
+
+// TestStackVersionConstraints verifies that version constraints are respected in stack runs.
+// This test cannot be parallelized as it changes the global version.Version.
+//
+//nolint:paralleltest
+func TestStackVersionConstraints(t *testing.T) {
+	helpers.CleanupTerragruntFolder(t, testFixtureStackVersionConstraints)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackVersionConstraints)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackVersionConstraints, "live")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// Run with a version that doesn't meet the constraint (>= 99.0.0)
+	err := helpers.RunTerragruntVersionCommand(
+		t,
+		"v0.99.0",
+		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+		&stdout,
+		&stderr,
+	)
+	helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
+
+	require.Error(t, err)
+
+	var invalidVersionError run.InvalidTerragruntVersion
+	assert.ErrorAs(t, err, &invalidVersionError)
 }

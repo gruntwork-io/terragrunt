@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,7 +25,6 @@ import (
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/go-getter/v2"
 )
 
@@ -250,7 +250,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
 // CLI flags take precedence over config file settings.
 func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) {
-	catalogCfg, err := config.ReadCatalogConfig(ctx, l, opts)
+	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
 	if err != nil {
 		// Don't fail if catalog config can't be read - it's optional
 		l.Debugf("Could not read catalog config for scaffold: %v", err)
@@ -384,8 +386,10 @@ func prepareBoilerplateFiles(
 	}
 
 	// if boilerplate dir is not found, create one with default template
-	if !files.IsExistingDir(boilerplateDir) {
-		config, err := config.ReadCatalogConfig(ctx, l, opts)
+	if !util.IsDir(boilerplateDir) {
+		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+		config, err := config.ReadCatalogConfig(ctx, l, pctx)
 		if err != nil {
 			return "", errors.New(err)
 		}
@@ -423,7 +427,7 @@ func parseVariables(
 	opts *options.TerragruntOptions,
 	moduleDir string,
 ) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
-	inputs, err := config.ParseVariables(l, opts, moduleDir)
+	inputs, err := config.ParseVariables(l, opts.Experiments, opts.StrictControls, moduleDir)
 	if err != nil {
 		return nil, nil, errors.New(err)
 	}
@@ -549,7 +553,7 @@ func rewriteTemplateURL(
 			return updatedTemplateURL, nil
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceURL)
 		} else {
@@ -588,7 +592,7 @@ func addRefToModuleURL(
 			return nil, errors.New(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(ctx, l, opts, rootSourceURL)
+		tag, err := shell.GitLastReleaseTag(ctx, l, opts.Env, opts.WorkingDir, rootSourceURL)
 		if err != nil || tag == "" {
 			l.Warnf("Failed to find last release tag for %s", rootSourceURL)
 		} else {
