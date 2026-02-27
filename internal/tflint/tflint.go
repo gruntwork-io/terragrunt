@@ -65,7 +65,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shellRunOptsFromOpts(opts), opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: initArgs})
@@ -84,7 +84,7 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, shellRunOptsFromOpts(opts), opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
 		return errors.New(ErrorRunningTflint{args: args})
@@ -266,4 +266,22 @@ func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, argumen
 	}
 
 	return projectConfigFile, nil
+}
+
+// shellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
+	return &shell.ShellOptions{
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		EngineConfig:    opts.EngineConfig,
+		Experiments:     opts.Experiments,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
+	}
 }
