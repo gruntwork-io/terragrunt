@@ -22,7 +22,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Provision remote_state
 
-Using this command bootstraps the resources described in your [`remote_state` block](/docs/reference/hcl/blocks/#remote_state).
+Using this command bootstraps the resources described in your [`remote_state` block](/reference/hcl/blocks/#remote_state).
 
 If any of the resources described in the `remote_state` block need provisioning, `bootstrap` will provision them. If they are present, but configured in a way that differs from `remote_state` configuration, Terragrunt will attempt to update them when it is safe to do so.
 

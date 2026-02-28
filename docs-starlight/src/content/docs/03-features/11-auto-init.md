@@ -1,7 +1,7 @@
 ---
 title: Auto-init
 description: Learn how Terragrunt makes it so that you don't have to explicitly call `init` when using it.
-slug: docs/features/auto-init
+slug: features/auto-init
 sidebar:
   order: 11
 ---
@@ -15,7 +15,7 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 - The `.terragrunt-init-required` file is in the downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
 - The modules or remote state used by a module have changed since the previous call to `init`.
 
-As [mentioned](/docs/features/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `tofu init` command.
+As [mentioned](/features/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `tofu init` command.
 
 Note that there might be cases where Terragrunt does not detect that `tofu init` needs to be called. In such cases, OpenTofu/Terraform may fail, and re-running `terragrunt init` can resolve the issue.
 

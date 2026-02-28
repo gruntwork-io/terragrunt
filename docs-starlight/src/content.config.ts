@@ -3,17 +3,6 @@ import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob, file } from 'astro/loaders';
 
-const brands = defineCollection({
-	loader: file("src/data/brands/brands.json"),
-	schema: ({ image }) => z.object({
-		id: z.string(),
-		name: z.string(),
-		logo: image(),
-		alt: z.string(),
-		order: z.number().optional(),
-	}),
-});
-
 const commands = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
 	schema: z.object({
@@ -63,21 +52,6 @@ const flags = defineCollection({
 	}),
 });
 
-const testimonials = defineCollection({
-	loader: file("src/data/testimonials/testimonials.json"),
-	schema: ({ image }) => z.object({
-		id: z.string(),
-		order: z.number().optional(),
-		author: z.string(),
-    title: z.string().optional(),
-    company: z.string().optional(),
-		logo: image().optional(),
-		alt: z.string().optional(),
-    content: z.string(),
-    link: z.string().optional(),
-	}),
-});
-
 const compatibility = defineCollection({
 	loader: file("src/data/compatibility/compatibility.json"),
 	schema: z.object({
@@ -90,4 +64,4 @@ const compatibility = defineCollection({
 	}),
 });
 
-export const collections = { brands, commands, compatibility, docs, flags, testimonials };
+export const collections = { commands, compatibility, docs, flags };

@@ -1,7 +1,7 @@
 ---
 title: Attribute Expressions
 description: Match units and stacks by their configuration attributes
-slug: docs/features/filter/attributes
+slug: features/filter/attributes
 sidebar:
   order: 4
 ---
@@ -82,8 +82,8 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
-For example, you may be using a bash script to read a file via [`run_cmd`](/docs/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
-use-cases, the [`mark_as_read`](/docs/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
+For example, you may be using a bash script to read a file via [`run_cmd`](/reference/hcl/functions/#run_cmd), or reading the file via OpenTofu/Terraform code. To support these
+use-cases, the [`mark_as_read`](/reference/hcl/functions/#mark_as_read) function can be used to explicitly mark a file as read in the unit.
 
 That would look something like this:
 

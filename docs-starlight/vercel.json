@@ -1,5 +1,41 @@
 {
   "buildCommand": "bun run build",
   "installCommand": "bun install",
-  "framework": "astro"
+  "framework": "astro",
+  "redirects": [
+    {
+      "source": "/lp/:slug*",
+      "destination": "https://terragrunt.com/lp/:slug*",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-ambassador/:slug*",
+      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "permanent": true
+    },
+    {
+      "source": "/terragrunt-scale/:slug*",
+      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/pagefind/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://terragrunt.webflow.io"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type"
+        }
+      ]
+    }
+  ]
 }

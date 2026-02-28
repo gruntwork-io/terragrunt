@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const CompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode or get the actual list by running the `terragrunt info strict` command."
+const CompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://docs.terragrunt.com/reference/strict-mode or get the actual list by running the `terragrunt info strict` command."
 
 type ControlNames []string
 

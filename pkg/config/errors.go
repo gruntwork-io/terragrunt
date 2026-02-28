@@ -276,10 +276,10 @@ dependency "` + err.targetName + `" {
 }
 
 For more info, see:
-https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
+https://docs.terragrunt.com/features/stacks/#unapplied-dependency-and-mock-outputs
 
 If you do not require outputs from your dependency, consider using the dependencies block instead:
-https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+https://docs.terragrunt.com/reference/config-blocks-and-attributes/#dependencies
 `
 
 	return fmt.Sprintf(

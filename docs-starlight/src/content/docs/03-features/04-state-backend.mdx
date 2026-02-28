@@ -1,7 +1,7 @@
 ---
 title: State Backend
 description: Learn how Terragrunt can create and manage remote state backends.
-slug: docs/features/state-backend
+slug: features/state-backend
 sidebar:
   order: 4
 ---
@@ -107,7 +107,7 @@ include "root" {
 
 The `include` block tells Terragrunt to use an identical Terragrunt configuration from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
-The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [tofu/terraform init](https://opentofu.org/docs/cli/commands/init/).
+The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren't configured already, by calling [tofu/terraform init](https://opentofu.org/docs/cli/commands/init/).
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
@@ -115,7 +115,7 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 - `path_relative_to_include()`: This function returns the relative path between the unit and the path specified in its `include` block. We typically use this in a root `root.hcl` file so that each unit stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` unit will have its `key` parameter resolve to `mysql/tofu.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/tofu.tfstate`.
 
-Read [Functions docs](/docs/reference/hcl/functions) for more info.
+Read [Functions docs](/reference/hcl/functions) for more info.
 
 ## Create remote state resources automatically
 
@@ -129,7 +129,7 @@ bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if y
 bucket?
 
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
-block](/docs/reference/hcl/blocks/#remote_state).
+block](/reference/hcl/blocks/#remote_state).
 
 > **NOTE**
 >
@@ -148,7 +148,7 @@ for automated management of remote state resources, we recommend sticking to `ge
 
 When you run `terragrunt` with a `remote_state` configuration, it will automatically create the following resources if they don’t already exist:
 
-- **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
+- **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
   In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
 
@@ -158,7 +158,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
 
-- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don’t specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
+- **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn't already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don't specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
 
   We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
 
@@ -305,6 +305,6 @@ Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `e
 
 ## Further reading
 
-Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
+Managing your remote state like this is really valuable when you organize your units into a [stack](/features/stacks).
 
 Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state can interact with each other.

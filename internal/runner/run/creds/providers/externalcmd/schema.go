@@ -58,7 +58,7 @@ func generateResponseSchema() *jsonschema.Schema {
 	schema := reflector.Reflect(&Response{})
 	schema.Description = "Schema for the JSON response expected from an auth provider command"
 	schema.Title = "Terragrunt Auth Provider Command Response Schema"
-	schema.ID = "https://terragrunt.gruntwork.io/schemas/auth-provider-cmd/v1/schema.json"
+	schema.ID = "https://docs.terragrunt.com/schemas/auth-provider-cmd/v1/schema.json"
 
 	return schema
 }

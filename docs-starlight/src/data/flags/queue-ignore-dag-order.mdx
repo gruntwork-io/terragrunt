@@ -6,8 +6,8 @@ env:
   - TG_QUEUE_IGNORE_DAG_ORDER
 ---
 
-When enabled, Terragrunt will ignore the dependency order when running commands with [`--all`](/docs/reference/cli/commands/run#all). This means units will be executed in arbitrary order, which can be useful for read-only operations like `plan`.
+When enabled, Terragrunt will ignore the dependency order when running commands with [`--all`](/reference/cli/commands/run#all). This means units will be executed in arbitrary order, which can be useful for read-only operations like `plan`.
 
 Note that this can lead to errors if used with commands that modify state, as dependencies might be processed in the wrong order.
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+To learn more about how to use this flag, see the [Stacks](/features/stacks) feature documentation.

@@ -29,7 +29,7 @@ func TestTipDebuggingDocsShownOnError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, stderr, "TIP (debugging-docs): For help troubleshooting errors")
-	assert.Contains(t, stderr, "terragrunt.gruntwork.io/docs/troubleshooting/debugging")
+	assert.Contains(t, stderr, "docs.terragrunt.com/troubleshooting/debugging")
 }
 
 // TestTipDebuggingDocsNotShownWithNoTips verifies that the debugging-docs tip

@@ -1,7 +1,7 @@
 ---
 title: Combining Expressions
 description: Combine filter expressions using negation, intersection, and union operators
-slug: docs/features/filter/combining
+slug: features/filter/combining
 sidebar:
   order: 7
 ---
@@ -89,7 +89,7 @@ terragrunt find --filter './dev/** | type=unit | !name=unit1'
 
 ### Path resolution in intersection chains
 
-In an intersection chain (`A | B | C`), the left-most expression determines which [**components**](/docs/getting-started/terminology#component) flow through the rest of the chain. Each component carries its own **discovery context**, including a working directory where the component was discovered.
+In an intersection chain (`A | B | C`), the left-most expression determines which [**components**](/getting-started/terminology#component) flow through the rest of the chain. Each component carries its own **discovery context**, including a working directory where the component was discovered.
 
 Relative path expressions (like `./apps/*`) in any part of the chain resolve against the working directory of the component's discovery context — **not** the user's current working directory. These two are the same when discovering components in the current working directory.
 
@@ -98,7 +98,7 @@ Relative path expressions (like `./apps/*`) in any part of the chain resolve aga
 terragrunt run --working-dir prod --filter './units/** | unit1'
 ```
 
-When using [Git expressions](/docs/features/filter/git), components are discovered in temporary Git worktrees (see [How it works](/docs/features/filter/git#how-it-works) for more details. As such, relative paths resolve relative to the root of the Git worktree where the component was discovered.
+When using [Git expressions](/features/filter/git), components are discovered in temporary Git worktrees (see [How it works](/features/filter/git#how-it-works) for more details. As such, relative paths resolve relative to the root of the Git worktree where the component was discovered.
 
 ```bash
 # Note that we still need to specify 'prod' here in the path.
@@ -166,12 +166,12 @@ The result will be the components that are not units _and_ are named `unit1`.
 This means that you should be able to expect negative filters to take effect regardless of how other positive filters may result in the addition of results.
 
 <Aside type="tip" title="Using Negated Expressions">
-If you have infrastructure that you _never_ want to run, you can consider leveraging the [`--filters-file`](/docs/features/filter/filters-file) to automatically negate them.
+If you have infrastructure that you _never_ want to run, you can consider leveraging the [`--filters-file`](/features/filter/filters-file) to automatically negate them.
 </Aside>
 
 ### Unions with Git expressions
 
-Union deduplication in filter results is based on the **absolute path** of each discovered component. When combining [Git expressions](/docs/features/filter/git) with non-Git expressions in a union, it might seem like the same unit has appeared twice.
+Union deduplication in filter results is based on the **absolute path** of each discovered component. When combining [Git expressions](/features/filter/git) with non-Git expressions in a union, it might seem like the same unit has appeared twice.
 e.g.
 
 ```bash
@@ -191,7 +191,7 @@ terragrunt run --all --filters-file /tmp/diffs.txt -- plan
 
 <Aside type="tip" title="Explicit path filters">
 
-Note the use of `awk` here to wrap paths in `{}`. This is to explicitly mark the paths as [path expressions](/docs/features/filter/path). This is only necessary for disambiguation between [path expressions](/docs/features/filter/path) and [name expressions](/docs/features/filter/name). If you aren't concerned with this ambiguity, you can omit this step.
+Note the use of `awk` here to wrap paths in `{}`. This is to explicitly mark the paths as [path expressions](/features/filter/path). This is only necessary for disambiguation between [path expressions](/features/filter/path) and [name expressions](/features/filter/name). If you aren't concerned with this ambiguity, you can omit this step.
 
 </Aside>
 
