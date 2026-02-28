@@ -417,7 +417,6 @@ func TestEmptyDir(t *testing.T) {
 	}
 }
 
-//nolint:funlen
 func TestWalkWithSimpleSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create a temporary test directory structure
@@ -476,24 +475,9 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
-
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
-		}
-	}
+	assert.Equal(t, expectedPaths, paths)
 }
 
-//nolint:funlen
 func TestWalkWithCircularSymlinks(t *testing.T) {
 	t.Parallel()
 	// Create temporary test directory structure
@@ -562,21 +546,7 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	}
 	sort.Strings(expectedPaths)
 
-	if len(paths) != len(expectedPaths) {
-		t.Errorf("Got %d paths, expected %d", len(paths), len(expectedPaths))
-	}
-
-	for expectedPath := range expectedPaths {
-		if expectedPath >= len(paths) {
-			t.Errorf("Missing expected path: %s", expectedPaths[expectedPath])
-
-			continue
-		}
-
-		if paths[expectedPath] != expectedPaths[expectedPath] {
-			t.Errorf("Path mismatch at index %d:\ngot:  %s\nwant: %s", expectedPath, paths[expectedPath], expectedPaths[expectedPath])
-		}
-	}
+	assert.Equal(t, expectedPaths, paths)
 }
 
 func TestWalkDirWithSymlinksErrors(t *testing.T) {
@@ -596,6 +566,54 @@ func TestWalkDirWithSymlinksErrors(t *testing.T) {
 	require.Error(t, util.WalkDirWithSymlinks(tempDir, func(_ string, _ fs.DirEntry, err error) error {
 		return err
 	}))
+}
+
+// TestWalkDirWithSymlinksRoot verifies that when a symlink directory is passed as root,
+// the callback receives logical (symlink-preserving) paths, not resolved physical paths.
+// This is the core scenario fixed by https://github.com/gruntwork-io/terragrunt/issues/5314
+func TestWalkDirWithSymlinksRoot(t *testing.T) {
+	t.Parallel()
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	tempDir, err := filepath.EvalSymlinks(tempDir)
+	require.NoError(t, err)
+
+	// Create actual directory with a file and nested subdirectory
+	actualDir := filepath.Join(tempDir, "actual")
+	require.NoError(t, os.MkdirAll(filepath.Join(actualDir, "subdir"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(actualDir, "test.txt"), []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(actualDir, "subdir", "nested.txt"), []byte("nested"), 0644))
+
+	// Create symlink pointing to actual
+	symlinkDir := filepath.Join(tempDir, "symlink")
+	require.NoError(t, os.Symlink(actualDir, symlinkDir))
+
+	// Walk using the symlink as root
+	var paths []string
+
+	err = util.WalkDirWithSymlinks(symlinkDir, func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		paths = append(paths, filepath.ToSlash(path))
+
+		return nil
+	})
+	require.NoError(t, err)
+
+	sort.Strings(paths)
+
+	// Verify all expected paths are present with symlink-based locations
+	expectedPaths := []string{
+		filepath.ToSlash(symlinkDir),
+		filepath.ToSlash(filepath.Join(symlinkDir, "subdir")),
+		filepath.ToSlash(filepath.Join(symlinkDir, "subdir", "nested.txt")),
+		filepath.ToSlash(filepath.Join(symlinkDir, "test.txt")),
+	}
+	sort.Strings(expectedPaths)
+
+	assert.Equal(t, expectedPaths, paths)
 }
 
 func Test_sanitizePath(t *testing.T) {

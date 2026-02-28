@@ -1023,6 +1023,11 @@ func evalRealPathForWalkDir(currentPath string) (string, bool, error) {
 // and calling the provided function for each file or directory encountered. It handles both regular
 // symlinks and circular symlinks without getting into infinite loops.
 //
+// Unlike filepath.WalkDir, callback paths are logical (symlink-preserving) - if root is a symlink,
+// paths use the symlink location, not the resolved physical target. This is important for callers
+// like find_in_parent_folders() that need to traverse the symlink's parent chain.
+// When root is not a symlink, behavior matches filepath.WalkDir except that symlinks are followed.
+//
 //nolint:funlen
 func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 	// pathPair keeps track of both the physical (real) path on disk
@@ -1032,9 +1037,11 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 		logical  string
 	}
 
-	// visited tracks symlink paths to prevent circular references
-	// key is combination of realPath:symlinkPath
-	visited := make(map[string]bool)
+	// visitKey identifies a unique symlink traversal (resolved target + physical entry point)
+	// to prevent infinite loops while allowing the same target via different symlinks.
+	type visitKey struct{ physical, entry string }
+
+	visited := make(map[visitKey]bool)
 
 	// visitedLogical tracks logical paths to prevent duplicates
 	// when the same directory is reached through different symlinks
@@ -1044,17 +1051,17 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 	walkFn = func(pair pathPair) error {
 		return filepath.WalkDir(pair.physical, func(currentPath string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return externalWalkFn(currentPath, d, err)
-			}
-
-			// Convert the current physical path to a logical path relative to the walk root
-			rel, err := filepath.Rel(pair.physical, currentPath)
-			if err != nil {
-				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, err)
+			// Compute logical path first so error callbacks also receive it.
+			rel, relErr := filepath.Rel(pair.physical, currentPath)
+			if relErr != nil {
+				return errors.Errorf("failed to get relative path between %s and %s: %w", pair.physical, currentPath, relErr)
 			}
 
 			logicalPath := filepath.Join(pair.logical, rel)
+
+			if err != nil {
+				return externalWalkFn(logicalPath, d, err)
+			}
 
 			// Call the provided function only if we haven't seen this logical path before
 			if !visitedLogical[logicalPath] {
@@ -1072,13 +1079,12 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 					return evalErr
 				}
 
-				// Skip if we've seen this symlink->target combination before
-				// This prevents infinite loops with circular symlinks
-				if visited[realPath+":"+currentPath] {
+				key := visitKey{realPath, currentPath}
+				if visited[key] {
 					return nil
 				}
 
-				visited[realPath+":"+currentPath] = true
+				visited[key] = true
 
 				// If the target is a directory, recursively walk it
 				if isDir {
@@ -1093,15 +1099,19 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 		})
 	}
 
+	// Clean root so the logical path stored below is normalized.
+	root = filepath.Clean(root)
+
 	realRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return errors.Errorf("failed to evaluate symlinks for %s: %w", root, err)
 	}
 
-	// Start the walk from the root directory
+	// Use `root` (not `realRoot`) as the logical path so callbacks see symlink-preserving paths.
+	// Fix for https://github.com/gruntwork-io/terragrunt/issues/5314
 	return walkFn(pathPair{
 		physical: realRoot,
-		logical:  realRoot,
+		logical:  root,
 	})
 }
 

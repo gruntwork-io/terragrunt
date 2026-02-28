@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Discover performs the full discovery process.
+// Discover discovers Terragrunt configurations in the WorkingDir.
 func (d *Discovery) Discover(
 	ctx context.Context,
 	l log.Logger,
