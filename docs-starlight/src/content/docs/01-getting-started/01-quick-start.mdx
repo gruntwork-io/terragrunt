@@ -362,10 +362,10 @@ You can also see what to expect in your filesystem at each step [here](https://g
 
    Don't worry if that doesn't make sense right now. The important thing to know is that Terragrunt uses the DAG to determine the order in which it performs runs across your stack. Once you see how Terragrunt uses the DAG to determine the order in which to run commands across your stack, you'll understand why this is important.
 
-   For example, let's say that the `content` of the `bar` unit depended on the `content` of the `foo` unit. You can express this dependency first by adding an `output` block to the `shared` module:
+   For example, let's say that the `content` of the `bar` unit depended on the `content` of the `foo` unit. You can express this dependency first by adding an `output` block to the `foo` module:
 
    ```hcl
-   # shared/output.tf
+   # foo/output.tf
    output "content" {
      value = local_file.file.content
    }
