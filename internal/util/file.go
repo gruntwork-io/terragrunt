@@ -564,17 +564,18 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
-	contents, err := os.ReadFile(source)
+	file, err := os.Open(source)
 	if err != nil {
 		return errors.New(err)
 	}
+	defer file.Close()
 
-	return WriteFileWithSamePermissions(source, destination, contents)
+	return WriteFileWithSamePermissions(source, destination, file)
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
 // using the same permissions as the file at source.
-func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
+func WriteFileWithSamePermissions(source string, destination string, contents io.Reader) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
 		return errors.New(err)
@@ -588,7 +589,14 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 		}
 	}
 
-	return os.WriteFile(destination, contents, fileInfo.Mode())
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(file, contents)
+
+	return err
 }
 
 // ContainsPath returns true if path contains the given subpath
