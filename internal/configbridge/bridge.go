@@ -62,6 +62,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
+	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
 }
 
 // ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.

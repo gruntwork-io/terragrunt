@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
@@ -65,11 +66,6 @@ const (
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
-	defaultProviderCacheRegistryNames = []string{
-		"registry.terraform.io",
-		"registry.opentofu.org",
-	}
-
 	TerraformCommandsWithSubcommand = []string{
 		"debug",
 		"force-unlock",
@@ -88,7 +84,6 @@ type ctxKey byte
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
@@ -109,14 +104,12 @@ type TerragruntOptions struct {
 	SourceMap map[string]string
 	// Environment variables at runtime
 	Env map[string]string
+	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
+	TerraformCliArgs *iacargs.IacArgs
+	// Writers holds the stdout and stderr writers for Terragrunt output.
+	Writers writer.Writers
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
-	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions iam.RoleOptions
-	// IAM Role options set from command line.
-	OriginalIAMRoleOptions iam.RoleOptions
-	// The Token for authentication to the Terragrunt Provider Cache server.
-	ProviderCacheToken string
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 	// StackOutputFormat format how the stack output is rendered.
@@ -140,8 +133,6 @@ type TerragruntOptions struct {
 	TofuImplementation tfimpl.Type
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
-	// The path to store unpacked providers.
-	ProviderCacheDir string
 	// The command and arguments that can be used to fetch authentication configurations.
 	AuthProviderCmd string
 	// Folder to store JSON representation of output files.
@@ -150,8 +141,6 @@ type TerragruntOptions struct {
 	OutputFolder string
 	// The file which hclfmt should be specifically run on
 	HclFile string
-	// The hostname of the Terragrunt Provider Cache server.
-	ProviderCacheHostname string
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
@@ -170,12 +159,12 @@ type TerragruntOptions struct {
 	ReportFormat report.Format
 	// Path to the report schema file.
 	ReportSchemaFile string
-	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs *iacargs.IacArgs
+	// IAM Role options that should be used when authenticating to AWS.
+	IAMRoleOptions iam.RoleOptions
+	// IAM Role options set from command line.
+	OriginalIAMRoleOptions iam.RoleOptions
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
-	// The list of remote registries to cached by Terragrunt Provider Cache server.
-	ProviderCacheRegistryNames []string
 	// If set hclfmt will skip files in given directories.
 	HclExclude []string
 	// Variables for usage in scaffolding.
@@ -190,12 +179,12 @@ type TerragruntOptions struct {
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 	// Tips is a collection of tips that can be shown to users.
 	Tips tips.Tips `clone:"shadowcopy"`
+	// ProviderCacheOptions groups all provider-cache-related configuration.
+	ProviderCacheOptions pcoptions.ProviderCacheOptions
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
-	// The port of the Terragrunt Provider Cache server.
-	ProviderCachePort int
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -220,8 +209,6 @@ type TerragruntOptions struct {
 	Check bool
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
-	// Enables Terragrunt's provider caching.
-	ProviderCache bool
 	// True if is required to show dependent units and confirm action
 	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
@@ -319,29 +306,29 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		Writers:                    writer.Writers{Writer: stdout, ErrWriter: stderr},
-		TFPath:                     DefaultWrappedPath,
-		ExcludesFile:               defaultExcludesFile,
-		FiltersFile:                defaultFiltersFile,
-		AutoInit:                   true,
-		RunAllAutoApprove:          true,
-		Env:                        map[string]string{},
-		SourceMap:                  map[string]string{},
-		TerraformCliArgs:           iacargs.New(),
-		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
-		AutoRetry:                  true,
-		Parallelism:                DefaultParallelism,
-		JSONOut:                    DefaultJSONOutName,
-		TofuImplementation:         tfimpl.Unknown,
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Tips:                       tips.NewTips(),
-		Telemetry:                  new(telemetry.Options),
-		EngineOptions:              new(engine.EngineOptions),
-		VersionManagerFileName:     defaultVersionManagerFileName,
+		Writers:                writer.Writers{Writer: stdout, ErrWriter: stderr},
+		TFPath:                 DefaultWrappedPath,
+		ExcludesFile:           defaultExcludesFile,
+		FiltersFile:            defaultFiltersFile,
+		AutoInit:               true,
+		RunAllAutoApprove:      true,
+		Env:                    map[string]string{},
+		SourceMap:              map[string]string{},
+		TerraformCliArgs:       iacargs.New(),
+		MaxFoldersToCheck:      DefaultMaxFoldersToCheck,
+		AutoRetry:              true,
+		Parallelism:            DefaultParallelism,
+		JSONOut:                DefaultJSONOutName,
+		TofuImplementation:     tfimpl.Unknown,
+		ProviderCacheOptions:   pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
+		FeatureFlags:           xsync.NewMapOf[string, string](),
+		Errors:                 defaultErrorsConfig(),
+		StrictControls:         controls.New(),
+		Experiments:            experiment.NewExperiments(),
+		Tips:                   tips.NewTips(),
+		Telemetry:              new(telemetry.Options),
+		EngineOptions:          new(engine.EngineOptions),
+		VersionManagerFileName: defaultVersionManagerFileName,
 	}
 }
 

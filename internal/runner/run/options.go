@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -115,9 +116,9 @@ func NewOptions(opts *options.TerragruntOptions) *Options {
 		BackendBootstrap:             opts.BackendBootstrap,
 		Telemetry:                    opts.Telemetry,
 		AuthProviderCmd:              opts.AuthProviderCmd,
-		ProviderCacheToken:           opts.ProviderCacheToken,
-		ProviderCacheDir:             opts.ProviderCacheDir,
-		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
+		ProviderCacheToken:           opts.ProviderCacheOptions.Token,
+		ProviderCacheDir:             opts.ProviderCacheOptions.Dir,
+		ProviderCacheRegistryNames:   opts.ProviderCacheOptions.RegistryNames,
 		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
@@ -164,9 +165,11 @@ func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
 		BackendBootstrap:             o.BackendBootstrap,
 		Telemetry:                    o.Telemetry,
 		AuthProviderCmd:              o.AuthProviderCmd,
-		ProviderCacheToken:           o.ProviderCacheToken,
-		ProviderCacheDir:             o.ProviderCacheDir,
-		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
+		ProviderCacheOptions: pcoptions.ProviderCacheOptions{
+			Token:         o.ProviderCacheToken,
+			Dir:           o.ProviderCacheDir,
+			RegistryNames: o.ProviderCacheRegistryNames,
+		},
 		MaxFoldersToCheck:            o.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          o.DisableBucketUpdate,
