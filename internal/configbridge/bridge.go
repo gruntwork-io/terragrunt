@@ -6,9 +6,13 @@ package configbridge
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -62,6 +66,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.NoStackValidate = opts.NoStackValidate
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
+	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
 }
 
 // ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
@@ -102,4 +107,81 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.
 func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provider {
 	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
+}
+
+// BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
+func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
+	return &backend.Options{
+		Writers:                      opts.Writers,
+		Env:                          opts.Env,
+		IAMRoleOptions:               opts.IAMRoleOptions,
+		NonInteractive:               opts.NonInteractive,
+		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
+	}
+}
+
+// RemoteStateOptsFromOpts constructs remotestate.Options from TerragruntOptions.
+func RemoteStateOptsFromOpts(opts *options.TerragruntOptions) *remotestate.Options {
+	return &remotestate.Options{
+		Options:             *BackendOptsFromOpts(opts),
+		DisableBucketUpdate: opts.DisableBucketUpdate,
+		TFRunOpts:           TFRunOptsFromOpts(opts),
+	}
+}
+
+// TFRunOptsFromOpts constructs tf.TFOptions from TerragruntOptions.
+func TFRunOptsFromOpts(opts *options.TerragruntOptions) *tf.TFOptions {
+	return &tf.TFOptions{
+		JSONLogFormat:                opts.JSONLogFormat,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		TofuImplementation:           opts.TofuImplementation,
+		TerraformCliArgs:             opts.TerraformCliArgs,
+		ShellOptions:                 ShellRunOptsFromOpts(opts),
+	}
+}
+
+// NewRunOptions creates a run.Options from TerragruntOptions.
+// This replaces the former run.NewOptions(opts) function.
+func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
+	return &run.Options{
+		Writers:                      opts.Writers,
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		WorkingDir:                   opts.WorkingDir,
+		RootWorkingDir:               opts.RootWorkingDir,
+		DownloadDir:                  opts.DownloadDir,
+		TerraformCommand:             opts.TerraformCommand,
+		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
+		TerraformCliArgs:             opts.TerraformCliArgs,
+		Source:                       opts.Source,
+		SourceMap:                    opts.SourceMap,
+		Env:                          opts.Env,
+		IAMRoleOptions:               opts.IAMRoleOptions,
+		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
+		EngineConfig:                 opts.EngineConfig,
+		EngineOptions:                opts.EngineOptions,
+		Errors:                       opts.Errors,
+		Experiments:                  opts.Experiments,
+		StrictControls:               opts.StrictControls,
+		FeatureFlags:                 opts.FeatureFlags,
+		TFPath:                       opts.TFPath,
+		TofuImplementation:           opts.TofuImplementation,
+		ForwardTFStdout:              opts.ForwardTFStdout,
+		JSONLogFormat:                opts.JSONLogFormat,
+		Headless:                     opts.Headless,
+		NonInteractive:               opts.NonInteractive,
+		Debug:                        opts.Debug,
+		AutoInit:                     opts.AutoInit,
+		AutoRetry:                    opts.AutoRetry,
+		BackendBootstrap:             opts.BackendBootstrap,
+		Telemetry:                    opts.Telemetry,
+		AuthProviderCmd:              opts.AuthProviderCmd,
+		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
+		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
+		DisableBucketUpdate:          opts.DisableBucketUpdate,
+		CheckDependentUnits:          opts.CheckDependentUnits,
+		SkipOutput:                   opts.SkipOutput,
+		SourceUpdate:                 opts.SourceUpdate,
+	}
 }

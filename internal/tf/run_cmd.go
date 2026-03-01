@@ -11,7 +11,9 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -42,14 +44,10 @@ var commandsThatNeedPty = []string{
 
 // TFOptions contains the configuration needed to run TF commands.
 type TFOptions struct {
-	ShellOptions *shell.ShellOptions
-
-	// TerragruntOptions is the full options struct. It is needed when the
-	// TerraformCommandHook fires (e.g. for provider caching) because the hook
-	// implementation requires full access to TerragruntOptions.
-	// Callers that only need basic TF command execution may leave this nil,
-	// as long as the TerraformCommandHook is not set in the context.
-	TerragruntOptions *options.TerragruntOptions
+	ShellOptions         *shell.ShellOptions
+	TerraformCliArgs     *iacargs.IacArgs
+	TerragruntConfigPath string
+	TofuImplementation   tfimpl.Type
 
 	OriginalTerragruntConfigPath string
 	JSONLogFormat                bool
@@ -78,8 +76,10 @@ func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
 	return &TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		TerragruntConfigPath:         opts.TerragruntConfigPath,
+		TofuImplementation:           opts.TofuImplementation,
+		TerraformCliArgs:             opts.TerraformCliArgs,
 		ShellOptions:                 shellRunOptsFromOpts(opts),
-		TerragruntOptions:            opts,
 	}
 }
 

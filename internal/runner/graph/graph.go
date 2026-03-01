@@ -29,7 +29,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
-	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, opts); err != nil {
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, configbridge.ShellRunOptsFromOpts(opts)); err != nil {
 		return err
 	}
 

@@ -95,7 +95,7 @@ func PrepareSource(
 	optsClone.TerraformCommand = run.CommandNameTerragruntReadConfig
 
 	if err = optsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return run.ProcessHooks(ctx, l, runCfg.Terraform.AfterHooks, run.NewOptions(optsClone), runCfg, nil, r)
+		return run.ProcessHooks(ctx, l, runCfg.Terraform.AfterHooks, configbridge.NewRunOptions(optsClone), runCfg, nil, r)
 	}); err != nil {
 		return nil, err
 	}
@@ -126,12 +126,12 @@ func PrepareSource(
 		opts.DownloadDir = runCfg.DownloadDir
 	}
 
-	sourceURL, err := runcfg.GetTerraformSourceURL(opts, runCfg)
+	sourceURL, err := runcfg.GetTerraformSourceURL(opts.Source, opts.SourceMap, opts.OriginalTerragruntConfigPath, runCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	runOpts := run.NewOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts)
 
 	var updatedRunOpts *run.Options
 
@@ -162,13 +162,13 @@ func PrepareSource(
 // PrepareGenerate handles code generation configs, both generate blocks and generate attribute of remote_state.
 // It requires PrepareSource to have been called first.
 func PrepareGenerate(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	return run.GenerateConfig(l, run.NewOptions(opts), cfg)
+	return run.GenerateConfig(l, configbridge.NewRunOptions(opts), cfg)
 }
 
 // PrepareInputsAsEnvVars sets terragrunt inputs as environment variables.
 // It requires PrepareGenerate to have been called first.
 func PrepareInputsAsEnvVars(l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig) error {
-	runOpts := run.NewOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
 	if err := run.CheckFolderContainsTerraformCode(runOpts); err != nil {
@@ -187,7 +187,7 @@ func PrepareInit(
 	cfg *runcfg.RunConfig,
 	r *report.Report,
 ) error {
-	runOpts := run.NewOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts)
 
 	// Check for terraform code
 	if err := run.CheckFolderContainsTerraformCode(runOpts); err != nil {
@@ -199,5 +199,5 @@ func PrepareInit(
 	}
 
 	// Run terraform init via the non-init command preparation path
-	return run.PrepareNonInitCommand(ctx, l, run.NewOptions(originalOpts), runOpts, cfg, r)
+	return run.PrepareNonInitCommand(ctx, l, configbridge.NewRunOptions(originalOpts), runOpts, cfg, r)
 }
