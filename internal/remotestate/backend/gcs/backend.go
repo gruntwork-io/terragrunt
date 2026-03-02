@@ -47,7 +47,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 		bucketName = gcsCfg.Bucket
 	)
 
-	client, err := NewClient(ctx, l, extGCSCfg, opts)
+	client, err := NewClient(ctx, extGCSCfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -73,7 +73,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 		return err
 	}
 
-	client, err := NewClient(ctx, l, extGCSCfg, opts)
+	client, err := NewClient(ctx, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 
 	var bucketName = extGCSCfg.RemoteStateConfigGCS.Bucket
 
-	client, err := NewClient(ctx, l, extGCSCfg, opts)
+	client, err := NewClient(ctx, extGCSCfg, opts)
 	if err != nil {
 		return false, err
 	}
@@ -155,7 +155,7 @@ func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendCon
 		dstBucketKey  = path.Join(dstExtGCSCfg.RemoteStateConfigGCS.Prefix, defaultTfState)
 	)
 
-	client, err := NewClient(ctx, l, srcExtGCSCfg, opts)
+	client, err := NewClient(ctx, srcExtGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 		prefix     = extGCSCfg.RemoteStateConfigGCS.Prefix
 	)
 
-	client, err := NewClient(ctx, l, extGCSCfg, opts)
+	client, err := NewClient(ctx, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (backend *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendC
 		return err
 	}
 
-	client, err := NewClient(ctx, l, extGCSCfg, opts)
+	client, err := NewClient(ctx, extGCSCfg, opts)
 	if err != nil {
 		return err
 	}
