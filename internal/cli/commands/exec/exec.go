@@ -72,7 +72,7 @@ func runTargetCommand(
 		dir = opts.RootWorkingDir
 	}
 
-	runOpts := run.NewOptions(opts)
+	runOpts := configbridge.NewRunOptions(opts)
 
 	return run.RunActionWithHooks(ctx, l, command, runOpts, cfg, r, func(ctx context.Context) error {
 		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(opts), dir, false, false, command, cmdArgs...)

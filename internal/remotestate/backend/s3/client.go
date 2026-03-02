@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -79,7 +78,7 @@ type Client struct {
 	failIfBucketCreationRequired bool
 }
 
-func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *options.TerragruntOptions) (*Client, error) {
+func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateConfigS3, opts *backend.Options) (*Client, error) {
 	awsConfig := config.GetAwsSessionConfig()
 
 	builder := awshelper.NewAWSConfigBuilder().
@@ -123,7 +122,7 @@ func NewClient(ctx context.Context, l log.Logger, config *ExtendedRemoteStateCon
 
 // CreateS3BucketIfNecessary prompts the user to create the given bucket if it doesn't already exist and if the user
 // confirms, creates the bucket and enables versioning for it.
-func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.Errorf("client configuration is nil - cannot create S3 bucket if necessary")
 	}
@@ -171,7 +170,7 @@ func (client *Client) CreateS3BucketIfNecessary(ctx context.Context, l log.Logge
 	return nil
 }
 
-func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logger, bucketName string, opts *backend.Options) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, bucketName); err != nil {
 		return err
 	} else if !exists && opts.FailIfBucketCreationRequired {
@@ -271,7 +270,7 @@ func (client *Client) UpdateS3BucketIfNecessary(ctx context.Context, l log.Logge
 }
 
 // configureAccessLogBucket - configure access log bucket.
-func (client *Client) configureAccessLogBucket(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (client *Client) configureAccessLogBucket(ctx context.Context, l log.Logger, opts *backend.Options) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.Errorf("client configuration is nil - cannot configure access log bucket")
 	}
@@ -458,7 +457,7 @@ func (client *Client) CheckIfVersioningEnabled(ctx context.Context, l log.Logger
 }
 
 // CreateS3BucketWithVersioningSSEncryptionAndAccessLogging creates the given S3 bucket and enable versioning for it.
-func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
+func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx context.Context, l log.Logger, opts *backend.Options) error {
 	if client.ExtendedRemoteStateConfigS3 == nil {
 		return errors.Errorf("client configuration is nil - cannot create S3 bucket")
 	}
@@ -538,7 +537,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	return nil
 }
 
-func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.Logger, logsBucketName string, opts *options.TerragruntOptions) error {
+func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.Logger, logsBucketName string, opts *backend.Options) error {
 	if exists, err := client.DoesS3BucketExistWithLogging(ctx, l, logsBucketName); err != nil || exists {
 		return err
 	}

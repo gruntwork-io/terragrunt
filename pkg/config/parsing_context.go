@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -80,6 +80,8 @@ type ParsingContext struct {
 	PartialParseDecodeList []PartialDecodeSectionType
 	ParserOptions          []hclparse.Option
 
+	ProviderCacheOptions pcoptions.ProviderCacheOptions
+
 	MaxFoldersToCheck int
 	ParseDepth        int
 
@@ -100,8 +102,6 @@ type ParsingContext struct {
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
-	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
@@ -131,6 +131,8 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		eo := *ctx.EngineOptions
 		clone.EngineOptions = &eo
 	}
+
+	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
 
 	return &clone
 }

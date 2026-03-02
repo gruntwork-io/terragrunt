@@ -165,8 +165,8 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 	actionCtx := ctx
 
 	// Run provider cache server
-	if opts.ProviderCache {
-		server, err := providercache.InitServer(l, opts)
+	if opts.ProviderCacheOptions.Enabled {
+		server, err := providercache.InitServer(l, &opts.ProviderCacheOptions, opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}
@@ -244,7 +244,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	// Set up the provider cache directory
-	providerCacheDir := opts.ProviderCacheDir
+	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {

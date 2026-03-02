@@ -17,16 +17,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -37,7 +39,6 @@ const (
 // Options contains the configuration needed by run.Run and its helpers.
 // This is a focused subset of options.TerragruntOptions.
 type Options struct {
-	Writers                      writer.Writers
 	TerraformCliArgs             *iacargs.IacArgs
 	EngineConfig                 *engine.EngineConfig
 	EngineOptions                *engine.EngineOptions
@@ -46,134 +47,36 @@ type Options struct {
 	Telemetry                    *telemetry.Options
 	SourceMap                    map[string]string
 	Env                          map[string]string
-	ProviderCacheToken           string
-	ProviderCacheDir             string
-	RootWorkingDir               string
+	Writers                      writer.Writers
+	TFPath                       string
+	TerraformCommand             string
 	TofuImplementation           tfimpl.Type
 	TerragruntConfigPath         string
 	OriginalTerragruntConfigPath string
 	WorkingDir                   string
 	DownloadDir                  string
-	TerraformCommand             string
+	RootWorkingDir               string
 	OriginalTerraformCommand     string
 	Source                       string
-	TFPath                       string
 	AuthProviderCmd              string
-	IAMRoleOptions               iam.RoleOptions
 	OriginalIAMRoleOptions       iam.RoleOptions
-	StrictControls               strict.Controls
-	ProviderCacheRegistryNames   []string
+	IAMRoleOptions               iam.RoleOptions
 	Experiments                  experiment.Experiments
+	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
-	ForwardTFStdout              bool
-	JSONLogFormat                bool
+	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool
 	Debug                        bool
 	AutoInit                     bool
-	AutoRetry                    bool
+	JSONLogFormat                bool
 	BackendBootstrap             bool
 	FailIfBucketCreationRequired bool
 	DisableBucketUpdate          bool
 	CheckDependentUnits          bool
 	SkipOutput                   bool
 	SourceUpdate                 bool
-}
-
-// NewOptions creates an Options from a TerragruntOptions.
-func NewOptions(opts *options.TerragruntOptions) *Options {
-	return &Options{
-		Writers:                      opts.Writers,
-		TerragruntConfigPath:         opts.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		WorkingDir:                   opts.WorkingDir,
-		RootWorkingDir:               opts.RootWorkingDir,
-		DownloadDir:                  opts.DownloadDir,
-		TerraformCommand:             opts.TerraformCommand,
-		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
-		TerraformCliArgs:             opts.TerraformCliArgs,
-		Source:                       opts.Source,
-		SourceMap:                    opts.SourceMap,
-		Env:                          opts.Env,
-		IAMRoleOptions:               opts.IAMRoleOptions,
-		OriginalIAMRoleOptions:       opts.OriginalIAMRoleOptions,
-		EngineConfig:                 opts.EngineConfig,
-		EngineOptions:                opts.EngineOptions,
-		Errors:                       opts.Errors,
-		Experiments:                  opts.Experiments,
-		StrictControls:               opts.StrictControls,
-		FeatureFlags:                 opts.FeatureFlags,
-		TFPath:                       opts.TFPath,
-		TofuImplementation:           opts.TofuImplementation,
-		ForwardTFStdout:              opts.ForwardTFStdout,
-		JSONLogFormat:                opts.JSONLogFormat,
-		Headless:                     opts.Headless,
-		NonInteractive:               opts.NonInteractive,
-		Debug:                        opts.Debug,
-		AutoInit:                     opts.AutoInit,
-		AutoRetry:                    opts.AutoRetry,
-		BackendBootstrap:             opts.BackendBootstrap,
-		Telemetry:                    opts.Telemetry,
-		AuthProviderCmd:              opts.AuthProviderCmd,
-		ProviderCacheToken:           opts.ProviderCacheToken,
-		ProviderCacheDir:             opts.ProviderCacheDir,
-		ProviderCacheRegistryNames:   opts.ProviderCacheRegistryNames,
-		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
-		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:          opts.DisableBucketUpdate,
-		CheckDependentUnits:          opts.CheckDependentUnits,
-		SkipOutput:                   opts.SkipOutput,
-		SourceUpdate:                 opts.SourceUpdate,
-	}
-}
-
-// toTerragruntOptions converts back to *options.TerragruntOptions for downstream
-// packages (shell, tf, remotestate, tflint) that still require it.
-// This is temporary and will be eliminated in a future phase.
-func (o *Options) toTerragruntOptions() *options.TerragruntOptions {
-	return &options.TerragruntOptions{
-		Writers:                      o.Writers,
-		TerragruntConfigPath:         o.TerragruntConfigPath,
-		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
-		WorkingDir:                   o.WorkingDir,
-		RootWorkingDir:               o.RootWorkingDir,
-		DownloadDir:                  o.DownloadDir,
-		TerraformCommand:             o.TerraformCommand,
-		OriginalTerraformCommand:     o.OriginalTerraformCommand,
-		TerraformCliArgs:             o.TerraformCliArgs,
-		Source:                       o.Source,
-		SourceMap:                    o.SourceMap,
-		Env:                          o.Env,
-		IAMRoleOptions:               o.IAMRoleOptions,
-		OriginalIAMRoleOptions:       o.OriginalIAMRoleOptions,
-		EngineConfig:                 o.EngineConfig,
-		EngineOptions:                o.EngineOptions,
-		Errors:                       o.Errors,
-		Experiments:                  o.Experiments,
-		StrictControls:               o.StrictControls,
-		FeatureFlags:                 o.FeatureFlags,
-		TFPath:                       o.TFPath,
-		TofuImplementation:           o.TofuImplementation,
-		ForwardTFStdout:              o.ForwardTFStdout,
-		JSONLogFormat:                o.JSONLogFormat,
-		Headless:                     o.Headless,
-		NonInteractive:               o.NonInteractive,
-		Debug:                        o.Debug,
-		AutoInit:                     o.AutoInit,
-		AutoRetry:                    o.AutoRetry,
-		BackendBootstrap:             o.BackendBootstrap,
-		Telemetry:                    o.Telemetry,
-		AuthProviderCmd:              o.AuthProviderCmd,
-		ProviderCacheToken:           o.ProviderCacheToken,
-		ProviderCacheDir:             o.ProviderCacheDir,
-		ProviderCacheRegistryNames:   o.ProviderCacheRegistryNames,
-		MaxFoldersToCheck:            o.MaxFoldersToCheck,
-		FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
-		DisableBucketUpdate:          o.DisableBucketUpdate,
-		CheckDependentUnits:          o.CheckDependentUnits,
-		SkipOutput:                   o.SkipOutput,
-		SourceUpdate:                 o.SourceUpdate,
-	}
+	ForwardTFStdout              bool
 }
 
 // Clone performs a deep copy of Options.
@@ -298,8 +201,37 @@ func (o *Options) tfRunOptions() *tf.TFOptions {
 	return &tf.TFOptions{
 		JSONLogFormat:                o.JSONLogFormat,
 		OriginalTerragruntConfigPath: o.OriginalTerragruntConfigPath,
+		TerragruntConfigPath:         o.TerragruntConfigPath,
+		TofuImplementation:           o.TofuImplementation,
+		TerraformCliArgs:             o.TerraformCliArgs,
 		ShellOptions:                 o.shellRunOptions(),
-		TerragruntOptions:            o.toTerragruntOptions(),
+	}
+}
+
+// remoteStateOpts builds a *remotestate.Options from this Options.
+func (o *Options) remoteStateOpts() *remotestate.Options {
+	return &remotestate.Options{
+		Options: backend.Options{
+			Writers:                      o.Writers,
+			Env:                          o.Env,
+			IAMRoleOptions:               o.IAMRoleOptions,
+			NonInteractive:               o.NonInteractive,
+			FailIfBucketCreationRequired: o.FailIfBucketCreationRequired,
+		},
+		TFRunOpts:           o.tfRunOptions(),
+		DisableBucketUpdate: o.DisableBucketUpdate,
+	}
+}
+
+// tflintRunOptions builds a *tflint.TFLintOptions from this Options.
+func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
+	return &tflint.TFLintOptions{
+		ShellOptions:         o.shellRunOptions(),
+		Writers:              o.Writers,
+		WorkingDir:           o.WorkingDir,
+		RootWorkingDir:       o.RootWorkingDir,
+		TerragruntConfigPath: o.TerragruntConfigPath,
+		MaxFoldersToCheck:    o.MaxFoldersToCheck,
 	}
 }
 

@@ -212,7 +212,7 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, opts.toTerragruntOptions(), cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, opts.tflintRunOptions(), cfg, curHook)
 	if err != nil {
 		l.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 		return err

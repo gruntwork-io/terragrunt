@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,19 +90,17 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tgOpts, err := options.NewTerragruntOptionsForTest("mock.hcl")
-			require.NoError(t, err)
-
-			tgOpts.BackendBootstrap = tc.backendBootstrap
-
-			opts := NewOptions(tgOpts)
+			opts := &Options{
+				BackendBootstrap: tc.backendBootstrap,
+				TerraformCliArgs: iacargs.New(),
+			}
 
 			var cfg runcfg.RunConfig
 			if tc.remoteStateCfg != nil {
 				cfg.RemoteState = *remotestate.New(tc.remoteStateCfg)
 			}
 
-			err = prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
+			err := prepareInitCommandRunCfg(t.Context(), logger.CreateLogger(), opts, &cfg)
 
 			require.NoError(t, err)
 
