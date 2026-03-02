@@ -30,7 +30,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -130,7 +129,7 @@ func Run(
 	}
 
 	// get the default download dir
-	_, defaultDownloadDir := options.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+	_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
 
 	// if the download dir hasn't been changed from default, and is set in the config,
 	// then use it

@@ -1108,8 +1108,7 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 func testDownloadDir(tb testing.TB, configPath string) string {
 	tb.Helper()
 
-	_, downloadDir, err := util.DefaultWorkingAndDownloadDirs(configPath)
-	require.NoError(tb, err)
+	_, downloadDir := util.DefaultWorkingAndDownloadDirs(configPath)
 
 	return downloadDir
 }
