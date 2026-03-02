@@ -17,6 +17,11 @@
       "source": "/terragrunt-scale/:slug*",
       "destination": "https://terragrunt.com/terragrunt-scale/:slug*",
       "permanent": true
+    },
+    {
+      "source": "/contact-tgs/:slug*",
+      "destination": "https://terragrunt.com/contact-tgs/:slug*",
+      "permanent": true
     }
   ],
   "headers": [
