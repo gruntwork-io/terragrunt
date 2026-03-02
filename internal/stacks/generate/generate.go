@@ -427,7 +427,7 @@ func worktreeStacksToGenerate(
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.
 func stackTypeFilter() filter.Filters {
-	attrExpr, _ := filter.NewAttributeExpression(filter.AttributeType, filter.AttributeTypeValueStack)
+	attrExpr := filter.NewTypeExpression(component.StackKind)
 
 	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
 }
