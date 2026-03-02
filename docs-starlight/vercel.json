@@ -25,7 +25,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://terragrunt.webflow.io"
+          "value": "https://terragrunt.com"
         },
         {
           "key": "Access-Control-Allow-Methods",
