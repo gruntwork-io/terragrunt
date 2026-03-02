@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "docs-starlight",
+      "name": "docs",
       "dependencies": {
         "@astrojs/markdown-remark": "6.3.10",
         "@astrojs/partytown": "^2.1.4",

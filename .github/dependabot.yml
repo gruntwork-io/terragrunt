@@ -42,4 +42,4 @@ updates:
     ignore:
       - dependency-name: "@astrojs/starlight"
         # Custom patch applied - manual updates required
-        # When updating, you have to manually update the patch in the docs-starlight/package.json
+        # When updating, you have to manually update the patch in the docs/package.json
