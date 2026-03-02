@@ -41,13 +41,13 @@ Version compatibility data is available via JSON API:
 | Endpoint | Description |
 |----------|-------------|
 | `/api/v1/compatibility` | All entries |
-| `/api/v1/compatibility?tool=opentofu` | OpenTofu only |
-| `/api/v1/compatibility?tool=terraform` | Terraform only |
+| `/api/v1/compatibility/opentofu` | OpenTofu only |
+| `/api/v1/compatibility/terraform` | Terraform only |
 
 **Example:**
 
 ```bash
-curl https://terragrunt.gruntwork.io/api/v1/compatibility?tool=opentofu
+curl https://terragrunt.gruntwork.io/api/v1/compatibility/opentofu
 ```
 
 **Response format:**
