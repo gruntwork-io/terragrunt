@@ -15,7 +15,7 @@
     },
     {
       "source": "/terragrunt-scale/:slug*",
-      "destination": "https://terragrunt.com/terragrunt-ambassador/:slug*",
+      "destination": "https://terragrunt.com/terragrunt-scale/:slug*",
       "permanent": true
     }
   ],

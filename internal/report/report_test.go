@@ -766,7 +766,7 @@ func TestWriteJSON(t *testing.T) {
 const ExpectedSchema = `{
   "items": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://docs.terragrunt.com/schemas/run/report/v3/schema.json",
+    "$id": "https://docs.terragrunt.com/schemas/run/report/v4/schema.json",
     "properties": {
       "Started": {
         "type": "string",
@@ -904,7 +904,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 				"schemas",
 				"run",
 				"report",
-				"v3",
+				"v4",
 				"schema.json",
 			),
 		},

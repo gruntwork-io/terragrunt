@@ -8,7 +8,7 @@ sidebar:
 
 import { Code } from '@astrojs/starlight/components';
 
-import authProviderCmdSchema from '../../../../public/schemas/auth-provider-cmd/v1/schema.json?raw';
+import authProviderCmdSchema from '../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
 
 ## Motivation
 
@@ -125,7 +125,7 @@ terragrunt apply
 
 When Terragrunt executes this script, it will expect a response in stdout that obeys the following schema:
 
-<Code title="auth-provider-cmd/v1/schema.json" lang="json" code={authProviderCmdSchema} />
+<Code title="auth-provider-cmd/v2/schema.json" lang="json" code={authProviderCmdSchema} />
 
 All top-level objects are optional, and you can provide multiple.
 
