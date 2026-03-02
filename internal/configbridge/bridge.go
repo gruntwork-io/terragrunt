@@ -9,8 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
-	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -69,24 +67,6 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions
 }
 
-// ShellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
-// Exported so configbridge callbacks and external callers can use it.
-func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         pctx.Writers,
-		WorkingDir:      pctx.WorkingDir,
-		Env:             pctx.Env,
-		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.EngineConfig,
-		EngineOptions:   pctx.EngineOptions,
-		Experiments:     pctx.Experiments,
-		Telemetry:       pctx.Telemetry,
-		RootWorkingDir:  pctx.RootWorkingDir,
-		Headless:        pctx.Headless,
-		ForwardTFStdout: pctx.ForwardTFStdout,
-	}
-}
-
 // ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
 func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 	return &shell.ShellOptions{
@@ -102,11 +82,6 @@ func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
 		Headless:        opts.Headless,
 		ForwardTFStdout: opts.ForwardTFStdout,
 	}
-}
-
-// NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.
-func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provider {
-	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
 }
 
 // BackendOptsFromOpts constructs backend.Options from TerragruntOptions.
