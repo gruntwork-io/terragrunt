@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
@@ -80,7 +81,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Limit graph to the working directory and its dependents.
 	// The prefix ellipsis means "include dependents"; target is included by default.
-	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
+	pathExpr, err := filter.NewPathFilter(opts.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("failed to create path filter for %s: %w", opts.WorkingDir, err)
+	}
+
+	graphExpr := filter.NewGraphExpression(pathExpr).WithDependents()
+	graphOpts.Filters = filter.Filters{filter.NewFilter(graphExpr, graphExpr.String())}
 
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck

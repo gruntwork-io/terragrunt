@@ -155,8 +155,6 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 		MaxFoldersToCheck:            opts.MaxFoldersToCheck,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
-		CheckDependentUnits:          opts.CheckDependentUnits,
-		SkipOutput:                   opts.SkipOutput,
 		SourceUpdate:                 opts.SourceUpdate,
 	}
 }

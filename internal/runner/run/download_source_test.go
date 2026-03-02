@@ -486,8 +486,11 @@ func createConfig(
 		},
 	}
 
-	_, err = run.PopulateTFVersion(t.Context(), logger, opts)
+	_, ver, impl, err := run.PopulateTFVersion(t.Context(), logger, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
 	require.NoError(t, err)
+
+	opts.TerraformVersion = ver
+	opts.TofuImplementation = impl
 
 	return terraformSource, opts, cfg, err
 }

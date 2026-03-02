@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-version"
 )
 
@@ -32,38 +31,33 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
-// PopulateTFVersion populates the currently installed version of OpenTofuTerraform into the given terragruntOptions.
-//
-// The caller also gets a copy of the logger with the config path set.
-func PopulateTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, error) {
+// PopulateTFVersion discovers the currently installed version of OpenTofu/Terraform.
+// It uses a cache keyed by workingDir and versionFiles to avoid repeated invocations.
+// Returns the discovered version and implementation type; the caller is responsible
+// for storing them on *options.TerragruntOptions.
+func PopulateTFVersion(ctx context.Context, l log.Logger, workingDir string, versionFiles []string, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
 	versionCache := GetRunVersionCache(ctx)
-	cacheKey := computeVersionFilesCacheKey(opts.WorkingDir, opts.VersionManagerFileName)
+	cacheKey := computeVersionFilesCacheKey(workingDir, versionFiles)
 	l.Debugf("using cache key for version files: %s", cacheKey)
 
 	if cachedOutput, found := versionCache.Get(ctx, cacheKey); found {
 		tfImplementation, terraformVersion, err := parseVersionFromCache(cachedOutput)
 		if err != nil {
-			return l, err
+			return l, nil, tfimpl.Unknown, err
 		}
 
-		opts.TerraformVersion = terraformVersion
-		opts.TofuImplementation = tfImplementation
-
-		return l, nil
+		return l, terraformVersion, tfImplementation, nil
 	}
 
-	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, opts)
+	l, terraformVersion, tfImplementation, err := GetTFVersion(ctx, l, tfOpts)
 	if err != nil {
-		return l, err
+		return l, nil, tfimpl.Unknown, err
 	}
 
 	cacheData := formatVersionForCache(tfImplementation, terraformVersion)
 	versionCache.Put(ctx, cacheKey, cacheData)
 
-	opts.TerraformVersion = terraformVersion
-	opts.TofuImplementation = tfImplementation
-
-	return l, nil
+	return l, terraformVersion, tfImplementation, nil
 }
 
 // formatVersionForCache formats the implementation and version for the cache
@@ -114,24 +108,29 @@ func parseVersionFromCache(cachedData string) (tfimpl.Type, *version.Version, er
 }
 
 // GetTFVersion checks the OpenTofu/Terraform version directly without using cache.
-// This function can be used independently when you need to check the version without
-// populating or using the version cache.
-func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
-	_, optsCopy, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
-	if err != nil {
-		return l, nil, tfimpl.Unknown, err
-	}
+// It takes pre-built *tf.TFOptions and runs "terraform version", discarding output
+// and stripping TF_CLI_ARGS env vars to avoid interference.
+func GetTFVersion(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (log.Logger, *version.Version, tfimpl.Type, error) {
+	// Clone to avoid mutating the caller's options.
+	optsCopy := *tfOpts
+	shellCopy := *optsCopy.ShellOptions
+	optsCopy.ShellOptions = &shellCopy
 
-	optsCopy.Writers.Writer = io.Discard
-	optsCopy.Writers.ErrWriter = io.Discard
+	// Discard output — we only need the parsed version string.
+	optsCopy.ShellOptions.Writers.Writer = io.Discard
+	optsCopy.ShellOptions.Writers.ErrWriter = io.Discard
 
-	for key := range optsCopy.Env {
-		if strings.HasPrefix(key, "TF_CLI_ARGS") {
-			delete(optsCopy.Env, key)
+	// Remove TF_CLI_ARGS* so they don't interfere with "--version".
+	envCopy := make(map[string]string, len(shellCopy.Env))
+	for key, val := range shellCopy.Env {
+		if !strings.HasPrefix(key, "TF_CLI_ARGS") {
+			envCopy[key] = val
 		}
 	}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tf.TFOptionsFromOpts(optsCopy), tf.FlagNameVersion)
+	optsCopy.ShellOptions.Env = envCopy
+
+	output, err := tf.RunCommandWithOutput(ctx, l, &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}
@@ -155,18 +154,6 @@ func GetTFVersion(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 	}
 
 	return l, terraformVersion, tfImplementation, nil
-}
-
-// CheckTerraformVersion checks that the currently installed Terraform version works meets the specified version constraint and return an error
-// if it doesn't
-func CheckTerraformVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
-	return CheckTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
-}
-
-// CheckTerragruntVersion checks that the currently running Terragrunt version meets the specified version constraint and return an error
-// if it doesn't
-func CheckTerragruntVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
-	return CheckTerragruntVersionMeetsConstraint(terragruntOptions.TerragruntVersion, constraint)
 }
 
 // CheckTerragruntVersionMeetsConstraint checks that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
