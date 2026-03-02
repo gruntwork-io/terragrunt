@@ -65,7 +65,7 @@ to include the following:
 1. A description of the change, including a link to your GitHub issue.
 1. The output of your automated test run, preferably in a [GitHub Gist](https://gist.github.com/).
    We cannot run automated tests for pull requests automatically due to
-   [security concerns](https://circleci.com/docs/2.0/oss/#pass-secrets-to-builds-from-forked-pull-requests),
+   [security concerns](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#using-secrets-in-a-workflow),
    so we need you to manually provide this test output so we can verify that everything is working.
 1. Any notes on backwards incompatibility.
 
@@ -290,13 +290,7 @@ Prior to the release of Terragrunt 1.0, we will have a concerted effort to impro
 
 #### Continuous Integration
 
-Currently, all of the testing mentioned above is run automatically as part of our continuous integration suite in CircleCI.
-
-This has caused some issues in the past, as many contributors don't have CircleCI accounts, and it can be frustrating to be unable to replicate the automated tests that we run for contributors when they submit a pull request.
-
-We acknowledge this issue, and are working on a solution to make it easier for contributors to run the tests for this project themselves. This will involve moving the tests to GitHub Actions, which will allow contributors to run the tests on their own fork of the project, without needing to sign up for a new account.
-
-This work will be completed prior to the release of Terragrunt 1.0.
+All of the testing mentioned above is run automatically as part of our continuous integration suite in GitHub Actions.
 
 ### Debug logging
 

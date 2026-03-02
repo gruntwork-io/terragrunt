@@ -21,7 +21,7 @@ Description:
   - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
   - Failing to find that, Terragrunt will use a default boilerplate template that is built-in, which creates a simple Terragrunt unit for deploying that OpenTofu/Terraform module.
 
-For example, here's how you can generate a `terragrunt.hcl` file to instantiate an [example MySQL OpenTofu/Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example/tree/master/mysql) for deployment:
+For example, here's how you can generate a `terragrunt.hcl` file to instantiate an [example MySQL OpenTofu/Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/modules/mysql) for deployment:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
