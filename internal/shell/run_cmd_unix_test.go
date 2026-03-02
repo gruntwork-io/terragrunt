@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -35,7 +36,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 
 	go func() {
-		_, err := shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(ctx, l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

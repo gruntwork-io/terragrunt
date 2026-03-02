@@ -12,6 +12,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// shellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
+	return &shell.ShellOptions{
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		EngineConfig:    opts.EngineConfig,
+		Experiments:     opts.Experiments,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
+	}
+}
+
 type Getter struct {
 	obtainedCreds map[string]*providers.Credentials
 }
@@ -54,7 +72,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, l log.L
 // See https://github.com/gruntwork-io/terragrunt/issues/5515
 func ObtainCredsForParsing(ctx context.Context, l log.Logger, authProviderCmd string, env map[string]string, opts *options.TerragruntOptions) (*Getter, error) {
 	g := NewGetter()
-	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shell.RunOptionsFromOpts(opts))); err != nil {
+	if err := g.ObtainAndUpdateEnvIfNecessary(ctx, l, env, externalcmd.NewProvider(l, authProviderCmd, shellRunOptsFromOpts(opts))); err != nil {
 		return nil, err
 	}
 
