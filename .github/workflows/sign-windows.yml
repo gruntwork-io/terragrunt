@@ -42,7 +42,7 @@ jobs:
         run: .github/scripts/release/prepare-windows-artifacts.ps1 -ArtifactsDirectory artifacts -BinDirectory bin
 
       - name: Setup Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
         with:
           go-version-file: go.mod
 
