@@ -764,9 +764,9 @@ func TestWriteJSON(t *testing.T) {
 }
 
 const ExpectedSchema = `{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.terragrunt.com/schemas/run/report/v4/schema.json",
   "items": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://docs.terragrunt.com/schemas/run/report/v4/schema.json",
     "properties": {
       "Started": {
         "type": "string",
