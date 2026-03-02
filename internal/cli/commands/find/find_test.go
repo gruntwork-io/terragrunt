@@ -512,7 +512,7 @@ locals {
 			require.NoError(t, err)
 
 			// Set the writer in options
-			opts.Writer = w
+			opts.Writers.Writer = w
 
 			err = find.Run(t.Context(), l, opts)
 			if tt.format == "invalid" || tt.mode == "invalid" {

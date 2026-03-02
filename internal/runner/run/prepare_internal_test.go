@@ -90,10 +90,12 @@ func TestPrepareInitCommandRunCfg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest("mock.hcl")
+			tgOpts, err := options.NewTerragruntOptionsForTest("mock.hcl")
 			require.NoError(t, err)
 
-			opts.BackendBootstrap = tc.backendBootstrap
+			tgOpts.BackendBootstrap = tc.backendBootstrap
+
+			opts := NewOptions(tgOpts)
 
 			var cfg runcfg.RunConfig
 			if tc.remoteStateCfg != nil {

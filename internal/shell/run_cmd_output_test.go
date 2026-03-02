@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,8 +59,8 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writer = &allOutputBuffer
-	terragruntOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Writers.Writer = &allOutputBuffer
+	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 
@@ -67,7 +68,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := shell.RunCommandWithOutput(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

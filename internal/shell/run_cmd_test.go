@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -22,10 +23,10 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -39,12 +40,12 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stderr := new(bytes.Buffer)
 
 	terragruntOptions.TerraformCliArgs.AppendFlag("--version")
-	terragruntOptions.Writer = stdout
-	terragruntOptions.ErrWriter = stderr
+	terragruntOptions.Writers.Writer = stdout
+	terragruntOptions.Writers.ErrWriter = stderr
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -54,10 +55,10 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	stderr = new(bytes.Buffer)
 
 	terragruntOptions.TerraformCliArgs = iacargs.New()
-	terragruntOptions.Writer = stderr
-	terragruntOptions.ErrWriter = stderr
+	terragruntOptions.Writers.Writer = stderr
+	terragruntOptions.Writers.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), l, shell.RunOptionsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")

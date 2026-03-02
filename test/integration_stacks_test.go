@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terratest/modules/files"
-
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -1062,7 +1060,7 @@ func TestStacksSourceMap(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	if err := files.CopyFolderContentsWithFilter(filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, func(path string) bool {
+	if err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(localTmpEnvPath, "fixtures"), localTmpTest, ".terragrunt-test", func(path string) bool {
 		return true
 	}); err != nil {
 		assert.NoError(t, err)

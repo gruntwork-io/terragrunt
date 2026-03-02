@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 
@@ -53,7 +54,7 @@ func CloneUnitOptions(
 
 	// Override logger prefix with display path (relative to discovery context) for cleaner logs
 	// unless --log-show-abs-paths is set
-	if !stackOpts.LogShowAbsPaths {
+	if !stackOpts.Writers.LogShowAbsPaths {
 		clonedLogger = clonedLogger.WithField(placeholders.WorkDirKeyName, unit.DisplayPath())
 	}
 
@@ -61,7 +62,7 @@ func CloneUnitOptions(
 	// (i.e., no custom download dir was provided). This mirrors unit resolver behaviour
 	// so each unit caches to its own .terragrunt-cache next to the config.
 	if clonedOpts.DownloadDir == "" || (stackDefaultDownloadDir != "" && clonedOpts.DownloadDir == stackDefaultDownloadDir) {
-		_, unitDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
+		_, unitDefaultDownloadDir, err := util.DefaultWorkingAndDownloadDirs(canonicalConfigPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -80,7 +81,7 @@ func CloneUnitOptions(
 func BuildUnitOpts(l log.Logger, stackOpts *options.TerragruntOptions, unit *component.Unit) (*options.TerragruntOptions, log.Logger, error) {
 	var stackDefaultDownloadDir string
 	if stackOpts != nil {
-		_, stackDefaultDownloadDir, _ = options.DefaultWorkingAndDownloadDirs(stackOpts.TerragruntConfigPath)
+		_, stackDefaultDownloadDir, _ = util.DefaultWorkingAndDownloadDirs(stackOpts.TerragruntConfigPath)
 	}
 
 	// Compute config path from already-canonical unit.Path() + unit.ConfigFile()
@@ -421,7 +422,7 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 		// Wrap ErrWriter with plan error buffer for plan commands
 		if isPlan {
 			if buf := planErrorBuffers[u.Path()]; buf != nil {
-				unitOpts.ErrWriter = io.MultiWriter(buf, unitOpts.ErrWriter)
+				unitOpts.Writers.ErrWriter = io.MultiWriter(buf, unitOpts.Writers.ErrWriter)
 			}
 		}
 
@@ -432,8 +433,8 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 			"terragrunt_config_path": unitOpts.TerragruntConfigPath,
 		}, func(childCtx context.Context) error {
 			// Wrap the writer to buffer unit-scoped output
-			unitWriter := NewUnitWriter(unitOpts.Writer)
-			unitOpts.Writer = unitWriter
+			unitWriter := NewUnitWriter(unitOpts.Writers.Writer)
+			unitOpts.Writers.Writer = unitWriter
 			unitRunner := common.NewUnitRunner(u)
 
 			// Get credentials BEFORE config parsing — sops_decrypt_file() and
@@ -445,11 +446,13 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 				return err
 			}
 
+			parseCtx, pctx := configbridge.NewParsingContext(childCtx, unitLogger, unitOpts)
+
 			cfg, err := config.ReadTerragruntConfig(
-				childCtx,
+				parseCtx,
 				unitLogger,
-				unitOpts,
-				config.DefaultParserOptions(unitLogger, unitOpts.StrictControls),
+				pctx,
+				pctx.ParserOptions,
 			)
 			if err != nil {
 				return err

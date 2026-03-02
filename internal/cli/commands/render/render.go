@@ -119,7 +119,7 @@ func renderHCL(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error 
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err := cfg.WriteTo(opts.Writer)
+	_, err := cfg.WriteTo(opts.Writers.Writer)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func renderJSON(l log.Logger, opts *Options, cfg *config.TerragruntConfig) error
 
 	l.Infof("Rendering config %s", opts.TerragruntConfigPath)
 
-	_, err = opts.Writer.Write(jsonBytes)
+	_, err = opts.Writers.Writer.Write(jsonBytes)
 	if err != nil {
 		return errors.New(err)
 	}

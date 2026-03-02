@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -238,7 +239,7 @@ func checkUnitVersionConstraints(
 
 	// This is almost definitely already parsed, but we'll check just in case.
 	if unitConfig == nil {
-		configCtx, pctx := config.NewParsingContext(ctx, l, unitOpts)
+		configCtx, pctx := configbridge.NewParsingContext(ctx, l, unitOpts)
 		pctx = pctx.WithDecodeList(
 			config.TerragruntVersionConstraints,
 			config.FeatureFlagsBlock,

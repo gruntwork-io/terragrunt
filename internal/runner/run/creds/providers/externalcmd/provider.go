@@ -15,21 +15,20 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-shellwords"
 )
 
 // Provider runs external command that returns a json string with credentials.
 type Provider struct {
-	terragruntOptions *options.TerragruntOptions
-	authProviderCmd   string
+	runOpts         *shell.ShellOptions
+	authProviderCmd string
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(l log.Logger, authProviderCmd string, opts *options.TerragruntOptions) providers.Provider {
+func NewProvider(l log.Logger, authProviderCmd string, runOpts *shell.ShellOptions) providers.Provider {
 	return &Provider{
-		authProviderCmd:   authProviderCmd,
-		terragruntOptions: opts,
+		authProviderCmd: authProviderCmd,
+		runOpts:         runOpts,
 	}
 }
 
@@ -59,7 +58,7 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		args = parts[1:]
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(provider.terragruntOptions), "", true, false, command, args...)
+	output, err := shell.RunCommandWithOutput(ctx, l, provider.runOpts, "", true, false, command, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,12 +142,12 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd str
 
 	sessionName := role.RoleSessionName
 	if sessionName == "" {
-		sessionName = options.GetDefaultIAMAssumeRoleSessionName()
+		sessionName = iam.GetDefaultAssumeRoleSessionName()
 	}
 
 	duration := role.Duration
 	if duration == 0 {
-		duration = options.DefaultIAMAssumeRoleDuration
+		duration = iam.DefaultAssumeRoleDuration
 	}
 
 	iamRoleOpts := iam.RoleOptions{

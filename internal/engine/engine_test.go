@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,8 +28,7 @@ func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
 
 	runOptions := &engine.ExecutionOptions{
-		CmdStdout: io.Discard,
-		CmdStderr: io.Discard,
+		Writers: writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
 	}
 
 	outputReturned := false

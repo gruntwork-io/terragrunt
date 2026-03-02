@@ -160,7 +160,7 @@ func formatFromStdin(l log.Logger, opts *options.TerragruntOptions) error {
 
 	newContents := hclwrite.Format(contents)
 
-	buf := bufio.NewWriter(opts.Writer)
+	buf := bufio.NewWriter(opts.Writers.Writer)
 
 	if _, err = buf.Write(newContents); err != nil {
 		l.Errorf("Failed to write to stdout")
@@ -211,7 +211,7 @@ func formatTgHCL(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			return err
 		}
 
-		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
+		_, err = fmt.Fprintf(opts.Writers.Writer, "%s\n", diff)
 		if err != nil {
 			l.Errorf("Failed to print diff for %s", tgHclFile)
 			return err

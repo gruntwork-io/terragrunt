@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -24,7 +25,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 }
 
 func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	remoteState, err := config.ParseRemoteState(ctx, l, opts)
+	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	remoteState, err := config.ParseRemoteState(ctx, l, pctx)
 	if err != nil || remoteState == nil {
 		return err
 	}
