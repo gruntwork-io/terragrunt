@@ -55,12 +55,30 @@ type TFOptions struct {
 	JSONLogFormat                bool
 }
 
+// shellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+// This is a local helper to avoid an import cycle with configbridge.
+func shellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
+	return &shell.ShellOptions{
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		EngineConfig:    opts.EngineConfig,
+		Experiments:     opts.Experiments,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
+	}
+}
+
 // TFOptionsFromOpts constructs RunOptions from TerragruntOptions.
 func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
 	return &TFOptions{
 		JSONLogFormat:                opts.JSONLogFormat,
 		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellOptions:                 shell.RunOptionsFromOpts(opts),
+		ShellOptions:                 shellRunOptsFromOpts(opts),
 		TerragruntOptions:            opts,
 	}
 }

@@ -82,6 +82,23 @@ func ShellRunOptsFromPctx(pctx *config.ParsingContext) *shell.ShellOptions {
 	}
 }
 
+// ShellRunOptsFromOpts constructs shell.ShellOptions from TerragruntOptions.
+func ShellRunOptsFromOpts(opts *options.TerragruntOptions) *shell.ShellOptions {
+	return &shell.ShellOptions{
+		Writers:         opts.Writers,
+		EngineOptions:   opts.EngineOptions,
+		WorkingDir:      opts.WorkingDir,
+		Env:             opts.Env,
+		TFPath:          opts.TFPath,
+		EngineConfig:    opts.EngineConfig,
+		Experiments:     opts.Experiments,
+		Telemetry:       opts.Telemetry,
+		RootWorkingDir:  opts.RootWorkingDir,
+		Headless:        opts.Headless,
+		ForwardTFStdout: opts.ForwardTFStdout,
+	}
+}
+
 // NewCredsProvider creates an externalcmd credentials provider from ParsingContext fields.
 func NewCredsProvider(l log.Logger, pctx *config.ParsingContext) providers.Provider {
 	return externalcmd.NewProvider(l, pctx.AuthProviderCmd, ShellRunOptsFromPctx(pctx))
