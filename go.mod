@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.60.0
 	dario.cat/mergo v1.0.2
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ProtonMail/go-crypto v1.3.0
+	github.com/ProtonMail/go-crypto v1.4.0
 	github.com/aws/aws-sdk-go-v2 v1.41.2
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.5
@@ -39,7 +39,7 @@ require (
 	github.com/hashicorp/terraform v0.15.3
 	github.com/hashicorp/terraform-svchost v0.2.0
 	github.com/huandu/go-clone v1.7.3
-	github.com/labstack/echo/v4 v4.15.0
+	github.com/labstack/echo/v4 v4.15.1
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
@@ -54,7 +54,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/zclconf/go-cty v1.17.0
+	github.com/zclconf/go-cty v1.18.0
 	go.opentelemetry.io/otel v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.40.0
@@ -83,9 +83,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.56.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.7
-	github.com/aws/smithy-go v1.24.1
+	github.com/aws/smithy-go v1.24.2
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20250611152503-f53cdd7e01ef
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/docker/go-connections v0.6.0
@@ -148,7 +148,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.18 // indirect
@@ -311,7 +311,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	google.golang.org/genproto v0.0.0-20260223185530-2f722ef697dc // indirect
