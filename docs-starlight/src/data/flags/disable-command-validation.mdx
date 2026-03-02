@@ -11,7 +11,7 @@ import { Aside } from '@astrojs/starlight/components';
 <Aside type="caution">
 **Deprecated**: The `--disable-command-validation` flag is deprecated and will be removed in a future version of Terragrunt. Command validation has been removed entirely from Terragrunt. The `run` command now accepts any command and passes it through to the underlying OpenTofu/Terraform binary without validation. This flag no longer has any effect and can be safely removed from your commands.
 
-To prepare for this change, you can enable the `disable-command-validation` strict control to ensure you're not using this flag. For more information, see the [Strict Controls documentation](/docs/reference/strict-controls/#disable-command-validation).
+To prepare for this change, you can enable the `disable-command-validation` strict control to ensure you're not using this flag. For more information, see the [Strict Controls documentation](/reference/strict-controls/#disable-command-validation).
 </Aside>
 
 This flag disables Terragrunt's built-in validation of OpenTofu/Terraform commands. When enabled, Terragrunt will pass commands through to OpenTofu/Terraform without checking if they are valid or supported.

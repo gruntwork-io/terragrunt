@@ -18,20 +18,20 @@ terragrunt run --all plan
 
 This will run the `plan` command against all units in the current stack.
 
-To learn more about how to use this flag, see the [Stacks](/docs/features/stacks) feature documentation.
+To learn more about how to use this flag, see the [Stacks](/features/stacks) feature documentation.
 
 <Aside type="note">
 Terragrunt has a notion of "external dependencies". These are units that are not part of the current stack, from the perspective of the current working directory, but are dependencies of units that are part of the current stack.
 
 When running an `--all` command, Terragrunt will discover any external dependencies and prompt you to confirm that you want to run them as well.
 
-If you would like to suppress this prompt, you can use the [`--non-interactive` flag](/docs/reference/cli/commands/run#non-interactive). You can also prevent this behavior by setting  [`--queue-exclude-external`](/docs/reference/cli/commands/run#queue-exclude-external).
+If you would like to suppress this prompt, you can use the [`--non-interactive` flag](/reference/cli/commands/run#non-interactive). You can also prevent this behavior by setting  [`--queue-exclude-external`](/reference/cli/commands/run#queue-exclude-external).
 </Aside>
 
 <Aside type="danger">
 When running a `run --all destroy` command, Terragrunt will destroy all dependencies of the units under the current working directory, in addition to the units themselves by default!
 
-If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/docs/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/docs/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
+If you wish to prevent external dependencies from being destroyed, add the [`--queue-exclude-external` flag](/reference/cli/commands/run#queue-exclude-external), or use the [`--exclude-dir` flag](/reference/cli/commands/run#exclude-dir) once for each directory you wish to exclude.
 </Aside>
 
 <Aside type="caution">
@@ -41,7 +41,7 @@ If you have a stack of Terragrunt units with dependencies between them via `depe
 and you've never deployed them, then commands like `run --all plan` will fail,
 as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
 
-The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/hcl/blocks/#dependency).
+The solution for this is to take advantage of [mock outputs in dependency blocks](/reference/hcl/blocks/#dependency).
 </Aside>
 
 <Aside type="note">

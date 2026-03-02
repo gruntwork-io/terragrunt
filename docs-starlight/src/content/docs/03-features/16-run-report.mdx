@@ -1,14 +1,14 @@
 ---
 title: Run Report
 description: Learn how Terragrunt provides detailed reports of runs, and at-a-glance summaries of them.
-slug: docs/features/run-report
+slug: features/run-report
 sidebar:
   order: 16
 ---
 
 import { Aside, Code } from '@astrojs/starlight/components';
 
-import runReportSchema from '../../../../public/schemas/run/report/v3/schema.json?raw';
+import runReportSchema from '../../../../public/schemas/run/report/v4/schema.json?raw';
 
 Terragrunt uses an internal data store to track the results of runs when multiple are done at once. You can view this data, both with a high-level summary that is displayed at the end of each run, and via a detailed report that can be requested on-demand (coming soon).
 
@@ -139,7 +139,7 @@ The schema will be generated at the given path in the current working directory.
 
 This generated schema will look like the following:
 
-<Code title="run/report/v3/schema.json" lang="json" code={runReportSchema} />
+<Code title="run/report/v4/schema.json" lang="json" code={runReportSchema} />
 
 Note the `$id` field, which is used to identify the schema. This is useful to quickly determine which version of the schema is being used. You can also fetch the schema remotely from that URL.
 
@@ -164,7 +164,6 @@ Reasons are more granular details of those results, and will always be one of th
   - `run error`: When the unit run failed due to a run error, you can expect to see a value of `run error` here.
 - `excluded`:
   - `exclude block`: When the unit was excluded from the run due to an `exclude` block, you can expect to see a value of `exclude block` here.
-  - `--queue-exclude-dir`: When the unit was excluded from the run due use of a `--queue-exclude-dir` flag, you can expect to see a value of `--queue-exclude-dir` here.
 - `early exit`:
   - `ancestor error`: When the unit exited early due to an error in the run of a dependency, you can expect to see a value of `ancestor error` here.
 
