@@ -16,7 +16,7 @@ The architecture for our sample project is a simple serverless web application h
 
 This application will allow users to view and vote on their favorite AI-generated images of cats. We've intentionally chosen these AWS serverless offerings as they are cost-effective and should be very cheap, if not free, for anyone following along with a new AWS account.
 
-### What You'll Need
+## What You'll Need
 
 To provision the application we build as part of this guide, you will need an AWS account, and permissions to provision resources within it. If you don't have one, you can follow the official [instructions to sign up](https://signin.aws.amazon.com/signup?request_type=register) for one for free.
 
