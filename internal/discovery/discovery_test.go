@@ -516,3 +516,66 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	assert.Contains(t, appComponent.Reading(), sharedHCL, "should contain shared.hcl")
 	assert.Contains(t, appComponent.Reading(), sharedTFVars, "should contain shared.tfvars")
 }
+
+func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl"),
+		[]byte("# empty unit config\n"),
+		0644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.stack.hcl"),
+		[]byte("# empty stack config\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
+
+	_, err := d.Discover(t.Context(), l, opts)
+	require.Error(t, err)
+
+	var coexistErr discovery.CoexistenceError
+	require.ErrorAs(t, err, &coexistErr)
+	assert.Equal(t, subDir, coexistErr.ComponentPath)
+}
+
+// TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only
+// a single config file does not trigger a coexistence error.
+func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl"),
+		[]byte("# config\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.Len(t, components, 1)
+	assert.Equal(t, component.UnitKind, components[0].Kind())
+}

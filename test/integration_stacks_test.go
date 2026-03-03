@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -57,6 +58,7 @@ const (
 	testFixtureStackFindInParentFolders        = "fixtures/stacks/find-in-parent-folders"
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
+	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -167,6 +169,34 @@ func TestNestedStacksGenerate(t *testing.T) {
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+}
+
+func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackCoexistHclAndStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCoexistHclAndStack)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCoexistHclAndStack)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(gitPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	rootPath := filepath.Join(gitPath, "non-prod", "dev")
+
+	// Create the conflicting terragrunt.hcl alongside terragrunt.stack.hcl in temp copy.
+	// Not kept on disk in the fixture to avoid breaking `terragrunt find` from repo root.
+	require.NoError(t, os.WriteFile(filepath.Join(rootPath, "terragrunt.hcl"), []byte(""), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
+	require.Error(t, err)
+
+	var coexistErr discovery.CoexistenceError
+	require.ErrorAs(t, err, &coexistErr)
 }
 
 func TestStacksGenerateLocals(t *testing.T) {

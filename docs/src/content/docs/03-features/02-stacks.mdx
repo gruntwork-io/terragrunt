@@ -124,6 +124,12 @@ A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terrag
 - Where to place them in the directory structure.
 - What values to pass to each unit.
 
+<Aside type="caution">
+It is invalid for a unit to contain a `terragrunt.stack.hcl` file and for a stack to contain a `terragrunt.hcl` file. If either is true, Terragrunt will throw an error.
+
+This is to prevent ambiguity in deciding whether a component is a unit or a stack.
+</Aside>
+
 ### Supported Configuration Blocks
 
 #### `unit` blocks - Define Individual Infrastructure Components

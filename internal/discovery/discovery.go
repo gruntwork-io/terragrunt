@@ -27,7 +27,7 @@ func (d *Discovery) Discover(
 	d.classifier = filter.NewClassifier(d.filters)
 
 	results, err := d.runFilesystemPhase(ctx, l, opts)
-	if err != nil && !d.suppressParseErrors {
+	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
 		return nil, err
 	}
 
@@ -180,6 +180,14 @@ func (d *Discovery) runFilesystemPhase(
 
 	if err := g.Wait(); err != nil {
 		allErrors = append(allErrors, err)
+	}
+
+	if err := validateNoCoexistence(allDiscovered); err != nil {
+		return nil, err
+	}
+
+	if err := validateNoCoexistence(allCandidates); err != nil {
+		return nil, err
 	}
 
 	allDiscovered = deduplicateResults(allDiscovered)
