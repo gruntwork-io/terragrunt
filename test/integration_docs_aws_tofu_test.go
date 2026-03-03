@@ -18,7 +18,7 @@ import (
 func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
+	fixturePath := filepath.Join("..", "docs", "src", "fixtures", "terralith-to-terragrunt")
 
 	// Create a temporary workspace for the test
 	tmpDir := helpers.TmpDirWOSymlinks(t)

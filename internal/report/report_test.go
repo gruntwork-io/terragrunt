@@ -899,7 +899,7 @@ func TestExpectedSchemaIsInDocs(t *testing.T) {
 			file: filepath.Join(
 				"..",
 				"..",
-				"docs-starlight",
+				"docs",
 				"public",
 				"schemas",
 				"run",

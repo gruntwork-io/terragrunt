@@ -52,7 +52,7 @@ Collection of examples how to configure Terragrunt to emit traces and metrics in
 docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one:1.54.0
 ```
 
-- Verify that UI is available at http://localhost:16686/
+- Verify that UI is available at <http://localhost:16686/>
 - Define environment variables for Terragrunt to report traces to Jaeger:
 
 ```bash
@@ -159,7 +159,7 @@ scrape_configs:
       - targets: ['otel-collector:8889']
 ```
 
-- Confirm that Prometheus is available at http://localhost:9090/
+- Confirm that Prometheus is available at <http://localhost:9090/>
 - Define environment variables for Terragrunt to report metrics to OpenTelemetry collector:
 
 ```bash

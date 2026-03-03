@@ -16,7 +16,7 @@ The architecture for our sample project is a simple serverless web application h
 
 This application will allow users to view and vote on their favorite AI-generated images of cats. We've intentionally chosen these AWS serverless offerings as they are cost-effective and should be very cheap, if not free, for anyone following along with a new AWS account.
 
-### What You'll Need
+## What You'll Need
 
 To provision the application we build as part of this guide, you will need an AWS account, and permissions to provision resources within it. If you don't have one, you can follow the official [instructions to sign up](https://signin.aws.amazon.com/signup?request_type=register) for one for free.
 
@@ -31,6 +31,6 @@ If you would like to manually install all the development dependencies for this 
 - [NodeJS](https://nodejs.org/en/download)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 
-We will build this project from the ground up, but if you get lost at any point or want to skip ahead, you can find the completed project (as of each step) [here](https://github.com/gruntwork-io/terragrunt/tree/main/docs-starlight/src/fixtures/terralith-to-terragrunt).
+We will build this project from the ground up, but if you get lost at any point or want to skip ahead, you can find the completed project (as of each step) [here](https://github.com/gruntwork-io/terragrunt/tree/main/docs/src/fixtures/terralith-to-terragrunt).
 
 Note that the content shown in code fences in this project will always be displayed in totality, so you can either copy them directly into the filename that's labeled at the top of the code fence for a file, or run the command directly in your terminal for commands. If a command starts with a `$`, the intent of the code fence is to demonstrate expected output, so you aren't expected to copy and paste it directly into your terminal.
