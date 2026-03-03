@@ -766,10 +766,7 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
 	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir, err := util.DefaultWorkingAndDownloadDirs(targetConfig)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
 
 	pctx.DownloadDir = downloadDir
 
@@ -980,7 +977,9 @@ func getTerragruntOutputJSONFromInitFolder(
 		),
 	)
 
-	out, err := tf.RunCommandWithOutput(ctx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1116,7 +1115,9 @@ func getTerragruntOutputJSONFromRemoteState(
 	runTerraformInitForDependencyOutput(ctx, initPctx, l, tempWorkDir)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := tf.RunCommandWithOutput(ctx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1379,7 +1380,9 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 	initRunOpts.ShellOptions.WorkingDir = workingDir
 	initRunOpts.ShellOptions.Writers.ErrWriter = &stderr
 
-	if err := tf.RunCommand(ctx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
+
+	if err := tf.RunCommand(bareCtx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

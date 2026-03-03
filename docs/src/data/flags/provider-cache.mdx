@@ -1,0 +1,17 @@
+---
+name: provider-cache
+description: Enables Terragrunt's provider caching.
+type: bool
+env:
+  - TG_PROVIDER_CACHE
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+When enabled, Terragrunt will use its provider caching system to speed up provider downloads.
+
+For more information, see the [Provider Cache Server](/features/provider-cache-server) feature documentation.
+
+<Aside type="note">
+The `tofu init` command is always executed sequentially if the provider plugin cache is used without the Provider Cache Server.
+</Aside>

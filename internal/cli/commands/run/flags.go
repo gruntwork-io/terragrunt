@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -262,7 +263,12 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 					}
 
 					for _, v := range value {
-						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+						attrExpr, err := filter.NewAttributeExpression(filter.AttributeReading, v)
+						if err != nil {
+							return err
+						}
+
+						opts.Filters = append(opts.Filters, filter.NewFilter(attrExpr, attrExpr.String()))
 					}
 
 					return nil
@@ -315,7 +321,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.BoolFlag{
 			Name:        ProviderCacheFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheFlagName),
-			Destination: &opts.ProviderCache,
+			Destination: &opts.ProviderCacheOptions.Enabled,
 			Usage:       "Enables Terragrunt's provider caching.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache"), terragruntPrefixControl)),
@@ -323,7 +329,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheDirFlagName),
-			Destination: &opts.ProviderCacheDir,
+			Destination: &opts.ProviderCacheOptions.Dir,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-dir"), terragruntPrefixControl)),
@@ -331,7 +337,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheTokenFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheTokenFlagName),
-			Destination: &opts.ProviderCacheToken,
+			Destination: &opts.ProviderCacheOptions.Token,
 			Usage:       "The token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-token"), terragruntPrefixControl)),
@@ -339,7 +345,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        ProviderCacheHostnameFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheHostnameFlagName),
-			Destination: &opts.ProviderCacheHostname,
+			Destination: &opts.ProviderCacheOptions.Hostname,
 			Usage:       "The hostname of the Terragrunt Provider Cache server. By default, 'localhost'.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-hostname"), terragruntPrefixControl)),
@@ -347,7 +353,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.GenericFlag[int]{
 			Name:        ProviderCachePortFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCachePortFlagName),
-			Destination: &opts.ProviderCachePort,
+			Destination: &opts.ProviderCacheOptions.Port,
 			Usage:       "The port of the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-port"), terragruntPrefixControl)),
@@ -355,7 +361,7 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 		flags.NewFlag(&clihelper.SliceFlag[string]{
 			Name:        ProviderCacheRegistryNamesFlagName,
 			EnvVars:     tgPrefix.EnvVars(ProviderCacheRegistryNamesFlagName),
-			Destination: &opts.ProviderCacheRegistryNames,
+			Destination: &opts.ProviderCacheOptions.RegistryNames,
 			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars("provider-cache-registry-names"), terragruntPrefixControl)),

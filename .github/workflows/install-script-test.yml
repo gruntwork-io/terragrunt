@@ -22,4 +22,4 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v3
 
       - name: Run install script tests
-        run: ./docs-starlight/tests/install_test.sh
+        run: ./docs/tests/install_test.sh

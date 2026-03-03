@@ -33,7 +33,7 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 	}
 
 	if !opts.ForceBackendDelete {
-		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, opts)
+		enabled, err := remoteState.IsVersionControlEnabled(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
 		if err != nil && !errors.As(err, new(backend.BucketDoesNotExistError)) {
 			return err
 		}
@@ -48,7 +48,7 @@ func runDelete(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 		return errors.Errorf("flag -%s is not supported yet", BucketFlagName)
 	}
 
-	return remoteState.Delete(ctx, l, opts)
+	return remoteState.Delete(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {

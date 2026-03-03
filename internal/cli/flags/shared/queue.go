@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -76,7 +77,13 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 						return nil
 					}
 
-					opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+					pathExpr, err := filter.NewPathFilter("./**")
+					if err != nil {
+						return err
+					}
+
+					graphExpr := filter.NewGraphExpression(pathExpr).WithDependencies()
+					opts.Filters = append(opts.Filters, filter.NewFilter(graphExpr, graphExpr.String()))
 
 					return nil
 				},
@@ -107,9 +114,13 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					}
 
 					for _, v := range value {
-						// We explicitly wrap the value in curly braces to ensure that it is treated
-						// as a path expression, and not a name filter.
-						opts.FilterQueries = append(opts.FilterQueries, "!{"+v+"}")
+						pathExpr, err := filter.NewPathFilter(v)
+						if err != nil {
+							return err
+						}
+
+						prefixExpr := filter.NewPrefixExpression("!", pathExpr)
+						opts.Filters = append(opts.Filters, filter.NewFilter(prefixExpr, prefixExpr.String()))
 					}
 
 					return nil
@@ -130,9 +141,12 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					}
 
 					for _, v := range value {
-						// We explicitly wrap the value in curly braces to ensure that it is treated
-						// as a path expression, and not a name filter.
-						opts.FilterQueries = append(opts.FilterQueries, "{"+v+"}")
+						pathExpr, err := filter.NewPathFilter(v)
+						if err != nil {
+							return err
+						}
+
+						opts.Filters = append(opts.Filters, filter.NewFilter(pathExpr, pathExpr.String()))
 					}
 
 					return nil
@@ -170,7 +184,12 @@ func NewQueueFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelp
 					}
 
 					for _, v := range value {
-						opts.FilterQueries = append(opts.FilterQueries, "reading="+v)
+						attrExpr, err := filter.NewAttributeExpression(filter.AttributeReading, v)
+						if err != nil {
+							return err
+						}
+
+						opts.Filters = append(opts.Filters, filter.NewFilter(attrExpr, attrExpr.String()))
 					}
 
 					return nil

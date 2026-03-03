@@ -1,0 +1,15 @@
+---
+name: queue-exclude-external
+description: Exclude external dependencies from the queue of Units to run.
+type: bool
+env:
+  - TG_QUEUE_EXCLUDE_EXTERNAL
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. External dependencies are now excluded by default, making this flag unnecessary.
+
+Use [`--filter` flag](/reference/cli/commands/run#filter) with the expression `{./**}...` if you need to include external dependencies.
+</Aside>

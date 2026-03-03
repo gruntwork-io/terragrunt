@@ -12,6 +12,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
@@ -165,8 +167,8 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 	actionCtx := ctx
 
 	// Run provider cache server
-	if opts.ProviderCache {
-		server, err := providercache.InitServer(l, opts)
+	if opts.ProviderCacheOptions.Enabled {
+		server, err := providercache.InitServer(l, &opts.ProviderCacheOptions, opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}
@@ -215,10 +217,13 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, err := run.PopulateTFVersion(ctx, l, opts)
+		_, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
 		if err != nil {
 			return err
 		}
+
+		opts.TerraformVersion = ver
+		opts.TofuImplementation = impl
 	}
 
 	terraformVersion := opts.TerraformVersion
@@ -244,7 +249,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	// Set up the provider cache directory
-	providerCacheDir := opts.ProviderCacheDir
+	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
@@ -365,26 +370,50 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 		opts.TFPath = filepath.Join(opts.WorkingDir, opts.TFPath)
 	}
 
+	var fileFilterStrings []string
+
 	excludeFiltersFromFile, err := util.ExcludeFiltersFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
 		return err
 	}
 
-	opts.FilterQueries = append(opts.FilterQueries, excludeFiltersFromFile...)
+	fileFilterStrings = append(fileFilterStrings, excludeFiltersFromFile...)
 
-	// Process filters file if the filter-flag experiment is enabled and the filters file is not disabled
+	// Process filters file if the filters file is not disabled
 	if !opts.NoFiltersFile {
 		filtersFromFile, filtersFromFileErr := util.GetFiltersFromFile(opts.WorkingDir, opts.FiltersFile)
 		if filtersFromFileErr != nil {
 			return filtersFromFileErr
 		}
 
-		opts.FilterQueries = append(opts.FilterQueries, filtersFromFile...)
+		fileFilterStrings = append(fileFilterStrings, filtersFromFile...)
 	}
 
-	// Sort and compact opts.FilterQueries to make them unique
-	slices.Sort(opts.FilterQueries)
-	opts.FilterQueries = slices.Compact(opts.FilterQueries)
+	if len(fileFilterStrings) > 0 {
+		parsed, parseErr := filter.ParseFilterQueries(l, fileFilterStrings)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		opts.Filters = append(opts.Filters, parsed...)
+	}
+
+	// Deduplicate filters by their string representation
+	seen := make(map[string]struct{}, len(opts.Filters))
+	deduped := make(filter.Filters, 0, len(opts.Filters))
+
+	for _, f := range opts.Filters {
+		key := f.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		seen[key] = struct{}{}
+
+		deduped = append(deduped, f)
+	}
+
+	opts.Filters = deduped
 
 	// --- Terragrunt Version
 	terragruntVersion, err := version.NewVersion(cliCtx.Version)

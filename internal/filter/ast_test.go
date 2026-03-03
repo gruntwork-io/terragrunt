@@ -84,7 +84,7 @@ func TestRestrictToStacks(t *testing.T) {
 			name: "graph expression",
 			exprFn: func(t *testing.T) filter.Expression {
 				t.Helper()
-				return filter.NewGraphExpression(mustAttr(t, "name", "foo"), true, false, false)
+				return filter.NewGraphExpression(mustAttr(t, "name", "foo")).WithDependents()
 			},
 			expected: false,
 		},
