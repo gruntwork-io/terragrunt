@@ -739,8 +739,7 @@ func newTestParsingContext(tb testing.TB, configPath string) (context.Context, *
 	l := logger.CreateLogger()
 	ctx, pctx := config.NewParsingContext(tb.Context(), l, controls.New())
 
-	workingDir, downloadDir, err := util.DefaultWorkingAndDownloadDirs(configPath)
-	require.NoError(tb, err)
+	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(configPath)
 
 	pctx.TerragruntConfigPath = configPath
 	pctx.WorkingDir = workingDir

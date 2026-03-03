@@ -342,7 +342,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 				return nil, errors.New(err)
 			}
 
-			terragruntConfigPath = filepath.Clean(absPath)
+			terragruntConfigPath = absPath
 		}
 
 		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
@@ -350,16 +350,18 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	opts.TerragruntConfigPath = terragruntConfigPath
 
-	workingDir, downloadDir, err := util.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 	opts.DownloadDir = downloadDir
 
 	return opts, nil
+}
+
+// GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
+func GetDefaultIAMAssumeRoleSessionName() string {
+	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
 // NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
