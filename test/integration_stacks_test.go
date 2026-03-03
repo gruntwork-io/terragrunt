@@ -57,6 +57,7 @@ const (
 	testFixtureStackFindInParentFolders        = "fixtures/stacks/find-in-parent-folders"
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
+	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -167,6 +168,31 @@ func TestNestedStacksGenerate(t *testing.T) {
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+}
+
+// TestStacksGenerateErrorOnCoexistingHclAndStackFiles tests that stack generate
+// returns an error when a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5644
+func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackCoexistHclAndStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCoexistHclAndStack)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCoexistHclAndStack)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(gitPath)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	rootPath := filepath.Join(gitPath, "non-prod", "dev")
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "a directory must be either a unit or a stack, not both")
 }
 
 func TestStacksGenerateLocals(t *testing.T) {

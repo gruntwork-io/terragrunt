@@ -182,6 +182,14 @@ func (d *Discovery) runFilesystemPhase(
 		allErrors = append(allErrors, err)
 	}
 
+	if err := validateNoCoexistence(allDiscovered); err != nil {
+		return nil, err
+	}
+
+	if err := validateNoCoexistence(allCandidates); err != nil {
+		return nil, err
+	}
+
 	allDiscovered = deduplicateResults(allDiscovered)
 	allCandidates = deduplicateResults(allCandidates)
 

@@ -124,6 +124,10 @@ A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terrag
 - Where to place them in the directory structure.
 - What values to pass to each unit.
 
+<Aside type="caution">
+A directory cannot contain both a `terragrunt.hcl` and a `terragrunt.stack.hcl` file. Each directory must be either a unit or a stack, not both. See [Known Limitations](#a-directory-cannot-contain-both-terragrunthcl-and-terragruntstackhcl) for details.
+</Aside>
+
 ### Supported Configuration Blocks
 
 #### `unit` blocks - Define Individual Infrastructure Components
@@ -1059,6 +1063,17 @@ As such, if you currently have multiple stacks that need to depend on each other
 Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
 The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
+
+### A directory cannot contain both `terragrunt.hcl` and `terragrunt.stack.hcl`
+
+A directory must be either a unit (with `terragrunt.hcl`) or a stack (with `terragrunt.stack.hcl`), not both. Placing both files in the same directory will result in a discovery error:
+
+```
+directory "/path/to/dir" contains both terragrunt.hcl and terragrunt.stack.hcl;
+a directory must be either a unit or a stack, not both
+```
+
+If you need both unit and stack behavior, separate them into distinct directories.
 
 ### Includes are not supported in `terragrunt.stack.hcl` files
 

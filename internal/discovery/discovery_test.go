@@ -516,3 +516,67 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	assert.Contains(t, appComponent.Reading(), sharedHCL, "should contain shared.hcl")
 	assert.Contains(t, appComponent.Reading(), sharedTFVars, "should contain shared.tfvars")
 }
+
+// TestDiscovery_BothHclAndStackFileInSameDir verifies that discovery returns an error
+// when a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5644
+func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl"),
+		[]byte("# empty unit config\n"),
+		0644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.stack.hcl"),
+		[]byte("# empty stack config\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
+
+	_, err := d.Discover(t.Context(), l, opts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "a directory must be either a unit or a stack, not both")
+	assert.Contains(t, err.Error(), subDir)
+}
+
+// TestDiscovery_SameKindSamePathStillDeduped verifies that true duplicates
+// (same kind and same path) are still properly deduplicated.
+func TestDiscovery_SameKindSamePathStillDeduped(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "app")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(subDir, "terragrunt.hcl"),
+		[]byte("# config\n"),
+		0644,
+	))
+
+	l := logger.CreateLogger()
+	opts := &options.TerragruntOptions{
+		WorkingDir: tmpDir,
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir})
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+	assert.Len(t, components, 1, "should deduplicate same-kind same-path components")
+	assert.Equal(t, component.UnitKind, components[0].Kind())
+}

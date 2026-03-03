@@ -155,6 +155,28 @@ func createComponentFromPath(
 	return nil
 }
 
+// validateNoCoexistence checks that no directory has both a unit and a stack config file.
+// Returns an error if a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
+func validateNoCoexistence(results []DiscoveryResult) error {
+	seen := make(map[string]component.Kind, len(results))
+
+	for _, result := range results {
+		path := result.Component.Path()
+		kind := result.Component.Kind()
+
+		if existing, ok := seen[path]; ok && existing != kind {
+			return errors.Errorf(
+				"directory %q contains both %s and %s; a directory must be either a unit or a stack, not both",
+				path, config.DefaultTerragruntConfigPath, config.DefaultStackFile,
+			)
+		}
+
+		seen[path] = kind
+	}
+
+	return nil
+}
+
 // deduplicateResults removes duplicate components from results by path.
 func deduplicateResults(results []DiscoveryResult) []DiscoveryResult {
 	seen := make(map[string]struct{}, len(results))
