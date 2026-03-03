@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -86,6 +87,12 @@ func NewAttributeExpression(key string, value string) (*AttributeExpression, err
 	}
 
 	return expr, nil
+}
+
+// NewTypeExpression creates a new AttributeExpression for the "type" attribute.
+// Type filters do not support glob matching, so this constructor cannot fail.
+func NewTypeExpression(kind component.Kind) *AttributeExpression {
+	return &AttributeExpression{Key: AttributeType, Value: string(kind)}
 }
 
 // Glob returns the pre-compiled glob pattern.

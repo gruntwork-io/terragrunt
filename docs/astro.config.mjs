@@ -139,7 +139,7 @@ export default defineConfig({
       editLink: {
         // TODO: update this once the docs live in `docs`.
         baseUrl:
-          "https://github.com/gruntwork-io/terragrunt/edit/main/docs-starlight",
+          "https://github.com/gruntwork-io/terragrunt/edit/main/docs",
       },
       customCss: ["./src/styles/global.css"],
       head: [

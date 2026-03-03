@@ -29,11 +29,13 @@ bun dev
 This project includes a limited number of shadcn/ui components. To add new shadcn/ui components:
 
 1. **Install a component**:
+
    ```bash
    npx shadcn@latest add [component-name]
    ```
-   
+
    Example:
+
    ```bash
    npx shadcn@latest add card
    npx shadcn@latest add input
