@@ -545,13 +545,15 @@ func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 
 	_, err := d.Discover(t.Context(), l, opts)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "a directory must be either a unit or a stack, not both")
-	assert.Contains(t, err.Error(), subDir)
+
+	var coexistErr discovery.CoexistenceError
+	require.ErrorAs(t, err, &coexistErr)
+	assert.Equal(t, subDir, coexistErr.ComponentPath)
 }
 
-// TestDiscovery_SameKindSamePathStillDeduped verifies that true duplicates
-// (same kind and same path) are still properly deduplicated.
-func TestDiscovery_SameKindSamePathStillDeduped(t *testing.T) {
+// TestDiscovery_SingleUnitNoDuplicateError verifies that a directory with only
+// a single config file does not trigger a coexistence error.
+func TestDiscovery_SingleUnitNoDuplicateError(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -574,6 +576,6 @@ func TestDiscovery_SameKindSamePathStillDeduped(t *testing.T) {
 
 	components, err := d.Discover(t.Context(), l, opts)
 	require.NoError(t, err)
-	assert.Len(t, components, 1, "should deduplicate same-kind same-path components")
+	assert.Len(t, components, 1)
 	assert.Equal(t, component.UnitKind, components[0].Kind())
 }

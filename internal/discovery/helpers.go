@@ -155,24 +155,44 @@ func createComponentFromPath(
 	return nil
 }
 
+// seenEntry tracks a component's kind and config filename for coexistence validation.
+type seenEntry struct {
+	kind       component.Kind
+	configFile string
+}
+
+// validateNoCoexistence checks that no directory has both a unit and a stack config file.
+// Returns a CoexistenceError if a directory contains both.
 func validateNoCoexistence(results []DiscoveryResult) error {
-	seen := make(map[string]component.Kind, len(results))
+	seen := make(map[string]seenEntry, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
 		kind := result.Component.Kind()
+		configFile := configFileForComponent(result.Component)
 
-		if existing, ok := seen[path]; ok && existing != kind {
-			return errors.Errorf(
-				"directory %q contains both %s and %s; a directory must be either a unit or a stack, not both",
-				path, config.DefaultTerragruntConfigPath, config.DefaultStackFile,
-			)
+		if existing, ok := seen[path]; ok && existing.kind != kind {
+			unitFile, stackFile := existing.configFile, configFile
+			if kind == component.UnitKind {
+				unitFile, stackFile = configFile, existing.configFile
+			}
+
+			return NewCoexistenceError(path, unitFile, stackFile)
 		}
 
-		seen[path] = kind
+		seen[path] = seenEntry{kind: kind, configFile: configFile}
 	}
 
 	return nil
+}
+
+// configFileForComponent returns the config filename for a component.
+func configFileForComponent(c component.Component) string {
+	if unit, ok := c.(*component.Unit); ok {
+		return unit.ConfigFile()
+	}
+
+	return config.DefaultStackFile
 }
 
 // deduplicateResults removes duplicate components from results by path.

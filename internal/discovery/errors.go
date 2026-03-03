@@ -109,3 +109,28 @@ func NewClassificationError(componentPath, reason string) error {
 		Reason:        reason,
 	})
 }
+
+// CoexistenceError represents an error when a directory contains both
+// a unit configuration file and a stack configuration file.
+type CoexistenceError struct {
+	ComponentPath   string
+	UnitConfigFile  string
+	StackConfigFile string
+}
+
+func (e CoexistenceError) Error() string {
+	return fmt.Sprintf(
+		"Component %q contains both configuration files %s and %s. "+
+			"A component must be either a unit or a stack, not both.",
+		e.ComponentPath, e.UnitConfigFile, e.StackConfigFile,
+	)
+}
+
+// NewCoexistenceError creates a new CoexistenceError.
+func NewCoexistenceError(componentPath, unitConfigFile, stackConfigFile string) error {
+	return errors.New(CoexistenceError{
+		ComponentPath:   componentPath,
+		UnitConfigFile:  unitConfigFile,
+		StackConfigFile: stackConfigFile,
+	})
+}

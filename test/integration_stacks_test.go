@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
@@ -189,7 +190,9 @@ func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "a directory must be either a unit or a stack, not both")
+
+	var coexistErr discovery.CoexistenceError
+	require.ErrorAs(t, err, &coexistErr)
 }
 
 func TestStacksGenerateLocals(t *testing.T) {
