@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	goversion "github.com/hashicorp/go-version"
 )
 
 type Providers []*Provider
@@ -62,6 +64,30 @@ type Version struct {
 
 func (version Version) String() string {
 	return fmt.Sprintf("%s/%s/%s", version.Version, version.Protocols, version.Platforms)
+}
+
+// FilterValid returns only versions with valid semver strings that conform to
+// the Terraform registry protocol (no "v" prefix, no empty strings).
+// The second return value contains the invalid version strings that were filtered out.
+func (versions Versions) FilterValid() (Versions, []string) {
+	valid := make(Versions, 0, len(versions))
+	invalid := make([]string, 0, len(versions))
+
+	for _, v := range versions {
+		if v.Version == "" || strings.HasPrefix(v.Version, "v") {
+			invalid = append(invalid, v.Version)
+			continue
+		}
+
+		if _, err := goversion.NewVersion(v.Version); err != nil {
+			invalid = append(invalid, v.Version)
+			continue
+		}
+
+		valid = append(valid, v)
+	}
+
+	return valid, invalid
 }
 
 type Platforms []*Platform

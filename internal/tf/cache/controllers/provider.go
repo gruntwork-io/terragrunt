@@ -84,12 +84,17 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		}
 	}
 
+	validVersions, invalidVersions := allVersions.FilterValid()
+	for _, v := range invalidVersions {
+		controller.Logger.Warnf("Skipping invalid version %q for provider %s", v, provider.Address())
+	}
+
 	versions := struct {
 		ID       string          `json:"id"`
 		Versions models.Versions `json:"versions"`
 	}{
 		ID:       provider.Address(),
-		Versions: allVersions,
+		Versions: validVersions,
 	}
 
 	return ctx.JSON(http.StatusOK, versions)
