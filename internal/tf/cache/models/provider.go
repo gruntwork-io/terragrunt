@@ -69,7 +69,10 @@ func (version Version) String() string {
 // FilterValid returns only versions with valid semver strings that conform to
 // the Terraform registry protocol (no "v" prefix, no empty strings).
 // The second return value contains the invalid version strings that were filtered out.
-func (versions Versions) FilterValid() (valid Versions, invalid []string) {
+func (versions Versions) FilterValid() (Versions, []string) {
+	valid := make(Versions, 0, len(versions))
+	invalid := make([]string, 0, len(versions))
+
 	for _, v := range versions {
 		if v.Version == "" || strings.HasPrefix(v.Version, "v") {
 			invalid = append(invalid, v.Version)

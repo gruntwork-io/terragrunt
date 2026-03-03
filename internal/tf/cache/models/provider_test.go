@@ -27,7 +27,7 @@ func TestFilterValid(t *testing.T) {
 				{Version: "0.1.0-beta1"},
 			},
 			expectedValid:   []string{"1.0.0", "2.5.2", "0.1.0-beta1"},
-			expectedInvalid: nil,
+			expectedInvalid: []string{},
 		},
 		{
 			name: "v-prefixed versions are filtered",
@@ -75,14 +75,14 @@ func TestFilterValid(t *testing.T) {
 		{
 			name:            "all invalid",
 			input:           models.Versions{{Version: "v1.0.0"}, {Version: ""}, {Version: "bad"}},
-			expectedValid:   nil,
+			expectedValid:   []string{},
 			expectedInvalid: []string{"v1.0.0", "", "bad"},
 		},
 		{
 			name:            "empty input",
 			input:           models.Versions{},
-			expectedValid:   nil,
-			expectedInvalid: nil,
+			expectedValid:   []string{},
+			expectedInvalid: []string{},
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestFilterValid(t *testing.T) {
 
 			valid, invalid := tc.input.FilterValid()
 
-			var validStrs []string
+			validStrs := make([]string, 0, len(valid))
 			for _, v := range valid {
 				validStrs = append(validStrs, v.Version)
 			}
