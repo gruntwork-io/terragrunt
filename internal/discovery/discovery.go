@@ -27,11 +27,8 @@ func (d *Discovery) Discover(
 	d.classifier = filter.NewClassifier(d.filters)
 
 	results, err := d.runFilesystemPhase(ctx, l, opts)
-	if err != nil {
-		var coexistErr CoexistenceError
-		if errors.As(err, &coexistErr) || !d.suppressParseErrors {
-			return nil, err
-		}
+	if err != nil && (!d.suppressParseErrors || errors.As(err, new(CoexistenceError))) {
+		return nil, err
 	}
 
 	discovered, candidates := results.Discovered, results.Candidates

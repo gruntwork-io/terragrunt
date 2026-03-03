@@ -155,32 +155,25 @@ func createComponentFromPath(
 	return nil
 }
 
-// seenEntry tracks a component's kind and config filename for coexistence validation.
-type seenEntry struct {
-	kind       component.Kind
-	configFile string
-}
-
 // validateNoCoexistence checks that no directory has both a unit and a stack config file.
 // Returns a CoexistenceError if a directory contains both.
 func validateNoCoexistence(results []DiscoveryResult) error {
-	seen := make(map[string]seenEntry, len(results))
+	seen := make(map[string]string, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
-		kind := result.Component.Kind()
 		configFile := result.Component.ConfigFile()
 
-		if existing, ok := seen[path]; ok && existing.kind != kind {
-			unitFile, stackFile := existing.configFile, configFile
-			if kind == component.UnitKind {
-				unitFile, stackFile = configFile, existing.configFile
+		if existingFile, ok := seen[path]; ok && existingFile != configFile {
+			unitFile, stackFile := existingFile, configFile
+			if result.Component.Kind() == component.UnitKind {
+				unitFile, stackFile = configFile, existingFile
 			}
 
 			return NewCoexistenceError(path, unitFile, stackFile)
 		}
 
-		seen[path] = seenEntry{kind: kind, configFile: configFile}
+		seen[path] = configFile
 	}
 
 	return nil
