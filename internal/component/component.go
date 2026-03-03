@@ -31,6 +31,7 @@ type Component interface {
 	Reading() []string
 	SetReading(...string)
 	Sources() []string
+	ConfigFile() string
 	DiscoveryContext() *DiscoveryContext
 	SetDiscoveryContext(*DiscoveryContext)
 	Origin() Origin

@@ -169,7 +169,7 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 	for _, result := range results {
 		path := result.Component.Path()
 		kind := result.Component.Kind()
-		configFile := configFileForComponent(result.Component)
+		configFile := result.Component.ConfigFile()
 
 		if existing, ok := seen[path]; ok && existing.kind != kind {
 			unitFile, stackFile := existing.configFile, configFile
@@ -184,15 +184,6 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 	}
 
 	return nil
-}
-
-// configFileForComponent returns the config filename for a component.
-func configFileForComponent(c component.Component) string {
-	if c.Kind() == component.UnitKind {
-		return config.DefaultTerragruntConfigPath
-	}
-
-	return config.DefaultStackFile
 }
 
 // deduplicateResults removes duplicate components from results by path.
