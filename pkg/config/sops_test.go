@@ -80,7 +80,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, controls.New())
+		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 		// pctx.Env has empty value for authKey (like auth-provider returning empty session token)
 		pctx.Env = map[string]string{authKey: ""}
@@ -101,7 +101,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, controls.New())
+		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 		pctx.Env = map[string]string{authKey: "fresh-token"}
 
@@ -123,7 +123,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 
 		l := logger.CreateLogger()
 		ctx := WithConfigValues(t.Context())
-		_, pctx := NewParsingContext(ctx, l, controls.New())
+		_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 		pctx.WorkingDir = filepath.Dir(secretFile)
 		// Empty env — simulates auth-provider NOT having run (the original bug)
 		pctx.Env = map[string]string{}
@@ -172,7 +172,7 @@ func TestSOPSDecryptEnvPropagation(t *testing.T) { //nolint:paralleltest // muta
 				}
 
 				l := logger.CreateLogger()
-				_, pctx := NewParsingContext(ctx, l, controls.New())
+				_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 				pctx.WorkingDir = filepath.Dir(filePath)
 				pctx.Env = map[string]string{authKey: expectedToken}
 
