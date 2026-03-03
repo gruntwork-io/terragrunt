@@ -170,9 +170,6 @@ func TestNestedStacksGenerate(t *testing.T) {
 	validateStackDir(t, path)
 }
 
-// TestStacksGenerateErrorOnCoexistingHclAndStackFiles tests that stack generate
-// returns an error when a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
-// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5644
 func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 	t.Parallel()
 

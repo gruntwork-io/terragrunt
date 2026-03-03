@@ -517,9 +517,6 @@ func TestDiscovery_PopulatesReadingField(t *testing.T) {
 	assert.Contains(t, appComponent.Reading(), sharedTFVars, "should contain shared.tfvars")
 }
 
-// TestDiscovery_BothHclAndStackFileInSameDir verifies that discovery returns an error
-// when a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
-// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5644
 func TestDiscovery_BothHclAndStackFileInSameDir(t *testing.T) {
 	t.Parallel()
 

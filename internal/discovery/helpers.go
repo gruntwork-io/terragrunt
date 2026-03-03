@@ -155,8 +155,6 @@ func createComponentFromPath(
 	return nil
 }
 
-// validateNoCoexistence checks that no directory has both a unit and a stack config file.
-// Returns an error if a directory contains both terragrunt.hcl and terragrunt.stack.hcl.
 func validateNoCoexistence(results []DiscoveryResult) error {
 	seen := make(map[string]component.Kind, len(results))
 
