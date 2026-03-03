@@ -52,23 +52,29 @@ It is important to be aware of the terragrunt configuration parsing order when u
 
 Currently terragrunt parses the config in the following order:
 
-1. `include` block
+1. `terragrunt.values.hcl` file, if present (values referencing `dependency` outputs receive placeholder values in this pass)
 
-2. `locals` block
+2. `include` block
 
-3. Evaluation of values for `iam_role`, `iam_assume_role_duration`, `iam_assume_role_session_name`, and `iam_web_identity_token` attributes, if defined
+3. `locals` block
 
-4. `dependencies` block
+4. Evaluation of values for `iam_role`, `iam_assume_role_duration`, `iam_assume_role_session_name`, and `iam_web_identity_token` attributes, if defined
 
-5. `dependency` blocks, including calling `terragrunt output` on the dependent units to retrieve the outputs
+5. `dependencies` block
 
-6. Everything else
+6. `dependency` blocks, including calling `terragrunt output` on the dependent units to retrieve the outputs
 
-7. The config referenced by `include`
+7. `terragrunt.values.hcl` file is re-read if `dependency` blocks were resolved, replacing placeholder values with real dependency outputs
 
-8. A merge operation between the config referenced by `include` and the current config.
+8. Everything else
+
+9. The config referenced by `include`
+
+10. A merge operation between the config referenced by `include` and the current config.
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can't reference `dependency` in `locals`, `include`, or `dependencies` blocks).
+
+Note that `terragrunt.values.hcl` files in unit contexts (`terragrunt.hcl`) can reference `dependency` outputs (e.g. `dependency.vpc.outputs.vpc_id`). Values files in stack contexts (`terragrunt.stack.hcl`) cannot reference `dependency` blocks.
 
 Note that the parsing order is slightly different when using the `--all` flag of the [`run`](/reference/cli/commands/run) command. When using the `--all` flag, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 

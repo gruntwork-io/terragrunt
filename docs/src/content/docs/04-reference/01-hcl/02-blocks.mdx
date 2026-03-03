@@ -1793,6 +1793,17 @@ vpc_name = "main"
 cidr     = "10.0.0.0/16"
 ```
 
+In unit contexts (directories with a `terragrunt.hcl`), the values file can also reference `dependency` outputs from the unit's configuration:
+
+```hcl
+# terragrunt.values.hcl
+
+environment = "dev"
+vpc_id      = dependency.vpc.outputs.vpc_id
+```
+
+Dependency references in values files are resolved during the normal config parsing flow — values are read once before dependency resolution (with placeholders for any `dependency` references), then re-read after dependencies are resolved with real outputs. Values files in stack contexts (`terragrunt.stack.hcl`) do not support `dependency` references.
+
 The unit will be able to leverage those values via `values` variables.
 
 ```hcl
