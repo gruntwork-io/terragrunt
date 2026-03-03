@@ -18,7 +18,7 @@ import (
 
 // NewParsingContext creates a config.ParsingContext populated from TerragruntOptions.
 func NewParsingContext(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (context.Context, *config.ParsingContext) {
-	ctx, pctx := config.NewParsingContext(ctx, l, opts.StrictControls)
+	ctx, pctx := config.NewParsingContext(ctx, l, config.WithStrictControls(opts.StrictControls))
 	populateFromOpts(pctx, opts)
 
 	return ctx, pctx

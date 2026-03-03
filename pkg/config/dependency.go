@@ -704,11 +704,19 @@ func isAwsS3NoSuchKey(err error) bool {
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
 func isRenderJSONCommand(pctx *ParsingContext) bool {
+	if pctx.TerraformCliArgs == nil {
+		return false
+	}
+
 	return pctx.TerraformCliArgs.Contains(renderJSONCommand)
 }
 
 // isRenderCommand will return true if terragrunt was invoked with render
 func isRenderCommand(pctx *ParsingContext) bool {
+	if pctx.TerraformCliArgs == nil {
+		return false
+	}
+
 	return pctx.TerraformCliArgs.Contains(renderCommand)
 }
 

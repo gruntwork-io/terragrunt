@@ -101,14 +101,19 @@ type ParsingContext struct {
 	NoStackValidate                  bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
+func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
-		ParserOptions:  DefaultParserOptions(l, strictControls),
-		StrictControls: strictControls,
-		FilesRead:      &filesRead,
+		TerraformCliArgs: iacargs.New(),
+		FilesRead:        &filesRead,
 	}
+
+	for _, opt := range opts {
+		opt(pctx)
+	}
+
+	pctx.ParserOptions = DefaultParserOptions(l, pctx.StrictControls)
 
 	return ctx, pctx
 }
