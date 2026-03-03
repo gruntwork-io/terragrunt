@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestParseTerragruntStackConfig(t *testing.T) {
@@ -421,4 +422,72 @@ terraform {
 
 	combined := stdout + "\n" + stderr + "\n" + err.Error()
 	assert.Contains(t, combined, "expected object or map")
+}
+
+func TestReadValuesTwoPassResolution(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultTerragruntConfigPath), []byte(`# unit config`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+environment = "dev"
+vpc_id      = dependency.vpc.outputs.vpc_id
+subnet_id   = dependency.vpc.outputs.subnet_id
+`), 0644))
+
+	configPath := filepath.Join(tmpDir, config.DefaultTerragruntConfigPath)
+
+	// Pass 1: without dependencies - simulates initial ReadValues call in ParseConfig
+	ctx, pctx := newTestParsingContext(t, configPath)
+	l := logger.CreateLogger()
+
+	firstPass, err := config.ReadValues(ctx, pctx, l, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, firstPass)
+
+	assert.True(t, firstPass.GetAttr("environment").RawEquals(cty.StringVal("dev")))
+	assert.False(t, firstPass.GetAttr("vpc_id").IsKnown(), "first pass: dependency values should be unknown")
+	assert.False(t, firstPass.GetAttr("subnet_id").IsKnown(), "first pass: dependency values should be unknown")
+
+	// Pass 2: with decoded dependencies - simulates re-read after decodeAndRetrieveOutputs
+	decodedDeps := cty.ObjectVal(map[string]cty.Value{
+		"vpc": cty.ObjectVal(map[string]cty.Value{
+			"outputs": cty.ObjectVal(map[string]cty.Value{
+				"vpc_id":    cty.StringVal("vpc-abc123"),
+				"subnet_id": cty.StringVal("subnet-def456"),
+			}),
+		}),
+	})
+	pctx2 := pctx.WithDecodedDependencies(&decodedDeps)
+
+	secondPass, err := config.ReadValues(ctx, pctx2, l, tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, secondPass)
+
+	assert.True(t, secondPass.GetAttr("environment").RawEquals(cty.StringVal("dev")),
+		"second pass: static values should be unchanged")
+	assert.True(t, secondPass.GetAttr("vpc_id").RawEquals(cty.StringVal("vpc-abc123")),
+		"second pass: dependency values should now resolve")
+	assert.True(t, secondPass.GetAttr("subnet_id").RawEquals(cty.StringVal("subnet-def456")),
+		"second pass: dependency values should now resolve")
+}
+
+func TestReadValuesNoPlaceholderForStackContext(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, config.DefaultStackFile), []byte(`# stack config`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.values.hcl"), []byte(`
+environment = "dev"
+vpc_id      = dependency.vpc.outputs.vpc_id
+`), 0644))
+
+	ctx, pctx := newTestParsingContext(t, filepath.Join(tmpDir, config.DefaultStackFile))
+	l := logger.CreateLogger()
+
+	_, err := config.ReadValues(ctx, pctx, l, tmpDir)
+	require.Error(t, err, "should fail because dependency placeholder is not injected for stack contexts")
+	assert.Contains(t, err.Error(), "dependency")
 }

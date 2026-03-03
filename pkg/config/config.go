@@ -1351,6 +1351,19 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
+	// Re-read values now that dependencies are resolved so that values files
+	// referencing dependency.* get real outputs instead of DynamicVal placeholders.
+	if pctx.DecodedDependencies != nil {
+		resolvedValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
+		if err != nil {
+			errs = errs.Append(err)
+		}
+
+		if resolvedValues != nil {
+			pctx = pctx.WithValues(resolvedValues)
+		}
+	}
+
 	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		errs = errs.Append(err)

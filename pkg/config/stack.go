@@ -534,6 +534,14 @@ func writeValues(l log.Logger, values *cty.Value, directory string) error {
 }
 
 // ReadValues reads values from the terragrunt.values.hcl file in the specified directory.
+//
+// When decoded dependencies are available on the parsing context, the values file can
+// reference dependency outputs (e.g. dependency.vpc.outputs.vpc_id). When dependencies
+// have not yet been resolved and the directory contains a unit config (terragrunt.hcl)
+// rather than a stack config (terragrunt.stack.hcl), a DynamicVal placeholder is
+// injected for the dependency variable so the parse succeeds with unknown values.
+// Callers (e.g. ParseConfig) should re-read values after dependency resolution to
+// replace any unknown values with real dependency outputs.
 func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directory string) (*cty.Value, error) {
 	if directory == "" {
 		return nil, errors.New("ReadValues: directory path cannot be empty")
@@ -555,6 +563,15 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
+	}
+
+	if _, hasDep := evalParsingContext.Variables[MetadataDependency]; !hasDep {
+		unitConfigPath := filepath.Join(directory, DefaultTerragruntConfigPath)
+		stackConfigPath := filepath.Join(directory, DefaultStackFile)
+
+		if util.FileExists(unitConfigPath) && util.FileNotExists(stackConfigPath) {
+			evalParsingContext.Variables[MetadataDependency] = cty.DynamicVal
+		}
 	}
 
 	values := map[string]cty.Value{}
