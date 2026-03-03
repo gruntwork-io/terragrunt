@@ -16,7 +16,7 @@ body:
         ## Before you start
 
         - Make sure you search for an issue that would already cover your RFC in the [issues tab](https://github.com/gruntwork-io/terragrunt/issues?q=is%3Aissue).
-        - Search through [Terragrunt documentation](https://terragrunt.gruntwork.io/docs/) to see if your RFC is already supported.
+        - Search through [Terragrunt documentation](https://docs.terragrunt.com/) to see if your RFC is already supported.
 
         ## After you submit
 

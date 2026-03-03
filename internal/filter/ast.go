@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/component"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -86,6 +87,12 @@ func NewAttributeExpression(key string, value string) (*AttributeExpression, err
 	}
 
 	return expr, nil
+}
+
+// NewTypeExpression creates a new AttributeExpression for the "type" attribute.
+// Type filters do not support glob matching, so this constructor cannot fail.
+func NewTypeExpression(kind component.Kind) *AttributeExpression {
+	return &AttributeExpression{Key: AttributeType, Value: string(kind)}
 }
 
 // Glob returns the pre-compiled glob pattern.
@@ -234,19 +241,31 @@ type GraphExpression struct {
 	DependencyDepth     int
 }
 
-// NewGraphExpression creates a new GraphExpression.
-func NewGraphExpression(
-	target Expression,
-	includeDependents bool,
-	includeDependencies bool,
-	excludeTarget bool,
-) *GraphExpression {
+// NewGraphExpression creates a new GraphExpression for the given target.
+// Use the builder methods WithDependents, WithDependencies, and WithExcludeTarget
+// to configure graph traversal behavior.
+func NewGraphExpression(target Expression) *GraphExpression {
 	return &GraphExpression{
-		Target:              target,
-		IncludeDependents:   includeDependents,
-		IncludeDependencies: includeDependencies,
-		ExcludeTarget:       excludeTarget,
+		Target: target,
 	}
+}
+
+// WithDependents includes dependents (reverse dependencies) in the graph traversal.
+func (g *GraphExpression) WithDependents() *GraphExpression {
+	g.IncludeDependents = true
+	return g
+}
+
+// WithDependencies includes dependencies in the graph traversal.
+func (g *GraphExpression) WithDependencies() *GraphExpression {
+	g.IncludeDependencies = true
+	return g
+}
+
+// WithExcludeTarget excludes the target itself from the graph traversal results.
+func (g *GraphExpression) WithExcludeTarget() *GraphExpression {
+	g.ExcludeTarget = true
+	return g
 }
 
 func (g *GraphExpression) expressionNode() {}

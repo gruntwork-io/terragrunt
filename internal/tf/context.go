@@ -7,8 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -19,7 +17,7 @@ const (
 type ctxKey byte
 
 // RunShellCommandFunc is a context value for `TerraformCommandContextKey` key, used to intercept shell commands.
-type RunShellCommandFunc func(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, args clihelper.Args) (*util.CmdOutput, error)
+type RunShellCommandFunc func(ctx context.Context, l log.Logger, tfOpts *TFOptions, args clihelper.Args) (*util.CmdOutput, error)
 
 func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc) context.Context {
 	ctx = cache.ContextWithCache(ctx)

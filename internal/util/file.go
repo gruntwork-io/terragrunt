@@ -82,11 +82,16 @@ func EnsureDirectory(path string) error {
 	return nil
 }
 
-// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given path is a
-// relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
-// components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
+// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given
+// path is a relative path, assume it is relative to the given base path. A canonical path is an absolute path with all
+// relative components (e.g. "../") fully resolved, which makes it safe to compare paths as strings. If the path is
+// relative, basePath must be absolute or an error is returned.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
+		if !filepath.IsAbs(basePath) {
+			return "", fmt.Errorf("base path %q is not absolute", basePath)
+		}
+
 		path = filepath.Join(basePath, path)
 	}
 
@@ -426,15 +431,19 @@ func CopyFolderContents(
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		if err != nil {
+			return false
+		}
+
 		relativePath = filepath.ToSlash(relativePath)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
 		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
-		if err == nil && listHasElementWithPrefix && !pathHasPrefix {
+		if listHasElementWithPrefix && !pathHasPrefix {
 			return true
 		}
 
-		if err == nil && pathContainsPrefix(relativePath, excludeExpandedGlobs) {
+		if pathHasPrefix {
 			return false
 		}
 

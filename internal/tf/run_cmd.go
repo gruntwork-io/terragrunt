@@ -11,13 +11,14 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	logwriter "github.com/gruntwork-io/terragrunt/pkg/log/writer"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/mattn/go-isatty"
 )
 
@@ -42,27 +43,13 @@ var commandsThatNeedPty = []string{
 
 // TFOptions contains the configuration needed to run TF commands.
 type TFOptions struct {
-	ShellOptions *shell.ShellOptions
-
-	// TerragruntOptions is the full options struct. It is needed when the
-	// TerraformCommandHook fires (e.g. for provider caching) because the hook
-	// implementation requires full access to TerragruntOptions.
-	// Callers that only need basic TF command execution may leave this nil,
-	// as long as the TerraformCommandHook is not set in the context.
-	TerragruntOptions *options.TerragruntOptions
+	ShellOptions         *shell.ShellOptions
+	TerraformCliArgs     *iacargs.IacArgs
+	TerragruntConfigPath string
+	TofuImplementation   tfimpl.Type
 
 	OriginalTerragruntConfigPath string
 	JSONLogFormat                bool
-}
-
-// TFOptionsFromOpts constructs RunOptions from TerragruntOptions.
-func TFOptionsFromOpts(opts *options.TerragruntOptions) *TFOptions {
-	return &TFOptions{
-		JSONLogFormat:                opts.JSONLogFormat,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		ShellOptions:                 shell.RunOptionsFromOpts(opts),
-		TerragruntOptions:            opts,
-	}
 }
 
 // RunCommand runs the given Terraform command.
@@ -78,7 +65,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
 	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		return fn(ctx, l, runOpts.TerragruntOptions, args)
+		return fn(ctx, l, runOpts, args)
 	}
 
 	needsPTY, err := isCommandThatNeedsPty(args)

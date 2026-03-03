@@ -63,9 +63,7 @@ func TestClassifier_NegatedGraphExpression_HasGraphFilters(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filter.Filters{f})
-			require.NoError(t, err, "failed to analyze filter")
+			classifier := filter.NewClassifier(filter.Filters{f})
 
 			assert.Equal(t, tt.expectGraphFilter, classifier.HasGraphFilters(),
 				"HasGraphFilters() mismatch for filter %q", tt.filterStr)
@@ -112,9 +110,7 @@ func TestClassifier_NegatedGraphExpression_IsNegatedFlag(t *testing.T) {
 			f, err := filter.Parse(tt.filterStr)
 			require.NoError(t, err, "failed to parse filter")
 
-			classifier := filter.NewClassifier()
-			err = classifier.Analyze(filter.Filters{f})
-			require.NoError(t, err, "failed to analyze filter")
+			classifier := filter.NewClassifier(filter.Filters{f})
 
 			graphExprs := classifier.GraphExpressions()
 			require.Len(t, graphExprs, len(tt.expectIsNegated),
@@ -137,9 +133,7 @@ func TestClassifier_MixedNegatedAndNonNegatedGraphFilters(t *testing.T) {
 	barFilter, err := filter.Parse("!...bar")
 	require.NoError(t, err)
 
-	classifier := filter.NewClassifier()
-	err = classifier.Analyze(filter.Filters{fooFilter, barFilter})
-	require.NoError(t, err)
+	classifier := filter.NewClassifier(filter.Filters{fooFilter, barFilter})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.True(t, classifier.HasDependentFilters(), "should have dependent filters")
@@ -164,14 +158,12 @@ func TestClassifier_NestedNegatedGraphExpression(t *testing.T) {
 	target, err := filter.NewPathFilter("./db")
 	require.NoError(t, err)
 
-	graphExpr := filter.NewGraphExpression(target, false, true, false)
+	graphExpr := filter.NewGraphExpression(target).WithDependencies()
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!./db...")
 
-	classifier := filter.NewClassifier()
-	err = classifier.Analyze(filter.Filters{f})
-	require.NoError(t, err)
+	classifier := filter.NewClassifier(filter.Filters{f})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.False(t, classifier.HasDependentFilters(), "should not have dependent filters (db... is dependencies)")
@@ -189,14 +181,12 @@ func TestClassifier_NegatedBidirectionalGraphExpression(t *testing.T) {
 	target, err := filter.NewPathFilter("./db")
 	require.NoError(t, err)
 
-	graphExpr := filter.NewGraphExpression(target, true, true, false)
+	graphExpr := filter.NewGraphExpression(target).WithDependents().WithDependencies()
 	negatedExpr := filter.NewPrefixExpression("!", graphExpr)
 
 	f := filter.NewFilter(negatedExpr, "!...db...")
 
-	classifier := filter.NewClassifier()
-	err = classifier.Analyze(filter.Filters{f})
-	require.NoError(t, err)
+	classifier := filter.NewClassifier(filter.Filters{f})
 
 	assert.True(t, classifier.HasGraphFilters(), "should have graph filters")
 	assert.True(t, classifier.HasDependentFilters(), "should have dependent filters")
@@ -386,9 +376,7 @@ func TestClassifier_Classify(t *testing.T) {
 				filters = append(filters, f)
 			}
 
-			classifier := filter.NewClassifier()
-			err := classifier.Analyze(filters)
-			require.NoError(t, err)
+			classifier := filter.NewClassifier(filters)
 
 			var comp component.Component
 			if tt.componentRef != "" {

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -234,11 +233,8 @@ func TestNeedsBootstrapDisableInit(t *testing.T) {
 		},
 	}
 
-	opts, err := options.NewTerragruntOptionsForTest("mock.hcl")
-	require.NoError(t, err)
-
 	remote := remotestate.New(cfg)
-	needsBootstrap, err := remote.NeedsBootstrap(t.Context(), logger.CreateLogger(), opts)
+	needsBootstrap, err := remote.NeedsBootstrap(t.Context(), logger.CreateLogger(), &remotestate.Options{})
 
 	require.NoError(t, err)
 	assert.False(t, needsBootstrap, "NeedsBootstrap must return false when DisableInit=true")

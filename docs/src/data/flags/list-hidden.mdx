@@ -1,0 +1,15 @@
+---
+name: hidden
+description: Include hidden directories in list results.
+type: bool
+env:
+  - TG_HIDDEN
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Deprecated">
+This flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default, making this flag unnecessary.
+
+Use [`--no-hidden`](/reference/cli/commands/list#no-hidden) to exclude hidden directories from the results.
+</Aside>

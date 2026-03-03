@@ -31,7 +31,7 @@ func runBootstrap(ctx context.Context, l log.Logger, opts *options.TerragruntOpt
 		return err
 	}
 
-	return remoteState.Bootstrap(ctx, l, opts)
+	return remoteState.Bootstrap(ctx, l, configbridge.RemoteStateOptsFromOpts(opts))
 }
 
 func runAll(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
