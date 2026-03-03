@@ -94,6 +94,12 @@ jobs:
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main:main
 
+    # Ensure Go build cache directory exists on macOS.
+    # Prevents "mkdir go-build: file exists" errors in golangci-lint.
+    - name: Ensure Go build cache dir (macOS)
+      if: runner.os == 'macOS'
+      run: mkdir -p "$(go env GOCACHE)"
+
     # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
     # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
     - name: Set memory limits (macOS)
