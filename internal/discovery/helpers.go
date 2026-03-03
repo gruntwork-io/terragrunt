@@ -158,22 +158,21 @@ func createComponentFromPath(
 // validateNoCoexistence checks that no directory has both a unit and a stack config file.
 // Returns a CoexistenceError if a directory contains both.
 func validateNoCoexistence(results []DiscoveryResult) error {
-	seen := make(map[string]string, len(results))
+	seen := make(map[string]DiscoveryResult, len(results))
 
 	for _, result := range results {
 		path := result.Component.Path()
-		configFile := result.Component.ConfigFile()
 
-		if existingFile, ok := seen[path]; ok && existingFile != configFile {
-			unitFile, stackFile := existingFile, configFile
+		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
+			unitFile, stackFile := existing.Component.ConfigFile(), result.Component.ConfigFile()
 			if result.Component.Kind() == component.UnitKind {
-				unitFile, stackFile = configFile, existingFile
+				unitFile, stackFile = result.Component.ConfigFile(), existing.Component.ConfigFile()
 			}
 
 			return NewCoexistenceError(path, unitFile, stackFile)
 		}
 
-		seen[path] = configFile
+		seen[path] = result
 	}
 
 	return nil
