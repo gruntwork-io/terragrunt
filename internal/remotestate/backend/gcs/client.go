@@ -32,7 +32,6 @@ type Client struct {
 // NewClient inits GCS client.
 func NewClient(
 	ctx context.Context,
-	l log.Logger,
 	config *ExtendedRemoteStateConfigGCS,
 	opts *backend.Options,
 ) (*Client, error) {

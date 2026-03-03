@@ -65,12 +65,6 @@ const (
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
-	TerraformCommandsWithSubcommand = []string{
-		"debug",
-		"force-unlock",
-		"state",
-	}
-
 	defaultVersionManagerFileName = []string{
 		".terraform-version",
 		".tool-versions",
