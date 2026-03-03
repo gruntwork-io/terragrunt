@@ -95,10 +95,14 @@ jobs:
       run: git fetch origin main:main
 
     # Ensure Go build cache directory exists on macOS.
-    # Prevents "mkdir go-build: file exists" errors in golangci-lint.
+    # Cache restoration can leave a regular file at the GOCACHE path,
+    # causing "mkdir go-build: file exists" errors in golangci-lint.
     - name: Ensure Go build cache dir (macOS)
       if: runner.os == 'macOS'
-      run: mkdir -p "$(go env GOCACHE)"
+      run: |
+        cache_dir="$(go env GOCACHE)"
+        [ -f "$cache_dir" ] && rm -f "$cache_dir"
+        mkdir -p "$cache_dir"
 
     # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
     # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
