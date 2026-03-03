@@ -188,8 +188,8 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 
 // configFileForComponent returns the config filename for a component.
 func configFileForComponent(c component.Component) string {
-	if unit, ok := c.(*component.Unit); ok {
-		return unit.ConfigFile()
+	if c.Kind() == component.UnitKind {
+		return config.DefaultTerragruntConfigPath
 	}
 
 	return config.DefaultStackFile
