@@ -188,6 +188,10 @@ func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 
 	rootPath := filepath.Join(gitPath, "non-prod", "dev")
 
+	// Create the conflicting terragrunt.hcl alongside terragrunt.stack.hcl in temp copy.
+	// Not kept on disk in the fixture to avoid breaking `terragrunt find` from repo root.
+	require.NoError(t, os.WriteFile(filepath.Join(rootPath, "terragrunt.hcl"), []byte(""), 0644))
+
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --working-dir "+rootPath)
 	require.Error(t, err)
 
