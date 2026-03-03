@@ -347,7 +347,7 @@ export default defineConfig({
               if (tool === 'opentofu' || tool === 'terraform') {
                 req.url = `/api/v1/compatibility/${tool}`;
               } else {
-                req.url = '/api/v1/compatibility/index.json';
+                req.url = '/api/v1/compatibility/index';
               }
             }
             next();
