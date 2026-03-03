@@ -93,6 +93,7 @@ const (
 	testFixtureParallelism                    = "fixtures/parallelism"
 	testFixturePath                           = "fixtures/terragrunt/"
 	testFixturePlanfileOrder                  = "fixtures/planfile-order-test"
+	testFixtureProviderCacheDependency        = "fixtures/provider-cache/dependency"
 	testFixtureProviderCacheDirect            = "fixtures/provider-cache/direct"
 	testFixtureProviderCacheFilesystemMirror  = "fixtures/provider-cache/filesystem-mirror"
 	testFixtureProviderCacheMultiplePlatforms = "fixtures/provider-cache/multiple-platforms"
