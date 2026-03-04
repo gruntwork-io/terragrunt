@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -156,13 +157,10 @@ remote_state {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
 		assert.Equal(t, "prod-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
 
-		// Verify that S3 GetTFInitArgs normalizes string booleans to native bools.
-		// After HCL ternary type unification, use_lockfile may be string "true".
-		initArgs := terragruntConfig.RemoteState.GetTFInitArgs()
-		for _, arg := range initArgs {
-			// use_lockfile must be unquoted true, not "true"
-			assert.NotContains(t, arg, `use_lockfile="true"`)
-		}
+		// After parsing, verify S3 backend normalizes string bools in GetTFInitArgs
+		s3Backend := s3.NewBackend()
+		initArgs := s3Backend.GetTFInitArgs(terragruntConfig.RemoteState.BackendConfig)
+		assert.IsType(t, true, initArgs["use_lockfile"])
 	}
 }
 

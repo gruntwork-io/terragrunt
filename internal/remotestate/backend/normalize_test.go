@@ -14,9 +14,9 @@ type testConfig struct {
 }
 
 type testConfigWithSquash struct {
+	Region  string     `mapstructure:"region"`
 	Inner   testConfig `mapstructure:",squash"`
 	Verbose bool       `mapstructure:"verbose"`
-	Region  string     `mapstructure:"region"`
 }
 
 func TestNormalizeBoolValues_StringToTrue(t *testing.T) {
@@ -105,6 +105,42 @@ func TestNormalizeBoolValues_EmptyMap(t *testing.T) {
 	result := backend.NormalizeBoolValues(m, &testConfig{})
 
 	assert.Empty(t, result)
+}
+
+type testConfigWithPtrBool struct {
+	Encrypt  *bool  `mapstructure:"encrypt"`
+	Optional *bool  `mapstructure:"optional"`
+	Name     string `mapstructure:"name"`
+}
+
+func TestNormalizeBoolValues_PtrBoolFields(t *testing.T) {
+	t.Parallel()
+
+	m := backend.Config{"encrypt": "true", "optional": "false", "name": "test"}
+	result := backend.NormalizeBoolValues(m, &testConfigWithPtrBool{})
+
+	assert.Equal(t, true, result["encrypt"])
+	assert.Equal(t, false, result["optional"])
+	assert.Equal(t, "test", result["name"])
+}
+
+func TestNormalizeBoolValues_NilMap(t *testing.T) {
+	t.Parallel()
+
+	result := backend.NormalizeBoolValues(nil, &testConfig{})
+
+	assert.Empty(t, result)
+}
+
+func TestNormalizeBoolValues_NilTarget(t *testing.T) {
+	t.Parallel()
+
+	m := backend.Config{"encrypt": "true", "name": "test"}
+	result := backend.NormalizeBoolValues(m, nil)
+
+	// With nil target, no bool keys are detected, so values are returned as-is
+	assert.Equal(t, "true", result["encrypt"])
+	assert.Equal(t, "test", result["name"])
 }
 
 func TestNormalizeBoolValues_NumericBoolStrings(t *testing.T) {

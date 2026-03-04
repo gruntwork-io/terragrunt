@@ -52,6 +52,10 @@ func NormalizeBoolValues(m Config, target any) Config {
 // collectBoolKeys walks a struct type via reflection, reading mapstructure tags
 // to build a set of config key names that map to bool fields.
 func collectBoolKeys(t reflect.Type) map[string]bool {
+	if t == nil {
+		return nil
+	}
+
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -67,7 +71,7 @@ func collectBoolKeys(t reflect.Type) map[string]bool {
 		tag := field.Tag.Get("mapstructure")
 
 		// Handle squashed embedded structs
-		if tag == ",squash" || tag == "" && field.Anonymous {
+		if tag == ",squash" || (tag == "" && field.Anonymous) {
 			for k, v := range collectBoolKeys(field.Type) {
 				keys[k] = v
 			}
@@ -85,7 +89,12 @@ func collectBoolKeys(t reflect.Type) map[string]bool {
 			continue
 		}
 
-		if field.Type.Kind() == reflect.Bool {
+		fieldType := field.Type
+		if fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
+
+		if fieldType.Kind() == reflect.Bool {
 			keys[key] = true
 		}
 	}
