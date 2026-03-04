@@ -4,10 +4,10 @@ import (
 	"maps"
 	"reflect"
 	"slices"
-	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
@@ -24,18 +24,6 @@ const (
 
 	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
 )
-
-// s3BoolConfigKeys lists S3 backend config keys that expect boolean values.
-// HCL ternary type unification can convert bools to strings; these keys
-// are normalized back to native Go bools before being forwarded to
-// Terraform/OpenTofu so that generated backend blocks contain unquoted
-// true/false literals instead of "true"/"false" strings.
-var s3BoolConfigKeys = []string{
-	"encrypt",
-	"force_path_style",
-	"use_lockfile",
-	"skip_credentials_validation",
-}
 
 type Config map[string]any
 
@@ -81,22 +69,14 @@ func (cfg Config) GetTFInitArgs() Config {
 			}
 		}
 
-		// Normalize string boolean values to native Go bools.
-		// HCL ternary type unification can convert bools to strings,
-		// which causes generated backend blocks to contain "true"/"false"
-		// string literals instead of true/false boolean literals.
-		if strVal, ok := val.(string); ok && slices.Contains(s3BoolConfigKeys, key) {
-			if boolVal, err := strconv.ParseBool(strVal); err == nil {
-				filtered[key] = boolVal
-
-				continue
-			}
-		}
-
 		filtered[key] = val
 	}
 
-	return filtered
+	// Normalize string boolean values to native Go bools using reflection
+	// on the S3 config structs. HCL ternary type unification can convert
+	// bools to strings, which causes generated backend blocks to contain
+	// "true"/"false" string literals instead of true/false boolean literals.
+	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigS3{}))
 }
 
 func (cfg Config) Normalize(logger log.Logger) Config {
