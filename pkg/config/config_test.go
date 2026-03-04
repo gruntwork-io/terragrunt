@@ -115,6 +115,57 @@ remote_state = {
 	}
 }
 
+// TestParseTerragruntConfigRemoteStateTernaryUseLockfile reproduces issue #5646:
+// when remote_state.config is produced from a local resolved with a ternary operator,
+// HCL type unification converts bool values (like use_lockfile) to strings.
+// The S3 backend must normalize these back to native bools before codegen.
+func TestParseTerragruntConfigRemoteStateTernaryUseLockfile(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  is_prod = true
+  remote_state_config = local.is_prod ? {
+    bucket       = "prod-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  } : {
+    bucket       = "dev-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-west-2"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+remote_state {
+  backend = "s3"
+  config  = local.remote_state_config
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Equal(t, "prod-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+
+		// Verify that S3 GetTFInitArgs normalizes string booleans to native bools.
+		// After HCL ternary type unification, use_lockfile may be string "true".
+		initArgs := terragruntConfig.RemoteState.GetTFInitArgs()
+		for _, arg := range initArgs {
+			// use_lockfile must be unquoted true, not "true"
+			assert.NotContains(t, arg, `use_lockfile="true"`)
+		}
+	}
+}
+
 func TestParseTerragruntConfigRemoteStateAttrInvalidStringBool(t *testing.T) {
 	t.Parallel()
 

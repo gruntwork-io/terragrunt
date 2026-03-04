@@ -201,6 +201,57 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	}
 }
 
+// TestRemoteStateConfigToTerraformCode_BoolValues verifies that native bool
+// values in the config map produce unquoted true/false in the generated HCL.
+// This is the expected output when string booleans from HCL ternary type
+// unification are normalized back to Go bools before reaching codegen.
+func TestRemoteStateConfigToTerraformCode_BoolValues(t *testing.T) {
+	t.Parallel()
+
+	expected := []byte(`terraform {
+  backend "s3" {
+    bucket       = "my-bucket"
+    encrypt      = true
+    key          = "terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+  }
+}
+`)
+
+	config := map[string]any{
+		"bucket":       "my-bucket",
+		"key":          "terraform.tfstate",
+		"region":       "us-east-1",
+		"encrypt":      true,
+		"use_lockfile": true,
+	}
+
+	output, err := codegen.RemoteStateConfigToTerraformCode("s3", config, map[string]any{})
+	require.NoError(t, err)
+	assert.Equal(t, string(expected), string(output))
+}
+
+// TestRemoteStateConfigToTerraformCode_StringBoolProducesQuotedValue demonstrates
+// that string "true"/"false" values produce quoted string literals in generated HCL.
+// The fix for #5646 normalizes these in S3 GetTFInitArgs before they reach codegen.
+func TestRemoteStateConfigToTerraformCode_StringBoolProducesQuotedValue(t *testing.T) {
+	t.Parallel()
+
+	config := map[string]any{
+		"bucket":       "my-bucket",
+		"key":          "terraform.tfstate",
+		"region":       "us-east-1",
+		"use_lockfile": "true",
+	}
+
+	output, err := codegen.RemoteStateConfigToTerraformCode("s3", config, map[string]any{})
+	require.NoError(t, err)
+
+	// String "true" produces a quoted string literal in HCL, which Terraform rejects
+	assert.Contains(t, string(output), `use_lockfile = "true"`)
+}
+
 func TestFmtGeneratedFile(t *testing.T) {
 	t.Parallel()
 

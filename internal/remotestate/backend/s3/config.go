@@ -4,6 +4,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
@@ -23,6 +24,18 @@ const (
 
 	lockTableDeprecationMessage = "Remote state configuration 'lock_table' attribute is deprecated; use 'dynamodb_table' instead."
 )
+
+// s3BoolConfigKeys lists S3 backend config keys that expect boolean values.
+// HCL ternary type unification can convert bools to strings; these keys
+// are normalized back to native Go bools before being forwarded to
+// Terraform/OpenTofu so that generated backend blocks contain unquoted
+// true/false literals instead of "true"/"false" strings.
+var s3BoolConfigKeys = []string{
+	"encrypt",
+	"force_path_style",
+	"use_lockfile",
+	"skip_credentials_validation",
+}
 
 type Config map[string]any
 
@@ -63,6 +76,18 @@ func (cfg Config) GetTFInitArgs() Config {
 		if key == configAssumeRoleWithWebIdentityKey {
 			if mapVal, ok := val.(map[string]any); ok {
 				filtered[key] = hclhelper.WrapMapToSingleLineHcl(mapVal)
+
+				continue
+			}
+		}
+
+		// Normalize string boolean values to native Go bools.
+		// HCL ternary type unification can convert bools to strings,
+		// which causes generated backend blocks to contain "true"/"false"
+		// string literals instead of true/false boolean literals.
+		if strVal, ok := val.(string); ok && slices.Contains(s3BoolConfigKeys, key) {
+			if boolVal, err := strconv.ParseBool(strVal); err == nil {
+				filtered[key] = boolVal
 
 				continue
 			}
