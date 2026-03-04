@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
@@ -276,7 +277,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 		t.Context(),
 		logger.CreateLogger(),
 		terraformSource,
-		run.NewOptions(opts),
+		configbridge.NewRunOptions(opts),
 		cfg,
 		report.NewReport(),
 	)
@@ -437,7 +438,7 @@ func testDownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
 		terraformSource,
-		run.NewOptions(opts),
+		configbridge.NewRunOptions(opts),
 		cfg,
 		report.NewReport(),
 	)
@@ -485,8 +486,11 @@ func createConfig(
 		},
 	}
 
-	_, err = run.PopulateTFVersion(t.Context(), logger, opts)
+	_, ver, impl, err := run.PopulateTFVersion(t.Context(), logger, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
 	require.NoError(t, err)
+
+	opts.TerraformVersion = ver
+	opts.TofuImplementation = impl
 
 	return terraformSource, opts, cfg, err
 }
@@ -507,7 +511,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := run.AlreadyHaveLatestCode(logger, terraformSource, run.NewOptions(opts))
+	actual, err := run.AlreadyHaveLatestCode(logger, terraformSource, configbridge.NewRunOptions(opts))
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
@@ -606,7 +610,7 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client := &getter.Client{}
 
 			// Call updateGetters
-			updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), run.NewOptions(terragruntOptions), tc.cfg)
+			updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), tc.cfg)
 			err = updateGettersFunc(client)
 			require.NoError(t, err)
 
@@ -639,7 +643,7 @@ func TestUpdateGettersHTTPNetrc(t *testing.T) {
 
 	client := &getter.Client{}
 
-	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), run.NewOptions(terragruntOptions), cfg)
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), cfg)
 	err = updateGettersFunc(client)
 	require.NoError(t, err)
 
@@ -669,7 +673,7 @@ func TestUpdateGettersIncludesAllGlobalGetters(t *testing.T) {
 
 	client := &getter.Client{}
 
-	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), run.NewOptions(terragruntOptions), cfg)
+	updateGettersFunc := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(terragruntOptions), cfg)
 	err = updateGettersFunc(client)
 	require.NoError(t, err)
 
@@ -721,7 +725,7 @@ func TestDownloadWithNoSourceCreatesCache(t *testing.T) {
 	r := report.NewReport()
 
 	// sourceURL "." represents the current directory (no terraform.source specified)
-	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, ".", run.NewOptions(opts), cfg, r)
+	updatedOpts, err := run.DownloadTerraformSource(t.Context(), l, ".", configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify that the working directory was changed to the cache directory (inside downloadDir)
@@ -770,7 +774,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, run.NewOptions(opts), cfg, r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 
 	require.NoError(t, err)
 
@@ -813,7 +817,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, run.NewOptions(opts), cfg, r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -855,7 +859,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, run.NewOptions(opts), cfg, r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -896,7 +900,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, run.NewOptions(opts), cfg, r)
+	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -958,7 +962,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, run.NewOptions(opts), cfg, r)
+			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)
@@ -1015,7 +1019,7 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 		Mode: getter.ClientModeFile,
 	}
 
-	updateFn := run.UpdateGetters(logger.CreateLogger(), run.NewOptions(opts), cfg)
+	updateFn := run.UpdateGetters(logger.CreateLogger(), configbridge.NewRunOptions(opts), cfg)
 	require.NoError(t, updateFn(client))
 
 	require.NoError(t, client.Get())

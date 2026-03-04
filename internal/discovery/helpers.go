@@ -155,6 +155,29 @@ func createComponentFromPath(
 	return nil
 }
 
+// validateNoCoexistence checks that no directory has both a unit and a stack config file.
+// Returns a CoexistenceError if a directory contains both.
+func validateNoCoexistence(results []DiscoveryResult) error {
+	seen := make(map[string]DiscoveryResult, len(results))
+
+	for _, result := range results {
+		path := result.Component.Path()
+
+		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
+			unitFile, stackFile := existing.Component.ConfigFile(), result.Component.ConfigFile()
+			if result.Component.Kind() == component.UnitKind {
+				unitFile, stackFile = result.Component.ConfigFile(), existing.Component.ConfigFile()
+			}
+
+			return NewCoexistenceError(path, unitFile, stackFile)
+		}
+
+		seen[path] = result
+	}
+
+	return nil
+}
+
 // deduplicateResults removes duplicate components from results by path.
 func deduplicateResults(results []DiscoveryResult) []DiscoveryResult {
 	seen := make(map[string]struct{}, len(results))

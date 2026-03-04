@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -56,7 +57,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		tf.RunCommand(t.Context(), l, tf.TFOptionsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
+		tf.RunCommand(t.Context(), l, configbridge.TFRunOptsFromOpts(mockOptions), "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(

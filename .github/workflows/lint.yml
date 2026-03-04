@@ -41,7 +41,7 @@ jobs:
           ${{ runner.os }}-mise-tools-
 
     - name: Set up mise
-      uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
+      uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
       with:
         version: 2026.1.9
         experimental: true
@@ -93,6 +93,16 @@ jobs:
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main:main
+
+    # Ensure Go build cache directory exists on macOS.
+    # Prevents "mkdir go-build: file exists" or "No such file or directory"
+    # errors in golangci-lint.
+    - name: Ensure Go build cache dir (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        cache_dir="$(go env GOCACHE)"
+        if [ -f "$cache_dir" ]; then rm -f "$cache_dir"; fi
+        mkdir -p "$cache_dir"
 
     # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
     # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.

@@ -1,0 +1,58 @@
+---
+title: Path Expressions
+description: Match units and stacks by their file system path
+slug: features/filter/path
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+Match units and stacks by their file system path.
+
+```bash
+# Relative paths
+terragrunt find --filter './envs/prod/apps/app1'
+terragrunt find --filter './envs/stage/**'
+
+# Absolute paths
+terragrunt find --filter '/absolute/path/to/envs/dev/apps/*'
+
+# Wrapped paths (useful for explicitly indicating that this is a path expression)
+terragrunt find --filter '{./envs/prod/apps/app2}'
+```
+
+<FileTree>
+- envs
+  - prod
+    - apps
+      - **app1** \<-- Matched by the first filter
+        - terragrunt.hcl
+      - **app2** \<-- Matched by the fourth filter
+        - terragrunt.hcl
+  - stage
+    - apps
+      - **app1** \<-- Matched by the second filter
+        - terragrunt.hcl
+      - **app2** \<-- Also matched by the second filter
+        - terragrunt.hcl
+  - dev
+    - apps
+      - **app1** \<-- Matched by the third filter
+        - terragrunt.hcl
+      - **app2** \<-- Also matched by the third filter
+        - terragrunt.hcl
+</FileTree>
+
+<Aside type="note">
+Note that globs used in path-based expressions will not recursively match nested directories unless you use the `**` wildcard.
+
+(That's why `./envs/stage/**` is used above)
+</Aside>
+
+<Aside type="note">
+
+Glob patterns must use Unix forward slashes `/` to separate directories, even on Windows machines.
+
+</Aside>

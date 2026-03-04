@@ -114,7 +114,7 @@ func findCatalogConfig(ctx context.Context, l log.Logger, outerPctx *ParsingCont
 		default: // continue
 		}
 
-		parseCtx, pctx := NewParsingContext(ctx, l, outerPctx.StrictControls)
+		parseCtx, pctx := NewParsingContext(ctx, l, WithStrictControls(outerPctx.StrictControls))
 		pctx.TerragruntConfigPath = filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName)
 		pctx.MaxFoldersToCheck = outerPctx.MaxFoldersToCheck
 

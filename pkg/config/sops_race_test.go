@@ -69,7 +69,7 @@ func TestSOPSDecryptConcurrencyWithRacing(t *testing.T) {
 			<-barrier
 
 			l := logger.CreateLogger()
-			_, pctx := NewParsingContext(ctx, l, controls.New())
+			_, pctx := NewParsingContext(ctx, l, WithStrictControls(controls.New()))
 			pctx.WorkingDir = filepath.Dir(filePath)
 			pctx.Env = map[string]string{authKey: fmt.Sprintf("token-%d", idx)}
 

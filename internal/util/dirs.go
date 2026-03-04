@@ -2,19 +2,14 @@ package util
 
 import (
 	"path/filepath"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // DefaultWorkingAndDownloadDirs gets the default working and download
 // directories for the given Terragrunt config path.
-func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
+func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, TerragruntCacheDir))
-	if err != nil {
-		return "", "", errors.New(err)
-	}
+	downloadDir := filepath.Clean(filepath.Join(workingDir, TerragruntCacheDir))
 
-	return workingDir, downloadDir, nil
+	return workingDir, downloadDir
 }

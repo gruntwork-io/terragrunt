@@ -11,12 +11,22 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
+
+// TFLintOptions contains the subset of configuration needed by tflint execution.
+type TFLintOptions struct {
+	ShellOptions         *shell.ShellOptions
+	Writers              writer.Writers
+	WorkingDir           string
+	RootWorkingDir       string
+	TerragruntConfigPath string
+	MaxFoldersToCheck    int
+}
 
 const (
 	// tfVarPrefix Prefix to use for terraform variables set with environment variables.
@@ -27,7 +37,7 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
+func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *TFLintOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
 	hookExecute := slices.Clone(hook.Execute)
 	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
 		return arg == tfExternalTFLint
@@ -65,10 +75,10 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 	initArgs := []string{"tflint", "--init", "--config", configFileRel, "--chdir", chdirRel}
 	l.Debugf("Running external tflint init with args %v", initArgs)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		initArgs[0], initArgs[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{args: initArgs})
+		return errors.New(ErrorRunningTflint{Args: initArgs, Err: err})
 	}
 
 	// tflint execution
@@ -84,10 +94,10 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *options.Terragru
 
 	l.Debugf("Running external tflint with args %v", args)
 
-	_, err = shell.RunCommandWithOutput(ctx, l, shell.RunOptionsFromOpts(opts), opts.RootWorkingDir, false, false,
+	_, err = shell.RunCommandWithOutput(ctx, l, opts.ShellOptions, opts.RootWorkingDir, false, false,
 		args[0], args[1:]...)
 	if err != nil {
-		return errors.New(ErrorRunningTflint{args: args})
+		return errors.New(ErrorRunningTflint{Args: args, Err: err})
 	}
 
 	l.Info("Tflint has run successfully. No issues found.")
@@ -115,11 +125,20 @@ func InputsToTflintVar(inputs map[string]any) ([]string, error) {
 // Custom error types
 
 type ErrorRunningTflint struct {
-	args []string
+	Err  error
+	Args []string
 }
 
 func (err ErrorRunningTflint) Error() string {
-	return fmt.Sprintf("Error while running tflint with args: %v", err.args)
+	if err.Err != nil {
+		return fmt.Sprintf("Error encountered while running tflint with args: '%v': %s", err.Args, err.Err)
+	}
+
+	return fmt.Sprintf("Error encountered while running tflint with args: '%v'", err.Args)
+}
+
+func (err ErrorRunningTflint) Unwrap() error {
+	return err.Err
 }
 
 type IssuesFound struct{}
@@ -218,7 +237,7 @@ func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 
 // findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
 // When running from cache, we start searching from the original config directory to find config in the source directory.
-func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (string, error) {
+func findTflintConfigInProject(l log.Logger, opts *TFLintOptions) (string, error) {
 	startDir := opts.WorkingDir
 	if opts.TerragruntConfigPath != "" {
 		startDir = filepath.Dir(opts.TerragruntConfigPath)
@@ -252,8 +271,8 @@ func findTflintConfigInProject(l log.Logger, opts *options.TerragruntOptions) (s
 	})
 }
 
-// configFilePathArgument return configuration file specified in --config argument
-func tflintConfigFilePath(l log.Logger, opts *options.TerragruntOptions, arguments []string) (string, error) {
+// tflintConfigFilePath returns the configuration file specified in --config argument
+func tflintConfigFilePath(l log.Logger, opts *TFLintOptions, arguments []string) (string, error) {
 	for i, arg := range arguments {
 		if arg == "--config" && len(arguments) > i+1 {
 			return arguments[i+1], nil

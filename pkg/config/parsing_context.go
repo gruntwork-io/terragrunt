@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -80,6 +80,8 @@ type ParsingContext struct {
 	PartialParseDecodeList []PartialDecodeSectionType
 	ParserOptions          []hclparse.Option
 
+	ProviderCacheOptions pcoptions.ProviderCacheOptions
+
 	MaxFoldersToCheck int
 	ParseDepth        int
 
@@ -99,16 +101,19 @@ type ParsingContext struct {
 	NoStackValidate                  bool
 }
 
-func NewParsingContext(ctx context.Context, l log.Logger, strictControls strict.Controls) (context.Context, *ParsingContext) {
-	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
-
+func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
 	filesRead := make([]string, 0)
 
 	pctx := &ParsingContext{
-		ParserOptions:  DefaultParserOptions(l, strictControls),
-		StrictControls: strictControls,
-		FilesRead:      &filesRead,
+		TerraformCliArgs: iacargs.New(),
+		FilesRead:        &filesRead,
 	}
+
+	for _, opt := range opts {
+		opt(pctx)
+	}
+
+	pctx.ParserOptions = DefaultParserOptions(l, pctx.StrictControls)
 
 	return ctx, pctx
 }
@@ -131,6 +136,8 @@ func (ctx *ParsingContext) Clone() *ParsingContext {
 		eo := *ctx.EngineOptions
 		clone.EngineOptions = &eo
 	}
+
+	clone.ProviderCacheOptions.RegistryNames = slices.Clone(ctx.ProviderCacheOptions.RegistryNames)
 
 	return &clone
 }

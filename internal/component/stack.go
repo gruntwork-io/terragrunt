@@ -111,6 +111,11 @@ func (s *Stack) Sources() []string {
 	return []string{}
 }
 
+// ConfigFile returns the config filename for this stack.
+func (s *Stack) ConfigFile() string {
+	return config.DefaultStackFile
+}
+
 // DiscoveryContext returns the discovery context for this component.
 func (s *Stack) DiscoveryContext() *DiscoveryContext {
 	return s.discoveryContext

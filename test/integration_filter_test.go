@@ -886,6 +886,114 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	}
 }
 
+func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	// Create a root.hcl at the repo root that the nested unit will include
+	rootHCLPath := filepath.Join(tmpDir, "root.hcl")
+	err = os.WriteFile(rootHCLPath, []byte(`# Root config
+`), 0644)
+	require.NoError(t, err)
+
+	// Create a deeply nested unit that uses get_path_to_repo_root() in its include path
+	nestedUnitDir := filepath.Join(tmpDir, "level1", "level2", "level3", "nested-unit")
+	err = os.MkdirAll(nestedUnitDir, 0755)
+	require.NoError(t, err)
+
+	nestedUnitHCLPath := filepath.Join(nestedUnitDir, "terragrunt.hcl")
+	err = os.WriteFile(nestedUnitHCLPath, []byte(`include "root" {
+  path = "${get_path_to_repo_root()}/root.hcl"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit on main
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	head, err := runner.GoOpenRepoHead()
+	require.NoError(t, err)
+
+	// Ensure the main branch exists
+	b, err := runner.Config(t.Context(), "init.defaultBranch")
+	if err != nil || b != "main" {
+		err = runner.GoCheckout(&gogit.CheckoutOptions{
+			Branch: plumbing.ReferenceName("refs/heads/main"),
+			Create: true,
+			Hash:   head.Hash(),
+		})
+		require.NoError(t, err)
+	}
+
+	// Create a feature branch
+	err = runner.GoCheckout(&gogit.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/relative-include-test"),
+		Create: true,
+		Hash:   head.Hash(),
+	})
+	require.NoError(t, err)
+
+	// Modify the nested unit
+	err = os.WriteFile(nestedUnitHCLPath, []byte(`include "root" {
+  path = "${get_path_to_repo_root()}/root.hcl"
+}
+
+# Modified on feature branch
+`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modify nested unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '[main...HEAD]'"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+	require.NoError(t, err, "terragrunt find with git filter failed: %s", stderr)
+
+	results := strings.Split(strings.TrimSpace(stdout), "\n")
+	assert.ElementsMatch(t, []string{"level1/level2/level3/nested-unit"}, results)
+}
+
 func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	t.Parallel()
 
