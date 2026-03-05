@@ -175,6 +175,11 @@ input.pagefind-ui__search-input:focus {
   color: #448daf;
 }
 
+/* Hide Light/Dark Mode Toggle in Hamburger Menu */
+div.mobile-preferences {
+  display: none;
+}
+
 /* Fix to site-search button area smaller on mobile */
 @media (width <= 768px) {
   body.tg site-search > button {
