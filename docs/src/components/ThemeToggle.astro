@@ -84,7 +84,8 @@ const {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', handleSystemThemeChange);
 
-    // Initialize theme
+    // Initialize theme immediately for first paint, and again after Astro navigations.
+    initializeTheme();
     document.addEventListener('astro:page-load', initializeTheme);
   })();
 </script>
