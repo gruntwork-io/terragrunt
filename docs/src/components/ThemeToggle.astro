@@ -26,7 +26,7 @@ const {
   (function() {
     const themeToggles = document.querySelectorAll('[data-theme-toggle]');
     const html = document.documentElement;
-    const THEME_STORAGE_KEY = 'terragrunt-theme';
+    const THEME_STORAGE_KEY = 'starlight-theme';
 
     // Function to get user's system preference
     function getSystemTheme() {
@@ -85,6 +85,6 @@ const {
     mediaQuery.addEventListener('change', handleSystemThemeChange);
 
     // Initialize theme
-    initializeTheme();
+    document.addEventListener('astro:page-load', initializeTheme);
   })();
 </script>
