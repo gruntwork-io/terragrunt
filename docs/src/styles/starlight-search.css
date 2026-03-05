@@ -6,17 +6,6 @@
   }
 }
 
-site-search button {
-  background-color: var(--color-opacity-5);
-  border: 1px solid var(--color-opacity-10);
-  border-radius: 6px;
-  color: var(--color-gray-2);
-  height: 100%;
-  max-width: none;
-  min-height: 44px;
-  padding: 6px 12px;
-}
-
 /* Search Box NOT inside Dialog  */
 site-search>button {
   display: flex;
@@ -128,7 +117,9 @@ input.pagefind-ui__search-input:focus {
 .pagefind-ui__search-clear {
   background-color: transparent;
   border: none;
+  padding: 10px;
   right: 0;
+  width: 40px;
 }
 
 .pagefind-ui__search-clear:before {
