@@ -7,20 +7,14 @@ import (
 	"strings"
 )
 
-// NormalizeBoolValues normalizes string boolean values in the config map
-// back to native Go bools, using reflection on the given target struct
-// to determine which keys expect boolean values.
+// NormalizeBoolValues converts string boolean values ("true"/"false") in the
+// config map back to native Go bools. HCL ternary type unification can convert
+// bools to strings, which causes generated backend blocks to contain quoted
+// literals that Terraform/OpenTofu rejects.
 //
-// HCL ternary type unification can convert bools to strings (e.g. true → "true").
-// This causes generated backend blocks to contain quoted "true"/"false" string
-// literals instead of unquoted true/false boolean literals, which Terraform/OpenTofu
-// rejects. This function fixes that by inspecting mapstructure tags on the target
-// struct to identify boolean fields, then converting any string values that are
-// valid boolean representations.
-//
-// The target parameter should be a pointer to the struct that the config map
-// will eventually be decoded into (e.g. &ExtendedRemoteStateConfigS3{}).
-// Fields with mapstructure:",squash" tags are recursed into automatically.
+// The target parameter should be a pointer to the config struct (e.g.
+// &ExtendedRemoteStateConfigS3{}); its mapstructure tags determine which
+// keys are boolean fields.
 func NormalizeBoolValues(m Config, target any) Config {
 	boolKeys := collectBoolKeys(reflect.TypeOf(target))
 
@@ -33,11 +27,7 @@ func NormalizeBoolValues(m Config, target any) Config {
 
 	for key, val := range normalized {
 		strVal, ok := val.(string)
-		if !ok {
-			continue
-		}
-
-		if !boolKeys[key] {
+		if !ok || !boolKeys[key] {
 			continue
 		}
 
@@ -72,32 +62,35 @@ func collectBoolKeys(t reflect.Type) map[string]bool {
 
 		// Handle squashed embedded structs
 		if tag == ",squash" || (tag == "" && field.Anonymous) {
-			for k, v := range collectBoolKeys(field.Type) {
-				keys[k] = v
-			}
+			maps.Copy(keys, collectBoolKeys(field.Type))
 
 			continue
 		}
 
-		if tag == "" || tag == "-" {
-			continue
-		}
-
-		// Extract the key name (first comma-separated segment)
-		key, _, _ := strings.Cut(tag, ",")
-		if key == "" {
-			continue
-		}
-
-		fieldType := field.Type
-		if fieldType.Kind() == reflect.Ptr {
-			fieldType = fieldType.Elem()
-		}
-
-		if fieldType.Kind() == reflect.Bool {
+		if key, ok := collectFieldBoolKey(&field, tag); ok {
 			keys[key] = true
 		}
 	}
 
 	return keys
+}
+
+// collectFieldBoolKey returns the config key name for a bool field,
+// or empty string and false if the field is not a bool.
+func collectFieldBoolKey(field *reflect.StructField, tag string) (string, bool) {
+	if tag == "" || tag == "-" {
+		return "", false
+	}
+
+	key, _, _ := strings.Cut(tag, ",")
+	if key == "" {
+		return "", false
+	}
+
+	fieldType := field.Type
+	if fieldType.Kind() == reflect.Ptr {
+		fieldType = fieldType.Elem()
+	}
+
+	return key, fieldType.Kind() == reflect.Bool
 }
