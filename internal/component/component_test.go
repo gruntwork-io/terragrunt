@@ -187,7 +187,7 @@ func TestThreadSafeComponentsEnsureNoDuplicates(t *testing.T) {
 	assert.True(t, wasAdded1, "first component should be added")
 	assert.False(t, wasAdded2, "second component should not be added (duplicate)")
 	assert.Same(t, added1, added2, "should return same component instance")
-	assert.Equal(t, 1, tsc.Len(), "should have exactly one component")
+	assert.Len(t, tsc.ToComponents(), 1, "should have exactly one component")
 }
 
 func TestThreadSafeComponentsFindByPath(t *testing.T) {
@@ -204,6 +204,48 @@ func TestThreadSafeComponentsFindByPath(t *testing.T) {
 	// Find non-existent path
 	notFound := tsc.FindByPath("/nonexistent")
 	assert.Nil(t, notFound, "should not find non-existent path")
+}
+
+func TestAddDependencyConcurrentNoDeadlock(t *testing.T) {
+	t.Parallel()
+
+	a := component.NewUnit("/path/a")
+	b := component.NewUnit("/path/b")
+
+	var wg sync.WaitGroup
+
+	const goroutines = 100
+
+	for range goroutines {
+		wg.Go(func() {
+			a.AddDependency(b)
+		})
+		wg.Go(func() {
+			b.AddDependent(a)
+		})
+	}
+
+	wg.Wait()
+
+	assert.NotEmpty(t, a.Dependencies())
+	assert.NotEmpty(t, b.Dependents())
+}
+
+func TestDiscoveryContextCopyDeep(t *testing.T) {
+	t.Parallel()
+
+	original := &component.DiscoveryContext{
+		WorkingDir: "/work",
+		Args:       []string{"plan", "-out=tf.plan"},
+	}
+
+	copied := original.Copy()
+
+	// Mutate copied Args — should not affect original
+	copied.Args[0] = "apply"
+
+	assert.Equal(t, "plan", original.Args[0], "original Args should not be mutated by copy")
+	assert.Equal(t, "apply", copied.Args[0])
 }
 
 func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
@@ -228,7 +270,7 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 		wg.Go(func() {
 			for range 100 {
 				_ = tsc.FindByPath("/test/path")
-				_ = tsc.Len()
+				_ = len(tsc.ToComponents())
 				_ = tsc.ToComponents()
 			}
 		})
@@ -237,5 +279,5 @@ func TestThreadSafeComponentsConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// Should have exactly one component despite concurrent adds
-	assert.Equal(t, 1, tsc.Len(), "should have exactly one component after concurrent adds")
+	assert.Len(t, tsc.ToComponents(), 1, "should have exactly one component after concurrent adds")
 }
