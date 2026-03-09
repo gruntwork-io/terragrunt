@@ -564,6 +564,33 @@ func TestListTfFiles(t *testing.T) {
 	}
 }
 
+func TestListTfFilesWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	// Create a real directory with .tofu files
+	realDir := filepath.Join(tmpDir, "real-module")
+	require.NoError(t, os.MkdirAll(realDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(realDir, "main.tofu"), []byte("# main"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(realDir, "variables.tf"), []byte("# vars"), 0644))
+
+	// Create a symlink to the real directory
+	linkDir := filepath.Join(tmpDir, "linked-module")
+	require.NoError(t, os.Symlink(realDir, linkDir))
+
+	// walkWithSymlinks=true should follow symlinks and find files
+	actual, err := util.ListTfFiles(tmpDir, true)
+	require.NoError(t, err)
+
+	// Should find files in both real dir and symlinked dir
+	assert.Len(t, actual, 4)
+
+	for _, foundFile := range actual {
+		assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
+	}
+}
+
 // Benchmark tests to ensure performance is reasonable
 func BenchmarkIsTFFile(b *testing.B) {
 	testPaths := []string{
