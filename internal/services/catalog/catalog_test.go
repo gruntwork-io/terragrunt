@@ -184,6 +184,86 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	assert.Contains(t, err.Error(), "no modules found in any of the configured repositories")
 }
 
+func TestListModules_TofuExtension(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+
+	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error) {
+		if repoURL == "github.com/gruntwork-io/tofu-repo" {
+			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "tofu-repo")
+			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
+			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
+			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+			os.WriteFile(filepath.Join(dummyRepoDir, "README.md"), []byte("# tofu-module\nOpenTofu module using .tofu extensions."), 0644)
+			os.WriteFile(filepath.Join(dummyRepoDir, "main.tofu"), []byte("resource \"null_resource\" \"test\" {}"), 0644)
+			os.WriteFile(filepath.Join(dummyRepoDir, "variables.tofu"), []byte("variable \"name\" {}"), 0644)
+
+			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS, "")
+		}
+
+		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
+	}
+
+	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/tofu-repo")
+	l := logger.CreateLogger()
+	err := svc.Load(t.Context(), l)
+
+	modules := svc.Modules()
+
+	require.NoError(t, err)
+	require.NotNil(t, modules)
+	assert.Len(t, modules, 1)
+	assert.Equal(t, "tofu-module", modules[0].Title())
+}
+
+func TestListModules_MixedTfAndTofu(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
+
+	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error) {
+		if repoURL == "github.com/gruntwork-io/mixed-repo" {
+			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "mixed-repo")
+			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
+			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoURL), 0644)
+			os.WriteFile(filepath.Join(dummyRepoDir, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0644)
+
+			// Module with .tf files
+			tfModDir := filepath.Join(dummyRepoDir, "modules", "tf-module")
+			os.MkdirAll(tfModDir, 0755)
+			os.WriteFile(filepath.Join(tfModDir, "README.md"), []byte("# tf-module\nTerraform module."), 0644)
+			os.WriteFile(filepath.Join(tfModDir, "main.tf"), []byte("resource \"null_resource\" \"test\" {}"), 0644)
+
+			// Module with .tofu files
+			tofuModDir := filepath.Join(dummyRepoDir, "modules", "tofu-module")
+			os.MkdirAll(tofuModDir, 0755)
+			os.WriteFile(filepath.Join(tofuModDir, "README.md"), []byte("# tofu-module\nOpenTofu module."), 0644)
+			os.WriteFile(filepath.Join(tofuModDir, "main.tofu"), []byte("resource \"null_resource\" \"test\" {}"), 0644)
+
+			return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS, "")
+		}
+
+		return nil, fmt.Errorf("unexpected repoURL: %s", repoURL)
+	}
+
+	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/mixed-repo")
+	l := logger.CreateLogger()
+	err := svc.Load(t.Context(), l)
+
+	modules := svc.Modules()
+
+	require.NoError(t, err)
+	require.NotNil(t, modules)
+	require.Len(t, modules, 2)
+
+	titles := []string{modules[0].Title(), modules[1].Title()}
+	assert.Contains(t, titles, "tf-module")
+	assert.Contains(t, titles, "tofu-module")
+}
+
 func TestListModules_NoModulesFound(t *testing.T) {
 	t.Parallel()
 

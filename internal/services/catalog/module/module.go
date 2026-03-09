@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	terraformFileExts = []string{".tf"}
+	terraformFileExts = []string{".tf", ".tofu"}
 	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
 )
 

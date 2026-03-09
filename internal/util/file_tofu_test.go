@@ -481,6 +481,89 @@ func TestRegexFoundInTFFilesErrorHandling(t *testing.T) {
 	})
 }
 
+func TestListTfFiles(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		description   string
+		files         []string
+		directories   []string
+		expectedFiles []string
+		expectedCount int
+	}{
+		{
+			description:   "Directory with .tf files only",
+			files:         []string{"main.tf", "variables.tf"},
+			expectedCount: 2,
+			expectedFiles: []string{"main.tf", "variables.tf"},
+		},
+		{
+			description:   "Directory with .tofu files only",
+			files:         []string{"main.tofu", "variables.tofu"},
+			expectedCount: 2,
+			expectedFiles: []string{"main.tofu", "variables.tofu"},
+		},
+		{
+			description:   "Directory with mixed .tf and .tofu files",
+			files:         []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+			expectedCount: 4,
+			expectedFiles: []string{"main.tf", "variables.tofu", "outputs.tf.json", "providers.tofu.json"},
+		},
+		{
+			description:   "Directory with TF and non-TF files",
+			files:         []string{"main.tofu", "readme.txt", "config.json"},
+			expectedCount: 1,
+			expectedFiles: []string{"main.tofu"},
+		},
+		{
+			description:   "Empty directory",
+			files:         []string{},
+			expectedCount: 0,
+			expectedFiles: []string{},
+		},
+		{
+			description:   "Directory with nested .tofu files",
+			files:         []string{"main.tf", "modules/vpc/main.tofu"},
+			directories:   []string{"modules", "modules/vpc"},
+			expectedCount: 2,
+			expectedFiles: []string{"main.tf", "modules/vpc/main.tofu"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			for _, dir := range tc.directories {
+				dirPath := filepath.Join(tmpDir, dir)
+				require.NoError(t, os.MkdirAll(dirPath, 0755))
+			}
+
+			for _, file := range tc.files {
+				filePath := filepath.Join(tmpDir, file)
+				require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0755))
+				require.NoError(t, os.WriteFile(filePath, []byte("# Test file content"), 0644))
+			}
+
+			actual, err := util.ListTfFiles(tmpDir, false)
+			require.NoError(t, err)
+
+			assert.Len(t, actual, tc.expectedCount, "Expected %d files, got %d", tc.expectedCount, len(actual))
+
+			for _, expectedFile := range tc.expectedFiles {
+				expectedPath := filepath.Join(tmpDir, expectedFile)
+				assert.Contains(t, actual, expectedPath, "Expected file %s not found in results", expectedPath)
+			}
+
+			for _, foundFile := range actual {
+				assert.True(t, util.IsTFFile(foundFile), "Non-TF file %s found in results", foundFile)
+			}
+		})
+	}
+}
+
 // Benchmark tests to ensure performance is reasonable
 func BenchmarkIsTFFile(b *testing.B) {
 	testPaths := []string{
