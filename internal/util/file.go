@@ -795,7 +795,7 @@ func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) 
 			return err
 		}
 
-		if !d.IsDir() && IsTFFile(path) {
+		if !d.IsDir() && filepath.Ext(path) == TfFileExtension {
 			tfFiles = append(tfFiles, path)
 		}
 

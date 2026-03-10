@@ -14,13 +14,12 @@ import (
 )
 
 const (
-	testScaffoldModuleURL           = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
-	testScaffoldModuleShort         = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
-	testScaffoldLocalModulePath     = "fixtures/scaffold/scaffold-module"
-	testScaffoldWithRootHCL         = "fixtures/scaffold/root-hcl"
-	testScaffold3rdPartyModulePath  = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
-	testScaffoldNoDependencyPrompt  = "fixtures/scaffold/dependency-prompt-template"
-	testScaffoldLocalTofuModulePath = "fixtures/scaffold/scaffold-module-tofu"
+	testScaffoldModuleURL          = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldModuleShort        = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
+	testScaffoldLocalModulePath    = "fixtures/scaffold/scaffold-module"
+	testScaffoldWithRootHCL        = "fixtures/scaffold/root-hcl"
+	testScaffold3rdPartyModulePath = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
+	testScaffoldNoDependencyPrompt = "fixtures/scaffold/dependency-prompt-template"
 )
 
 func TestScaffoldModule(t *testing.T) {
@@ -83,29 +82,6 @@ func TestScaffoldErrorNoModuleUrl(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt scaffold --non-interactive --working-dir "+tmpEnvPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "No module URL passed")
-}
-
-func TestScaffoldLocalTofuModule(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
-
-	workingDir, err := os.Getwd()
-	require.NoError(t, err)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, fmt.Sprintf("%s//%s", workingDir, testScaffoldLocalTofuModulePath)))
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
-	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
-
-	// Verify variables from .tofu files were parsed and included in generated config
-	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
-	require.NoError(t, err)
-	assert.Contains(t, content, "project_name", "Required variable from variables.tofu should be in generated config")
-	assert.Contains(t, content, "open_port", "Required variable from variables.tofu should be in generated config")
-	assert.Contains(t, content, "enable_backups", "Required variable from variables.tofu should be in generated config")
-	assert.Contains(t, content, "users", "Required variable from variables.tofu should be in generated config")
-	assert.Contains(t, content, "policy_map", "Required variable from variables.tofu should be in generated config")
 }
 
 func TestScaffoldLocalModule(t *testing.T) {

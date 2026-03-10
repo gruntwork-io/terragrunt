@@ -8,7 +8,6 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -17,7 +16,10 @@ const (
 	maxDescriptionLength = 200
 )
 
-var ignoreFiles = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
+var (
+	terraformFileExts = []string{".tf"}
+	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
+)
 
 type Modules []*Module
 
@@ -126,7 +128,8 @@ func (module *Module) isValid() (bool, error) {
 			continue
 		}
 
-		if util.IsTFFile(file.Name()) {
+		ext := filepath.Ext(file.Name())
+		if collections.ListContainsElement(terraformFileExts, ext) {
 			return true, nil
 		}
 	}
