@@ -325,31 +325,36 @@ verify_cosign() {
     local checksums_path="$2"
     local tmpdir="$3"
 
+    # Try bundle verification first (cosign v3+ / sigstore bundle)
+    local bundle_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sigstore.json"
+    local bundle_path="${tmpdir}/SHA256SUMS.sigstore.json"
+
+    if curl -sL --fail "$bundle_url" -o "$bundle_path" 2>/dev/null; then
+        info "Verifying Cosign signature (bundle)..."
+        cosign verify-blob "$checksums_path" \
+            --bundle "$bundle_path" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity-regexp "github.com/gruntwork-io/terragrunt" 2>/dev/null
+        return $?
+    fi
+
+    # Legacy .sig/.pem verification (older releases without bundle)
     local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sig"
     local cert_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.pem"
     local sig_path="${tmpdir}/SHA256SUMS.sig"
     local cert_path="${tmpdir}/SHA256SUMS.pem"
 
     info "Downloading Cosign signature files..."
-    if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
-        warn "Failed to download Cosign signature file"
-        return 1
-    fi
-    if ! curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null; then
-        warn "Failed to download Cosign certificate file"
-        return 1
-    fi
+    curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null || { warn "Failed to download Cosign signature file"; return 1; }
+    curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null || { warn "Failed to download Cosign certificate file"; return 1; }
 
     info "Verifying Cosign signature..."
-    if cosign verify-blob "$checksums_path" \
+    cosign verify-blob "$checksums_path" \
         --signature "$sig_path" \
         --certificate "$cert_path" \
         --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-        --certificate-identity-regexp "github.com/gruntwork-io/terragrunt" 2>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
+        --certificate-identity-regexp "github.com/gruntwork-io/terragrunt" 2>/dev/null
+    return $?
 }
 
 # Verify signature using specified method

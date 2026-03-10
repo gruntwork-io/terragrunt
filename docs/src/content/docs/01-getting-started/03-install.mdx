@@ -74,8 +74,7 @@ uid           [ unknown] Gruntwork (Code Signing Key) <security@gruntwork.io>
 
 ```bash
 cosign verify-blob SHA256SUMS \
-  --signature SHA256SUMS.sig \
-  --certificate SHA256SUMS.pem \
+  --bundle SHA256SUMS.sigstore.json \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp "github.com/gruntwork-io/terragrunt"
 ```
