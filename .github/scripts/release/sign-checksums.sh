@@ -44,20 +44,19 @@ function main {
   # GPG signing
   echo "Signing SHA256SUMS with GPG..."
   gpg --batch --yes -u "${GPG_FINGERPRINT}" \
-      --pinentry-mode loopback \
-      --passphrase "${SIGNING_GPG_PASSPHRASE}" \
-      --output SHA256SUMS.gpgsig \
-      --detach-sign SHA256SUMS
+    --pinentry-mode loopback \
+    --passphrase "${SIGNING_GPG_PASSPHRASE}" \
+    --output SHA256SUMS.gpgsig \
+    --detach-sign SHA256SUMS
 
   echo "GPG signature created: SHA256SUMS.gpgsig"
 
   # Cosign signing (keyless OIDC)
   echo "Signing SHA256SUMS with Cosign..."
   cosign sign-blob SHA256SUMS \
-      --oidc-issuer=https://token.actions.githubusercontent.com \
-      --output-certificate=SHA256SUMS.pem \
-      --output-signature=SHA256SUMS.sig \
-      --yes
+    --output-certificate=SHA256SUMS.pem \
+    --output-signature=SHA256SUMS.sig \
+    --yes
 
   echo "Cosign signature created: SHA256SUMS.sig"
   echo "Cosign certificate created: SHA256SUMS.pem"
