@@ -160,6 +160,11 @@ type StackDiffChangedPair struct {
 // to find changed units.
 //
 // They are returned as added, removed, and changed stacks, respectively.
+//
+// In addition to detecting changes to stack files themselves, this method also detects changes to
+// sidecar files (e.g., files loaded via read_terragrunt_config()) that are co-located with stack files.
+// When a non-stack file in a directory containing a terragrunt.stack.hcl changes, the stack is
+// considered changed.
 func (w *Worktrees) Stacks() StackDiff {
 	stackDiff := StackDiff{
 		Added:   []*component.Stack{},
@@ -171,14 +176,20 @@ func (w *Worktrees) Stacks() StackDiff {
 		fromWorktree := pair.FromWorktree.Path
 		toWorktree := pair.ToWorktree.Path
 
+		// Track directories already handled to avoid duplicates.
+		handledStackDirs := make(map[string]struct{})
+
 		for _, added := range pair.Diffs.Added {
 			if filepath.Base(added) != config.DefaultStackFile {
 				continue
 			}
 
+			dir := filepath.Dir(added)
+			handledStackDirs[dir] = struct{}{}
+
 			stackDiff.Added = append(
 				stackDiff.Added,
-				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: toWorktree,
 						Ref:        pair.ToWorktree.Ref,
@@ -192,9 +203,12 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(removed)
+			handledStackDirs[dir] = struct{}{}
+
 			stackDiff.Removed = append(
 				stackDiff.Removed,
-				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: fromWorktree,
 						Ref:        pair.FromWorktree.Ref,
@@ -208,16 +222,19 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(changed)
+			handledStackDirs[dir] = struct{}{}
+
 			stackDiff.Changed = append(
 				stackDiff.Changed,
 				StackDiffChangedPair{
-					FromStack: component.NewStack(filepath.Join(fromWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					FromStack: component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: fromWorktree,
 							Ref:        pair.FromWorktree.Ref,
 						},
 					),
-					ToStack: component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					ToStack: component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: toWorktree,
 							Ref:        pair.ToWorktree.Ref,
@@ -226,9 +243,102 @@ func (w *Worktrees) Stacks() StackDiff {
 				},
 			)
 		}
+
+		// Check for sidecar files co-located with stack files.
+		// When a non-stack file in a stack directory changes, the stack is affected
+		// because the stack may load those files via read_terragrunt_config().
+		collectSidecarStackChanges(&pair, fromWorktree, toWorktree, handledStackDirs, &stackDiff)
 	}
 
 	return stackDiff
+}
+
+// collectSidecarStackChanges detects stacks affected by changes to co-located sidecar files.
+// For each changed/added/removed file that is NOT a stack file itself, it checks whether the
+// file's directory contains a terragrunt.stack.hcl in either worktree. If so, the stack is
+// treated as changed.
+func collectSidecarStackChanges(
+	pair *WorktreePair,
+	fromWorktree, toWorktree string,
+	handledStackDirs map[string]struct{},
+	stackDiff *StackDiff,
+) {
+	allPaths := make([]string, 0, len(pair.Diffs.Added)+len(pair.Diffs.Removed)+len(pair.Diffs.Changed))
+	allPaths = append(allPaths, pair.Diffs.Added...)
+	allPaths = append(allPaths, pair.Diffs.Removed...)
+	allPaths = append(allPaths, pair.Diffs.Changed...)
+
+	for _, path := range allPaths {
+		if filepath.Base(path) == config.DefaultStackFile {
+			continue
+		}
+
+		dir := filepath.Dir(path)
+		if _, handled := handledStackDirs[dir]; handled {
+			continue
+		}
+
+		fromStackExists := fileExistsCheck(filepath.Join(fromWorktree, dir, config.DefaultStackFile))
+		toStackExists := fileExistsCheck(filepath.Join(toWorktree, dir, config.DefaultStackFile))
+
+		if !fromStackExists && !toStackExists {
+			continue
+		}
+
+		handledStackDirs[dir] = struct{}{}
+
+		// Both worktrees have the stack file — treat as a changed stack.
+		if fromStackExists && toStackExists {
+			stackDiff.Changed = append(stackDiff.Changed, StackDiffChangedPair{
+				FromStack: component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
+					&component.DiscoveryContext{
+						WorkingDir: fromWorktree,
+						Ref:        pair.FromWorktree.Ref,
+					},
+				),
+				ToStack: component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
+					&component.DiscoveryContext{
+						WorkingDir: toWorktree,
+						Ref:        pair.ToWorktree.Ref,
+					},
+				),
+			})
+
+			continue
+		}
+
+		// Only in to worktree — treat as added.
+		if toStackExists {
+			stackDiff.Added = append(
+				stackDiff.Added,
+				component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
+					&component.DiscoveryContext{
+						WorkingDir: toWorktree,
+						Ref:        pair.ToWorktree.Ref,
+					},
+				),
+			)
+
+			continue
+		}
+
+		// Only in from worktree — treat as removed.
+		stackDiff.Removed = append(
+			stackDiff.Removed,
+			component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
+				&component.DiscoveryContext{
+					WorkingDir: fromWorktree,
+					Ref:        pair.FromWorktree.Ref,
+				},
+			),
+		)
+	}
+}
+
+// fileExistsCheck returns true if the file at path exists.
+func fileExistsCheck(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
