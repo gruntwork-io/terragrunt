@@ -844,6 +844,29 @@ func TestStacksSidecarFileChanges(t *testing.T) {
 			expectedChanged: 1,
 		},
 		{
+			name: "sidecar in subdirectory of stack dir is not detected as co-located",
+			diffs: &git.Diffs{
+				Changed: []string{
+					"stacks/app/modules/common.hcl",
+				},
+			},
+			setupFrom: func(dir string) error {
+				if err := os.MkdirAll(filepath.Join(dir, "stacks", "app", "modules"), 0755); err != nil {
+					return err
+				}
+
+				return os.WriteFile(filepath.Join(dir, "stacks", "app", "terragrunt.stack.hcl"), []byte("# stack"), 0644)
+			},
+			setupTo: func(dir string) error {
+				if err := os.MkdirAll(filepath.Join(dir, "stacks", "app", "modules"), 0755); err != nil {
+					return err
+				}
+
+				return os.WriteFile(filepath.Join(dir, "stacks", "app", "terragrunt.stack.hcl"), []byte("# stack"), 0644)
+			},
+			expectedChanged: 0,
+		},
+		{
 			name: "removed sidecar file with existing stack marks stack as changed",
 			diffs: &git.Diffs{
 				Removed: []string{

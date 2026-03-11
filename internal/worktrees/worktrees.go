@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -162,9 +163,9 @@ type StackDiffChangedPair struct {
 // They are returned as added, removed, and changed stacks, respectively.
 //
 // In addition to detecting changes to stack files themselves, this method also detects changes to
-// sidecar files (e.g., files loaded via read_terragrunt_config()) that are co-located with stack files.
-// When a non-stack file in a directory containing a terragrunt.stack.hcl changes, the stack is
-// considered changed.
+// sidecar files (e.g., files that may be loaded via read_terragrunt_config()) that are co-located
+// with stack files. When a non-stack file in a directory containing a terragrunt.stack.hcl changes,
+// the stack is considered changed.
 func (w *Worktrees) Stacks() StackDiff {
 	stackDiff := StackDiff{
 		Added:   []*component.Stack{},
@@ -176,7 +177,7 @@ func (w *Worktrees) Stacks() StackDiff {
 		fromWorktree := pair.FromWorktree.Path
 		toWorktree := pair.ToWorktree.Path
 
-		// Track directories already handled to avoid duplicates.
+		// Per-pair deduplication — each pair has independent diffs and worktrees.
 		handledStackDirs := make(map[string]struct{})
 
 		for _, added := range pair.Diffs.Added {
@@ -278,8 +279,8 @@ func collectSidecarStackChanges(
 			continue
 		}
 
-		fromStackExists := fileExistsCheck(filepath.Join(fromWorktree, dir, config.DefaultStackFile))
-		toStackExists := fileExistsCheck(filepath.Join(toWorktree, dir, config.DefaultStackFile))
+		fromStackExists := util.FileExists(filepath.Join(fromWorktree, dir, config.DefaultStackFile))
+		toStackExists := util.FileExists(filepath.Join(toWorktree, dir, config.DefaultStackFile))
 
 		if !fromStackExists && !toStackExists {
 			continue
@@ -307,7 +308,9 @@ func collectSidecarStackChanges(
 			continue
 		}
 
-		// Only in to worktree — treat as added.
+		// Only in to worktree — treat as added. This is a defensive branch: normally if a stack
+		// file was added, it would appear in Diffs.Added and be handled above. This covers partial
+		// diffs where the sidecar change is reported but the stack file addition is not.
 		if toStackExists {
 			stackDiff.Added = append(
 				stackDiff.Added,
@@ -322,7 +325,8 @@ func collectSidecarStackChanges(
 			continue
 		}
 
-		// Only in from worktree — treat as removed.
+		// Only in from worktree — treat as removed. Defensive branch: normally if a stack file
+		// was removed, it would appear in Diffs.Removed and be handled above.
 		stackDiff.Removed = append(
 			stackDiff.Removed,
 			component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
@@ -333,12 +337,6 @@ func collectSidecarStackChanges(
 			),
 		)
 	}
-}
-
-// fileExistsCheck returns true if the file at path exists.
-func fileExistsCheck(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
