@@ -11,8 +11,9 @@ set -e
 #
 # Outputs:
 #   SHA256SUMS.gpgsig - GPG detached signature
-#   SHA256SUMS.sig    - Cosign signature
-#   SHA256SUMS.pem    - Cosign certificate
+#   SHA256SUMS.sigstore.json - Cosign sigstore bundle
+#   SHA256SUMS.sig           - Cosign signature (legacy, extracted from bundle)
+#   SHA256SUMS.pem           - Cosign certificate (legacy, extracted from bundle)
 
 function main {
   local -r bin_dir="${1:-bin}"
@@ -51,13 +52,20 @@ function main {
 
   echo "GPG signature created: SHA256SUMS.gpgsig"
 
-  # Cosign signing (keyless OIDC)
+  # Cosign signing (keyless OIDC) - produces sigstore bundle
   echo "Signing SHA256SUMS with Cosign..."
   cosign sign-blob SHA256SUMS \
-      --oidc-issuer=https://token.actions.githubusercontent.com \
-      --output-certificate=SHA256SUMS.pem \
-      --output-signature=SHA256SUMS.sig \
+      --bundle=SHA256SUMS.sigstore.json \
       --yes
+
+  echo "Cosign bundle created: SHA256SUMS.sigstore.json"
+
+  # Extract legacy .sig and .pem from bundle for backward compatibility
+  echo "Extracting legacy signature files from bundle..."
+  jq -r '.messageSignature.signature' SHA256SUMS.sigstore.json > SHA256SUMS.sig
+  jq -r '.verificationMaterial.certificate.rawBytes' SHA256SUMS.sigstore.json | \
+      base64 --decode | \
+      openssl x509 -inform DER -outform PEM -out SHA256SUMS.pem
 
   echo "Cosign signature created: SHA256SUMS.sig"
   echo "Cosign certificate created: SHA256SUMS.pem"
