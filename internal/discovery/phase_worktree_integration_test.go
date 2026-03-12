@@ -1366,7 +1366,6 @@ func createUnit(t *testing.T, baseDir, unitName, content string) string {
 // TestWorktreePhase_Integration_StackReadingChanges tests that changes to files referenced
 // via read_terragrunt_config() in a stack file trigger stack change detection, while changes
 // to unreferenced files in the same directory do not.
-// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5681
 func TestWorktreePhase_Integration_StackReadingChanges(t *testing.T) {
 	t.Parallel()
 
