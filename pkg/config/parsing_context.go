@@ -208,13 +208,6 @@ func (ctx *ParsingContext) WithSkipOutputsResolution() *ParsingContext {
 	return c
 }
 
-func (ctx *ParsingContext) WithDecodedDependencies(v *cty.Value) *ParsingContext {
-	c := ctx.Clone()
-	c.DecodedDependencies = v
-
-	return c
-}
-
 // WithIncrementedDepth returns a new ParsingContext with incremented parse depth.
 // Returns an error if the maximum depth would be exceeded.
 func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
