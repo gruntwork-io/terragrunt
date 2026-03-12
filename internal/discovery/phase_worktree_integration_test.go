@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -1665,18 +1664,6 @@ unit "app" {
 
 	expectedStackPath := filepath.Join(toWorktree, stackRel)
 
-	// Count how many times the stack appears — should be exactly once
-	matchCount := 0
-
-	for _, c := range components {
-		if strings.HasPrefix(c.Path(), expectedStackPath) {
-			matchCount++
-		}
-	}
-
-	assert.Positive(t, matchCount,
-		"Stack should be discovered when both stack file and sidecar change; got: %v", componentPaths)
-
 	// Verify no duplicate paths — dedup via buildHandledStackDirs should prevent
 	// findStacksAffectedByReading from adding the stack again
 	seen := make(map[string]int, len(components))
@@ -1689,6 +1676,11 @@ unit "app" {
 		assert.Equal(t, 1, count,
 			"Component path %s appears %d times (expected 1); all: %v", p, count, componentPaths)
 	}
+
+	// Verify the stack itself is discovered
+	_, foundStack := seen[expectedStackPath]
+	assert.True(t, foundStack,
+		"Stack %s should be discovered when both stack file and sidecar change; got: %v", expectedStackPath, componentPaths)
 }
 
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
