@@ -271,10 +271,6 @@ func (flag *flag) AllowedSubcommandScope() bool {
 	return true
 }
 
-func (flag *flag) SplitValue(val string) []string {
-	return []string{val}
-}
-
 func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 	for _, name := range flag.GetEnvVars() {
 		for _, val := range flag.LookupEnv(name) {

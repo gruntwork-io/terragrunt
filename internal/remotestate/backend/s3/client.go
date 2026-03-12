@@ -1678,16 +1678,6 @@ func (client *Client) DoesTableItemExist(ctx context.Context, tableName, key str
 	return exists, nil
 }
 
-func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, l log.Logger, tableName, key string) (bool, error) {
-	if exists, err := client.DoesTableItemExist(ctx, tableName, key); err != nil || exists {
-		return exists, err
-	}
-
-	l.Debugf("Remote state DynamoDB table %s item %s does not exist or you don't have permissions to access it.", tableName, key)
-
-	return false, nil
-}
-
 // MoveS3Object copies the S3 object at the specified srcKey to dstKey and then removes srcKey.
 func (client *Client) MoveS3Object(ctx context.Context, l log.Logger, srcBucketName, srcKey, dstBucketName, dstKey string) error {
 	if err := client.CopyS3BucketObject(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
