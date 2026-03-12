@@ -16,10 +16,6 @@ var (
 	FlagSplitter = strings.Split
 )
 
-// FlagStringer converts a flag definition to a string. This is used by help
-// to display a flag.
-var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
-
 // FlagSetterFunc represents function type that is called when the flag is specified.
 // Unlike `FlagActionFunc` where the function is called after the value has been parsed and assigned to the `Destination` field,
 // `FlagSetterFunc` is called earlier, during the variable parsing.
