@@ -49,11 +49,11 @@ export const sidebar = [
         collapsed: true,
         autogenerate: { directory: "03-features/06-catalog", collapsed: true },
       },
-      { label: "Provider Cache Server", slug: "features/provider-cache-server" },
-      { label: "IaC Engines", slug: "features/engine" },
-      { label: "Content Addressable Store (CAS)", slug: "features/cas" },
-      { label: "Run Report", slug: "features/run-report" },
-      { label: "Automatic Provider Cache Dir", slug: "features/auto-provider-cache-dir" },
+      {
+        label: "Caching",
+        collapsed: true,
+        autogenerate: { directory: "03-features/07-caching", collapsed: true },
+      },
       {
         label: "Filters",
         collapsed: true,
@@ -321,8 +321,13 @@ export default defineConfig({
     "/features/aws-auth/": "/features/units/authentication/",
     "/features/work-with-multiple-aws-accounts/": "/features/units/authentication/",
     "/features/auto-retry/": "/features/units/runtime-control/",
-    "/features/provider-cache/": "/features/provider-cache-server/",
-    "/features/provider-caching/": "/features/provider-cache-server/",
+    "/features/provider-cache/": "/features/caching/provider-cache-server/",
+    "/features/provider-caching/": "/features/caching/provider-cache-server/",
+    "/features/engine/": "/features/units/engine/",
+    "/features/run-report/": "/features/stacks/run-report/",
+    "/features/provider-cache-server/": "/features/caching/provider-cache-server/",
+    "/features/auto-provider-cache-dir/": "/features/caching/auto-provider-cache-dir/",
+    "/features/cas/": "/features/caching/cas/",
 
     // Additional redirects for 404ing URLs
     "/features/execute-terraform-commands-on-multiple-modules-at-once/": "/features/stacks/",

@@ -194,7 +194,7 @@ Support for Terragrunt IaC engines.
 
 #### `iac-engine` - What it does
 
-Enables usage of [Terragrunt IaC engines](/features/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
+Enables usage of [Terragrunt IaC engines](/features/units/engine) for running IaC operations. This allows Terragrunt to use pluggable engines to execute Terraform/OpenTofu commands, providing enhanced functionality and extensibility.
 
 IaC engines are still experimental, as the API is unstable and may change in future minor versions of Terragrunt.
 

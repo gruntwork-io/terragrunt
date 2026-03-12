@@ -3,6 +3,7 @@ title: Units
 description: Learn how Terragrunt units result in atomic deployments and immutable infrastructure.
 slug: features/units
 sidebar:
+  label: Overview
   order: 1
 ---
 
@@ -39,7 +40,7 @@ Consider the following file structure in a typical OpenTofu/Terraform project, w
 
 </FileTree>
 
-The contents of each environment could be more or less identical, except perhaps for a few settings (e.g. the prod environment may run bigger or more servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
+The contents of each environment could be more or less identical, except perhaps for a few settings (e.g. the prod environment may run more or bigger servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
 
 How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you can maximize code reuse and minimize maintenance overhead?
 
@@ -359,3 +360,4 @@ you may be interested in the dedicated documentation on [working with multiple A
 | [Hooks](/features/units/hooks) | Execute custom code before or after running OpenTofu/Terraform. |
 | [Auto-init](/features/units/auto-init) | Automatically run `init` when necessary. |
 | [Runtime Control](/features/units/runtime-control) | Feature flags, error handling, and excludes. |
+| [IaC Engines](/features/units/engine) | Customize how OpenTofu/Terraform runs are executed using pluggable engines. |

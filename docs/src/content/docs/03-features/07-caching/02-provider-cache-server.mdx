@@ -1,15 +1,15 @@
 ---
 title: Provider Cache Server
 description: Learn how to use the Terragrunt provider cache server.
-slug: features/provider-cache-server
+slug: features/caching/provider-cache-server
 sidebar:
-  order: 13
+  order: 2
 ---
 
 import { Aside } from '@astrojs/starlight/components'
 
 <Aside type="tip">
-If you're using OpenTofu >= 1.10, you'll use the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature by default on the latest version of Terragrunt.
+If you're using OpenTofu >= 1.10, you'll use the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature by default on the latest version of Terragrunt.
 
 You might not necessarily get any performance benefits when using this feature if so. Only use this feature if you are using an older version of OpenTofu, if you are using Terraform or if you are reaching a performance bottleneck that is not addressed by the Automatic Provider Cache Dir feature.
 </Aside>
@@ -20,14 +20,14 @@ The Provider Cache Server is a performance optimization. For more details on per
 
 ## Why caching is useful
 
-Let's imagine that your project consists of 50 Terragrunt units, and each of them uses the same `aws` provider. Without caching, each of them will download the provider from the Internet, and store it in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
+Let's imagine that your project consists of 50 Terragrunt units, and each of them uses the same `aws` provider. Without caching, each of them will download the provider from the Internet, and store it in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It's easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
 
 ## Why OpenTofu/Terraform's built-in provider caching doesn't work
 
 OpenTofu/Terraform has a provider caching feature, the [Provider Plugin Cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), that does the job well... unless you run multiple OpenTofu/Terraform processes simultaneously, such as when you use `terragrunt run --all`. Then the OpenTofu/Terraform processes begin conflict by overwriting each other's cache, which causes an error such as `Error: Failed to install provider`. As a result, Terragrunt previously had to disable concurrency for `init` steps in `run --all`, which is significantly slower. If you enable Terragrunt Provider Caching, as described in this section, that will no longer be necessary, and you should see significant performance improvements with `init`, as well as significant savings in terms of bandwidth and disk space usage.
 
 <Aside type="note">
-This isn't necessarily true for the latest version of OpenTofu anymore! For more information, see the [Automatic Provider Cache Dir](/features/auto-provider-cache-dir) feature documentation.
+This isn't necessarily true for the latest version of OpenTofu anymore! For more information, see the [Automatic Provider Cache Dir](/features/caching/auto-provider-cache-dir) feature documentation.
 </Aside>
 ## Usage
 
