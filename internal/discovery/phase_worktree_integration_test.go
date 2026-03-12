@@ -1363,6 +1363,171 @@ func createUnit(t *testing.T, baseDir, unitName, content string) string {
 	return unitDir
 }
 
+// TestWorktreePhase_Integration_StackReadingChanges tests that changes to files referenced
+// via read_terragrunt_config() in a stack file trigger stack change detection, while changes
+// to unreferenced files in the same directory do not.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5681
+func TestWorktreePhase_Integration_StackReadingChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	err := os.MkdirAll(legacyUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog units")
+
+	// Create a stack that references a sidecar file via read_terragrunt_config
+	stackWithRefDir := filepath.Join(tmpDir, "live", "stack-with-ref")
+	err = os.MkdirAll(stackWithRefDir, 0755)
+	require.NoError(t, err)
+
+	// Sidecar file referenced by the stack
+	err = os.WriteFile(filepath.Join(stackWithRefDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	stackWithRefContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	err = os.WriteFile(filepath.Join(stackWithRefDir, "terragrunt.stack.hcl"), []byte(stackWithRefContent), 0644)
+	require.NoError(t, err)
+
+	// Create a stack WITHOUT read_terragrunt_config but with a file in same dir
+	stackNoRefDir := filepath.Join(tmpDir, "live", "stack-no-ref")
+	err = os.MkdirAll(stackNoRefDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackNoRefDir, "unrelated.hcl"), []byte(`# not referenced`), 0644)
+	require.NoError(t, err)
+
+	stackNoRefContent := `
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	err = os.WriteFile(filepath.Join(stackNoRefDir, "terragrunt.stack.hcl"), []byte(stackNoRefContent), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stacks with and without read_terragrunt_config")
+
+	// Change only the sidecar files (not the stack files)
+	err = os.WriteFile(filepath.Join(stackWithRefDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackNoRefDir, "unrelated.hcl"), []byte(`# still not referenced but modified`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update sidecar files only")
+
+	// Set up discovery with worktrees
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	// Generate stacks in worktrees
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Run discovery
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	disc := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w)
+
+	filters := filter.Filters{}
+
+	for _, gitExpr := range gitExpressions {
+		f := filter.NewFilter(gitExpr, gitExpr.String())
+		filters = append(filters, f)
+	}
+
+	disc = disc.WithFilters(filters)
+
+	components, err := disc.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Get worktree paths
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	toWorktree := worktreePair.ToWorktree.Path
+
+	// Verify: stack-with-ref should be discovered (config.hcl is referenced via read_terragrunt_config)
+	stackWithRefRel, err := filepath.Rel(tmpDir, stackWithRefDir)
+	require.NoError(t, err)
+
+	expectedStackWithRef := filepath.Join(toWorktree, stackWithRefRel)
+	foundStackWithRef := false
+
+	for _, c := range components {
+		if c.Path() == expectedStackWithRef {
+			foundStackWithRef = true
+
+			break
+		}
+	}
+
+	assert.True(t, foundStackWithRef,
+		"Stack with read_terragrunt_config reference should be discovered when sidecar changes")
+
+	// Verify: stack-no-ref should NOT be discovered (unrelated.hcl is not referenced)
+	stackNoRefRel, err := filepath.Rel(tmpDir, stackNoRefDir)
+	require.NoError(t, err)
+
+	expectedStackNoRef := filepath.Join(toWorktree, stackNoRefRel)
+	foundStackNoRef := false
+
+	for _, c := range components {
+		if c.Path() == expectedStackNoRef {
+			foundStackNoRef = true
+
+			break
+		}
+	}
+
+	assert.False(t, foundStackNoRef,
+		"Stack without read_terragrunt_config reference should NOT be discovered when unreferenced file changes")
+}
+
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,

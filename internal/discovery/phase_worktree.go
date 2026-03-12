@@ -16,9 +16,12 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
 )
@@ -227,6 +230,12 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
+	// Detect stacks affected by changes to files they reference via read_terragrunt_config().
+	// This requires parsing infrastructure (ctx, l, opts), which is why it lives here
+	// rather than in Stacks().
+	readingAffected := findStacksAffectedByReading(ctx, l, input, w, &stackDiff)
+	stackDiff.Changed = append(stackDiff.Changed, readingAffected...)
+
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
 
@@ -265,6 +274,197 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	}
 
 	return discoveredComponents.ToComponents(), nil
+}
+
+// findStacksAffectedByReading detects stacks affected by changes to files they reference
+// via read_terragrunt_config(). For each worktree pair, it collects non-stack diff paths,
+// identifies which directories contain stack files, parses those stack files to determine
+// which files are actually read, and returns changed pairs for stacks whose readings overlap
+// with the diff.
+func findStacksAffectedByReading(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	w *worktrees.Worktrees,
+	existingDiff *worktrees.StackDiff,
+) []worktrees.StackDiffChangedPair {
+	var result []worktrees.StackDiffChangedPair
+
+	for _, pair := range w.WorktreePairs {
+		handledDirs := buildHandledStackDirs(existingDiff, &pair)
+		diffPaths := collectNonStackDiffPaths(&pair)
+
+		if len(diffPaths) == 0 {
+			continue
+		}
+
+		stackDirsToCheck := findStackDirsWithChanges(diffPaths, pair.FromWorktree.Path, pair.ToWorktree.Path, handledDirs)
+
+		for stackDir, paths := range stackDirsToCheck {
+			if stackReferencesAnyDiffPath(ctx, l, input, &pair, stackDir, paths) {
+				result = append(result, worktrees.StackDiffChangedPair{
+					FromStack: component.NewStack(filepath.Join(pair.FromWorktree.Path, stackDir)).WithDiscoveryContext(
+						&component.DiscoveryContext{
+							WorkingDir: pair.FromWorktree.Path,
+							Ref:        pair.FromWorktree.Ref,
+						},
+					),
+					ToStack: component.NewStack(filepath.Join(pair.ToWorktree.Path, stackDir)).WithDiscoveryContext(
+						&component.DiscoveryContext{
+							WorkingDir: pair.ToWorktree.Path,
+							Ref:        pair.ToWorktree.Ref,
+						},
+					),
+				})
+			}
+		}
+	}
+
+	return result
+}
+
+// buildHandledStackDirs builds a set of relative directory paths already represented
+// in the existing StackDiff results to prevent duplicate detection.
+func buildHandledStackDirs(stackDiff *worktrees.StackDiff, pair *worktrees.WorktreePair) map[string]struct{} {
+	handled := make(map[string]struct{})
+
+	for _, s := range stackDiff.Added {
+		if rel, err := filepath.Rel(pair.ToWorktree.Path, s.Path()); err == nil {
+			handled[rel] = struct{}{}
+		}
+	}
+
+	for _, s := range stackDiff.Removed {
+		if rel, err := filepath.Rel(pair.FromWorktree.Path, s.Path()); err == nil {
+			handled[rel] = struct{}{}
+		}
+	}
+
+	for _, ch := range stackDiff.Changed {
+		if rel, err := filepath.Rel(pair.ToWorktree.Path, ch.ToStack.Path()); err == nil {
+			handled[rel] = struct{}{}
+		}
+	}
+
+	return handled
+}
+
+// collectNonStackDiffPaths returns all diff paths (added, removed, changed) that are not
+// stack files themselves.
+func collectNonStackDiffPaths(pair *worktrees.WorktreePair) []string {
+	var result []string
+
+	for _, paths := range [][]string{pair.Diffs.Added, pair.Diffs.Removed, pair.Diffs.Changed} {
+		for _, p := range paths {
+			if filepath.Base(p) != config.DefaultStackFile {
+				result = append(result, p)
+			}
+		}
+	}
+
+	return result
+}
+
+// findStackDirsWithChanges groups non-stack diff paths by directory, returning only directories
+// that contain a terragrunt.stack.hcl in at least one worktree and are not already handled.
+func findStackDirsWithChanges(
+	diffPaths []string,
+	fromWorktree, toWorktree string,
+	handledDirs map[string]struct{},
+) map[string][]string {
+	result := make(map[string][]string)
+	seen := make(map[string]bool)
+
+	for _, diffPath := range diffPaths {
+		dir := filepath.Dir(diffPath)
+
+		if _, handled := handledDirs[dir]; handled {
+			continue
+		}
+
+		hasStack, checked := seen[dir]
+		if !checked {
+			fromExists := util.FileExists(filepath.Join(fromWorktree, dir, config.DefaultStackFile))
+			toExists := util.FileExists(filepath.Join(toWorktree, dir, config.DefaultStackFile))
+			hasStack = fromExists && toExists
+			seen[dir] = hasStack
+		}
+
+		if hasStack {
+			result[dir] = append(result[dir], diffPath)
+		}
+	}
+
+	return result
+}
+
+// stackReferencesAnyDiffPath parses a stack file and checks whether any of the provided diff
+// paths are in the stack's FilesRead list — i.e., actually referenced via read_terragrunt_config().
+func stackReferencesAnyDiffPath(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	pair *worktrees.WorktreePair,
+	stackDir string,
+	diffPaths []string,
+) bool {
+	// Parse from "to" worktree (current state)
+	stackFilePath := filepath.Join(pair.ToWorktree.Path, stackDir, config.DefaultStackFile)
+	if !util.FileExists(stackFilePath) {
+		return false
+	}
+
+	filesRead := parseStackReadingList(ctx, l, input, pair.ToWorktree.Path, stackFilePath)
+
+	for _, readFile := range filesRead {
+		rel, err := filepath.Rel(pair.ToWorktree.Path, readFile)
+		if err != nil {
+			continue
+		}
+
+		for _, diffPath := range diffPaths {
+			if filepath.ToSlash(rel) == filepath.ToSlash(diffPath) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// parseStackReadingList parses a stack file and returns the list of files read during parsing.
+// Errors are logged at debug level; partial results from FilesRead are returned even on error
+// since trackFileRead() runs before actual file parsing.
+func parseStackReadingList(
+	ctx context.Context,
+	l log.Logger,
+	input *PhaseInput,
+	worktreeRoot string,
+	stackFilePath string,
+) []string {
+	stackDir := filepath.Dir(stackFilePath)
+
+	parseOpts := input.Opts.Clone()
+	parseOpts.WorkingDir = stackDir
+	parseOpts.RootWorkingDir = worktreeRoot
+	parseOpts.TerragruntConfigPath = stackFilePath
+	parseOpts.OriginalTerragruntConfigPath = stackFilePath
+	parseOpts.SkipOutput = true
+	parseOpts.Writers.Writer = io.Discard
+	parseOpts.Writers.ErrWriter = io.Discard
+
+	_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+
+	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
+	if err != nil {
+		l.Debugf("Failed to parse stack file %s for reading detection: %v", stackFilePath, err)
+	}
+
+	if pctx.FilesRead == nil {
+		return nil
+	}
+
+	return *pctx.FilesRead
 }
 
 // walkChangedStack walks a changed stack and discovers components within it.
