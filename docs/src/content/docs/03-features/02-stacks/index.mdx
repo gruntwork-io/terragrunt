@@ -1,0 +1,90 @@
+---
+title: Stacks
+description: Learn how to work with multiple units at once using implicit and explicit stacks.
+slug: features/stacks
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## What are Stacks?
+
+A **stack** in Terragrunt is a collection of related units that can be managed together. Stacks provide a way to:
+
+- Deploy multiple infrastructure components with a single command
+- Manage dependencies between units automatically
+- Control the blast radius of changes
+- Organize infrastructure into logical groups
+
+Terragrunt supports two approaches to defining stacks:
+
+1. **Implicit Stacks**: Created by organizing units in a directory structure.
+2. **Explicit Stacks**: Defined using `terragrunt.stack.hcl` files.
+
+## Sub-pages
+
+| Page | Description |
+|------|-------------|
+| [Implicit Stacks](/features/stacks/implicit) | Create stacks by organizing units in a directory structure. |
+| [Explicit Stacks](/features/stacks/explicit) | Define stacks using `terragrunt.stack.hcl` files for reusable patterns. |
+| [Dependencies & Outputs](/features/stacks/dependencies) | Pass outputs between units and define dependency relationships. |
+| [Orchestration](/features/stacks/orchestration) | Visualize the DAG, control parallelism, save plan output, and use nested stacks. |
+| [Run Queue](/features/stacks/run-queue) | Control run order, concurrency, filtering, and error handling across units. |
+
+## Choosing Between Implicit and Explicit Stacks
+
+### Use Implicit Stacks When:
+
+- You have a small number of units.
+- Each unit is unique and not repeated across environments.
+- You don't mind a high file count.
+- You're just getting started with Terragrunt.
+- You need maximum explicitness and transparency.
+
+### Use Explicit Stacks When:
+
+- You have multiple environments (dev, staging, prod).
+- You want to reuse collections of related infrastructure patterns.
+- You have many similar units that differ only in values.
+- You want to version collections of infrastructure patterns.
+- You're building infrastructure catalogs or templates.
+
+## The Complete Workflow
+
+### For Implicit Stacks:
+
+1. **Organize**: Create directories for each unit with `terragrunt.hcl` files.
+2. **Configure**: Set up inputs, dependencies, etc. in each unit.
+3. **Deploy**: Use `terragrunt run --all apply` to deploy all units.
+
+### For Explicit Stacks:
+
+1. **Catalog**: Create a catalog of infrastructure patterns (using `terragrunt.hcl` files, `terragrunt.stack.hcl` files, etc.) in a Git repository.
+2. **Author**: Write a `terragrunt.stack.hcl` file with `unit` and/or `stack` blocks.
+3. **Generate**: Run `terragrunt stack generate` to create the actual units\*.
+4. **Deploy**: Run `terragrunt stack run apply` to deploy all units\*\*.
+
+\* Multiple commands (like `stack run` or `run --all`) automatically generate units from `terragrunt.stack.hcl` files for you.
+
+\*\* You can also just use `run --all apply` to deploy all units in the stack like you can with implicit stacks.
+
+## Common Patterns
+
+For detailed examples, see the [Gruntwork Terragrunt Infrastructure Catalog Stack Examples](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks).
+
+## Next Steps
+
+Now that you understand both implicit and explicit stacks, you can:
+
+- [Learn about the detailed syntax](/reference/hcl/blocks#unit) for `unit` and `stack` blocks
+- [Explore the stack commands](/reference/cli/commands/stack/generate) for generating and managing stacks
+- [Understand how to pass values between units](/features/stacks/dependencies#passing-outputs-between-units)
+
+<Aside type="tip">
+**Pro Tip**: Start with implicit stacks to get familiar with the concept, then gradually introduce explicit stacks for reusable patterns as your infrastructure grows.
+</Aside>
+
+## Learning more
+
+If you'd like more advanced examples on stacks, check out the [terragrunt-infrastructure-catalog-example repository](https://github.com/gruntwork-io/terragrunt-infrastructure-catalog-example/tree/main/examples/terragrunt/stacks). These have full-featured examples of stacks that deploy real, stateful infrastructure in an AWS account.

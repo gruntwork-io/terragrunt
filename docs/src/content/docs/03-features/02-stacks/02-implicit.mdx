@@ -1,0 +1,97 @@
+---
+title: Implicit Stacks
+description: Create stacks by organizing units in a directory structure.
+slug: features/stacks/implicit
+sidebar:
+  order: 2
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+
+## Implicit Stacks
+
+The simplest way to create a stack is to organize your units in a directory structure in your repository. When you have multiple units in a directory, Terragrunt automatically treats that directory as a stack for the purposes of commands like `terragrunt run --all apply`.
+
+### Converting Terraform Modules to Units
+
+Let's say your infrastructure is defined across multiple OpenTofu/Terraform root modules:
+
+<FileTree>
+
+- root
+  - backend-app
+    - main.tf
+  - frontend-app
+    - main.tf
+  - mysql
+    - main.tf
+  - valkey
+    - main.tf
+  - vpc
+    - main.tf
+
+</FileTree>
+
+To convert these to Terragrunt units, simply add a `terragrunt.hcl` file to each directory:
+
+<FileTree>
+
+- root
+  - backend-app
+    - main.tf
+    - terragrunt.hcl
+  - frontend-app
+    - main.tf
+    - terragrunt.hcl
+  - mysql
+    - main.tf
+    - terragrunt.hcl
+  - valkey
+    - main.tf
+    - terragrunt.hcl
+  - vpc
+    - main.tf
+    - terragrunt.hcl
+
+</FileTree>
+
+Now you have an **implicit stack**! The `root` directory contains all your units and can be managed as a single stack.
+
+### Working with Implicit Stacks
+
+Use the [`--all` flag](/reference/cli/commands/run/#all) to run an OpenTofu/Terraform command on all units in the implicit stack in the current working directory:
+
+```bash
+# Deploy all units discovered in the current working directory
+terragrunt run --all apply
+
+# Plan changes across all units discovered in the current working directory
+terragrunt run --all plan
+
+# Destroy all units discovered in the current working directory
+terragrunt run --all destroy
+
+# View outputs from all units discovered in the current working directory
+terragrunt run --all output
+```
+
+You can also use the [`--graph` flag](/reference/cli/commands/run/#graph) to run an OpenTofu/Terraform command on all units in the [DAG](/getting-started/terminology/#directed-acyclic-graph-dag) of the unit in the current working directory.
+
+```bash
+# Run an OpenTofu/Terraform command on all units in the DAG of the unit in the current working directory
+terragrunt run --graph apply
+```
+
+### Advantages of Implicit Stacks
+
+- **Simple**: Just organize units in directory trees.
+- **Familiar**: Organized following best practices for OpenTofu/Terraform repository structures.
+- **Flexible**: Easy to add/remove units by creating/deleting directories.
+- **Version Control Friendly**: Each unit is a separate directory with its own history.
+- **Backwards Compatible**: This has been the default way to work with Terragrunt for over eight years, and the majority of existing Terragrunt configurations use this approach.
+
+### Limitations of Implicit Stacks
+
+- **Manual Management**: Each unit must be manually created and configured.
+- **No Reusability**: Patterns can't be easily shared across environments.
+- **Repetitive**: Similar configurations must be duplicated or referenced from [includes](/features/includes).

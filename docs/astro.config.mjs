@@ -35,12 +35,18 @@ export const sidebar = [
     collapsed: true,
     items: [
       { label: "Units", slug: "features/units" },
-      { label: "Stacks", slug: "features/stacks" },
+      {
+        label: "Stacks",
+        collapsed: true,
+        autogenerate: { directory: "03-features/02-stacks", collapsed: true },
+      },
       { label: "Includes", slug: "features/includes" },
       { label: "State Backend", slug: "features/state-backend" },
-      { label: "Run Queue", slug: "features/run-queue" },
-      { label: "Catalog", slug: "features/catalog" },
-      { label: "Scaffold", slug: "features/scaffold" },
+      {
+        label: "Catalog",
+        collapsed: true,
+        autogenerate: { directory: "03-features/06-catalog", collapsed: true },
+      },
       { label: "Extra Arguments", slug: "features/extra-arguments" },
       { label: "Authentication", slug: "features/authentication" },
       { label: "Hooks", slug: "features/hooks" },
@@ -274,6 +280,8 @@ export default defineConfig({
     "/docs/": "/getting-started/quick-start/",
 
     // Pages that have been rehomed.
+    "/features/scaffold/": "/features/catalog/scaffold/",
+    "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
 
