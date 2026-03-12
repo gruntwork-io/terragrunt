@@ -67,7 +67,7 @@ The `terraform` block supports the following arguments:
   *Note that using `include_in_copy` and `exclude_from_copy` are not mutually exclusive.*
   If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file *is* included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`.
 
-  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/features/hooks) feature.*
+  *Note that if you wish to exclude files from being copied from a terraform module source, you should use the [before_hook](/features/units/hooks) feature.*
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
@@ -75,7 +75,7 @@ The `terraform` block supports the following arguments:
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY](/features/extra-arguments) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY](/features/units/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -122,7 +122,7 @@ supported:
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
   configurations](/features/units) using `go-getter`; the other
-  is [Auto-Init](/features/auto-init), which configures the backend and downloads
+  is [Auto-Init](/features/units/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. This includes `error_hook` blocks to handle download failures.
   If you wish to execute a hook when Terragrunt is using
@@ -306,7 +306,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/features/state-backend/) use case overview.
+DRY](/features/units/state-backend/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
@@ -680,7 +680,7 @@ terraform {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
+section](/features/units/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label

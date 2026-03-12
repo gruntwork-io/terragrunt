@@ -63,7 +63,7 @@ Here, we have three types of log messages:
 
 1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--log-level` flag.
 2. `STDOUT` messages from OpenTofu. These are messages that OpenTofu would normally print directly to the terminal, but instead, Terragrunt captures them and logs them as `STDOUT` log messages, along with timestamps and other metadata.
-3. `INFO` messages from Terragrunt [auto-init](/features/auto-init). These were initially emitted by OpenTofu. However, the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
+3. `INFO` messages from Terragrunt [auto-init](/features/units/auto-init). These were initially emitted by OpenTofu. However, the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
 
 ## Enrichment
 

@@ -1,9 +1,9 @@
 ---
 title: Extra Arguments
 description: Learn how to pass extra arguments to every OpenTofu/Terraform run.
-slug: features/extra-arguments
+slug: features/units/extra-arguments
 sidebar:
-  order: 8
+  order: 4
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
@@ -111,7 +111,7 @@ $ terragrunt apply
 
 Extra arguments for the `init` command have some additional behavior and constraints.
 
-In addition to being appended to the `tofu init`/`terraform init` command that is run when you explicitly run `terragrunt init`, `extra_arguments` for `init` will also be appended to the `init` commands that are automatically run during other commands (see [Auto-Init](/features/auto-init)).
+In addition to being appended to the `tofu init`/`terraform init` command that is run when you explicitly run `terragrunt init`, `extra_arguments` for `init` will also be appended to the `init` commands that are automatically run during other commands (see [Auto-Init](/features/units/auto-init)).
 
 You must *not* specify the `-from-module` option (aka. the `SOURCE` argument for terraform \< 0.10.0) or the `DIR` argument in the `extra_arguments` for `init`. This option and argument will be provided automatically by terragrunt.
 
