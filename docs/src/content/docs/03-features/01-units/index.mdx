@@ -42,7 +42,7 @@ Consider the following file structure in a typical OpenTofu/Terraform project, w
 
 The contents of each environment could be more or less identical, except perhaps for a few settings (e.g. the prod environment may run more or bigger servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
 
-How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you can maximize code reuse and minimize maintenance overhead?
+How can you keep your OpenTofu/Terraform code [DRY](/getting-started/terminology/#dont-repeat-yourself-dry) so that you can maximize code reuse and minimize maintenance overhead?
 
 Moreover, how can you ensure that you are reproducing as close to the same infrastructure as possible across environments, so that you can be confident that what you test in qa will work when you deploy to prod?
 
@@ -50,9 +50,9 @@ Moreover, how can you ensure that you are reproducing as close to the same infra
 
 A unit in Terragrunt is a directory containing a `terragrunt.hcl` file. This hermetic unit of infrastructure is the smallest deployable entity in Terragrunt. It's also the most important feature Terragrunt has.
 
-Units are designed to be contained, and can be operated on independently of other units. Infrastructure changes to units are also meant to be atomic. The interface you have with a unit is a single `terragrunt.hcl` file, and any change you make to it should result in one reproducible change to a limited subset of your infrastructure.
+Units are designed to be contained, and can be operated on independently of other units. Infrastructure changes to units are also meant to be atomic. The interface you have with a unit is a `terragrunt.hcl` file, and any change you make to it should result in one reproducible change to a limited subset of your infrastructure.
 
-Units are designed to work with immutable OpenTofu/Terraform modules. The OpenTofu/Terraform code referenced by a unit should be versioned, and that version of the module should be immutable. This ensures that the infrastructure you deploy is consistent across environments, and that you are confident you can reproduce the same pattern of infrastructure as many times as you need.
+Units are designed to work with immutable OpenTofu/Terraform modules. As a best practice, OpenTofu/Terraform modules referenced by a unit should be versioned, and the version of that module should be immutable. This ensures that the infrastructure you deploy is consistent across environments, and that you are confident you can reproduce the same pattern of infrastructure as many times as you need.
 
 ## Remote OpenTofu/Terraform modules
 
@@ -70,7 +70,7 @@ Terragrunt has the ability to download remote OpenTofu/Terraform configurations.
 
 </FileTree>
 
-This repo contains typical OpenTofu/Terraform code, with one difference: anything in your code that should be different between environments should be exposed as an input variable. For example, the `app` module might expose the following variables:
+This repo contains typical OpenTofu/Terraform code, with one important design constraint: anything in your OpenTofu/Terraform code that should be different between environments should be exposed as an [input variable](https://opentofu.org/docs/language/values/variables/). For example, the `app` module might expose the following variables:
 
 ```hcl
 # variables.tf
