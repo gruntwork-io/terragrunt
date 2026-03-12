@@ -352,6 +352,10 @@ func buildHandledStackDirs(stackDiff *worktrees.StackDiff, pair *worktrees.Workt
 // collectNonStackDiffPaths returns all diff paths (added, removed, changed) that are not
 // stack files themselves.
 func collectNonStackDiffPaths(pair *worktrees.WorktreePair) []string {
+	if pair.Diffs == nil {
+		return nil
+	}
+
 	var result []string
 
 	for _, paths := range [][]string{pair.Diffs.Added, pair.Diffs.Removed, pair.Diffs.Changed} {
@@ -366,7 +370,9 @@ func collectNonStackDiffPaths(pair *worktrees.WorktreePair) []string {
 }
 
 // findStackDirsWithChanges groups non-stack diff paths by directory, returning only directories
-// that contain a terragrunt.stack.hcl in at least one worktree and are not already handled.
+// that contain a terragrunt.stack.hcl in both worktrees and are not already handled.
+// Note: only files that are direct siblings of the stack file are detected. References to files
+// in other directories (e.g., read_terragrunt_config("../../shared/config.hcl")) are not detected.
 func findStackDirsWithChanges(
 	diffPaths []string,
 	fromWorktree, toWorktree string,
@@ -408,7 +414,8 @@ func stackReferencesAnyDiffPath(
 	stackDir string,
 	diffPaths []string,
 ) bool {
-	// Parse from "to" worktree (current state)
+	// Parse the "to" worktree (current state). We intentionally skip the "from" worktree:
+	// if the new stack version no longer references a file, it should not be considered affected.
 	stackFilePath := filepath.Join(pair.ToWorktree.Path, stackDir, config.DefaultStackFile)
 	if !util.FileExists(stackFilePath) {
 		return false
@@ -416,16 +423,19 @@ func stackReferencesAnyDiffPath(
 
 	filesRead := parseStackReadingList(ctx, l, input, pair.ToWorktree.Path, stackFilePath)
 
+	diffSet := make(map[string]struct{}, len(diffPaths))
+	for _, dp := range diffPaths {
+		diffSet[filepath.ToSlash(dp)] = struct{}{}
+	}
+
 	for _, readFile := range filesRead {
 		rel, err := filepath.Rel(pair.ToWorktree.Path, readFile)
 		if err != nil {
 			continue
 		}
 
-		for _, diffPath := range diffPaths {
-			if filepath.ToSlash(rel) == filepath.ToSlash(diffPath) {
-				return true
-			}
+		if _, found := diffSet[filepath.ToSlash(rel)]; found {
+			return true
 		}
 	}
 
@@ -453,9 +463,9 @@ func parseStackReadingList(
 	parseOpts.Writers.Writer = io.Discard
 	parseOpts.Writers.ErrWriter = io.Discard
 
-	_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+	parsCtx, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
 
-	_, err := config.ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
+	_, err := config.ReadStackConfigFile(parsCtx, l, pctx, stackFilePath, nil)
 	if err != nil {
 		l.Debugf("Failed to parse stack file %s for reading detection: %v", stackFilePath, err)
 	}

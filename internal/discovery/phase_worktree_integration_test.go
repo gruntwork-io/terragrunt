@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1486,10 +1487,16 @@ unit "app" {
 	require.NoError(t, err)
 
 	// Get worktree paths
-	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
-	require.NotEmpty(t, worktreePair)
+	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]", "Worktree pair should exist")
 
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
 	toWorktree := worktreePair.ToWorktree.Path
+
+	// Collect component paths for debugging on failure
+	componentPaths := make([]string, 0, len(components))
+	for _, c := range components {
+		componentPaths = append(componentPaths, c.Path())
+	}
 
 	// Verify: stack-with-ref should be discovered (config.hcl is referenced via read_terragrunt_config)
 	stackWithRefRel, err := filepath.Rel(tmpDir, stackWithRefDir)
@@ -1507,7 +1514,7 @@ unit "app" {
 	}
 
 	assert.True(t, foundStackWithRef,
-		"Stack with read_terragrunt_config reference should be discovered when sidecar changes")
+		"Stack with read_terragrunt_config reference should be discovered when sidecar changes; got: %v", componentPaths)
 
 	// Verify: stack-no-ref should NOT be discovered (unrelated.hcl is not referenced)
 	stackNoRefRel, err := filepath.Rel(tmpDir, stackNoRefDir)
@@ -1525,7 +1532,163 @@ unit "app" {
 	}
 
 	assert.False(t, foundStackNoRef,
-		"Stack without read_terragrunt_config reference should NOT be discovered when unreferenced file changes")
+		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v", componentPaths)
+}
+
+// TestWorktreePhase_Integration_StackReadingDedup tests that when both the stack file itself
+// and a sidecar file referenced via read_terragrunt_config() change in the same commit,
+// the stack is discovered exactly once (no duplication from buildHandledStackDirs).
+func TestWorktreePhase_Integration_StackReadingDedup(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	legacyUnitDir := filepath.Join(tmpDir, "catalog", "units", "legacy")
+	err := os.MkdirAll(legacyUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "terragrunt.hcl"), []byte(`# Legacy unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(legacyUnitDir, "main.tf"), []byte(`# Intentionally empty`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog units")
+
+	// Create a stack with read_terragrunt_config + sidecar
+	stackDir := filepath.Join(tmpDir, "live", "dedup-stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app"
+}
+`
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stack with read_terragrunt_config")
+
+	// Change BOTH the stack file AND the sidecar file in the same commit
+	updatedStackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "app" {
+  source = "${get_repo_root()}/catalog/units/legacy"
+  path   = "app-v2"
+}
+`
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(updatedStackContent), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { version = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update both stack file and sidecar")
+
+	// Set up discovery
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Run discovery
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	disc := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w)
+
+	filters := filter.Filters{}
+
+	for _, gitExpr := range gitExpressions {
+		f := filter.NewFilter(gitExpr, gitExpr.String())
+		filters = append(filters, f)
+	}
+
+	disc = disc.WithFilters(filters)
+
+	components, err := disc.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Get worktree pair path
+	require.Contains(t, w.WorktreePairs, "[HEAD~1...HEAD]", "Worktree pair should exist")
+
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	toWorktree := worktreePair.ToWorktree.Path
+
+	// Collect component paths
+	componentPaths := make([]string, 0, len(components))
+	for _, c := range components {
+		componentPaths = append(componentPaths, c.Path())
+	}
+
+	// The stack should be discovered (stack file changed)
+	stackRel, err := filepath.Rel(tmpDir, stackDir)
+	require.NoError(t, err)
+
+	expectedStackPath := filepath.Join(toWorktree, stackRel)
+
+	// Count how many times the stack appears — should be exactly once
+	matchCount := 0
+
+	for _, c := range components {
+		if strings.HasPrefix(c.Path(), expectedStackPath) {
+			matchCount++
+		}
+	}
+
+	assert.Positive(t, matchCount,
+		"Stack should be discovered when both stack file and sidecar change; got: %v", componentPaths)
+
+	// Verify no duplicate paths — dedup via buildHandledStackDirs should prevent
+	// findStacksAffectedByReading from adding the stack again
+	seen := make(map[string]int, len(components))
+
+	for _, c := range components {
+		seen[c.Path()]++
+	}
+
+	for p, count := range seen {
+		assert.Equal(t, 1, count,
+			"Component path %s appears %d times (expected 1); all: %v", p, count, componentPaths)
+	}
 }
 
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
