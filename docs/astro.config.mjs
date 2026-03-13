@@ -34,27 +34,30 @@ export const sidebar = [
     label: "Features",
     collapsed: true,
     items: [
-      { label: "Units", slug: "features/units" },
-      { label: "Stacks", slug: "features/stacks" },
-      { label: "Includes", slug: "features/includes" },
-      { label: "State Backend", slug: "features/state-backend" },
-      { label: "Run Queue", slug: "features/run-queue" },
-      { label: "Catalog", slug: "features/catalog" },
-      { label: "Scaffold", slug: "features/scaffold" },
-      { label: "Extra Arguments", slug: "features/extra-arguments" },
-      { label: "Authentication", slug: "features/authentication" },
-      { label: "Hooks", slug: "features/hooks" },
-      { label: "Auto Init", slug: "features/auto-init" },
-      { label: "Runtime Control", slug: "features/runtime-control" },
-      { label: "Provider Cache Server", slug: "features/provider-cache-server" },
-      { label: "IaC Engines", slug: "features/engine" },
-      { label: "Content Addressable Store (CAS)", slug: "features/cas" },
-      { label: "Run Report", slug: "features/run-report" },
-      { label: "Automatic Provider Cache Dir", slug: "features/auto-provider-cache-dir" },
+      {
+        label: "Units",
+        collapsed: true,
+        autogenerate: { directory: "03-features/01-units", collapsed: true },
+      },
+      {
+        label: "Stacks",
+        collapsed: true,
+        autogenerate: { directory: "03-features/02-stacks", collapsed: true },
+      },
+      {
+        label: "Catalog",
+        collapsed: true,
+        autogenerate: { directory: "03-features/06-catalog", collapsed: true },
+      },
+      {
+        label: "Caching",
+        collapsed: true,
+        autogenerate: { directory: "03-features/07-caching", collapsed: true },
+      },
       {
         label: "Filters",
         collapsed: true,
-        autogenerate: { directory: "03-features/18-filter", collapsed: true },
+        autogenerate: { directory: "03-features/08-filter", collapsed: true },
       },
     ],
   },
@@ -274,8 +277,14 @@ export default defineConfig({
     "/docs/": "/getting-started/quick-start/",
 
     // Pages that have been rehomed.
+    "/features/scaffold/": "/features/catalog/scaffold/",
+    "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
+
+    // Merged pages
+    "/features/stacks/dependencies/": "/features/stacks/stack-operations/",
+    "/features/stacks/orchestration/": "/features/stacks/stack-operations/",
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
@@ -291,7 +300,7 @@ export default defineConfig({
     "/reference/config-blocks-and-attributes/": "/reference/hcl/blocks/",
     "/reference/strict-mode/": "/reference/strict-controls/",
     "/reference/log-formatting/": "/reference/logging/formatting/",
-    "/features/aws-authentication/": "/features/authentication/",
+    "/features/aws-authentication/": "/features/units/authentication/",
     "/reference/experiment-mode/": "/reference/experiments/",
 
     // Support old doc structure paths
@@ -310,25 +319,39 @@ export default defineConfig({
     "/features/locals/": "/features/units/",
     "/features/keep-your-terraform-code-dry/": "/features/units/",
     "/features/execute-terraform-commands-on-multiple-units-at-once/": "/features/stacks/",
-    "/features/keep-your-terragrunt-architecture-dry/": "/features/includes/",
-    "/features/keep-your-remote-state-configuration-dry/": "/features/state-backend/",
-    "/features/keep-your-cli-flags-dry/": "/features/extra-arguments/",
-    "/features/aws-auth/": "/features/aws-authentication/",
-    "/features/work-with-multiple-aws-accounts/": "/features/aws-authentication/",
-    "/features/auto-retry/": "/features/runtime-control/",
-    "/features/provider-cache/": "/features/provider-cache-server/",
-    "/features/provider-caching/": "/features/provider-cache-server/",
+    "/features/keep-your-terragrunt-architecture-dry/": "/features/units/includes/",
+    "/features/keep-your-remote-state-configuration-dry/": "/features/units/state-backend/",
+    "/features/keep-your-cli-flags-dry/": "/features/units/extra-arguments/",
+    "/features/aws-auth/": "/features/units/authentication/",
+    "/features/work-with-multiple-aws-accounts/": "/features/units/authentication/",
+    "/features/auto-retry/": "/features/units/runtime-control/",
+    "/features/provider-cache/": "/features/caching/provider-cache-server/",
+    "/features/provider-caching/": "/features/caching/provider-cache-server/",
+    "/features/engine/": "/features/units/engine/",
+    "/features/run-report/": "/features/stacks/run-report/",
+    "/features/provider-cache-server/": "/features/caching/provider-cache-server/",
+    "/features/auto-provider-cache-dir/": "/features/caching/auto-provider-cache-dir/",
+    "/features/cas/": "/features/caching/cas/",
 
     // Additional redirects for 404ing URLs
     "/features/execute-terraform-commands-on-multiple-modules-at-once/": "/features/stacks/",
     "/getting-started/configuration/": "/reference/hcl/",
-    "/features/before-and-after-hooks/": "/features/hooks/",
+    "/features/before-and-after-hooks/": "/features/units/hooks/",
     "/etting-started/configuration/": "/reference/hcl/", // typo in original URL
     "/features/log-formatting": "/reference/logging/formatting/",
     "/reference/lock-file-handling/": "/reference/lock-files/",
 
     // Restructured docs
     "/reference/cli/rules": "/process/cli-rules/",
+
+    // Unit features rehomed under /features/units/
+    "/features/includes/": "/features/units/includes/",
+    "/features/state-backend/": "/features/units/state-backend/",
+    "/features/extra-arguments/": "/features/units/extra-arguments/",
+    "/features/authentication/": "/features/units/authentication/",
+    "/features/hooks/": "/features/units/hooks/",
+    "/features/auto-init/": "/features/units/auto-init/",
+    "/features/runtime-control/": "/features/units/runtime-control/",
 
     // Redirects for external resources
     "/community/invite": "https://discord.com/invite/YENaT9h8jh",

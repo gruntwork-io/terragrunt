@@ -1,20 +1,18 @@
 ---
 title: Authentication
 description: Learn how Terragrunt helps you automate authentication workflows.
-slug: features/authentication
+slug: features/units/authentication
 sidebar:
-  order: 9
+  order: 5
 ---
 
-import { Code } from '@astrojs/starlight/components';
+import { Aside, Code } from '@astrojs/starlight/components';
 
-import authProviderCmdSchema from '../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
+import authProviderCmdSchema from '../../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
 
-## Motivation
+AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS.
 
-AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS, especially when you have to manage multiple AWS accounts.
-
-The most secure way to manage AWS infrastructure is to segment infrastructure between [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices). Segmenting infrastructure in this way can ensure that developers are not granted permissions they don't need on infrastructure they don't manage. It's also a best practice from a safety perspective, as it helps to prevent accidental changes to sensitive resources like production infrastructure.
+The most secure way to manage multiple AWS accounts is to segment infrastructure between [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices). Segmenting infrastructure in this way can ensure that developers are not granted permissions they don't need on infrastructure they don't manage. It's also a best practice from a safety perspective, as it helps to prevent accidental changes to sensitive resources like production infrastructure.
 
 When working with multiple AWS accounts, a best practice is to temporarily assume roles within those AWS accounts to perform actions using mechanisms like [IAM Identity Center](https://aws.amazon.com/iam/identity-center/) or [OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html). When using these technologies, users don't need any static users or credentials. All access is temporary, and permissions are determined by the role they assume.
 
@@ -34,11 +32,15 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
    Worse yet, it requires that users repeat this process often, as the credentials you get back from the `assume-role` command expire. This is especially problematic if the OpenTofu/Terraform run is expected to take longer than the role assumption duration, and can expire mid-run.
 
-3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/docs/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/docs/language/settings/backends/s3/#assume-role-configuration).
+3. A final option is to modify your AWS provider with the [assume_role configuration block](https://search.opentofu.org/provider/hashicorp/aws/latest/docs#assume_role-configuration-block) and your S3 backend with the [role_arn parameter](https://opentofu.org/docs/language/settings/backends/s3/#assume-role-configuration).
 
    The downside to managing your role assumption with the AWS provider is that all runs have to be performed with the same IAM role. This can be problematic if you have different users who assume different roles, depending on their need for elevated access, and as a best practice, the role assumed by CI/CD pipelines should be different from the role assumed by developers.
 
    The _way_ in which these roles are assumed also differ, as developers might use a web-based SSO portal to acquire temporary credentials, while CI/CD pipelines might use OIDC and assume a role using a web identity token.
+
+<Aside type="caution">
+Temporary credentials obtained via `assume-role` can expire during long-running OpenTofu/Terraform operations. Terragrunt's built-in role assumption (described below) handles automatic credential refresh, avoiding this problem.
+</Aside>
 
 To avoid these frustrating trade-offs, you can configure Terragrunt to assume an IAM role for you.
 
@@ -75,7 +77,11 @@ In addition, you can combine the `--iam-assume-role` flag with the [`--iam-assum
 
 This is especially convenient in the context of CI/CD pipelines, as it's generally a best practice to assume roles there via OIDC.
 
-Configuring OIDC role assumption largely works like the `--iam-assume-role` flag, with the addition of the `--iam-assume-role-web-identity-token` flag. One special aspect of the `--iam-assume-role-web-identity-token` flag is that it can use both a token, and the path to a file containing the token.
+Configuring OIDC role assumption largely works like the `--iam-assume-role` flag, with the addition of the `--iam-assume-role-web-identity-token` flag.
+
+<Aside type="tip">
+The `--iam-assume-role-web-identity-token` flag accepts both a raw token value and the path to a file containing the token. Terragrunt will automatically detect which one you've provided.
+</Aside>
 
 As a command line argument:
 
@@ -133,7 +139,9 @@ All top-level objects are optional, and you can provide multiple.
 - `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `roleSessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
 - `envs` is a map of environment variables that will be set before running OpenTofu/Terraform.
 
-Given that the working directory of Terragrunt execution is the same as the command, you can author logic in your script to determine which credentials are appropriate to return based on the context of the Terragrunt run.
+<Aside type="note">
+The auth provider command runs in the context of the Terragrunt working directory. You can use this to author logic in your script that determines which credentials to return based on the context of the Terragrunt run.
+</Aside>
 
 This feature is integrated with the [Gruntwork Pipelines](https://www.gruntwork.io/platform/pipelines) product to provide a secure and flexible way to manage assumption of different roles in different accounts based on context.
 
@@ -231,7 +239,11 @@ Note that these permissions might be too broad for your circumstances, however. 
 }
 ```
 
-As you can see, the permissions are getting locked down, and the risk you run by adopting these permissions is that you might not realize that you need certain permissions until you run into an error. It's generally a best practice to start with permissions that are too narrow, and expand them as necessary.
+As you can see, the permissions are getting locked down, and the risk you run by adopting these permissions is that you might not realize that you need certain permissions until you run into an error.
+
+<Aside type="tip">
+Start with permissions that are too narrow, and expand them as necessary. It's easier to grant additional permissions when you encounter an error than to audit overly broad permissions later.
+</Aside>
 
 Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table it uses for S3 state storage, it doesn't _need_ to. You can create these resources manually, then grant Terragrunt permissions to interact with them (but not create them). A policy that allows this would look like the following:
 
@@ -279,3 +291,10 @@ Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table 
 ```
 
 You'll want to make sure that you set configurations like `skip_bucket_versioning` in [remote_state](/reference/hcl/blocks#remote_state) to prevent Terragrunt from attempting to validate the bucket or table is in the proper configuration without requisite permissions.
+
+## Further Reading
+
+- [Units Overview](/features/units) — for context on how units work with remote modules and source URLs
+- [State Backend](/features/units/state-backend) — remote state also involves AWS credentials and role assumption
+- [`--iam-assume-role` CLI reference](/reference/cli/commands/run#iam-assume-role) — CLI flag for IAM role assumption
+- [`--auth-provider-cmd` CLI reference](/reference/cli/commands/run#auth-provider-cmd) — CLI flag for external auth provider commands
