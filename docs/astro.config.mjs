@@ -281,6 +281,10 @@ export default defineConfig({
     "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
+    
+    // Merged pages
+    "/features/stacks/dependencies/": "/features/stacks/stack-operations/",
+    "/features/stacks/orchestration/": "/features/stacks/stack-operations/",
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
