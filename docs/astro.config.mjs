@@ -57,7 +57,7 @@ export const sidebar = [
       {
         label: "Filters",
         collapsed: true,
-        autogenerate: { directory: "03-features/18-filter", collapsed: true },
+        autogenerate: { directory: "03-features/08-filter", collapsed: true },
       },
     ],
   },
@@ -281,7 +281,7 @@ export default defineConfig({
     "/features/run-queue/": "/features/stacks/run-queue/",
     "/features/debugging/": "/troubleshooting/debugging/",
     "/upgrade/upgrading_to_terragrunt_0.19.x/": "/migrate/upgrading_to_terragrunt_0.19.x/",
-    
+
     // Merged pages
     "/features/stacks/dependencies/": "/features/stacks/stack-operations/",
     "/features/stacks/orchestration/": "/features/stacks/stack-operations/",
