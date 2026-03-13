@@ -10,8 +10,6 @@ import { Code } from '@astrojs/starlight/components';
 
 import authProviderCmdSchema from '../../../../../public/schemas/auth-provider-cmd/v2/schema.json?raw';
 
-## Motivation
-
 AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS, especially when you have to manage multiple AWS accounts.
 
 The most secure way to manage AWS infrastructure is to segment infrastructure between [multiple AWS accounts](https://aws.amazon.com/organizations/getting-started/best-practices). Segmenting infrastructure in this way can ensure that developers are not granted permissions they don't need on infrastructure they don't manage. It's also a best practice from a safety perspective, as it helps to prevent accidental changes to sensitive resources like production infrastructure.
