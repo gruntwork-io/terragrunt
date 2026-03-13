@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
@@ -71,7 +72,11 @@ func (cfg Config) GetTFInitArgs() Config {
 		filtered[key] = val
 	}
 
-	return filtered
+	// Normalize string boolean values to native Go bools using reflection
+	// on the S3 config structs. HCL ternary type unification can convert
+	// bools to strings, which causes generated backend blocks to contain
+	// "true"/"false" string literals instead of true/false boolean literals.
+	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigS3{}))
 }
 
 func (cfg Config) Normalize(logger log.Logger) Config {
