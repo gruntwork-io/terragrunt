@@ -60,7 +60,7 @@ jobs:
             ${{ runner.os }}-mise-tools-
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
           version: 2026.1.9
           experimental: true
