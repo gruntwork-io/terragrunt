@@ -233,7 +233,11 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	// Detect stacks affected by changes to files they reference via read_terragrunt_config().
 	// This requires parsing infrastructure (ctx, l, opts), which is why it lives here
 	// rather than in Stacks().
-	readingAffected := findStacksAffectedByReading(ctx, l, input, w, &stackDiff)
+	readingAffected, err := findStacksAffectedByReading(ctx, l, input, w, &stackDiff)
+	if err != nil {
+		return nil, err
+	}
+
 	stackDiff.Changed = append(stackDiff.Changed, readingAffected...)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -287,7 +291,7 @@ func findStacksAffectedByReading(
 	input *PhaseInput,
 	w *worktrees.Worktrees,
 	existingDiff *worktrees.StackDiff,
-) []worktrees.StackDiffChangedPair {
+) ([]worktrees.StackDiffChangedPair, error) {
 	var result []worktrees.StackDiffChangedPair
 
 	for _, pair := range w.WorktreePairs {
@@ -298,7 +302,10 @@ func findStacksAffectedByReading(
 			continue
 		}
 
-		stackDirsToCheck := findAllUnhandledStackDirs(pair.FromWorktree.Path, pair.ToWorktree.Path, handledDirs)
+		stackDirsToCheck, err := findAllUnhandledStackDirs(pair.FromWorktree.Path, pair.ToWorktree.Path, handledDirs)
+		if err != nil {
+			return nil, err
+		}
 
 		for _, stackDir := range stackDirsToCheck {
 			if stackReferencesAnyDiffPath(ctx, l, input, &pair, stackDir, diffPaths) {
@@ -320,7 +327,7 @@ func findStacksAffectedByReading(
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // buildHandledStackDirs builds a set of relative directory paths already represented
@@ -376,10 +383,10 @@ func collectNonStackDiffPaths(pair *worktrees.WorktreePair) []string {
 func findAllUnhandledStackDirs(
 	fromWorktree, toWorktree string,
 	handledDirs map[string]struct{},
-) []string {
+) ([]string, error) {
 	var result []string
 
-	_ = filepath.WalkDir(toWorktree, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(toWorktree, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -414,7 +421,7 @@ func findAllUnhandledStackDirs(
 		return nil
 	})
 
-	return result
+	return result, err
 }
 
 // stackReferencesAnyDiffPath parses a stack file and checks whether any of the provided diff
