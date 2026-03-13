@@ -1,6 +1,6 @@
-# Terragrunt Docs: Starlight Rewrite
+# Terragrunt Documentation
 
-This is the rewrite of the Terragrunt website using [Starlight](https://github.com/withastro/starlight), a documentation website framework for Astro. The goal is to provide a more user-friendly and accessible documentation for Terragrunt users.
+This is the documentation for Terragrunt (hosted at <https://docs.terragrunt.com>), built using [Starlight](https://github.com/withastro/starlight), a documentation framework for Astro.
 
 ## Development
 
@@ -10,13 +10,13 @@ To get started, install the requisite dependencies to run the project locally us
 mise install
 ```
 
-Afterwards, you'll want to install the dependencies for the project:
+Afterwards, you'll want to install the NPM dependencies for the project:
 
 ```bash
 bun i
 ```
 
-You'll also need to install [d2](https://github.com/terrastruct/d2/blob/master/docs/INSTALL.md) to build any diagrams:
+You'll also need to install [d2](https://github.com/terrastruct/d2/blob/master/docs/INSTALL.md) to build any diagrams referenced in the documentation:
 
 You can now start the development server:
 
@@ -24,38 +24,23 @@ You can now start the development server:
 bun dev
 ```
 
-## Adding shadcn/ui Components
+This will start a development server on <http://127.0.0.1:4321> that will be automatically reloaded when you make changes to documentation.
 
-This project includes a limited number of shadcn/ui components. To add new shadcn/ui components:
+## Building
 
-1. **Install a component**:
+When the project is ready to deployed, it will be built using the following command:
 
-   ```bash
-   npx shadcn@latest add [component-name]
-   ```
-
-   Example:
-
-   ```bash
-   npx shadcn@latest add card
-   npx shadcn@latest add input
-   npx shadcn@latest add dialog
-   ```
-
-2. **Components will be installed to** `src/components/ui/`
-
-3. **Configuration**: The `components.json` file contains the shadcn/ui CLI configuration
-
-### Usage Example
-
-```tsx
-import Button from '@components/ui/Button.tsx';
-
-<Button variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-black">
-  Learn More
-</Button>
+```bash
+bun run build
 ```
 
-## WIP
+This will generate a `dist` directory with the built documentation.
 
-This is still a work in progress. Here are some of the tasks that need to be completed. For the list of tasks, see [TODO.md](TODO.md).
+Running this locally can be useful if you see that the build fails in CI, as additional checks are performed in the build process, like ensuring that all links are valid.
+
+## Hosting
+
+The website is hosted on [Vercel](https://vercel.com/), and is automatically deployed when a new commit is pushed to the `main` branch.
+
+Every pull request will result in a preview deployment of the documentation site. This preview site is only accessible by maintainers of the project to prevent running untrusted code in Vercel builds.
+
