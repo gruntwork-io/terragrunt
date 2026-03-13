@@ -29,7 +29,6 @@ const (
 	TerraformCacheDir     = ".terraform"
 	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
-	TfFileExtension       = ".tf"
 	ChecksumReadBlock     = 8192
 )
 
@@ -96,74 +95,6 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 
 	return filepath.Clean(path), nil
-}
-
-// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]string, error) {
-	if len(globPaths) == 0 {
-		return []string{}, nil
-	}
-
-	var err error
-
-	// Ensure basePath is canonical
-	basePath, err = CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	for _, globPath := range globPaths {
-		// Log a warning if globPath uses the old glob pattern
-		if strings.HasSuffix(globPath, "**/*") {
-			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
-		}
-
-		// Ensure globPath are absolute
-		if !filepath.IsAbs(globPath) {
-			globPath = filepath.Join(basePath, globPath)
-		}
-
-		const stackDir = "/.terragrunt-stack/"
-
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
-			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(filepath.Clean(globPath), stackDir) {
-			// when using the stack feature, the directory may not exist yet,
-			// as stack generation occurs after parsing the argument flags.
-			paths = append(paths, globPath)
-		}
-	}
-
-	// Make sure all paths are canonical
-	for i := range paths {
-		paths[i], err = CanonicalPath(paths[i], basePath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return paths, nil
-}
-
-// CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
-// relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
-// components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
-func CanonicalPaths(paths []string, basePath string) ([]string, error) {
-	canonicalPaths := []string{}
-
-	for _, path := range paths {
-		canonicalPath, err := CanonicalPath(path, basePath)
-		if err != nil {
-			return canonicalPaths, err
-		}
-
-		canonicalPaths = append(canonicalPaths, canonicalPath)
-	}
-
-	return canonicalPaths, nil
 }
 
 // Grep returns true if the given regex can be found in any of the files matched by the given glob.
