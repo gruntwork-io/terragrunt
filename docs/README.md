@@ -43,4 +43,3 @@ Running this locally can be useful if you see that the build fails in CI, as add
 The website is hosted on [Vercel](https://vercel.com/), and is automatically deployed when a new commit is pushed to the `main` branch.
 
 Every pull request will result in a preview deployment of the documentation site. This preview site is only accessible by maintainers of the project to prevent running untrusted code in Vercel builds.
-
