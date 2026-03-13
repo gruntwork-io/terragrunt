@@ -491,7 +491,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 # root.hcl
 
 # Configure OpenTofu/Terraform state to be stored in S3, in the bucket "my-tofu-state" in us-east-1 under a key that is
-# relative to included terragrunt config. For example, if you had the following folder structure:
+# relative to included terragrunt config. For example, if you had the following filesystem layout:
 #
 # .
 # ├── root.hcl
@@ -539,7 +539,7 @@ Example with GCS:
 # the eu region under a key that is relative to included terragrunt config. This will also apply the labels
 # "owner=terragrunt_test" and "name=tofu_state_storage" to the bucket if it is created by Terragrunt.
 #
-# For example, if you had the following folder structure:
+# For example, if you had the following filesystem layout:
 #
 # .
 # ├── root.hcl
@@ -716,7 +716,7 @@ Examples:
 ```hcl
 # root.hcl
 
-# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
+# If you have the following filesystem layout, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the configurations in the root.hcl file.
 #
 # .
@@ -760,7 +760,7 @@ terraform {
 ```hcl
 # root.hcl
 
-# If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
+# If you have the following filesystem layout, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the configurations in the root.hcl, while only loading the data in the region.hcl
 # configuration.
 #

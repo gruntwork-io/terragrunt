@@ -26,7 +26,7 @@ terraform {
 }
 ```
 
-Unfortunately, the `backend` configuration does not currently support expressions, variables, or functions. This makes it hard to keep your code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) if you have multiple OpenTofu/Terraform modules. For example, consider the following folder structure, which uses different OpenTofu/Terraform modules to deploy a backend app, frontend app, MySQL database, and a VPC:
+Unfortunately, the `backend` configuration does not currently support expressions, variables, or functions. This makes it hard to keep your code [DRY](/getting-started/terminology/#dont-repeat-yourself-dry) if you have multiple OpenTofu/Terraform modules. For example, consider the following filesystem layout, which uses different OpenTofu/Terraform modules to deploy a backend app, frontend app, MySQL database, and a VPC:
 
 <FileTree>
 
@@ -90,13 +90,39 @@ EOF
 }
 ```
 
+<Aside type="tip" title="Windows compatibility">
+
+To ensure compatibility with Windows systems, you may want to use `replace` to ensure that `\` characters are replaced with `/` characters in the `key` parameter.
+
+```hcl
+# root.hcl
+
+generate "backend" {
+  path      = "backend.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+terraform {
+  backend "s3" {
+    bucket         = "my-tofu-state"
+    key            = "${replace(path_relative_to_include(), "\\", "/")}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+EOF
+}
+```
+
+</Aside>
+
 This instructs Terragrunt to create the file `backend.tf` in the working directory (where Terragrunt calls `tofu`/`terraform`)
 before it runs any OpenTofu/Terraform commands, including `init`. This allows you to inject this backend configuration
 in all the units that include the root file and have `terragrunt` properly initialize the backend configuration with
 interpolated values.
 
 To inherit this configuration in each unit, such as `mysql/terragrunt.hcl`, you can
-tell Terragrunt to automatically include all the settings from the root `root.hcl` file as follows:
+configure Terragrunt units to automatically include all the settings from the root `root.hcl` file as follows:
 
 ```hcl
 # mysql/terragrunt.hcl
@@ -105,13 +131,13 @@ include "root" {
 }
 ```
 
-The `include` block tells Terragrunt to use an identical Terragrunt configuration from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
+The `include` block here configures the `mysql` Terragrunt unit to merge in partial configurations from the `root.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
 The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren't configured already, by calling [tofu/terraform init](https://opentofu.org/docs/cli/commands/init/).
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
-- `find_in_parent_folders()`: This function returns the absolute path to the first file it finds in the parent folders above the current unit named something. In the example above, the call to `find_in_parent_folders("root.hcl")` in `mysql/terragrunt.hcl` will return `/your-root-folder/root.hcl`. This way, you don’t have to hard code the `path` parameter in every unit.
+- `find_in_parent_folders()`: This function returns the absolute path to the first file it finds in the parent folders above the current unit with a given file name. In the example above, the call to `find_in_parent_folders("root.hcl")` in `mysql/terragrunt.hcl` will return `/absolute/path/to/root.hcl`. This way, you don’t have to hard code the `path` parameter in every unit.
 
 - `path_relative_to_include()`: This function returns the relative path between the unit and the path specified in its `include` block. We typically use this in a root `root.hcl` file so that each unit stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` unit will have its `key` parameter resolve to `mysql/tofu.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/tofu.tfstate`.
 
@@ -122,7 +148,7 @@ Read [Functions docs](/reference/hcl/functions) for more info.
 The `generate` block is useful for allowing you to set up the remote state backend configuration automatically, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
 state? For example, when using the [s3 backend](https://opentofu.org/docs/language/settings/backends/s3/), OpenTofu/Terraform
-expects the S3 bucket to already exist for it to upload the state objects.
+expects that the S3 bucket already exists for it to upload/download the state objects.
 
 Ideally, you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
 bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if you need to run `tofu`/`terraform` to create the
@@ -131,11 +157,13 @@ bucket?
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
 block](/reference/hcl/blocks/#remote_state).
 
-> **NOTE**
->
-> `remote_state` is an alternative way of managing the OpenTofu/Terraform backend compared to `generate`. You cannot use both
-> methods at the same time to manage the remote state configuration. When implementing `remote_state`, be sure to remove
-> the corresponding `generate` block for managing the backend.
+<Aside type="note" title="Remote state vs generate">
+
+`remote_state` is an alternative way of managing the OpenTofu/Terraform backend compared to `generate`. You cannot use both
+methods at the same time to manage the remote state configuration. When using `remote_state`, be sure not also to use
+an equivalent `generate` block for managing the backend.
+
+</Aside>
 
 The following backends are currently supported by `remote_state`:
 

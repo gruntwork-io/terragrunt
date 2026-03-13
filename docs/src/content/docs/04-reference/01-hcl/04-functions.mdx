@@ -93,7 +93,7 @@ include "root" {
 ```
 
 Note that this function searches relative to the `terragrunt.hcl` file when called from a parent config. For
-example, if you had the following folder structure:
+example, if you had the following filesystem layout:
 
 <FileTree>
 
@@ -122,7 +122,7 @@ finding the `env.hcl` file in the `prod` directory.
 
 ## path_relative_to_include
 
-`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following folder structure:
+`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following filesystem layout:
 
 <FileTree>
 
@@ -186,7 +186,7 @@ terraform {
 
 ## path_relative_from_include
 
-`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following folder structure:
+`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following filesystem layout:
 
 <FileTree>
 
