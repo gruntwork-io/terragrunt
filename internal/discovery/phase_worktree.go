@@ -277,10 +277,10 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 }
 
 // findStacksAffectedByReading detects stacks affected by changes to files they reference
-// via read_terragrunt_config(). For each worktree pair, it collects non-stack diff paths,
-// identifies which directories contain stack files, parses those stack files to determine
-// which files are actually read, and returns changed pairs for stacks whose readings overlap
-// with the diff.
+// via read_terragrunt_config() or read_tfvars_file(). For each worktree pair, it collects
+// non-stack diff paths, walks the worktrees to find all stack directories, parses those
+// stack files to determine which files are actually read, and returns changed pairs for
+// stacks whose readings overlap with the diff.
 func findStacksAffectedByReading(
 	ctx context.Context,
 	l log.Logger,
@@ -298,10 +298,10 @@ func findStacksAffectedByReading(
 			continue
 		}
 
-		stackDirsToCheck := findStackDirsWithChanges(diffPaths, pair.FromWorktree.Path, pair.ToWorktree.Path, handledDirs)
+		stackDirsToCheck := findAllUnhandledStackDirs(pair.FromWorktree.Path, pair.ToWorktree.Path, handledDirs)
 
-		for stackDir, paths := range stackDirsToCheck {
-			if stackReferencesAnyDiffPath(ctx, l, input, &pair, stackDir, paths) {
+		for _, stackDir := range stackDirsToCheck {
+			if stackReferencesAnyDiffPath(ctx, l, input, &pair, stackDir, diffPaths) {
 				result = append(result, worktrees.StackDiffChangedPair{
 					FromStack: component.NewStack(filepath.Join(pair.FromWorktree.Path, stackDir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
@@ -369,37 +369,50 @@ func collectNonStackDiffPaths(pair *worktrees.WorktreePair) []string {
 	return result
 }
 
-// findStackDirsWithChanges groups non-stack diff paths by directory, returning only directories
-// that contain a terragrunt.stack.hcl in both worktrees and are not already handled.
-// Note: only files that are direct siblings of the stack file are detected. References to files
-// in other directories (e.g., read_terragrunt_config("../../shared/config.hcl")) are not detected.
-func findStackDirsWithChanges(
-	diffPaths []string,
+// findAllUnhandledStackDirs walks the "to" worktree to find all directories containing
+// a terragrunt.stack.hcl file that also exists in the "from" worktree and is not
+// already handled by direct stack diff detection. This ensures stacks referencing files
+// in other directories (e.g., read_terragrunt_config("../../shared/config.hcl")) are detected.
+func findAllUnhandledStackDirs(
 	fromWorktree, toWorktree string,
 	handledDirs map[string]struct{},
-) map[string][]string {
-	result := make(map[string][]string)
-	seen := make(map[string]bool)
+) []string {
+	var result []string
 
-	for _, diffPath := range diffPaths {
-		dir := filepath.Dir(diffPath)
-
-		if _, handled := handledDirs[dir]; handled {
-			continue
+	_ = filepath.WalkDir(toWorktree, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		hasStack, checked := seen[dir]
-		if !checked {
-			fromExists := util.FileExists(filepath.Join(fromWorktree, dir, config.DefaultStackFile))
-			toExists := util.FileExists(filepath.Join(toWorktree, dir, config.DefaultStackFile))
-			hasStack = fromExists && toExists
-			seen[dir] = hasStack
+		if d.IsDir() {
+			if err := util.SkipDirIfIgnorable(d.Name()); err != nil {
+				return err
+			}
+
+			return nil
 		}
 
-		if hasStack {
-			result[dir] = append(result[dir], diffPath)
+		if d.Name() != config.DefaultStackFile {
+			return nil
 		}
-	}
+
+		rel, err := filepath.Rel(toWorktree, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+
+		if _, handled := handledDirs[rel]; handled {
+			return nil
+		}
+
+		if !util.FileExists(filepath.Join(fromWorktree, rel, config.DefaultStackFile)) {
+			return nil
+		}
+
+		result = append(result, rel)
+
+		return nil
+	})
 
 	return result
 }
