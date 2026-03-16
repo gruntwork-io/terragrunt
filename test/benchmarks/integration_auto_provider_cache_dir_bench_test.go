@@ -208,9 +208,6 @@ func BenchmarkAutoProviderCacheDirRegistryHashes(b *testing.B) {
 			"--working-dir",
 			tmpDir,
 		)
-
-		err = os.Remove(filepath.Join(tmpDir, ".terraform.lock.hcl"))
-		require.NoError(b, err)
 	}
 
 	latestTofuPath := os.Getenv("LATEST_TOFU_PATH")
@@ -226,23 +223,23 @@ func BenchmarkAutoProviderCacheDirRegistryHashes(b *testing.B) {
 
 		setup(tmpDir)
 
-		b.ResetTimer()
-
 		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terraform.lock.hcl"))
+			require.NoError(b, err)
+
+			err = os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
 			helpers.RunTerragruntCommand(
 				b,
 				"terragrunt",
 				"init",
 				"--tf-path",
 				latestTofuPath,
-				"--source-update",
 				"--non-interactive",
 				"--working-dir",
 				tmpDir,
 			)
-
-			err := os.Remove(filepath.Join(tmpDir, ".terraform.lock.hcl"))
-			require.NoError(b, err)
 		}
 	})
 
@@ -251,23 +248,67 @@ func BenchmarkAutoProviderCacheDirRegistryHashes(b *testing.B) {
 
 		setup(tmpDir)
 
-		b.ResetTimer()
-
 		for b.Loop() {
+			err := os.Remove(filepath.Join(tmpDir, ".terraform.lock.hcl"))
+			require.NoError(b, err)
+
+			err = os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
 			helpers.RunTerragruntCommand(
 				b,
 				"terragrunt",
 				"init",
 				"--tf-path",
 				nightlyTofuPath,
-				"--source-update",
 				"--non-interactive",
 				"--working-dir",
 				tmpDir,
 			)
+		}
+	})
 
-			err := os.Remove(filepath.Join(tmpDir, ".terraform.lock.hcl"))
+	b.Run("latest init w lockfile", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
 			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				latestTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
+		}
+	})
+
+	b.Run("nightly init w lockfile", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				nightlyTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
 		}
 	})
 }
