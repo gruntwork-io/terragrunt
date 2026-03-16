@@ -50,9 +50,5 @@ terraform {
       source  = "registry.opentofu.org/hashicorp/random"
       version = "~> 3.0"
     }
-    null = {
-      source  = "registry.opentofu.org/hashicorp/null"
-      version = "~> 3.0"
-    }
   }
 }
