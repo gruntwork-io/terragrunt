@@ -199,14 +199,23 @@ func (pc *ProviderCache) TerraformCommandHook(
 
 	var skipRunTargetCommand bool
 
+	lockfilePath := filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile)
+	lockfileExists := util.FileExists(lockfilePath)
+
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
 	case args.CommandName() == tf.CommandNameInit:
 		// Provider caching for `terraform init` command.
 	case args.CommandName() == tf.CommandNameProviders && args.SubCommandName() == tf.CommandNameLock:
 		// Provider caching for `terraform providers lock` command.
-		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
-		skipRunTargetCommand = true
+		// If no lock file exists, Terragrunt generates it.
+		//
+		// If one already exists,
+		// let `tofu/terraform providers lock` run against the filesystem mirror
+		// so OpenTofu/Terraform manages the lock file itself.
+		if !lockfileExists {
+			skipRunTargetCommand = true
+		}
 	default:
 		// skip cache creation for all other commands
 		return tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
@@ -214,7 +223,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 
 	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
 
-	if output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env); err != nil {
+	if output, err := pc.warmUpCache(ctx, l, tfOpts, cliConfigFilename, args, env, lockfileExists); err != nil {
 		return output, err
 	}
 
@@ -232,6 +241,7 @@ func (pc *ProviderCache) warmUpCache(
 	cliConfigFilename string,
 	args clihelper.Args,
 	env map[string]string,
+	lockfileExists bool,
 ) (*util.CmdOutput, error) {
 	var (
 		cacheRequestID = uuid.New().String()
@@ -264,6 +274,15 @@ func (pc *ProviderCache) warmUpCache(
 		l.Debugf("Failed to parse provider constraints from %s: %v", filepath.Dir(tfOpts.TerragruntConfigPath), err)
 
 		providerConstraints = make(getproviders.ProviderConstraints)
+	}
+
+	// If a lock file already existed before this run, skip writing to it — let
+	// OpenTofu/Terraform verify and manage the lock file during the actual init.
+	if lockfileExists {
+		l.Debugf("Skipping lock file update: %s already exists, letting OpenTofu/Terraform manage it",
+			filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile))
+
+		return nil, nil
 	}
 
 	for _, provider := range caches {
