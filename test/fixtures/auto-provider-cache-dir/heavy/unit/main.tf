@@ -1,4 +1,6 @@
 terraform {
+  required_version = ">= 1.0"
+
   required_providers {
     aws = {
       source  = "registry.opentofu.org/hashicorp/aws"
@@ -6,7 +8,7 @@ terraform {
     }
     google = {
       source  = "registry.opentofu.org/hashicorp/google"
-      version = "~> 6.0"
+      version = "~> 7.0"
     }
     azurerm = {
       source  = "registry.opentofu.org/hashicorp/azurerm"
@@ -14,7 +16,7 @@ terraform {
     }
     kubernetes = {
       source  = "registry.opentofu.org/hashicorp/kubernetes"
-      version = "~> 2.0"
+      version = "~> 3.0"
     }
     helm = {
       source  = "registry.opentofu.org/hashicorp/helm"
