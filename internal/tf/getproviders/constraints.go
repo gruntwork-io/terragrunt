@@ -220,40 +220,46 @@ func normalizeProviderAddress(impl tfimpl.Type, source string) string {
 // This includes:
 // 1. Removing the "=" prefix if present
 // 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
+// 3. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
 func normalizeVersionConstraint(constraint string) string {
 	constraint = strings.TrimSpace(constraint)
 
-	// If constraint starts with "=", remove it
+	parts := strings.Split(constraint, ",")
+	normalized := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		normalized = append(normalized, normalizeSingleConstraint(strings.TrimSpace(part)))
+	}
+
+	return strings.Join(normalized, ", ")
+}
+
+// normalizeSingleConstraint normalizes a single version constraint (no commas).
+func normalizeSingleConstraint(constraint string) string {
 	if after, ok := strings.CutPrefix(constraint, "="); ok {
 		constraint = strings.TrimSpace(after)
 	}
 
-	// Split the constraint into operator and version parts
-	parts := strings.Fields(constraint)
+	fields := strings.Fields(constraint)
 
-	// This is just a version number without an operator (e.g., "1.2.3")
 	const justVersionParts = 1
-	if len(parts) == justVersionParts {
-		if v, err := version.NewVersion(parts[0]); err == nil {
+	if len(fields) == justVersionParts {
+		if v, err := version.NewVersion(fields[0]); err == nil {
 			return v.String()
 		}
 
 		return constraint
 	}
 
-	// This has an operator and version (e.g., ">= 2.2")
 	const operatorAndVersionParts = 2
-	if len(parts) == operatorAndVersionParts {
-		operator := parts[0]
-		versionStr := parts[1]
+	if len(fields) == operatorAndVersionParts {
+		operator := fields[0]
+		versionStr := fields[1]
 
-		// Parse the version to normalize it
 		if v, err := version.NewVersion(versionStr); err == nil {
-			// The version library normalizes "2.2" to "2.2.0"
 			return fmt.Sprintf("%s %s", operator, v.String())
 		}
 	}
 
-	// If parsing fails or unexpected format, return the original constraint
 	return constraint
 }

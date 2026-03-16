@@ -283,6 +283,26 @@ func TestNormalizeVersionConstraint(t *testing.T) {
 			input:    "= 2.5",
 			expected: "2.5.0",
 		},
+		{
+			name:     "multi-part constraint normalizes each part",
+			input:    ">= 3.0, < 7.0",
+			expected: ">= 3.0.0, < 7.0.0",
+		},
+		{
+			name:     "multi-part constraint with three parts",
+			input:    ">= 2.0, >= 3.0, < 7.0",
+			expected: ">= 2.0.0, >= 3.0.0, < 7.0.0",
+		},
+		{
+			name:     "multi-part already normalized",
+			input:    ">= 3.0.0, < 7.0.0",
+			expected: ">= 3.0.0, < 7.0.0",
+		},
+		{
+			name:     "multi-part with mixed operators",
+			input:    "~> 5.0, != 5.3",
+			expected: "~> 5.0.0, != 5.3.0",
+		},
 	}
 
 	for _, tc := range testCases {
