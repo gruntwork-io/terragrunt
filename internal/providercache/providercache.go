@@ -276,9 +276,11 @@ func (pc *ProviderCache) warmUpCache(
 		providerConstraints = make(getproviders.ProviderConstraints)
 	}
 
+	isUpgrade := tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains("-upgrade")
+
 	// If a lock file already existed before this run, skip writing to it — let
 	// OpenTofu/Terraform verify and manage the lock file during the actual init.
-	if lockfileExists {
+	if lockfileExists && !isUpgrade {
 		l.Debugf("Skipping lock file update: %s already exists, letting OpenTofu/Terraform manage it",
 			filepath.Join(tfOpts.ShellOptions.WorkingDir, tf.TerraformLockFile))
 
@@ -304,9 +306,6 @@ func (pc *ProviderCache) warmUpCache(
 
 	// For upgrade scenarios where no providers were newly cached, we still need to update
 	// the lock file if module constraints have changed. This only happens during upgrades.
-	// Check if user passed -upgrade flag to terraform init
-	isUpgrade := tfOpts.TerraformCliArgs != nil && tfOpts.TerraformCliArgs.Contains("-upgrade")
-
 	if len(caches) == 0 && len(providerConstraints) > 0 && isUpgrade {
 		l.Debugf("No new providers cached, but constraints exist. Updating lock file constraints for upgrade scenario.")
 
