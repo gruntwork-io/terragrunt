@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,7 +37,7 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 		)
 	}
 
-	b.Run("init without auto provider cache dir", func(b *testing.B) {
+	b.Run("init with auto provider cache dir", func(b *testing.B) {
 		tmpDir := b.TempDir()
 
 		setup(tmpDir)
@@ -51,28 +52,6 @@ func BenchmarkAutoProviderCacheDirInit(b *testing.B) {
 				"--source-update",
 				"--non-interactive",
 				"--working-dir", tmpDir)
-		}
-
-		b.StopTimer()
-	})
-
-	b.Run("init with auto provider cache dir", func(b *testing.B) {
-		tmpDir := b.TempDir()
-
-		setup(tmpDir)
-
-		b.ResetTimer()
-
-		for b.Loop() {
-			helpers.RunTerragruntCommand(
-				b,
-				"terragrunt",
-				"init",
-				"--experiment", "auto-provider-cache-dir",
-				"--source-update",
-				"--non-interactive",
-				"--working-dir",
-				tmpDir)
 		}
 
 		b.StopTimer()
@@ -127,16 +106,12 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 		args []string
 	}{
 		{
-			name: "no provider caching",
+			name: "with auto provider cache dir",
 			args: []string{},
 		},
 		{
 			name: "with provider cache server",
 			args: []string{"--provider-cache"},
-		},
-		{
-			name: "with auto provider cache dir",
-			args: []string{"--experiment", "auto-provider-cache-dir"},
 		},
 	}
 
@@ -176,4 +151,164 @@ func BenchmarkProviderCachingComparison(b *testing.B) {
 			})
 		}
 	}
+}
+
+// BenchmarkAutoProviderCacheDirRegistryHashes benchmarks Terragrunt init with the new OpenTofu registry hashes used
+func BenchmarkAutoProviderCacheDirRegistryHashes(b *testing.B) {
+	setup := func(tmpDir string) {
+		fixtureSource := filepath.Join("..", "fixtures", "auto-provider-cache-dir", "heavy", "unit")
+
+		srcTerragruntCfg, err := os.Open(filepath.Join(fixtureSource, "terragrunt.hcl"))
+		require.NoError(b, err)
+
+		srcMainTF, err := os.Open(filepath.Join(fixtureSource, "main.tf"))
+		require.NoError(b, err)
+
+		terragruntConfigPath := filepath.Join(tmpDir, "terragrunt.hcl")
+
+		terragruntCfg, err := os.OpenFile(
+			terragruntConfigPath,
+			os.O_RDWR|os.O_CREATE|os.O_TRUNC,
+			helpers.DefaultFilePermissions,
+		)
+		require.NoError(b, err)
+
+		mainTfPath := filepath.Join(tmpDir, "main.tf")
+
+		mainTf, err := os.OpenFile(
+			mainTfPath,
+			os.O_RDWR|os.O_CREATE|os.O_TRUNC,
+			helpers.DefaultFilePermissions,
+		)
+		require.NoError(b, err)
+
+		_, err = io.Copy(terragruntCfg, srcTerragruntCfg)
+		require.NoError(b, err)
+
+		_, err = io.Copy(mainTf, srcMainTF)
+		require.NoError(b, err)
+
+		err = mainTf.Close()
+		require.NoError(b, err)
+
+		err = terragruntCfg.Close()
+		require.NoError(b, err)
+
+		err = srcMainTF.Close()
+		require.NoError(b, err)
+
+		err = srcTerragruntCfg.Close()
+		require.NoError(b, err)
+
+		helpers.RunTerragruntCommand(
+			b,
+			"terragrunt",
+			"init",
+			"--non-interactive",
+			"--working-dir",
+			tmpDir,
+		)
+	}
+
+	latestTofuPath := os.Getenv("LATEST_TOFU_PATH")
+	require.NotEmpty(b, latestTofuPath)
+	require.FileExists(b, latestTofuPath)
+
+	nightlyTofuPath := os.Getenv("NIGHTLY_TOFU_PATH")
+	require.NotEmpty(b, nightlyTofuPath)
+	require.FileExists(b, nightlyTofuPath)
+
+	b.Run("latest init", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terraform.lock.hcl"))
+			require.NoError(b, err)
+
+			err = os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				latestTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
+		}
+	})
+
+	b.Run("nightly init", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.Remove(filepath.Join(tmpDir, ".terraform.lock.hcl"))
+			require.NoError(b, err)
+
+			err = os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				nightlyTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
+		}
+	})
+
+	b.Run("latest init w lockfile", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				latestTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
+		}
+	})
+
+	b.Run("nightly init w lockfile", func(b *testing.B) {
+		tmpDir := b.TempDir()
+
+		setup(tmpDir)
+
+		for b.Loop() {
+			err := os.RemoveAll(filepath.Join(tmpDir, ".terragrunt-cache"))
+			require.NoError(b, err)
+
+			helpers.RunTerragruntCommand(
+				b,
+				"terragrunt",
+				"init",
+				"--tf-path",
+				nightlyTofuPath,
+				"--non-interactive",
+				"--working-dir",
+				tmpDir,
+			)
+		}
+	})
 }

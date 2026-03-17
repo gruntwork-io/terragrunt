@@ -1,0 +1,2 @@
+# The benchmarks that use these need to control presence of the lock file
+.terraform.lock.hcl
