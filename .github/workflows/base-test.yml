@@ -51,14 +51,6 @@ jobs:
           rm -rf ~/Library/Caches/go-build
           ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
 
-      - name: Cache mise tools
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
-        with:
-          path: ~/.local/share/mise/installs
-          key: ${{ runner.os }}-mise-tools-${{ hashFiles('mise.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-mise-tools-
-
       - name: Use mise to install dependencies
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
