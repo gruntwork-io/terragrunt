@@ -14,32 +14,32 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 
 	remoteBackend := gcsbackend.NewBackend()
 
-	testCases := []struct { //nolint: govet
-		name     string
+	testCases := []struct {
 		config   backend.Config
 		expected map[string]any
+		name     string
 	}{
 		{
-			"empty-no-values",
-			backend.Config{},
-			map[string]any{},
+			name:     "empty-no-values",
+			config:   backend.Config{},
+			expected: map[string]any{},
 		},
 		{
-			"valid-gcs-configuration-keys",
-			backend.Config{
+			name: "valid-gcs-configuration-keys",
+			config: backend.Config{
 				"bucket":      "my-bucket",
 				"prefix":      "terraform/state",
 				"credentials": "path/to/creds.json",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket":      "my-bucket",
 				"prefix":      "terraform/state",
 				"credentials": "path/to/creds.json",
 			},
 		},
 		{
-			"terragrunt-keys-filtered",
-			backend.Config{
+			name: "terragrunt-keys-filtered",
+			config: backend.Config{
 				"bucket":                    "my-bucket",
 				"prefix":                    "terraform/state",
 				"project":                   "my-project",
@@ -49,14 +49,14 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"skip_bucket_creation":      true,
 				"enable_bucket_policy_only": true,
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket": "my-bucket",
 				"prefix": "terraform/state",
 			},
 		},
 		{
-			"empty-after-all-terragrunt-keys-filtered",
-			backend.Config{
+			name: "empty-after-all-terragrunt-keys-filtered",
+			config: backend.Config{
 				"project":                   "my-project",
 				"location":                  "us-central1",
 				"gcs_bucket_labels":         map[string]string{},
@@ -64,15 +64,15 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 				"skip_bucket_creation":      false,
 				"enable_bucket_policy_only": false,
 			},
-			map[string]any{},
+			expected: map[string]any{},
 		},
 		{
-			"string-bool-normalization-passthrough",
-			backend.Config{
+			name: "string-bool-normalization-passthrough",
+			config: backend.Config{
 				"bucket": "my-bucket",
 				"prefix": "terraform/state",
 			},
-			map[string]any{
+			expected: map[string]any{
 				"bucket": "my-bucket",
 				"prefix": "terraform/state",
 			},
