@@ -162,7 +162,7 @@ To work around this issue, use [mock outputs in dependency blocks](/reference/hc
 </Aside>
 
 <Aside type="caution">
-Do not set `TF_PLUGIN_CACHE_DIR` when using `run --all`. This can cause concurrent access issues with the provider cache. Instead, use Terragrunt's built-in [Provider Cache Server](/features/provider-cache-server/).
+Do not set `TF_PLUGIN_CACHE_DIR` when using `run --all`. This can cause concurrent access issues with the provider cache. Instead, use Terragrunt's built-in [Provider Cache Server](/features/caching/provider-cache-server/).
 
 We are working with the OpenTofu team to improve this behavior in the future.
 </Aside>
