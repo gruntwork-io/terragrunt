@@ -15,6 +15,13 @@ import (
 
 type Config map[string]any
 
+// GetTFInitArgs returns the config filtered and normalized for terraform init.
+func (cfg Config) GetTFInitArgs() Config {
+	filtered := cfg.FilterOutTerragruntKeys()
+
+	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigGCS{}))
+}
+
 func (cfg Config) FilterOutTerragruntKeys() Config {
 	var filtered = make(Config)
 
