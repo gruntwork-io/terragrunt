@@ -27,11 +27,7 @@ func NormalizeBoolValues(m Config, target any) Config {
 
 	for key, val := range normalized {
 		strVal, ok := val.(string)
-		if !ok {
-			continue
-		}
-
-		if _, isBool := boolKeys[key]; !isBool {
+		if _, isBool := boolKeys[key]; !ok || !isBool {
 			continue
 		}
 
