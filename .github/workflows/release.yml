@@ -18,16 +18,15 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: write
-  id-token: write
-  actions: read
-
 jobs:
   # Build and sign all binaries (reuses build.yml workflow)
   build-and-sign:
     name: Build and Sign All Binaries
     uses: ./.github/workflows/build.yml
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
     secrets: inherit
 
   # Upload binaries to existing GitHub release
@@ -35,6 +34,10 @@ jobs:
     name: Upload Release Assets
     needs: build-and-sign
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
 
     steps:
       - name: Checkout code

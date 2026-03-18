@@ -5,12 +5,11 @@ on:
   workflow_dispatch:
 
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   run_cloud_nuke:
+    permissions:
+      id-token: write
+      contents: read
     name: Nuke
     runs-on: ubuntu-latest
     steps:
