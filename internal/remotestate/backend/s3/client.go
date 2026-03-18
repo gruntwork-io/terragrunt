@@ -3,8 +3,11 @@ package s3
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path"
 	"slices"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -466,7 +470,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
 
-	err := client.CreateS3Bucket(ctx, l, cfg.Bucket)
+	err := client.CreateS3Bucket(ctx, l, cfg.Bucket, CreateS3BucketOpts{Tags: client.S3BucketTags})
 	if err != nil {
 		if accessError := client.checkBucketAccess(ctx, cfg.Bucket, cfg.Key); accessError != nil {
 			return accessError
@@ -554,7 +558,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 	}
 
 	if shouldCreateBucket {
-		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName)
+		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName, CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags})
 	}
 
 	return nil
@@ -666,8 +670,16 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger,
 	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
 }
 
+// CreateS3BucketOpts holds optional parameters for CreateS3Bucket.
+type CreateS3BucketOpts struct {
+	// Tags to apply at bucket creation time via the x-amz-tagging header.
+	// This is required in environments where an AWS SCP enforces mandatory
+	// tags on the s3:CreateBucket API call.
+	Tags map[string]string
+}
+
 // CreateS3Bucket creates the S3 bucket specified in the given config.
-func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
+func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string, opts ...CreateS3BucketOpts) error {
 	if client.s3Client == nil {
 		return errors.Errorf("S3 client is nil - cannot create S3 bucket %s", bucket)
 	}
@@ -689,7 +701,19 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 		}
 	}
 
-	_, err := client.s3Client.CreateBucket(ctx, input)
+	var optFns []func(*s3.Options)
+
+	if len(opts) > 0 {
+		if encoded := EncodeTagsForHeader(opts[0].Tags); encoded != "" {
+			l.Debugf("Including tags in CreateBucket request for %s: %s", bucket, encoded)
+
+			optFns = append(optFns, func(o *s3.Options) {
+				o.APIOptions = append(o.APIOptions, smithyhttp.AddHeaderValue("x-amz-tagging", encoded))
+			})
+		}
+	}
+
+	_, err := client.s3Client.CreateBucket(ctx, input, optFns...)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -699,15 +723,37 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 	return nil
 }
 
+// EncodeTagsForHeader URL-encodes tags into the x-amz-tagging header format
+// (key1=val1&key2=val2). Keys are sorted for deterministic output.
+func EncodeTagsForHeader(tags map[string]string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(tags))
+	for _, k := range keys {
+		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(tags[k]))
+	}
+
+	return strings.Join(parts, "&")
+}
+
 // CreateS3BucketWithRetry creates an S3 bucket with full safeguards:
 // - Retry logic for transient errors
 // - Concurrent creation handling (BucketAlreadyOwnedByYou)
 // - Eventual consistency waiting after creation
-func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string) error {
+func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string, opts ...CreateS3BucketOpts) error {
 	description := "Create S3 bucket '" + bucketName + "' with retry"
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		err := client.CreateS3Bucket(ctx, l, bucketName)
+		err := client.CreateS3Bucket(ctx, l, bucketName, opts...)
 		if err != nil {
 			if isBucketAlreadyOwnedByYouError(err) {
 				l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", bucketName)
