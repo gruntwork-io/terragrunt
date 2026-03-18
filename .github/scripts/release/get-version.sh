@@ -12,7 +12,7 @@ set -e
 
 function resolve_version {
   # Handle workflow_dispatch event (manual trigger with INPUT_TAG)
-  if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+  if [[ "$EVENT_NAME" = "workflow_dispatch" ]]; then
     if [[ -z "$INPUT_TAG" ]]; then
       echo "ERROR: INPUT_TAG is empty for workflow_dispatch event" >&2
       exit 1

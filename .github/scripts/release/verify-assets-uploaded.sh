@@ -54,7 +54,7 @@ function main {
       echo "$expected_file not found in release, uploading..."
 
       # Upload the missing file
-      if [ -f "$bin_dir/$expected_file" ]; then
+      if [[ -f "$bin_dir/$expected_file" ]]; then
         local i
         for ((i=0; i<MAX_RETRIES; i++)); do
           if gh release upload "$VERSION" "$bin_dir/$expected_file" $clobber_flag; then
@@ -101,7 +101,7 @@ function main {
   echo "Expected files: $expected_count ($binary_count binaries + archives + checksums)"
   echo "Actual files: $asset_count"
 
-  if [ "$asset_count" -lt "$expected_count" ]; then
+  if [[ "$asset_count" -lt "$expected_count" ]]; then
     echo "Warning: Expected $expected_count files, found $asset_count"
   fi
 }

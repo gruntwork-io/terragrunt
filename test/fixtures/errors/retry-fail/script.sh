@@ -14,7 +14,7 @@ echo "$CURRENT_COUNT" > "$COUNTER_FILE"
 
 echo "Current attempt: $CURRENT_COUNT"
 
-if [ "$CURRENT_COUNT" -eq "$RETRY_ATTEMPTS" ]; then
+if [[ "$CURRENT_COUNT" == "$RETRY_ATTEMPTS" ]]; then
     echo "Success !"
     echo "0" > "$COUNTER_FILE"
     exit 0

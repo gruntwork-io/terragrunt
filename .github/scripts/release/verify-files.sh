@@ -27,7 +27,7 @@ function main {
 
   # Check each binary
   for file in "${binaries[@]}"; do
-    if [ -f "$bin_dir/$file" ]; then
+    if [[ -f "$bin_dir/$file" ]]; then
       echo "$file present"
     else
       echo "$file missing"
@@ -40,7 +40,7 @@ function main {
   mapfile -t additional_files < <(get_additional_files)
 
   for file in "${additional_files[@]}"; do
-    if [ -f "$bin_dir/$file" ]; then
+    if [[ -f "$bin_dir/$file" ]]; then
       echo "$file present"
     else
       echo "$file missing"

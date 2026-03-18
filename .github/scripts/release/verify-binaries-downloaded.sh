@@ -39,7 +39,7 @@ function main {
   binary_count=$(find "$bin_dir/" -type f | wc -l)
 
   # List binaries if any exist (resilient to empty directory)
-  if [ "$binary_count" -gt 0 ]; then
+  if [[ "$binary_count" -gt 0 ]]; then
     echo "Downloaded binaries:"
     ls -lahrt "$bin_dir"/*
   else
@@ -51,7 +51,7 @@ function main {
   # Verify expected count
   echo "Expected: at least $expected_count binaries"
 
-  if [ "$binary_count" -lt "$expected_count" ]; then
+  if [[ "$binary_count" -lt "$expected_count" ]]; then
     echo "ERROR: Expected at least $expected_count binaries, found $binary_count"
     exit 1
   fi

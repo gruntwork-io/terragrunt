@@ -32,7 +32,7 @@ echo "\n==== gopls failures (if any) ====" | tee -a "$OUTPUT_FILE"
 tee -a "$OUTPUT_FILE" < "$FAILURES_FILE" || true
 
 # Check if any files were modified
-if [ -s "$FIXED_FILES" ]; then
+if [[ -s "$FIXED_FILES" ]]; then
     echo "has_fixes=true" >> "$GITHUB_OUTPUT"
     echo "Files with fixes:" | tee -a "$OUTPUT_FILE"
     tee -a "$OUTPUT_FILE" < "$FIXED_FILES"

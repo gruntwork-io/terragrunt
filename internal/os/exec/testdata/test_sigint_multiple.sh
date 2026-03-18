@@ -9,7 +9,7 @@ function int_handler() {
     INT_COUNTER=$((INT_COUNTER + 1))
 }
 
-while [ $INT_COUNTER -lt $INT_REQUIRED ]
+while [[ $INT_COUNTER -lt $INT_REQUIRED ]]
     do sleep 0.1
 done
 

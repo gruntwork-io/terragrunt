@@ -21,7 +21,7 @@ if RELEASE_JSON=$(gh -R "$REPO" release view "$TAG_NAME" --json body --json url 
 	# minus 200 characters for everything else,
 	# minus 3 characters for the ellipsis
 	# = 1797 characters.
-	if [ "$RELEASE_NOTES_LENGTH" -gt 1800 ]; then
+	if [[ "$RELEASE_NOTES_LENGTH" -gt 1800 ]]; then
 		echo "Release notes are too long ($RELEASE_NOTES_LENGTH characters), truncating to 1797 characters, truncating the last line, then appending '…'"
 		RELEASE_NOTES=$(jq '.body |= .[:1797]' <<<"$RELEASE_JSON" | jq '.body | split("\r\n") | del(.[-1]) | join("\r\n")' | jq '. + "\r\n…"')
 	fi
