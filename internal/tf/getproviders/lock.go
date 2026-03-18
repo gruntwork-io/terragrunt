@@ -95,33 +95,7 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	// Otherwise, we specify the constraints attribute the same as the version.
 	currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
 
-	shouldUpdateConstraints := false
-
-	if currentConstraintsAttr != nil {
-		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
-		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
-		// If current version constraints are malformed, we should update it.
-		if err != nil {
-			shouldUpdateConstraints = true
-		} else {
-			newVersion, _ := version.NewVersion(provider.Version())
-			// If current version constrains do not match the new provider version, we should update it.
-			if !currentConstraints.Check(newVersion) {
-				shouldUpdateConstraints = true
-			} else {
-				// Even if current constraints are valid, check if module constraints have changed
-				moduleConstraints := provider.Constraints()
-				if moduleConstraints != "" && moduleConstraints != currentConstraintsValue {
-					shouldUpdateConstraints = true
-				}
-			}
-		}
-	} else {
-		// If there is no constraints attribute, we should update it.
-		shouldUpdateConstraints = true
-	}
-
-	if shouldUpdateConstraints {
+	if shouldUpdateConstraints(currentConstraintsAttr, provider.Version()) {
 		// Use module constraints if available, otherwise fall back to exact version
 		constraintsValue := provider.Constraints()
 		if constraintsValue == "" {
@@ -190,6 +164,32 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 	return hashes, nil
 }
 
+// shouldUpdateConstraints returns true if the constraints attribute should be updated
+// based on the current lock file state and the new provider version.
+func shouldUpdateConstraints(currentConstraintsAttr *hclwrite.Attribute, providerVersion string) bool {
+	if currentConstraintsAttr == nil {
+		return true
+	}
+
+	currentConstraintsValue := strings.ReplaceAll(
+		string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()),
+		`"`,
+		"",
+	)
+
+	currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+	if err != nil {
+		return true
+	}
+
+	newVersion, err := version.NewVersion(providerVersion)
+	if err != nil {
+		return true
+	}
+
+	return !currentConstraints.Check(newVersion)
+}
+
 // getAttributeValueAsString returns a value of Attribute as string. There is no way to get value as string directly, so we parses tokens of Attribute and build string representation.
 func getAttributeValueAsUnquotedString(attr *hclwrite.Attribute) string {
 	// find TokenEqual
@@ -255,7 +255,7 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	filename := filepath.Join(workingDir, tf.TerraformLockFile)
 
 	if !util.FileExists(filename) {
-		return nil // No lock file to update
+		return nil
 	}
 
 	content, err := os.ReadFile(filename)
@@ -273,17 +273,37 @@ func UpdateLockfileConstraints(ctx context.Context, workingDir string, constrain
 	// Update constraints for each provider in the lock file
 	for providerAddr, newConstraint := range constraints {
 		providerBlock := file.Body().FirstMatchingBlock("provider", []string{providerAddr})
-		if providerBlock != nil {
-			currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
-			if currentConstraintsAttr != nil {
-				currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
-				if currentConstraintsValue != newConstraint {
-					providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+		if providerBlock == nil {
+			continue
+		}
 
-					updated = true
-				}
+		currentConstraintsAttr := providerBlock.Body().GetAttribute("constraints")
+		if currentConstraintsAttr == nil {
+			continue
+		}
+
+		currentConstraintsValue := strings.ReplaceAll(string(currentConstraintsAttr.Expr().BuildTokens(nil).Bytes()), `"`, "")
+
+		currentConstraints, err := version.NewConstraint(currentConstraintsValue)
+		if err != nil {
+			providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+			updated = true
+
+			continue
+		}
+
+		versionAttr := providerBlock.Body().GetAttribute("version")
+		if versionAttr != nil {
+			versionVal := getAttributeValueAsUnquotedString(versionAttr)
+			if v, err := version.NewVersion(versionVal); err == nil && currentConstraints.Check(v) {
+				continue
 			}
 		}
+
+		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(newConstraint))
+
+		updated = true
 	}
 
 	if updated {
