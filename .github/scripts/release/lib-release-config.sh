@@ -37,7 +37,7 @@ get_additional_files() {
 
 # Generate expected files list (for verification)
 get_all_expected_files() {
-  local binaries archive_ext additional
+  local binaries
 
   # Get binaries
   binaries=$(get_all_binaries)
