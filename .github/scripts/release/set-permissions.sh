@@ -13,7 +13,7 @@ function main {
   local -r bin_dir="${1:-bin}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -32,7 +32,7 @@ function main {
       chmod +x "$binary"
       echo "Set +x on $binary"
     else
-      echo "Warning: Binary $binary not found, skipping"
+      echo "Warning: Binary $binary not found, skipping" >&2
     fi
   done
 

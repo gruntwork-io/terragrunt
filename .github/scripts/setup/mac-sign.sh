@@ -38,7 +38,7 @@ function main {
         exit
         ;;
       -* )
-        echo "ERROR: Unrecognized argument: $key"
+        echo "ERROR: Unrecognized argument: $key" >&2
         print_usage
         exit 1
         ;;
@@ -56,7 +56,7 @@ function main {
 
 function ensure_macos {
   if [[ $OSTYPE != 'darwin'* ]]; then
-    echo "Signing of Mac binaries is supported only on MacOS"
+    echo "Signing of Mac binaries is supported only on MacOS" >&2
     exit 1
   fi
 
@@ -108,7 +108,7 @@ function assert_env_var_not_empty {
   local -r var_value="${!var_name}"
 
   if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment $var_name not set."
+    echo "ERROR: Required environment $var_name not set." >&2
     exit 1
   fi
 

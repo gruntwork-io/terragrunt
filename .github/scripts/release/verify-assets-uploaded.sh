@@ -62,16 +62,16 @@ function main {
             break
           fi
 
-          echo "Upload attempt $((i+1))/$MAX_RETRIES failed"
+          echo "Upload attempt $((i+1))/$MAX_RETRIES failed" >&2
           sleep 5
         done
 
         if (( i == MAX_RETRIES )); then
-          echo "Failed to upload $expected_file after $MAX_RETRIES retries"
+          echo "Failed to upload $expected_file after $MAX_RETRIES retries" >&2
           exit 1
         fi
       else
-        echo "File $bin_dir/$expected_file not found locally"
+        echo "File $bin_dir/$expected_file not found locally" >&2
         exit 1
       fi
     else
@@ -88,7 +88,7 @@ function main {
   if curl -sILf "$download_url" > /dev/null; then
     echo "Assets are downloadable"
   else
-    echo "Warning: Could not verify asset download URL"
+    echo "Warning: Could not verify asset download URL" >&2
   fi
 
   local expected_count
@@ -102,7 +102,7 @@ function main {
   echo "Actual files: $asset_count"
 
   if [[ "$asset_count" -lt "$expected_count" ]]; then
-    echo "Warning: Expected $expected_count files, found $asset_count"
+    echo "Warning: Expected $expected_count files, found $asset_count" >&2
   fi
 
   return 0

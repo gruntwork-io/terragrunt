@@ -9,7 +9,7 @@ function main {
   local -r bin_dir="${1:-bin}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 

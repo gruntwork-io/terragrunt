@@ -18,7 +18,7 @@ function main {
   : "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -42,7 +42,7 @@ function main {
     if gh release upload "$VERSION" "$file" $clobber_flag; then
       echo "Uploaded $file"
     else
-      echo "Upload failed for $file (will retry in verification)"
+      echo "Upload failed for $file (will retry in verification)" >&2
     fi
   done
 

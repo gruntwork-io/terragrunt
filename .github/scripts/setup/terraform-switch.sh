@@ -5,7 +5,7 @@ set -euo pipefail
 : "${ENV_FILE:?ENV_FILE is not set}"
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <terraform-version>"
+  echo "Usage: $0 <terraform-version>" >&2
   exit 1
 fi
 

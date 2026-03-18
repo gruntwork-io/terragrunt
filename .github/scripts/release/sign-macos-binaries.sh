@@ -22,7 +22,7 @@ function main {
   : "${MACOS_CERTIFICATE_PASSWORD:?ERROR: MACOS_CERTIFICATE_PASSWORD is a required environment variable}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -68,7 +68,7 @@ function main {
 
     # Check ZIP file exists
     [[ -f "$zip_file" ]] || {
-      echo "ERROR: ZIP file $zip_file not found for binary $binary"
+      echo "ERROR: ZIP file $zip_file not found for binary $binary" >&2
       exit 1
     }
 
@@ -77,13 +77,13 @@ function main {
 
     # Check extraction succeeded
     [[ -f "$binary" ]] || {
-      echo "  ERROR: Failed to extract binary $binary from $zip_file"
+      echo "  ERROR: Failed to extract binary $binary from $zip_file" >&2
       exit 1
     }
 
     echo "  Extracted binary exists, checking signature..."
     codesign -dv --verbose=4 "$binary" 2>&1 || {
-      echo "  ERROR: Signature verification failed for binary $binary"
+      echo "  ERROR: Signature verification failed for binary $binary" >&2
       exit 1
     }
 
@@ -103,12 +103,12 @@ function main {
     echo "Verifying $binary..."
 
     [[ -f "$bin_dir/$binary" ]] || {
-      echo "ERROR: Binary $bin_dir/$binary not found after processing"
+      echo "ERROR: Binary $bin_dir/$binary not found after processing" >&2
       exit 1
     }
 
     codesign -dv --verbose=4 "$bin_dir/$binary" || {
-      echo "ERROR: Signature verification failed for binary $bin_dir/$binary"
+      echo "ERROR: Signature verification failed for binary $bin_dir/$binary" >&2
       exit 1
     }
   done
