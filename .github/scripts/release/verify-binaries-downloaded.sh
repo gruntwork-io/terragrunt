@@ -20,6 +20,8 @@ function resolve_expected_count {
 
   verify_config_file
   get_binary_count
+
+  return 0
 }
 
 function main {
@@ -57,6 +59,8 @@ function main {
   fi
 
   echo "All binaries present ($binary_count files)"
+
+  return 0
 }
 
 main "$@"

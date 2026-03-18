@@ -18,6 +18,8 @@ function print_usage {
   echo
   echo "Examples:"
   echo "  $0 sign.hcl"
+
+  return 0
 }
 
 function main {
@@ -48,6 +50,8 @@ function main {
   ensure_macos
   import_certificate_mac "${mac_skip_root_certificate}"
   sign_mac "${assets[@]}"
+
+  return 0
 }
 
 function ensure_macos {
@@ -55,6 +59,8 @@ function ensure_macos {
     echo "Signing of Mac binaries is supported only on MacOS"
     exit 1
   fi
+
+  return 0
 }
 
 function sign_mac {
@@ -64,6 +70,8 @@ function sign_mac {
     echo "Signing ${filepath}"
     "${gon_cmd}" -log-level=info "${filepath}"
   done
+
+  return 0
 }
 
 function import_certificate_mac {
@@ -91,6 +99,8 @@ function import_certificate_mac {
     sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain certificate.der
   fi
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keystore_pw}" "${db_file}"
+
+  return 0
 }
 
 function assert_env_var_not_empty {
@@ -101,6 +111,8 @@ function assert_env_var_not_empty {
     echo "ERROR: Required environment $var_name not set."
     exit 1
   fi
+
+  return 0
 }
 
 main "$@"

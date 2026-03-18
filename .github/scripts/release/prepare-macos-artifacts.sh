@@ -30,6 +30,8 @@ function main {
 
   echo "Binary files to sign:"
   ls -lahrt "$bin_dir"/*
+
+  return 0
 }
 
 main "$@"

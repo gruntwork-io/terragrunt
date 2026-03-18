@@ -34,6 +34,8 @@ function resolve_version {
 
   # Strip refs/tags/ prefix and return
   echo "${GITHUB_REF#refs/tags/}"
+
+  return 0
 }
 
 function validate_version {
@@ -49,6 +51,8 @@ function validate_version {
     echo "ERROR: Invalid version format: '$version' (must start with alphanumeric character)" >&2
     exit 1
   fi
+
+  return 0
 }
 
 function main {
@@ -60,6 +64,8 @@ function main {
   # Write to GitHub output
   printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
   printf 'Release version: %s\n' "$version"
+
+  return 0
 }
 
 main "$@"

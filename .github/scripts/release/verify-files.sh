@@ -49,6 +49,8 @@ function main {
   done
 
   echo "All required files verified"
+
+  return 0
 }
 
 main "$@"

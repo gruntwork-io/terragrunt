@@ -75,6 +75,8 @@ function main {
   ls -la SHA256SUMS*
 
   popd || exit 1
+
+  return 0
 }
 
 main "$@"

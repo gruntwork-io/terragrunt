@@ -46,6 +46,8 @@ function main {
   printf '  Release ID: %s\n' "$release_id"
   printf '  Draft: %s\n' "$is_draft"
   printf '  Upload URL: %s\n' "${upload_url%\{*}"
+
+  return 0
 }
 
 main "$@"

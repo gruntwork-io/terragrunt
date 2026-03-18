@@ -27,6 +27,8 @@ function main {
 
   # Return to original directory
   popd || return 1
+
+  return 0
 }
 
 main "$@"

@@ -76,6 +76,8 @@ function main {
   rm -f gon.zip
 
   echo "gon installed successfully"
+
+  return 0
 }
 
 main "$@"

@@ -50,6 +50,8 @@ function main {
   popd || return 1
 
   echo "Upload phase completed"
+
+  return 0
 }
 
 main "$@"

@@ -120,6 +120,8 @@ function main {
   echo ""
   echo "Final contents of $bin_dir directory:"
   ls -lah "$bin_dir/"
+
+  return 0
 }
 
 main "$@"

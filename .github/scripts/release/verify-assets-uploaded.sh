@@ -104,6 +104,8 @@ function main {
   if [[ "$asset_count" -lt "$expected_count" ]]; then
     echo "Warning: Expected $expected_count files, found $asset_count"
   fi
+
+  return 0
 }
 
 main "$@"
