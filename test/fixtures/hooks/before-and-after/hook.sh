@@ -1,3 +1,3 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 echo "TF_PATH=${TG_CTX_TF_PATH} COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"

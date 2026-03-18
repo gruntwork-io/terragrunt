@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to verify all expected binaries were downloaded
 # Usage: verify-binaries-downloaded.sh <bin-directory> [expected-count]

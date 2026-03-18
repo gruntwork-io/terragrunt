@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to create ZIP and TAR.GZ archives for each binary
 # Usage: create-archives.sh <bin-directory>

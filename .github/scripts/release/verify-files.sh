@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to verify all required files are present before upload
 # Usage: verify-files.sh <bin-directory>

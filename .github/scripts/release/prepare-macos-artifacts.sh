@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to prepare macOS artifacts for signing
 # Usage: prepare-macos-artifacts.sh <artifacts-dir> <bin-dir>

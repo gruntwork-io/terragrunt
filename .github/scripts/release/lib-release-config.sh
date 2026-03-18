@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Library script to read release assets configuration
 # Usage: source .github/scripts/release/lib-release-config.sh

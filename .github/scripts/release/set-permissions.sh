@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to set execution permissions on binaries
 # Usage: set-permissions.sh <bin-directory>

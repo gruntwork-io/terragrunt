@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to generate SHA256 checksums for all release files
 # Usage: generate-checksums.sh <bin-directory>

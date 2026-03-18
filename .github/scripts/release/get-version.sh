@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to get the version from either workflow dispatch input or git ref
 # Usage: get-version.sh

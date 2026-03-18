@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to sign SHA256SUMS with GPG and Cosign
 # Usage: sign-checksums.sh <bin-directory>

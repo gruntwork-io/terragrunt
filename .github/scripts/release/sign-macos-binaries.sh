@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to sign macOS binaries using gon and Apple notarization
 # Usage: sign-macos-binaries.sh <bin-dir>

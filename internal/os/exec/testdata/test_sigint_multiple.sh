@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 INT_REQUIRED=$1
 INT_COUNTER=0

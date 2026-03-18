@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to download and install gon binary for macOS code signing
 # Usage: install-gon.sh [gon-version]

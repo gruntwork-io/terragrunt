@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to verify all assets were uploaded to the GitHub release
 # Usage: verify-assets-uploaded.sh <bin-directory>

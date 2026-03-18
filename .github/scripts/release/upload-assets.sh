@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to upload release assets to GitHub
 # Usage: upload-assets.sh <bin-directory>

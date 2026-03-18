@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Apple certificate used to validate developer certificates https://www.apple.com/certificateauthority/
 readonly APPLE_ROOT_CERTIFICATE="http://certs.apple.com/devidg2.der"
