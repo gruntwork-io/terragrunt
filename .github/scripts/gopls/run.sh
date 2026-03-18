@@ -28,7 +28,7 @@ while IFS= read -r file; do
     echo "END: $file" | tee -a "$OUTPUT_FILE"
 done < gofiles.txt
 
-echo "\n==== gopls failures (if any) ====" | tee -a "$OUTPUT_FILE"
+printf '\n==== gopls failures (if any) ====\n' | tee -a "$OUTPUT_FILE"
 tee -a "$OUTPUT_FILE" < "$FAILURES_FILE" || true
 
 # Check if any files were modified

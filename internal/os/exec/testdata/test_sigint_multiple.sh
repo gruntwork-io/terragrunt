@@ -15,4 +15,4 @@ while [[ $INT_COUNTER -lt $INT_REQUIRED ]]
     do sleep 0.1
 done
 
-exit $INT_COUNTER
+exit "$INT_COUNTER"

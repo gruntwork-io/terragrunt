@@ -9,12 +9,12 @@ function print_usage {
   echo
   echo "Usage: $0 [OPTIONS] <Path to files used to sign...>"
   echo
-  echo -e "  MACOS_CERTIFICATE\t\tMac developer certificate in P12 format, encoded in base64."
-  echo -e "  MACOS_CERTIFICATE_PASSWORD\tMac certificate password"
+  printf '  MACOS_CERTIFICATE\t\tMac developer certificate in P12 format, encoded in base64.\n'
+  printf '  MACOS_CERTIFICATE_PASSWORD\tMac certificate password\n'
   echo
   echo "Optional Arguments:"
-  echo -e "  --macos-skip-root-certificate\t\tSkip importing Apple Root certificate. Useful when running in already configured environment."
-  echo -e "  --help\t\t\t\tShow this help text and exit."
+  printf '  --macos-skip-root-certificate\t\tSkip importing Apple Root certificate. Useful when running in already configured environment.\n'
+  printf '  --help\t\t\t\tShow this help text and exit.\n'
   echo
   echo "Examples:"
   echo "  $0 sign.hcl"
@@ -52,7 +52,7 @@ function main {
 
 function ensure_macos {
   if [[ $OSTYPE != 'darwin'* ]]; then
-    echo -e "Signing of Mac binaries is supported only on MacOS"
+    echo "Signing of Mac binaries is supported only on MacOS"
     exit 1
   fi
 }
