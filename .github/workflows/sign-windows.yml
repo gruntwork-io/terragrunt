@@ -52,7 +52,7 @@ jobs:
 
       # Install DigiCert smtools (smctl)
       - name: Install DigiCert smtools
-        uses: digicert/ssm-code-signing@v1.2.1
+        uses: digicert/ssm-code-signing@1d820463733701cf1484c7eb5d7d24a15ca2c454 # v1.2.1
         with:
           force-download-tools: 'true'
 
