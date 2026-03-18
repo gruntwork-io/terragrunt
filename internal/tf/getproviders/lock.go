@@ -182,7 +182,10 @@ func shouldUpdateConstraints(currentConstraintsAttr *hclwrite.Attribute, provide
 		return true
 	}
 
-	newVersion, _ := version.NewVersion(providerVersion)
+	newVersion, err := version.NewVersion(providerVersion)
+	if err != nil {
+		return true
+	}
 
 	return !currentConstraints.Check(newVersion)
 }
