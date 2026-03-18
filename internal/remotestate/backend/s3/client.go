@@ -3,11 +3,8 @@ package s3
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"path"
 	"slices"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
@@ -672,9 +668,9 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger,
 
 // CreateS3BucketOpts holds optional parameters for CreateS3Bucket.
 type CreateS3BucketOpts struct {
-	// Tags to apply at bucket creation time via the x-amz-tagging header.
-	// This is required in environments where an AWS SCP enforces mandatory
-	// tags on the s3:CreateBucket API call.
+	// Tags to apply at bucket creation time via CreateBucketConfiguration.Tags.
+	// This is required in environments where an AWS SCP or tag policy enforces
+	// mandatory tags on s3:CreateBucket.
 	Tags map[string]string
 }
 
@@ -701,19 +697,19 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 		}
 	}
 
-	var optFns []func(*s3.Options)
+	if len(opts) > 0 && len(opts[0].Tags) > 0 {
+		l.Debugf("Including %d tag(s) in CreateBucket request for %s", len(opts[0].Tags), bucket)
 
-	if len(opts) > 0 {
-		if encoded := EncodeTagsForHeader(opts[0].Tags); encoded != "" {
-			l.Debugf("Including tags in CreateBucket request for %s: %s", bucket, encoded)
+		sdkTags := convertTags(opts[0].Tags)
 
-			optFns = append(optFns, func(o *s3.Options) {
-				o.APIOptions = append(o.APIOptions, smithyhttp.AddHeaderValue("x-amz-tagging", encoded))
-			})
+		if input.CreateBucketConfiguration == nil {
+			input.CreateBucketConfiguration = &types.CreateBucketConfiguration{}
 		}
+
+		input.CreateBucketConfiguration.Tags = sdkTags
 	}
 
-	_, err := client.s3Client.CreateBucket(ctx, input, optFns...)
+	_, err := client.s3Client.CreateBucket(ctx, input)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -721,28 +717,6 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 	l.Debugf("Created S3 bucket %s", bucket)
 
 	return nil
-}
-
-// EncodeTagsForHeader URL-encodes tags into the x-amz-tagging header format
-// (key1=val1&key2=val2). Keys are sorted for deterministic output.
-func EncodeTagsForHeader(tags map[string]string) string {
-	if len(tags) == 0 {
-		return ""
-	}
-
-	keys := make([]string, 0, len(tags))
-	for k := range tags {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	parts := make([]string, 0, len(tags))
-	for _, k := range keys {
-		parts = append(parts, url.QueryEscape(k)+"="+url.QueryEscape(tags[k]))
-	}
-
-	return strings.Join(parts, "&")
 }
 
 // CreateS3BucketWithRetry creates an S3 bucket with full safeguards:
@@ -2047,6 +2021,11 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 // GetDynamoDBClient returns the DynamoDB client for testing purposes.
 func (client *Client) GetDynamoDBClient() *dynamodb.Client {
 	return client.dynamoClient
+}
+
+// GetS3Client returns the S3 client for testing purposes.
+func (client *Client) GetS3Client() *s3.Client {
+	return client.s3Client
 }
 
 // isAWSResourceNotFoundError checks if an error indicates that an AWS resource was not found
