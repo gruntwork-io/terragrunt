@@ -176,9 +176,11 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(added)
+
 			stackDiff.Added = append(
 				stackDiff.Added,
-				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: toWorktree,
 						Ref:        pair.ToWorktree.Ref,
@@ -192,9 +194,11 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(removed)
+
 			stackDiff.Removed = append(
 				stackDiff.Removed,
-				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: fromWorktree,
 						Ref:        pair.FromWorktree.Ref,
@@ -208,16 +212,18 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(changed)
+
 			stackDiff.Changed = append(
 				stackDiff.Changed,
 				StackDiffChangedPair{
-					FromStack: component.NewStack(filepath.Join(fromWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					FromStack: component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: fromWorktree,
 							Ref:        pair.FromWorktree.Ref,
 						},
 					),
-					ToStack: component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					ToStack: component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: toWorktree,
 							Ref:        pair.ToWorktree.Ref,
@@ -261,8 +267,6 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 			}
 
 			toExpressions = append(toExpressions, expr)
-		case config.DefaultStackFile:
-			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
 		default:
 			// Check to see if the changed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.

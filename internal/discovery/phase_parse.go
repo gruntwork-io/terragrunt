@@ -136,11 +136,6 @@ func (p *ParsePhase) parseAndReclassify(
 ) (*DiscoveryResult, error) {
 	c := candidate.Component
 
-	_, ok := c.(*component.Unit)
-	if !ok {
-		return &candidate, nil
-	}
-
 	if err := parseComponent(ctx, l, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)

@@ -200,16 +200,16 @@ func TestExpressionExpansion(t *testing.T) {
 			expectedToReadings: []string{"app1/main.tf", "app1/variables.tf", "app2/data.tf"},
 		},
 		{
-			name: "changed stack files are skipped",
+			name: "changed stack files create reading filters",
 			diffs: &git.Diffs{
 				Changed: []string{
 					"stack/terragrunt.stack.hcl",
 				},
 			},
 			expectedFrom:       0,
-			expectedTo:         0,
+			expectedTo:         1,
 			expectedToPaths:    []string{},
-			expectedToReadings: []string{},
+			expectedToReadings: []string{"stack/terragrunt.stack.hcl"},
 		},
 		{
 			name: "mixed file types create appropriate filters",
@@ -228,9 +228,9 @@ func TestExpressionExpansion(t *testing.T) {
 				},
 			},
 			expectedFrom:       1,
-			expectedTo:         4,
+			expectedTo:         5,
 			expectedToPaths:    []string{"app-added", "app-modified"},
-			expectedToReadings: []string{"app-modified/main.tf", "other/file.hcl"},
+			expectedToReadings: []string{"app-modified/main.tf", "stack/terragrunt.stack.hcl", "other/file.hcl"},
 		},
 	}
 
