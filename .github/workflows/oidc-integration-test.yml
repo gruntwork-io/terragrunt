@@ -7,13 +7,12 @@ name: OIDC Integration Tests
 on:
   workflow_call:
 
-permissions:
-  id-token: write
-  contents: read
-  checks: write
-
 jobs:
   test:
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
     name: Test OIDC (${{ matrix.integration.name }})
     runs-on: ${{ matrix.integration.os }}-latest
     env:
