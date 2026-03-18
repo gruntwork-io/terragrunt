@@ -27,7 +27,7 @@ func NormalizeBoolValues(m Config, target any) Config {
 
 	for key, val := range normalized {
 		strVal, ok := val.(string)
-		if !ok || !boolKeys[key] {
+		if _, isBool := boolKeys[key]; !ok || !isBool {
 			continue
 		}
 
@@ -41,7 +41,7 @@ func NormalizeBoolValues(m Config, target any) Config {
 
 // collectBoolKeys walks a struct type via reflection, reading mapstructure tags
 // to build a set of config key names that map to bool fields.
-func collectBoolKeys(t reflect.Type) map[string]bool {
+func collectBoolKeys(t reflect.Type) map[string]struct{} {
 	if t == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func collectBoolKeys(t reflect.Type) map[string]bool {
 		return nil
 	}
 
-	keys := make(map[string]bool)
+	keys := make(map[string]struct{})
 
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -68,7 +68,7 @@ func collectBoolKeys(t reflect.Type) map[string]bool {
 		}
 
 		if key, ok := collectFieldBoolKey(&field, tag); ok {
-			keys[key] = true
+			keys[key] = struct{}{}
 		}
 	}
 
