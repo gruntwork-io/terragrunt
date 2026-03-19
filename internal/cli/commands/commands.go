@@ -163,6 +163,12 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 		}
 	}
 
+	// Re-enable VT processing after subprocess execution may have reset console mode.
+	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
+	if !exec.PrepareConsole(l) {
+		l.Formatter().SetDisabledColors(true)
+	}
+
 	// actionCtx is the context passed to the action, which may be wrapped with hooks
 	actionCtx := ctx
 
@@ -438,7 +444,10 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	exec.PrepareConsole(l)
+	if !exec.PrepareConsole(l) {
+		l.Debugf("Virtual terminal processing not available, disabling colors")
+		l.Formatter().SetDisabledColors(true)
+	}
 
 	return nil
 }

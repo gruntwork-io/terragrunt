@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -35,6 +36,8 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 
 		return "", errors.New(err)
 	}
+
+	exec.PrepareStdinForPrompt(l)
 
 	reader := bufio.NewReader(os.Stdin)
 
