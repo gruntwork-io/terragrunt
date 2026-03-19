@@ -30,7 +30,10 @@ func PrepareConsole(logger log.Logger) bool {
 	}
 
 	// If stdout/stderr are not console handles (e.g. pipes), try CONOUT$ directly.
-	// CONOUT$ always refers to the active console output device.
+	// CONOUT$ always refers to the active console output device. VT processing is a
+	// screen buffer property that persists after the handle is closed, so enabling it
+	// here affects all future console output even if stdout itself is a pipe.
+	// Returning true is correct because stderr may still render to the console.
 	conout, err := os.OpenFile("CONOUT$", os.O_WRONLY, 0)
 	if err != nil {
 		logger.Debugf("Could not open CONOUT$: %v", err)
@@ -46,6 +49,8 @@ func PrepareConsole(logger log.Logger) bool {
 // This is separate from enableVirtualTerminalProcessing because input and output handles
 // use different flag values: ENABLE_VIRTUAL_TERMINAL_INPUT (0x200) for input vs
 // ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x4) for output.
+// VT input is optional — failures are logged at Debug level (not Error) because
+// missing VT input support does not break colored output or core functionality.
 func enableVirtualTerminalInput(logger log.Logger, file *os.File) {
 	var mode uint32
 
@@ -114,8 +119,11 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 // which breaks ANSI escape handling and stdin line-input for the parent process.
 //
 // Note: SaveConsoleState and Restore operate on global OS handles (os.Stdin/Stdout/Stderr)
-// without synchronization. This is safe for concurrent use in run --all because all
-// goroutines save and restore the same startup state.
+// without synchronization. This is practically safe for concurrent use in run --all
+// because all goroutines target the same mode values. However, it is not formally
+// synchronized via mutex — a goroutine that saves state after a subprocess has modified
+// the console could capture a corrupted baseline. Impact is cosmetic only (garbled ANSI
+// output, not data corruption).
 type ConsoleState struct {
 	stdinMode, stdoutMode, stderrMode uint32
 	stdinOK, stdoutOK, stderrOK       bool
