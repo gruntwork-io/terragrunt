@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/pprof"
 	"strings"
 
@@ -89,14 +88,8 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	// Start CPU profiling if TG_CPU_PROFILE is set.
-	// The profile is written with a "terragrunt_" prefix to avoid conflicts
-	// with TOFU_CPU_PROFILE which is propagated to downstream tofu processes.
 	if cpuProfile := os.Getenv(tf.EnvNameTGCPUProfile); cpuProfile != "" {
-		dir := filepath.Dir(cpuProfile)
-		base := filepath.Base(cpuProfile)
-		tgProfilePath := filepath.Join(dir, "terragrunt_"+base)
-
-		f, err := os.Create(tgProfilePath)
+		f, err := os.Create(cpuProfile)
 		if err != nil {
 			return fmt.Errorf("could not create CPU profile: %w", err)
 		}

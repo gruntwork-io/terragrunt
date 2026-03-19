@@ -127,35 +127,28 @@ Use profiling tools like [pprof](https://github.com/google/pprof) to get a more 
 You can profile Terragrunt during normal operation by setting the `TG_CPU_PROFILE` environment variable to a file path:
 
 ```shell
-TG_CPU_PROFILE=cpu.prof terragrunt run --all -- plan
+TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run --all -- plan
 ```
 
-This produces the following profile files:
+The file path you provide is used as-is for the Terragrunt profile. When `TG_CPU_PROFILE` is set, Terragrunt also automatically sets `TOFU_CPU_PROFILE` to the same value for downstream OpenTofu invocations. Each OpenTofu process writes its profile in its own working directory (typically inside `.terragrunt-cache/`).
 
-| File | Source | Description |
-|------|--------|-------------|
-| `terragrunt_cpu.prof` | Terragrunt | CPU profile of the Terragrunt process itself, written to the directory where Terragrunt was invoked. The filename is the value of `TG_CPU_PROFILE` prefixed with `terragrunt_`. |
-| `cpu.prof` (per unit) | OpenTofu | CPU profile of downstream OpenTofu processes. When `TG_CPU_PROFILE` is set, Terragrunt automatically sets `TOFU_CPU_PROFILE` to the same value for any downstream OpenTofu invocations. Each OpenTofu process writes this file in its own working directory (typically inside `.terragrunt-cache/`). |
-
-The `terragrunt_` prefix on the Terragrunt profile file avoids any filename collision with the OpenTofu profile, even when both tools run in the same directory.
+Use distinct filenames (e.g. `terragrunt_cpu.prof`) to avoid collisions with other profile files.
 
 ###### Behavior with `run --all`
 
 When using `run --all`, Terragrunt is a single process orchestrating multiple OpenTofu invocations:
 
-- **Terragrunt**: one `terragrunt_cpu.prof` file is produced, capturing the entire orchestration including all parallel module processing.
-- **OpenTofu**: each unit gets its own `cpu.prof` inside its `.terragrunt-cache/` directory, because each OpenTofu process runs in a separate working directory. Use a **relative path** (like `cpu.prof`) to ensure each unit writes to a separate file automatically.
+- **Terragrunt**: one profile file is produced, capturing the entire orchestration including all parallel module processing.
+- **OpenTofu**: each unit gets its own profile inside its `.terragrunt-cache/` directory, because each OpenTofu process runs in a separate working directory.
 
-**Important**: avoid using an absolute path for `TG_CPU_PROFILE` with `run --all`. Multiple OpenTofu processes would write to the same file simultaneously, corrupting the profile data.
+Use a **relative path** to ensure each unit writes to a separate file automatically. Avoid absolute paths with `run --all` as multiple OpenTofu processes would write to the same file simultaneously, corrupting the profile data.
 
 ###### Controlling the OpenTofu profile path
 
 If you want to control the OpenTofu profile path independently, set `TOFU_CPU_PROFILE` explicitly in your environment. When `TOFU_CPU_PROFILE` is already set, Terragrunt will not override it.
 
 ```shell
-# Separate paths for each profile
-TG_CPU_PROFILE=cpu.prof TOFU_CPU_PROFILE=/tmp/tofu.prof terragrunt run -- plan
-# Produces: terragrunt_cpu.prof (Terragrunt) and /tmp/tofu.prof (OpenTofu)
+TG_CPU_PROFILE=terragrunt_cpu.prof TOFU_CPU_PROFILE=tofu_cpu.prof terragrunt run -- plan
 ```
 
 ###### Analyzing profiles
