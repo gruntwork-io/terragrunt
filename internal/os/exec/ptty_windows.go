@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package exec
 
@@ -66,17 +65,20 @@ func enableVirtualTerminalInput(logger log.Logger, file *os.File) {
 // PrepareStdinForPrompt ensures stdin has the console mode flags required for
 // interactive line input (line buffering, echo, processed input). Subprocesses
 // on Windows can clear these flags, making stdin unusable for prompts.
-func PrepareStdinForPrompt() {
+func PrepareStdinForPrompt(logger log.Logger) {
 	var mode uint32
 
 	handle := windows.Handle(os.Stdin.Fd())
 	if err := windows.GetConsoleMode(handle, &mode); err != nil {
+		// stdin is not a console handle (e.g. pipe) — nothing to restore.
 		return
 	}
 
 	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
 	if mode&required != required {
-		_ = windows.SetConsoleMode(handle, mode|required)
+		if err := windows.SetConsoleMode(handle, mode|required); err != nil {
+			logger.Debugf("failed to restore stdin console mode for prompt: %v", err)
+		}
 	}
 }
 
@@ -110,6 +112,10 @@ func enableVirtualTerminalProcessing(logger log.Logger, file *os.File) bool {
 // ConsoleState stores the console mode for all standard handles so it can be restored
 // after subprocess execution. Subprocesses on Windows can modify the console mode,
 // which breaks ANSI escape handling and stdin line-input for the parent process.
+//
+// Note: SaveConsoleState and Restore operate on global OS handles (os.Stdin/Stdout/Stderr)
+// without synchronization. This is safe for concurrent use in run --all because all
+// goroutines save and restore the same startup state.
 type ConsoleState struct {
 	stdinMode, stdoutMode, stderrMode uint32
 	stdinOK, stdoutOK, stderrOK       bool

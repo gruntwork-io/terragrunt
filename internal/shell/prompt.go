@@ -40,7 +40,7 @@ func PromptUserForInput(ctx context.Context, l log.Logger, prompt string, nonInt
 	// On Windows, subprocesses can modify the console input mode (clearing
 	// ENABLE_LINE_INPUT, ENABLE_ECHO_INPUT, etc.), which makes stdin unusable
 	// for interactive prompts. Restore the required flags before reading.
-	exec.PrepareStdinForPrompt()
+	exec.PrepareStdinForPrompt(l)
 
 	reader := bufio.NewReader(os.Stdin)
 

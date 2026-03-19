@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package exec
 
@@ -143,4 +142,4 @@ func SaveConsoleState() ConsoleState { return ConsoleState{} }
 func (ConsoleState) Restore() {}
 
 // PrepareStdinForPrompt is a no-op on Unix.
-func PrepareStdinForPrompt() {}
+func PrepareStdinForPrompt(_ log.Logger) {}
