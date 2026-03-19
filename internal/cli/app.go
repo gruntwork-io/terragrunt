@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 
@@ -87,9 +89,35 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 }
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
-	// Start CPU profiling if TG_CPU_PROFILE is set.
-	if cpuProfile := os.Getenv(tf.EnvNameTGCPUProfile); cpuProfile != "" {
-		f, err := os.Create(cpuProfile)
+	// Resolve profile paths: DIR variants provide defaults for the direct variants.
+	cpuProfilePath := os.Getenv(tf.EnvNameTGCPUProfile)
+	memProfilePath := os.Getenv(tf.EnvNameTGMemProfile)
+
+	const profileDirMode = 0755
+
+	if profileDir := os.Getenv(tf.EnvNameTGCPUProfileDir); profileDir != "" {
+		if err := os.MkdirAll(profileDir, profileDirMode); err != nil {
+			return fmt.Errorf("could not create CPU profile directory: %w", err)
+		}
+
+		if cpuProfilePath == "" {
+			cpuProfilePath = filepath.Join(profileDir, "terragrunt_cpu.prof")
+		}
+	}
+
+	if profileDir := os.Getenv(tf.EnvNameTGMemProfileDir); profileDir != "" {
+		if err := os.MkdirAll(profileDir, profileDirMode); err != nil {
+			return fmt.Errorf("could not create memory profile directory: %w", err)
+		}
+
+		if memProfilePath == "" {
+			memProfilePath = filepath.Join(profileDir, "terragrunt_mem.prof")
+		}
+	}
+
+	// Start CPU profiling if configured.
+	if cpuProfilePath != "" {
+		f, err := os.Create(cpuProfilePath)
 		if err != nil {
 			return fmt.Errorf("could not create CPU profile: %w", err)
 		}
@@ -103,6 +131,21 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		defer func() {
 			pprof.StopCPUProfile()
 			f.Close()
+		}()
+	}
+
+	// Write memory profile at exit if configured.
+	if memProfilePath != "" {
+		defer func() {
+			runtime.GC()
+
+			f, err := os.Create(memProfilePath)
+			if err != nil {
+				return
+			}
+			defer f.Close()
+
+			_ = pprof.WriteHeapProfile(f)
 		}()
 	}
 
