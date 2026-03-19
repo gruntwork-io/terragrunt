@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -58,6 +59,11 @@ func runPrint(ctx context.Context, l log.Logger, opts *options.TerragruntOptions
 			cfg.GetIAMRoleOptions(),
 			opts.OriginalIAMRoleOptions,
 		)
+
+		_, defaultDownloadDir := util.DefaultWorkingAndDownloadDirs(opts.TerragruntConfigPath)
+		if opts.DownloadDir == defaultDownloadDir && cfg.DownloadDir != "" {
+			opts.DownloadDir = cfg.DownloadDir
+		}
 	}
 
 	return printTerragruntContext(l, opts)
