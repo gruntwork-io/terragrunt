@@ -154,6 +154,11 @@ func RunCommandWithOutput(
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
+		// Save console state before subprocess execution. On Windows, subprocesses
+		// can modify the console mode (e.g. disable ANSI VT processing or change
+		// stdin line-input settings), which must be restored afterward.
+		savedConsole := exec.SaveConsoleState()
+
 		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
 			err = util.ProcessExecutionError{
 				Err:             err,
@@ -172,6 +177,8 @@ func RunCommandWithOutput(
 		defer cancelShutdown()
 
 		if err := cmd.Wait(); err != nil {
+			savedConsole.Restore()
+
 			err = util.ProcessExecutionError{
 				Err:             err,
 				Args:            args,
@@ -185,6 +192,8 @@ func RunCommandWithOutput(
 
 			return errors.New(err)
 		}
+
+		savedConsole.Restore()
 
 		return nil
 	})

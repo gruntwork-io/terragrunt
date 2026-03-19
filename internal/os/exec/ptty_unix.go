@@ -126,6 +126,21 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 }
 
 // PrepareConsole is run at the start of the application to set up the console.
-func PrepareConsole(_ log.Logger) {
-	// No operation function to match windows execution
+// On Unix, terminals handle ANSI escape sequences natively, so this is a no-op.
+// Returns true to indicate ANSI support is available.
+func PrepareConsole(_ log.Logger) bool {
+	return true
 }
+
+// ConsoleState is a no-op on Unix. On Windows it saves/restores console modes
+// that subprocesses may modify.
+type ConsoleState struct{}
+
+// SaveConsoleState is a no-op on Unix.
+func SaveConsoleState() ConsoleState { return ConsoleState{} }
+
+// Restore is a no-op on Unix.
+func (ConsoleState) Restore() {}
+
+// PrepareStdinForPrompt is a no-op on Unix.
+func PrepareStdinForPrompt() {}
