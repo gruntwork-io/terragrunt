@@ -111,8 +111,6 @@ func RunCommandWithOutput(
 
 		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			// Note: engine path does not need SaveConsoleState because it communicates via gRPC,
-			// not by spawning subprocesses that inherit the console handle.
 			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
@@ -156,9 +154,7 @@ func RunCommandWithOutput(
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
-		// Save console state before subprocess execution. On Windows, subprocesses
-		// can modify the console mode (e.g. disable ANSI VT processing or change
-		// stdin line-input settings), which must be restored afterward.
+		// Save/restore console mode around subprocess — Windows subprocesses can reset it.
 		savedConsole := exec.SaveConsoleState()
 		defer savedConsole.Restore()
 
