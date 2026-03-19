@@ -37,6 +37,7 @@ fi
 pass() {
     TESTS_PASSED=$((TESTS_PASSED + 1))
     printf "${GREEN}✓${NC} %s\n" "$1"
+    return 0
 }
 
 fail() {
@@ -45,6 +46,7 @@ fail() {
     if [[ -n "${2:-}" ]]; then
         printf "  ${RED}Error: %s${NC}\n" "$2"
     fi
+    return 0
 }
 
 run_test() {
@@ -62,6 +64,7 @@ run_test() {
 
 skip_test() {
     printf "${YELLOW}○${NC} %s (skipped)\n" "$1"
+    return 0
 }
 
 # --- Unit Tests ---

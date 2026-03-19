@@ -4,7 +4,7 @@ set -euo pipefail
 
 : "${HAS_FIXES:?}"
 
-if [ "$HAS_FIXES" != "true" ]; then
+if [[ "$HAS_FIXES" != "true" ]]; then
   echo "has_changes=false" >> "$GITHUB_OUTPUT"
   exit 0
 fi

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Library script to read release assets configuration
 # Usage: source .github/scripts/release/lib-release-config.sh
@@ -37,7 +37,7 @@ get_additional_files() {
 
 # Generate expected files list (for verification)
 get_all_expected_files() {
-  local binaries archive_ext additional
+  local binaries
 
   # Get binaries
   binaries=$(get_all_binaries)
@@ -54,6 +54,8 @@ get_all_expected_files() {
 
   # Add additional files
   get_additional_files
+
+  return 0
 }
 
 # Get platform info as JSON for a specific binary
@@ -80,4 +82,6 @@ verify_config_file() {
     echo "ERROR: Release config file not found: $RELEASE_CONFIG_FILE" >&2
     return 1
   fi
+
+  return 0
 }

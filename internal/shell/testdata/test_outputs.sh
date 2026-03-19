@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 echo 'stdout1'
 sleep 1
 >&2 echo 'stderr1'

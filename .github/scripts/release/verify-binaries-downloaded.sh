@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to verify all expected binaries were downloaded
 # Usage: verify-binaries-downloaded.sh <bin-directory> [expected-count]
@@ -20,6 +20,8 @@ function resolve_expected_count {
 
   verify_config_file
   get_binary_count
+
+  return 0
 }
 
 function main {
@@ -30,7 +32,7 @@ function main {
   expected_count=$(resolve_expected_count "$count_override")
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -39,7 +41,7 @@ function main {
   binary_count=$(find "$bin_dir/" -type f | wc -l)
 
   # List binaries if any exist (resilient to empty directory)
-  if [ "$binary_count" -gt 0 ]; then
+  if [[ "$binary_count" -gt 0 ]]; then
     echo "Downloaded binaries:"
     ls -lahrt "$bin_dir"/*
   else
@@ -51,12 +53,14 @@ function main {
   # Verify expected count
   echo "Expected: at least $expected_count binaries"
 
-  if [ "$binary_count" -lt "$expected_count" ]; then
-    echo "ERROR: Expected at least $expected_count binaries, found $binary_count"
+  if [[ "$binary_count" -lt "$expected_count" ]]; then
+    echo "ERROR: Expected at least $expected_count binaries, found $binary_count" >&2
     exit 1
   fi
 
   echo "All binaries present ($binary_count files)"
+
+  return 0
 }
 
 main "$@"

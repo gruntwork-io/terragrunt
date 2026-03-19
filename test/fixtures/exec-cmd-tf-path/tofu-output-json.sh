@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Handle -version
-if [ "$1" = "-version" ]; then
+if [[ "$1" = "-version" ]]; then
   echo "OpenToFu v1.0.0"
   exit 0
 fi

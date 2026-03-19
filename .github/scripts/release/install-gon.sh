@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to download and install gon binary for macOS code signing
 # Usage: install-gon.sh [gon-version]
@@ -17,7 +17,7 @@ function main {
 
   echo "Downloading gon from: $download_url"
   if ! curl -L -o gon.zip "$download_url"; then
-    echo "ERROR: Failed to download gon from $download_url"
+    echo "ERROR: Failed to download gon from $download_url" >&2
     rm -f gon.zip
     exit 1
   fi
@@ -25,14 +25,14 @@ function main {
   # Extract to specific target
   echo "Extracting gon binary..."
   if ! unzip -o gon.zip -d . gon; then
-    echo "ERROR: Failed to extract gon from gon.zip"
+    echo "ERROR: Failed to extract gon from gon.zip" >&2
     rm -f gon.zip
     exit 1
   fi
 
   # Verify extracted binary exists and is a regular file
   if [[ ! -f ./gon ]]; then
-    echo "ERROR: Expected file './gon' not found after extraction"
+    echo "ERROR: Expected file './gon' not found after extraction" >&2
     rm -f gon.zip
     exit 1
   fi
@@ -40,14 +40,14 @@ function main {
   # Make executable
   echo "Setting executable permissions..."
   if ! chmod +x ./gon; then
-    echo "ERROR: Failed to set executable permissions on ./gon"
+    echo "ERROR: Failed to set executable permissions on ./gon" >&2
     rm -f gon.zip ./gon
     exit 1
   fi
 
   # Verify it's executable
   if [[ ! -x ./gon ]]; then
-    echo "ERROR: File ./gon is not executable after chmod"
+    echo "ERROR: File ./gon is not executable after chmod" >&2
     rm -f gon.zip ./gon
     exit 1
   fi
@@ -55,20 +55,20 @@ function main {
   # Move to system path
   echo "Moving gon to /usr/local/bin/"
   if ! sudo mv ./gon /usr/local/bin/gon; then
-    echo "ERROR: Failed to move gon to /usr/local/bin/"
+    echo "ERROR: Failed to move gon to /usr/local/bin/" >&2
     rm -f gon.zip ./gon
     exit 1
   fi
 
   if ! sudo chmod +x /usr/local/bin/gon; then
-    echo "ERROR: Failed to set executable permissions on /usr/local/bin/gon"
+    echo "ERROR: Failed to set executable permissions on /usr/local/bin/gon" >&2
     exit 1
   fi
 
   # Verify installation
   echo "Verifying gon installation..."
   if ! gon --version; then
-    echo "ERROR: gon --version failed after installation"
+    echo "ERROR: gon --version failed after installation" >&2
     exit 1
   fi
 
@@ -76,6 +76,8 @@ function main {
   rm -f gon.zip
 
   echo "gon installed successfully"
+
+  return 0
 }
 
 main "$@"

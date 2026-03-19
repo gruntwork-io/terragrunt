@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -15,6 +15,8 @@ require_arg() {
   local -r name="$2"
 
   [[ -n "$value" ]] || die "$name is required"
+
+  return 0
 }
 
 expect_empty() {
@@ -26,6 +28,8 @@ expect_empty() {
     echo "$value" >&2
     exit 1
   }
+
+  return 0
 }
 
 verify_linux_binary() {
@@ -44,6 +48,8 @@ verify_linux_binary() {
 
   grep -qE "not a dynamic executable|statically linked" <<<"$ldd_output"
   echo "Linux binary has no dynamic dependencies"
+
+  return 0
 }
 
 verify_darwin_binary() {
@@ -55,6 +61,8 @@ verify_darwin_binary() {
 
   grep -q "Mach-O.*executable" <<<"$file_info"
   echo "macOS binary is Mach-O executable"
+
+  return 0
 }
 
 verify_windows_binary() {
@@ -76,6 +84,8 @@ verify_windows_binary() {
 
   expect_empty "$unexpected_dlls" "Windows binary links to unexpected DLLs:"
   echo "Windows binary has standard system DLL dependencies only"
+
+  return 0
 }
 
 main() {
@@ -109,6 +119,8 @@ main() {
   esac
 
   echo "Static linking verification passed for $os/$arch!"
+
+  return 0
 }
 
 main "$@"

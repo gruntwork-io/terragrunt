@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # This script traps SIGINT and exits with code 42 when received.
 # It exits with code 1 if terminated by SIGKILL (or any other unexpected termination).

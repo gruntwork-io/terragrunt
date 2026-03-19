@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 INT_REQUIRED=$1
 INT_COUNTER=0
@@ -9,8 +11,8 @@ function int_handler() {
     INT_COUNTER=$((INT_COUNTER + 1))
 }
 
-while [ $INT_COUNTER -lt $INT_REQUIRED ]
+while [[ $INT_COUNTER -lt $INT_REQUIRED ]]
     do sleep 0.1
 done
 
-exit $INT_COUNTER
+exit "$INT_COUNTER"

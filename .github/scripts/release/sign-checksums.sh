@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to sign SHA256SUMS with GPG and Cosign
 # Usage: sign-checksums.sh <bin-directory>
@@ -19,17 +19,17 @@ function main {
   local -r bin_dir="${1:-bin}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
   if [[ -z "${GPG_FINGERPRINT}" ]]; then
-    echo "ERROR: GPG_FINGERPRINT environment variable is not set"
+    echo "ERROR: GPG_FINGERPRINT environment variable is not set" >&2
     exit 1
   fi
 
   if [[ -z "${SIGNING_GPG_PASSPHRASE}" ]]; then
-    echo "ERROR: SIGNING_GPG_PASSPHRASE environment variable is not set"
+    echo "ERROR: SIGNING_GPG_PASSPHRASE environment variable is not set" >&2
     exit 1
   fi
 
@@ -37,7 +37,7 @@ function main {
   pushd "$bin_dir" || exit 1
 
   if [[ ! -f "SHA256SUMS" ]]; then
-    echo "ERROR: SHA256SUMS file not found in $bin_dir"
+    echo "ERROR: SHA256SUMS file not found in $bin_dir" >&2
     popd || exit 1
     exit 1
   fi
@@ -75,6 +75,8 @@ function main {
   ls -la SHA256SUMS*
 
   popd || exit 1
+
+  return 0
 }
 
 main "$@"

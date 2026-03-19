@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -54,6 +54,8 @@ All assets uploaded successfully to existing release!
 EOF
 
   echo "Upload summary generated successfully"
+
+  return 0
 }
 
 require_env_vars() {
@@ -69,6 +71,8 @@ require_env_vars() {
   if [[ "$missing" -eq 1 ]]; then
     exit 1
   fi
+
+  return 0
 }
 
 main "$@"
