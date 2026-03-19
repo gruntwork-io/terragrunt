@@ -66,6 +66,9 @@ const (
 	EnvNameTFTokenFmt       = "TF_TOKEN_%s"
 	EnvNameTFVarFmt         = "TF_VAR_%s"
 
+	EnvNameTGCPUProfile   = "TG_CPU_PROFILE"
+	EnvNameTofuCPUProfile = "TOFU_CPU_PROFILE"
+
 	DefaultTFDataDir  = ".terraform"
 	TerraformLockFile = ".terraform.lock.hcl"
 

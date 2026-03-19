@@ -316,6 +316,14 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 
 	opts.Env = env.Parse(os.Environ())
 
+	// If TG_CPU_PROFILE is set, propagate to downstream tofu as TOFU_CPU_PROFILE
+	// unless user already set TOFU_CPU_PROFILE explicitly.
+	if cpuProfile := opts.Env[tf.EnvNameTGCPUProfile]; cpuProfile != "" {
+		if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
+			opts.Env[tf.EnvNameTofuCPUProfile] = cpuProfile
+		}
+	}
+
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
