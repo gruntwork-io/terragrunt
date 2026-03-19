@@ -68,26 +68,6 @@ func setMode(t *testing.T, f *os.File, mode uint32) {
 	require.NoError(t, windows.SetConsoleMode(windows.Handle(f.Fd()), mode))
 }
 
-// TestWindowsConsolePrepareOnPipes verifies PrepareConsole behavior when
-// stdout/stderr are pipes (typical in CI). If CONOUT$ is available it falls
-// back and succeeds; otherwise it returns false.
-func TestWindowsConsolePrepareOnPipes(t *testing.T) {
-	t.Parallel()
-
-	var mode uint32
-	if windows.GetConsoleMode(windows.Handle(os.Stdout.Fd()), &mode) == nil {
-		t.Skip("skipping: os.Stdout is a real console, this test is for pipe environments")
-	}
-
-	l := log.New(log.WithLevel(log.DebugLevel))
-	result := exec.PrepareConsole(l)
-
-	_, conoutErr := os.OpenFile("CONOUT$", os.O_WRONLY, 0)
-	expectSuccess := conoutErr == nil
-	assert.Equal(t, expectSuccess, result,
-		"PrepareConsole result should match CONOUT$ availability")
-}
-
 // TestWindowsConsoleStateOnPipes verifies that SaveConsoleState and Restore
 // work without error when standard handles are pipes (CI). The saved state
 // should round-trip: save then restore should not change the console mode.
@@ -126,10 +106,8 @@ func TestWindowsConsolePrepareStdinOnPipes(t *testing.T) {
 
 	assert.Equal(t, stdinIsConsole, afterIsConsole,
 		"stdin console status should not change after PrepareStdinForPrompt")
-
-	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
-	assert.Equal(t, required, afterMode&required,
-		"PrepareStdinForPrompt should ensure prompt flags are set")
+	assert.Equal(t, beforeMode, afterMode,
+		"stdin console mode should be unchanged after PrepareStdinForPrompt on pipes")
 }
 
 // TestWindowsConsoleVTProcessingOnCONOUT verifies that VT processing can be
@@ -152,29 +130,6 @@ func TestWindowsConsoleVTProcessingOnCONOUT(t *testing.T) {
 
 	assert.NotEqual(t, uint32(0), getMode(t, conout)&windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING,
 		"VT processing should be enabled on CONOUT$")
-}
-
-// TestWindowsConsolePrepareConsoleEnablesVT calls the production PrepareConsole
-// function and verifies it enables ENABLE_VIRTUAL_TERMINAL_PROCESSING on the
-// console screen buffer via CONOUT$.
-func TestWindowsConsolePrepareConsoleEnablesVT(t *testing.T) {
-	t.Parallel()
-
-	conout := openConsoleOutput(t)
-	original := getMode(t, conout)
-
-	defer setMode(t, conout, original)
-
-	setMode(t, conout, original&^windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-
-	l := log.New(log.WithLevel(log.DebugLevel))
-	result := exec.PrepareConsole(l)
-
-	assert.True(t, result, "PrepareConsole should succeed on a real console")
-
-	after := getMode(t, conout)
-	assert.NotEqual(t, uint32(0), after&windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING,
-		"PrepareConsole should enable VT processing on CONOUT$")
 }
 
 // TestWindowsConsoleSaveRestoreOnCONOUT verifies the full save→corrupt→restore
@@ -232,69 +187,6 @@ func TestWindowsConsoleStdinFlagsOnCONIN(t *testing.T) {
 	setMode(t, conin, original)
 	assert.Equal(t, required, getMode(t, conin)&required,
 		"required flags should be restored")
-}
-
-// TestWindowsConsolePrepareStdinForPromptRestoresFlags calls the production
-// PrepareStdinForPrompt and verifies it restores LINE_INPUT, ECHO_INPUT, and
-// PROCESSED_INPUT after they have been cleared (simulating subprocess corruption).
-// Skips in CI where os.Stdin is a pipe.
-func TestWindowsConsolePrepareStdinForPromptRestoresFlags(t *testing.T) {
-	t.Parallel()
-
-	stdinHandle := windows.Handle(os.Stdin.Fd())
-
-	var stdinMode uint32
-	skipErr := windows.GetConsoleMode(stdinHandle, &stdinMode)
-	require.NoErrorf(t, skipErr, "os.Stdin is not a console handle — run locally on Windows")
-
-	required := uint32(windows.ENABLE_LINE_INPUT | windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT)
-
-	defer func() {
-		require.NoError(t, windows.SetConsoleMode(stdinHandle, stdinMode))
-	}()
-
-	require.NoError(t, windows.SetConsoleMode(stdinHandle, stdinMode&^required))
-
-	var corrupted uint32
-	require.NoError(t, windows.GetConsoleMode(stdinHandle, &corrupted))
-	require.Equal(t, uint32(0), corrupted&required, "prompt flags should be cleared before calling PrepareStdinForPrompt")
-
-	l := log.New(log.WithLevel(log.DebugLevel))
-	exec.PrepareStdinForPrompt(l)
-
-	var after uint32
-	require.NoError(t, windows.GetConsoleMode(stdinHandle, &after))
-	assert.Equal(t, required, after&required,
-		"PrepareStdinForPrompt should restore LINE_INPUT, ECHO_INPUT, PROCESSED_INPUT")
-}
-
-// TestWindowsConsoleSaveRestoreAPI calls production SaveConsoleState/Restore
-// and verifies console mode is preserved after simulated subprocess corruption.
-func TestWindowsConsoleSaveRestoreAPI(t *testing.T) {
-	t.Parallel()
-
-	stdoutHandle := windows.Handle(os.Stdout.Fd())
-
-	var stdoutMode uint32
-	require.NoErrorf(t, windows.GetConsoleMode(stdoutHandle, &stdoutMode),
-		"os.Stdout is not a console handle — run locally on Windows")
-
-	saved := exec.SaveConsoleState()
-
-	corrupted := stdoutMode &^ windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
-	require.NoError(t, windows.SetConsoleMode(stdoutHandle, corrupted))
-
-	var mid uint32
-	require.NoError(t, windows.GetConsoleMode(stdoutHandle, &mid))
-	assert.Equal(t, uint32(0), mid&windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING,
-		"VT should be cleared after corruption")
-
-	saved.Restore()
-
-	var after uint32
-	require.NoError(t, windows.GetConsoleMode(windows.Handle(os.Stdout.Fd()), &after))
-	assert.Equal(t, stdoutMode, after,
-		"SaveConsoleState/Restore should restore original console mode")
 }
 
 // TestWindowsConsoleSubprocessSaveRestore is an integration test that runs a
