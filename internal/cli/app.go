@@ -5,9 +5,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
@@ -85,6 +88,31 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 }
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
+	// Start CPU profiling if TG_CPU_PROFILE is set.
+	// The profile is written with a "terragrunt_" prefix to avoid conflicts
+	// with TOFU_CPU_PROFILE which is propagated to downstream tofu processes.
+	if cpuProfile := os.Getenv(tf.EnvNameTGCPUProfile); cpuProfile != "" {
+		dir := filepath.Dir(cpuProfile)
+		base := filepath.Base(cpuProfile)
+		tgProfilePath := filepath.Join(dir, "terragrunt_"+base)
+
+		f, err := os.Create(tgProfilePath)
+		if err != nil {
+			return fmt.Errorf("could not create CPU profile: %w", err)
+		}
+
+		if err := pprof.StartCPUProfile(f); err != nil {
+			f.Close()
+
+			return fmt.Errorf("could not start CPU profile: %w", err)
+		}
+
+		defer func() {
+			pprof.StopCPUProfile()
+			f.Close()
+		}()
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

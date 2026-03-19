@@ -122,7 +122,46 @@ You can learn more about benchmarking in Go by reading the [official documentati
 
 Use profiling tools like [pprof](https://github.com/google/pprof) to get a more detailed view of the performance of Terragrunt.
 
-For example, you could use the following command to profile a particular test:
+##### Runtime CPU Profiling with `TG_CPU_PROFILE`
+
+You can profile Terragrunt during normal operation by setting the `TG_CPU_PROFILE` environment variable to a file path:
+
+```shell
+TG_CPU_PROFILE=cpu.prof terragrunt run --all -- plan
+```
+
+This produces two profile files:
+
+| File | Source | Description |
+|------|--------|-------------|
+| `terragrunt_cpu.prof` | Terragrunt | CPU profile of the Terragrunt process itself, written to the directory where Terragrunt was invoked. The filename is the value of `TG_CPU_PROFILE` prefixed with `terragrunt_`. |
+| `cpu.prof` | OpenTofu | CPU profile of the downstream OpenTofu process. When `TG_CPU_PROFILE` is set, Terragrunt automatically sets `TOFU_CPU_PROFILE` to the same value for any downstream OpenTofu invocations. OpenTofu writes this file in its own working directory (typically inside `.terragrunt-cache/`). |
+
+The `terragrunt_` prefix on the Terragrunt profile file avoids any filename collision with the OpenTofu profile, even when both tools run in the same directory.
+
+If you want to control the OpenTofu profile path independently, set `TOFU_CPU_PROFILE` explicitly in your environment. When `TOFU_CPU_PROFILE` is already set, Terragrunt will not override it.
+
+```shell
+# Separate paths for each profile
+TG_CPU_PROFILE=cpu.prof TOFU_CPU_PROFILE=/tmp/tofu.prof terragrunt run -- plan
+# Produces: terragrunt_cpu.prof (Terragrunt) and /tmp/tofu.prof (OpenTofu)
+```
+
+You can then analyze either profile with `go tool pprof`:
+
+```shell
+go tool pprof terragrunt_cpu.prof
+```
+
+It can be helpful to use the web interface to view the profile data using flame graphs:
+
+```shell
+go tool pprof -http=:8080 terragrunt_cpu.prof
+```
+
+##### Profiling in Tests
+
+You can also profile particular tests using Go's built-in profiling flags:
 
 ```shell
 go test -run 'SomeTest' -cpuprofile=cpu.prof -memprofile=mem.prof
@@ -132,12 +171,6 @@ You can then use the `go tool pprof` command to analyze the profile data:
 
 ```shell
 go tool pprof cpu.prof
-```
-
-It can be helpful to use the web interface to view the profile data using flame graphs, etc.
-
-```shell
-go tool pprof -http=:8080 cpu.prof
 ```
 
 You can learn more about profiling in Go by reading the [official documentation](https://pkg.go.dev/cmd/pprof).
