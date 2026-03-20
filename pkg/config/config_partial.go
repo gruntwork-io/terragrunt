@@ -84,6 +84,7 @@ type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
 	PreventDestroy      *bool    `hcl:"prevent_destroy,attr"`
+	DownloadDir         *string  `hcl:"download_dir,attr"`
 	Remain              hcl.Body `hcl:",remain"`
 }
 
@@ -516,6 +517,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 			if decoded.IamWebIdentityToken != nil {
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
+			}
+
+			if decoded.DownloadDir != nil {
+				output.DownloadDir = *decoded.DownloadDir
 			}
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
