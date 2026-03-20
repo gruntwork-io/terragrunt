@@ -299,10 +299,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
-	// Process generate blocks so that if_disabled=remove deletes conflicting
-	// files from the generated directory. Without this, dependency resolution
-	// via "terraform output -json" on a filtered-out unit sees both files and
-	// fails with "Duplicate required providers configuration" (#5702).
+	// Process generate blocks in the generated directory so that dependency
+	// resolution via "terraform output -json" sees the correct files (#5702).
 	if cmp.kind == unitKind && opts.pctx != nil {
 		if err := processUnitGenerateBlocks(ctx, l, opts.pctx, dest); err != nil {
 			l.Warnf("Failed to process generate blocks for %s: %v", cmp.name, err)
@@ -313,8 +311,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 }
 
 // processUnitGenerateBlocks parses the unit's terragrunt.hcl with dependency
-// resolution skipped, then applies generate blocks (including if_disabled=remove
-// file deletion) to the generated unit directory.
+// resolution skipped, then applies all generate blocks to the generated unit
+// directory.
 func processUnitGenerateBlocks(ctx context.Context, l log.Logger, pctx *ParsingContext, unitDir string) error {
 	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 	if !util.FileExists(configPath) {
