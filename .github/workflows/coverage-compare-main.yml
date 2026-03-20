@@ -1,0 +1,120 @@
+name: Coverage Compare (Main)
+
+on:
+  workflow_call:
+
+jobs:
+  compare:
+    name: Coverage Diff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (scripts only)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts/coverage
+          fetch-depth: 1
+
+      - name: Download Current Coverage
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-summary.json
+          path: current/
+
+      - name: Download Previous Main Coverage
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p previous
+
+          # Find last successful CI run on main (excluding current)
+          PREV_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=5" \
+            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})][0].id")
+
+          if [[ -z "$PREV_RUN_ID" || "$PREV_RUN_ID" == "null" ]]; then
+            echo "No previous successful main run found"
+            echo "has_previous=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Previous run: $PREV_RUN_ID"
+
+          # Find the coverage-summary.json artifact in that run
+          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${PREV_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "coverage-summary.json") | .id')
+
+          if [[ -z "$ARTIFACT_ID" || "$ARTIFACT_ID" == "null" ]]; then
+            echo "No coverage artifact in previous run"
+            echo "has_previous=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Download and extract
+          gh api "repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/prev-coverage.zip
+          unzip -o /tmp/prev-coverage.zip -d previous/
+          echo "has_previous=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compare Coverage
+        run: |
+          PREV_FILE="previous/coverage-summary.json"
+          if [[ "${{ steps.prev.outputs.has_previous }}" != "true" ]]; then
+            PREV_FILE="nonexistent"
+          fi
+          ./.github/scripts/coverage/compare-coverage.sh current/coverage-summary.json "$PREV_FILE" comparison-report.json
+
+      - name: Write Summary
+        if: always()
+        run: |
+          if [[ -f comparison-report.json ]]; then
+            BASELINE=$(jq -r '.baseline' comparison-report.json)
+            if [[ "$BASELINE" == "true" ]]; then
+              echo "## Coverage Baseline Established" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "Total: $(jq -r '.current_total' comparison-report.json)%" >> "$GITHUB_STEP_SUMMARY"
+            else
+              CURR=$(jq -r '.current_total' comparison-report.json)
+              PREV=$(jq -r '.previous_total' comparison-report.json)
+              DELTA=$(jq -r '.total_delta' comparison-report.json)
+              echo "## :bar_chart: Coverage Diff (main)" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+              echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Current | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Previous | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
+              echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+
+              DROPS=$(jq -r '.top_drops[:5][] | "| \(.package) | \(.previous)% | \(.current)% | \(.delta)% |"' comparison-report.json 2>/dev/null || true)
+              if [[ -n "$DROPS" ]]; then
+                echo "### Top Drops" >> "$GITHUB_STEP_SUMMARY"
+                echo "| Package | Previous | Current | Delta |" >> "$GITHUB_STEP_SUMMARY"
+                echo "|---------|----------|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
+                echo "$DROPS" >> "$GITHUB_STEP_SUMMARY"
+              fi
+
+              GAINS=$(jq -r '.top_gains[:5][] | "| \(.package) | \(.previous)% | \(.current)% | +\(.delta)% |"' comparison-report.json 2>/dev/null || true)
+              if [[ -n "$GAINS" ]]; then
+                echo "" >> "$GITHUB_STEP_SUMMARY"
+                echo "### Top Gains" >> "$GITHUB_STEP_SUMMARY"
+                echo "| Package | Previous | Current | Delta |" >> "$GITHUB_STEP_SUMMARY"
+                echo "|---------|----------|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
+                echo "$GAINS" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          fi
+
+      - name: Upload comparison-report.json
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.json
+          path: comparison-report.json
+          retention-days: 30
+
+      - name: Upload comparison-report.html
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.html
+          path: comparison-report.html
+          retention-days: 30
