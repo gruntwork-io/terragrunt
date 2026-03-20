@@ -181,8 +181,11 @@ jobs:
 
       - name: Write Summary
         if: always()
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+          HEAD_REF: ${{ inputs.head_ref }}
         run: |
-          echo "## Coverage Comparison: ${{ inputs.base_ref }} vs ${{ inputs.head_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Coverage Comparison: ${BASE_REF} vs ${HEAD_REF}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           CURR=$(jq -r '.current_total' comparison-report.json)
@@ -191,8 +194,8 @@ jobs:
 
           echo "| Ref | Coverage |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----|----------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${{ inputs.base_ref }} (base) | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${{ inputs.head_ref }} (head) | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ${BASE_REF} (base) | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ${HEAD_REF} (head) | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
