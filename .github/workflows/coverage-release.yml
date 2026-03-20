@@ -101,8 +101,7 @@ jobs:
           if [[ "${{ steps.prev-coverage.outputs.has_previous }}" != "true" ]]; then
             PREV_FILE="nonexistent"
           fi
-          # compare-coverage.sh exits 1 on degradation — capture but don't fail the job
-          ./.github/scripts/coverage/compare-coverage.sh coverage-summary.json "$PREV_FILE" comparison-report.json && echo "degraded=false" >> "$GITHUB_OUTPUT" || echo "degraded=true" >> "$GITHUB_OUTPUT"
+          ./.github/scripts/coverage/compare-coverage.sh coverage-summary.json "$PREV_FILE" comparison-report.json
 
       - name: Write Summary
         if: always()
@@ -117,13 +116,7 @@ jobs:
               CURR=$(jq -r '.current_total' comparison-report.json)
               PREV=$(jq -r '.previous_total' comparison-report.json)
               DELTA=$(jq -r '.total_delta' comparison-report.json)
-              DEGRADED=$(jq -r '.degraded' comparison-report.json)
-
-              if [[ "$DEGRADED" == "true" ]]; then
-                echo "## :warning: Coverage Degraded" >> "$GITHUB_STEP_SUMMARY"
-              else
-                echo "## :white_check_mark: Coverage OK" >> "$GITHUB_STEP_SUMMARY"
-              fi
+              echo "## :bar_chart: Coverage Report" >> "$GITHUB_STEP_SUMMARY"
               echo "" >> "$GITHUB_STEP_SUMMARY"
               echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
               echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
@@ -143,7 +136,7 @@ jobs:
           fi
 
       - name: Notify Slack
-        if: steps.compare.outputs.degraded == 'true'
+        if: always() && hashFiles('comparison-report.json') != ''
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}

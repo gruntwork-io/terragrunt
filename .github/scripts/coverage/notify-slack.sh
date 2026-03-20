@@ -13,12 +13,26 @@ if [[ ! -f "$REPORT" ]]; then
 	exit 1
 fi
 
+BASELINE=$(jq -r '.baseline' "$REPORT")
 CURRENT=$(jq -r '.current_total' "$REPORT")
-PREVIOUS=$(jq -r '.previous_total' "$REPORT")
-DELTA=$(jq -r '.total_delta' "$REPORT")
-DROPS=$(jq -r '.top_drops[:5] | map("  \(.package): \(.previous)% → \(.current)% (\(.delta)%)") | join("\n")' "$REPORT")
 
-TEXT=":warning: *Coverage Degradation in terragrunt ${TAG_NAME}*\n\nTotal: ${CURRENT}% (was ${PREVIOUS}%, delta: ${DELTA}%)\n\nTop drops:\n${DROPS}\n\n<${RUN_URL}|View workflow run>"
+if [[ "$BASELINE" == "true" ]]; then
+	TEXT=":bar_chart: *Coverage Report: terragrunt ${TAG_NAME}*\n\nBaseline established: ${CURRENT}%\n\n<${RUN_URL}|View workflow run>"
+else
+	PREVIOUS=$(jq -r '.previous_total' "$REPORT")
+	DELTA=$(jq -r '.total_delta' "$REPORT")
+	DROPS=$(jq -r '.top_drops[:5] | map("  \(.package): \(.previous)% → \(.current)% (\(.delta)%)") | join("\n")' "$REPORT")
+	GAINS=$(jq -r '.top_gains[:3] | map("  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)") | join("\n")' "$REPORT")
+
+	TEXT=":bar_chart: *Coverage Report: terragrunt ${TAG_NAME}*\n\nTotal: ${CURRENT}% (was ${PREVIOUS}%, delta: ${DELTA}%)"
+	if [[ -n "$DROPS" ]]; then
+		TEXT="${TEXT}\n\nTop drops:\n${DROPS}"
+	fi
+	if [[ -n "$GAINS" ]]; then
+		TEXT="${TEXT}\n\nTop gains:\n${GAINS}"
+	fi
+	TEXT="${TEXT}\n\n<${RUN_URL}|View workflow run>"
+fi
 
 PAYLOAD=$(jq -n --arg text "$TEXT" '{text: $text}')
 

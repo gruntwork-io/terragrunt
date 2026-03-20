@@ -177,7 +177,7 @@ jobs:
       - name: Compare Coverage
         id: compare
         run: |
-          ./.github/scripts/coverage/compare-coverage.sh head/coverage-summary.json base/coverage-summary.json comparison-report.json && echo "degraded=false" >> "$GITHUB_OUTPUT" || echo "degraded=true" >> "$GITHUB_OUTPUT"
+          ./.github/scripts/coverage/compare-coverage.sh head/coverage-summary.json base/coverage-summary.json comparison-report.json
 
       - name: Write Summary
         if: always()
@@ -214,7 +214,7 @@ jobs:
           fi
 
       - name: Notify Slack
-        if: inputs.notify_slack == 'true' && steps.compare.outputs.degraded == 'true'
+        if: inputs.notify_slack == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           TAG_NAME: "${{ inputs.base_ref }}...${{ inputs.head_ref }}"
