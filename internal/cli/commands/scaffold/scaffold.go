@@ -231,14 +231,16 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	l.Infof("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
-	emptyDep := variables.Dependency{}
-	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
+	emptyDep := &variables.Dependency{}
+
+	result, err := templates.ProcessTemplateWithContext(ctx, boilerplateOpts, boilerplateOpts, emptyDep)
+	if err != nil {
 		return errors.New(err)
 	}
 
 	l.Infof("Running fmt on generated code %s", outputDir)
 
-	if err := format.Run(ctx, l, opts); err != nil {
+	if err := format.RunForFiles(ctx, l, opts, outputDir, result.GeneratedFiles); err != nil {
 		return errors.New(err)
 	}
 
