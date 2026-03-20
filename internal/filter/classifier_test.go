@@ -361,6 +361,33 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
+		{
+			name:               "filesystem_match_skips_parse_when_parse_exprs_exist",
+			filterStrs:         []string{"./apps/*", "reading=config/*.hcl"},
+			componentPath:      "./apps/app1",
+			parseDataAvailable: false,
+			expectedStatus:     filter.StatusDiscovered,
+			expectedReason:     filter.CandidacyReasonNone,
+			expectedIdx:        -1,
+		},
+		{
+			name:               "no_filesystem_match_still_requires_parse",
+			filterStrs:         []string{"./apps/*", "reading=config/*.hcl"},
+			componentPath:      "./libs/db",
+			parseDataAvailable: false,
+			expectedStatus:     filter.StatusCandidate,
+			expectedReason:     filter.CandidacyReasonRequiresParse,
+			expectedIdx:        -1,
+		},
+		{
+			name:               "negation_excluded_not_rescued_by_parse_exprs",
+			filterStrs:         []string{"!./apps/app1", "reading=config/*.hcl"},
+			componentPath:      "./apps/app1",
+			parseDataAvailable: false,
+			expectedStatus:     filter.StatusExcluded,
+			expectedReason:     filter.CandidacyReasonNone,
+			expectedIdx:        -1,
+		},
 	}
 
 	for _, tt := range tests {
