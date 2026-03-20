@@ -108,15 +108,28 @@ jobs:
         run: ./.github/scripts/coverage/generate-summary.sh
         shell: bash
 
-      - name: Upload Coverage Report
+      - name: Upload coverage.out
         if: always() && matrix.os == 'ubuntu'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-report
-          path: |
-            coverage.out
-            coverage-summary.json
-            coverage-summary.html
+          name: coverage.out
+          path: coverage.out
+          retention-days: 30
+
+      - name: Upload coverage-summary.json
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary.json
+          path: coverage-summary.json
+          retention-days: 30
+
+      - name: Upload coverage-summary.html
+        if: always() && matrix.os == 'ubuntu'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-summary.html
+          path: coverage-summary.html
           retention-days: 30
 
       - name: Upload Report (${{ matrix.os }})

@@ -143,14 +143,20 @@ jobs:
           REPO: ${{ github.repository }}
         run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json
 
-      - name: Upload Comparison Report
+      - name: Upload comparison-report.json
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-comparison
-          path: |
-            comparison-report.json
-            comparison-report.html
+          name: comparison-report.json
+          path: comparison-report.json
+          retention-days: 30
+
+      - name: Upload comparison-report.html
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.html
+          path: comparison-report.html
           retention-days: 30
 
       - name: Upload Coverage as Release Asset
@@ -158,4 +164,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
         run: |
-          gh release upload "$TAG_NAME" coverage-summary.json --clobber
+          gh release upload "$TAG_NAME" coverage-summary.json coverage-summary.html comparison-report.json comparison-report.html --clobber
