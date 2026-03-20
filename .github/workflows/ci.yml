@@ -84,7 +84,6 @@ jobs:
     secrets: inherit
 
   coverage_compare:
-    if: github.ref == 'refs/heads/main'
     needs: [base_tests]
     uses: ./.github/workflows/coverage-compare-main.yml
     permissions:

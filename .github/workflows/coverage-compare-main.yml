@@ -27,12 +27,15 @@ jobs:
         run: |
           mkdir -p previous
 
-          # Find last successful CI run on main (excluding current)
-          PREV_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=5" \
+          BRANCH="${GITHUB_REF_NAME}"
+          echo "Branch: $BRANCH"
+
+          # Find last successful CI run on this branch (excluding current)
+          PREV_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=${BRANCH}&status=success&per_page=5" \
             --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})][0].id")
 
           if [[ -z "$PREV_RUN_ID" || "$PREV_RUN_ID" == "null" ]]; then
-            echo "No previous successful main run found"
+            echo "No previous successful run found on $BRANCH"
             echo "has_previous=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -75,7 +78,7 @@ jobs:
               CURR=$(jq -r '.current_total' comparison-report.json)
               PREV=$(jq -r '.previous_total' comparison-report.json)
               DELTA=$(jq -r '.total_delta' comparison-report.json)
-              echo "## :bar_chart: Coverage Diff (main)" >> "$GITHUB_STEP_SUMMARY"
+              echo "## :bar_chart: Coverage Diff" >> "$GITHUB_STEP_SUMMARY"
               echo "" >> "$GITHUB_STEP_SUMMARY"
               echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
               echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
