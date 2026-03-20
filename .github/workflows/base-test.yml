@@ -116,6 +116,7 @@ jobs:
           path: |
             coverage.out
             coverage-summary.json
+            coverage-summary.html
           retention-days: 30
 
       - name: Upload Report (${{ matrix.os }})

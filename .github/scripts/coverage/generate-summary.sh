@@ -50,5 +50,10 @@ jq -n \
 	--argjson pkgs "$PACKAGES_JSON" \
 	'{total_pct: ($total | tonumber), timestamp: $ts, commit: $commit, ref: $ref, packages: $pkgs}' >"$OUTPUT"
 
+# Generate HTML report
+HTML_OUTPUT="${OUTPUT%.json}.html"
+go tool cover -html="$COVER_FILE" -o "$HTML_OUTPUT"
+
 echo "Coverage: ${TOTAL}%"
 echo "Written to $OUTPUT"
+echo "HTML report: $HTML_OUTPUT"
