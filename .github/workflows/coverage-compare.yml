@@ -216,6 +216,16 @@ jobs:
             echo "$GAINS" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Upload Comparison Report
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-comparison
+          path: |
+            comparison-report.json
+            comparison-report.html
+          retention-days: 30
+
       - name: Notify Slack
         if: inputs.notify_slack == 'true'
         env:
