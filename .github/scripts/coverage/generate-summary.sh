@@ -54,6 +54,9 @@ jq -n \
 HTML_OUTPUT="${OUTPUT%.json}.html"
 go tool cover -html="$COVER_FILE" -o "$HTML_OUTPUT"
 
-echo "Coverage: ${TOTAL}%"
+echo "=== Coverage: ${TOTAL}% ==="
+echo ""
+jq -r '.packages | to_entries | sort_by(.value) | .[] | "\(.value)%\t\(.key)"' "$OUTPUT" | column -t -s $'\t'
+echo ""
 echo "Written to $OUTPUT"
 echo "HTML report: $HTML_OUTPUT"
