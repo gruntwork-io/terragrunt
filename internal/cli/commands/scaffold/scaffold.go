@@ -240,7 +240,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	l.Infof("Running fmt on generated code %s", outputDir)
 
-	if err := format.RunForFiles(ctx, l, opts, result.GeneratedFiles); err != nil {
+	if err := format.RunForFiles(ctx, l, opts, outputDir, result.GeneratedFiles); err != nil {
 		return errors.New(err)
 	}
 
