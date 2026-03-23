@@ -362,12 +362,12 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:    -1,
 		},
 		{
-			name:               "filesystem_match_skips_parse_when_parse_exprs_exist",
+			name:               "filesystem_match_requires_parse_when_parse_exprs_exist",
 			filterStrs:         []string{"./apps/*", "reading=config/*.hcl"},
 			componentPath:      "./apps/app1",
 			parseDataAvailable: false,
-			expectedStatus:     filter.StatusDiscovered,
-			expectedReason:     filter.CandidacyReasonNone,
+			expectedStatus:     filter.StatusCandidate,
+			expectedReason:     filter.CandidacyReasonRequiresParse,
 			expectedIdx:        -1,
 		},
 		{
