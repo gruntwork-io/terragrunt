@@ -8,7 +8,7 @@ OUTPUT="${3:-comparison-report.json}"
 HTML_OUTPUT="${OUTPUT%.json}.html"
 
 if [[ ! -f "$CURRENT" ]]; then
-	echo "Error: current coverage file '$CURRENT' not found"
+	echo "Error: current coverage file '$CURRENT' not found" >&2
 	exit 1
 fi
 

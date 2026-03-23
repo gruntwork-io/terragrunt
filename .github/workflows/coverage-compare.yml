@@ -189,6 +189,10 @@ jobs:
           BASE_REF: ${{ inputs.base_ref }}
           HEAD_REF: ${{ inputs.head_ref }}
         run: |
+          # Sanitize user inputs for markdown injection
+          BASE_REF=$(echo "$BASE_REF" | tr -d '<>|`\n\r')
+          HEAD_REF=$(echo "$HEAD_REF" | tr -d '<>|`\n\r')
+
           echo "## Coverage Comparison: ${BASE_REF} vs ${HEAD_REF}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -240,6 +244,7 @@ jobs:
         if: inputs.notify_slack == 'true'
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
-          TAG_NAME: "${{ inputs.base_ref }}...${{ inputs.head_ref }}"
+          BASE_REF: ${{ inputs.base_ref }}
+          HEAD_REF: ${{ inputs.head_ref }}
           REPO: ${{ github.repository }}
         run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json

@@ -4,12 +4,13 @@ set -euo pipefail
 
 COVERAGE_SLACK_WEBHOOK_URL="${COVERAGE_SLACK_WEBHOOK_URL:?Required environment variable COVERAGE_SLACK_WEBHOOK_URL}"
 REPORT="${1:-comparison-report.json}"
+TAG_NAME="${TAG_NAME:-${BASE_REF:+${BASE_REF}...${HEAD_REF}}}"
 TAG_NAME="${TAG_NAME:-adhoc}"
 REPO="${REPO:-gruntwork-io/terragrunt}"
 RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${REPO}/actions/runs/${GITHUB_RUN_ID:-0}"
 
 if [[ ! -f "$REPORT" ]]; then
-	echo "Error: report file '$REPORT' not found"
+	echo "Error: report file '$REPORT' not found" >&2
 	exit 1
 fi
 

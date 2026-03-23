@@ -6,7 +6,7 @@ COVER_FILE="${1:-coverage.out}"
 OUTPUT="${2:-coverage-summary.json}"
 
 if [[ ! -f "$COVER_FILE" ]]; then
-	echo "Error: coverage file '$COVER_FILE' not found"
+	echo "Error: coverage file '$COVER_FILE' not found" >&2
 	exit 1
 fi
 
