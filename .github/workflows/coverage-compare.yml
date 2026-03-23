@@ -239,7 +239,7 @@ jobs:
       - name: Notify Slack
         if: inputs.notify_slack == 'true'
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: "${{ inputs.base_ref }}...${{ inputs.head_ref }}"
           REPO: ${{ github.repository }}
         run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json

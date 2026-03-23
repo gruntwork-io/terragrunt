@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:?Required environment variable SLACK_WEBHOOK_URL}"
+COVERAGE_SLACK_WEBHOOK_URL="${COVERAGE_SLACK_WEBHOOK_URL:?Required environment variable COVERAGE_SLACK_WEBHOOK_URL}"
 REPORT="${1:-comparison-report.json}"
 TAG_NAME="${TAG_NAME:-adhoc}"
 REPO="${REPO:-gruntwork-io/terragrunt}"
@@ -13,32 +13,27 @@ if [[ ! -f "$REPORT" ]]; then
 	exit 1
 fi
 
-BASELINE=$(jq -r '.baseline' "$REPORT")
-CURRENT=$(jq -r '.current_total' "$REPORT")
-
-if [[ "$BASELINE" == "true" ]]; then
-	TEXT=":bar_chart: *Coverage Report: terragrunt ${TAG_NAME}*\n\nBaseline established: ${CURRENT}%\n\n<${RUN_URL}|View workflow run>"
-else
-	PREVIOUS=$(jq -r '.previous_total' "$REPORT")
-	DELTA=$(jq -r '.total_delta' "$REPORT")
-	DROPS=$(jq -r '.top_drops[:5] | map("  \(.package): \(.previous)% → \(.current)% (\(.delta)%)") | join("\n")' "$REPORT")
-	GAINS=$(jq -r '.top_gains[:3] | map("  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)") | join("\n")' "$REPORT")
-
-	TEXT=":bar_chart: *Coverage Report: terragrunt ${TAG_NAME}*\n\nTotal: ${CURRENT}% (was ${PREVIOUS}%, delta: ${DELTA}%)"
-	if [[ -n "$DROPS" ]]; then
-		TEXT="${TEXT}\n\nTop drops:\n${DROPS}"
-	fi
-	if [[ -n "$GAINS" ]]; then
-		TEXT="${TEXT}\n\nTop gains:\n${GAINS}"
-	fi
-	TEXT="${TEXT}\n\n<${RUN_URL}|View workflow run>"
-fi
-
-PAYLOAD=$(jq -n --arg text "$TEXT" '{text: $text}')
+# Build payload entirely in jq to avoid shell interpolation of untrusted values
+PAYLOAD=$(jq -n \
+	--arg tag "$TAG_NAME" \
+	--arg run_url "$RUN_URL" \
+	--slurpfile report "$REPORT" '
+	$report[0] as $r |
+	if $r.baseline then
+		":bar_chart: *Coverage Report: terragrunt \($tag)*\n\nBaseline established: \($r.current_total)%\n\n<\($run_url)|View workflow run>"
+	else
+		([$r.top_drops[:5][] | "  \(.package): \(.previous)% → \(.current)% (\(.delta)%)"] | join("\n")) as $drops |
+		([$r.top_gains[:3][] | "  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)"] | join("\n")) as $gains |
+		":bar_chart: *Coverage Report: terragrunt \($tag)*\n\nTotal: \($r.current_total)% (was \($r.previous_total)%, delta: \($r.total_delta)%)" +
+		(if ($drops | length) > 0 then "\n\nTop drops:\n\($drops)" else "" end) +
+		(if ($gains | length) > 0 then "\n\nTop gains:\n\($gains)" else "" end) +
+		"\n\n<\($run_url)|View workflow run>"
+	end |
+	{text: .}')
 
 curl -sf -X POST \
 	-H "Content-Type: application/json" \
 	-d "$PAYLOAD" \
-	"$SLACK_WEBHOOK_URL"
+	"$COVERAGE_SLACK_WEBHOOK_URL"
 
 echo "Slack notification sent."

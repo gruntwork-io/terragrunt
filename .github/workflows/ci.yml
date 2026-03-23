@@ -89,6 +89,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+    secrets: inherit
 
   integration_tests:
     needs: [base_tests, build]
