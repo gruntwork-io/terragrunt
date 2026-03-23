@@ -20,7 +20,7 @@ require (
 	github.com/gofrs/flock v0.13.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
-	github.com/gruntwork-io/boilerplate v0.14.0
+	github.com/gruntwork-io/boilerplate v0.15.0
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
