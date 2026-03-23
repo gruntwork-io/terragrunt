@@ -240,7 +240,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	allFiles := append(result.GeneratedFiles, collectDependencyFiles(result.Dependencies)...)
+	allFiles := slices.Concat(result.GeneratedFiles, collectDependencyFiles(result.Dependencies))
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
 	l.Infof("Running fmt on generated code %s", outputDir)
