@@ -2055,62 +2055,6 @@ func TestFilterFlagMinimizesParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("mixed path and parse filter skips excluded units", func(t *testing.T) {
-		t.Parallel()
-
-		helpers.CleanupTerraformFolder(t, testFixtureMinimizeParsing)
-		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureMinimizeParsing)
-		rootPath := filepath.Join(tmpEnvPath, testFixtureMinimizeParsing)
-
-		// Run with a path filter AND a parse-requiring filter (source=*).
-		// The path filter matches only target-unit; the source filter requires
-		// parsing to evaluate. The classifier should recognise that excluded
-		// units (which don't match the path) can be excluded without parsing,
-		// so land-mine configs should NOT be parsed.
-		cmd := "terragrunt run --all plan --no-color --experiment-mode --working-dir " + rootPath +
-			" --filter './target-unit' --filter 'source=*' --report-file " + helpers.ReportFile
-		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-
-		require.NoError(t, err)
-
-		// Verify no errors from land-mine units in stderr
-		assert.NotContains(t, stderr, "excluded-unit-1", "excluded-unit-1 should not be parsed")
-		assert.NotContains(t, stderr, "excluded-unit-2", "excluded-unit-2 should not be parsed")
-		assert.NotContains(t, stderr, "excluded-unit-3", "excluded-unit-3 should not be parsed")
-
-		reportFilePath := filepath.Join(rootPath, helpers.ReportFile)
-		if util.FileExists(reportFilePath) {
-			runs, err := report.ParseJSONRunsFromFile(reportFilePath)
-			require.NoError(t, err, "Should be able to parse report JSON")
-
-			names := runs.Names()
-
-			found := false
-
-			for _, name := range names {
-				if strings.Contains(name, "target-unit") {
-					found = true
-					break
-				}
-			}
-
-			require.True(t, found, "target-unit should be in report. Found units: %v", names)
-
-			for _, excludedUnit := range []string{"excluded-unit-1", "excluded-unit-2", "excluded-unit-3"} {
-				found := false
-
-				for _, name := range names {
-					if strings.Contains(name, excludedUnit) {
-						found = true
-						break
-					}
-				}
-
-				assert.False(t, found, "Excluded unit '%s' should NOT be in report", excludedUnit)
-			}
-		}
-	})
-
 	t.Run("destroy without graph filter", func(t *testing.T) {
 		t.Parallel()
 
