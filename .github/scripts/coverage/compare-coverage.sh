@@ -7,6 +7,11 @@ PREVIOUS="${2:?Usage: compare-coverage.sh <current-summary.json> <previous-summa
 OUTPUT="${3:-comparison-report.json}"
 HTML_OUTPUT="${OUTPUT%.json}.html"
 
+if [[ ! -f "$CURRENT" ]]; then
+	echo "Error: current coverage file '$CURRENT' not found"
+	exit 1
+fi
+
 if [[ ! -f "$PREVIOUS" ]]; then
 	echo "No previous coverage data found — establishing baseline."
 	jq -n --argjson curr "$(cat "$CURRENT")" '{baseline: true, current_total: $curr.total_pct, previous_total: null, total_delta: null, top_drops: [], top_gains: []}' >"$OUTPUT"

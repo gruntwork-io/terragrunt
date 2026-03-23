@@ -65,7 +65,9 @@ jobs:
       - name: Run Tests with Coverage
         run: |
           set -o pipefail
-          go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m || true
+          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+            echo "::warning::Some tests failed — coverage data may be incomplete"
+          fi
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
