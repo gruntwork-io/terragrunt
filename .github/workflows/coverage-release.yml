@@ -82,7 +82,8 @@ jobs:
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
         run: |
           mkdir -p previous
-          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -L 50 --json tagName -q "[.[] | select(.tagName != \"${TAG_NAME}\")][0].tagName")
+          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -L 50 --json tagName \
+            | jq -r --arg tag "${TAG_NAME}" '[.[].tagName] as $tags | ($tags | index($tag)) as $i | if $i == null or ($i + 1) >= ($tags | length) then empty else $tags[$i + 1] end')
           if [[ -n "$PREV_TAG" ]]; then
             echo "Previous release: $PREV_TAG"
             if gh release download "$PREV_TAG" -p "coverage-summary.json" -D previous/ 2>/dev/null; then
