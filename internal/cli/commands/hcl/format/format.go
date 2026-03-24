@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
@@ -154,9 +155,12 @@ func RunForFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	g.SetLimit(limit)
 
-	errs := make([]error, len(files))
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
 
-	for i, file := range files {
+	for _, file := range files {
 		if !strings.HasSuffix(file, ".hcl") {
 			continue
 		}
@@ -166,9 +170,11 @@ func RunForFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 
 		g.Go(func() error {
-			err := formatTgHCL(gctx, l, opts, file)
-			if err != nil {
-				errs[i] = err
+			if err := formatTgHCL(gctx, l, opts, file); err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+				mu.Unlock()
 			}
 
 			return nil

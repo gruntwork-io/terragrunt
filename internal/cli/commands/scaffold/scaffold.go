@@ -240,7 +240,17 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	allFiles := slices.Concat(result.GeneratedFiles, collectDependencyFiles(result.Dependencies))
+	depFiles, err := collectDependencyFiles(result.Dependencies, 0)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	allFiles := slices.Concat(result.GeneratedFiles, depFiles)
+
+	for i, f := range allFiles {
+		allFiles[i] = filepath.Clean(f)
+	}
+
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
 	l.Infof("Running fmt on generated code %s", outputDir)
@@ -632,9 +642,15 @@ type parsedURL struct {
 	path   string
 }
 
+const maxDependencyDepth = 100
+
 // collectDependencyFiles recursively collects file paths from all boilerplate
-// dependencies and their nested sub-dependencies.
-func collectDependencyFiles(deps []manifest.ManifestDependency) []string {
+// dependencies and their nested sub-dependencies up to maxDependencyDepth.
+func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]string, error) {
+	if depth >= maxDependencyDepth {
+		return nil, errors.New(MaxDependencyDepthExceededError{})
+	}
+
 	var files []string
 
 	for i := range deps {
@@ -642,10 +658,22 @@ func collectDependencyFiles(deps []manifest.ManifestDependency) []string {
 			files = append(files, f.Path)
 		}
 
-		files = append(files, collectDependencyFiles(deps[i].Dependencies)...)
+		subFiles, err := collectDependencyFiles(deps[i].Dependencies, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, subFiles...)
 	}
 
-	return files
+	return files, nil
+}
+
+type MaxDependencyDepthExceededError struct {
+}
+
+func (err MaxDependencyDepthExceededError) Error() string {
+	return fmt.Sprintf("dependency depth limit of %d exceeded, possible circular dependencies", maxDependencyDepth)
 }
 
 type failedToParseURLError struct {
