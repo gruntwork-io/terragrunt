@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
@@ -20,7 +21,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
-	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
+	"github.com/gruntwork-io/boilerplate/manifest"
+	boilerplateoptions "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -113,12 +115,12 @@ func NewBoilerplateOptions(
 	outputFolder string,
 	vars map[string]any,
 	terragruntOpts *options.TerragruntOptions,
-) *boilerplate_options.BoilerplateOptions {
-	return &boilerplate_options.BoilerplateOptions{
+) *boilerplateoptions.BoilerplateOptions {
+	return &boilerplateoptions.BoilerplateOptions{
 		TemplateFolder:          templateFolder,
 		OutputFolder:            outputFolder,
-		OnMissingKey:            boilerplate_options.DefaultMissingKeyAction,
-		OnMissingConfig:         boilerplate_options.DefaultMissingConfigAction,
+		OnMissingKey:            boilerplateoptions.DefaultMissingKeyAction,
+		OnMissingConfig:         boilerplateoptions.DefaultMissingConfigAction,
 		Vars:                    vars,
 		ShellCommandAnswers:     map[string]bool{},
 		NoShell:                 terragruntOpts.NoShell,
@@ -231,14 +233,29 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	l.Infof("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
-	emptyDep := variables.Dependency{}
-	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
+	emptyDep := &variables.Dependency{}
+
+	result, err := templates.ProcessTemplateWithContext(ctx, boilerplateOpts, boilerplateOpts, emptyDep)
+	if err != nil {
 		return errors.New(err)
 	}
 
+	depFiles, err := collectDependencyFiles(result.Dependencies, 0)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	allFiles := slices.Concat(result.GeneratedFiles, depFiles)
+
+	for i, f := range allFiles {
+		allFiles[i] = filepath.Clean(f)
+	}
+
+	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
+
 	l.Infof("Running fmt on generated code %s", outputDir)
 
-	if err := format.Run(ctx, l, opts); err != nil {
+	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
 		return errors.New(err)
 	}
 
@@ -623,6 +640,40 @@ type parsedURL struct {
 	scheme string
 	host   string
 	path   string
+}
+
+const maxDependencyDepth = 100
+
+// collectDependencyFiles recursively collects file paths from all boilerplate
+// dependencies and their nested sub-dependencies up to maxDependencyDepth.
+func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]string, error) {
+	if depth >= maxDependencyDepth {
+		return nil, errors.New(MaxDependencyDepthExceededError{})
+	}
+
+	var files []string
+
+	for i := range deps {
+		for _, f := range deps[i].Files {
+			files = append(files, f.Path)
+		}
+
+		subFiles, err := collectDependencyFiles(deps[i].Dependencies, depth+1)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, subFiles...)
+	}
+
+	return files, nil
+}
+
+type MaxDependencyDepthExceededError struct {
+}
+
+func (err MaxDependencyDepthExceededError) Error() string {
+	return fmt.Sprintf("dependency depth limit of %d exceeded, possible circular dependencies", maxDependencyDepth)
 }
 
 type failedToParseURLError struct {
