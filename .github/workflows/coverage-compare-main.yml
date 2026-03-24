@@ -30,19 +30,14 @@ jobs:
         run: |
           OUTPUT=$(./.github/scripts/coverage/download-previous.sh previous)
           echo "$OUTPUT"
-          # Extract has_previous from script output
-          if echo "$OUTPUT" | grep -q "has_previous=true"; then
-            echo "has_previous=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_previous=false" >> "$GITHUB_OUTPUT"
-          fi
+          grep -q "has_previous=true" <<<"$OUTPUT" && echo "has_previous=true" >> "$GITHUB_OUTPUT" || echo "has_previous=false" >> "$GITHUB_OUTPUT"
 
       - name: Compare Coverage
+        env:
+          HAS_PREVIOUS: ${{ steps.prev.outputs.has_previous }}
         run: |
           PREV_FILE="previous/coverage-summary.json"
-          if [[ "${{ steps.prev.outputs.has_previous }}" != "true" ]]; then
-            PREV_FILE="nonexistent"
-          fi
+          [[ "$HAS_PREVIOUS" != "true" ]] && PREV_FILE="nonexistent"
           ./.github/scripts/coverage/compare-coverage.sh current/coverage-summary.json "$PREV_FILE" comparison-report.json
 
       - name: Write Summary

@@ -13,8 +13,8 @@ if [[ ! -f "$REPORT" ]]; then
 fi
 
 # Sanitize user inputs for markdown injection
-BASE_REF=$(echo "$BASE_REF" | tr -d '<>|`\n\r')
-HEAD_REF=$(echo "$HEAD_REF" | tr -d '<>|`\n\r')
+BASE_REF=$(tr -d '<>|`\n\r' <<<"$BASE_REF")
+HEAD_REF=$(tr -d '<>|`\n\r' <<<"$HEAD_REF")
 
 CURR=$(jq -r '.current_total' "$REPORT")
 PREV=$(jq -r '.previous_total' "$REPORT")

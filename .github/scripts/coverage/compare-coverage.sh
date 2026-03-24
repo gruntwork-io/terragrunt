@@ -45,8 +45,8 @@ PACKAGE_COMPARISON=$(jq -n \
 		}
 	)')
 
-TOP_DROPS=$(echo "$PACKAGE_COMPARISON" | jq '[map(select(.delta != null and .delta < 0)) | sort_by(.delta) | .[:10] | .[]]')
-TOP_GAINS=$(echo "$PACKAGE_COMPARISON" | jq '[map(select(.delta != null and .delta > 0)) | sort_by(-.delta) | .[:5] | .[]]')
+TOP_DROPS=$(jq '[map(select(.delta != null and .delta < 0)) | sort_by(.delta) | .[:10] | .[]]' <<<"$PACKAGE_COMPARISON")
+TOP_GAINS=$(jq '[map(select(.delta != null and .delta > 0)) | sort_by(-.delta) | .[:5] | .[]]' <<<"$PACKAGE_COMPARISON")
 
 jq -n \
 	--argjson curr_total "$CURR_TOTAL" \
@@ -94,14 +94,14 @@ jq -n \
 	printf '<tr class="total"><td>TOTAL</td><td>%.1f%%</td><td>%.1f%%</td><td>%+.1f%%</td></tr>\n' "$PREV_TOTAL" "$CURR_TOTAL" "$TOTAL_DELTA"
 
 	# All packages sorted by name
-	echo "$PACKAGE_COMPARISON" | jq -r 'sort_by(.package) | .[] |
+	jq -r 'sort_by(.package) | .[] |
 		if .previous == null then
 			"<tr class=\"new\"><td>\(.package)</td><td>—</td><td>\(.current)%</td><td>new</td></tr>"
 		elif .current == null then
 			"<tr class=\"removed\"><td>\(.package)</td><td>\(.previous)%</td><td>—</td><td>removed</td></tr>"
 		else
 			"<tr><td>\(.package)</td><td>\(.previous)%</td><td>\(.current)%</td><td>\(.delta)%</td></tr>"
-		end'
+		end' <<<"$PACKAGE_COMPARISON"
 
 	cat <<-FOOTER
 	</table>
@@ -114,15 +114,15 @@ echo "=== Coverage Comparison ==="
 printf "Total: %.1f%% (was %.1f%%, delta: %+.1f%%)\n" "$CURR_TOTAL" "$PREV_TOTAL" "$TOTAL_DELTA"
 echo ""
 
-if [[ $(echo "$TOP_DROPS" | jq 'length') -gt 0 ]]; then
+if [[ $(jq 'length' <<<"$TOP_DROPS") -gt 0 ]]; then
 	echo "Top drops:"
-	echo "$TOP_DROPS" | jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (\(.delta)%)"'
+	jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (\(.delta)%)"' <<<"$TOP_DROPS"
 	echo ""
 fi
 
-if [[ $(echo "$TOP_GAINS" | jq 'length') -gt 0 ]]; then
+if [[ $(jq 'length' <<<"$TOP_GAINS") -gt 0 ]]; then
 	echo "Top gains:"
-	echo "$TOP_GAINS" | jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)"'
+	jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)"' <<<"$TOP_GAINS"
 	echo ""
 fi
 
