@@ -4,18 +4,21 @@ package worktrees
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -563,7 +566,9 @@ func createGitWorktrees(
 
 		// Wrap individual worktree creation with telemetry including repo info
 		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+			return util.NotifyIfSlow(ctx, l, time.Second, fmt.Sprintf("Creating Git worktree for reference %s, this may take a moment...", ref), func() error {
+				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+			})
 		})
 		if err != nil {
 			if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
