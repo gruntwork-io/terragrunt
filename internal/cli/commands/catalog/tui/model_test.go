@@ -192,7 +192,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
-	// Press Enter to select the first module (assuming it's pre-selected)
+	// Press Enter to select the first module (assuming it's preselected)
 	tm.Send(tea.KeyMsg{
 		Type: tea.KeyEnter,
 	})
