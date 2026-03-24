@@ -108,38 +108,10 @@ jobs:
 
       - name: Write Summary
         if: always()
-        run: |
-          if [[ -f comparison-report.json ]]; then
-            BASELINE=$(jq -r '.baseline' comparison-report.json)
-            if [[ "$BASELINE" == "true" ]]; then
-              echo "## Coverage Baseline Established" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "Total: $(jq -r '.current_total' comparison-report.json)%" >> "$GITHUB_STEP_SUMMARY"
-            else
-              CURR=$(jq -r '.current_total' comparison-report.json)
-              PREV=$(jq -r '.previous_total' comparison-report.json)
-              DELTA=$(jq -r '.total_delta' comparison-report.json)
-              echo "## :bar_chart: Coverage Report" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
-              echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Current | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Previous | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-
-              DROPS=$(jq -r '.top_drops[:5][] | "| \(.package) | \(.previous)% | \(.current)% | \(.delta)% |"' comparison-report.json 2>/dev/null || true)
-              if [[ -n "$DROPS" ]]; then
-                echo "### Top Drops" >> "$GITHUB_STEP_SUMMARY"
-                echo "| Package | Previous | Current | Delta |" >> "$GITHUB_STEP_SUMMARY"
-                echo "|---------|----------|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
-                echo "$DROPS" >> "$GITHUB_STEP_SUMMARY"
-              fi
-            fi
-          fi
+        run: ./.github/scripts/coverage/write-summary.sh comparison-report.json
 
       - name: Notify Slack
-        if: always() && hashFiles('comparison-report.json') != ''
+        if: always() && hashFiles('comparison-report.json') != '' && env.COVERAGE_SLACK_WEBHOOK_URL != ''
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}

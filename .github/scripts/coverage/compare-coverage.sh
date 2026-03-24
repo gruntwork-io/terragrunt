@@ -20,7 +20,7 @@ fi
 
 CURR_TOTAL=$(jq -r '.total_pct' "$CURRENT")
 PREV_TOTAL=$(jq -r '.total_pct' "$PREVIOUS")
-TOTAL_DELTA=$(echo "$CURR_TOTAL - $PREV_TOTAL" | bc -l)
+TOTAL_DELTA=$(bc -l <<<"$CURR_TOTAL - $PREV_TOTAL")
 
 CURR_REF=$(jq -r '.ref // "head"' "$CURRENT")
 PREV_REF=$(jq -r '.ref // "base"' "$PREVIOUS")
