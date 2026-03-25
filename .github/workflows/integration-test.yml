@@ -155,12 +155,9 @@ jobs:
           sudo docker builder prune -a
           df -h
 
-      - name: "Mount tmpfs"
+      - name: Mount tmpfs / RAM disk
         shell: bash
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        run: ./.github/scripts/setup/mount-tmpfs.sh --go-build-only
 
       # install dependencies for the integration tests
       - name: Use mise to install dependencies

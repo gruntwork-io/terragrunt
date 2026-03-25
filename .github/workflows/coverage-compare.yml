@@ -24,26 +24,20 @@ jobs:
       MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Mount tmpfs
-        shell: bash
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.base_ref }}
-          fetch-depth: 1
-
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
           fetch-depth: 1
 
       - name: Use mise to install dependencies
@@ -100,26 +94,20 @@ jobs:
       MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Mount tmpfs
-        shell: bash
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.head_ref }}
-          fetch-depth: 1
-
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
           fetch-depth: 1
 
       - name: Use mise to install dependencies
@@ -177,7 +165,7 @@ jobs:
       - name: Checkout (scripts only)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          sparse-checkout: .github/scripts/coverage
+          sparse-checkout: .github/scripts
           fetch-depth: 1
 
       - name: Download Base Coverage

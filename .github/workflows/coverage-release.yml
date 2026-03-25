@@ -19,14 +19,15 @@ jobs:
       GOGC: "400"
 
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Mount tmpfs
-        shell: bash
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
