@@ -11,6 +11,16 @@ if [[ ! -f "$REPORT" ]]; then
 fi
 
 BASELINE=$(jq -r '.baseline' "$REPORT")
+SIGNIFICANT=$(jq -r '.significant_change // true' "$REPORT")
+
+# In significant-only mode, show a one-liner for insignificant changes
+if [[ "${REPORT_MODE:-}" == "significant-only" && "$SIGNIFICANT" == "false" && "$BASELINE" != "true" ]]; then
+	CURR=$(jq -r '.current_total' "$REPORT")
+	DELTA=$(jq -r '.total_delta' "$REPORT")
+	THRESHOLD=$(jq -r '.coverage_threshold // "n/a"' "$REPORT")
+	echo "## :bar_chart: Coverage: ${CURR}% (delta: ${DELTA}%, below ${THRESHOLD}% threshold)" >>"$SUMMARY_FILE"
+	exit 0
+fi
 
 if [[ "$BASELINE" == "true" ]]; then
 	{

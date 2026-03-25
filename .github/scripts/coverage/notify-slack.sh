@@ -14,6 +14,17 @@ if [[ ! -f "$REPORT" ]]; then
 	exit 1
 fi
 
+# In significant-only mode, skip notification for insignificant changes
+if [[ "${REPORT_MODE:-}" == "significant-only" ]]; then
+	SIGNIFICANT=$(jq -r '.significant_change // true' "$REPORT")
+	if [[ "$SIGNIFICANT" == "false" ]]; then
+		DELTA=$(jq -r '.total_delta // 0' "$REPORT")
+		THRESHOLD=$(jq -r '.coverage_threshold // "n/a"' "$REPORT")
+		echo "Skipping Slack notification: delta ${DELTA}% below ${THRESHOLD}% threshold."
+		exit 0
+	fi
+fi
+
 # Build payload entirely in jq to avoid shell interpolation of untrusted values
 PAYLOAD=$(jq -n \
 	--arg tag "$TAG_NAME" \

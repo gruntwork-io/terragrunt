@@ -42,6 +42,8 @@ jobs:
 
       - name: Write Summary
         if: always()
+        env:
+          REPORT_MODE: significant-only
         run: ./.github/scripts/coverage/write-summary.sh comparison-report.json
 
       - name: Upload comparison-report.json
@@ -66,4 +68,5 @@ jobs:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: ${{ github.ref_name }}@${{ github.sha }}
           REPO: ${{ github.repository }}
+          REPORT_MODE: significant-only
         run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json

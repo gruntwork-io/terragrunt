@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=coverage.conf
+source "$SCRIPT_DIR/coverage.conf"
+
 CURRENT="${1:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
 PREVIOUS="${2:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
 OUTPUT="${3:-comparison-report.json}"
@@ -52,6 +56,7 @@ jq -n \
 	--argjson curr_total "$CURR_TOTAL" \
 	--argjson prev_total "$PREV_TOTAL" \
 	--argjson total_delta "$TOTAL_DELTA" \
+	--argjson threshold "${COVERAGE_CHANGE_THRESHOLD}" \
 	--argjson top_drops "$TOP_DROPS" \
 	--argjson top_gains "$TOP_GAINS" \
 	'{
@@ -59,6 +64,8 @@ jq -n \
 		current_total: $curr_total,
 		previous_total: $prev_total,
 		total_delta: ($total_delta * 10 | round / 10),
+		coverage_threshold: $threshold,
+		significant_change: ((($total_delta * 10 | round / 10) | fabs) >= $threshold),
 		top_drops: $top_drops,
 		top_gains: $top_gains
 	}' >"$OUTPUT"
