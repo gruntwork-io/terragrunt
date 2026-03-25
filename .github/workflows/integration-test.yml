@@ -157,6 +157,7 @@ jobs:
 
       - name: Mount tmpfs / RAM disk
         shell: bash
+        if: runner.os != 'Windows'
         run: ./.github/scripts/setup/mount-tmpfs.sh --go-build-only
 
       # install dependencies for the integration tests

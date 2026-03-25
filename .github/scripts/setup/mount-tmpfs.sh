@@ -40,6 +40,9 @@ Linux)
 	done
 	;;
 Darwin)
+	if [[ ${#EXTRAS[@]} -gt 0 ]]; then
+		echo "Warning: EXTRA_PATH:SIZE not supported on macOS, ignoring: ${EXTRAS[*]}" >&2
+	fi
 	RAMDISK=$(hdiutil attach -nomount ram://8388608 | tr -d '[:space:]') || {
 		echo "Failed to create RAM disk"
 		exit 1
