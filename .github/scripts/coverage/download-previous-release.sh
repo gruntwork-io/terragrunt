@@ -7,8 +7,23 @@ OUTPUT_DIR="${1:-previous}"
 
 mkdir -p "$OUTPUT_DIR"
 
-PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -L 50 --json tagName \
-	| jq -r --arg tag "${TAG_NAME}" '[.[].tagName] as $tags | ($tags | index($tag)) as $i | if $i == null or ($i + 1) >= ($tags | length) then empty else $tags[$i + 1] end')
+# Paginate all releases to ensure TAG_NAME is in the list
+ALL_TAGS=$(gh api --paginate "repos/{owner}/{repo}/releases" \
+	--jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name]' \
+	| jq -s 'add // []')
+
+PREV_TAG=$(jq -r --arg tag "$TAG_NAME" '
+	index($tag) as $i |
+	if $i == null then "TAG_NOT_FOUND"
+	elif ($i + 1) >= length then empty
+	else .[$i + 1]
+	end' <<<"$ALL_TAGS")
+
+if [[ "$PREV_TAG" == "TAG_NOT_FOUND" ]]; then
+	echo "Warning: TAG_NAME '${TAG_NAME}' not found in release list"
+	echo "has_previous=false"
+	exit 0
+fi
 
 if [[ -n "$PREV_TAG" ]]; then
 	echo "Previous release: $PREV_TAG"
