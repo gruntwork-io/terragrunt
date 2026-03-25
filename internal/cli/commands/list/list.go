@@ -710,10 +710,10 @@ func renderDot(opts *Options, components ListedComponents) error {
 			style = "[color=red]"
 		}
 
-		buf.WriteString(fmt.Sprintf("\t\"%s\" %s;\n", component.Path, style))
+		fmt.Fprintf(&buf, "\t\"%s\" %s;\n", component.Path, style)
 
 		for _, dep := range component.Dependencies {
-			buf.WriteString(fmt.Sprintf("\t\"%s\" -> \"%s\";\n", component.Path, dep.Path))
+			fmt.Fprintf(&buf, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)
 		}
 	}
 

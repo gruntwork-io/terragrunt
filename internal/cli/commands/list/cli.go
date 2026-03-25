@@ -4,6 +4,7 @@ package list
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -125,7 +126,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 		}),
 	}
 
-	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
+	return slices.Concat(flags, shared.NewFilterFlags(l, opts.TerragruntOptions))
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {

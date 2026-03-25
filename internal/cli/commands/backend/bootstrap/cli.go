@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
@@ -15,14 +16,14 @@ const CommandName = "bootstrap"
 func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	prefix := flags.Prefix{flags.TgPrefix}
 
-	sharedFlags := clihelper.Flags{
-		shared.NewConfigFlag(opts, prefix, CommandName),
-		shared.NewDownloadDirFlag(opts, prefix, CommandName),
-	}
-	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)
-	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, prefix)...)
-
-	return sharedFlags
+	return slices.Concat(
+		clihelper.Flags{
+			shared.NewConfigFlag(opts, prefix, CommandName),
+			shared.NewDownloadDirFlag(opts, prefix, CommandName),
+		},
+		shared.NewBackendFlags(opts, prefix),
+		shared.NewFeatureFlags(opts, prefix),
+	)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {
