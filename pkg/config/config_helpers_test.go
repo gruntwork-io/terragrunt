@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1089,9 +1090,9 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	require.NoError(t, err)
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
-	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("2"), localsMap["x"].(json.Number))
 	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
-	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), localsMap["number_expression"].(json.Number))
 }
 
 func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
