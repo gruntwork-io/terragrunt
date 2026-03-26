@@ -842,7 +842,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}{
 		{
 			input:    "abs(-1)",
-			expected: 1.,
+			expected: json.Number("1"),
 		},
 		{
 			input:    `element(["one", "two", "three"], 1)`,
@@ -870,7 +870,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			input:    `zipmap(["one", "two", "three"], [1, 2, 3])`,
-			expected: map[string]any{"one": 1., "two": 2., "three": 3.},
+			expected: map[string]any{"one": json.Number("1"), "two": json.Number("2"), "three": json.Number("3")},
 		},
 	}
 
