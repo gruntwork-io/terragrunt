@@ -13,7 +13,7 @@ The queue control flags are currently aliased to their equivalent `--filter` exp
 ## Overview
 
 | Legacy Flag | Status | Filter Equivalent |
-|---|---|---|
+| --- | --- | --- |
 | `--queue-include-dir=<path>` | Aliased to filter | `--filter='<path>'` |
 | `--queue-exclude-dir=<path>` | Aliased to filter | `--filter='!<path>'` |
 | `--queue-exclude-external` | Now default behavior | Not needed |
