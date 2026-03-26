@@ -39,6 +39,8 @@ const (
 	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
 	// directly from state files instead of using terraform/tofu output commands.
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
+	// SlowTaskReporting enables progress spinners and completion logs for long-running operations.
+	SlowTaskReporting = "slow-task-reporting"
 )
 
 const (
@@ -90,6 +92,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DependencyFetchOutputFromState,
+		},
+		{
+			Name: SlowTaskReporting,
 		},
 	}
 }

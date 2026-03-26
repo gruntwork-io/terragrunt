@@ -72,6 +72,7 @@ The following experiments are available:
 - [filter-flag](#filter-flag)
 - [iac-engine](#iac-engine)
 - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+- [slow-task-reporting](#slow-task-reporting)
 
 ### symlinks
 
@@ -256,6 +257,34 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Error handling and edge case testing
 - [ ] Documentation of supported backends and limitations
 - [ ] Community feedback on real-world usage
+
+### `slow-task-reporting`
+
+Progress reporting for long-running Terragrunt operations.
+
+#### `slow-task-reporting` - What it does
+
+When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
+
+This provides visual feedback during operations that would otherwise show no output, such as:
+
+- Git worktree creation for `--filter` with Git references
+- (Future) Other long-running operations like source downloads
+
+In non-interactive environments (CI/CD, piped output), spinners are suppressed and only INFO log lines are shown.
+
+#### `slow-task-reporting` - How to provide feedback
+
+Provide your feedback on the [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) page.
+
+#### `slow-task-reporting` - Criteria for stabilization
+
+To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
+
+- [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
+- [ ] Extend progress reporting to additional slow operations (source downloads, provider caching)
+- [ ] Community feedback on usefulness and threshold tuning
+- [ ] Ensure no interference with structured log output when using `--log-format json`
 
 ## Completed Experiments
 

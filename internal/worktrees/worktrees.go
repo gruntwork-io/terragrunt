@@ -16,6 +16,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -324,6 +325,7 @@ func NewWorktrees(
 	l log.Logger,
 	workingDir string,
 	gitExpressions filter.GitExpressions,
+	experiments experiment.Experiments,
 ) (*Worktrees, error) {
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
@@ -367,7 +369,7 @@ func NewWorktrees(
 
 		if len(gitRefs) > 0 {
 			gitCmdGroup.Go(func() error {
-				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
+				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit, experiments)
 				if err != nil {
 					mu.Lock()
 
@@ -539,12 +541,13 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
+	experiments experiment.Experiments,
 ) (map[string]string, error) {
 	var errs []error
 
-	// Only show spinner when stderr is an interactive terminal.
+	// Only show spinner when the experiment is enabled and stderr is an interactive terminal.
 	var spinnerW io.Writer
-	if term.IsTerminal(int(os.Stderr.Fd())) {
+	if experiments.Evaluate(experiment.SlowTaskReporting) && term.IsTerminal(int(os.Stderr.Fd())) {
 		spinnerW = os.Stderr
 	}
 
@@ -574,12 +577,16 @@ func createGitWorktrees(
 
 		// Wrap individual worktree creation with telemetry including repo info
 		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-			return util.NotifyIfSlow(ctx, l, spinnerW, time.Second, util.SlowNotifyMsg{
-				Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
-				Done:    "Created Git worktree for reference " + ref,
-			}, func() error {
-				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
-			})
+			if experiments.Evaluate(experiment.SlowTaskReporting) {
+				return util.NotifyIfSlow(ctx, l, spinnerW, time.Second, util.SlowNotifyMsg{
+					Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
+					Done:    "Created Git worktree for reference " + ref,
+				}, func() error {
+					return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+				})
+			}
+
+			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 		})
 		if err != nil {
 			if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {

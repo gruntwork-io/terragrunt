@@ -42,7 +42,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters, opts.Experiments)
 	if worktreeErr != nil {
 		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
