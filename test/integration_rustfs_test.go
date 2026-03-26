@@ -47,7 +47,7 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 	rootTerragruntConfigPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteStateRustFS, "root.hcl")
 	helpers.CopyAndFillMapPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":  s3BucketName,
+		"__FILL_IN_BUCKET_NAME__": s3BucketName,
 		"__FILL_IN_S3_ENDPOINT__": rustfsAddr,
 	})
 
