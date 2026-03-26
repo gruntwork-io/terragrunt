@@ -1302,11 +1302,11 @@ func TestReadTFVarsFiles(t *testing.T) {
 	locals := tgConfigMap["locals"].(map[string]any)
 
 	assert.Equal(t, "string", locals["string_var"].(string))
-	assert.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), locals["number_var"].(json.Number))
 	assert.True(t, locals["bool_var"].(bool))
 	assert.Equal(t, []any{"hello", "world"}, locals["list_var"].([]any))
 
-	assert.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("24"), locals["json_number_var"].(json.Number))
 	assert.Equal(t, "another string", locals["json_string_var"].(string))
 	assert.False(t, locals["json_bool_var"].(bool))
 }
