@@ -3305,6 +3305,42 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	assert.Equal(t, "app3-bar", outputs["foo-app3"].Value)
 }
 
+// TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll verifies that
+// auth-provider-cmd credentials are available during discovery queue
+// construction (run --all). Without the fix in phase_parse.go, get_env()
+// in locals cannot see env vars injected by --auth-provider-cmd because
+// ObtainCredsForParsing is never called during the discovery parse phase.
+func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "env-in-locals")
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	helpers.RunTerragrunt(
+		t, fmt.Sprintf(
+			`terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s -- apply -auto-approve`,
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t, fmt.Sprintf(
+			"terragrunt run --non-interactive --working-dir %s --auth-provider-cmd %s -- output -json",
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
+}
+
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 

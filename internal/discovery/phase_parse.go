@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -232,6 +233,10 @@ func parseComponent(
 	parseOpts.SkipOutput = true
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
+
+	if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts); err != nil {
+		return err
+	}
 
 	ctx, parsingCtx := config.NewParsingContext(ctx, l, parseOpts)
 	parsingCtx = parsingCtx.WithDecodeList(
