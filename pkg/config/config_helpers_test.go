@@ -978,21 +978,21 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	inputsMap := tgConfigMap["inputs"].(map[string]any)
 
 	assert.Equal(t, "string", inputsMap["string"].(string))
-	assert.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), inputsMap["number"].(json.Number))
 	assert.True(t, inputsMap["bool"].(bool))
 	assert.Equal(t, []any{"a", "b", "c"}, inputsMap["list_string"].([]any))
-	assert.Equal(t, []any{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]any))
+	assert.Equal(t, []any{json.Number("1"), json.Number("2"), json.Number("3")}, inputsMap["list_number"].([]any))
 	assert.Equal(t, []any{true, false}, inputsMap["list_bool"].([]any))
 	assert.Equal(t, map[string]any{"foo": "bar"}, inputsMap["map_string"].(map[string]any))
-	assert.Equal(t, map[string]any{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]any))
+	assert.Equal(t, map[string]any{"foo": json.Number("42"), "bar": json.Number("12345")}, inputsMap["map_number"].(map[string]any))
 	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]any))
 
 	assert.Equal(
 		t,
 		map[string]any{
 			"str":  "string",
-			"num":  float64(42),
-			"list": []any{float64(1), float64(2), float64(3)},
+			"num":  json.Number("42"),
+			"list": []any{json.Number("1"), json.Number("2"), json.Number("3")},
 			"map":  map[string]any{"foo": "bar"},
 		},
 		inputsMap["object"].(map[string]any),
