@@ -230,6 +230,12 @@ By default, Terragrunt retrieves dependency outputs by running `tofu output` or 
 
 When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
 
+**Known Limitations:**
+
+:::caution
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file stored in S3 is encrypted before upload. Since this experiment reads the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+:::
+
 **Disabling the feature:**
 
 You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag, even when the experiment is enabled:
@@ -255,6 +261,7 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Performance benchmarking to validate speed improvements
 - [ ] Error handling and edge case testing
 - [ ] Documentation of supported backends and limitations
+- [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
 - [ ] Community feedback on real-world usage
 
 ## Completed Experiments
