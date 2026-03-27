@@ -20,20 +20,9 @@ const (
 	testFixtureOutputFromRemoteStateRustFS = "fixtures/output-from-remote-state-rustfs"
 )
 
-func setupRustFS(t *testing.T) string {
-	t.Helper()
-
-	_, addr := helpers.RunContainer(t, "rustfs/rustfs:latest", 9000,
-		testcontainers.WithCmd("/data"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("Starting:"),
-		),
-	)
-
-	return addr
-}
-
 func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
+	t.Skip("Skipping until integration in CI is resolved")
+
 	rustfsAddr := setupRustFS(t)
 
 	// RustFS default credentials
@@ -100,4 +89,17 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.Contains(t, stdout, "app3 output")
 	assert.NotContains(t, stderr, "terraform output -json")
 	assert.NotContains(t, stderr, "tofu output -json")
+}
+
+func setupRustFS(t *testing.T) string {
+	t.Helper()
+
+	_, addr := helpers.RunContainer(t, "rustfs/rustfs:latest", 9000,
+		testcontainers.WithCmd("/data"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("Starting:"),
+		),
+	)
+
+	return addr
 }
