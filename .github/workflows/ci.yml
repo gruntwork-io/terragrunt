@@ -83,6 +83,14 @@ jobs:
       contents: read
     secrets: inherit
 
+  coverage_compare:
+    needs: [base_tests]
+    uses: ./.github/workflows/coverage-compare-main.yml
+    permissions:
+      contents: read
+      actions: read
+    secrets: inherit
+
   integration_tests:
     needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
