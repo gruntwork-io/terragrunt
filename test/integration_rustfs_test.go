@@ -21,8 +21,6 @@ const (
 )
 
 func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
-	t.Skip("Skipping until integration in CI is resolved")
-
 	rustfsAddr := setupRustFS(t)
 
 	// RustFS default credentials
@@ -94,7 +92,7 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 func setupRustFS(t *testing.T) string {
 	t.Helper()
 
-	_, addr := helpers.RunContainer(t, "rustfs/rustfs:latest", 9000,
+	_, addr := helpers.RunContainer(t, "rustfs/rustfs:1.0.0-alpha.90@sha256:0725587f6fcca83c1898f321424327d6e6da5e01ea20382905dd258ed5af3be4", 9000,
 		testcontainers.WithCmd("/data"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("Starting:"),
