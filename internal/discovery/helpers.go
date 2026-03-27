@@ -245,6 +245,11 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			continue
 		}
 
+		if !config.IsValidConfigPath(dependency.ConfigPath) {
+			errs = append(errs, errors.New("dependency config path is not a valid known string"))
+			continue
+		}
+
 		depPath := dependency.ConfigPath.AsString()
 		if !filepath.IsAbs(depPath) {
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
