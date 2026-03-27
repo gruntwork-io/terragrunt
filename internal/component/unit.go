@@ -3,12 +3,9 @@ package component
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -18,26 +15,17 @@ const (
 
 // Unit represents a discovered Terragrunt unit configuration.
 type Unit struct {
-	cfg              *config.TerragruntConfig
-	discoveryContext *DiscoveryContext
-	path             string
-	configFile       string
-	reading          []string
-	dependencies     Components
-	dependents       Components
-	mu               sync.RWMutex
-	external         bool
-	excluded         bool
+	cfg        *config.TerragruntConfig
+	configFile string
+	baseComponent
+	excluded bool
 }
 
 // NewUnit creates a new Unit component with the given path.
 func NewUnit(path string) *Unit {
 	return &Unit{
-		path:             path,
-		configFile:       config.DefaultTerragruntConfigPath,
-		discoveryContext: &DiscoveryContext{},
-		dependencies:     make(Components, 0),
-		dependents:       make(Components, 0),
+		baseComponent: newBaseComponent(path),
+		configFile:    config.DefaultTerragruntConfigPath,
 	}
 }
 
@@ -88,26 +76,6 @@ func (u *Unit) Kind() Kind {
 	return UnitKind
 }
 
-// Path returns the path to the component.
-func (u *Unit) Path() string {
-	return u.path
-}
-
-// SetPath sets the path to the component.
-func (u *Unit) SetPath(path string) {
-	u.path = path
-}
-
-// External returns whether the component is external.
-func (u *Unit) External() bool {
-	return u.external
-}
-
-// SetExternal marks the component as external.
-func (u *Unit) SetExternal() {
-	u.external = true
-}
-
 // Excluded returns whether the unit was excluded during discovery/filtering.
 func (u *Unit) Excluded() bool {
 	return u.excluded
@@ -116,16 +84,6 @@ func (u *Unit) Excluded() bool {
 // SetExcluded marks the unit as excluded during discovery/filtering.
 func (u *Unit) SetExcluded(excluded bool) {
 	u.excluded = excluded
-}
-
-// Reading returns the list of files being read by this component.
-func (u *Unit) Reading() []string {
-	return u.reading
-}
-
-// SetReading sets the list of files being read by this component.
-func (u *Unit) SetReading(files ...string) {
-	u.reading = files
 }
 
 // Sources returns the list of sources for this component.
@@ -137,74 +95,13 @@ func (u *Unit) Sources() []string {
 	return []string{*u.cfg.Terraform.Source}
 }
 
-// DiscoveryContext returns the discovery context for this component.
-func (u *Unit) DiscoveryContext() *DiscoveryContext {
-	return u.discoveryContext
-}
-
-// SetDiscoveryContext sets the discovery context for this component.
-func (u *Unit) SetDiscoveryContext(ctx *DiscoveryContext) {
-	u.discoveryContext = ctx
-}
-
-// Origin returns the origin of the discovery context for this component.
-func (u *Unit) Origin() Origin {
-	if u.discoveryContext == nil {
-		return OriginUnknown
-	}
-
-	return u.discoveryContext.Origin()
-}
-
-// lock locks the Unit.
-func (u *Unit) lock() {
-	u.mu.Lock()
-}
-
-// unlock unlocks the Unit.
-func (u *Unit) unlock() {
-	u.mu.Unlock()
-}
-
-// rLock locks the Unit for reading.
-func (u *Unit) rLock() {
-	u.mu.RLock()
-}
-
-// rUnlock unlocks the Unit for reading.
-func (u *Unit) rUnlock() {
-	u.mu.RUnlock()
-}
-
 // AddDependency adds a dependency to the Unit and vice versa.
 //
 // Using this method ensure that the dependency graph is properly maintained,
 // making it easier to look up dependents and dependencies on a given component
 // without the entire graph available.
 func (u *Unit) AddDependency(dependency Component) {
-	u.ensureDependency(dependency)
-
-	dependency.ensureDependent(u)
-}
-
-// ensureDependency adds a dependency to a unit if it's not already present.
-func (u *Unit) ensureDependency(dependency Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependencies, dependency) {
-		u.dependencies = append(u.dependencies, dependency)
-	}
-}
-
-// ensureDependent adds a dependent to a unit if it's not already present.
-func (u *Unit) ensureDependent(dependent Component) {
-	u.lock()
-	defer u.unlock()
-
-	if !slices.Contains(u.dependents, dependent) {
-		u.dependents = append(u.dependents, dependent)
-	}
+	u.baseComponent.addDependency(u, dependency)
 }
 
 // AddDependent adds a dependent to the Unit and vice versa.
@@ -213,36 +110,17 @@ func (u *Unit) ensureDependent(dependent Component) {
 // making it easier to look up dependents and dependencies on a given component
 // without the entire graph available.
 func (u *Unit) AddDependent(dependent Component) {
-	u.ensureDependent(dependent)
-
-	dependent.ensureDependency(u)
-}
-
-// Dependencies returns the dependencies of the Unit.
-func (u *Unit) Dependencies() Components {
-	u.rLock()
-	defer u.rUnlock()
-
-	return u.dependencies
-}
-
-// Dependents returns the dependents of the Unit.
-func (u *Unit) Dependents() Components {
-	u.rLock()
-	defer u.rUnlock()
-
-	return u.dependents
+	u.baseComponent.addDependent(u, dependent)
 }
 
 // String renders this unit as a human-readable string for debugging.
 //
 // Example output:
 //
-//	Unit /path/to/unit (excluded: false, assume applied: false, dependencies: [/dep1, /dep2])
+//	Unit /path/to/unit (excluded: false, dependencies: [/dep1, /dep2])
 func (u *Unit) String() string {
-	// Snapshot values under read lock to avoid data races
-	u.rLock()
-	defer u.rUnlock()
+	u.mu.RLock()
+	defer u.mu.RUnlock()
 
 	path := u.DisplayPath()
 	deps := make([]string, 0, len(u.dependencies))
@@ -255,35 +133,6 @@ func (u *Unit) String() string {
 		"Unit %s (excluded: %v, dependencies: [%s])",
 		path, u.excluded, strings.Join(deps, ", "),
 	)
-}
-
-// DisplayPath returns the path relative to DiscoveryContext.WorkingDir for display purposes.
-// Falls back to the original path if relative path calculation fails or WorkingDir is empty.
-func (u *Unit) DisplayPath() string {
-	if u.discoveryContext == nil || u.discoveryContext.WorkingDir == "" {
-		return u.path
-	}
-
-	if rel, err := filepath.Rel(u.discoveryContext.WorkingDir, u.path); err == nil {
-		return rel
-	}
-
-	return u.path
-}
-
-// FindInPaths returns true if the unit is located in one of the target directories.
-// Paths are normalized before comparison to handle absolute/relative path mismatches.
-func (u *Unit) FindInPaths(targetDirs []string) bool {
-	cleanUnitPath := filepath.Clean(u.path)
-
-	for _, dir := range targetDirs {
-		cleanDir := filepath.Clean(dir)
-		if util.HasPathPrefix(cleanUnitPath, cleanDir) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // PlanFile returns plan file location if output folder is set.
