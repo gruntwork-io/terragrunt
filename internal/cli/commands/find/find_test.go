@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/find"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -533,6 +534,59 @@ locals {
 			tt.validate(t, string(output), tt.expectedPaths)
 		})
 	}
+}
+
+func TestRunWithGraphFilterAndDynamicDependencyConfigPath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	testDirs := []string{"A"}
+
+	for _, dir := range testDirs {
+		err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755)
+		require.NoError(t, err)
+	}
+
+	testFiles := map[string]string{
+		filepath.Join("A", "terragrunt.hcl"): `
+dependency "target" {
+  config_path = read_terragrunt_config("does-not-exist.hcl").locals.aws_region == "x" ? "../a" : "../b"
+}
+`,
+	}
+
+	for path, content := range testFiles {
+		err := os.WriteFile(filepath.Join(tmpDir, path), []byte(content), 0644)
+		require.NoError(t, err)
+	}
+
+	tgOpts := options.NewTerragruntOptions()
+	tgOpts.WorkingDir = tmpDir
+	tgOpts.RootWorkingDir = tmpDir
+
+	l := logger.CreateLogger()
+	l.Formatter().SetDisabledColors(true)
+
+	filters, err := filter.ParseFilterQueries(l, []string{"...A"})
+	require.NoError(t, err)
+
+	opts := find.NewOptions(tgOpts)
+	opts.Filters = filters
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	opts.Writers.Writer = w
+
+	err = find.Run(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	require.NoError(t, w.Close())
+
+	output, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.Equal(t, "A\n", string(output))
 }
 
 func TestColorizer(t *testing.T) {
