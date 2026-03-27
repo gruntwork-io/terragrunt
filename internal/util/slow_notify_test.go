@@ -67,7 +67,7 @@ func TestNotifyIfSlow_ErrorPropagation(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestNotifyIfSlow_ContextCancelled(t *testing.T) {
+func TestNotifyIfSlow_ContextCancelledBeforeTimeout(t *testing.T) {
 	t.Parallel()
 
 	buf := new(bytes.Buffer)
@@ -78,7 +78,7 @@ func TestNotifyIfSlow_ContextCancelled(t *testing.T) {
 
 	err := util.NotifyIfSlow(ctx, l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
 		Spinner: "working...",
-		Done:    "done",
+		Done:    "should not appear",
 	}, func() error {
 		time.Sleep(100 * time.Millisecond)
 		return nil
@@ -88,41 +88,32 @@ func TestNotifyIfSlow_ContextCancelled(t *testing.T) {
 	assert.Empty(t, buf.String())
 }
 
-func TestNotifyIfSlowV_ReturnsValue(t *testing.T) {
+func TestNotifyIfSlow_ContextCancelledAfterTimeout(t *testing.T) {
 	t.Parallel()
 
 	buf := new(bytes.Buffer)
+	spinnerBuf := new(bytes.Buffer)
 	l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
 
-	val, err := util.NotifyIfSlowV(context.Background(), l, nil, 100*time.Millisecond, util.SlowNotifyMsg{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err := util.NotifyIfSlow(ctx, l, spinnerBuf, 50*time.Millisecond, util.SlowNotifyMsg{
 		Spinner: "working...",
-		Done:    "done",
-	}, func() (string, error) {
-		return "result", nil
+		Done:    "should not appear",
+	}, func() error {
+		// Wait for spinner to start, then cancel context.
+		time.Sleep(150 * time.Millisecond)
+		cancel()
+		time.Sleep(50 * time.Millisecond)
+
+		return nil
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "result", val)
-	assert.Empty(t, buf.String())
-}
-
-func TestNotifyIfSlowV_SlowWithValue(t *testing.T) {
-	t.Parallel()
-
-	buf := new(bytes.Buffer)
-	l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(buf))
-
-	val, err := util.NotifyIfSlowV(context.Background(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
-		Spinner: "computing...",
-		Done:    "computed",
-	}, func() (int, error) {
-		time.Sleep(200 * time.Millisecond)
-		return 42, nil
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, 42, val)
-	assert.Contains(t, buf.String(), "computed")
+	// Spinner was shown.
+	assert.Contains(t, spinnerBuf.String(), "working...")
+	// Done message should NOT appear since context was cancelled.
+	assert.NotContains(t, buf.String(), "should not appear")
 }
 
 func TestNotifyIfSlow_SpinnerThenLog(t *testing.T) {

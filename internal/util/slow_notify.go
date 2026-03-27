@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"golang.org/x/term"
 )
 
 // spinnerFrames are braille dot characters used for the progress spinner.
@@ -15,8 +17,9 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 const spinnerInterval = 200 * time.Millisecond
 
-// spinnerLineOverhead is the number of extra characters the spinner line uses beyond the message itself
-// (carriage return prefix, spinner frame, space separator, trailing padding).
+// spinnerLineOverhead is the number of extra bytes the spinner line uses beyond the message itself
+// (braille character 3 bytes + space 1 byte). Since braille dots occupy a single terminal column,
+// this over-clears by a couple of columns, which is harmless.
 const spinnerLineOverhead = 4
 
 // SlowNotifyMsg holds the messages for NotifyIfSlow.
@@ -25,6 +28,16 @@ type SlowNotifyMsg struct {
 	Spinner string
 	// Done is logged as INFO when the operation completes (e.g. "Created Git worktree for ref main").
 	Done string
+}
+
+// SpinnerWriter returns os.Stderr if it is an interactive terminal, nil otherwise.
+// Use the returned writer as the spinnerW argument to NotifyIfSlow.
+func SpinnerWriter() io.Writer {
+	if term.IsTerminal(int(os.Stderr.Fd())) {
+		return os.Stderr
+	}
+
+	return nil
 }
 
 // NotifyIfSlow runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
@@ -44,24 +57,9 @@ func NotifyIfSlow(ctx context.Context, l log.Logger, spinnerW io.Writer, timeout
 	return err
 }
 
-// NotifyIfSlowV is the generic variant of NotifyIfSlow that returns a value alongside the error.
-func NotifyIfSlowV[T any](ctx context.Context, l log.Logger, spinnerW io.Writer, timeout time.Duration, msgs SlowNotifyMsg, fn func() (T, error)) (T, error) {
-	done := make(chan struct{})
-	showed := make(chan struct{})
-	start := time.Now()
-
-	go notifyLoop(ctx, l, spinnerW, timeout, msgs, start, done, showed)
-
-	val, err := fn()
-
-	close(done)
-	<-showed
-
-	return val, err
-}
-
 // notifyLoop waits for the timeout, then shows a spinner until done.
 // On completion it clears the spinner and logs the done message with elapsed time.
+// On context cancellation no completion message is logged.
 func notifyLoop(
 	ctx context.Context,
 	l log.Logger,
@@ -74,8 +72,11 @@ func notifyLoop(
 ) {
 	defer close(showed)
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	select {
-	case <-time.After(timeout):
+	case <-timer.C:
 	case <-done:
 		return
 	case <-ctx.Done():
@@ -88,10 +89,9 @@ func notifyLoop(
 
 		select {
 		case <-done:
+			logDone(l, msgs.Done, start)
 		case <-ctx.Done():
 		}
-
-		logDone(l, msgs.Done, start)
 
 		return
 	}

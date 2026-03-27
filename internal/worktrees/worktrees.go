@@ -5,7 +5,6 @@ package worktrees
 import (
 	"context"
 	"fmt"
-	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -24,7 +23,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
 )
 
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
@@ -545,11 +543,7 @@ func createGitWorktrees(
 ) (map[string]string, error) {
 	var errs []error
 
-	// Only show spinner when the experiment is enabled and stderr is an interactive terminal.
-	var spinnerW io.Writer
-	if experiments.Evaluate(experiment.SlowTaskReporting) && term.IsTerminal(int(os.Stderr.Fd())) {
-		spinnerW = os.Stderr
-	}
+	slowReporting := experiments.Evaluate(experiment.SlowTaskReporting)
 
 	refsToPaths := make(map[string]string, len(gitRefs))
 
@@ -577,8 +571,8 @@ func createGitWorktrees(
 
 		// Wrap individual worktree creation with telemetry including repo info
 		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-			if experiments.Evaluate(experiment.SlowTaskReporting) {
-				return util.NotifyIfSlow(ctx, l, spinnerW, time.Second, util.SlowNotifyMsg{
+			if slowReporting {
+				return util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
 					Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
 					Done:    "Created Git worktree for reference " + ref,
 				}, func() error {
