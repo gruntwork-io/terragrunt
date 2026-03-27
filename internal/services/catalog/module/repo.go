@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 
@@ -53,15 +54,17 @@ type Repo struct {
 
 	walkWithSymlinks bool
 	allowCAS         bool
+	slowReporting    bool
 }
 
-func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks bool, allowCAS bool, rootWorkingDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS, slowReporting bool, rootWorkingDir string) (*Repo, error) {
 	repo := &Repo{
 		logger:           l,
 		cloneURL:         cloneURL,
 		path:             path,
 		walkWithSymlinks: walkWithSymlinks,
 		allowCAS:         allowCAS,
+		slowReporting:    slowReporting,
 		rootWorkingDir:   rootWorkingDir,
 	}
 
@@ -305,11 +308,25 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 
 	sourceURL.RawQuery = q.Encode()
 
-	_, err = client.Get(ctx, &getter.Request{
-		Src:     sourceURL.String(),
-		Dst:     repo.path,
-		GetMode: getter.ModeDir,
-	})
+	cloneFunc := func() error {
+		_, err = client.Get(ctx, &getter.Request{
+			Src:     sourceURL.String(),
+			Dst:     repo.path,
+			GetMode: getter.ModeDir,
+		})
+
+		return err
+	}
+
+	if repo.slowReporting {
+		err = util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+			Spinner: "Cloning repository " + repo.cloneURL + "...",
+			Done:    "Cloned repository " + repo.cloneURL,
+		}, cloneFunc)
+	} else {
+		err = cloneFunc()
+	}
+
 	if err != nil {
 		return err
 	}
