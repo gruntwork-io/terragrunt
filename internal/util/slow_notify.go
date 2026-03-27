@@ -15,7 +15,7 @@ import (
 // spinnerFrames are braille dot characters used for the progress spinner.
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-const spinnerInterval = 200 * time.Millisecond
+const spinnerInterval = 100 * time.Millisecond
 
 // spinnerLineOverhead is the number of extra bytes the spinner line uses beyond the message itself
 // (braille character 3 bytes + space 1 byte). Since braille dots occupy a single terminal column,
