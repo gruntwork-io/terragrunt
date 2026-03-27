@@ -66,6 +66,8 @@ Next, you should be aware that there is no guarantee that OpenTofu/Terraform wil
 
 We are coordinating with the OpenTofu team to improve the performance of the `output` command, and we hope that this flag will be unnecessary for most users in the future.
 
+Additionally, this experiment is **not compatible with OpenTofu state encryption**. When client-side state encryption is enabled, the state file in S3 is encrypted before upload and cannot be parsed directly by Terragrunt, resulting in a hard failure. If you encounter JSON parsing errors when using this experiment, check whether you have OpenTofu state encryption enabled and disable the experiment with `--no-dependency-fetch-output-from-state` if so.
+
 See [#1549](https://github.com/opentofu/opentofu/issues/1549) for more details.
 
 ## Measuring Performance

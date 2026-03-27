@@ -5,7 +5,6 @@ import { cn } from "../../lib/utils";
 import { ExternalLink } from "lucide-react";
 
 export interface ButtonProps {
-  // TODO: Style secondary, ghost, outline, and link bvariants
   variant?: "primary" | "secondary" | "ghost" | "outline" | "destructive" | "link";
   size?: "default" | "sm" | "lg" | "full" | "icon";
   className?: string;

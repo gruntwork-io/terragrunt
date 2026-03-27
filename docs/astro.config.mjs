@@ -140,7 +140,6 @@ export default defineConfig({
       title: "Terragrunt",
       description: "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.",
       editLink: {
-        // TODO: update this once the docs live in `docs`.
         baseUrl:
           "https://github.com/gruntwork-io/terragrunt/edit/main/docs",
       },
