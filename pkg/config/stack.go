@@ -437,10 +437,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	evalParsingContext := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
 
 	config := &StackConfigFile{}
 	if decodeErr := file.Decode(config, evalParsingContext); decodeErr != nil {
@@ -449,6 +446,8 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 
 	localsParsed := map[string]any{}
 	if parser.Locals != nil {
+		var err error
+
 		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
 		if err != nil {
 			return nil, errors.New(err)
@@ -552,10 +551,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	evalParsingContext := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
 
 	values := map[string]cty.Value{}
 
