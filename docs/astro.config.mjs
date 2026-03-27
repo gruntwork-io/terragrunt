@@ -110,7 +110,12 @@ export const sidebar = [
   },
   {
     label: "Process",
-    autogenerate: { directory: "07-process", collapsed: true },
+    items: [
+      { label: "Terragrunt 1.0 Guarantees", slug: "process/1-0-guarantees" },
+      { label: "CLI Rules", slug: "process/cli-rules" },
+      { label: "Releases", slug: "process/releases" },
+      { label: "Changelog", link: "/process/changelog" },
+    ],
     collapsed: true,
   },
   {
