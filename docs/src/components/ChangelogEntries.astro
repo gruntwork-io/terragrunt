@@ -4,8 +4,14 @@ import CopyReleaseNotes from "./CopyReleaseNotes.astro";
 
 const entries = await getCollection("changelog");
 
-// Sort by version descending (semver-aware)
-entries.sort((a, b) => b.data.version.localeCompare(a.data.version, undefined, { numeric: true }));
+// Sort by version descending, with non-semver entries (e.g. "Unreleased") always first
+entries.sort((a, b) => {
+  const aIsVersion = a.data.version.startsWith("v");
+  const bIsVersion = b.data.version.startsWith("v");
+  if (!aIsVersion && bIsVersion) return -1;
+  if (aIsVersion && !bIsVersion) return 1;
+  return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
+});
 
 const siteUrl = Astro.site?.origin ?? "https://docs.terragrunt.com";
 
@@ -43,11 +49,13 @@ const rendered = await Promise.all(
     <h2 id={entry.data.version}>{entry.data.version}<a class="anchor-link" href={`#${entry.data.version}`}><span aria-hidden="true" class="anchor-icon"></span></a></h2>
     <hr />
     <Content />
-    <aside class="copy-section">
-      <p class="copy-heading">Copy to GitHub Releases</p>
-      <p class="copy-description">Copy these release notes with absolute URLs and heading levels adjusted for use in a <a href={`https://github.com/gruntwork-io/terragrunt/releases/new?tag=${entry.data.version}`}>GitHub Release</a>.</p>
-      <CopyReleaseNotes markdown={githubMarkdown} />
-    </aside>
+    {entry.data.version.startsWith("v") && (
+      <aside class="copy-section">
+        <p class="copy-heading">Copy to GitHub Releases</p>
+        <p class="copy-description">Copy these release notes with absolute URLs and heading levels adjusted for use in a <a href={`https://github.com/gruntwork-io/terragrunt/releases/new?tag=${entry.data.version}`}>GitHub Release</a>.</p>
+        <CopyReleaseNotes markdown={githubMarkdown} />
+      </aside>
+    )}
   </div>
 ))}
 

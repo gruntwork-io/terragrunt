@@ -8,8 +8,14 @@ export const prerender = true;
 
 const entries = await getCollection('changelog');
 
-// Sort by version descending
-entries.sort((a, b) => b.data.version.localeCompare(a.data.version, undefined, { numeric: true }));
+// Sort by version descending, with non-semver entries (e.g. "Unreleased") always first
+entries.sort((a, b) => {
+	const aIsVersion = a.data.version.startsWith("v");
+	const bIsVersion = b.data.version.startsWith("v");
+	if (!aIsVersion && bIsVersion) return -1;
+	if (aIsVersion && !bIsVersion) return 1;
+	return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
+});
 
 // Build TOC headings: version (H2) + categories (H3) for each entry
 const headings: { depth: number; slug: string; text: string }[] = [];
