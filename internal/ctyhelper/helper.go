@@ -4,6 +4,7 @@
 package ctyhelper
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/zclconf/go-cty/cty"
@@ -45,7 +46,11 @@ func ParseCtyValueToMap(value cty.Value) (map[string]any, error) {
 	}
 
 	var ctyJSONOutput CtyJSONOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
+
+	decoder := json.NewDecoder(bytes.NewReader(jsonBytes))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(&ctyJSONOutput); err != nil {
 		return nil, errors.New(err)
 	}
 
