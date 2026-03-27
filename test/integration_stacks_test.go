@@ -59,6 +59,7 @@ const (
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
+	testFixtureStackGenerateIfDisabled         = "fixtures/stacks/generate-if-disabled"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -1022,6 +1023,34 @@ func TestStackOutputWithDependency(t *testing.T) {
 	} else {
 		t.Errorf("Expected result[\"app-with-dependency\"] to be a map, but it was not.")
 	}
+}
+
+// TestStackGenerateIfDisabledRemove reproduces #5702:
+//
+//	terragrunt stack clean
+//	terragrunt stack run plan
+//	terragrunt stack run plan --filter 'second | type=unit'  # crashes
+//
+// With --filter only the second unit runs. Dependency resolution calls
+// "terraform output -json" on the first unit whose generate blocks with
+// if_disabled=remove were never processed, leaving conflicting
+// required_providers in alpha.tf and beta.tf → "Duplicate required
+// providers configuration".
+func TestStackGenerateIfDisabledRemove(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackGenerateIfDisabled)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackGenerateIfDisabled)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackGenerateIfDisabled, "live")
+
+	// Step 1: apply both units so state exists for dependency resolution
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks-generate-block --non-interactive --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	// Step 2: filtered plan on second unit only — triggers terraform output -json
+	// on first unit without running its GenerateConfig
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks-generate-block --non-interactive --filter 'second | type=unit' --working-dir "+rootPath)
+	require.NoError(t, err, "stack run plan --filter crashed: %s", stderr)
 }
 
 func TestStackApplyStrictInclude(t *testing.T) {

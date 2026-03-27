@@ -40,7 +40,7 @@ const (
 func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
-	flags := clihelper.Flags{
+	flagList := clihelper.Flags{ //nolint:prealloc
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -125,7 +125,7 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 		}),
 	}
 
-	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
+	return append(flagList, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {

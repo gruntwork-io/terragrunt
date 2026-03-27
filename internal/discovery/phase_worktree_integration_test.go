@@ -196,7 +196,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w)
 
-			filters := filter.Filters{}
+			filters := make(filter.Filters, 0, len(gitExpressions))
 
 			for _, gitExpr := range gitExpressions {
 				f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -477,7 +477,7 @@ unit "unit_to_be_untouched" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1472,7 +1472,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1633,7 +1633,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1788,7 +1788,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
