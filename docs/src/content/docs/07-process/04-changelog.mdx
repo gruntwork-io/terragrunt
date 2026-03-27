@@ -98,7 +98,7 @@ The dependency on `tflint` is now fully removed from Terragrunt. If you want to 
 
 To reduce the burden of this breaking change, Terragrunt will continue to provide conveniences like automatically running `tflint init` on behalf of users, although it no longer ships with a compiled version of `tflint` in the `terragrunt` binary.
 
-To learn more, read the [documentation on the integration with tflint](/features/hooks/#tflint-hook).
+To learn more, read the [documentation on the integration with tflint](/features/units/hooks/#tflint-hook).
 
 #### Discovery commands discover hidden configurations by default
 
@@ -110,7 +110,7 @@ The `--hidden` flag has been deprecated, and will not be removed in 1.0. Using t
 
 Prior to this release, the `render --format=json` command would automatically start to perform dependent discovery on other units related to the unit being rendered. Avoiding this required usage of the `--disable-dependent-modules` flag. That behavior has been removed. HCL and JSON rendering of unit configurations will now proceed without the additional overhead of dependent discovery by default.
 
-This functionality is better served by a combination of [`find`](/reference/cli/commands/find/) and [graph-based filters](/features/filter/#graph-based-expressions).
+This functionality is better served by a combination of [`find`](/reference/cli/commands/find/) and [graph-based filters](/features/filter/graph/).
 
 e.g. If you want to detect all the dependents of a given unit `foo`, expecting to find the dependent unit `bar` you can run the following:
 
