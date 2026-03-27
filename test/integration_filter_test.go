@@ -1281,7 +1281,7 @@ terraform {
 	assert.Contains(
 		t,
 		stderr,
-		"Unit unit-to-be-removed",
+		"unit-to-be-removed",
 		"unit-to-be-removed should be discovered and run",
 	)
 

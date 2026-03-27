@@ -73,7 +73,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				assert.NotContainsf(t, output, "── "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}
@@ -130,7 +130,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 				relPath, err := filepath.Rel(tmpEnvPath, modulePath)
 				require.NoError(t, err)
 
-				assert.NotContainsf(t, output, "Unit "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
+				assert.NotContainsf(t, output, "── "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}
