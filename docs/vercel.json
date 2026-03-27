@@ -38,6 +38,11 @@
       "source": "/contact-tgs/:slug*",
       "destination": "https://terragrunt.com/contact-tgs/:slug*",
       "permanent": true
+    },
+    {
+      "source": "/tgs-discord",
+      "destination": "https://discord.gg/SJgKFdcPns",
+      "permanent": false
     }
   ],
   "headers": [
