@@ -154,7 +154,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	l.Debugf("%s", rnr.GetStack().String())
 
 	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
-	if err := rnr.LogUnitDeployOrder(l, opts.TerraformCommand, isDestroy, opts.Writers.LogShowAbsPaths); err != nil {
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths); err != nil {
 		return err
 	}
 

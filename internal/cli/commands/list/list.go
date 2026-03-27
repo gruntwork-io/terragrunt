@@ -10,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -18,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
+	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mgutz/ansi"
 )
 
 // Run runs the list command.
@@ -132,36 +131,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 	}
 }
 
-type ListedComponents []*ListedComponent
+type ListedComponents = dag.ListedComponents
 
-type ListedComponent struct {
-	Type         component.Kind
-	Path         string
-	Dependencies []*ListedComponent
-	Excluded     bool
-}
-
-// Contains checks to see if the given path is in the listed components.
-func (l ListedComponents) Contains(path string) bool {
-	for _, c := range l {
-		if c.Path == path {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Get returns the component with the given path.
-func (l ListedComponents) Get(path string) *ListedComponent {
-	for _, c := range l {
-		if c.Path == path {
-			return c
-		}
-	}
-
-	return nil
-}
+type ListedComponent = dag.ListedComponent
 
 func discoveredToListed(components component.Components, opts *Options) (ListedComponents, error) {
 	listedComponents := make(ListedComponents, 0, len(components))
@@ -259,80 +231,9 @@ func discoveredToListed(components component.Components, opts *Options) (ListedC
 	return listedComponents, errors.Join(errs...)
 }
 
-// Colorizer is a colorizer for the discovered components.
-type Colorizer struct {
-	unitColorizer    func(string) string
-	stackColorizer   func(string) string
-	headingColorizer func(string) string
-	pathColorizer    func(string) string
-}
+type Colorizer = dag.Colorizer
 
-// NewColorizer creates a new Colorizer.
-func NewColorizer(shouldColor bool) *Colorizer {
-	if !shouldColor {
-		return &Colorizer{
-			unitColorizer:    func(s string) string { return s },
-			stackColorizer:   func(s string) string { return s },
-			headingColorizer: func(s string) string { return s },
-			pathColorizer:    func(s string) string { return s },
-		}
-	}
-
-	return &Colorizer{
-		unitColorizer:    ansi.ColorFunc("blue+bh"),
-		stackColorizer:   ansi.ColorFunc("green+bh"),
-		headingColorizer: ansi.ColorFunc("yellow+bh"),
-		pathColorizer:    ansi.ColorFunc("white+d"),
-	}
-}
-
-func (c *Colorizer) Colorize(listedComponent *ListedComponent) string {
-	path := listedComponent.Path
-
-	// Get the directory and base name using filepath
-	dir, base := filepath.Split(path)
-
-	if dir == "" {
-		// No directory part, color the whole path
-		switch listedComponent.Type {
-		case component.UnitKind:
-			return c.unitColorizer(path)
-		case component.StackKind:
-			return c.stackColorizer(path)
-		default:
-			return path
-		}
-	}
-
-	// Color the components differently
-	coloredPath := c.pathColorizer(dir)
-
-	switch listedComponent.Type {
-	case component.UnitKind:
-		return coloredPath + c.unitColorizer(base)
-	case component.StackKind:
-		return coloredPath + c.stackColorizer(base)
-	default:
-		return path
-	}
-}
-
-func (c *Colorizer) ColorizeType(t component.Kind) string {
-	switch t {
-	case component.UnitKind:
-		// This extra space is to keep unit and stack
-		// output equally spaced.
-		return c.unitColorizer("unit ")
-	case component.StackKind:
-		return c.stackColorizer("stack")
-	default:
-		return string(t)
-	}
-}
-
-func (c *Colorizer) ColorizeHeading(dep string) string {
-	return c.headingColorizer(dep)
-}
+var NewColorizer = dag.NewColorizer
 
 // outputText outputs the discovered components in text format.
 func outputText(l log.Logger, opts *Options, components ListedComponents) error {
@@ -451,36 +352,9 @@ func outputDot(_ log.Logger, opts *Options, components ListedComponents) error {
 	return renderDot(opts, components)
 }
 
-type TreeStyler struct {
-	entryStyle  lipgloss.Style
-	rootStyle   lipgloss.Style
-	colorizer   *Colorizer
-	shouldColor bool
-}
+type TreeStyler = dag.TreeStyler
 
-func NewTreeStyler(shouldColor bool) *TreeStyler {
-	colorizer := NewColorizer(shouldColor)
-
-	return &TreeStyler{
-		shouldColor: shouldColor,
-		entryStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("240")).MarginRight(1),
-		rootStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("35")),
-		colorizer:   colorizer,
-	}
-}
-
-func (s *TreeStyler) Style(t *tree.Tree) *tree.Tree {
-	t = t.
-		Enumerator(tree.RoundedEnumerator)
-
-	if !s.shouldColor {
-		return t
-	}
-
-	return t.
-		EnumeratorStyle(s.entryStyle).
-		RootStyle(s.rootStyle)
-}
+var NewTreeStyler = dag.NewTreeStyler
 
 // generateTree creates a tree structure from ListedComponents
 func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
@@ -510,7 +384,7 @@ func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 					Path: segment,
 				}
 
-				newNode := tree.New().Root(s.colorizer.Colorize(tmpCfg))
+				newNode := tree.New().Root(s.Colorizer().Colorize(tmpCfg))
 				nodes[nextPath] = newNode
 				currentNode.Child(newNode)
 			}
@@ -523,74 +397,7 @@ func generateTree(components ListedComponents, s *TreeStyler) *tree.Tree {
 	return root
 }
 
-// generateDAGTree creates a tree structure from ListedComponents.
-// It assumes that the components are already sorted in DAG order.
-// As such, it will first construct root nodes for each component
-// without a dependency in the listed components. Then, it will
-// connect the remaining nodes to their dependencies, which
-// should be doable in a single pass through the components.
-// There may be duplicate entries for dependency nodes, as
-// a node may be a dependency for multiple components.
-// That's OK.
-func generateDAGTree(components ListedComponents, s *TreeStyler) *tree.Tree {
-	root := tree.Root(".")
-
-	rootNodes := make(map[string]*tree.Tree)
-	dependencyNodes := make(map[string]*tree.Tree)
-
-	// First pass: create all root nodes
-	for _, c := range components {
-		if len(c.Dependencies) == 0 || !components.Contains(c.Path) {
-			rootNodes[c.Path] = tree.New().Root(s.colorizer.Colorize(c))
-		}
-	}
-
-	// Second pass: connect dependencies
-	for _, c := range components {
-		if len(c.Dependencies) == 0 {
-			continue
-		}
-
-		// Sort dependencies to ensure deterministic order
-		sortedDeps := make([]string, len(c.Dependencies))
-		for i, dep := range c.Dependencies {
-			sortedDeps[i] = dep.Path
-		}
-
-		sort.Strings(sortedDeps)
-
-		for _, dependency := range sortedDeps {
-			if _, exists := rootNodes[dependency]; exists {
-				dependencyNode := tree.New().Root(s.colorizer.Colorize(c))
-				rootNodes[dependency].Child(dependencyNode)
-				dependencyNodes[c.Path] = dependencyNode
-
-				continue
-			}
-
-			if _, exists := dependencyNodes[dependency]; exists {
-				newDependencyNode := tree.New().Root(s.colorizer.Colorize(c))
-				dependencyNodes[dependency].Child(newDependencyNode)
-				dependencyNodes[c.Path] = newDependencyNode
-			}
-		}
-	}
-
-	// Sort root nodes to ensure deterministic order
-	sortedRootPaths := make([]string, 0, len(rootNodes))
-	for path := range rootNodes {
-		sortedRootPaths = append(sortedRootPaths, path)
-	}
-
-	sort.Strings(sortedRootPaths)
-
-	// Add root nodes in sorted order
-	for _, path := range sortedRootPaths {
-		root.Child(rootNodes[path])
-	}
-
-	return root
-}
+var generateDAGTree = dag.GenerateDAGTree
 
 // pathParts holds the pre-processed parts of a component path.
 type pathParts struct {

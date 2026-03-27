@@ -20,11 +20,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -583,37 +585,54 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 	return err
 }
 
-// LogUnitDeployOrder logs the order of units to be processed for a given Terraform command.
-func (rnr *Runner) LogUnitDeployOrder(l log.Logger, terraformCmd string, isDestroy bool, showAbsPaths bool) error {
-	outStr := fmt.Sprintf(
-		"Unit queue will be processed for %s in this order:\n",
-		terraformCmd,
-	)
+// LogUnitDeployOrder logs the order of units to be processed.
+// The output is rendered as a DAG tree showing dependency relationships between units.
+// Independent units (siblings in the tree) may run concurrently.
+func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool) error {
+	components := rnr.queueComponents()
+	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
-	// For destroy commands, reflect the actual processing order (reverse of apply order).
-	// NOTE: This is display-only. The queue scheduler dynamically handles destroy order via
-	// IsUp() checks - dependents must complete before their dependencies are processed.
-	entries := slices.Clone(rnr.queue.Entries)
-	if isDestroy {
-		slices.Reverse(entries)
-	}
+	shouldColor := !l.Formatter().DisabledColors() && !stdout.IsRedirected()
+	s := dag.NewTreeStyler(shouldColor)
+	t := dag.GenerateDAGTree(listed, s)
+	t = s.Style(t)
 
-	var outStrSb strings.Builder
+	header := deployOrderHeader(isDestroy)
 
-	for _, unit := range entries {
-		unitPath := unit.Component.DisplayPath()
-		if showAbsPaths {
-			unitPath = unit.Component.Path()
-		}
-
-		fmt.Fprintf(&outStrSb, "- Unit %s\n", unitPath)
-	}
-
-	outStr += outStrSb.String()
-
-	l.Info(outStr)
+	l.Info(header + t.String())
 
 	return nil
+}
+
+// queueComponents extracts the components from the runner's queue entries.
+func (rnr *Runner) queueComponents() []component.Component {
+	components := make([]component.Component, 0, len(rnr.queue.Entries))
+	for _, entry := range rnr.queue.Entries {
+		components = append(components, entry.Component)
+	}
+
+	return components
+}
+
+// buildListedComponents converts queue components into the format needed for tree rendering.
+// For destroy commands, the graph is inverted so units without dependents become roots.
+// For apply/plan commands, units without dependencies are roots.
+func (rnr *Runner) buildListedComponents(components []component.Component, isDestroy bool, showAbsPaths bool) dag.ListedComponents {
+	useDisplayPath := !showAbsPaths
+
+	if isDestroy {
+		return dag.FromComponentsReversed(components, useDisplayPath)
+	}
+
+	return dag.FromComponents(components, useDisplayPath)
+}
+
+func deployOrderHeader(isDestroy bool) string {
+	if isDestroy {
+		return "The following units will be run, starting with dependents and then their dependencies:\n"
+	}
+
+	return "The following units will be run, starting with dependencies and then their dependents:\n"
 }
 
 // JSONUnitDeployOrder returns the order of units to be processed for a given Terraform command in JSON format.
