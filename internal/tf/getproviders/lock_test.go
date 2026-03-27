@@ -42,7 +42,7 @@ func mockProviderWithConstraints(t *testing.T, ctrl *gomock.Controller, address,
 		require.NoError(t, err)
 
 		sha := hex.EncodeToString(hasher.Sum(nil))
-		documentSB.WriteString(fmt.Sprintf("%s %s\n", sha, packageName))
+		fmt.Fprintf(&documentSB, "%s %s\n", sha, packageName)
 	}
 
 	document += documentSB.String()
@@ -80,7 +80,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 		require.NoError(t, err)
 
 		sha := hex.EncodeToString(hasher.Sum(nil))
-		documentSB.WriteString(fmt.Sprintf("%s %s\n", sha, packageName))
+		fmt.Fprintf(&documentSB, "%s %s\n", sha, packageName)
 	}
 
 	document += documentSB.String()
