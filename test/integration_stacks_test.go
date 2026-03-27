@@ -1044,12 +1044,12 @@ func TestStackGenerateIfDisabledRemove(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackGenerateIfDisabled, "live")
 
 	// Step 1: apply both units so state exists for dependency resolution
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks-generate-block --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	// Step 2: filtered plan on second unit only — triggers terraform output -json
 	// on first unit without running its GenerateConfig
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --non-interactive --filter 'second | type=unit' --working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks-generate-block --non-interactive --filter 'second | type=unit' --working-dir "+rootPath)
 	require.NoError(t, err, "stack run plan --filter crashed: %s", stderr)
 }
 

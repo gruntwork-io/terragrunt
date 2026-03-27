@@ -15,7 +15,7 @@ const CommandName = "bootstrap"
 func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	prefix := flags.Prefix{flags.TgPrefix}
 
-	sharedFlags := clihelper.Flags{
+	sharedFlags := clihelper.Flags{ //nolint:prealloc
 		shared.NewConfigFlag(opts, prefix, CommandName),
 		shared.NewDownloadDirFlag(opts, prefix, CommandName),
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -301,7 +302,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 
 	// Process generate blocks in the generated directory so that dependency
 	// resolution via "terraform output -json" sees the correct files (#5702).
-	if cmp.kind == unitKind && opts.pctx != nil {
+	if cmp.kind == unitKind && opts.pctx != nil && opts.pctx.Experiments.Evaluate(experiment.StacksGenerateBlock) {
 		if err := processUnitGenerateBlocks(ctx, l, opts.pctx, dest); err != nil {
 			l.Warnf("Failed to process generate blocks for %s: %v", cmp.name, err)
 		}
