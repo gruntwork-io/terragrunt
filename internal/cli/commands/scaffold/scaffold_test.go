@@ -85,7 +85,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -485,7 +485,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -543,7 +543,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -609,7 +609,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -677,7 +677,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -739,7 +739,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 

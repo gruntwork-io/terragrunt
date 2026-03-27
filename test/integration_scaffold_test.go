@@ -338,6 +338,40 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	assert.Contains(t, content, "terraform {", "Generated file should be valid")
 }
 
+func TestScaffoldDoesNotFormatPreExistingFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
+
+	// Write a pre-existing HCL file with intentionally poor formatting.
+	// Scaffold should only format files it generates, not files that already exist.
+	preExistingFile := filepath.Join(tmpEnvPath, "existing.hcl")
+	unformattedHCL := `locals {
+foo       = "bar"
+baz="qux"
+}
+`
+	err := os.WriteFile(preExistingFile, []byte(unformattedHCL), 0644)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		fmt.Sprintf(
+			"terragrunt scaffold --non-interactive --working-dir %s %s",
+			tmpEnvPath,
+			testScaffoldModuleURL,
+		),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.FileExists(t, filepath.Join(tmpEnvPath, "terragrunt.hcl"))
+
+	// Verify the pre-existing file was not modified by scaffold's formatting step.
+	content, err := util.ReadFileAsString(preExistingFile)
+	require.NoError(t, err)
+	assert.Equal(t, unformattedHCL, content, "Pre-existing HCL file should not be formatted by scaffold")
+}
+
 func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 	t.Parallel()
 
