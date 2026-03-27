@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -841,7 +842,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}{
 		{
 			input:    "abs(-1)",
-			expected: 1.,
+			expected: json.Number("1"),
 		},
 		{
 			input:    `element(["one", "two", "three"], 1)`,
@@ -869,7 +870,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		},
 		{
 			input:    `zipmap(["one", "two", "three"], [1, 2, 3])`,
-			expected: map[string]any{"one": 1., "two": 2., "three": 3.},
+			expected: map[string]any{"one": json.Number("1"), "two": json.Number("2"), "three": json.Number("3")},
 		},
 	}
 
@@ -977,21 +978,21 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	inputsMap := tgConfigMap["inputs"].(map[string]any)
 
 	assert.Equal(t, "string", inputsMap["string"].(string))
-	assert.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), inputsMap["number"].(json.Number))
 	assert.True(t, inputsMap["bool"].(bool))
 	assert.Equal(t, []any{"a", "b", "c"}, inputsMap["list_string"].([]any))
-	assert.Equal(t, []any{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]any))
+	assert.Equal(t, []any{json.Number("1"), json.Number("2"), json.Number("3")}, inputsMap["list_number"].([]any))
 	assert.Equal(t, []any{true, false}, inputsMap["list_bool"].([]any))
 	assert.Equal(t, map[string]any{"foo": "bar"}, inputsMap["map_string"].(map[string]any))
-	assert.Equal(t, map[string]any{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]any))
+	assert.Equal(t, map[string]any{"foo": json.Number("42"), "bar": json.Number("12345")}, inputsMap["map_number"].(map[string]any))
 	assert.Equal(t, map[string]any{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]any))
 
 	assert.Equal(
 		t,
 		map[string]any{
 			"str":  "string",
-			"num":  float64(42),
-			"list": []any{float64(1), float64(2), float64(3)},
+			"num":  json.Number("42"),
+			"list": []any{json.Number("1"), json.Number("2"), json.Number("3")},
 			"map":  map[string]any{"foo": "bar"},
 		},
 		inputsMap["object"].(map[string]any),
@@ -1089,9 +1090,9 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	require.NoError(t, err)
 
 	localsMap := tgConfigMap["locals"].(map[string]any)
-	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("2"), localsMap["x"].(json.Number))
 	assert.Equal(t, "Hello world", strings.TrimSpace(localsMap["file_contents"].(string)))
-	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), localsMap["number_expression"].(json.Number))
 }
 
 func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
@@ -1301,11 +1302,11 @@ func TestReadTFVarsFiles(t *testing.T) {
 	locals := tgConfigMap["locals"].(map[string]any)
 
 	assert.Equal(t, "string", locals["string_var"].(string))
-	assert.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("42"), locals["number_var"].(json.Number))
 	assert.True(t, locals["bool_var"].(bool))
 	assert.Equal(t, []any{"hello", "world"}, locals["list_var"].([]any))
 
-	assert.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
+	assert.Equal(t, json.Number("24"), locals["json_number_var"].(json.Number))
 	assert.Equal(t, "another string", locals["json_string_var"].(string))
 	assert.False(t, locals["json_bool_var"].(bool))
 }
