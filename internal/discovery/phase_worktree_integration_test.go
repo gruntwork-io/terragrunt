@@ -174,7 +174,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			// Set up discovery
 			l := logger.CreateLogger()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -196,7 +196,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 				WithDiscoveryContext(discoveryContext).
 				WithWorktrees(w)
 
-			filters := filter.Filters{}
+			filters := make(filter.Filters, 0, len(gitExpressions))
 
 			for _, gitExpr := range gitExpressions {
 				f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -444,7 +444,7 @@ unit "unit_to_be_untouched" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -477,7 +477,7 @@ unit "unit_to_be_untouched" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -804,7 +804,7 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters(), nil)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -898,7 +898,7 @@ locals {
 	require.NoError(t, err)
 
 	// Create worktrees from the subdirectory
-	w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters())
+	w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters(), nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1163,7 +1163,7 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters(), nil)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1260,7 +1260,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			require.NoError(t, err)
 
 			// Create worktrees from the subdirectory
-			w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters(), nil)
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1438,7 +1438,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1472,7 +1472,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1600,7 +1600,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1633,7 +1633,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1755,7 +1755,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1788,7 +1788,7 @@ unit "app" {
 		WithDiscoveryContext(discoveryContext).
 		WithWorktrees(w)
 
-	filters := filter.Filters{}
+	filters := make(filter.Filters, 0, len(gitExpressions))
 
 	for _, gitExpr := range gitExpressions {
 		f := filter.NewFilter(gitExpr, gitExpr.String())
@@ -1861,7 +1861,7 @@ func runWorktreeDiscovery(
 
 	l := logger.CreateLogger()
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

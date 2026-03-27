@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-getter"
 	getterv2 "github.com/hashicorp/go-getter/v2"
@@ -170,6 +171,17 @@ func DownloadTerraformSourceIfNecessary(
 		cfg,
 		r,
 		func(childCtx context.Context) error {
+			if opts.Experiments.Evaluate(experiment.SlowTaskReporting) {
+				sourceURL := strings.TrimPrefix(terraformSource.CanonicalSourceURL.String(), fileURIScheme)
+
+				return util.NotifyIfSlow(childCtx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+					Spinner: "Downloading source from " + sourceURL + "...",
+					Done:    "Downloaded source from " + sourceURL,
+				}, func() error {
+					return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
+				})
+			}
+
 			return downloadSource(childCtx, l, terraformSource, opts, cfg, r)
 		},
 	)
