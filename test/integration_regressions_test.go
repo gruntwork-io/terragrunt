@@ -29,6 +29,7 @@ const (
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
+	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -710,4 +711,58 @@ func TestDependencyIncludeError(t *testing.T) {
 	// Verify the command actually completed successfully
 	assert.Contains(t, stdout, "Apply complete!",
 		"Apply should complete successfully")
+}
+
+// TestDAGQueueDisplay verifies that the run queue is displayed as a DAG tree
+// showing dependency hierarchy, and that the header message differs for
+// up (plan) vs down (plan -destroy) commands.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
+func TestDAGQueueDisplay(t *testing.T) {
+	t.Parallel()
+
+	expectedUpTree := `.
+├── monitoring
+╰── vpc
+    ╰── database
+        ╰── backend-app
+            ╰── frontend-app`
+
+	expectedDownTree := `.
+├── monitoring
+╰── frontend-app
+    ╰── backend-app
+        ╰── database
+            ╰── vpc`
+
+	t.Run("up", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan",
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stderr, "starting with dependencies and then their dependents")
+		assert.Contains(t, stderr, expectedUpTree)
+	})
+
+	t.Run("down", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan -destroy",
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stderr, "starting with dependents and then their dependencies")
+		assert.Contains(t, stderr, expectedDownTree)
+	})
 }

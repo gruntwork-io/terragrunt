@@ -15,8 +15,8 @@ import (
 type StackRunner interface {
 	// Run executes all units in the stack according to the specified Terraform command and options.
 	Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, r *report.Report) error
-	// LogUnitDeployOrder logs the order in which units will be deployed for the given Terraform command.
-	LogUnitDeployOrder(l log.Logger, terraformCmd string, isDestroy bool, showAbsPaths bool) error
+	// LogUnitDeployOrder logs the order in which units will be deployed.
+	LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool) error
 	// JSONUnitDeployOrder returns the deployment order of units as a JSON string.
 	JSONUnitDeployOrder(isDestroy bool, showAbsPaths bool) (string, error)
 	// ListStackDependentUnits returns a map of each unit to the list of units that depend on it.
