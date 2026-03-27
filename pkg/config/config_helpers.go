@@ -164,7 +164,7 @@ type TrackInclude struct {
 
 // Create an EvalContext for the HCL2 parser. We can define functions and variables in this ctx that the HCL2 parser
 // will make available to the Terragrunt configuration during parsing.
-func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) (*hcl.EvalContext, error) {
+func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string) *hcl.EvalContext {
 	tfscope := tflang.Scope{
 		BaseDir: filepath.Dir(configPath),
 	}
@@ -241,13 +241,17 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, pctx, l)
 		if err != nil {
-			return evalCtx, err
+			// Include resolution can fail during partial parsing of configs in dependency chains,
+			// e.g. when an included config has a dependency block whose outputs aren't yet available.
+			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
+			// and the system will fall back to full parsing when needed.
+			l.Debugf("Could not resolve exposed includes for eval context in %s: %v", configPath, err)
+		} else {
+			evalCtx.Variables[MetadataInclude] = exposedInclude
 		}
-
-		evalCtx.Variables[MetadataInclude] = exposedInclude
 	}
 
-	return evalCtx, nil
+	return evalCtx
 }
 
 // Return the OS platform

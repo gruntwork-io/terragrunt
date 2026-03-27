@@ -29,6 +29,7 @@ const (
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
+	testFixtureChainedDepsExposedInclude         = "fixtures/regressions/chained-deps-exposed-include"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -710,4 +711,44 @@ func TestDependencyIncludeError(t *testing.T) {
 	// Verify the command actually completed successfully
 	assert.Contains(t, stdout, "Apply complete!",
 		"Apply should complete successfully")
+}
+
+// TestChainedDepsExposedIncludeNoErrorLog verifies that chaining dependencies with exposed
+// includes does not produce spurious ERROR-level log messages.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/4153
+// where parsing a dependency's config that has an exposed include on a root config with its
+// own dependency block would log "Could not convert include to the execution ctx to evaluate
+// additional locals" at ERROR level, even though the operation succeeds.
+func TestChainedDepsExposedIncludeNoErrorLog(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureChainedDepsExposedInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureChainedDepsExposedInclude)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// Apply ancestor-dependency first (the dependency referenced by root.hcl)
+	ancestorPath := filepath.Join(rootPath, "ancestor-dependency")
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+ancestorPath+" -- apply -auto-approve")
+
+	// Apply dependency (depends on ancestor-dependency via root.hcl include)
+	depPath := filepath.Join(rootPath, "dependency")
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+depPath+" -- apply -auto-approve")
+
+	// Apply dependent (depends on dependency AND ancestor-dependency via root.hcl include)
+	// This is where the spurious ERROR log previously appeared.
+	dependentPath := filepath.Join(rootPath, "dependent")
+	depStdout, depStderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+dependentPath+" -- apply -auto-approve",
+	)
+	require.NoError(t, err)
+
+	output := depStdout + depStderr
+	assert.NotContains(
+		t,
+		output,
+		"Could not convert include to the execution",
+		"Should not log 'Could not convert include' error when chaining dependencies with exposed includes (issue #4153)",
+	)
 }
