@@ -183,6 +183,28 @@ output "cluster_min_size" {
 Oops! It says `max` when it should be `min`. If we fix `ecs-cluster/outputs.tf`
 we should be golden!
 
+## Profiling
+
+If you need to diagnose performance bottlenecks, you can enable CPU and memory profiling using environment variables:
+
+```bash
+# CPU profiling (Terragrunt + downstream OpenTofu)
+TG_CPU_PROFILE=terragrunt_cpu.prof terragrunt run -- plan
+
+# Memory profiling (Terragrunt only, snapshot at exit)
+TG_MEM_PROFILE=terragrunt_mem.prof terragrunt run -- plan
+```
+
+For `run --all`, use the `_DIR` variants to collect all profiles in a structured directory:
+
+```bash
+TG_CPU_PROFILE_DIR=/tmp/profiles TG_MEM_PROFILE_DIR=/tmp/profiles terragrunt run --all -- plan
+```
+
+This creates `terragrunt_cpu.prof`, `terragrunt_mem.prof`, and per-module `tofu_cpu.prof` files preserving the directory hierarchy.
+
+For more details on profiling and performance analysis, see the [Performance documentation](/troubleshooting/performance/#runtime-cpu-profiling-with-tg_cpu_profile).
+
 ## Additional OpenTofu/Terraform Debugging
 
 If you're still having trouble, you may want to try adjusting the `TF_LOG` environment variables to instruct OpenTofu/Terraform to emit more detailed logs.
