@@ -19,14 +19,16 @@ jobs:
       GOGC: "400"
 
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          ref: main
+          path: _coverage-scripts
+          fetch-depth: 1
+
       - name: Mount tmpfs
-        shell: bash
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
 
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -81,21 +83,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
         run: |
-          mkdir -p previous
-          PREV_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -L 50 --json tagName \
-            | jq -r --arg tag "${TAG_NAME}" '[.[].tagName] as $tags | ($tags | index($tag)) as $i | if $i == null or ($i + 1) >= ($tags | length) then empty else $tags[$i + 1] end')
-          if [[ -n "$PREV_TAG" ]]; then
-            echo "Previous release: $PREV_TAG"
-            if gh release download "$PREV_TAG" -p "coverage-summary.json" -D previous/ 2>/dev/null; then
-              echo "has_previous=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "No coverage data in previous release $PREV_TAG"
-              echo "has_previous=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "No previous release found"
-            echo "has_previous=false" >> "$GITHUB_OUTPUT"
-          fi
+          OUTPUT=$(./.github/scripts/coverage/download-previous-release.sh previous)
+          echo "$OUTPUT"
+          grep -q "has_previous=true" <<<"$OUTPUT" && echo "has_previous=true" >> "$GITHUB_OUTPUT" || echo "has_previous=false" >> "$GITHUB_OUTPUT"
 
       - name: Compare Coverage
         id: compare
@@ -108,38 +98,10 @@ jobs:
 
       - name: Write Summary
         if: always()
-        run: |
-          if [[ -f comparison-report.json ]]; then
-            BASELINE=$(jq -r '.baseline' comparison-report.json)
-            if [[ "$BASELINE" == "true" ]]; then
-              echo "## Coverage Baseline Established" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "Total: $(jq -r '.current_total' comparison-report.json)%" >> "$GITHUB_STEP_SUMMARY"
-            else
-              CURR=$(jq -r '.current_total' comparison-report.json)
-              PREV=$(jq -r '.previous_total' comparison-report.json)
-              DELTA=$(jq -r '.total_delta' comparison-report.json)
-              echo "## :bar_chart: Coverage Report" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
-              echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Current | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Previous | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-
-              DROPS=$(jq -r '.top_drops[:5][] | "| \(.package) | \(.previous)% | \(.current)% | \(.delta)% |"' comparison-report.json 2>/dev/null || true)
-              if [[ -n "$DROPS" ]]; then
-                echo "### Top Drops" >> "$GITHUB_STEP_SUMMARY"
-                echo "| Package | Previous | Current | Delta |" >> "$GITHUB_STEP_SUMMARY"
-                echo "|---------|----------|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
-                echo "$DROPS" >> "$GITHUB_STEP_SUMMARY"
-              fi
-            fi
-          fi
+        run: ./.github/scripts/coverage/write-summary.sh comparison-report.json
 
       - name: Notify Slack
-        if: always() && hashFiles('comparison-report.json') != ''
+        if: always() && hashFiles('comparison-report.json') != '' && env.COVERAGE_SLACK_WEBHOOK_URL != ''
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}

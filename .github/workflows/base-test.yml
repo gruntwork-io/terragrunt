@@ -17,27 +17,21 @@ jobs:
       GOGC: "400"
 
     steps:
+      - name: Fetch setup scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts/setup
+          path: _setup-scripts
+          fetch-depth: 1
+
+      - name: Mount tmpfs / RAM disk
+        shell: bash
+        run: ./_setup-scripts/.github/scripts/setup/mount-tmpfs.sh terragrunt:4G
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 1
-
-      # RAM disk for go-build cache — persists through post-steps so cache save works.
-      # If ramdisk is unmounted before job cleanup, cache save will fail silently.
-      - name: "Mount RAM disk"
-        shell: bash
-        if: runner.os == 'macOS'
-        run: |
-          RAMDISK=$(hdiutil attach -nomount ram://8388608 | tr -d '[:space:]') || { echo "Failed to create RAM disk"; exit 1; }
-          # Wait for disk device to be registered in kernel (hdiutil may return before kernel is ready)
-          for i in $(seq 1 10); do
-            diskutil info "$RAMDISK" > /dev/null 2>&1 && break
-            sleep 1
-          done
-          diskutil erasevolume HFS+ RAMDisk "$RAMDISK"
-          mkdir -p /Volumes/RAMDisk/go-build
-          rm -rf ~/Library/Caches/go-build
-          ln -sf /Volumes/RAMDisk/go-build ~/Library/Caches/go-build
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
