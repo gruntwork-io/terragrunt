@@ -18,7 +18,7 @@ const (
 	InDownloadDirFlagName = "in-download-dir"
 )
 
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(_ log.Logger, opts *options.TerragruntOptions, cmdOpts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 
 	sharedFlags := append(
