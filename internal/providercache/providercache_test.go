@@ -51,7 +51,8 @@ func TestProviderCache(t *testing.T) {
 	providerCacheDir := helpers.TmpDirWOSymlinks(t)
 	pluginCacheDir := helpers.TmpDirWOSymlinks(t)
 
-	opts := []cache.Option{cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode)}
+	opts := make([]cache.Option, 0, 3)
+	opts = append(opts, cache.WithToken(token), cache.WithCacheProviderHTTPStatusCode(providercache.CacheProviderHTTPStatusCode))
 
 	testCases := []struct {
 		expectedBodyReg    *regexp.Regexp
