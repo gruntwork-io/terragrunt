@@ -52,6 +52,13 @@ const flags = defineCollection({
 	}),
 });
 
+const changelog = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/changelog" }),
+	schema: z.object({
+		version: z.string(),
+	}),
+});
+
 const compatibility = defineCollection({
 	loader: file("src/data/compatibility/compatibility.json"),
 	schema: z.object({
@@ -64,4 +71,4 @@ const compatibility = defineCollection({
 	}),
 });
 
-export const collections = { commands, compatibility, docs, flags };
+export const collections = { changelog, commands, compatibility, docs, flags };
