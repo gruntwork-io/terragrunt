@@ -14,7 +14,7 @@ fi
 
 if [[ ! -f "$PREVIOUS" ]]; then
 	echo "No previous coverage data found — establishing baseline."
-	jq -n --argjson curr "$(cat "$CURRENT")" '{baseline: true, current_total: $curr.total_pct, previous_total: null, total_delta: null, top_drops: [], top_gains: []}' >"$OUTPUT"
+	jq -n --argjson curr "$(cat "$CURRENT")" '{type: "coverage", baseline: true, current_total: $curr.total_pct, previous_total: null, total_delta: null, top_drops: [], top_gains: []}' >"$OUTPUT"
 	exit 0
 fi
 
@@ -55,6 +55,7 @@ jq -n \
 	--argjson top_drops "$TOP_DROPS" \
 	--argjson top_gains "$TOP_GAINS" \
 	'{
+		type: "coverage",
 		baseline: false,
 		current_total: $curr_total,
 		previous_total: $prev_total,

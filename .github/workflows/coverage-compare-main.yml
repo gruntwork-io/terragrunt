@@ -125,7 +125,7 @@ jobs:
       - name: Notify Slack
         if: always() && hashFiles('comparison-report.json') != '' && github.ref == 'refs/heads/main'
         env:
-          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           TAG_NAME: ${{ github.ref_name }}@${{ github.sha }}
           REPO: ${{ github.repository }}
-        run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json
+        run: ./.github/scripts/notify-slack.sh comparison-report.json

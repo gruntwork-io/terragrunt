@@ -267,6 +267,19 @@ jobs:
             test_output.log
             result.xml
 
+      - name: Generate Duration Summary (${{ matrix.integration.name }})
+        if: always() && runner.os != 'Windows'
+        run: ./.github/scripts/duration/generate-summary.sh result.xml "duration-summary.json"
+        shell: bash
+
+      - name: Upload Duration Summary (${{ matrix.integration.name }})
+        if: always() && runner.os != 'Windows'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: duration-summary-${{ matrix.integration.name }}
+          path: duration-summary.json
+          retention-days: 30
+
       - name: Display Test Results (${{ matrix.integration.name }})
         uses: mikepenz/action-junit-report@49b2ca06f62aa7ef83ae6769a2179271e160d8e4 # v6
         if: always()
