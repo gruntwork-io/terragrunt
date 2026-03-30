@@ -20,19 +20,6 @@ const (
 	testFixtureOutputFromRemoteStateRustFS = "fixtures/output-from-remote-state-rustfs"
 )
 
-func setupRustFS(t *testing.T) string {
-	t.Helper()
-
-	_, addr := helpers.RunContainer(t, "rustfs/rustfs:latest", 9000,
-		testcontainers.WithCmd("/data"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("Starting:"),
-		),
-	)
-
-	return addr
-}
-
 func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	rustfsAddr := setupRustFS(t)
 
@@ -100,4 +87,17 @@ func TestRustFSOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	assert.Contains(t, stdout, "app3 output")
 	assert.NotContains(t, stderr, "terraform output -json")
 	assert.NotContains(t, stderr, "tofu output -json")
+}
+
+func setupRustFS(t *testing.T) string {
+	t.Helper()
+
+	_, addr := helpers.RunContainer(t, "rustfs/rustfs:1.0.0-alpha.90@sha256:0725587f6fcca83c1898f321424327d6e6da5e01ea20382905dd258ed5af3be4", 9000,
+		testcontainers.WithCmd("/data"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("Starting:"),
+		),
+	)
+
+	return addr
 }

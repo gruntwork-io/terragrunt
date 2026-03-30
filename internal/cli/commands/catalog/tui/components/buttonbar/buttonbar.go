@@ -87,7 +87,7 @@ func (b *ButtonBar) View() string {
 			style = b.FocusedStyle
 		}
 
-		s.WriteString(fmt.Sprintf(b.nameFmt, style.Render(btn)))
+		fmt.Fprintf(&s, b.nameFmt, style.Render(btn))
 
 		if i != len(b.buttons)-1 {
 			s.WriteString(b.SeparatorStyle.String())
