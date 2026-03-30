@@ -95,6 +95,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/spf13/afero v1.15.0
 	github.com/testcontainers/testcontainers-go v0.41.0
+	github.com/thisguycodes/copy v0.0.0-20260330081957-1daf4a9cab34
 	github.com/wI2L/jsondiff v0.7.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/mock v0.6.0
