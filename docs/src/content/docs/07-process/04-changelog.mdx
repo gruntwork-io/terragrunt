@@ -1,0 +1,382 @@
+---
+title: Changelog
+description: A log of notable changes to Terragrunt.
+slug: process/changelog
+sidebar:
+  order: 4
+tableOfContents:
+  maxHeadingLevel: 3
+---
+
+{/* Add new entries at the top of the changelog. Use the following format:
+
+## vX.Y.Z
+
+---
+
+### 🛠️ Breaking Changes
+
+---
+
+#### Change title
+
+Description of breaking change.
+
+### ✨ New Features
+
+---
+
+#### Feature title
+
+Description of new feature.
+
+### 🏎️ Performance Improvements
+
+---
+
+#### Improvement title
+
+Description of performance improvement.
+
+### 🐛 Bug Fixes
+
+---
+
+#### Fix title
+
+Description of bug fix.
+
+### 📖 Documentation Updates
+
+---
+
+#### Update title
+
+Description of docs change.
+
+### 🧪 Experiments Updated
+
+---
+
+#### Experiment title
+
+Description of experiment change.
+
+### ⚙️ Process Updates
+
+---
+
+#### Process change title
+
+Description of process change.
+
+*/}
+
+This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the [GitHub Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
+
+---
+
+## v1.0.0
+
+---
+
+### 🛠️ Breaking Changes
+
+---
+
+#### Consistent `.terragrunt-cache` directory generation
+
+Terragrunt now creates a `.terragrunt-cache` directory for every run, regardless of whether the `terragrunt.hcl` file defines a `terraform` block with a `source` attribute.
+
+This change improves consistency across all Terragrunt executions, as OpenTofu/Terraform will now always run within the `.terragrunt-cache` directory. This standardized behavior simplifies troubleshooting and makes the execution model more predictable.
+
+#### Removal of `tflint`
+
+Terragrunt has been shipping with a version of `tflint` compiled into the binary to allow for more convenient usage without installing `tflint` directly. However due to the adoption of a BUSL license in `tflint`, the version included in Terragrunt was frozen.
+
+The dependency on `tflint` is now fully removed from Terragrunt. If you want to call `tflint` using a `before_hook` using Terragrunt, you will have to have `tflint` installed locally to do so.
+
+To reduce the burden of this breaking change, Terragrunt will continue to provide conveniences like automatically running `tflint init` on behalf of users, although it no longer ships with a compiled version of `tflint` in the `terragrunt` binary.
+
+To learn more, read the [documentation on the integration with tflint](/features/units/hooks/#tflint-hook).
+
+#### Discovery commands discover hidden configurations by default
+
+The [`find`](/reference/cli/commands/find/) and [`list`](/reference/cli/commands/list/) commands now discover units/stacks in hidden directories by default (this previously required usage of the `--hidden` flag), notably this now discovers `.terragrunt-stack` directories by default. The commands also now support an opt-in `--no-hidden` flag to avoid discovery in hidden directories.
+
+The `--hidden` flag has been deprecated, and will not be removed in 1.0. Using the flag no longer does anything.
+
+#### `render --format=json` no longer discovers dependents by default
+
+Prior to this release, the `render --format=json` command would automatically start to perform dependent discovery on other units related to the unit being rendered. Avoiding this required usage of the `--disable-dependent-modules` flag. That behavior has been removed. HCL and JSON rendering of unit configurations will now proceed without the additional overhead of dependent discovery by default.
+
+This functionality is better served by a combination of [`find`](/reference/cli/commands/find/) and [graph-based filters](/features/filter/graph/).
+
+e.g. If you want to detect all the dependents of a given unit `foo`, expecting to find the dependent unit `bar` you can run the following:
+
+```bash
+$ terragrunt find --filter '...^foo'
+bar
+```
+
+*If you aren't familiar with [filters](/features/filter), this reads as "find all dependents of `foo`, not `foo` itself"*
+
+#### Windows compatibility in file paths improved
+
+All HCL functions now return operating system native file paths without forward slash normalization.
+
+- `get_terragrunt_dir()`
+- `get_original_terragrunt_dir()`
+- `get_parent_terragrunt_dir()`
+- `get_path_from_repo_root()`
+- `get_path_to_repo_root()`
+- `find_in_parent_folders()`
+- `path_relative_to_include()`
+- `path_relative_from_include()`
+
+If you and your team do not work in Windows environments, you are unlikely to see any change as a consequence of this. If you do use Terragrunt in a Windows environment, Terragrunt will now return appropriate Windows file paths, with backslashes as file path separators instead of Unix-like forward slashes.
+
+If you need to normalize paths, you can use the `replace` function to achieve this.
+
+```hcl
+# root.hcl
+
+remote_state {
+  backend = "s3"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
+  config = {
+    bucket = "my-tofu-state"
+
+    key            = "${replace(path_relative_to_include(), "\\", "/")}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+```
+
+#### Ambiguous unit/stack components now throw errors
+
+Previously, Terragrunt would silently engage in undefined behavior when both a `terragrunt.hcl` and `terragrunt.stack.hcl` file existed in the same directory.
+
+With this release, Terragrunt will start to throw warnings and prevent such usage. Users will have to ensure that only one of a unit (`terragrunt.hcl`) or stack configuration (`terragrunt.stack.hcl`) exist in a unit or stack directory, respectively.
+
+### ✨ New Features
+
+---
+
+#### Tips added
+
+Terragrunt will now provide helpful tips when it detects usage patterns that might benefit from some additional guidance.
+
+You can disable the display of tips at any time using `--no-tips` or disable individual tips with `--no-tip`, (e.g. `--no-tip=debugging-docs`).
+
+#### `--report-file` support for single runs
+
+The `--report-file` will now generate reports even when runs are performed without the `--all` flag.
+
+#### Improved error messages for undefined flags
+
+Detection has been added for scenarios when a user is using a flag that might be meant to be passed to OpenTofu/Terraform in the `run` command, and suggests using the `--` argument to pass it through.
+
+As an example:
+
+```bash
+$ terragrunt run providers lock -platform linux_amd64 -platform darwin_arm64
+14:52:19.496 ERROR  flag `-platform` is not a Terragrunt flag. If this is an OpenTofu/Terraform flag, use `--` to forward it (e.g., `terragrunt run -- <command> -platform`).
+```
+
+### 🏎️ Performance Improvements
+
+---
+
+#### Discovery performance improved
+
+The way in which Terragrunt discovers and filters units and stacks for runs has improved significantly.
+
+Terragrunt is now better at avoiding parsing units/stacks unnecessarily, based on the [filter](/features/filter/) you use. Previously, the logic used was more coarse, and could result in a requirement to parse *some* configurations (e.g. presence of a [dependency graph expression](/features/filter/graph/#include-dependencies)) to result in parsing *all* configurations. Discovery has been refactored to allow for much more careful opt-in parsing based on the need to support the filter used by users (or lack thereof).
+
+This will also result in improvements to Terragrunt's ability to ignore broken parts of infrastructure estates when Terragrunt can predictably determine that it won't impact a run.
+
+#### `EncodeSourceVersion` execution sped up
+
+The performance of `EncodeSourceVersion` has been improved by utilizing `SkipDir` to optimize directory traversals.
+
+Special thanks to @healthy-pod for contributing this improvement!
+
+#### Provider Cache Server used for fetching outputs from dependencies
+
+The Provider Cache Server is now used when fetching outputs from dependencies, improving performance of output resolution for users using the provider cache server.
+
+### 🐛 Bug Fixes
+
+---
+
+#### Improved filter parsing errors
+
+Parsing errors returned when invalid filter queries are used with `--filter` have been improved to provide more detailed error messages and actionable recommendations.
+
+#### Retries added for registry timeouts in provider cache server
+
+The Provider Cache Server will now perform automatic retries on timeouts to OpenTofu/Terraform provider registries.
+
+#### Discoverability of `init-from-module` documentation improved
+
+The special internal `init-from-module` command referenced in hooks has had its documentation improved to make it easier to discover. It was difficult to find in the [terraform HCL block](/reference/hcl/blocks/#terraform) documentation, and that resulted in confusion for users.
+
+#### Over-warning on strict controls prevented
+
+Using `--strict-mode` resulted in over-warning on completed controls. Those warnings will no longer appear when using strict mode.
+
+#### Stdout/stderr from `run_cmd` emitted when included
+
+A bug prevented the `run_cmd` HCL function from emitting to stdout/stderr when included by a unit. That bug has been fixed.
+
+#### Provider Cache Server integration with custom registries fixed
+
+The Provider Cache Server now properly integrates with custom registries. You will still need to use the `--provider-cache-registry-names` flag to ensure that the Provider Cache Server properly handles proxying requests to the custom provider registry.
+
+#### The `no_run` attribute of `exclude` is fixed
+
+A bug prevented the `no_run` attribute of the `exclude` block from being respected when being explicitly set to `false` (as opposed to not being defined at all). This bug has been fixed.
+
+#### The `--report-file` is now respected for single runs
+
+The `--report-file` will now generate reports even when runs are performed without the `--all` flag.
+
+#### Path manipulation removed from log messages
+
+Log messages no longer have paths updated automatically. This caused confusion for users when seeing OpenTofu/Terraform stdout and hook stdout emitted through logs, as paths were unconditionally updated to be relative to the unit path. This logic has been moved to logging call sites to ensure that external process stdout/stderr is not manipulated unexpectedly.
+
+#### Absolute URLs in registry self-discovery integration with Provider Cache Server Fixed
+
+When using the Provider Cache Server in conjunction with a remote registry using absolute URLs for modules, the Provider Cache Server will now properly resolve the module source.
+
+#### SOPS decryption race condition fixed
+
+A race condition in the concurrent access to SOPS decrypted secrets in different environments combined with usage of the `--auth-provider-cmd` flag resulted in authentication failures. Synchronization controls have been introduced to ensure authentication proceeds correctly for each environment independently.
+
+#### Version constraints in stack runs fixed
+
+When running against a stack, a bug prevented Terragrunt + OpenTofu/Terraform version constraints from being respected while using the `terragrunt_version_constraint` and `terraform_version_constraint` HCL attributes. That bug has been fixed.
+
+#### Interrupt signal propagation to OpenTofu/Terraform fixed
+
+The mechanism by which Terragrunt sends interrupt signals to OpenTofu/Terraform processes it started has been made more robust. Terragrunt will now send the interrupt signal in the event that a user explicitly sends an interrupt signal to Terragrunt in addition to scenarios where Terragrunt's context cancellation is triggered (e.g. in the event of a timeout).
+
+#### Remote state configuration parsing fixed
+
+Remote state configuration parsing (especially S3) is now more tolerant of common input formats, reducing decode-related failures from type mismatches in configuration values.
+
+Parsing behavior has also been made more consistent across related remote configuration blocks in Terragrunt, with regression tests added to prevent future breakages.
+
+#### Invalid unit configurations cause explicit errors instead of silently being excluded during runs
+
+A bug in discovery logic resulted in units with invalid HCL configurations being silently excluded from runs with a warning. This bug has been fixed, and attempting to parse invalid HCL configurations during a run will result in an error.
+
+#### Partial parse configuration cache fixed
+
+A bug affecting the partial parse configuration cache (in use when the `--use-partial-parse-config-cache` flag is supplied) has been resolved, ensuring configurations are cached and read accurately without incorrect cache collisions.
+
+#### Engine output adjusted
+
+The display and formatting of engine outputs have been updated to be cleaner and more intuitive for users when running Terragrunt workflows.
+
+Stdout/Stderr entries emitted from engines will now have the `engine` tool listed instead of `tofu`.
+
+#### More accurate matching of retryable errors
+
+Fixes a bug where retries were triggered when an expected error is matched against non-stderr output from external process errors.
+
+#### Duplicate error reporting fixed
+
+Fixes a bug where duplicate errors were reported when running units through the worker pool subsystem.
+
+#### Interaction between `--working-dir` and `-detailed-exitcode` fixed
+
+Fixes a bug where the wrong cache key was used for storing exit codes for OpenTofu/Terraform runs in units when the `--working-dir` flag was also used.
+
+#### Variable sanitization via escaping added
+
+Escaping added for interpolation expressions (e.g. `${foo}`) that are unlikely to be desired by users.
+
+#### Removing usage of `filepath.Abs` and reducing usage of `filepath.ToSlash`
+
+Usage of the Golang `filepath.Abs` and `filepath.ToSlash` standard library functions significantly reduced. Overly broad application of these functions to file paths caused subtle operating system compatibility issues and incompatibility with the `--working-dir` flag.
+
+The codebase has been updated to only use `filepath.Abs` early on in initialization of the CLI prior to setting the value of `--working-dir` (after which, working dir is considered the source of truth for file path canonicalization) and tests. The codebase has been updated to use `filepath.ToSlash` only where unix-style forward slash normalization is a requirement (e.g. when used in file path globs).
+
+#### Handling of backend init when `disable_init=true`
+
+Fixes a bug where `disable_init = true` affected behavior beyond Terragrunt's bootstrap operations. `disable_init` now correctly limits its scope to Terragrunt bootstrap steps only.
+
+#### Fix detection of offline usage in Provider Cache Server
+
+A bug in the detection of offline usage in the Provider Cache Server resulted in attempts to reach the default provider registry for OpenTofu/Terraform to trigger errors even when using the Provider Cache Server to proxy requests to a network or filesystem mirror.
+
+This has been fixed. When the default provider registry isn't available for OpenTofu/Terraform for any reason, the Provider Cache Server will use the provided network/filesystem mirror instead without attempting to use the discovery endpoint. This will help users in air-gapped environments using the Provider Cache Server.
+
+#### Improved log messages for hooks with errors
+
+Hooks encountering errors will now return errors that better communicate whether an error was caused by failure to execute an external process or successfully running an external process, but receiving a non-zero exit code.
+
+#### Relative paths in reading files fixed
+
+A bug in the logic for incorporating includes as absolute paths in tracked "read" files has been fixed.
+
+### 📖 Documentation Updates
+
+---
+
+#### 1.0 Guarantees
+
+A living document named [Terragrunt 1.0 Guarantees](/process/1-0-guarantees/) has been added to the Terragrunt website clarifying what is and isn't considered a breaking change for the duration of 1.0.
+
+Over time, as ambiguity in edge-cases for what is considered a breaking change are addressed, the page will be updated so that you can be confident your workflows won't be impaired.
+
+#### llms.txt added
+
+An `/llms.txt` route has been added to the Terragrunt website to make it easier for LLMs to consume Terragrunt documentation in Markdown format.
+
+#### New Home for the Terragrunt website!
+
+The Terragrunt website is now hosted at [https://terragrunt.com](https://terragrunt.com) and [https://docs.terragrunt.com](https://docs.terragrunt.com) for marketing and documentation purposes, respectively.
+
+Existing links to [https://terragrunt.gruntwork.io](https://terragrunt.gruntwork.io) should seamlessly redirect to the new domain that hosts the content for that URI.
+
+### 🧪 Experiments Updated
+
+---
+
+#### Engines now use GitHub environment variables for downloads
+
+When downloading engines using the engine experiment, Terragrunt will detect and leverage the `GH_TOKEN` and `GITHUB_TOKEN` environment variables if present to authenticate with the GitHub API while performing release discovery and download of engines.
+
+### ⚙️ Process Updates
+
+---
+
+#### Go bumped to `v1.26`
+
+The version of Golang used to compile the Terragrunt binary has been updated to `v1.26.0`.
+
+#### OpenTofu/Terraform Compatibility Updated
+
+Terragrunt is now continuously tested against OpenTofu 1.11.4 and Terraform 1.14.4 in CI.
+
+#### AWS and GRPC dependencies update
+
+Updated AWS SDK and gRPC dependencies to pick up the latest bug fixes and security patches:
+
+- `google.golang.org/grpc` to `v1.79.1`
+- `github.com/aws/aws-sdk-go-v2/config` to `v1.32.8`
+- `github.com/aws/aws-sdk-go-v2/credentials` to `v1.19.8`
+
+## Prior Releases
+
+For all prior releases, see the [GitHub Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
