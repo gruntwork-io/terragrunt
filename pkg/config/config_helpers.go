@@ -1025,10 +1025,9 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	pctx = pctx.WithDiagnosticsSuppressed(l)
 
-	// Reset fields that are specific to the caller's config so the target config
-	// parses its own dependency blocks. Without this, SkipOutputsResolution=true
-	// (set during stack discovery) prevents decodeAndRetrieveOutputs from running,
-	// and a non-nil DecodedDependencies from the parent skips the decode guard.
+	// The parent's decoded dependencies are not the target config's. Reset so the
+	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
+	// so that dependency tracing accurately reflects that resolution is happening.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
 	pctx.DecodedDependencies = nil
 	pctx.SkipOutputsResolution = false
