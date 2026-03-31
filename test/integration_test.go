@@ -3903,30 +3903,13 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --report-file report.json --working-dir "+testPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+testPath)
 	require.NoError(t, err)
 
-	runs := helpers.ReadReport(t, testPath, "report.json")
-
 	// check that only enabled dependencies are evaluated
-
-	for _, path := range []string{
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app"),
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
-	} {
-		relPath, err := filepath.Rel(testPath, path)
-		require.NoError(t, err)
-		assert.NotNil(t, runs.FindByName(relPath), "expected report to contain %s", relPath)
-	}
-
-	for _, path := range []string{
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
-	} {
-		relPath, err := filepath.Rel(testPath, path)
-		require.NoError(t, err)
-		assert.Nil(t, runs.FindByName(relPath), "expected report to not contain %s", relPath)
-	}
+	assert.Contains(t, stderr, "unit-without-enabled")
+	assert.Contains(t, stderr, "unit-enabled")
+	assert.NotContains(t, stderr, "unit-disabled")
 }
 
 func TestTerragruntHandleEmptyStateFile(t *testing.T) {

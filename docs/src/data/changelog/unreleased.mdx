@@ -1,0 +1,37 @@
+---
+version: "Unreleased"
+---
+
+### 🧪 Experiments Added
+
+---
+
+#### `dag-queue-display` — DAG tree visualization for the run queue
+
+A new `dag-queue-display` experiment renders the run queue as a dependency tree instead of a flat list, making it easier to understand execution order and dependency relationships at a glance.
+
+```bash
+terragrunt run --all --experiment dag-queue-display -- plan
+```
+
+Example output:
+
+```
+The following units will be run, starting with dependencies and then their dependents:
+.
+├── monitoring
+╰── vpc
+    ╰── database
+        ╰── backend-app
+            ╰── frontend-app
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#dag-queue-display).
+
+### 🐛 Bug Fixes
+
+---
+
+#### Destroy queue now displays units in correct order
+
+Previously, the run queue display showed units in apply order even for destroy commands. The queue now correctly shows dependents before their dependencies when running destroy, matching the actual execution order.

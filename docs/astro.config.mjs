@@ -85,7 +85,14 @@ export const sidebar = [
         ],
       },
       { label: "Strict Controls", slug: "reference/strict-controls" },
-      { label: "Experiments", slug: "reference/experiments" },
+      {
+        label: "Experiments",
+        items: [
+          { label: "Overview", slug: "reference/experiments" },
+          { label: "Active Experiments", link: "/reference/experiments/active" },
+          { label: "Completed Experiments", link: "/reference/experiments/completed" },
+        ],
+      },
       {
         label: "Supported Versions",
         slug: "reference/supported-versions",
@@ -240,6 +247,10 @@ export default defineConfig({
             "/reference/cli/commands/list/#*",
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
+
+            // Custom .astro pages for experiments — can't be validated statically
+            "/reference/experiments/active#*",
+            "/reference/experiments/completed#*",
 
             // Used as a redirect to the Terragrunt Discord server
             "/community/invite",

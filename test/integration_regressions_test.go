@@ -820,8 +820,8 @@ func TestExposedIncludeFullParseReturnsError(t *testing.T) {
 		"Error should mention that dependency has no outputs")
 }
 
-// TestQueueDisplayOrder verifies that the flat queue display lists units in the
-// correct order: dependencies before dependents for apply, and the reverse for destroy.
+// TestQueueDisplayOrder verifies that the flat queue display lists units in
+// dependency order: dependencies before dependents.
 // Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
 func TestQueueDisplayOrder(t *testing.T) {
 	t.Parallel()
@@ -845,7 +845,7 @@ func TestQueueDisplayOrder(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// In apply order, dependencies must come before their dependents.
+		// In apply order, dependencies come before their dependents.
 		vpcIdx := strings.Index(stderr, "vpc")
 		databaseIdx := strings.Index(stderr, "database")
 		backendIdx := strings.Index(stderr, "backend-app")
@@ -856,9 +856,9 @@ func TestQueueDisplayOrder(t *testing.T) {
 		assert.Greater(t, backendIdx, -1, "backend-app should appear in output")
 		assert.Greater(t, frontendIdx, -1, "frontend-app should appear in output")
 
-		assert.Less(t, vpcIdx, databaseIdx, "vpc should appear before database in apply order")
-		assert.Less(t, databaseIdx, backendIdx, "database should appear before backend-app in apply order")
-		assert.Less(t, backendIdx, frontendIdx, "backend-app should appear before frontend-app in apply order")
+		assert.Less(t, vpcIdx, databaseIdx, "vpc should appear before database")
+		assert.Less(t, databaseIdx, backendIdx, "database should appear before backend-app")
+		assert.Less(t, backendIdx, frontendIdx, "backend-app should appear before frontend-app")
 	})
 
 	t.Run("down", func(t *testing.T) {
@@ -873,7 +873,7 @@ func TestQueueDisplayOrder(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// In destroy order, dependents must come before their dependencies.
+		// In destroy order, dependents come before their dependencies.
 		frontendIdx := strings.Index(stderr, "frontend-app")
 		backendIdx := strings.Index(stderr, "backend-app")
 		databaseIdx := strings.Index(stderr, "database")
@@ -884,9 +884,9 @@ func TestQueueDisplayOrder(t *testing.T) {
 		assert.Greater(t, databaseIdx, -1, "database should appear in output")
 		assert.Greater(t, vpcIdx, -1, "vpc should appear in output")
 
-		assert.Less(t, frontendIdx, backendIdx, "frontend-app should appear before backend-app in destroy order")
-		assert.Less(t, backendIdx, databaseIdx, "backend-app should appear before database in destroy order")
-		assert.Less(t, databaseIdx, vpcIdx, "database should appear before vpc in destroy order")
+		assert.Less(t, frontendIdx, backendIdx, "frontend-app should appear before backend-app")
+		assert.Less(t, backendIdx, databaseIdx, "backend-app should appear before database")
+		assert.Less(t, databaseIdx, vpcIdx, "database should appear before vpc")
 	})
 }
 

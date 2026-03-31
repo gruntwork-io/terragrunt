@@ -7,6 +7,10 @@
  *   <Since version="1.1.0">
  *     Content shown only when the latest release is >= 1.1.0
  *   </Since>
+ *
+ * IMPORTANT: Do not use markdown headings (##, ###, etc.) inside <Since>.
+ * Starlight extracts headings at build time before the component renders,
+ * so hidden headings will still appear in the Table of Contents.
  */
 import { getLatestRelease } from '@lib/github';
 

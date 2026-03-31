@@ -77,4 +77,13 @@ const compatibility = defineCollection({
 	}),
 });
 
-export const collections = { changelog, commands, compatibility, docs, flags };
+const experiments = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/experiments" }),
+	schema: z.object({
+		name: z.string(),
+		status: z.enum(["active", "completed"]),
+		since: z.string().optional(),
+	}),
+});
+
+export const collections = { changelog, commands, compatibility, docs, experiments, flags };

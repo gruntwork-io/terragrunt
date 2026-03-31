@@ -1,0 +1,46 @@
+---
+import { getCollection, render } from "astro:content";
+import { getLatestRelease } from "@lib/github";
+
+interface Props {
+  status: "active" | "completed";
+}
+
+const { status } = Astro.props;
+
+const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
+const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
+
+const allEntries = await getCollection("experiments");
+
+const entries = allEntries
+  .filter((entry) => entry.data.status === status)
+  .filter((entry) => {
+    // If the experiment has a `since` version, only show it when that version is released.
+    if (!entry.data.since) return true;
+
+    const target = entry.data.since.replace(/^v/, "");
+    return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
+  })
+  .sort((a, b) => a.data.name.localeCompare(b.data.name));
+
+const rendered = await Promise.all(
+  entries.map(async (entry) => {
+    const { Content } = await render(entry);
+    return { entry, Content };
+  })
+);
+---
+
+{rendered.map(({ entry, Content }, i) => (
+  <div>
+    {i > 0 && <hr />}
+    <h2 id={entry.data.name}>
+      <code>{entry.data.name}</code>
+      <a class="anchor-link" href={`#${entry.data.name}`}>
+        <span aria-hidden="true" class="anchor-icon" />
+      </a>
+    </h2>
+    <Content />
+  </div>
+))}

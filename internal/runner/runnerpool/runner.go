@@ -594,7 +594,7 @@ func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths
 		return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
 	}
 
-	return rnr.logUnitDeployOrderFlat(l, isDestroy, showAbsPaths)
+	return rnr.logUnitDeployOrderFlat(l, showAbsPaths)
 }
 
 // logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
@@ -616,15 +616,10 @@ func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPa
 }
 
 // logUnitDeployOrderFlat renders the queue as a flat list of units.
-func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, isDestroy bool, showAbsPaths bool) error {
-	entries := slices.Clone(rnr.queue.Entries)
-	if isDestroy {
-		slices.Reverse(entries)
-	}
-
+func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, showAbsPaths bool) error {
 	var sb strings.Builder
 
-	for _, unit := range entries {
+	for _, unit := range rnr.queue.Entries {
 		unitPath := unit.Component.DisplayPath()
 		if showAbsPaths {
 			unitPath = unit.Component.Path()
