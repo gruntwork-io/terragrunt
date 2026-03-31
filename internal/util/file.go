@@ -508,9 +508,9 @@ func CopyFile(source string, destination string) error {
 	if err != nil {
 		return errors.New(err)
 	}
-	defer file.Close()
 
-	return WriteFileWithSamePermissions(source, destination, file)
+	err = WriteFileWithSamePermissions(source, destination, file)
+	return errors.New(errors.Join(err, file.Close()))
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
@@ -536,7 +536,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents io
 
 	_, err = io.Copy(file, contents)
 
-	return err
+	return errors.Join(err, file.Close())
 }
 
 // ContainsPath returns true if path contains the given subpath
