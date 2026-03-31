@@ -307,3 +307,49 @@ func buildExcludeTestCommand(tc *excludeTestCase, rootPath, reportFile string) s
 
 	return cmd
 }
+
+// TestExcludeBlockFeatureFlagDefaultInDependency tests that when a dependency unit
+// defines feature flags with defaults and uses them in an exclude block, the dependent
+// unit can still parse the dependency's config without errors.
+// This reproduces https://github.com/gruntwork-io/terragrunt/issues/4395
+func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := "fixtures/exclude/dependency-feature-flags"
+	cleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath, "dependent-unit")
+
+	cmd := "terragrunt plan --non-interactive --working-dir " + rootPath
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	// The bug causes: "Error: Attempt to get attribute from null value"
+	// when parsing the dependency's exclude block that uses feature flags
+	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
+		"Feature flag defaults should be available when parsing dependency configs")
+	require.NoError(t, err, "terragrunt plan should succeed when dependency has feature flags in exclude block")
+}
+
+// TestExcludeBlockFeatureFlagDefaultRunAll tests the run-all scenario where
+// all units are parsed and one has feature flags with defaults in exclude blocks.
+func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := "fixtures/exclude/dependency-feature-flags"
+	cleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+
+	reportFile := filepath.Join(t.TempDir(), "report.json")
+
+	cmd := fmt.Sprintf(
+		"terragrunt run --all --non-interactive --working-dir %s --report-file %s --report-format json -- plan",
+		rootPath,
+		reportFile,
+	)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	assert.NotContains(t, stderr, "Attempt to get attribute from null value",
+		"Feature flag defaults should be available when parsing configs in run-all mode")
+	require.NoError(t, err, "terragrunt run-all plan should succeed with feature flags in exclude blocks")
+}

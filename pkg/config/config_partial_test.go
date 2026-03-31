@@ -683,3 +683,93 @@ func TestPartialParseConfigCacheDifferentCallers(t *testing.T) {
 	assert.Equal(t, []string{"../app1"}, configA.Dependencies.Paths)
 	assert.Equal(t, []string{"../app1"}, configB.Dependencies.Paths)
 }
+
+// TestPartialParseFeatureFlagDefaultInExcludeBlock tests that feature flag default values
+// are correctly resolved when used in exclude blocks in the same file (no includes).
+// This reproduces the bug from https://github.com/gruntwork-io/terragrunt/issues/4395
+func TestPartialParseFeatureFlagDefaultInExcludeBlock(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+feature "skip_ci" {
+  default = false
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
+
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "parsing feature flag default in exclude block should not fail")
+
+	// Feature flag default is false, so the exclude block should have if=false
+	assert.NotNil(t, terragruntConfig.Exclude)
+
+	if terragruntConfig.Exclude != nil {
+		assert.False(t, terragruntConfig.Exclude.If, "exclude.if should be false when feature default is false")
+	}
+}
+
+// TestPartialParseFeatureFlagDefaultWithTerragruntFlagsOnly tests the decode list
+// used by decodeDependencies - TerragruntFlags only (no ExcludeBlock).
+// This is the path triggered when resolving dependency configs.
+func TestPartialParseFeatureFlagDefaultWithTerragruntFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+feature "skip_ci" {
+  default = false
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.TerragruntFlags)
+
+	_, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "parsing with TerragruntFlags decode list should not fail when feature flags and exclude blocks are present")
+}
+
+// TestPartialParseFeatureFlagDefaultTrueInExcludeBlock tests that when the feature
+// flag default is true, the exclude block correctly evaluates to true.
+func TestPartialParseFeatureFlagDefaultTrueInExcludeBlock(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+feature "skip_ci" {
+  default = true
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
+	pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
+
+	terragruntConfig, err := config.PartialParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err, "parsing feature flag default in exclude block should not fail")
+
+	assert.NotNil(t, terragruntConfig.Exclude)
+
+	if terragruntConfig.Exclude != nil {
+		assert.True(t, terragruntConfig.Exclude.If, "exclude.if should be true when feature default is true")
+	}
+}
