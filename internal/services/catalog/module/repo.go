@@ -57,15 +57,25 @@ type Repo struct {
 	slowReporting    bool
 }
 
-func NewRepo(ctx context.Context, l log.Logger, cloneURL, path string, walkWithSymlinks, allowCAS, slowReporting bool, rootWorkingDir string) (*Repo, error) {
+// RepoOpts contains parameters for NewRepo.
+type RepoOpts struct {
+	CloneURL         string
+	Path             string
+	RootWorkingDir   string
+	WalkWithSymlinks bool
+	AllowCAS         bool
+	SlowReporting    bool
+}
+
+func NewRepo(ctx context.Context, l log.Logger, opts RepoOpts) (*Repo, error) {
 	repo := &Repo{
 		logger:           l,
-		cloneURL:         cloneURL,
-		path:             path,
-		walkWithSymlinks: walkWithSymlinks,
-		allowCAS:         allowCAS,
-		slowReporting:    slowReporting,
-		rootWorkingDir:   rootWorkingDir,
+		cloneURL:         opts.CloneURL,
+		path:             opts.Path,
+		walkWithSymlinks: opts.WalkWithSymlinks,
+		allowCAS:         opts.AllowCAS,
+		slowReporting:    opts.SlowReporting,
+		rootWorkingDir:   opts.RootWorkingDir,
 	}
 
 	if err := repo.clone(ctx, l); err != nil {
