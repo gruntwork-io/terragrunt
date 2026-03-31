@@ -53,6 +53,7 @@ func NotifyIfSlow(ctx context.Context, l log.Logger, spinnerW io.Writer, timeout
 	err := fn()
 
 	result <- err
+
 	<-showed
 
 	return err
