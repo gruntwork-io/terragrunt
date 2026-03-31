@@ -1351,7 +1351,10 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	if err != nil {
+		errs = errs.Append(err)
+	}
 
 	// Decode the rest of the config, passing in this config's `include` block or the child's `include` block, whichever
 	// is appropriate

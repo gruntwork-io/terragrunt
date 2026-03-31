@@ -76,7 +76,11 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 		return nil, err
 	}
 
-	evalCtx := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	if err != nil {
+		l.Errorf("Failed to create eval context %s", file.ConfigPath)
+		return nil, err
+	}
 
 	evaluatedAttrs := map[string]cty.Value{}
 

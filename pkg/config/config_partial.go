@@ -123,7 +123,10 @@ type terragruntEngine struct {
 func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
 	errs := &errors.MultiError{}
 
-	evalParsingContext := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
 	terragruntIncludeList, err := decodeAsTerragruntInclude(
@@ -416,7 +419,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	output.IsPartial = true
 
-	evalParsingContext := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Now loop through each requested block / component to decode from the terragrunt config, decode them, and merge
 	// them into the output TerragruntConfig struct.

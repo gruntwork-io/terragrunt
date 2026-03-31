@@ -31,6 +31,7 @@ const (
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
 	testFixtureReadConfigDependencyStack         = "fixtures/regressions/read-config-dependency-stack"
 	testFixtureChainedDepsExposedInclude         = "fixtures/regressions/chained-deps-exposed-include"
+	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -772,4 +773,48 @@ func TestChainedDepsExposedIncludeNoErrorLog(t *testing.T) {
 		"Could not convert include to the execution",
 		"Should not log 'Could not convert include' error when chaining dependencies with exposed includes (issue #4153)",
 	)
+}
+
+// TestExposedIncludePartialParseSucceeds verifies that partial parsing (used during module discovery)
+// succeeds when an included config has an unresolved dependency, because the include resolution error
+// is gracefully swallowed during partial parse.
+func TestExposedIncludePartialParseSucceeds(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// list --dag triggers partial parsing during discovery.
+	// The child includes root.hcl with expose=true, and root.hcl has a dependency
+	// whose outputs aren't available. During partial parse, this should be tolerated.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "Partial parsing should succeed even when exposed include has unresolved dependency")
+	assert.Contains(t, stdout, "child")
+	assert.Contains(t, stdout, "unreachable-dep")
+}
+
+// TestExposedIncludeFullParseReturnsError verifies that full parsing surfaces an error when an
+// included config (with expose=true) has a dependency whose outputs cannot be resolved.
+// This ensures we only swallow include resolution errors during partial parse, not during full parse.
+func TestExposedIncludeFullParseReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	childPath := filepath.Join(rootPath, "child")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
+	)
+	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
+	assert.Contains(t, stderr, "detected no outputs",
+		"Error should mention that dependency has no outputs")
 }
