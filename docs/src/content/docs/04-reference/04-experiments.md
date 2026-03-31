@@ -72,6 +72,7 @@ The following experiments are available:
 - [filter-flag](#filter-flag)
 - [iac-engine](#iac-engine)
 - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+- [dag-queue-display](#dag-queue-display)
 
 ### symlinks
 
@@ -263,6 +264,47 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Documentation of supported backends and limitations
 - [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
 - [ ] Community feedback on real-world usage
+
+### `dag-queue-display`
+
+Display the run queue as a DAG tree showing dependency hierarchy.
+
+#### `dag-queue-display` - What it does
+
+By default, Terragrunt displays the run queue as a flat list of units before execution. When this experiment is enabled, the queue is rendered as a tree that visualizes dependency relationships between units. Independent units appear as siblings at the root, while dependent units are nested under their dependencies.
+
+The tree also changes its header message based on execution direction:
+
+- **Apply/Plan**: "starting with dependencies and then their dependents"
+- **Destroy**: "starting with dependents and then their dependencies"
+
+```bash
+terragrunt run --all --experiment dag-queue-display -- plan
+```
+
+Example output:
+
+```
+The following units will be run, starting with dependencies and then their dependents:
+.
+├── monitoring
+╰── vpc
+    ╰── database
+        ╰── backend-app
+            ╰── frontend-app
+```
+
+#### `dag-queue-display` - How to provide feedback
+
+Provide your feedback on the [DAG Queue Display](https://github.com/gruntwork-io/terragrunt/discussions/TODO) GitHub Discussion.
+
+#### `dag-queue-display` - Criteria for stabilization
+
+To transition the `dag-queue-display` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Community feedback on the tree visualization format
+- [ ] Confirm readability with large dependency graphs
+- [ ] Confirm compatibility with CI/CD log viewers (color and Unicode handling)
 
 ## Completed Experiments
 
