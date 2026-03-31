@@ -273,5 +273,5 @@ func buildWorktreesIfNeeded(
 		return nil, nil
 	}
 
-	return worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters, opts.Experiments)
+	return worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 }

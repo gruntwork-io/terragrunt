@@ -41,25 +41,26 @@ func SpinnerWriter() io.Writer {
 }
 
 // NotifyIfSlow runs fn and, if it takes longer than timeout, shows a spinner on spinnerW.
-// When fn completes, the spinner is replaced by an INFO log with the done message and elapsed time.
+// When fn completes successfully, the spinner is replaced by an INFO log with the done message and elapsed time.
+// When fn returns an error, the spinner is cleared but no success message is logged.
 func NotifyIfSlow(ctx context.Context, l log.Logger, spinnerW io.Writer, timeout time.Duration, msgs SlowNotifyMsg, fn func() error) error {
-	done := make(chan struct{})
+	result := make(chan error, 1)
 	showed := make(chan struct{})
 	start := time.Now()
 
-	go notifyLoop(ctx, l, spinnerW, timeout, msgs, start, done, showed)
+	go notifyLoop(ctx, l, spinnerW, timeout, msgs, start, result, showed)
 
 	err := fn()
 
-	close(done)
+	result <- err
 	<-showed
 
 	return err
 }
 
 // notifyLoop waits for the timeout, then shows a spinner until done.
-// On completion it clears the spinner and logs the done message with elapsed time.
-// On context cancellation no completion message is logged.
+// On successful completion it clears the spinner and logs the done message with elapsed time.
+// On error or context cancellation no completion message is logged.
 func notifyLoop(
 	ctx context.Context,
 	l log.Logger,
@@ -67,7 +68,7 @@ func notifyLoop(
 	timeout time.Duration,
 	msgs SlowNotifyMsg,
 	start time.Time,
-	done <-chan struct{},
+	result <-chan error,
 	showed chan<- struct{},
 ) {
 	defer close(showed)
@@ -77,7 +78,7 @@ func notifyLoop(
 
 	select {
 	case <-timer.C:
-	case <-done:
+	case <-result:
 		return
 	case <-ctx.Done():
 		return
@@ -88,8 +89,10 @@ func notifyLoop(
 		l.Info(msgs.Spinner)
 
 		select {
-		case <-done:
-			logDone(l, msgs.Done, start)
+		case err := <-result:
+			if err == nil {
+				logDone(l, msgs.Done, start)
+			}
 		case <-ctx.Done():
 		}
 
@@ -112,9 +115,12 @@ func notifyLoop(
 			writeSpinnerFrame(spinnerW, spinnerFrames[frame%len(spinnerFrames)], msgs.Spinner)
 
 			frame++
-		case <-done:
+		case err := <-result:
 			clearSpinner(spinnerW, msgs.Spinner)
-			logDone(l, msgs.Done, start)
+
+			if err == nil {
+				logDone(l, msgs.Done, start)
+			}
 
 			return
 		case <-ctx.Done():

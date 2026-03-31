@@ -102,7 +102,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	// so that we can defer cleanup in the same context.
 	gitFilters := opts.Filters.UniqueGitFilters()
 
-	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters, opts.Experiments)
+	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 	if parseErr != nil {
 		return errors.Errorf("failed to create worktrees: %w", parseErr)
 	}
@@ -248,7 +248,7 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
 		gitFilters := opts.Filters.UniqueGitFilters()
 
-		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters, opts.Experiments)
+		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 		if worktreeErr != nil {
 			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 		}

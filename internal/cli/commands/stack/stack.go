@@ -55,7 +55,7 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	if len(gitFilters) > 0 {
 		var err error
 
-		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters, opts.Experiments)
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}

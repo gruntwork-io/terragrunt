@@ -48,6 +48,13 @@ type Worktree struct {
 	Path string
 }
 
+// WorktreeOpts contains parameters for NewWorktrees.
+type WorktreeOpts struct {
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
+}
+
 // WorkingDir returns the path within a worktree that corresponds to the user's
 // original working directory. This is used for display purposes after discovery completes.
 func (w *Worktrees) WorkingDir(ctx context.Context, worktreePath string) string {
@@ -321,10 +328,12 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
-	workingDir string,
-	gitExpressions filter.GitExpressions,
-	experiments experiment.Experiments,
+	opts WorktreeOpts,
 ) (*Worktrees, error) {
+	workingDir := opts.WorkingDir
+	gitExpressions := opts.GitExpressions
+	experiments := opts.Experiments
+
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),

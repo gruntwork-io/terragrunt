@@ -277,13 +277,13 @@ This provides visual feedback during operations that would otherwise show no out
 
 - Git worktree creation for `--filter` with Git references
 - Catalog repository cloning (`terragrunt catalog`)
-- Terraform/OpenTofu source downloads via go-getter
+- OpenTofu/Terraform source downloads via `go-getter`
 
 In non-interactive environments (CI/CD, piped output), spinners are suppressed and only INFO log lines are shown.
 
 #### `slow-task-reporting` - How to provide feedback
 
-Provide your feedback on the [GitHub issues](https://github.com/gruntwork-io/terragrunt/issues) page.
+Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page.
 
 #### `slow-task-reporting` - Criteria for stabilization
 
