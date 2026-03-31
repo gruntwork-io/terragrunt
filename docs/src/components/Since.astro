@@ -1,0 +1,31 @@
+---
+/**
+ * Conditionally renders its children only when the latest Terragrunt release
+ * is equal to or newer than the specified semver version.
+ *
+ * Usage in .mdx files:
+ *   <Since version="1.1.0">
+ *     Content shown only when the latest release is >= 1.1.0
+ *   </Since>
+ */
+import { getLatestRelease } from '@lib/github';
+
+interface Props {
+  version: string;
+}
+
+const { version } = Astro.props;
+
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestTag = releaseData?.tag_name ?? 'v0.0.0';
+
+// Strip leading 'v' for comparison
+const latest = latestTag.replace(/^v/, '');
+const target = version.replace(/^v/, '');
+
+// Compare using locale-aware numeric comparison, matching the pattern
+// used by ChangelogEntries.astro for semver ordering.
+const isReleased = latest.localeCompare(target, undefined, { numeric: true }) >= 0;
+---
+
+{isReleased && <slot />}

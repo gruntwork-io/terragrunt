@@ -6,6 +6,8 @@ sidebar:
   order: 4
 ---
 
+import Since from '@components/Since.astro';
+
 Terragrunt supports operating in a mode referred to as "Experiment Mode".
 
 Experiment Mode is a set of controls that can be enabled to opt in to experimental features before they're stable.
@@ -72,7 +74,9 @@ The following experiments are available:
 - [filter-flag](#filter-flag)
 - [iac-engine](#iac-engine)
 - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+<Since version="1.1.0">
 - [dag-queue-display](#dag-queue-display)
+</Since>
 
 ### symlinks
 
@@ -265,6 +269,7 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
 - [ ] Community feedback on real-world usage
 
+<Since version="1.1.0">
 ### `dag-queue-display`
 
 Display the run queue as a DAG tree showing dependency hierarchy.
@@ -305,6 +310,7 @@ To transition the `dag-queue-display` feature to a stable release, the following
 - [ ] Community feedback on the tree visualization format
 - [ ] Confirm readability with large dependency graphs
 - [ ] Confirm compatibility with CI/CD log viewers (color and Unicode handling)
+</Since>
 
 ## Completed Experiments
 
