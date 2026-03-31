@@ -240,17 +240,19 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, pctx, l)
+		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
+			return nil, fmt.Errorf("could not resolve exposed includes for eval context in %s: %w", configPath, err)
+		}
+
 		if err != nil {
-			if len(pctx.PartialParseDecodeList) > 0 {
-				// Include resolution can fail during partial parsing of configs in dependency chains,
-				// e.g. when an included config has a dependency block whose outputs aren't yet available.
-				// This is expected and non-fatal — locals referencing the include will be left unevaluated,
-				// and the system will fall back to full parsing when needed.
-				l.Debugf("Could not resolve exposed includes for eval context in %s (partial parse): %v", configPath, err)
-			} else {
-				return nil, fmt.Errorf("could not resolve exposed includes for eval context in %s: %w", configPath, err)
-			}
-		} else {
+			// Include resolution can fail during partial parsing of configs in dependency chains,
+			// e.g. when an included config has a dependency block whose outputs aren't yet available.
+			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
+			// and the system will fall back to full parsing when needed.
+			l.Debugf("Could not resolve exposed includes for eval context in %s (partial parse): %v", configPath, err)
+		}
+
+		if err == nil {
 			evalCtx.Variables[MetadataInclude] = exposedInclude
 		}
 	}
