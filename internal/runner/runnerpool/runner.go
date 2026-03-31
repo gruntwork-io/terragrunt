@@ -20,6 +20,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -586,9 +587,19 @@ func (rnr *Runner) Run(ctx context.Context, l log.Logger, stackOpts *options.Ter
 }
 
 // LogUnitDeployOrder logs the order of units to be processed.
-// The output is rendered as a DAG tree showing dependency relationships between units.
+// When the dag-queue-display experiment is enabled, the output is rendered as a DAG tree
+// showing dependency relationships between units. Otherwise, a flat list is shown.
+func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool, experiments experiment.Experiments) error {
+	if experiments.Evaluate(experiment.DAGQueueDisplay) {
+		return rnr.logUnitDeployOrderDAG(l, isDestroy, showAbsPaths)
+	}
+
+	return rnr.logUnitDeployOrderFlat(l, isDestroy, showAbsPaths)
+}
+
+// logUnitDeployOrderDAG renders the queue as a DAG tree showing dependency relationships.
 // Independent units (siblings in the tree) may run concurrently.
-func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths bool) error {
+func (rnr *Runner) logUnitDeployOrderDAG(l log.Logger, isDestroy bool, showAbsPaths bool) error {
 	components := rnr.queueComponents()
 	listed := rnr.buildListedComponents(components, isDestroy, showAbsPaths)
 
@@ -600,6 +611,29 @@ func (rnr *Runner) LogUnitDeployOrder(l log.Logger, isDestroy bool, showAbsPaths
 	header := deployOrderHeader(isDestroy)
 
 	l.Info(header + t.String())
+
+	return nil
+}
+
+// logUnitDeployOrderFlat renders the queue as a flat list of units.
+func (rnr *Runner) logUnitDeployOrderFlat(l log.Logger, isDestroy bool, showAbsPaths bool) error {
+	entries := slices.Clone(rnr.queue.Entries)
+	if isDestroy {
+		slices.Reverse(entries)
+	}
+
+	var sb strings.Builder
+
+	for _, unit := range entries {
+		unitPath := unit.Component.DisplayPath()
+		if showAbsPaths {
+			unitPath = unit.Component.Path()
+		}
+
+		fmt.Fprintf(&sb, "- Unit %s\n", unitPath)
+	}
+
+	l.Info(sb.String())
 
 	return nil
 }
