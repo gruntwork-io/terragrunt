@@ -6,6 +6,10 @@
 ![OpenTofu Version](https://img.shields.io/badge/tofu-%3E%3D1.6.0-blue.svg)
 ![Terraform Version](https://img.shields.io/badge/tf-%3E%3D0.12.0-blue.svg)
 
+🎉 **Terragrunt v1.0 is here!** Read the [announcement](https://www.gruntwork.io/blog/terragrunt-1-0-released) to learn more.
+
+---
+
 Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in [OpenTofu](https://opentofu.org)/[Terraform](https://www.terraform.io) to scale.
 
 Please see the following for more info, including install instructions and complete documentation:

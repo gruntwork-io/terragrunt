@@ -240,11 +240,21 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, pctx, l)
-		if err != nil {
-			return evalCtx, err
+		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
+			return nil, fmt.Errorf("could not resolve exposed includes for eval context in %s: %w", configPath, err)
 		}
 
-		evalCtx.Variables[MetadataInclude] = exposedInclude
+		if err != nil {
+			// Include resolution can fail during partial parsing of configs in dependency chains,
+			// e.g. when an included config has a dependency block whose outputs aren't yet available.
+			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
+			// and the system will fall back to full parsing when needed.
+			l.Debugf("Could not resolve exposed includes for eval context in %s (partial parse): %v", configPath, err)
+		}
+
+		if err == nil {
+			evalCtx.Variables[MetadataInclude] = exposedInclude
+		}
 	}
 
 	return evalCtx, nil
@@ -1024,6 +1034,13 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	}
 
 	pctx = pctx.WithDiagnosticsSuppressed(l)
+
+	// The parent's decoded dependencies are not the target config's. Reset so the
+	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
+	// so that dependency tracing accurately reflects that resolution is happening.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
+	pctx.DecodedDependencies = nil
+	pctx.SkipOutputsResolution = false
 
 	// check if file is stack file, decode as stack file
 	if filepath.Base(targetConfig) == DefaultStackFile {

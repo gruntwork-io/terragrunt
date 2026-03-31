@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -240,8 +239,8 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			continue
 		}
 
-		if dependency.ConfigPath.Type() != cty.String {
-			errs = append(errs, errors.New("dependency config path is not a string"))
+		if !config.IsValidConfigPath(dependency.ConfigPath) {
+			errs = append(errs, errors.Errorf("skipping dependency %q in %q: config_path could not be resolved", dependency.Name, c.Path()))
 			continue
 		}
 
