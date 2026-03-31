@@ -1025,6 +1025,13 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	pctx = pctx.WithDiagnosticsSuppressed(l)
 
+	// The parent's decoded dependencies are not the target config's. Reset so the
+	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
+	// so that dependency tracing accurately reflects that resolution is happening.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
+	pctx.DecodedDependencies = nil
+	pctx.SkipOutputsResolution = false
+
 	// check if file is stack file, decode as stack file
 	if filepath.Base(targetConfig) == DefaultStackFile {
 		stackSourceDir := filepath.Dir(targetConfig)
