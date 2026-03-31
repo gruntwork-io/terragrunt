@@ -29,6 +29,7 @@ const (
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
+	testFixtureReadConfigDependencyStack         = "fixtures/regressions/read-config-dependency-stack"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -710,4 +711,24 @@ func TestDependencyIncludeError(t *testing.T) {
 	// Verify the command actually completed successfully
 	assert.Contains(t, stdout, "Apply complete!",
 		"Apply should complete successfully")
+}
+
+// TestReadTerragruntConfigDependencyInStack tests that read_terragrunt_config()
+// can parse a config with dependency blocks when running as an implicit stack.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5624
+func TestReadTerragruntConfigDependencyInStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadConfigDependencyStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfigDependencyStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfigDependencyStack)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "\"dependency\" is not defined",
+		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
 }

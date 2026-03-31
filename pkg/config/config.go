@@ -1340,9 +1340,9 @@ func ParseConfig(
 		TraceParseBaseBlocksResult(ctx, file.ConfigPath, baseBlocks)
 	}
 
-	if !pctx.SkipOutputsResolution && pctx.DecodedDependencies == nil {
+	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
-		// process.
+		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = errs.Append(err)
