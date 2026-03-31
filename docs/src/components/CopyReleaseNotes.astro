@@ -1,0 +1,71 @@
+---
+interface Props {
+  markdown: string;
+}
+
+const { markdown } = Astro.props;
+---
+
+<copy-release-notes>
+  <button
+    type="button"
+    class="copy-btn"
+    data-markdown={markdown}
+  >
+    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+    <span class="label">Copy to Clipboard</span>
+  </button>
+</copy-release-notes>
+
+<style>
+  .copy-btn {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: var(--font-sans);
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-accent);
+    background: transparent;
+    color: var(--sl-color-accent);
+    transition: background-color 150ms, color 150ms, border-color 150ms;
+    outline: none;
+    text-decoration: none;
+  }
+
+  .copy-btn:hover {
+    background: var(--sl-color-accent);
+    color: var(--sl-color-white);
+  }
+
+  .copy-btn[data-copied] {
+    border-color: var(--sl-color-docs-stroke);
+    color: var(--sl-color-gray-3);
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  class CopyReleaseNotes extends HTMLElement {
+    connectedCallback() {
+      const btn = this.querySelector<HTMLButtonElement>(".copy-btn")!;
+      const label = this.querySelector<HTMLSpanElement>(".label")!;
+      const markdown = btn.dataset.markdown ?? "";
+
+      btn.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(markdown);
+        btn.setAttribute("data-copied", "");
+        label.textContent = "Copied!";
+        setTimeout(() => {
+          btn.removeAttribute("data-copied");
+          label.textContent = "Copy to Clipboard";
+        }, 2000);
+      });
+    }
+  }
+
+  customElements.define("copy-release-notes", CopyReleaseNotes);
+</script>

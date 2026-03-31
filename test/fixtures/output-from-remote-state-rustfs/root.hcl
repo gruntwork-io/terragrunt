@@ -7,6 +7,7 @@ remote_state {
     region                      = "us-east-1"
     endpoint                    = "__FILL_IN_S3_ENDPOINT__"
     skip_credentials_validation = true
+    skip_requesting_account_id  = true
     skip_metadata_api_check     = true
     force_path_style            = true
     encrypt                     = false
