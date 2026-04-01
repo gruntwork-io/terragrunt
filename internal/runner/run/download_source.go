@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
+
 
 	"github.com/hashicorp/go-getter"
 	getterv2 "github.com/hashicorp/go-getter/v2"
@@ -57,29 +59,50 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	if err = DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r); err != nil {
+	// Serialize concurrent downloads to the same cache directory. Without this,
+	// manifest.Clean() in one goroutine can delete files while another goroutine
+	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
+	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
+	dirLock := rawLock.(*sync.Mutex)
+	dirLock.Lock()
+	defer dirLock.Unlock()
+
+	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
+	if err != nil {
 		return nil, err
 	}
 
-	l.Debugf(
-		"Copying files from %s into %s",
-		util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
-		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
-	)
+	// For local sources, when no download was needed (AlreadyHaveLatestCode=true),
+	// skip the module copy: the version hash incorporates all file mod times, so
+	// no files have changed and the cache already has the correct content from a
+	// previous run. Skipping avoids manifest.Clean() deleting files that a
+	// concurrent goroutine expects to exist.
+	//
+	// For remote sources, always do the module copy because local working-dir
+	// files may have changed independently of the remote source version.
+	needsModuleCopy := downloaded || !tf.IsLocalSource(terraformSource.CanonicalSourceURL)
 
-	// Always include the .tflint.hcl file, if it exists
-	includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
+	if needsModuleCopy {
+		l.Debugf(
+			"Copying files from %s into %s",
+			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
+			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
+		)
 
-	err = util.CopyFolderContents(
-		l,
-		opts.WorkingDir,
-		terraformSource.WorkingDir,
-		ModuleManifestName,
-		includeInCopy,
-		cfg.Terraform.ExcludeFromCopy,
-	)
-	if err != nil {
-		return nil, err
+		// Always include the .tflint.hcl file, if it exists
+		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
+
+		err = util.CopyFolderContents(
+			l,
+			opts.WorkingDir,
+			terraformSource.WorkingDir,
+			ModuleManifestName,
+			includeInCopy,
+			cfg.Terraform.ExcludeFromCopy,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
@@ -100,7 +123,8 @@ func DownloadTerraformSource(
 	return updatedOpts, nil
 }
 
-// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
+// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
+// downloaded. It returns true if a download was performed, or false if the existing cache was up to date.
 func DownloadTerraformSourceIfNecessary(
 	ctx context.Context,
 	l log.Logger,
@@ -108,22 +132,22 @@ func DownloadTerraformSourceIfNecessary(
 	opts *Options,
 	cfg *runcfg.RunConfig,
 	r *report.Report,
-) error {
+) (bool, error) {
 	if opts.SourceUpdate {
 		l.Debugf("The --source-update flag is set, so deleting the temporary folder %s before downloading source.", terraformSource.DownloadDir)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return errors.New(err)
+			return false, errors.New(err)
 		}
 	} else {
 		alreadyLatest, err := AlreadyHaveLatestCode(l, terraformSource, opts)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if alreadyLatest {
 			if err := ValidateWorkingDir(terraformSource); err != nil {
-				return err
+				return false, err
 			}
 
 			l.Debugf(
@@ -136,7 +160,7 @@ func DownloadTerraformSourceIfNecessary(
 				),
 			)
 
-			return nil
+			return false, nil
 		}
 	}
 
@@ -148,7 +172,7 @@ func DownloadTerraformSourceIfNecessary(
 
 		previousVersion, err = readVersionFile(terraformSource)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -157,7 +181,7 @@ func DownloadTerraformSourceIfNecessary(
 	// before and after hooks (if any).
 	l, optsForDownload, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	optsForDownload.TerraformCommand = tf.CommandNameInitFromModule
@@ -174,15 +198,15 @@ func DownloadTerraformSourceIfNecessary(
 		},
 	)
 	if downloadErr != nil {
-		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
+		return false, DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(l); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := ValidateWorkingDir(terraformSource); err != nil {
-		return err
+		return false, err
 	}
 
 	currentVersion, err := terraformSource.EncodeSourceVersion(l)
@@ -195,13 +219,13 @@ func DownloadTerraformSourceIfNecessary(
 
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
-			return createErr
+			return false, createErr
 		}
 
 		defer f.Close()
 	}
 
-	return nil
+	return true, nil
 }
 
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
