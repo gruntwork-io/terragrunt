@@ -3,28 +3,36 @@ import { getCollection, render } from "astro:content";
 import CopyReleaseNotes from "./CopyReleaseNotes.astro";
 import { getLatestRelease } from "@lib/github";
 
+interface Props {
+  showUnreleased?: boolean;
+}
+
+const { showUnreleased = false } = Astro.props;
+
 const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
 const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
 
+function isReleased(version: string): boolean {
+  if (!version.startsWith("v")) return false;
+
+  const v = version.replace(/^v/, "");
+  return v.localeCompare(latestVersion, undefined, { numeric: true }) <= 0;
+}
+
 const allEntries = await getCollection("changelog");
 
-// Filter out entries whose version is newer than the latest release.
-// Non-semver entries (e.g. "Unreleased") are always included.
-const entries = allEntries.filter((entry) => {
-  if (!entry.data.version.startsWith("v")) return true;
-
-  const entryVersion = entry.data.version.replace(/^v/, "");
-  return entryVersion.localeCompare(latestVersion, undefined, { numeric: true }) <= 0;
-});
-
 // Sort by version descending, with non-semver entries (e.g. "Unreleased") always first
-entries.sort((a, b) => {
+allEntries.sort((a, b) => {
   const aIsVersion = a.data.version.startsWith("v");
   const bIsVersion = b.data.version.startsWith("v");
   if (!aIsVersion && bIsVersion) return -1;
   if (aIsVersion && !bIsVersion) return 1;
   return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
 });
+
+const entries = showUnreleased
+  ? allEntries
+  : allEntries.filter((entry) => isReleased(entry.data.version));
 
 const siteUrl = Astro.site?.origin ?? "https://docs.terragrunt.com";
 

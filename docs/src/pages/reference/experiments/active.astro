@@ -5,23 +5,24 @@ import { getCollection } from 'astro:content';
 import { getLatestRelease } from '@lib/github';
 import { sidebar } from '../../../../astro.config.mjs';
 
-export const prerender = true;
+const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
 
 const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
 const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+function isSinceReleased(since?: string): boolean {
+	if (!since) return true;
+	const target = since.replace(/^v/, '');
+	return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
+}
 
 const allEntries = await getCollection('experiments');
 
 const entries = allEntries
 	.filter((e) => e.data.status === 'active')
-	.filter((e) => {
-		if (!e.data.since) return true;
-		const target = e.data.since.replace(/^v/, '');
-		return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
-	})
+	.filter((e) => showUnreleased || isSinceReleased(e.data.since))
 	.sort((a, b) => a.data.name.localeCompare(b.data.name));
 
-// Build TOC headings: experiment name (H2) + subheadings (H3) from body
 const headings: { depth: number; slug: string; text: string }[] = [];
 
 for (const entry of entries) {
@@ -52,5 +53,5 @@ for (const entry of entries) {
 		The following experiments are available for opt-in. See the <a href="/reference/experiments">experiments overview</a> for how to enable them.
 	</p>
 	<hr />
-	<ExperimentEntries status="active" />
+	<ExperimentEntries status="active" showUnreleased={showUnreleased} />
 </StarlightPage>

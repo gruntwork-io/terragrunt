@@ -4,8 +4,6 @@ import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
 import { sidebar } from '../../../../astro.config.mjs';
 
-export const prerender = true;
-
 const entries = await getCollection('strictControls');
 
 const completed = entries

@@ -4,8 +4,6 @@ import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
 import { sidebar } from '../../../../astro.config.mjs';
 
-export const prerender = true;
-
 const entries = await getCollection('experiments');
 
 const completed = entries

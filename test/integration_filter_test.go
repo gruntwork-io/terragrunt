@@ -1275,7 +1275,7 @@ terraform {
 	// Apply the unit so that it shows up in state first.
 	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
 	runs := helpers.ReadReport(t, tmpDir, "report.json")
@@ -1307,7 +1307,7 @@ terraform {
 	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
 		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	combinedOutput := stdout + stderr
 

@@ -4,23 +4,25 @@ import { getLatestRelease } from "@lib/github";
 
 interface Props {
   status: "active" | "completed";
+  showUnreleased?: boolean;
 }
 
-const { status } = Astro.props;
+const { status, showUnreleased = false } = Astro.props;
 
 const releaseData = await getLatestRelease("gruntwork-io", "terragrunt");
 const latestVersion = (releaseData?.tag_name ?? "v0.0.0").replace(/^v/, "");
+
+function isSinceReleased(since?: string): boolean {
+  if (!since) return true;
+  const target = since.replace(/^v/, "");
+  return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
+}
 
 const allEntries = await getCollection("strictControls");
 
 const entries = allEntries
   .filter((entry) => entry.data.status === status)
-  .filter((entry) => {
-    if (!entry.data.since) return true;
-
-    const target = entry.data.since.replace(/^v/, "");
-    return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
-  })
+  .filter((entry) => showUnreleased || isSinceReleased(entry.data.since))
   .sort((a, b) => a.data.name.localeCompare(b.data.name));
 
 const rendered = await Promise.all(
