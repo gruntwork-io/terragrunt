@@ -3,7 +3,7 @@ import type { SidebarItem } from "node_modules/@astrojs/starlight/schemas/sideba
 import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
-import { sidebar as sidebarTemplate } from '../../../../astro.config.mjs';
+import { sidebar as sidebarTemplate } from '../../../data/sidebar';
 
 function createCommandSidebarItem(command: CollectionEntry<'commands'>): SidebarItem & { originalPath: string } {
   const data = command.data;
