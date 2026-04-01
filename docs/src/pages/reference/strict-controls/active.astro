@@ -1,10 +1,11 @@
+export const prerender = true;
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import StrictControlEntries from '@components/StrictControlEntries.astro';
 import { getCollection } from 'astro:content';
 import { sidebar } from '../../../data/sidebar';
 
-const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
+const showUnreleased = import.meta.env.DEV;
 
 const allEntries = await getCollection('strictControls');
 
