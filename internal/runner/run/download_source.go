@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-
 	"github.com/hashicorp/go-getter"
 	getterv2 "github.com/hashicorp/go-getter/v2"
 
