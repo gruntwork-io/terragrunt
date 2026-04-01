@@ -19,6 +19,7 @@ site-search button svg {
 /* Search Dialog Box */
 site-search dialog[open] {
   background: var(--color-dialog-bg);
+  color: #1c2541;
   border-radius: .5rem;
   display: flex;
   height: max-content;
@@ -164,6 +165,12 @@ input.pagefind-ui__search-input:focus {
 
 .pagefind-ui__result-title a:hover {
   color: #448daf;
+}
+
+#starlight__search mark {
+  color: #4F2FD0;
+  background-color: transparent;
+  font-weight: 600;
 }
 
 /* Hide Light/Dark Mode Toggle in Hamburger Menu */
