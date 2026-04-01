@@ -86,4 +86,13 @@ const experiments = defineCollection({
 	}),
 });
 
-export const collections = { changelog, commands, compatibility, docs, experiments, flags };
+const strictControls = defineCollection({
+	loader: glob({ pattern: "**/*.mdx", base: "src/data/strict-controls" }),
+	schema: z.object({
+		name: z.string(),
+		status: z.enum(["active", "completed"]),
+		since: z.string().optional(),
+	}),
+});
+
+export const collections = { changelog, commands, compatibility, docs, experiments, flags, strictControls };

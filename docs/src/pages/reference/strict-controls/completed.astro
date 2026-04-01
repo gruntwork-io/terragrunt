@@ -1,0 +1,46 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import StrictControlEntries from '@components/StrictControlEntries.astro';
+import { getCollection } from 'astro:content';
+import { sidebar } from '../../../../astro.config.mjs';
+
+export const prerender = true;
+
+const entries = await getCollection('strictControls');
+
+const completed = entries
+	.filter((e) => e.data.status === 'completed')
+	.sort((a, b) => a.data.name.localeCompare(b.data.name));
+
+const headings: { depth: number; slug: string; text: string }[] = [];
+
+for (const entry of completed) {
+	headings.push({ depth: 2, slug: entry.data.name, text: entry.data.name });
+
+	const h3Lines = entry.body?.match(/^### .+/gm) ?? [];
+	for (const line of h3Lines) {
+		const text = line.replace(/^### /, '').replaceAll('`', '');
+		const slug = text
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.trim()
+			.replace(/\s+/g, '-');
+		headings.push({ depth: 3, slug, text });
+	}
+}
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'Completed Strict Controls',
+		description: 'Strict controls that have been completed and are no longer needed.',
+	}}
+	headings={headings}
+	sidebar={sidebar}
+>
+	<p>
+		These strict controls have been completed and are no longer needed. The features they controlled have been fully removed or the behavior is now the default.
+	</p>
+	<hr />
+	<StrictControlEntries status="completed" />
+</StarlightPage>

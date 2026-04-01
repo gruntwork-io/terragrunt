@@ -84,7 +84,14 @@ export const sidebar = [
           { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
       },
-      { label: "Strict Controls", slug: "reference/strict-controls" },
+      {
+        label: "Strict Controls",
+        items: [
+          { label: "Overview", slug: "reference/strict-controls" },
+          { label: "Active Controls", link: "/reference/strict-controls/active" },
+          { label: "Completed Controls", link: "/reference/strict-controls/completed" },
+        ],
+      },
       {
         label: "Experiments",
         items: [
@@ -248,9 +255,11 @@ export default defineConfig({
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
 
-            // Custom .astro pages for experiments — can't be validated statically
+            // Custom .astro pages — can't be validated statically
             "/reference/experiments/active#*",
             "/reference/experiments/completed#*",
+            "/reference/strict-controls/active#*",
+            "/reference/strict-controls/completed#*",
 
             // Used as a redirect to the Terragrunt Discord server
             "/community/invite",
