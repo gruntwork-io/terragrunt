@@ -53,6 +53,15 @@ jobs:
 
         echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
 
+    # Ensure Go cache parent directories exist before cache restore.
+    # On macOS runners ~/Library/Caches may not exist on a fresh image,
+    # causing actions/cache tar extraction or subsequent mkdir -p to fail.
+    - name: Ensure cache directories (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        mkdir -p "$(go env GOCACHE)"
+        mkdir -p "$HOME/Library/Caches/golangci-lint"
+
     - name: Go Build Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
@@ -85,16 +94,6 @@ jobs:
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main:main
-
-    # Ensure Go build cache directory exists on macOS.
-    # Prevents "mkdir go-build: file exists" or "No such file or directory"
-    # errors in golangci-lint.
-    - name: Ensure Go build cache dir (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        cache_dir="$(go env GOCACHE)"
-        if [ -f "$cache_dir" ]; then rm -f "$cache_dir"; fi
-        mkdir -p "$cache_dir"
 
     # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
     # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.
