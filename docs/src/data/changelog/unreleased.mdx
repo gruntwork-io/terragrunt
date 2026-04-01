@@ -11,13 +11,8 @@ version: "Unreleased"
 A new `dag-queue-display` experiment renders the run queue as a dependency tree instead of a flat list, making it easier to understand execution order and dependency relationships at a glance.
 
 ```bash
-terragrunt run --all --experiment dag-queue-display -- plan
-```
-
-Example output:
-
-```
-The following units will be run, starting with dependencies and then their dependents:
+$ terragrunt run --all --experiment dag-queue-display -- plan
+19:06:59.108 INFO   The following units will be run, starting with dependencies and then their dependents:
 .
 ├── monitoring
 ╰── vpc
@@ -35,3 +30,23 @@ To learn more, see the [experiment documentation](/reference/experiments/active#
 #### Destroy queue now displays units in correct order
 
 Previously, the run queue display showed units in apply order even for destroy commands. The queue now correctly shows dependents before their dependencies when running destroy, matching the actual execution order.
+
+#### Dependent discovery fixed in worktrees
+
+Dependents are now correctly discovered when units are discovered in worktrees. Previously, dependent discovery could fail to find related units when operating within a git worktree.
+
+#### `read_terragrunt_config()` behavior in implicit stacks fixed
+
+A regression introduced in v0.99.4 caused `read_terragrunt_config()` to fail to parse `dependency` blocks in external configurations during stack execution. This is fixed by resetting parsing context fields that prevented proper evaluation of dependencies in configurations read by `read_terragrunt_config()`.
+
+#### Chained dependency with exposed include conversion fixed
+
+Chaining dependencies with exposed includes no longer produces a spurious "Could not convert include to the execution ctx to evaluate additional locals" error during partial parsing.
+
+### ⚙️ Process Updates
+
+---
+
+#### AWS SDK updated to v1.41.5
+
+The `aws-sdk-go-v2` dependency has been updated to v1.41.5.
