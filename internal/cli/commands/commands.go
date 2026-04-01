@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -163,6 +164,8 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 		}
 	}
 
+	giveWindowsSymlinksTip(l, opts)
+
 	// Re-enable VT processing after subprocess execution may have reset console mode.
 	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
 	if !exec.PrepareConsole(l) {
@@ -289,6 +292,61 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
 	return nil
+}
+
+// giveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
+// for provider plugins installed in the local cache directory.
+//
+// We generally don't need to recommend this if:
+//   - The user is not on Windows (this is generally a Windows-only problem)
+//   - The user isn't using the provider cache directory or provider cache server
+//   - We can successfully create a test symlink
+//
+// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
+//
+// See: https://github.com/opentofu/opentofu/issues/3972
+//
+// In the future, this may be less important, as the OpenTofu global provider cache
+// dir might be the default, and no copying/symlinking will happen anyways. At that
+// time, this check may need to have a version gate to avoid warning Windows users
+// on a sufficiently new version of OpenTofu.
+func giveWindowsSymlinksTip(l log.Logger, opts *options.TerragruntOptions) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	if opts.Env[tf.EnvNameTFPluginCacheDir] == "" && !opts.ProviderCacheOptions.Enabled {
+		return
+	}
+
+	tmp, err := os.MkdirTemp("", "terragrunt-test-symlink")
+	if err != nil {
+		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
+		return
+	}
+
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
+		}
+	}()
+
+	source := filepath.Join(tmp, "source")
+	target := filepath.Join(tmp, "target")
+
+	if err := os.Mkdir(source, 0755); err != nil { //nolint:mnd
+		l.Debugf("Failed to create source directory for testing symlink: %v", err)
+		return
+	}
+
+	err = os.Symlink(source, target)
+	if err == nil {
+		return
+	}
+
+	if tip := opts.Tips.Find(tips.WindowsSymlinkWarning); tip != nil {
+		tip.Evaluate(l)
+	}
 }
 
 // mostly preparing terragrunt options

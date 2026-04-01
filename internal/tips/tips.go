@@ -3,6 +3,9 @@ package tips
 const (
 	// DebuggingDocs is the tip that points users to the debugging documentation.
 	DebuggingDocs = "debugging-docs"
+
+	// WindowsSymlinkWarning is the tip that warns Windows users about symlinks.
+	WindowsSymlinkWarning = "windows-symlink-warning"
 )
 
 // NewTips returns a new Tips collection with all available tips.
@@ -17,8 +20,15 @@ const (
 func NewTips() Tips {
 	return Tips{
 		{
-			Name:    DebuggingDocs,
-			Message: "TIP (" + DebuggingDocs + "): For help troubleshooting errors, visit https://docs.terragrunt.com/troubleshooting/debugging",
+			Name: DebuggingDocs,
+			Message: "TIP (" + DebuggingDocs + "): For help troubleshooting errors, " +
+				"visit https://docs.terragrunt.com/troubleshooting/debugging",
+		},
+		{
+			Name: WindowsSymlinkWarning,
+			Message: "TIP (" + WindowsSymlinkWarning + "): Windows users may encounter " +
+				"silent fallback behavior to provider copying instead of symlinking in " +
+				"OpenTofu/Terraform. See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information.",
 		},
 	}
 }
