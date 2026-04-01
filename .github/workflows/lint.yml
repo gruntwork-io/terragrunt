@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
 
@@ -74,7 +74,7 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-
@@ -84,10 +84,22 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-golangci-lint-
+
+    # A corrupted cache entry may restore go-build or its parent as a
+    # regular file instead of a directory. Remove any such files and
+    # recreate them as directories so the Go toolchain can use the cache.
+    - name: Fix Go build cache dir (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        cache_dir="$(go env GOCACHE)"
+        for p in "$(dirname "$cache_dir")" "$cache_dir"; do
+          if [ -f "$p" ]; then rm -f "$p"; fi
+        done
+        mkdir -p "$cache_dir"
 
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
     # Use refspec main:main to create a local branch (required for git merge-base main HEAD).
