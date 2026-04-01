@@ -302,6 +302,9 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 
 	// Process generate blocks in the generated directory so that dependency
 	// resolution via "terraform output -json" sees the correct files (#5702).
+	// Generate block processing is best-effort during stack generation.
+	// Failure here doesn't prevent the stack from being generated;
+	// the unit will simply lack the generated file adjustments.
 	if cmp.kind == unitKind && opts.pctx != nil && opts.pctx.Experiments.Evaluate(experiment.StacksGenerateBlock) {
 		if err := processUnitGenerateBlocks(ctx, l, opts.pctx, dest); err != nil {
 			l.Warnf("Failed to process generate blocks for %s: %v", cmp.name, err)
@@ -323,7 +326,7 @@ func processUnitGenerateBlocks(ctx context.Context, l log.Logger, pctx *ParsingC
 	unitPctx := pctx.Clone()
 	unitPctx.TerragruntConfigPath = configPath
 	unitPctx.WorkingDir = unitDir
-	unitPctx = unitPctx.WithSkipOutputsResolution()
+	unitPctx.SkipOutputsResolution = true
 
 	cfg, err := ParseConfigFile(ctx, unitPctx, l, configPath, nil)
 	if err != nil {
@@ -331,9 +334,9 @@ func processUnitGenerateBlocks(ctx context.Context, l log.Logger, pctx *ParsingC
 		return nil
 	}
 
-	for _, genCfg := range cfg.GenerateConfigs {
+	for name, genCfg := range cfg.GenerateConfigs {
 		if err := codegen.WriteToFile(l, unitDir, &genCfg); err != nil {
-			return errors.Errorf("failed to process generate block %q in %s: %w", genCfg.Path, unitDir, err)
+			return errors.Errorf("failed to process generate block %q (path %q) in %s: %w", name, genCfg.Path, unitDir, err)
 		}
 	}
 

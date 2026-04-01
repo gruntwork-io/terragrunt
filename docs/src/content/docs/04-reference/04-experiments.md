@@ -271,7 +271,7 @@ Process generate blocks during stack generation so that dependency resolution se
 
 #### `stacks-generate-block` - What it does
 
-When Terragrunt generates a stack (via `stack run`), units may contain `generate` blocks with conditional logic such as `if_disabled = "remove"`. Without this experiment, those generate blocks are not processed during stack generation. This means that when a subsequent filtered run (`--filter`) triggers dependency resolution via `terraform output -json`, the generated unit directory may contain stale or conflicting files (e.g., duplicate `required_providers` blocks), causing Terraform to fail.
+When Terragrunt generates a stack (via `stack generate` or `stack run`), units may contain `generate` blocks with conditional logic such as `if_disabled = "remove"`. Without this experiment, those generate blocks are not processed during stack generation. This means that when a subsequent filtered run (`--filter`) triggers dependency resolution via `terraform output -json`, the generated unit directory may contain stale or conflicting files (e.g., duplicate `required_providers` blocks), causing Terraform to fail.
 
 Enabling this experiment makes Terragrunt process all `generate` blocks for each unit immediately after copying files during stack generation. This ensures the generated directory is in the correct state for dependency resolution.
 

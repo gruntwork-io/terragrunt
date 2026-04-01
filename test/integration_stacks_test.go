@@ -1027,9 +1027,8 @@ func TestStackOutputWithDependency(t *testing.T) {
 
 // TestStackGenerateIfDisabledRemove reproduces #5702:
 //
-//	terragrunt stack clean
-//	terragrunt stack run plan
-//	terragrunt stack run plan --filter 'second | type=unit'  # crashes
+//	terragrunt stack run apply   (generates stack + creates state)
+//	terragrunt stack run plan --filter 'second | type=unit'
 //
 // With --filter only the second unit runs. Dependency resolution calls
 // "terraform output -json" on the first unit whose generate blocks with
@@ -1046,6 +1045,11 @@ func TestStackGenerateIfDisabledRemove(t *testing.T) {
 	// Step 1: apply both units so state exists for dependency resolution
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks-generate-block --non-interactive --working-dir "+rootPath)
 	require.NoError(t, err)
+
+	// Verify generate blocks were processed: beta.tf removed, alpha.tf preserved
+	generatedFirst := filepath.Join(rootPath, ".terragrunt-stack", "first")
+	assert.FileExists(t, filepath.Join(generatedFirst, "alpha.tf"))
+	assert.NoFileExists(t, filepath.Join(generatedFirst, "beta.tf"))
 
 	// Step 2: filtered plan on second unit only — triggers terraform output -json
 	// on first unit without running its GenerateConfig
