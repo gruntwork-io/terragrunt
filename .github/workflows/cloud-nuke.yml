@@ -26,7 +26,7 @@ jobs:
         env:
             # Authenticate to reduce the likelihood of hitting rate limit issues.
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            VERSION: 0.40.0
+            VERSION: 0.48.0
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
@@ -39,11 +39,9 @@ jobs:
             cloud-nuke aws \
                 --force \
                 --log-level debug \
-                --resource-type s3 \
-                --resource-type vpc \
-                --resource-type ec2 \
-                --resource-type dynamodb \
                 --region us-east-1 \
                 --region us-west-2 \
                 --older-than 1h \
-                --config .github/cloud-nuke/config.yml
+                --include-tag "gw:repo=^https://github.com/gruntwork-io/terragrunt$" \
+                --output-format json \
+                --output-file /tmp/cloud-nuke-results.json
