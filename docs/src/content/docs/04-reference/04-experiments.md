@@ -72,6 +72,7 @@ The following experiments are available:
 - [filter-flag](#filter-flag)
 - [iac-engine](#iac-engine)
 - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+- [stacks-generate-block](#stacks-generate-block)
 
 ### symlinks
 
@@ -262,6 +263,29 @@ To transition the `dependency-fetch-output-from-state` feature to a stable relea
 - [ ] Error handling and edge case testing
 - [ ] Documentation of supported backends and limitations
 - [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
+- [ ] Community feedback on real-world usage
+
+### `stacks-generate-block`
+
+Process generate blocks during stack generation so that dependency resolution sees correct files.
+
+#### `stacks-generate-block` - What it does
+
+When Terragrunt generates a stack (via `stack generate` or `stack run`), units may contain `generate` blocks with conditional logic such as `if_disabled = "remove"`. Without this experiment, those generate blocks are not processed during stack generation. This means that when a subsequent filtered run (`--filter`) triggers dependency resolution via `terraform output -json`, the generated unit directory may contain stale or conflicting files (e.g., duplicate `required_providers` blocks), causing Terraform to fail.
+
+Enabling this experiment makes Terragrunt process all `generate` blocks for each unit immediately after copying files during stack generation. This ensures the generated directory is in the correct state for dependency resolution.
+
+#### `stacks-generate-block` - How to provide feedback
+
+Provide your feedback on [#5702](https://github.com/gruntwork-io/terragrunt/issues/5702).
+
+#### `stacks-generate-block` - Criteria for stabilization
+
+To transition the `stacks-generate-block` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Integration testing across different generate block configurations (`if_disabled`, `if_exists`, `disable`)
+- [ ] Performance impact assessment for stacks with many units containing generate blocks
+- [ ] Ensure correct behavior with remote sources
 - [ ] Community feedback on real-world usage
 
 ## Completed Experiments

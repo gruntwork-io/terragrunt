@@ -39,6 +39,9 @@ const (
 	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
 	// directly from state files instead of using terraform/tofu output commands.
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
+	// StacksGenerateBlock is the experiment that enables processing generate blocks during
+	// stack generation so that dependency resolution via "terraform output" sees correct files.
+	StacksGenerateBlock = "stacks-generate-block"
 )
 
 const (
@@ -90,6 +93,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DependencyFetchOutputFromState,
+		},
+		{
+			Name: StacksGenerateBlock,
 		},
 	}
 }
