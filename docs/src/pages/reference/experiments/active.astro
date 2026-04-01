@@ -3,7 +3,7 @@ import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ExperimentEntries from '@components/ExperimentEntries.astro';
 import { getCollection } from 'astro:content';
 import { getLatestRelease } from '@lib/github';
-import { sidebar } from '../../../../astro.config.mjs';
+import { sidebar } from '../../../data/sidebar';
 
 const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
 
