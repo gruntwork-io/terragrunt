@@ -1,6 +1,6 @@
 generate "alpha" {
   path        = "alpha.tf"
-  if_exists   = "overwrite_terragrunt"
+  if_exists   = "overwrite"
   if_disabled = "remove"
   disable     = values.provider != "alpha"
   contents    = <<EOF
@@ -17,7 +17,7 @@ EOF
 
 generate "beta" {
   path        = "beta.tf"
-  if_exists   = "overwrite_terragrunt"
+  if_exists   = "overwrite"
   if_disabled = "remove"
   disable     = values.provider != "beta"
   contents    = <<EOF
