@@ -1,0 +1,57 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ExperimentEntries from '@components/ExperimentEntries.astro';
+import { getCollection } from 'astro:content';
+import { getLatestRelease } from '@lib/github';
+import { sidebar } from '../../../../astro.config.mjs';
+
+const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
+
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+function isSinceReleased(since?: string): boolean {
+	if (!since) return true;
+	const target = since.replace(/^v/, '');
+	return latestVersion.localeCompare(target, undefined, { numeric: true }) >= 0;
+}
+
+const allEntries = await getCollection('experiments');
+
+const entries = allEntries
+	.filter((e) => e.data.status === 'active')
+	.filter((e) => showUnreleased || isSinceReleased(e.data.since))
+	.sort((a, b) => a.data.name.localeCompare(b.data.name));
+
+const headings: { depth: number; slug: string; text: string }[] = [];
+
+for (const entry of entries) {
+	headings.push({ depth: 2, slug: entry.data.name, text: entry.data.name });
+
+	const h3Lines = entry.body?.match(/^### .+/gm) ?? [];
+	for (const line of h3Lines) {
+		const text = line.replace(/^### /, '').replaceAll('`', '');
+		const slug = text
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.trim()
+			.replace(/\s+/g, '-');
+		headings.push({ depth: 3, slug, text });
+	}
+}
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'Active Experiments',
+		description: 'Experimental features available for opt-in.',
+	}}
+	headings={headings}
+	sidebar={sidebar}
+>
+	<p>
+		The following experiments are available for opt-in. See the <a href="/reference/experiments">experiments overview</a> for how to enable them.
+	</p>
+	<hr />
+	<ExperimentEntries status="active" showUnreleased={showUnreleased} />
+</StarlightPage>

@@ -4,6 +4,7 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import vercel from "@astrojs/vercel";
+import node from "@astrojs/node";
 import partytown from "@astrojs/partytown";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@astrojs/react";
@@ -84,8 +85,22 @@ export const sidebar = [
           { label: "Global Flags", slug: "reference/cli/global-flags" },
         ],
       },
-      { label: "Strict Controls", slug: "reference/strict-controls" },
-      { label: "Experiments", slug: "reference/experiments" },
+      {
+        label: "Strict Controls",
+        items: [
+          { label: "Overview", slug: "reference/strict-controls" },
+          { label: "Active Controls", link: "/reference/strict-controls/active" },
+          { label: "Completed Controls", link: "/reference/strict-controls/completed" },
+        ],
+      },
+      {
+        label: "Experiments",
+        items: [
+          { label: "Overview", slug: "reference/experiments" },
+          { label: "Active Experiments", link: "/reference/experiments/active" },
+          { label: "Completed Experiments", link: "/reference/experiments/completed" },
+        ],
+      },
       {
         label: "Supported Versions",
         slug: "reference/supported-versions",
@@ -129,7 +144,7 @@ export const sidebar = [
 export default defineConfig({
   site: "https://docs.terragrunt.com",
   base: "/",
-  output: isVercel ? "server" : "static",
+  output: "server",
   adapter: isVercel
     ? vercel({
       imageService: true,
@@ -137,7 +152,7 @@ export default defineConfig({
         expiration: 60 * 60 * 24, // 24 hours
       },
     })
-    : undefined,
+    : node({ mode: "standalone" }),
   integrations: [
     // We use React for the shadcn/ui components.
     react(),
@@ -240,6 +255,12 @@ export default defineConfig({
             "/reference/cli/commands/list/#*",
             "/reference/cli/commands/find#*",
             "/reference/cli/commands/find/#*",
+
+            // Custom .astro pages — can't be validated statically
+            "/reference/experiments/active#*",
+            "/reference/experiments/completed#*",
+            "/reference/strict-controls/active#*",
+            "/reference/strict-controls/completed#*",
 
             // Used as a redirect to the Terragrunt Discord server
             "/community/invite",

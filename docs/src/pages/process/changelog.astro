@@ -2,14 +2,24 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ChangelogEntries from '@components/ChangelogEntries.astro';
 import { getCollection } from 'astro:content';
+import { getLatestRelease } from '@lib/github';
 import { sidebar } from '../../../astro.config.mjs';
 
-export const prerender = true;
+const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
 
-const entries = await getCollection('changelog');
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+function isReleased(version: string): boolean {
+	if (!version.startsWith("v")) return false;
+	const v = version.replace(/^v/, "");
+	return v.localeCompare(latestVersion, undefined, { numeric: true }) <= 0;
+}
+
+const allEntries = await getCollection('changelog');
 
 // Sort by version descending, with non-semver entries (e.g. "Unreleased") always first
-entries.sort((a, b) => {
+allEntries.sort((a, b) => {
 	const aIsVersion = a.data.version.startsWith("v");
 	const bIsVersion = b.data.version.startsWith("v");
 	if (!aIsVersion && bIsVersion) return -1;
@@ -17,10 +27,14 @@ entries.sort((a, b) => {
 	return b.data.version.localeCompare(a.data.version, undefined, { numeric: true });
 });
 
-// Build TOC headings: version (H2) + categories (H3) for each entry
+const visibleEntries = showUnreleased
+	? allEntries
+	: allEntries.filter((entry) => isReleased(entry.data.version));
+
+// Build TOC headings from visible entries only
 const headings: { depth: number; slug: string; text: string }[] = [];
 
-for (const entry of entries) {
+for (const entry of visibleEntries) {
 	const version = entry.data.version;
 	headings.push({ depth: 2, slug: version, text: version });
 
@@ -50,7 +64,7 @@ headings.push({ depth: 2, slug: 'prior-releases', text: 'Prior Releases' });
 >
 	<p>This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
 	<hr />
-	<ChangelogEntries />
+	<ChangelogEntries showUnreleased={showUnreleased} />
 	<h2 id="prior-releases">Prior Releases</h2>
 	<p>For all prior releases, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
 </StarlightPage>
