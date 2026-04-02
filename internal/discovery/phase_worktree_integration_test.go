@@ -1849,6 +1849,102 @@ unit "app" {
 		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v", componentPaths)
 }
 
+// TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges verifies that when only
+// unit files change (no read files involved), stacks in worktrees are not generated.
+// This ensures we don't do unnecessary work when the change doesn't affect any stack.
+func TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a stack (no read_terragrunt_config)
+	stackDir := filepath.Join(tmpDir, "live", "app-stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Create a standalone unit
+	unitDir := filepath.Join(tmpDir, "live", "standalone")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# standalone unit`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stack and standalone unit")
+
+	// Change ONLY the standalone unit (not anything the stack reads)
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# standalone unit modified`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify standalone unit only")
+
+	// Set up worktrees and run generation
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Generate stacks — using tmpDir as working directory so that only
+	// worktreeStacksToGenerate can cause generation inside worktrees.
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Verify: no .terragrunt-stack directories should exist in the worktrees,
+	// because the only change was to a standalone unit (no reading filters).
+	for _, pair := range w.WorktreePairs {
+		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			stackGenDir := filepath.Join(wt.Path, "live", "app-stack", ".terragrunt-stack")
+			_, statErr := os.Stat(stackGenDir)
+			assert.True(t, os.IsNotExist(statErr),
+				"Stack should not be generated in worktree %s when only a unit changed, but %s exists",
+				wt.Ref, stackGenDir)
+		}
+	}
+
+	// Also verify: no reading-affected stacks were recorded
+	assert.Empty(t, w.ReadingAffectedStacks,
+		"No reading-affected stacks should be recorded when only a unit changed")
+}
+
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,
