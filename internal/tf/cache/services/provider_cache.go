@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -318,12 +319,20 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.Errorf("not found provider download url")
 	}
 
-	downloadURLExists, err := vfs.FileExists(fs, cache.DownloadURL)
-	if err != nil {
-		return errors.New(err)
+	// DownloadURL can be a local file path or a remote URL.
+	// On Windows, passing a URL to FileExists fails because the colon in "https:" is invalid path syntax.
+	var downloadURLIsLocalFile bool
+
+	if !strings.Contains(cache.DownloadURL, "://") {
+		var err error
+
+		downloadURLIsLocalFile, err = vfs.FileExists(fs, cache.DownloadURL)
+		if err != nil {
+			return errors.New(err)
+		}
 	}
 
-	if downloadURLExists {
+	if downloadURLIsLocalFile {
 		cache.archivePath = cache.DownloadURL
 	} else {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
