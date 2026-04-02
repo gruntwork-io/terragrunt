@@ -40,6 +40,10 @@ site-search dialog[open] {
   width: 90%;
 }
 
+button[data-open-modal]:hover {
+  color: var(--sl-color-gray-2);
+}
+
 button[data-close-modal] {
   color: black;
   display: none;
