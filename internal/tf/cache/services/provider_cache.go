@@ -319,17 +319,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.Errorf("not found provider download url")
 	}
 
-	// DownloadURL can be a local file path or a remote URL.
-	// On Windows, passing a URL to FileExists fails because the colon in "https:" is invalid path syntax.
-	var downloadURLIsLocalFile bool
-
-	if !strings.Contains(cache.DownloadURL, "://") {
-		var err error
-
-		downloadURLIsLocalFile, err = vfs.FileExists(fs, cache.DownloadURL)
-		if err != nil {
-			return errors.New(err)
-		}
+	downloadURLIsLocalFile, err := cache.isLocalFile(fs, cache.DownloadURL)
+	if err != nil {
+		return errors.New(err)
 	}
 
 	if downloadURLIsLocalFile {
@@ -411,6 +403,17 @@ func (cache *ProviderCache) removeArchive() error {
 	}
 
 	return nil
+}
+
+// isLocalFile checks whether the given path refers to an existing local file.
+// Remote URLs (containing "://") are never checked against the filesystem because
+// on Windows the colon in "https:" is invalid path syntax and causes an error.
+func (cache *ProviderCache) isLocalFile(fs vfs.FS, path string) (bool, error) {
+	if strings.Contains(path, "://") {
+		return false, nil
+	}
+
+	return vfs.FileExists(fs, path)
 }
 
 func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile, error) {
@@ -679,8 +682,10 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 			service.logger.Warnf("Failed to clean up package dir %q: %v", cache.packageDir, err)
 		}
 
-		if err := service.FS().Remove(cache.archivePath); err != nil {
-			service.logger.Warnf("Failed to clean up archive %q: %v", cache.archivePath, err)
+		if cache.archiveCached {
+			if err := service.FS().Remove(cache.archivePath); err != nil {
+				service.logger.Warnf("Failed to clean up archive %q: %v", cache.archivePath, err)
+			}
 		}
 
 		return cache.err
