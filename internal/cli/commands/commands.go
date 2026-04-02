@@ -344,9 +344,21 @@ func giveWindowsSymlinksTip(l log.Logger, opts *options.TerragruntOptions) {
 		return
 	}
 
-	if tip := opts.Tips.Find(tips.WindowsSymlinkWarning); tip != nil {
-		tip.Evaluate(l)
+	tip := opts.Tips.Find(tips.WindowsSymlinkWarning)
+	if tip == nil {
+		return
 	}
+
+	if opts.TofuImplementation == tfimpl.OpenTofu && opts.TerraformVersion != nil {
+		minVersion, verErr := version.NewVersion("1.12.0")
+		if verErr == nil && !opts.TerraformVersion.LessThan(minVersion) {
+			tip.Message = "Windows users may encounter silent fallback from symlinking to copying for provider plugins. " +
+				"Set TF_LOG=warn to check if OpenTofu is falling back to copying. " +
+				"See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
+		}
+	}
+
+	tip.Evaluate(l)
 }
 
 // mostly preparing terragrunt options
