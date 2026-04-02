@@ -71,15 +71,19 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	// For local sources, when no download was needed (AlreadyHaveLatestCode=true),
-	// skip the module copy: the version hash incorporates all file mod times, so
-	// no files have changed and the cache already has the correct content from a
-	// previous run. Skipping avoids manifest.Clean() deleting files that a
-	// concurrent goroutine expects to exist.
+	// When no download was needed (AlreadyHaveLatestCode=true) and the source
+	// directory IS the working directory (source="."), skip the module copy: the
+	// version hash incorporates all file mod times, so no files have changed and
+	// the cache already has the correct content from a previous run. Skipping
+	// avoids manifest.Clean() deleting files that a concurrent goroutine expects
+	// to exist.
 	//
-	// For remote sources, always do the module copy because local working-dir
-	// files may have changed independently of the remote source version.
-	needsModuleCopy := downloaded || !tf.IsLocalSource(terraformSource.CanonicalSourceURL)
+	// When the source is a different directory (local or remote), the module copy
+	// overlays working-dir files on top of the downloaded source. These files may
+	// change independently of the source version hash, so the copy must always run.
+	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
+		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
+	needsModuleCopy := downloaded || !sourceIsWorkingDir
 
 	if needsModuleCopy {
 		l.Debugf(
