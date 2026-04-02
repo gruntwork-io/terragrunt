@@ -68,13 +68,14 @@ func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --queue-include-dir .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --queue-include-dir .terragrunt-stack/chicks/chick-2 --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -91,16 +92,17 @@ func TestStacksGenerateBasicWithFilterFlag(t *testing.T) {
 	rootPath, err := filepath.EvalSymlinks(rootPath)
 	require.NoError(t, err)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --working-dir "+rootPath,
+		"terragrunt run --all plan --filter './.terragrunt-stack/chicks/chick-2' --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -113,16 +115,17 @@ func TestStacksGenerateBasicWithQueueExcludeDirFlag(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStacksBasic, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all plan --queue-exclude-dir .terragrunt-stack/chicks/chick-2 --working-dir "+rootPath,
+		"terragrunt run --all plan --queue-exclude-dir .terragrunt-stack/chicks/chick-2 --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-1")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/father")
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/mother")
-	assert.NotContains(t, stderr, "- Unit .terragrunt-stack/chicks/chick-2")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/chicks/chick-1"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/father"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/mother"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/chicks/chick-2"))
 
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
@@ -929,10 +932,11 @@ func TestStackApplyWithDependency(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -946,10 +950,11 @@ func TestStackApplyWithDependencyParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 10 --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -963,10 +968,11 @@ func TestStackApplyWithDependencyReducedParallelism(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDependencies)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDependencies, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --parallelism 1 --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that data.txt exists in the cache directory (since terraform now runs from cache)
 	appWithDepPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency")
@@ -982,9 +988,11 @@ func TestStackApplyDestroyWithDependency(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --non-interactive --working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that the data.txt file was deleted
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1035,15 +1043,16 @@ func TestStackApplyStrictInclude(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --queue-include-dir=./.terragrunt-stack/app1 --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app2")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app2"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1063,15 +1072,16 @@ func TestStackApplyStrictIncludeWithFilter(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --non-interactive --working-dir "+rootPath)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run apply --filter ./.terragrunt-stack/app1 --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run apply --filter ./.terragrunt-stack/app1 --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app2")
-	assert.NotContains(t, stderr, "Unit .terragrunt-stack/app-with-dependency")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app2"))
+	assert.Nil(t, runs.FindByName(".terragrunt-stack/app-with-dependency"))
 
 	// check that test file wasn't created
 	dataPath := filepath.Join(rootPath, ".terragrunt-stack", "app-with-dependency", "data.txt")
@@ -1138,12 +1148,14 @@ func TestStacksSourceMapModule(t *testing.T) {
 	path := filepath.Join(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --log-level debug --source-map git::https://git-host.com/not-existing-repo.git="+tmpEnvPath+"  --non-interactive --report-file report.json --working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "git-host.com/not-existing-repo.git")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app1")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/app2")
+
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app1"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/app2"))
 }
 
 func TestStacksGenerateAbsolutePathError(t *testing.T) {
@@ -1622,14 +1634,15 @@ func TestStacksNoValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNoValidation)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackNoValidation, "live")
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run plan --non-interactive --working-dir "+rootPath,
+		"terragrunt stack run plan --non-interactive --report-file report.json --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code")
-	assert.Contains(t, stderr, "Unit .terragrunt-stack/unit1/app1/code")
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/stack1/stack1/.terragrunt-stack/unit2/app1/code"))
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/unit1/app1/code"))
 
 	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
 	assert.Contains(t, stdout, "local_file.file will be created")
@@ -1822,17 +1835,18 @@ func TestStackFindInParentFolders(t *testing.T) {
 
 	// Run stack with --queue-exclude-dir to exclude units source directory
 	// This tests that source templates are skipped during parsing
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run plan --queue-exclude-dir '**/units/**' --working-dir "+stackPath,
+		"terragrunt stack run plan --queue-exclude-dir '**/units/**' --report-file report.json --working-dir "+stackPath,
 	)
 	require.NoError(t, err)
 
 	// Verify generated unit runs
-	assert.Contains(t, stderr, "- Unit .terragrunt-stack/foo")
+	runs := helpers.ReadReport(t, stackPath, "report.json")
+	assert.NotNil(t, runs.FindByName(".terragrunt-stack/foo"))
 
 	// Verify source template is excluded
-	assert.NotContains(t, stderr, "- Unit units/foo")
+	assert.Nil(t, runs.FindByName("units/foo"))
 }
 
 func TestStackGenerateWithFilter(t *testing.T) {

@@ -752,3 +752,111 @@ dependency "vpc" {
 		})
 	}
 }
+
+// TestFilterFlagWithFindNoDuplicateWorktreeEntries tests that when multiple units
+// are both directly changed AND related via dependencies, no duplicates appear.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5748
+func TestFilterFlagWithFindNoDuplicateWorktreeEntries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	// Create unit-a (no dependencies)
+	unitADir := filepath.Join(tmpDir, "unit-a")
+	err = os.MkdirAll(unitADir, 0755)
+	require.NoError(t, err)
+
+	unitAHCL := `# unit-a - no dependencies
+`
+	err = os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(unitAHCL), 0644)
+	require.NoError(t, err)
+
+	// Create unit-b (depends on unit-a)
+	unitBDir := filepath.Join(tmpDir, "unit-b")
+	err = os.MkdirAll(unitBDir, 0755)
+	require.NoError(t, err)
+
+	unitBHCL := `# unit-b - depends on unit-a
+dependency "unit-a" {
+  config_path = "../unit-a"
+}
+`
+	err = os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(unitBHCL), 0644)
+	require.NoError(t, err)
+
+	// Initial commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit with unit-a and unit-b", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Modify BOTH units
+	modifiedUnitAHCL := `# unit-a - no dependencies (modified)
+`
+	err = os.WriteFile(filepath.Join(unitADir, "terragrunt.hcl"), []byte(modifiedUnitAHCL), 0644)
+	require.NoError(t, err)
+
+	modifiedUnitBHCL := `# unit-b - depends on unit-a (modified)
+dependency "unit-a" {
+  config_path = "../unit-a"
+}
+`
+	err = os.WriteFile(filepath.Join(unitBDir, "terragrunt.hcl"), []byte(modifiedUnitBHCL), 0644)
+	require.NoError(t, err)
+
+	// Second commit
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modify both unit-a and unit-b", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	// Run find with dependents filter
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '...[HEAD~1...HEAD]'"
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	actualUnits := []string{}
+
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+		if line != "" {
+			actualUnits = append(actualUnits, filepath.Base(line))
+		}
+	}
+
+	expectedUnits := []string{"unit-a", "unit-b"}
+
+	assert.ElementsMatch(t, expectedUnits, actualUnits)
+	assert.Len(t, actualUnits, len(expectedUnits), "Expected no duplicate entries, but got: %v", actualUnits)
+}

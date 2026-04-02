@@ -1273,17 +1273,14 @@ terraform {
 	require.NoError(t, err)
 
 	// Apply the unit so that it shows up in state first.
-	cmd := "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir + " -- apply"
+	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Contains(
-		t,
-		stderr,
-		"Unit unit-to-be-removed",
-		"unit-to-be-removed should be discovered and run",
-	)
+	runs := helpers.ReadReport(t, tmpDir, "report.json")
+	assert.NotNil(t, runs.FindByName("unit-to-be-removed"),
+		"unit-to-be-removed should be discovered and run")
 
 	assert.Contains(
 		t,
@@ -1310,7 +1307,7 @@ terraform {
 	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
 		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	combinedOutput := stdout + stderr
 

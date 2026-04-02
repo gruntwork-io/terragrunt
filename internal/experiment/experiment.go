@@ -41,6 +41,9 @@ const (
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
 	// SlowTaskReporting enables progress spinners and completion logs for long-running operations.
 	SlowTaskReporting = "slow-task-reporting"
+	// DAGQueueDisplay is the experiment that shows the run queue as a DAG tree
+	// with dependency hierarchy instead of a flat list.
+	DAGQueueDisplay = "dag-queue-display"
 )
 
 const (
@@ -95,6 +98,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: SlowTaskReporting,
+		},
+		{
+			Name: DAGQueueDisplay,
 		},
 	}
 }
