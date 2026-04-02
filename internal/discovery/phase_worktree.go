@@ -140,7 +140,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
-		status, reason, graphIdx := StatusDiscovered, CandidacyReasonNone, -1
+		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
@@ -156,11 +156,11 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 		}
 
 		switch result.Status {
-		case StatusDiscovered:
+		case filter.StatusReadyForFilter:
 			results.AddDiscovered(result)
-		case StatusCandidate:
+		case filter.StatusCandidate:
 			results.AddCandidate(result)
-		case StatusExcluded:
+		case filter.StatusExcluded:
 			// Excluded components are not added
 		}
 	}

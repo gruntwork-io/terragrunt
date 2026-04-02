@@ -379,7 +379,7 @@ func worktreeStacksToGenerate(
 
 		g.Go(func() error {
 			// Discover all stacks in both worktrees for generation.
-			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, stackTypeFilter())
+			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, nil)
 			if err != nil {
 				mu.Lock()
 
@@ -392,9 +392,9 @@ func worktreeStacksToGenerate(
 			// Appending the reading filter to the "to" discovery forces all stacks through
 			// the parse phase (populating Reading()), while still returning every stack
 			// (because they all match type=stack).
-			toFilters := append(stackTypeFilter(), filter.NewFilter(parseExpr, parseExpr.String()))
+			readingFilters := filter.Filters{filter.NewFilter(parseExpr, parseExpr.String())}
 
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, toFilters)
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, readingFilters)
 			if err != nil {
 				mu.Lock()
 
@@ -473,17 +473,21 @@ func worktreeStacksToGenerate(
 	return stacksToGenerate.ToComponents(), nil
 }
 
-// discoverStacks discovers stacks in a worktree using the given filters.
+// discoverStacks discovers stacks in a worktree using the given additional filters.
+// User-provided filters from opts.Filters are included (restricted to stacks) so that
+// explicit exclusions like --filter '!./land-mine | type=stack' are respected.
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
-	filters filter.Filters,
+	additionalFilters filter.Filters,
 ) (component.Components, error) {
+	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks(), additionalFilters)
+
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
-		WithFilters(filters)
+		WithFilters(allFilters)
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {

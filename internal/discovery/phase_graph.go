@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -70,7 +71,7 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 	classifier := input.Classifier
 	if classifier == nil || !classifier.HasGraphFilters() {
 		for _, candidate := range input.Candidates {
-			if candidate.Reason != CandidacyReasonGraphTarget {
+			if candidate.Reason != filter.CandidacyReasonGraphTarget {
 				results.AddCandidate(candidate)
 			}
 		}
@@ -94,13 +95,13 @@ func (p *GraphPhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 	for _, candidate := range input.Candidates {
 		switch candidate.Reason {
-		case CandidacyReasonGraphTarget:
+		case filter.CandidacyReasonGraphTarget:
 			graphTargetCandidates = append(graphTargetCandidates, candidate)
-		case CandidacyReasonPotentialDependent:
+		case filter.CandidacyReasonPotentialDependent:
 			// Potential dependents are NOT passed through - they're only used
 			// for building the dependency graph. If they're actual dependents,
 			// they'll be discovered during dependent traversal.
-		case CandidacyReasonNone, CandidacyReasonRequiresParse:
+		case filter.CandidacyReasonNone, filter.CandidacyReasonRequiresParse:
 			otherCandidates = append(otherCandidates, candidate)
 		}
 	}
@@ -173,7 +174,7 @@ func (p *GraphPhase) processGraphTarget(
 	l log.Logger,
 	state *graphTraversalState,
 	candidate DiscoveryResult,
-	graphExpr *GraphExpressionInfo,
+	graphExpr *filter.GraphExpressionInfo,
 ) error {
 	c := candidate.Component
 
@@ -184,8 +185,8 @@ func (p *GraphPhase) processGraphTarget(
 	if loaded := state.seenComponents.LoadOrStore(c.Path()); !loaded {
 		state.results.AddDiscovered(DiscoveryResult{
 			Component: c,
-			Status:    StatusDiscovered,
-			Reason:    CandidacyReasonNone,
+			Status:    filter.StatusReadyForFilter,
+			Reason:    filter.CandidacyReasonNone,
 			Phase:     PhaseGraph,
 		})
 	}
@@ -306,8 +307,8 @@ func (p *GraphPhase) discoverDependencies(
 			if loaded := state.seenComponents.LoadOrStore(depComponent.Path()); !loaded {
 				state.results.AddDiscovered(DiscoveryResult{
 					Component: depComponent,
-					Status:    StatusDiscovered,
-					Reason:    CandidacyReasonNone,
+					Status:    filter.StatusReadyForFilter,
+					Reason:    filter.CandidacyReasonNone,
 					Phase:     PhaseGraph,
 				})
 
@@ -369,8 +370,8 @@ func (p *GraphPhase) discoverDependents(
 
 			state.results.AddDiscovered(DiscoveryResult{
 				Component: dependent,
-				Status:    StatusDiscovered,
-				Reason:    CandidacyReasonNone,
+				Status:    filter.StatusReadyForFilter,
+				Reason:    filter.CandidacyReasonNone,
 				Phase:     PhaseGraph,
 			})
 
@@ -552,8 +553,8 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 		state.results.AddDiscovered(DiscoveryResult{
 			Component: dependent,
-			Status:    StatusDiscovered,
-			Reason:    CandidacyReasonNone,
+			Status:    filter.StatusReadyForFilter,
+			Reason:    filter.CandidacyReasonNone,
 			Phase:     PhaseGraph,
 		})
 

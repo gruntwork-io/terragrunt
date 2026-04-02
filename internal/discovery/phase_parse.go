@@ -52,7 +52,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 	componentsToParse := make([]DiscoveryResult, 0, len(input.Candidates))
 	for _, candidate := range input.Candidates {
-		if candidate.Reason == CandidacyReasonRequiresParse {
+		if candidate.Reason == filter.CandidacyReasonRequiresParse {
 			componentsToParse = append(componentsToParse, candidate)
 
 			continue
@@ -67,8 +67,8 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 		for _, c := range input.Components {
 			componentsToParse = append(componentsToParse, DiscoveryResult{
 				Component: c,
-				Status:    StatusDiscovered,
-				Reason:    CandidacyReasonNone,
+				Status:    filter.StatusReadyForFilter,
+				Reason:    filter.CandidacyReasonNone,
 				Phase:     PhaseParse,
 			})
 		}
@@ -104,11 +104,11 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 			}
 
 			switch result.Status {
-			case StatusDiscovered:
+			case filter.StatusReadyForFilter:
 				results.AddDiscovered(*result)
-			case StatusCandidate:
+			case filter.StatusCandidate:
 				results.AddCandidate(*result)
-			case StatusExcluded:
+			case filter.StatusExcluded:
 				// Excluded components are not added
 			}
 
@@ -143,8 +143,8 @@ func (p *ParsePhase) parseAndReclassify(
 
 			return &DiscoveryResult{
 				Component: c,
-				Status:    StatusExcluded,
-				Reason:    CandidacyReasonNone,
+				Status:    filter.StatusExcluded,
+				Reason:    filter.CandidacyReasonNone,
 				Phase:     PhaseParse,
 			}, nil
 		}
@@ -163,8 +163,8 @@ func (p *ParsePhase) parseAndReclassify(
 			if len(matched) > 0 {
 				return &DiscoveryResult{
 					Component: c,
-					Status:    StatusDiscovered,
-					Reason:    CandidacyReasonNone,
+					Status:    filter.StatusReadyForFilter,
+					Reason:    filter.CandidacyReasonNone,
 					Phase:     PhaseParse,
 				}, nil
 			}
