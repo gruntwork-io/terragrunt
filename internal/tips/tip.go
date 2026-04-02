@@ -34,7 +34,7 @@ func (tip *Tip) Evaluate(l log.Logger) {
 	}
 
 	tip.OnceShow.Do(func() {
-		l.Info(tip.Message)
+		l.Infof("TIP (%s): %s", tip.Name, tip.Message)
 	})
 }
 

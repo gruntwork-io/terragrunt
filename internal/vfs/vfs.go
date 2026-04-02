@@ -23,12 +23,90 @@ type FS = afero.Fs
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
-	return afero.NewOsFs()
+	return &osFS{afero.NewOsFs()}
+}
+
+// osFS wraps afero.OsFs with hard link support.
+type osFS struct {
+	afero.Fs
+}
+
+func (fs *osFS) LinkIfPossible(oldname, newname string) error {
+	return os.Link(oldname, newname)
+}
+
+func (fs *osFS) SymlinkIfPossible(oldname, newname string) error {
+	return os.Symlink(oldname, newname)
+}
+
+func (fs *osFS) ReadlinkIfPossible(name string) (string, error) {
+	return os.Readlink(name)
+}
+
+func (fs *osFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+	info, err := os.Lstat(name)
+
+	return info, true, err
 }
 
 // NewMemMapFS returns an in-memory filesystem for testing purposes.
+// The returned filesystem supports symlink operations via an in-memory link table.
 func NewMemMapFS() FS {
-	return afero.NewMemMapFs()
+	return &memMapFS{
+		Fs:       afero.NewMemMapFs(),
+		symlinks: make(map[string]string),
+	}
+}
+
+// memMapFS wraps afero.MemMapFs with in-memory symlink support.
+type memMapFS struct {
+	afero.Fs
+	symlinks map[string]string
+}
+
+func (fs *memMapFS) SymlinkIfPossible(oldname, newname string) error {
+	if _, exists := fs.symlinks[newname]; exists {
+		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: os.ErrExist}
+	}
+
+	fs.symlinks[newname] = oldname
+
+	return nil
+}
+
+func (fs *memMapFS) LinkIfPossible(oldname, newname string) error {
+	data, err := afero.ReadFile(fs.Fs, oldname)
+	if err != nil {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
+	}
+
+	info, err := fs.Fs.Stat(oldname)
+	if err != nil {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
+	}
+
+	return afero.WriteFile(fs.Fs, newname, data, info.Mode())
+}
+
+func (fs *memMapFS) ReadlinkIfPossible(name string) (string, error) {
+	target, ok := fs.symlinks[name]
+	if !ok {
+		return "", &os.PathError{Op: "readlink", Path: name, Err: os.ErrInvalid}
+	}
+
+	return target, nil
+}
+
+func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+	if _, ok := fs.symlinks[name]; ok {
+		info, err := fs.Fs.Stat(name)
+
+		return info, true, err
+	}
+
+	info, err := fs.Fs.Stat(name)
+
+	return info, false, err
 }
 
 // FileExists checks if a path exists using the given filesystem.
@@ -57,8 +135,32 @@ func ReadFile(fs FS, filename string) ([]byte, error) {
 	return afero.ReadFile(fs, filename)
 }
 
+// MkdirTemp creates a temporary directory on the given filesystem.
+func MkdirTemp(fs FS, dir, pattern string) (string, error) {
+	return afero.TempDir(fs, dir, pattern)
+}
+
+// HardLinker is an optional interface for filesystems that support hard links.
+type HardLinker interface {
+	LinkIfPossible(oldname, newname string) error
+}
+
+// ErrNoHardLink is returned when a filesystem does not support hard links.
+var ErrNoHardLink = errors.New("hard link not supported")
+
+// Link creates a hard link. It delegates to LinkIfPossible for filesystems
+// that implement the HardLinker interface.
+func Link(fs FS, oldname, newname string) error {
+	linker, ok := fs.(HardLinker)
+	if !ok {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: ErrNoHardLink}
+	}
+
+	return linker.LinkIfPossible(oldname, newname)
+}
+
 // Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
-// which is supported by both OsFs and MemMapFs.
+// which is supported by OsFs and any FS implementing afero.Linker.
 func Symlink(fs FS, oldname, newname string) error {
 	linker, ok := fs.(afero.Linker)
 	if !ok {
