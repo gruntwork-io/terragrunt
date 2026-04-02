@@ -129,10 +129,22 @@ func New(l log.Logger, opts *options.TerragruntOptions) clihelper.Commands {
 	return allCommands
 }
 
-// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
-	return func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
-		return telemetry.TelemeterFromContext(ctx).Collect(ctx, fmt.Sprintf("%s %s", cliCtx.Command.Name, opts.TerraformCommand), map[string]any{
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry
+// context and labels. If telemetry is disabled, just runs the command.
+func WrapWithTelemetry(
+	l log.Logger,
+	opts *options.TerragruntOptions,
+) func(ctx context.Context, cliCtx *clihelper.Context, action clihelper.ActionFunc) error {
+	return func(
+		ctx context.Context,
+		cliCtx *clihelper.Context,
+		action clihelper.ActionFunc,
+	) error {
+		cmdName := fmt.Sprintf(
+			"%s %s", cliCtx.Command.Name, opts.TerraformCommand,
+		)
+
+		return telemetry.TelemeterFromContext(ctx).Collect(ctx, cmdName, map[string]any{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
@@ -151,7 +163,13 @@ func WrapWithTelemetry(l log.Logger, opts *options.TerragruntOptions) func(ctx c
 	}
 }
 
-func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opts *options.TerragruntOptions, action clihelper.ActionFunc) error {
+func runAction(
+	ctx context.Context,
+	cliCtx *clihelper.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	action clihelper.ActionFunc,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -164,7 +182,14 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 		}
 	}
 
-	giveWindowsSymlinksTip(l, opts.Tips, opts.Env, opts.ProviderCacheOptions.Enabled, opts.TofuImplementation, opts.TerraformVersion)
+	giveWindowsSymlinksTip(
+		l,
+		opts.Tips,
+		opts.Env,
+		opts.ProviderCacheOptions.Enabled,
+		opts.TofuImplementation,
+		opts.TerraformVersion,
+	)
 
 	// Re-enable VT processing after subprocess execution may have reset console mode.
 	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
@@ -226,7 +251,11 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	}
 
 	if opts.TerraformVersion == nil {
-		_, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
+		_, ver, impl, err := run.PopulateTFVersion(
+			ctx, l, opts.WorkingDir,
+			opts.VersionManagerFileName,
+			configbridge.TFRunOptsFromOpts(opts),
+		)
 		if err != nil {
 			return err
 		}
@@ -310,7 +339,14 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 // dir might be the default, and no copying/symlinking will happen anyways. At that
 // time, this check may need to have a version gate to avoid warning Windows users
 // on a sufficiently new version of OpenTofu.
-func giveWindowsSymlinksTip(l log.Logger, allTips tips.Tips, environ map[string]string, providerCacheEnabled bool, tfImpl tfimpl.Type, tfVersion *version.Version) {
+func giveWindowsSymlinksTip(
+	l log.Logger,
+	allTips tips.Tips,
+	environ map[string]string,
+	providerCacheEnabled bool,
+	tfImpl tfimpl.Type,
+	tfVersion *version.Version,
+) {
 	if runtime.GOOS != "windows" {
 		return
 	}
@@ -374,7 +410,9 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	// `terraform apply -destroy` is an alias for `terraform destroy`.
-	// It is important to resolve the alias because the `run --all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+	// It is important to resolve the alias because `run --all` relies on
+	// the OpenTofu/Terraform command to determine the order, and for
+	// `destroy` the reverse order is used.
 	if cmdName == tf.CommandNameApply && slices.Contains(args, tf.FlagNameDestroy) {
 		cmdName = tf.CommandNameDestroy
 		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
@@ -501,7 +539,8 @@ func initialSetup(cliCtx *clihelper.Context, l log.Logger, opts *options.Terragr
 	}
 
 	opts.TerragruntVersion = terragruntVersion
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
+	// Log the terragrunt version in debug mode. This helps with
+	// debugging issues and ensuring a specific version is used.
 	l.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	// --- Others
