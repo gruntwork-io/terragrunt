@@ -47,6 +47,10 @@ Chaining dependencies with exposed includes no longer produces a spurious "Could
 
 The provider cache failed on Windows with `CreateFile https://...: The filename, directory name, or volume label syntax is incorrect` because remote download URLs were passed to `os.Stat`, and the colon in `https:` is invalid Windows path syntax. The fix skips the filesystem existence check when the download URL is a remote URL (`://`), going directly to the download path.
 
+#### Additional transient network errors now retried automatically
+
+Added retry patterns for provider resolution and registry connection failures commonly seen in CI environments, including TLS handshake timeouts, TCP connection resets, context deadline exceeded errors, and failed discovery document requests. These cover both Terraform and OpenTofu provider workflows.
+
 ### ⚙️ Process Updates
 
 ---
