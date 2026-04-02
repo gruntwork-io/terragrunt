@@ -25,12 +25,6 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 	openTofuV1120 := version.Must(version.NewVersion("1.12.0"))
 	openTofuV1110 := version.Must(version.NewVersion("1.11.0"))
 
-	defaultMessage := "Windows users may encounter silent fallback behavior to provider copying instead of symlinking in " +
-		"OpenTofu/Terraform. See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
-	openTofuMessage := "Windows users may encounter silent fallback from symlinking to copying for provider plugins. " +
-		"Set TF_LOG=warn to check if OpenTofu is falling back to copying. " +
-		"See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
-
 	testCases := []struct {
 		fs                   vfs.FS
 		environ              map[string]string
@@ -75,7 +69,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			environ:              cacheEnv,
 			providerCacheEnabled: true,
 			tfImpl:               tfimpl.Terraform,
-			expectedMessage:      defaultMessage,
+			expectedMessage:      tips.WindowsSymlinkWarningMessage,
 		},
 		{
 			name:                 "windows symlink fails with OpenTofu >= 1.12 shows OpenTofu tip",
@@ -85,7 +79,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			providerCacheEnabled: true,
 			tfImpl:               tfimpl.OpenTofu,
 			tfVersion:            openTofuV1120,
-			expectedMessage:      openTofuMessage,
+			expectedMessage:      tips.WindowsSymlinkWarningOpenTofuMessage,
 		},
 		{
 			name:                 "windows symlink fails with OpenTofu < 1.12 shows default tip",
@@ -95,7 +89,7 @@ func TestGiveWindowsSymlinksTip(t *testing.T) {
 			providerCacheEnabled: true,
 			tfImpl:               tfimpl.OpenTofu,
 			tfVersion:            openTofuV1110,
-			expectedMessage:      defaultMessage,
+			expectedMessage:      tips.WindowsSymlinkWarningMessage,
 		},
 	}
 
