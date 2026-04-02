@@ -389,7 +389,12 @@ func worktreeStacksToGenerate(
 				return nil
 			}
 
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, stackTypeFilter())
+			// Appending the reading filter to the "to" discovery forces all stacks through
+			// the parse phase (populating Reading()), while still returning every stack
+			// (because they all match type=stack).
+			toFilters := append(stackTypeFilter(), filter.NewFilter(parseExpr, parseExpr.String()))
+
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, toFilters)
 			if err != nil {
 				mu.Lock()
 
@@ -407,11 +412,8 @@ func worktreeStacksToGenerate(
 				stacksToGenerate.EnsureComponent(c)
 			}
 
-			// Discover which stacks in the "to" worktree read the changed files.
-			// The reading filter drives parsing and evaluation within the pipeline.
-			readingFilter := readingStackFilter(parseExpr)
-
-			matchedToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, readingFilter)
+			// Identify which "to" stacks read the changed files.
+			matchedToStacks, err := filter.Evaluate(l, parseExpr, allToStacks)
 			if err != nil {
 				mu.Lock()
 
@@ -438,15 +440,9 @@ func worktreeStacksToGenerate(
 					continue
 				}
 
-				// Find the corresponding stack in the from worktree by relative path.
-				toRel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
-				if err != nil {
-					continue
-				}
-
 				// If the stack only exists in one worktree (e.g. newly added),
 				// it will be handled by stackDiff.Added/Removed instead.
-				fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, toRel)
+				fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
 				if fromStack == nil {
 					continue
 				}
@@ -506,15 +502,6 @@ func discoverStacks(
 	}
 
 	return components, nil
-}
-
-// readingStackFilter returns a filter that restricts to stacks reading the given expression.
-// It uses an intersection (type=stack | reading=<expr>) so that both conditions must match.
-func readingStackFilter(readingExpr filter.Expression) filter.Filters {
-	typeExpr := filter.NewTypeExpression(component.StackKind)
-	combined := filter.NewInfixExpression(typeExpr, "|", readingExpr)
-
-	return filter.Filters{filter.NewFilter(combined, combined.String())}
 }
 
 // findStackByRelPath finds a stack in the given components whose path relative to
