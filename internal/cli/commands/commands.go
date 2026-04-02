@@ -164,7 +164,7 @@ func runAction(ctx context.Context, cliCtx *clihelper.Context, l log.Logger, opt
 		}
 	}
 
-	giveWindowsSymlinksTip(l, opts)
+	giveWindowsSymlinksTip(l, opts.Tips, opts.Env, opts.ProviderCacheOptions.Enabled, opts.TofuImplementation, opts.TerraformVersion)
 
 	// Re-enable VT processing after subprocess execution may have reset console mode.
 	// Defense-in-depth on top of RunCommandWithOutput's own save/restore cycle.
@@ -310,12 +310,12 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 // dir might be the default, and no copying/symlinking will happen anyways. At that
 // time, this check may need to have a version gate to avoid warning Windows users
 // on a sufficiently new version of OpenTofu.
-func giveWindowsSymlinksTip(l log.Logger, opts *options.TerragruntOptions) {
+func giveWindowsSymlinksTip(l log.Logger, allTips tips.Tips, environ map[string]string, providerCacheEnabled bool, tfImpl tfimpl.Type, tfVersion *version.Version) {
 	if runtime.GOOS != "windows" {
 		return
 	}
 
-	if opts.Env[tf.EnvNameTFPluginCacheDir] == "" && !opts.ProviderCacheOptions.Enabled {
+	if environ[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
 		return
 	}
 
@@ -344,14 +344,14 @@ func giveWindowsSymlinksTip(l log.Logger, opts *options.TerragruntOptions) {
 		return
 	}
 
-	tip := opts.Tips.Find(tips.WindowsSymlinkWarning)
+	tip := allTips.Find(tips.WindowsSymlinkWarning)
 	if tip == nil {
 		return
 	}
 
-	if opts.TofuImplementation == tfimpl.OpenTofu && opts.TerraformVersion != nil {
+	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
 		minVersion, verErr := version.NewVersion("1.12.0")
-		if verErr == nil && !opts.TerraformVersion.LessThan(minVersion) {
+		if verErr == nil && !tfVersion.LessThan(minVersion) {
 			tip.Message = "Windows users may encounter silent fallback from symlinking to copying for provider plugins. " +
 				"Set TF_LOG=warn to check if OpenTofu is falling back to copying. " +
 				"See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
