@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -163,6 +164,82 @@ func WrapWithTelemetry(
 	}
 }
 
+// GiveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
+// for provider plugins installed in the local cache directory.
+//
+// We generally don't need to recommend this if:
+//   - The user is not on Windows (this is generally a Windows-only problem)
+//   - The user isn't using the provider cache directory or provider cache server
+//   - We can successfully create a test symlink
+//
+// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
+//
+// See: https://github.com/opentofu/opentofu/issues/3972
+//
+// In the future, this may be less important, as the OpenTofu global provider cache
+// dir might be the default, and no copying/symlinking will happen anyways. At that
+// time, this check may need to have a version gate to avoid warning Windows users
+// on a sufficiently new version of OpenTofu.
+func GiveWindowsSymlinksTip(
+	l log.Logger,
+	fs vfs.FS,
+	goos string,
+	allTips tips.Tips,
+	envs map[string]string,
+	providerCacheEnabled bool,
+	tfImpl tfimpl.Type,
+	tfVersion *version.Version,
+) {
+	if goos != "windows" {
+		return
+	}
+
+	if envs[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
+		return
+	}
+
+	tmp, err := vfs.MkdirTemp(fs, "", "terragrunt-test-symlink")
+	if err != nil {
+		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
+		return
+	}
+
+	defer func() {
+		if err := fs.RemoveAll(tmp); err != nil {
+			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
+		}
+	}()
+
+	source := filepath.Join(tmp, "source")
+	target := filepath.Join(tmp, "target")
+
+	if err := fs.Mkdir(source, 0755); err != nil { //nolint:mnd
+		l.Debugf("Failed to create source directory for testing symlink: %v", err)
+		return
+	}
+
+	err = vfs.Symlink(fs, source, target)
+	if err == nil {
+		return
+	}
+
+	tip := allTips.Find(tips.WindowsSymlinkWarning)
+	if tip == nil {
+		return
+	}
+
+	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
+		minVersion, verErr := version.NewVersion("1.12.0")
+		if verErr == nil && !tfVersion.LessThan(minVersion) {
+			tip.Message = "Windows users may encounter silent fallback from symlinking to copying for provider plugins. " +
+				"Set TF_LOG=warn to check if OpenTofu is falling back to copying. " +
+				"See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
+		}
+	}
+
+	tip.Evaluate(l)
+}
+
 func runAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
@@ -182,8 +259,10 @@ func runAction(
 		}
 	}
 
-	giveWindowsSymlinksTip(
+	GiveWindowsSymlinksTip(
 		l,
+		vfs.NewOSFS(),
+		runtime.GOOS,
 		opts.Tips,
 		opts.Env,
 		opts.ProviderCacheOptions.Enabled,
@@ -321,80 +400,6 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	l.Debugf("Auto provider cache dir enabled: TF_PLUGIN_CACHE_DIR=%s", providerCacheDir)
 
 	return nil
-}
-
-// giveWindowsSymlinksTip warns Windows users that OpenTofu/Terraform may not create symlinks
-// for provider plugins installed in the local cache directory.
-//
-// We generally don't need to recommend this if:
-//   - The user is not on Windows (this is generally a Windows-only problem)
-//   - The user isn't using the provider cache directory or provider cache server
-//   - We can successfully create a test symlink
-//
-// Note that OpenTofu doesn't want to emit a warning like this for OpenTofu users.
-//
-// See: https://github.com/opentofu/opentofu/issues/3972
-//
-// In the future, this may be less important, as the OpenTofu global provider cache
-// dir might be the default, and no copying/symlinking will happen anyways. At that
-// time, this check may need to have a version gate to avoid warning Windows users
-// on a sufficiently new version of OpenTofu.
-func giveWindowsSymlinksTip(
-	l log.Logger,
-	allTips tips.Tips,
-	environ map[string]string,
-	providerCacheEnabled bool,
-	tfImpl tfimpl.Type,
-	tfVersion *version.Version,
-) {
-	if runtime.GOOS != "windows" {
-		return
-	}
-
-	if environ[tf.EnvNameTFPluginCacheDir] == "" && !providerCacheEnabled {
-		return
-	}
-
-	tmp, err := os.MkdirTemp("", "terragrunt-test-symlink")
-	if err != nil {
-		l.Debugf("Failed to create temporary directory for testing symlink: %v", err)
-		return
-	}
-
-	defer func() {
-		if err := os.RemoveAll(tmp); err != nil {
-			l.Debugf("Failed to remove temporary directory for testing symlink: %v", err)
-		}
-	}()
-
-	source := filepath.Join(tmp, "source")
-	target := filepath.Join(tmp, "target")
-
-	if err := os.Mkdir(source, 0755); err != nil { //nolint:mnd
-		l.Debugf("Failed to create source directory for testing symlink: %v", err)
-		return
-	}
-
-	err = os.Symlink(source, target)
-	if err == nil {
-		return
-	}
-
-	tip := allTips.Find(tips.WindowsSymlinkWarning)
-	if tip == nil {
-		return
-	}
-
-	if tfImpl == tfimpl.OpenTofu && tfVersion != nil {
-		minVersion, verErr := version.NewVersion("1.12.0")
-		if verErr == nil && !tfVersion.LessThan(minVersion) {
-			tip.Message = "Windows users may encounter silent fallback from symlinking to copying for provider plugins. " +
-				"Set TF_LOG=warn to check if OpenTofu is falling back to copying. " +
-				"See https://github.com/gruntwork-io/terragrunt/issues/5061 for more information."
-		}
-	}
-
-	tip.Evaluate(l)
 }
 
 // mostly preparing terragrunt options
