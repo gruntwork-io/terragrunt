@@ -1896,3 +1896,142 @@ func runWorktreeDiscovery(
 
 	return components, w
 }
+
+// TestWorktreePhase_Integration_StackReadingChanges_Units tests that when a file
+// referenced via read_terragrunt_config() changes, the units within the generated stack
+// are discovered (not just the stack component itself). This is the actual bug from #5681:
+// the stack was discovered but its units were not, resulting in "No units discovered."
+func TestWorktreePhase_Integration_StackReadingChanges_Units(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit that the stack will reference as a source
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`
+variable "example" {
+  type    = string
+  default = "ok"
+}
+
+output "example" {
+  value = var.example
+}
+`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a stack that reads an external config file via read_terragrunt_config
+	stackDir := filepath.Join(tmpDir, "live", "app-stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stack with read_terragrunt_config")
+
+	// Change ONLY the read file (not the stack file itself)
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update read config file only")
+
+	// Set up worktrees and generate stacks
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Generate stacks in both worktrees
+	for _, pair := range w.WorktreePairs {
+		fromOpts := opts.Clone()
+		fromOpts.WorkingDir = pair.FromWorktree.Path
+		fromOpts.RootWorkingDir = pair.FromWorktree.Path
+		err = generate.GenerateStacks(t.Context(), l, fromOpts, w)
+		require.NoError(t, err)
+
+		toOpts := opts.Clone()
+		toOpts.WorkingDir = pair.ToWorktree.Path
+		toOpts.RootWorkingDir = pair.ToWorktree.Path
+		err = generate.GenerateStacks(t.Context(), l, toOpts, w)
+		require.NoError(t, err)
+	}
+
+	// Run discovery
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w)
+
+	filters := make(filter.Filters, 0, len(gitExpressions))
+	for _, gitExpr := range gitExpressions {
+		f := filter.NewFilter(gitExpr, gitExpr.String())
+		filters = append(filters, f)
+	}
+
+	d = d.WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Collect component paths and kinds for debugging
+	componentPaths := make([]string, 0, len(components))
+	unitPaths := make([]string, 0)
+
+	for _, c := range components {
+		componentPaths = append(componentPaths, c.Path())
+		if _, ok := c.(*component.Unit); ok {
+			unitPaths = append(unitPaths, c.Path())
+		}
+	}
+
+	// The critical assertion: at least one UNIT should be discovered.
+	// The bug (#5681) is that only the Stack component is discovered, not its units.
+	assert.NotEmpty(t, unitPaths,
+		"Expected at least one unit to be discovered when a read file changes, "+
+			"but got no units. All components: %v", componentPaths)
+}

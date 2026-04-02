@@ -24,9 +24,17 @@ import (
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
-	WorktreePairs      map[string]WorktreePair
-	gitRunner          *git.GitRunner
+	// WorktreePairs maps Git expression strings to their corresponding worktree pairs.
+	WorktreePairs map[string]WorktreePair
+	// gitRunner is the Git runner used to create and manage the worktrees.
+	gitRunner *git.GitRunner
+	// OriginalWorkingDir is the user's working directory before worktrees were created.
 	OriginalWorkingDir string
+	// ReadingAffectedStacks holds stacks identified during generation as affected by
+	// changes to files they read, even though the stack file itself did not change in
+	// the git diff. These are included in Stacks().ReadingAffected so that the worktree
+	// discovery phase walks them for unit-level changes.
+	ReadingAffectedStacks []StackDiffChangedPair
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
@@ -144,9 +152,16 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 }
 
 type StackDiff struct {
-	Added   []*component.Stack
+	// Added contains stacks whose terragrunt.stack.hcl was added in the git diff.
+	Added []*component.Stack
+	// Removed contains stacks whose terragrunt.stack.hcl was removed in the git diff.
 	Removed []*component.Stack
+	// Changed contains stacks whose terragrunt.stack.hcl was modified in the git diff.
 	Changed []StackDiffChangedPair
+	// ReadingAffected contains stacks whose terragrunt.stack.hcl did not change directly,
+	// but that read files which did. These are identified during stack generation and need
+	// to be walked for unit-level changes.
+	ReadingAffected []StackDiffChangedPair
 }
 
 type StackDiffChangedPair struct {
@@ -233,6 +248,8 @@ func (w *Worktrees) Stacks() StackDiff {
 			)
 		}
 	}
+
+	stackDiff.ReadingAffected = w.ReadingAffectedStacks
 
 	return stackDiff
 }

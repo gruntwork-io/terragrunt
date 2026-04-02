@@ -227,15 +227,19 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
+	allChanged := make([]worktrees.StackDiffChangedPair, 0, len(stackDiff.Changed)+len(stackDiff.ReadingAffected))
+	allChanged = append(allChanged, stackDiff.Changed...)
+	allChanged = append(allChanged, stackDiff.ReadingAffected...)
+
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
+	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, len(stackDiff.Changed))
+		errs = make([]error, 0, len(allChanged))
 	)
 
-	for _, changed := range stackDiff.Changed {
+	for _, changed := range allChanged {
 		g.Go(func() error {
 			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
 			if err != nil {
