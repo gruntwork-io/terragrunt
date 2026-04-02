@@ -1,0 +1,55 @@
+---
+name: stack-dependencies
+status: active
+since: "1.0.2"
+---
+
+Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling dependency relationships and configuration overrides during stack generation.
+
+### `stack-dependencies` - What it does
+When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files. The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into a `terragrunt.autoinclude.hcl` file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
+
+This experiment also enables:
+- `unit.<name>.path` and `stack.<name>.path` variables in `terragrunt.stack.hcl` for referencing sibling component paths
+- `dependency` blocks targeting stack directories (aggregated outputs from all units)
+- Automatic deep merge of `terragrunt.autoinclude.hcl` into unit configurations
+
+```hcl
+# terragrunt.stack.hcl
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment stack-dependencies -- plan
+```
+
+### `stack-dependencies` - How to provide feedback
+Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwork-io/terragrunt/issues/5663) GitHub Issue.
+
+### `stack-dependencies` - Criteria for stabilization
+To transition the `stack-dependencies` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Community feedback on `autoinclude` syntax and merge behavior
+- [ ] Partial evaluation of `dependency.*` references in `autoinclude.inputs`
+- [ ] Support for stack-level dependencies (coarse and fine-grained)
+- [ ] Mock outputs support in autoinclude dependency blocks
+- [ ] Deep merge precedence behavior validated
+- [ ] Integration with CAS (content-addressable storage) for generated files

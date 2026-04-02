@@ -42,6 +42,11 @@ const (
 	// DAGQueueDisplay is the experiment that shows the run queue as a DAG tree
 	// with dependency hierarchy instead of a flat list.
 	DAGQueueDisplay = "dag-queue-display"
+	// StackDependencies is the experiment that enables the autoinclude block
+	// in terragrunt.stack.hcl files, allowing units and stacks to define
+	// dependency relationships and arbitrary configuration overrides during
+	// stack generation. See RFC #5663.
+	StackDependencies = "stack-dependencies"
 )
 
 const (
@@ -96,6 +101,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DAGQueueDisplay,
+		},
+		{
+			Name: StackDependencies,
 		},
 	}
 }
