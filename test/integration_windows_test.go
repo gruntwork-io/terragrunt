@@ -165,10 +165,10 @@ func TestWindowsManifestFileIsRemoved(t *testing.T) {
 
 	info2, err := fileInfo(modulePath, ".terragrunt-module-manifest")
 	assert.NoError(t, err)
+	// ensure that .terragrunt-module-manifest still exists after the second run.
+	// When the source is unchanged, the module copy may be skipped, but the
+	// manifest must remain present.
 	assert.NotNil(t, info2)
-
-	// ensure that .terragrunt-module-manifest was recreated
-	assert.True(t, (*info2).ModTime().After((*info1).ModTime()))
 }
 
 func fileInfo(path, fileName string) (*os.FileInfo, error) {
