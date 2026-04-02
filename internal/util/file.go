@@ -510,6 +510,7 @@ func CopyFile(source string, destination string) error {
 	}
 
 	err = WriteFileWithSamePermissions(source, destination, file)
+
 	return errors.New(errors.Join(err, file.Close()))
 }
 
