@@ -1,3 +1,4 @@
+export const prerender = true;
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import ChangelogEntries from '@components/ChangelogEntries.astro';
@@ -5,7 +6,7 @@ import { getCollection } from 'astro:content';
 import { getLatestRelease } from '@lib/github';
 import { sidebar } from '../../data/sidebar';
 
-const showUnreleased = Astro.url.searchParams.get('unreleased') === 'true';
+const showUnreleased = import.meta.env.DEV;
 
 const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
 const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
