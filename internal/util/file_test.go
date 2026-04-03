@@ -153,7 +153,7 @@ func TestFileManifest(t *testing.T) {
 
 	files := []string{"file1", "file2"}
 
-	var testfiles = make([]string, 0, len(files))
+	testfiles := make([]string, 0, len(files))
 
 	// create temp dir
 	dir := helpers.TmpDirWOSymlinks(t)

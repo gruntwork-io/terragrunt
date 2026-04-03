@@ -506,7 +506,7 @@ func rewriteModuleURL(
 	vars map[string]any,
 	moduleURL string,
 ) (*url.URL, error) {
-	var updatedModuleURL = moduleURL
+	updatedModuleURL := moduleURL
 
 	sourceURLType := sourceURLTypeHTTPS
 	if value, found := vars[sourceURLTypeVar]; found {
@@ -591,7 +591,7 @@ func addRefToModuleURL(
 	parsedModuleURL *url.URL,
 	vars map[string]any,
 ) (*url.URL, error) {
-	var moduleURL = parsedModuleURL
+	moduleURL := parsedModuleURL
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleURL.Query()
 
@@ -670,22 +670,19 @@ func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]st
 	return files, nil
 }
 
-type MaxDependencyDepthExceededError struct {
-}
+type MaxDependencyDepthExceededError struct{}
 
 func (err MaxDependencyDepthExceededError) Error() string {
 	return fmt.Sprintf("dependency depth limit of %d exceeded, possible circular dependencies", maxDependencyDepth)
 }
 
-type failedToParseURLError struct {
-}
+type failedToParseURLError struct{}
 
 func (err failedToParseURLError) Error() string {
 	return "Failed to parse Url."
 }
 
-type NoModuleURLPassed struct {
-}
+type NoModuleURLPassed struct{}
 
 func (err NoModuleURLPassed) Error() string {
 	return "No module URL passed."
