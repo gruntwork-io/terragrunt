@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
@@ -76,10 +75,6 @@ func (fs *memMapFS) SymlinkIfPossible(oldname, newname string) error {
 }
 
 func (fs *memMapFS) LinkIfPossible(oldname, newname string) error {
-	if _, err := fs.Fs.Stat(newname); err == nil {
-		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: os.ErrExist}
-	}
-
 	data, err := afero.ReadFile(fs.Fs, oldname)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
@@ -104,30 +99,15 @@ func (fs *memMapFS) ReadlinkIfPossible(name string) (string, error) {
 
 func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	if _, ok := fs.symlinks[name]; ok {
-		return &symlinkFileInfo{name: filepath.Base(name)}, true, nil
+		info, err := fs.Fs.Stat(name)
+
+		return info, true, err
 	}
 
 	info, err := fs.Fs.Stat(name)
 
 	return info, false, err
 }
-
-// symlinkFileInfo is a minimal os.FileInfo for in-memory symlinks.
-type symlinkFileInfo struct {
-	name string
-}
-
-func (fi *symlinkFileInfo) Name() string { return fi.name }
-
-func (fi *symlinkFileInfo) Size() int64 { return 0 }
-
-func (fi *symlinkFileInfo) Mode() os.FileMode { return os.ModeSymlink | os.ModePerm }
-
-func (fi *symlinkFileInfo) ModTime() time.Time { return time.Time{} }
-
-func (fi *symlinkFileInfo) IsDir() bool { return false }
-
-func (fi *symlinkFileInfo) Sys() any { return nil }
 
 // FileExists checks if a path exists using the given filesystem.
 // Returns (true, nil) if the file exists, (false, nil) if it does not exist,
