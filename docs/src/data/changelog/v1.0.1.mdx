@@ -1,5 +1,5 @@
 ---
-version: "Unreleased"
+version: "v1.0.1"
 ---
 
 ### 🧪 Experiments Added
@@ -23,6 +23,16 @@ $ terragrunt run --all --experiment dag-queue-display -- plan
 
 To learn more, see the [experiment documentation](/reference/experiments/active#dag-queue-display).
 
+### 💡 Tip Added
+
+---
+
+#### Windows symlink warning for provider cache users
+
+Terragrunt now warns Windows users when symlink creation fails and provider caching is enabled. OpenTofu and Terraform may silently fall back to copying provider plugins instead of symlinking, which can increase disk usage and slow down operations. For OpenTofu >= 1.12.0, the tip includes guidance on using `TF_LOG=warn` to detect the fallback.
+
+Thank you to the OpenTofu team for introducing this warning to ensure that Windows users are aware of the fallback behavior.
+
 ### 🐛 Bug Fixes
 
 ---
@@ -42,6 +52,10 @@ A regression introduced in v0.99.4 caused `read_terragrunt_config()` to fail to 
 #### Chained dependency with exposed include conversion fixed
 
 Chaining dependencies with exposed includes no longer produces a spurious "Could not convert include to the execution ctx to evaluate additional locals" error during partial parsing.
+
+#### Provider cache fixed on Windows for remote URLs
+
+The provider cache failed on Windows with `CreateFile https://...: The filename, directory name, or volume label syntax is incorrect` because remote download URLs were passed to `os.Stat`, and the colon in `https:` is invalid Windows path syntax. The fix skips the filesystem existence check when the download URL is a remote URL (`://`), going directly to the download path.
 
 ### ⚙️ Process Updates
 
