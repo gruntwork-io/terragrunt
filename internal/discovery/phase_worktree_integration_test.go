@@ -1939,7 +1939,7 @@ unit "myapp" {
 		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
 			stackGenDir := filepath.Join(wt.Path, "live", "app-stack", ".terragrunt-stack")
 			_, statErr := os.Stat(stackGenDir)
-			assert.ErrorIs(t, statErr, fs.ErrNotExist,
+			require.ErrorIs(t, statErr, fs.ErrNotExist,
 				"Stack should not be generated in worktree %s when only a unit changed, but %s exists",
 				wt.Ref, stackGenDir)
 		}
