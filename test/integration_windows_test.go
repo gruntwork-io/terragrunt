@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 	} else {
 		// Verify write permissions
 		testFile := filepath.Join(tempDir, ".write_test")
-		if err := os.WriteFile(testFile, []byte(""), 0666); err != nil {
+		if err := os.WriteFile(testFile, []byte(""), 0o666); err != nil {
 			fmt.Printf("Temp dir %s is not writable: %v", tempDir, err)
 			os.Exit(1)
 		}
@@ -253,7 +253,7 @@ func TestWindowsProviderCacheWithRemoteURL(t *testing.T) {
 }
 
 func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
-	if err := os.MkdirAll(targetPath, 0777); err != nil {
+	if err := os.MkdirAll(targetPath, 0o777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
 	}
 

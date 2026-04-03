@@ -73,7 +73,7 @@ func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
 		return errors.New(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
-		const ownerReadWriteExecutePerms = 0700
+		const ownerReadWriteExecutePerms = 0o700
 
 		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
@@ -384,7 +384,7 @@ func CopyFolderContents(
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
-	const ownerReadWriteExecutePerms = 0700
+	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
@@ -445,7 +445,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 		} else {
 			parentDir := filepath.Dir(dest)
 
-			const ownerReadWriteExecutePerms = 0700
+			const ownerReadWriteExecutePerms = 0o700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.New(err)
 			}
@@ -669,7 +669,7 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {

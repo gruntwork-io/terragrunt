@@ -299,7 +299,7 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 
 // generateDefaultTemplate - write default template to provided dir
 func generateDefaultTemplate(boilerplateDir string) (string, error) {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 	if err := os.WriteFile(
 		filepath.Join(
 			boilerplateDir,

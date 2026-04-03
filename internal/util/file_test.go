@@ -287,7 +287,7 @@ func TestIncludeInCopy(t *testing.T) {
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
 	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, nil))
@@ -335,7 +335,7 @@ func TestExcludeFromCopy(t *testing.T) {
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
 	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
@@ -378,7 +378,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	for _, tc := range testCases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
 	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
@@ -428,12 +428,12 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	// Create directories
 	dirs := []string{"a", "d"}
 	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
 	}
 
 	// Create test files
 	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
 
 	// Create symlinks
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b")))
@@ -504,12 +504,12 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	// Create directories
 	dirs := []string{"a", "b", "c", "d"}
 	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
 	}
 
 	// Create test files
 	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
 
 	// Create symlinks
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b", "link-to-a")))
@@ -682,7 +682,7 @@ func TestMoveFile(t *testing.T) {
 	src := filepath.Join(tempDir, "src.txt")
 	dst := filepath.Join(tempDir, "dst.txt")
 
-	require.NoError(t, os.WriteFile(src, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(src, []byte("test"), 0o644))
 	require.NoError(t, util.MoveFile(src, dst))
 
 	// Verify the file was moved
