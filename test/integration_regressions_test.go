@@ -736,6 +736,28 @@ func TestReadTerragruntConfigDependencyInStack(t *testing.T) {
 		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
 }
 
+// TestReadTerragruntConfigDependencyInStackWithRacing exercises the same scenario
+// as TestReadTerragruntConfigDependencyInStack under the race detector.
+// The `run --all` command internally processes units concurrently, which is
+// sufficient to trigger races in the download/cache path.
+// The CI "Race" job runs tests matching .*WithRacing with -race.
+func TestReadTerragruntConfigDependencyInStackWithRacing(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadConfigDependencyStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfigDependencyStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfigDependencyStack)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "\"dependency\" is not defined",
+		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
+}
+
 // TestChainedDepsExposedIncludeNoErrorLog verifies that chaining dependencies with exposed
 // includes does not produce spurious ERROR-level log messages.
 // This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/4153
