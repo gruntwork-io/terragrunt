@@ -117,7 +117,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	limit := opts.Parallelism
 	if limit == options.DefaultParallelism {
-		limit = runtime.NumCPU()
+		limit = runtime.GOMAXPROCS(0)
 	}
 
 	g.SetLimit(limit)
@@ -150,7 +150,7 @@ func RunForFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	limit := opts.Parallelism
 	if limit == options.DefaultParallelism {
-		limit = runtime.NumCPU()
+		limit = runtime.GOMAXPROCS(0)
 	}
 
 	g.SetLimit(limit)

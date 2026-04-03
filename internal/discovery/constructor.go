@@ -125,7 +125,7 @@ func NewForStackGenerate(l log.Logger, opts StackGenerateOptions) (*Discovery, e
 
 // NewDiscovery creates a new Discovery with sensible defaults.
 func NewDiscovery(dir string) *Discovery {
-	numWorkers := max(min(runtime.NumCPU(), maxDiscoveryWorkers), defaultDiscoveryWorkers)
+	numWorkers := max(min(runtime.GOMAXPROCS(0), maxDiscoveryWorkers), defaultDiscoveryWorkers)
 
 	return &Discovery{
 		numWorkers:         numWorkers,

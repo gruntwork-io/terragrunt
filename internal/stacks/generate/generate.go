@@ -358,7 +358,7 @@ func worktreeStacksToGenerate(
 	// can walk them for unit-level changes.
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(min(runtime.NumCPU(), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
+	g.SetLimit(min(runtime.GOMAXPROCS(0), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
 
 	var (
 		mu              sync.Mutex

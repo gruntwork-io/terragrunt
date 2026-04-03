@@ -67,7 +67,7 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 
 	// Set concurrency limit
 	scalingFactor := 2
-	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
+	maxWorkers := max(1, runtime.GOMAXPROCS(0)/scalingFactor)
 	g.SetLimit(maxWorkers)
 
 	// Process work items concurrently
