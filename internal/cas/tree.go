@@ -65,9 +65,9 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 	// Use errgroup for concurrent processing
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Set concurrency limit
+	// Use half the available CPUs (at least 1) to avoid saturating I/O during tree materialization.
 	scalingFactor := 2
-	maxWorkers := max(1, runtime.NumCPU()/scalingFactor)
+	maxWorkers := max(1, runtime.GOMAXPROCS(0)/scalingFactor)
 	g.SetLimit(maxWorkers)
 
 	// Process work items concurrently
