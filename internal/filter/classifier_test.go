@@ -205,6 +205,7 @@ func TestClassifier_Classify(t *testing.T) {
 		name               string
 		componentPath      string
 		componentRef       string
+		componentKind      component.Kind
 		filterStrs         []string
 		expectedStatus     filter.ClassificationStatus
 		expectedReason     filter.CandidacyReason
@@ -213,10 +214,10 @@ func TestClassifier_Classify(t *testing.T) {
 		expectIdxGteZero   bool
 	}{
 		{
-			name:           "no_filters_returns_discovered",
+			name:           "no_filters_returns_ready_for_filter",
 			filterStrs:     nil,
 			componentPath:  "./apps/app1",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
@@ -246,19 +247,19 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:        -1,
 		},
 		{
-			name:           "matches_filesystem_expression_returns_discovered",
+			name:           "matches_path_expression_returns_ready_for_filter",
 			filterStrs:     []string{"./apps/*"},
 			componentPath:  "./apps/app1",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
 		{
-			name:           "matches_git_expression_returns_discovered",
+			name:           "matches_git_expression_returns_ready_for_filter",
 			filterStrs:     []string{"[main...feature]"},
 			componentPath:  "./apps/app1",
 			componentRef:   "main",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
@@ -280,10 +281,10 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:        -1,
 		},
 		{
-			name:           "negation_exists_component_not_matching_returns_discovered",
+			name:           "negation_exists_component_not_matching_returns_ready_for_filter",
 			filterStrs:     []string{"!./libs/db"},
 			componentPath:  "./apps/app1",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
@@ -296,10 +297,10 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedIdx:    -1,
 		},
 		{
-			name:           "positive_match_with_negation_returns_discovered",
+			name:           "positive_path_match_with_negation_returns_excluded",
 			filterStrs:     []string{"!./apps/app1", "./apps/*"},
 			componentPath:  "./apps/app1",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusExcluded,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
@@ -357,7 +358,7 @@ func TestClassifier_Classify(t *testing.T) {
 			name:           "name_attribute_filter_matches",
 			filterStrs:     []string{"name=app1"},
 			componentPath:  "./apps/app1",
-			expectedStatus: filter.StatusDiscovered,
+			expectedStatus: filter.StatusReadyForFilter,
 			expectedReason: filter.CandidacyReasonNone,
 			expectedIdx:    -1,
 		},
@@ -388,6 +389,56 @@ func TestClassifier_Classify(t *testing.T) {
 			expectedReason:     filter.CandidacyReasonNone,
 			expectedIdx:        -1,
 		},
+		{
+			name:           "attribute_filter_does_not_discount_negation",
+			filterStrs:     []string{"!./apps/app1", "type=unit"},
+			componentPath:  "./apps/app1",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "git_expression_discounts_negation_returns_ready_for_filter",
+			filterStrs:     []string{"!./apps/app1", "[main...feature]"},
+			componentPath:  "./apps/app1",
+			componentRef:   "main",
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:             "graph_expression_discounts_negation",
+			filterStrs:       []string{"!./libs/db", "./libs/db..."},
+			componentPath:    "./libs/db",
+			expectedStatus:   filter.StatusCandidate,
+			expectedReason:   filter.CandidacyReasonGraphTarget,
+			expectIdxGteZero: true,
+		},
+		{
+			name:           "attribute_filter_no_match_returns_excluded",
+			filterStrs:     []string{"type=stack"},
+			componentPath:  "./apps/app1",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "attribute_filter_matches_stack",
+			filterStrs:     []string{"type=stack"},
+			componentPath:  "./stacks/my-stack",
+			componentKind:  component.StackKind,
+			expectedStatus: filter.StatusReadyForFilter,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
+		{
+			name:           "negation_wins_over_both_attribute_and_path",
+			filterStrs:     []string{"!./apps/app1", "type=unit", "./apps/*"},
+			componentPath:  "./apps/app1",
+			expectedStatus: filter.StatusExcluded,
+			expectedReason: filter.CandidacyReasonNone,
+			expectedIdx:    -1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -406,9 +457,13 @@ func TestClassifier_Classify(t *testing.T) {
 			classifier := filter.NewClassifier(filters)
 
 			var comp component.Component
-			if tt.componentRef != "" {
+
+			switch {
+			case tt.componentKind == component.StackKind:
+				comp = newTestStack(tt.componentPath)
+			case tt.componentRef != "":
 				comp = newTestComponentWithRef(tt.componentPath, tt.componentRef)
-			} else {
+			default:
 				comp = newTestComponent(tt.componentPath)
 			}
 
@@ -435,7 +490,7 @@ func TestClassifier_Classify_StatusString(t *testing.T) {
 		expected string
 		status   filter.ClassificationStatus
 	}{
-		{status: filter.StatusDiscovered, expected: "discovered"},
+		{status: filter.StatusReadyForFilter, expected: "discovered"},
 		{status: filter.StatusCandidate, expected: "candidate"},
 		{status: filter.StatusExcluded, expected: "excluded"},
 		{status: filter.ClassificationStatus(99), expected: "unknown"},
@@ -473,6 +528,12 @@ func TestClassifier_Classify_CandidacyReasonString(t *testing.T) {
 
 func newTestComponent(path string) component.Component {
 	return component.NewUnit(path).WithDiscoveryContext(&component.DiscoveryContext{
+		WorkingDir: ".",
+	})
+}
+
+func newTestStack(path string) component.Component {
+	return component.NewStack(path).WithDiscoveryContext(&component.DiscoveryContext{
 		WorkingDir: ".",
 	})
 }

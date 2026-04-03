@@ -140,7 +140,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
-		status, reason, graphIdx := StatusDiscovered, CandidacyReasonNone, -1
+		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
@@ -156,11 +156,11 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 		}
 
 		switch result.Status {
-		case StatusDiscovered:
+		case filter.StatusReadyForFilter:
 			results.AddDiscovered(result)
-		case StatusCandidate:
+		case filter.StatusCandidate:
 			results.AddCandidate(result)
-		case StatusExcluded:
+		case filter.StatusExcluded:
 			// Excluded components are not added
 		}
 	}
@@ -227,15 +227,19 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
+	allChanged := make([]worktrees.StackDiffChangedPair, 0, len(stackDiff.Changed)+len(stackDiff.ReadingAffected))
+	allChanged = append(allChanged, stackDiff.Changed...)
+	allChanged = append(allChanged, stackDiff.ReadingAffected...)
+
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
+	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, len(stackDiff.Changed))
+		errs = make([]error, 0, len(allChanged))
 	)
 
-	for _, changed := range stackDiff.Changed {
+	for _, changed := range allChanged {
 		g.Go(func() error {
 			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
 			if err != nil {

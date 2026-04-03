@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
@@ -287,7 +286,7 @@ func ListStackFiles(
 		return nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
-	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees, opts.Experiments)
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
 	if err != nil {
 		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
 	}
@@ -309,12 +308,14 @@ func ListStackFiles(
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
+// When reading filters are present (changes to files read by a stack), it also
+// identifies which stacks are affected and records them on the Worktrees object so that the worktree
+// discovery phase can walk them for unit-level changes.
 func worktreeStacksToGenerate(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	w *worktrees.Worktrees,
-	experiments experiment.Experiments,
 ) (component.Components, error) {
 	// If worktrees is nil, there are no worktrees to process, return empty components.
 	if w == nil {
@@ -339,75 +340,120 @@ func worktreeStacksToGenerate(
 		stacksToGenerate.EnsureComponent(stack)
 	}
 
+	// Build set of stack dirs already handled by direct changes, so we don't
+	// duplicate them in ReadingAffected.
+	handledStackDirs := make(map[string]struct{}, len(stackDiff.Changed))
+
+	for _, changed := range stackDiff.Changed {
+		if dc := changed.ToStack.DiscoveryContext(); dc != nil {
+			if rel, err := filepath.Rel(dc.WorkingDir, changed.ToStack.Path()); err == nil {
+				handledStackDirs[filepath.Clean(rel)] = struct{}{}
+			}
+		}
+	}
+
 	// When the expanded filter for a given Git expression requires parsing,
 	// we need to generate all the stacks in the given worktree, as units within the generated stack might be affected.
-	//
-	// Based on business logic, the from branch here should never be used, but we'll check it anyways for completeness.
-	// We only require parsing for reading filters, and those only trigger in expanded Git expressions when
-	// the file is modified (which would result in a toFilter being returned).
+	// We also identify which specific stacks are affected by reading filters so that the worktree discovery phase
+	// can walk them for unit-level changes.
 
-	fullDiscoveries := map[string]*discovery.Discovery{}
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(min(runtime.NumCPU(), max(1, len(w.WorktreePairs)*2))) //nolint:mnd
+
+	var (
+		mu              sync.Mutex
+		errs            []error
+		readingAffected []worktrees.StackDiffChangedPair
+	)
 
 	for _, pair := range w.WorktreePairs {
-		fromFilters, toFilters, err := pair.Expand()
+		_, toFilters, err := pair.Expand()
 		if err != nil {
 			return nil, errors.Errorf("failed to expand worktree pair: %w", err)
 		}
 
-		if _, requiresParse := fromFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-				WorkingDir:  pair.FromWorktree.Path,
-				Filters:     stackTypeFilter(),
-				Experiments: experiments,
-			})
-			if err != nil {
-				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.FromWorktree.Ref, err)
-			}
-
-			fullDiscoveries[pair.FromWorktree.Ref] = disc
+		parseExpr, requiresParse := toFilters.RequiresParse()
+		if !requiresParse {
+			continue
 		}
-
-		if _, requiresParse := toFilters.RequiresParse(); requiresParse {
-			disc, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
-				WorkingDir:  pair.ToWorktree.Path,
-				Filters:     stackTypeFilter(),
-				Experiments: experiments,
-			})
-			if err != nil {
-				return nil, errors.Errorf("Failed to create discovery for worktree %s: %w", pair.ToWorktree.Ref, err)
-			}
-
-			fullDiscoveries[pair.ToWorktree.Ref] = disc
-		}
-	}
-
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(min(runtime.NumCPU(), len(fullDiscoveries)))
-
-	var (
-		mu   sync.Mutex
-		errs []error
-	)
-
-	for ref, disc := range fullDiscoveries {
-		// Create per-iteration local copies to avoid closure capture bug
-		refCopy := ref
-		discCopy := disc
 
 		g.Go(func() error {
-			components, err := discCopy.Discover(ctx, l, opts)
+			// Discover all stacks in both worktrees for generation.
+			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, nil)
 			if err != nil {
 				mu.Lock()
 
-				errs = append(errs, errors.Errorf("Failed to discover stacks in worktree %s: %w", refCopy, err))
-
+				errs = append(errs, err)
 				mu.Unlock()
 
 				return nil
 			}
 
-			for _, c := range components {
+			// Appending the reading filter to the "to" discovery forces all stacks through
+			// the parse phase (populating Reading()), while still returning every stack
+			// (because they all match type=stack).
+			readingFilters := filter.Filters{filter.NewFilter(parseExpr, parseExpr.String())}
+
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, readingFilters)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+				mu.Unlock()
+
+				return nil
+			}
+
+			for _, c := range allFromStacks {
 				stacksToGenerate.EnsureComponent(c)
+			}
+
+			for _, c := range allToStacks {
+				stacksToGenerate.EnsureComponent(c)
+			}
+
+			// Identify which "to" stacks read the changed files.
+			matchedToStacks, err := filter.Evaluate(l, parseExpr, allToStacks)
+			if err != nil {
+				mu.Lock()
+
+				errs = append(errs, err)
+				mu.Unlock()
+
+				return nil
+			}
+
+			// Record reading-affected stack pairs on the Worktrees object so that
+			// discoverChangesInWorktreeStacks walks them for unit-level diffs.
+			for _, toComp := range matchedToStacks {
+				toStack, ok := toComp.(*component.Stack)
+				if !ok {
+					continue
+				}
+
+				rel, err := filepath.Rel(pair.ToWorktree.Path, toStack.Path())
+				if err != nil {
+					continue
+				}
+
+				if _, handled := handledStackDirs[filepath.Clean(rel)]; handled {
+					continue
+				}
+
+				// If the stack only exists in one worktree (e.g. newly added),
+				// it will be handled by stackDiff.Added/Removed instead.
+				fromStack := findStackByRelPath(allFromStacks, pair.FromWorktree.Path, rel)
+				if fromStack == nil {
+					continue
+				}
+
+				mu.Lock()
+
+				readingAffected = append(readingAffected, worktrees.StackDiffChangedPair{
+					FromStack: fromStack,
+					ToStack:   toStack,
+				})
+				mu.Unlock()
 			}
 
 			return nil
@@ -418,11 +464,70 @@ func worktreeStacksToGenerate(
 		return nil, err
 	}
 
+	w.ReadingAffectedStacks = readingAffected
+
 	if len(errs) > 0 {
 		return stacksToGenerate.ToComponents(), errors.Join(errs...)
 	}
 
 	return stacksToGenerate.ToComponents(), nil
+}
+
+// discoverStacks discovers stacks in a worktree using the given additional filters.
+// User-provided filters from opts.Filters are included (restricted to stacks) so that
+// explicit exclusions like --filter '!./land-mine | type=stack' are respected.
+func discoverStacks(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	wt worktrees.Worktree,
+	additionalFilters filter.Filters,
+) (component.Components, error) {
+	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks(), additionalFilters)
+
+	d := discovery.NewDiscovery(wt.Path).
+		WithSuppressParseErrors().
+		WithFilters(allFilters)
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return nil, errors.Errorf("failed to discover stacks in worktree %s: %w", wt.Ref, err)
+	}
+
+	for _, c := range components {
+		dc := c.DiscoveryContext()
+		if dc == nil {
+			dc = &component.DiscoveryContext{}
+		}
+
+		dc.WorkingDir = wt.Path
+		dc.Ref = wt.Ref
+		c.SetDiscoveryContext(dc)
+	}
+
+	return components, nil
+}
+
+// findStackByRelPath finds a stack in the given components whose path relative to
+// worktreePath matches relPath.
+func findStackByRelPath(stacks component.Components, worktreePath string, relPath string) *component.Stack {
+	for _, c := range stacks {
+		s, ok := c.(*component.Stack)
+		if !ok {
+			continue
+		}
+
+		rel, err := filepath.Rel(worktreePath, s.Path())
+		if err != nil {
+			continue
+		}
+
+		if filepath.Clean(rel) == filepath.Clean(relPath) {
+			return s
+		}
+	}
+
+	return nil
 }
 
 // stackTypeFilter returns a filter.Filters that restricts to stack components.

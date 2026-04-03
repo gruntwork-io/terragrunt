@@ -2,6 +2,7 @@ package discovery_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1849,6 +1850,322 @@ unit "app" {
 		"Stack without read_terragrunt_config reference should NOT be discovered; got: %v", componentPaths)
 }
 
+// TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges verifies that when only
+// unit files change (no read files involved), stacks in worktrees are not generated.
+// This ensures we don't do unnecessary work when the change doesn't affect any stack.
+func TestWorktreePhase_Integration_StackNotGeneratedForUnitChanges(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a stack (no read_terragrunt_config)
+	stackDir := filepath.Join(tmpDir, "live", "app-stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Create a standalone unit
+	unitDir := filepath.Join(tmpDir, "live", "standalone")
+	err = os.MkdirAll(unitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# standalone unit`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stack and standalone unit")
+
+	// Change ONLY the standalone unit (not anything the stack reads)
+	err = os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`# standalone unit modified`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify standalone unit only")
+
+	// Set up worktrees and run generation
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Generate stacks — using tmpDir as working directory so that only
+	// worktreeStacksToGenerate can cause generation inside worktrees.
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// Verify: no .terragrunt-stack directories should exist in the worktrees,
+	// because the only change was to a standalone unit (no reading filters).
+	for _, pair := range w.WorktreePairs {
+		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
+			stackGenDir := filepath.Join(wt.Path, "live", "app-stack", ".terragrunt-stack")
+			_, statErr := os.Stat(stackGenDir)
+			assert.True(t, os.IsNotExist(statErr),
+				"Stack should not be generated in worktree %s when only a unit changed, but %s exists",
+				wt.Ref, stackGenDir)
+		}
+	}
+
+	// Also verify: no reading-affected stacks were recorded
+	assert.Empty(t, w.ReadingAffectedStacks,
+		"No reading-affected stacks should be recorded when only a unit changed")
+}
+
+// TestWorktreePhase_Integration_StackReadingRespectsExclusion verifies that when a user
+// excludes a stack via --filter, that stack is not parsed during worktree stack discovery
+// even when reading filters are active. A "land-mine" stack with a run_cmd in locals
+// creates a marker file when parsed; the test asserts the marker is never created.
+func TestWorktreePhase_Integration_StackReadingRespectsExclusion(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a "land-mine" stack that creates a marker file when parsed.
+	// If the exclusion filter works, this file should never be created.
+	landMineDir := filepath.Join(tmpDir, "live", "land-mine")
+	err = os.MkdirAll(landMineDir, 0755)
+	require.NoError(t, err)
+
+	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
+
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+locals {
+  marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+}
+`, markerFile)), 0644)
+	require.NoError(t, err)
+
+	// Create a normal stack that reads a config file
+	normalDir := filepath.Join(tmpDir, "live", "normal")
+	err = os.MkdirAll(normalDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(normalDir, "terragrunt.stack.hcl"), []byte(`
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create land-mine and normal stacks")
+
+	// Change the normal stack's read file
+	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update config file")
+
+	// Set up worktrees
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// Use filters that exclude the land-mine stack and include the git expression
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{
+		"[HEAD~1...HEAD]",
+		"!./live/land-mine | type=stack",
+	})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Generate stacks
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// The marker file should NOT exist — the land-mine stack should not have been parsed.
+	_, statErr := os.Stat(markerFile)
+	assert.True(t, os.IsNotExist(statErr),
+		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
+}
+
+// TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion verifies that when
+// a stack is both explicitly included and excluded by path, the exclusion wins and the
+// stack is not parsed, even when a reading filter would otherwise trigger parsing.
+func TestWorktreePhase_Integration_StackReadingExclusionOverridesInclusion(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`output "example" { value = "ok" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a "land-mine" stack that creates a marker file when parsed
+	landMineDir := filepath.Join(tmpDir, "live", "land-mine")
+	err = os.MkdirAll(landMineDir, 0755)
+	require.NoError(t, err)
+
+	markerFile := filepath.Join(tmpDir, "land-mine-parsed.marker")
+
+	err = os.WriteFile(filepath.Join(landMineDir, "terragrunt.stack.hcl"), []byte(fmt.Sprintf(`
+locals {
+  marker = run_cmd("--terragrunt-quiet", "bash", "-c", "touch %s")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+}
+`, markerFile)), 0644)
+	require.NoError(t, err)
+
+	// Create a normal stack that reads a config file
+	normalDir := filepath.Join(tmpDir, "live", "normal")
+	err = os.MkdirAll(normalDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(normalDir, "terragrunt.stack.hcl"), []byte(`
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create land-mine and normal stacks")
+
+	// Change the normal stack's read file
+	err = os.WriteFile(filepath.Join(normalDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update config file")
+
+	// Set up worktrees
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	// The land-mine is both included AND excluded by path (intersected with
+	// type=stack), plus a reading filter that would otherwise trigger parsing.
+	// The exclusion should win.
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{
+		"[HEAD~1...HEAD]",
+		"!./live/land-mine | type=stack",
+		"./live/land-mine | type=stack",
+		"reading=live/normal/config.hcl",
+	})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
+
+	// The marker file should NOT exist — negation should prevent parsing
+	// even though the land-mine is also positively included.
+	_, statErr := os.Stat(markerFile)
+	assert.True(t, os.IsNotExist(statErr),
+		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
+}
+
 // runWorktreeDiscovery runs discovery with worktree phase enabled.
 func runWorktreeDiscovery(
 	t *testing.T,
@@ -1895,4 +2212,143 @@ func runWorktreeDiscovery(
 	require.NoError(t, err)
 
 	return components, w
+}
+
+// TestWorktreePhase_Integration_StackReadingChanges_Units tests that when a file
+// referenced via read_terragrunt_config() changes, the units within the generated stack
+// are discovered (not just the stack component itself). This is the actual bug from #5681:
+// the stack was discovered but its units were not, resulting in "No units discovered."
+func TestWorktreePhase_Integration_StackReadingChanges_Units(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a catalog unit that the stack will reference as a source
+	catalogUnitDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogUnitDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogUnitDir, "main.tf"), []byte(`
+variable "example" {
+  type    = string
+  default = "ok"
+}
+
+output "example" {
+  value = var.example
+}
+`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create catalog unit")
+
+	// Create a stack that reads an external config file via read_terragrunt_config
+	stackDir := filepath.Join(tmpDir, "live", "app-stack")
+	err = os.MkdirAll(stackDir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v1" }`), 0644)
+	require.NoError(t, err)
+
+	stackContent := `
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackContent), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Create stack with read_terragrunt_config")
+
+	// Change ONLY the read file (not the stack file itself)
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { example = "v2" }`), 0644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update read config file only")
+
+	// Set up worktrees and generate stacks
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// Generate stacks in both worktrees
+	for _, pair := range w.WorktreePairs {
+		fromOpts := opts.Clone()
+		fromOpts.WorkingDir = pair.FromWorktree.Path
+		fromOpts.RootWorkingDir = pair.FromWorktree.Path
+		err = generate.GenerateStacks(t.Context(), l, fromOpts, w)
+		require.NoError(t, err)
+
+		toOpts := opts.Clone()
+		toOpts.WorkingDir = pair.ToWorktree.Path
+		toOpts.RootWorkingDir = pair.ToWorktree.Path
+		err = generate.GenerateStacks(t.Context(), l, toOpts, w)
+		require.NoError(t, err)
+	}
+
+	// Run discovery
+	discoveryContext := &component.DiscoveryContext{
+		WorkingDir: tmpDir,
+		Cmd:        "plan",
+	}
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(discoveryContext).
+		WithWorktrees(w)
+
+	filters := make(filter.Filters, 0, len(gitExpressions))
+	for _, gitExpr := range gitExpressions {
+		f := filter.NewFilter(gitExpr, gitExpr.String())
+		filters = append(filters, f)
+	}
+
+	d = d.WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	// Collect component paths and kinds for debugging
+	componentPaths := make([]string, 0, len(components))
+	unitPaths := make([]string, 0)
+
+	for _, c := range components {
+		componentPaths = append(componentPaths, c.Path())
+		if _, ok := c.(*component.Unit); ok {
+			unitPaths = append(unitPaths, c.Path())
+		}
+	}
+
+	// The critical assertion: at least one UNIT should be discovered.
+	// The bug (#5681) is that only the Stack component is discovered, not its units.
+	assert.NotEmpty(t, unitPaths,
+		"Expected at least one unit to be discovered when a read file changes, "+
+			"but got no units. All components: %v", componentPaths)
 }
