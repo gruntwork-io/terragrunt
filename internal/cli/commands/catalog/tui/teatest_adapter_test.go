@@ -61,7 +61,7 @@ func translateKeyMsg(msg teav1.KeyMsg) tea.KeyPressMsg {
 
 // v1TypeToV2Code maps v1 KeyType constants to v2 rune codes.
 //
-//nolint:cyclop
+//nolint:cyclop,exhaustive
 func v1TypeToV2Code(t teav1.KeyType) rune {
 	switch t {
 	case teav1.KeyEnter:
