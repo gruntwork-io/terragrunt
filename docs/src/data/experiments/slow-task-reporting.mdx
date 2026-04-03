@@ -15,7 +15,7 @@ This provides visual feedback during operations that would otherwise show no out
 - Catalog repository cloning (`terragrunt catalog`)
 - OpenTofu/Terraform source downloads via `go-getter`
 
-In non-interactive environments (CI/CD, piped output), spinners are suppressed and only INFO log lines are shown.
+In non-interactive environments (CI/CD, piped output), spinners are suppressed and INFO log lines are emitted instead. To prevent CI systems (e.g., CircleCI) from killing jobs due to prolonged output silence, periodic keepalive log lines are emitted every 30 seconds while the operation is in progress.
 
 ```bash
 terragrunt run --all --experiment slow-task-reporting -- plan

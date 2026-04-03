@@ -17,6 +17,10 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 const spinnerInterval = 100 * time.Millisecond
 
+// keepaliveInterval is how often a progress log line is emitted in non-interactive
+// environments (no TTY) to prevent CI systems from killing the job due to inactivity.
+const keepaliveInterval = 30 * time.Second
+
 // spinnerLineOverhead is the number of extra bytes the spinner line uses beyond the message itself
 // (braille character 3 bytes + space 1 byte). Since braille dots occupy a single terminal column,
 // this over-clears by a couple of columns, which is harmless.
@@ -85,19 +89,28 @@ func notifyLoop(
 		return
 	}
 
-	// No spinner writer — just log and wait.
+	// No spinner writer — log and emit periodic keepalive lines so CI systems
+	// (e.g. CircleCI) do not kill the job due to prolonged output silence.
 	if spinnerW == nil {
 		l.Info(msgs.Spinner)
 
-		select {
-		case err := <-result:
-			if err == nil {
-				logDone(l, msgs.Done, start)
-			}
-		case <-ctx.Done():
-		}
+		ticker := time.NewTicker(keepaliveInterval)
+		defer ticker.Stop()
 
-		return
+		for {
+			select {
+			case <-ticker.C:
+				l.Infof("%s (%.0fs elapsed)", msgs.Spinner, time.Since(start).Seconds())
+			case err := <-result:
+				if err == nil {
+					logDone(l, msgs.Done, start)
+				}
+
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
 	}
 
 	// Animate spinner until the operation finishes.

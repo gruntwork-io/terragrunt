@@ -3,6 +3,7 @@ package util_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -192,6 +193,36 @@ func TestNotifyIfSlow_ElapsedTimeShown(t *testing.T) {
 		// Elapsed time should be included since it took > 1s.
 		assert.Contains(t, logBuf.String(), "finished (")
 		assert.Contains(t, logBuf.String(), "s)")
+	})
+}
+
+func TestNotifyIfSlow_NonInteractiveKeepalive(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		logBuf := new(bytes.Buffer)
+		l := log.New(log.WithLevel(log.InfoLevel), log.WithOutput(logBuf))
+
+		err := util.NotifyIfSlow(t.Context(), l, nil, 50*time.Millisecond, util.SlowNotifyMsg{
+			Spinner: "working...",
+			Done:    "finished",
+		}, func() error {
+			// Sleep long enough for the initial timeout + two keepalive ticks (30s each).
+			time.Sleep(61 * time.Second)
+			return nil
+		})
+
+		require.NoError(t, err)
+
+		output := logBuf.String()
+		// Initial spinner message logged.
+		assert.Contains(t, output, "working...")
+		// Keepalive lines with elapsed time.
+		assert.Contains(t, output, "elapsed)")
+		// Count keepalive lines — expect at least 2 (at 30s and 60s).
+		assert.GreaterOrEqual(t, strings.Count(output, "elapsed)"), 2)
+		// Done message logged.
+		assert.Contains(t, output, "finished")
 	})
 }
 
