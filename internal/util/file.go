@@ -65,7 +65,7 @@ func FileExists(path string) bool {
 // FileNotExists returns true if the given file does not exist.
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
-	return os.IsNotExist(err)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
@@ -525,7 +525,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents io
 	// If destination exists, remove it first to avoid permission issues
 	// This is especially important when CAS creates read-only files
 	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return errors.New(err)
 		}
 	}
@@ -658,7 +658,7 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 				return errors.New(err)
 			}
 		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return errors.New(err)
 			}
 		}

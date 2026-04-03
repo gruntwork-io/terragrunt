@@ -5,7 +5,9 @@ package test_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -49,7 +51,7 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
-	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
+	if _, err := os.Stat(tempDir); errors.Is(err, fs.ErrNotExist) {
 		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
 			fmt.Printf("Failed to create temp dir due to error: %v", err)
 			os.Exit(1)
