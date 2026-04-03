@@ -23,16 +23,6 @@ $ terragrunt run --all --experiment dag-queue-display -- plan
 
 To learn more, see the [experiment documentation](/reference/experiments/active#dag-queue-display).
 
-### 💡 Tip Added
-
----
-
-#### Windows symlink warning for provider cache users
-
-Terragrunt now warns Windows users when symlink creation fails and provider caching is enabled. OpenTofu and Terraform may silently fall back to copying provider plugins instead of symlinking, which can increase disk usage and slow down operations. For OpenTofu >= 1.12.0, the tip includes guidance on using `TF_LOG=warn` to detect the fallback.
-
-Thank you to the OpenTofu team for introducing this warning to ensure that Windows users are aware of the fallback behavior.
-
 ### 🐛 Bug Fixes
 
 ---
