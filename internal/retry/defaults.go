@@ -1,7 +1,11 @@
 // Package retry provides default retry configuration for Terragrunt.
 package retry
 
-import "time"
+import (
+	"fmt"
+	"regexp"
+	"time"
+)
 
 // DefaultMaxAttempts is the default number of retry attempts.
 const DefaultMaxAttempts = 3
@@ -30,4 +34,35 @@ var DefaultRetryableErrors = []string{
 	"(?s).*Could not download module.*The requested URL returned error: 429.*",
 	"(?s).*net/http: TLS.*handshake timeout.*",
 	"(?s).*could not query provider registry.*context deadline exceeded.*",
+	"(?s).*provider.*TLS handshake timeout.*",
+	"(?s).*provider.*tcp.*timeout.*",
+	"(?s).*provider.*tcp.*connection reset by peer.*",
+	"(?s).*provider.*context deadline exceeded.*",
+	"(?s).*registry.*context deadline exceeded.*",
+	"(?s).*Failed to resolve provider.*timeout.*",
+	"(?s).*Failed to resolve provider.*connection reset by peer.*",
+	"(?s).*Failed to resolve provider.*context deadline exceeded.*",
+	"(?s).*could not connect to registry.*timeout.*",
+	"(?s).*could not connect to registry.*connection reset by peer.*",
+	"(?s).*could not connect to registry.*context deadline exceeded.*",
+	"(?s).*failed to request discovery document.*context deadline exceeded.*",
+	"(?s).*Failed to query available provider packages.*timeout.*",
+	"(?s).*Failed to query available provider packages.*connection reset by peer.*",
+	"(?s).*Failed to query available provider packages.*context deadline exceeded.*",
+}
+
+// DefaultRetryableRegexps contains pre-compiled regexps for DefaultRetryableErrors,
+// populated at init time. Do not modify.
+var DefaultRetryableRegexps []*regexp.Regexp
+
+func init() {
+	DefaultRetryableRegexps = make([]*regexp.Regexp, len(DefaultRetryableErrors))
+	for i, pat := range DefaultRetryableErrors {
+		re, err := regexp.Compile(pat)
+		if err != nil {
+			panic(fmt.Sprintf("retry: pattern %d failed to compile: %q: %v", i, pat, err))
+		}
+
+		DefaultRetryableRegexps[i] = re
+	}
 }
