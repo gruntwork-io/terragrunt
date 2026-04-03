@@ -214,19 +214,25 @@ func (p *GraphPhase) processGraphTarget(
 		}
 
 		if state.discovery.gitRoot != "" {
-			// Use the discovery's workingDir as the starting point for dependent discovery.
-			// This is important when the target was discovered from a worktree - dependents
-			// exist in the original working directory, not in the worktree.
 			startDir := state.discovery.workingDir
+			boundaryRoot := state.discovery.gitRoot
+
+			if dCtx := c.DiscoveryContext(); dCtx != nil &&
+				dCtx.WorkingDir != "" &&
+				dCtx.WorkingDir != state.discovery.workingDir {
+				startDir = dCtx.WorkingDir
+				boundaryRoot = dCtx.WorkingDir
+			}
+
 			l.Debugf(
-				"Starting upstream dependent discovery from %s to gitRoot %s",
+				"Starting upstream dependent discovery from %s to boundary %s",
 				startDir,
-				state.discovery.gitRoot,
+				boundaryRoot,
 			)
 
 			visitedDirs := newStringSet()
 
-			err := p.discoverDependentsUpstream(ctx, l, state, c, visitedDirs, startDir, depth)
+			err := p.discoverDependentsUpstream(ctx, l, state, c, visitedDirs, startDir, boundaryRoot, depth)
 			if err != nil {
 				return err
 			}
@@ -422,9 +428,10 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	target component.Component,
 	visitedDirs *stringSet,
 	currentDir string,
+	boundaryRoot string,
 	depthRemaining int,
 ) error {
-	l.Debugf("discoverDependentsUpstream: target=%s currentDir=%s depth=%d", target.Path(), currentDir, depthRemaining)
+	l.Debugf("discoverDependentsUpstream: target=%s currentDir=%s boundary=%s depth=%d", target.Path(), currentDir, boundaryRoot, depthRemaining)
 
 	if depthRemaining <= 0 {
 		l.Debugf("discoverDependentsUpstream: depth limit reached")
@@ -436,9 +443,8 @@ func (p *GraphPhase) discoverDependentsUpstream(
 		return nil
 	}
 
-	gitRoot := state.discovery.gitRoot
-	if gitRoot != "" && currentDir != gitRoot && !strings.HasPrefix(currentDir, gitRoot) {
-		l.Debugf("discoverDependentsUpstream: outside git root boundary (currentDir=%s, gitRoot=%s)", currentDir, gitRoot)
+	if boundaryRoot != "" && currentDir != boundaryRoot && !strings.HasPrefix(currentDir, boundaryRoot) {
+		l.Debugf("discoverDependentsUpstream: outside boundary (currentDir=%s, boundaryRoot=%s)", currentDir, boundaryRoot)
 		return nil
 	}
 
@@ -565,7 +571,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 
 		err := p.discoverDependentsUpstream(
 			ctx, l, state, dependent, freshVisitedDirs,
-			filepath.Dir(dependent.Path()), depthRemaining-1,
+			filepath.Dir(dependent.Path()), boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
 			errs = append(errs, err)
@@ -576,7 +582,7 @@ func (p *GraphPhase) discoverDependentsUpstream(
 	if parentDir != currentDir && depthRemaining > 0 {
 		err := p.discoverDependentsUpstream(
 			ctx, l, state, target, visitedDirs,
-			parentDir, depthRemaining-1,
+			parentDir, boundaryRoot, depthRemaining-1,
 		)
 		if err != nil {
 			errs = append(errs, err)
