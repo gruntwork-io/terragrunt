@@ -1,6 +1,8 @@
 package hclparse
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
@@ -48,6 +50,11 @@ func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Va
 	diags = gohcl.DecodeBody(file.Body, nil, stackFile)
 	if diags.HasErrors() {
 		return nil, diags
+	}
+
+	// Process includes — merge included units/stacks.
+	if err := processStackIncludes(stackFile, stackDir); err != nil {
+		return nil, err
 	}
 
 	// Build component refs with absolute paths for the eval context.
@@ -148,6 +155,37 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
 
 		evalCtx.Variables["local"] = cty.ObjectVal(evaluated)
 	}
+}
+
+// processStackIncludes resolves include blocks by parsing the included files
+// and merging their unit/stack blocks into the main stack file.
+func processStackIncludes(stackFile *StackFileHCL, stackDir string) error {
+	for _, inc := range stackFile.Includes {
+		includePath := inc.Path
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(stackDir, includePath)
+		}
+
+		data, err := os.ReadFile(includePath)
+		if err != nil {
+			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
+		}
+
+		incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
+		if diags.HasErrors() {
+			return fmt.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
+		}
+
+		included := &StackFileHCL{}
+		if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
+			return fmt.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
+		}
+
+		stackFile.Units = append(stackFile.Units, included.Units...)
+		stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
+	}
+
+	return nil
 }
 
 // buildRefsWithAbsPath creates ComponentRef values with paths resolved

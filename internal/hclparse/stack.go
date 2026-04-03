@@ -15,9 +15,17 @@ import (
 // via remain, allowing deferred evaluation once unit/stack path variables
 // are available.
 type StackFileHCL struct {
-	Locals *LocalsHCL       `hcl:"locals,block"`
-	Stacks []*StackBlockHCL `hcl:"stack,block"`
-	Units  []*UnitBlockHCL  `hcl:"unit,block"`
+	Locals   *LocalsHCL         `hcl:"locals,block"`
+	Includes []*StackIncludeHCL `hcl:"include,block"`
+	Stacks   []*StackBlockHCL   `hcl:"stack,block"`
+	Units    []*UnitBlockHCL    `hcl:"unit,block"`
+}
+
+// StackIncludeHCL represents an include block in a terragrunt.stack.hcl file.
+// The path is evaluated immediately during the first parse pass.
+type StackIncludeHCL struct {
+	Name string `hcl:",label"`
+	Path string `hcl:"path,attr"`
 }
 
 // UnitBlockHCL represents the first-phase parse of a unit block.

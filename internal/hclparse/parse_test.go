@@ -576,6 +576,89 @@ unit "app" {
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
 }
 
+func TestGenerateAutoIncludeFile_PartialEval(t *testing.T) {
+	t.Parallel()
+
+	// Mixed expressions: inputs object has both pure local refs and deferred
+	// dependency refs. The partial evaluator should resolve locals to literals
+	// while preserving dependency refs verbatim. A mixed template string tests
+	// per-part partial evaluation.
+	src := `
+locals {
+  env    = "production"
+  region = "us-east-1"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+
+      mock_outputs_allowed_terraform_commands = ["plan"]
+      mock_outputs = {
+        vpc_id = "mock-vpc-id"
+      }
+    }
+
+    # Mixed object: env is pure local, vpc_id is deferred dependency
+    inputs = {
+      env    = local.env
+      region = local.region
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+
+    # Pure local attribute — fully evaluated
+    env_label = local.env
+
+    # Mixed template — partial eval per interpolation part
+    name_tag = "${local.env}-${dependency.vpc.outputs.vpc_id}-app"
+  }
+}
+`
+	srcBytes := []byte(src)
+
+	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes["app"]
+	require.True(t, ok)
+
+	tmpDir := t.TempDir()
+	appDir := filepath.Join(tmpDir, ".terragrunt-stack", "app")
+
+	err = hclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := os.ReadFile(filepath.Join(appDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+
+	// env_label: pure local ref -> evaluated to literal
+	assert.Contains(t, content, `"production"`)
+	assert.NotContains(t, content, "local.env")
+
+	// inputs object: env and region resolved, vpc_id deferred
+	assert.Contains(t, content, `"us-east-1"`)
+	assert.NotContains(t, content, "local.region")
+	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
+
+	// name_tag: mixed template -> "production-${dependency.vpc.outputs.vpc_id}-app"
+	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app")
+
+	// Dependency block preserved
+	assert.Contains(t, content, `dependency "vpc"`)
+	assert.Contains(t, content, "mock_outputs")
+}
+
 func TestParseStackFile_StackChildUnitPath(t *testing.T) {
 	t.Parallel()
 

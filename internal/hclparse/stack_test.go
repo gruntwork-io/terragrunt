@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -216,4 +217,42 @@ func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
 	// stack.stack_w_outputs.unit_w_outputs.path works
 	unitRef := stackRef.GetAttr("unit_w_outputs")
 	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
+}
+
+func TestParseStackFile_WithInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create the included file
+	includeDir := filepath.Join(tmpDir, "includes")
+	require.NoError(t, os.MkdirAll(includeDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(includeDir, "extra.stack.hcl"), []byte(`
+unit "monitoring" {
+  source = "../catalog/units/monitoring"
+  path   = "monitoring"
+}
+`), 0644))
+
+	// Create the main stack file
+	mainSrc := fmt.Sprintf(`
+include "extra" {
+  path = "%s/extra.stack.hcl"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`, includeDir)
+
+	result, err := hclparse.ParseStackFile([]byte(mainSrc), filepath.Join(tmpDir, "terragrunt.stack.hcl"), tmpDir, nil)
+	require.NoError(t, err)
+
+	// Should have both units: vpc from main + monitoring from include
+	require.Len(t, result.Units, 2)
+
+	names := []string{result.Units[0].Name, result.Units[1].Name}
+	assert.Contains(t, names, "vpc")
+	assert.Contains(t, names, "monitoring")
 }

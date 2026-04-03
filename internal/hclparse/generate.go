@@ -109,35 +109,26 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 }
 
 // writeNonDependencyContent writes non-dependency attributes and blocks from
-// the autoinclude body. For each attribute:
-//   - If it references dependency.* variables, copy verbatim from source bytes
-//   - Otherwise, evaluate using evalCtx and write the literal value
-//   - Fallback to source bytes if evaluation fails
+// the autoinclude body. Each attribute expression is partially evaluated:
+// resolvable parts (locals, pure refs) become literals, while deferred parts
+// (dependency.*) keep their original source text. This enables mixed
+// expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
+// partially resolved.
 //
 // Non-dependency blocks are always copied verbatim from source bytes.
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
 	for _, attr := range sortedAttributes(body.Attributes) {
-		if hasDeferredVarRefs(attr.Expr) {
-			// Has dependency.* refs — copy verbatim.
+		if evalCtx == nil {
 			exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
 			outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
-		} else if evalCtx != nil {
-			// No deferred refs — try to evaluate.
-			val, diags := attr.Expr.Value(evalCtx)
-			if !diags.HasErrors() {
-				outBody.SetAttributeValue(attr.Name, val)
-			} else {
-				// Fallback to source bytes.
-				exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
-				outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
-			}
-		} else {
-			exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
-			outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
+
+			continue
 		}
+
+		result := PartialEval(attr.Expr, srcBytes, evalCtx, deferredRoots)
+		outBody.SetAttributeRaw(attr.Name, rawTokens(result))
 	}
 
-	// Non-dependency blocks are still copied verbatim.
 	for _, block := range body.Blocks {
 		if block.Type == "dependency" {
 			continue
@@ -145,18 +136,6 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 
 		copyBlockFromSource(outBody, block, srcBytes)
 	}
-}
-
-// hasDeferredVarRefs returns true if the expression references any
-// dependency.* variables that cannot be evaluated at generation time.
-func hasDeferredVarRefs(expr hclsyntax.Expression) bool {
-	for _, traversal := range expr.Variables() {
-		if traversal.RootName() == "dependency" {
-			return true
-		}
-	}
-
-	return false
 }
 
 // copyBlockFromSource copies a block from the original AST to hclwrite output,
