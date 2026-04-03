@@ -33,7 +33,7 @@ const (
 //
 // srcBytes is the original terragrunt.stack.hcl file content, used to extract
 // source text for expressions via byte ranges.
-func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, srcBytes []byte) error {
+func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if resolved == nil {
 		return nil
 	}
@@ -55,12 +55,12 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 			continue
 		}
 
-		writeDependencyBlock(outBody, dep, origBlock, srcBytes)
+		writeDependencyBlock(outBody, dep, origBlock, srcBytes, targetDir)
 		outBody.AppendNewline()
 	}
 
-	// Write all non-dependency content verbatim from source bytes.
-	writeNonDependencyContent(outBody, body, srcBytes)
+	// Write non-dependency content with binary per-attribute evaluation.
+	writeNonDependencyContent(outBody, body, srcBytes, evalCtx)
 
 	filePath := filepath.Join(targetDir, AutoIncludeFile)
 
@@ -78,13 +78,19 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 }
 
 // writeDependencyBlock writes a single dependency block with resolved config_path.
-// All other attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte) {
+// The config_path is converted to a path relative to targetDir. All other
+// attributes are copied from source bytes to preserve original expressions.
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
 	depBlock := outBody.AppendNewBlock("dependency", []string{dep.Name})
 	depBody := depBlock.Body()
 
-	// Write resolved config_path as a string literal.
-	depBody.SetAttributeRaw("config_path", quotedStringTokens(dep.ConfigPath))
+	// Convert config_path to relative from the target directory.
+	relPath, err := filepath.Rel(targetDir, dep.ConfigPath)
+	if err != nil {
+		relPath = dep.ConfigPath // fallback to absolute
+	}
+
+	depBody.SetAttributeRaw("config_path", quotedStringTokens(relPath))
 
 	// Copy all other attributes from source bytes (mock_outputs, etc.).
 	for _, attr := range sortedAttributes(origBlock.Body.Attributes) {
@@ -102,15 +108,36 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 	}
 }
 
-// writeNonDependencyContent copies all non-dependency attributes and blocks
-// from the autoinclude body using source bytes. These contain
-// dependency.*.outputs.* references that must be preserved as-is.
-func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte) {
+// writeNonDependencyContent writes non-dependency attributes and blocks from
+// the autoinclude body. For each attribute:
+//   - If it references dependency.* variables, copy verbatim from source bytes
+//   - Otherwise, evaluate using evalCtx and write the literal value
+//   - Fallback to source bytes if evaluation fails
+//
+// Non-dependency blocks are always copied verbatim from source bytes.
+func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
 	for _, attr := range sortedAttributes(body.Attributes) {
-		exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
-		outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
+		if hasDeferredVarRefs(attr.Expr) {
+			// Has dependency.* refs — copy verbatim.
+			exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
+			outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
+		} else if evalCtx != nil {
+			// No deferred refs — try to evaluate.
+			val, diags := attr.Expr.Value(evalCtx)
+			if !diags.HasErrors() {
+				outBody.SetAttributeValue(attr.Name, val)
+			} else {
+				// Fallback to source bytes.
+				exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
+				outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
+			}
+		} else {
+			exprBytes := rangeBytes(srcBytes, attr.Expr.Range())
+			outBody.SetAttributeRaw(attr.Name, rawTokens(exprBytes))
+		}
 	}
 
+	// Non-dependency blocks are still copied verbatim.
 	for _, block := range body.Blocks {
 		if block.Type == "dependency" {
 			continue
@@ -118,6 +145,18 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 
 		copyBlockFromSource(outBody, block, srcBytes)
 	}
+}
+
+// hasDeferredVarRefs returns true if the expression references any
+// dependency.* variables that cannot be evaluated at generation time.
+func hasDeferredVarRefs(expr hclsyntax.Expression) bool {
+	for _, traversal := range expr.Variables() {
+		if traversal.RootName() == "dependency" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // copyBlockFromSource copies a block from the original AST to hclwrite output,

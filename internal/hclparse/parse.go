@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -35,7 +36,7 @@ type ParseResult struct {
 // Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
-func ParseStackFile(src []byte, filename string, stackDir string) (*ParseResult, error) {
+func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Value) (*ParseResult, error) {
 	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
@@ -59,6 +60,17 @@ func ParseStackFile(src []byte, filename string, stackDir string) (*ParseResult,
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
+
+	// Add values to context if provided.
+	if values != nil {
+		evalCtx.Variables["values"] = *values
+	}
+
+	// Evaluate locals block iteratively.
+	if stackFile.Locals != nil {
+		evaluateLocals(stackFile.Locals.Remain, evalCtx)
+	}
+
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
 	for _, unit := range stackFile.Units {
@@ -72,6 +84,7 @@ func ParseStackFile(src []byte, filename string, stackDir string) (*ParseResult,
 		}
 
 		if resolved != nil {
+			resolved.EvalCtx = evalCtx
 			autoIncludes[unit.Name] = resolved
 		}
 	}
@@ -87,6 +100,7 @@ func ParseStackFile(src []byte, filename string, stackDir string) (*ParseResult,
 		}
 
 		if resolved != nil {
+			resolved.EvalCtx = evalCtx
 			autoIncludes[stack.Name] = resolved
 		}
 	}
@@ -96,6 +110,44 @@ func ParseStackFile(src []byte, filename string, stackDir string) (*ParseResult,
 		Stacks:       stackFile.Stacks,
 		AutoIncludes: autoIncludes,
 	}, nil
+}
+
+// evaluateLocals iteratively evaluates attributes from a locals block body.
+// On each pass, attributes that can be evaluated with the current context are
+// resolved and added to the `local` variable. Iteration continues until no
+// progress is made or the maximum iteration count is reached.
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return
+	}
+
+	attrs := syntaxBody.Attributes
+	evaluated := make(map[string]cty.Value)
+
+	const maxIter = 100
+
+	for i := 0; i < maxIter; i++ {
+		progress := false
+
+		for name, attr := range attrs {
+			if _, done := evaluated[name]; done {
+				continue
+			}
+
+			val, diags := attr.Expr.Value(evalCtx)
+			if !diags.HasErrors() {
+				evaluated[name] = val
+				progress = true
+			}
+		}
+
+		if !progress {
+			break
+		}
+
+		evalCtx.Variables["local"] = cty.ObjectVal(evaluated)
+	}
 }
 
 // buildRefsWithAbsPath creates ComponentRef values with paths resolved

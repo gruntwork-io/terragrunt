@@ -36,6 +36,9 @@ type AutoIncludeHCL struct {
 // The RawBody is preserved for serializing the generated
 // terragrunt.autoinclude.hcl file.
 type AutoIncludeResolved struct {
+	// EvalCtx is the HCL evaluation context used during resolution,
+	// preserved so the generator can evaluate non-deferred expressions.
+	EvalCtx *hcl.EvalContext
 	// RawBody is the original autoinclude HCL body, preserved so
 	// the generator can write non-dependency content (inputs, etc.)
 	// directly from the AST without evaluating dependency.* references.

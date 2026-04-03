@@ -101,7 +101,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := intHclparse.ParseStackFile(stackSrcBytes, stackFilePath, stackSourceDir)
+		parseResult, parseErr := intHclparse.ParseStackFile(stackSrcBytes, stackFilePath, stackSourceDir, values)
 		if parseErr != nil {
 			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
 		} else {
@@ -327,7 +327,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		if resolved, ok := opts.autoIncludes[cmp.name]; ok {
 			l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
 
-			if err := intHclparse.GenerateAutoIncludeFile(resolved, dest, opts.stackSrcBytes); err != nil {
+			if err := intHclparse.GenerateAutoIncludeFile(resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
 				return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
 			}
 		}
