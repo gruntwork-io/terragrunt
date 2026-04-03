@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -112,13 +113,13 @@ func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 // FileExists checks if a path exists using the given filesystem.
 // Returns (true, nil) if the file exists, (false, nil) if it does not exist,
 // and (false, error) for other errors (e.g., permission denied).
-func FileExists(fs FS, path string) (bool, error) {
-	_, err := fs.Stat(path)
+func FileExists(vfs FS, path string) (bool, error) {
+	_, err := vfs.Stat(path)
 	if err == nil {
 		return true, nil
 	}
 
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
 	}
 

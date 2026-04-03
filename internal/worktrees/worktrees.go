@@ -5,6 +5,7 @@ package worktrees
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -127,7 +128,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 				seen[worktree.Path] = struct{}{}
 
 				// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
-				if _, err := os.Stat(worktree.Path); os.IsNotExist(err) {
+				if _, err := os.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 					l.Debugf("Worktree path %s already removed, skipping cleanup", worktree.Path)
 
 					continue
