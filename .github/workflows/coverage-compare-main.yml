@@ -24,6 +24,8 @@ jobs:
         id: prev
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           mkdir -p previous
 
@@ -31,8 +33,8 @@ jobs:
           echo "Branch: $BRANCH"
 
           # Find last successful CI run on this branch (excluding current)
-          PREV_RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=${BRANCH}&status=success&per_page=5" \
-            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }})][0].id")
+          PREV_RUN_ID=$(gh api "repos/${REPO}/actions/workflows/ci.yml/runs?branch=${BRANCH}&status=success&per_page=5" \
+            --jq "[.workflow_runs[] | select(.id != ${RUN_ID})][0].id")
 
           if [[ -z "$PREV_RUN_ID" || "$PREV_RUN_ID" == "null" ]]; then
             echo "No previous successful run found on $BRANCH"
@@ -43,7 +45,7 @@ jobs:
           echo "Previous run: $PREV_RUN_ID"
 
           # Find the coverage-summary.json artifact in that run
-          ARTIFACT_ID=$(gh api "repos/${{ github.repository }}/actions/runs/${PREV_RUN_ID}/artifacts" \
+          ARTIFACT_ID=$(gh api "repos/${REPO}/actions/runs/${PREV_RUN_ID}/artifacts" \
             --jq '[.artifacts[] | select(.name == "coverage-summary.json")][0].id')
 
           if [[ -z "$ARTIFACT_ID" || "$ARTIFACT_ID" == "null" ]]; then
@@ -53,14 +55,16 @@ jobs:
           fi
 
           # Download and extract
-          gh api "repos/${{ github.repository }}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/prev-coverage.zip
+          gh api "repos/${REPO}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/prev-coverage.zip
           unzip -o /tmp/prev-coverage.zip -d previous/
           echo "has_previous=true" >> "$GITHUB_OUTPUT"
 
       - name: Compare Coverage
+        env:
+          HAS_PREVIOUS: ${{ steps.prev.outputs.has_previous }}
         run: |
           PREV_FILE="previous/coverage-summary.json"
-          if [[ "${{ steps.prev.outputs.has_previous }}" != "true" ]]; then
+          if [[ "${HAS_PREVIOUS}" != "true" ]]; then
             PREV_FILE="nonexistent"
           fi
           ./.github/scripts/coverage/compare-coverage.sh current/coverage-summary.json "$PREV_FILE" comparison-report.json
