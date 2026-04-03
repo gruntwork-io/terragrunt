@@ -10,7 +10,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
-	"github.com/charmbracelet/lipgloss/tree"
+	"charm.land/lipgloss/v2/tree"
 	"github.com/charmbracelet/x/term"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"

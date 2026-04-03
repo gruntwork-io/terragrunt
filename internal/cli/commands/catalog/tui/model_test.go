@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	teav1 "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
@@ -127,22 +127,21 @@ func TestTUIFinalModel(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(120, 40))
 
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
 		return bytes.Contains(bts, []byte("List of Modules"))
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*2))
 
 	fm := tm.FinalModel(t)
-	finalModel, ok := fm.(tui.Model)
-	require.True(t, ok, "final model should be of type tui.Model, got %T", fm)
+	finalModel := unwrap(fm)
 
 	// Verify the model has the expected state
 	assert.Equal(t, tui.ListState, finalModel.State)
@@ -162,11 +161,11 @@ func TestTUIInitialOutput(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(120, 40))
 
 	// Send 'q' to quit immediately for consistent output
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
@@ -188,7 +187,7 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
@@ -196,8 +195,8 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Press Enter to select the first module (assuming it's pre-selected)
-	tm.Send(tea.KeyMsg{
-		Type: tea.KeyEnter,
+	tm.Send(teav1.KeyMsg{
+		Type: teav1.KeyEnter,
 	})
 
 	// Wait for the pager view to appear
@@ -208,8 +207,8 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Send 'q' to go back to list
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
@@ -219,8 +218,8 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Finally quit the application
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
@@ -238,7 +237,7 @@ func TestTUIModuleFiltering(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
@@ -246,8 +245,8 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Activate filtering with '/'
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("/"),
 	})
 
@@ -262,8 +261,8 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press Escape to exit filtering
-	tm.Send(tea.KeyMsg{
-		Type: tea.KeyEsc,
+	tm.Send(teav1.KeyMsg{
+		Type: teav1.KeyEsc,
 	})
 
 	// Wait for return to normal list view
@@ -274,8 +273,8 @@ func TestTUIModuleFiltering(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit the application
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
@@ -293,7 +292,7 @@ func TestTUIWindowResize(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(80, 30))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(80, 30))
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
@@ -301,7 +300,7 @@ func TestTUIWindowResize(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Send window resize message
-	tm.Send(tea.WindowSizeMsg{Width: 120, Height: 40})
+	tm.Send(teav1.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Verify the interface handles resize gracefully
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
@@ -309,8 +308,8 @@ func TestTUIWindowResize(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*2))
 
 	// Quit
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("q"),
 	})
 
@@ -345,7 +344,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 
 	m := tui.NewModel(l, opts, svc)
 
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(120, 40))
+	tm := teatest.NewTestModel(t, newV1Adapter(m), teatest.WithInitialTermSize(120, 40))
 
 	// Wait for initial render
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
@@ -353,8 +352,8 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	}, teatest.WithCheckInterval(time.Millisecond*100), teatest.WithDuration(time.Second*3))
 
 	// Press 'S' to scaffold the first module
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
+	tm.Send(teav1.KeyMsg{
+		Type:  teav1.KeyRunes,
 		Runes: []rune("S"),
 	})
 
@@ -362,8 +361,7 @@ func TestTUIScaffoldWithRealRepository(t *testing.T) {
 	tm.WaitFinished(t, teatest.WithFinalTimeout(time.Second*10))
 
 	fm := tm.FinalModel(t)
-	finalModel, ok := fm.(tui.Model)
-	require.True(t, ok, "final model should be of type model")
+	finalModel := unwrap(fm)
 
 	// Verify the model transitioned to ScaffoldState
 	assert.Equal(t, tui.ScaffoldState, finalModel.State)
