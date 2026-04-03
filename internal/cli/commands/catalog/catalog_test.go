@@ -26,7 +26,8 @@ func TestCatalogCommandInitialization(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create mock repository function for testing
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoURL, path string, walkWithSymlinks, allowCAS bool, rootWorkingDir string) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+		repoURL := repoOpts.CloneURL
 		// Create a temporary directory structure for testing
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -43,7 +44,9 @@ func TestCatalogCommandInitialization(t *testing.T) {
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
 		}
 
-		return module.NewRepo(ctx, logger, dummyRepoDir, path, walkWithSymlinks, allowCAS, "")
+		repoOpts.CloneURL = dummyRepoDir
+
+		return module.NewRepo(ctx, logger, repoOpts)
 	}
 
 	// Create a temporary root config file

@@ -23,7 +23,7 @@ echo "Previous run: $PREV_RUN_ID"
 
 # Find the coverage-summary.json artifact in that run
 ARTIFACT_ID=$(gh api "repos/${REPO}/actions/runs/${PREV_RUN_ID}/artifacts" \
-	--jq '.artifacts[] | select(.name == "coverage-summary.json") | .id')
+	--jq '[.artifacts[] | select(.name == "coverage-summary.json")][0].id')
 
 if [[ -z "$ARTIFACT_ID" || "$ARTIFACT_ID" == "null" ]]; then
 	echo "No coverage artifact in previous run"
