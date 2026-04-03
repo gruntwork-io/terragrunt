@@ -1,14 +1,12 @@
-[?25l[?2004h   List of Modules                                                                                         [K
+[?25l[?2004h  [48;2;29;37;47m [m[38;2;168;172;177;48;2;29;37;47mList of Modules[m[48;2;29;37;47m [m                                                                                        [K
                                                                                                            [K
-  2 items                                                                                                  [K
+  [38;2;119;119;119m2 items[m                                                                                                  [K
                                                                                                            [K
-│ AWS VPC Module                                                                                           [K
-│ This module creates a VPC in AWS with all the necessary components.                                      [K
+[38;2;99;197;218m│[m [38;2;99;197;218mAWS VPC Module[m                                                                                           [K
+[38;2;99;197;218m│[m [38;2;89;120;142mThis module creates a VPC in AWS with all the necessary components.[m                                      [K
                                                                                                            [K
-  AWS EKS Module                                                                                           [K
-  This module creates an EKS cluster in AWS.                                                               [K
-                                                                                                           [K
-                                                                                                           [K
+  [38;2;221;221;221mAWS EKS Module[m                                                                                           [K
+  [38;2;119;119;119mThis module creates an EKS cluster in AWS.[m                                                               [K
                                                                                                            [K
                                                                                                            [K
                                                                                                            [K
@@ -35,4 +33,6 @@
                                                                                                            [K
                                                                                                            [K
                                                                                                            [K
-  k/↑/ctrl+p move up • j/↓/ctrl+n move down • enter/ctrl-j choose • S Scaffold • / search • q quit • ? more[K[120D[2K[?2004l[?25h[?1002l[?1003l[?1006l
+                                                                                                           [K
+                                                                                                           [K
+  [38;2;98;98;98mk/↑/ctrl+p[m [38;2;74;74;74mmove up[m[38;2;60;60;60m • [m[38;2;98;98;98mj/↓/ctrl+n[m [38;2;74;74;74mmove down[m[38;2;60;60;60m • [m[38;2;98;98;98menter/ctrl-j[m [38;2;74;74;74mchoose[m[38;2;60;60;60m • [m[38;2;98;98;98mS[m [38;2;74;74;74mScaffold[m[38;2;60;60;60m • [m[38;2;98;98;98m/[m [38;2;74;74;74msearch[m[38;2;60;60;60m • [m[38;2;98;98;98mq[m [38;2;74;74;74mquit[m[38;2;60;60;60m • [m[38;2;98;98;98m?[m [38;2;74;74;74mmore[m[K[120D[2K[?2004l[?25h[?1002l[?1003l[?1006l
