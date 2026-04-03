@@ -505,6 +505,12 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
+	if FileExists(destination) {
+		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
+		}
+	}
+
 	return errors.New(copy.Copy(source, destination))
 }
 
