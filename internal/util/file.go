@@ -505,7 +505,7 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
-	return copy.Copy(source, destination)
+	return errors.New(copy.Copy(source, destination))
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
