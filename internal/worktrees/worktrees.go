@@ -4,18 +4,22 @@ package worktrees
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -50,6 +54,13 @@ type WorktreePair struct {
 type Worktree struct {
 	Ref  string
 	Path string
+}
+
+// WorktreeOpts contains parameters for NewWorktrees.
+type WorktreeOpts struct {
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
 }
 
 // WorkingDir returns the path within a worktree that corresponds to the user's
@@ -334,9 +345,12 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
-	workingDir string,
-	gitExpressions filter.GitExpressions,
+	opts WorktreeOpts,
 ) (*Worktrees, error) {
+	workingDir := opts.WorkingDir
+	gitExpressions := opts.GitExpressions
+	experiments := opts.Experiments
+
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),
@@ -379,7 +393,7 @@ func NewWorktrees(
 
 		if len(gitRefs) > 0 {
 			gitCmdGroup.Go(func() error {
-				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
+				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit, experiments)
 				if err != nil {
 					mu.Lock()
 
@@ -551,8 +565,11 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
+	experiments experiment.Experiments,
 ) (map[string]string, error) {
 	var errs []error
+
+	slowReporting := experiments.Evaluate(experiment.SlowTaskReporting)
 
 	refsToPaths := make(map[string]string, len(gitRefs))
 
@@ -580,6 +597,15 @@ func createGitWorktrees(
 
 		// Wrap individual worktree creation with telemetry including repo info
 		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
+			if slowReporting {
+				return util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+					Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
+					Done:    "Created Git worktree for reference " + ref,
+				}, func() error {
+					return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+				})
+			}
+
 			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 		})
 		if err != nil {

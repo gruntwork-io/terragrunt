@@ -175,7 +175,7 @@ func TestWorktreePhase_Integration_CommandArgs(t *testing.T) {
 			// Set up discovery
 			l := logger.CreateLogger()
 
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -445,7 +445,7 @@ unit "unit_to_be_untouched" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -805,7 +805,7 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()})
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -899,7 +899,7 @@ locals {
 	require.NoError(t, err)
 
 	// Create worktrees from the subdirectory
-	w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters())
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: basicDir, GitExpressions: filters.UniqueGitFilters()})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1164,7 +1164,7 @@ locals {
 			require.NoError(t, err)
 
 			// Create worktrees
-			w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()})
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1261,7 +1261,7 @@ func TestWorktreePhase_Integration_FromSubdirectory_MultipleCommits(t *testing.T
 			require.NoError(t, err)
 
 			// Create worktrees from the subdirectory
-			w, err := worktrees.NewWorktrees(t.Context(), l, basicDir, filters.UniqueGitFilters())
+			w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: basicDir, GitExpressions: filters.UniqueGitFilters()})
 			require.NoError(t, err)
 
 			t.Cleanup(func() {
@@ -1439,7 +1439,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1601,7 +1601,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1756,7 +1756,7 @@ unit "app" {
 	l := logger.CreateLogger()
 	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -2178,7 +2178,7 @@ func runWorktreeDiscovery(
 
 	l := logger.CreateLogger()
 
-	w, err := worktrees.NewWorktrees(t.Context(), l, tmpDir, gitExpressions)
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: gitExpressions})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

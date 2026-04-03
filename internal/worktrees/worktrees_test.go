@@ -71,8 +71,7 @@ func TestNewWorktrees(t *testing.T) {
 	w, err := worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.NoError(t, err)
 
@@ -129,8 +128,7 @@ func TestNewWorktreesWithInvalidReference(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
 }
@@ -733,8 +731,7 @@ func TestWorktreeCleanup(t *testing.T) {
 	_, err = worktrees.NewWorktrees(
 		t.Context(),
 		logger.CreateLogger(),
-		tmpDir,
-		filters.UniqueGitFilters(),
+		worktrees.WorktreeOpts{WorkingDir: tmpDir, GitExpressions: filters.UniqueGitFilters()},
 	)
 	require.Error(t, err)
 

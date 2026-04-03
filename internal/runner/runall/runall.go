@@ -90,7 +90,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		err error
 	)
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}

@@ -1,0 +1,33 @@
+---
+name: slow-task-reporting
+status: active
+since: "1.0.1"
+---
+
+Progress reporting for long-running Terragrunt operations.
+
+### `slow-task-reporting` - What it does
+When enabled, Terragrunt displays animated progress spinners for operations that take longer than 1 second (e.g., Git worktree creation). Once the operation completes, the spinner is replaced with an INFO log line showing the operation result and elapsed time.
+
+This provides visual feedback during operations that would otherwise show no output:
+
+- Git worktree creation for `--filter` with Git references
+- Catalog repository cloning (`terragrunt catalog`)
+- OpenTofu/Terraform source downloads via `go-getter`
+
+In non-interactive environments (CI/CD, piped output), spinners are suppressed and INFO log lines are emitted instead. To prevent CI systems (e.g., CircleCI) from killing jobs due to prolonged output silence, periodic keepalive log lines are emitted every 30 seconds while the operation is in progress.
+
+```bash
+terragrunt run --all --experiment slow-task-reporting -- plan
+```
+
+### `slow-task-reporting` - How to provide feedback
+Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page.
+
+### `slow-task-reporting` - Criteria for stabilization
+To transition the `slow-task-reporting` feature to a stable release, the following must be addressed:
+
+- [ ] Validate spinner rendering across common terminal emulators (iTerm2, Terminal.app, Windows Terminal, GNOME Terminal)
+- [ ] Extend progress reporting to additional slow operations (e.g., provider caching)
+- [ ] Community feedback on usefulness and threshold tuning
+- [ ] Ensure no interference with structured log output when using `--log-format json`
