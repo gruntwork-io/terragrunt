@@ -2,7 +2,6 @@ package discovery_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -1940,7 +1939,7 @@ unit "myapp" {
 		for _, wt := range []worktrees.Worktree{pair.FromWorktree, pair.ToWorktree} {
 			stackGenDir := filepath.Join(wt.Path, "live", "app-stack", ".terragrunt-stack")
 			_, statErr := os.Stat(stackGenDir)
-			assert.True(t, errors.Is(statErr, fs.ErrNotExist),
+			assert.ErrorIs(t, statErr, fs.ErrNotExist,
 				"Stack should not be generated in worktree %s when only a unit changed, but %s exists",
 				wt.Ref, stackGenDir)
 		}
@@ -2059,7 +2058,7 @@ unit "myapp" {
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
 	_, statErr := os.Stat(markerFile)
-	assert.True(t, errors.Is(statErr, fs.ErrNotExist),
+	assert.ErrorIs(t, statErr, fs.ErrNotExist,
 		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
 }
 
@@ -2173,7 +2172,7 @@ unit "myapp" {
 	// The marker file should NOT exist — negation should prevent parsing
 	// even though the land-mine is also positively included.
 	_, statErr := os.Stat(markerFile)
-	assert.True(t, errors.Is(statErr, fs.ErrNotExist),
+	assert.ErrorIs(t, statErr, fs.ErrNotExist,
 		"Land-mine stack was parsed (marker file created) despite being excluded by filter")
 }
 

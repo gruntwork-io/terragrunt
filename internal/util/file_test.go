@@ -687,7 +687,7 @@ func TestMoveFile(t *testing.T) {
 
 	// Verify the file was moved
 	_, err := os.Stat(src)
-	require.True(t, errors.Is(err, fs.ErrNotExist))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 	contents, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, "test", string(contents))
