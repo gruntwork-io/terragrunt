@@ -115,9 +115,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	g, gctx := errgroup.WithContext(ctx)
 
+	// Use user-specified parallelism, falling back to available CPUs.
 	limit := opts.Parallelism
 	if limit == options.DefaultParallelism {
-		limit = runtime.NumCPU()
+		limit = runtime.GOMAXPROCS(0)
 	}
 
 	g.SetLimit(limit)
@@ -148,9 +149,10 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 func RunForFiles(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, baseDir string, files []string) error {
 	g, gctx := errgroup.WithContext(ctx)
 
+	// Use user-specified parallelism, falling back to available CPUs.
 	limit := opts.Parallelism
 	if limit == options.DefaultParallelism {
-		limit = runtime.NumCPU()
+		limit = runtime.GOMAXPROCS(0)
 	}
 
 	g.SetLimit(limit)

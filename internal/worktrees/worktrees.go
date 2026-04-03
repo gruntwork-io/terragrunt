@@ -387,7 +387,8 @@ func NewWorktrees(
 		expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
 
 		gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-		gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
+		// Cap concurrent git commands to the number of refs, but no more than available CPUs.
+		gitCmdGroup.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
 
 		refsToPaths := make(map[string]string, len(gitRefs))
 
