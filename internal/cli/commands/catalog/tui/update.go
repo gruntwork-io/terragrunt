@@ -3,12 +3,12 @@ package tui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
@@ -25,7 +25,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Don't match any of the keys below if we're actively filtering.
 		if m.List.FilterState() == list.Filtering {
 			break
@@ -41,7 +41,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 					if selectedModule.IsMarkDown() {
 						renderer, err := glamour.NewTermRenderer(
-							glamour.WithAutoStyle(),
+							glamour.WithStandardStyle("dark"),
 							glamour.WithWordWrap(m.width),
 						)
 						if err != nil {
@@ -114,7 +114,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	)
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		bbModel, barCmd := m.buttonBar.Update(msg)
 		if newButtonBar, ok := bbModel.(*buttonbar.ButtonBar); ok {
 			m.buttonBar = newButtonBar
@@ -182,11 +182,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 			// we can initialize the viewport. The initial dimensions come in
 			// quickly, though asynchronously, which is why we wait for them
 			// here.
-			m.viewport = viewport.New(msg.Width, msg.Height-v-lipgloss.Height(m.footerView()))
+			m.viewport = viewport.New(viewport.WithWidth(msg.Width), viewport.WithHeight(msg.Height-v-lipgloss.Height(m.footerView())))
 			m.ready = true
 		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - v - lipgloss.Height(m.footerView())
+			m.viewport.SetWidth(msg.Width)
+			m.viewport.SetHeight(msg.Height - v - lipgloss.Height(m.footerView()))
 		}
 
 	case scaffoldFinishedMsg:

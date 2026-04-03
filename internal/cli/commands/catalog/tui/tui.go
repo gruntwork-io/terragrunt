@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -13,7 +13,7 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) error {
-	if _, err := tea.NewProgram(NewModel(l, opts, svc), tea.WithAltScreen(), tea.WithContext(ctx)).Run(); err != nil {
+	if _, err := tea.NewProgram(NewModel(l, opts, svc), tea.WithContext(ctx)).Run(); err != nil {
 		if err := context.Cause(ctx); errors.Is(err, context.Canceled) {
 			return nil
 		} else if err != nil {
