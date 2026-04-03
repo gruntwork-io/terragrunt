@@ -448,7 +448,10 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	}
 
 	localsParsed := map[string]any{}
+
 	if parser.Locals != nil {
+		var err error
+
 		localsParsed, err = ctyhelper.ParseCtyValueToMap(*parser.Locals)
 		if err != nil {
 			return nil, errors.New(err)

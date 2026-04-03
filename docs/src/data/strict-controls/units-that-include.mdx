@@ -1,0 +1,18 @@
+---
+name: units-that-include
+status: active
+---
+
+Throw an error when using the deprecated `--units-that-include` flag.
+
+### `units-that-include` - Reason
+
+The `--units-that-include` flag has been deprecated. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.
+
+### `units-that-include` - Example
+
+```bash
+# This will show a warning (or error with strict control enabled)
+$ terragrunt run --all plan --units-that-include=root.hcl
+WARN  The `--units-that-include` flag is deprecated and will be removed in a future version of Terragrunt. Use `--filter='reading=<path>'` to include units that include or read the specified configuration.
+```

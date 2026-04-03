@@ -52,11 +52,20 @@ jobs:
 
         echo "golangci-lint-cache=$HOME/.cache/golangci-lint" >> "$GITHUB_OUTPUT"
 
+    # Ensure Go cache parent directories exist before cache restore.
+    # On macOS runners ~/Library/Caches may not exist on a fresh image,
+    # causing actions/cache tar extraction or subsequent mkdir -p to fail.
+    - name: Ensure cache directories (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        mkdir -p "$(go env GOCACHE)"
+        mkdir -p "$HOME/Library/Caches/golangci-lint"
+
     - name: Go Build Cache
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
 
@@ -64,7 +73,7 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}-
@@ -74,26 +83,28 @@ jobs:
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
       with:
         path: ${{ steps.go-cache-paths.outputs.golangci-lint-cache }}
-        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-amd64
+        key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-${{ runner.arch }}
         restore-keys: |
           ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}-${{ matrix.os }}-
           ${{ runner.os }}-golangci-lint-
+
+    # A corrupted cache entry may restore go-build or its parent as a
+    # regular file instead of a directory. Remove any such files and
+    # recreate them as directories so the Go toolchain can use the cache.
+    - name: Fix Go build cache dir (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        cache_dir="$(go env GOCACHE)"
+        for p in "$(dirname "$cache_dir")" "$cache_dir"; do
+          if [ -f "$p" ]; then rm -f "$p"; fi
+        done
+        mkdir -p "$cache_dir"
 
     # fetch-depth: 0 fetches current branch history; origin/main ref must be fetched separately.
     # Use refspec main:main to create a local branch (required for git merge-base main HEAD).
     - name: Fetch main branch
       if: startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
       run: git fetch origin main:main
-
-    # Ensure Go build cache directory exists on macOS.
-    # Prevents "mkdir go-build: file exists" or "No such file or directory"
-    # errors in golangci-lint.
-    - name: Ensure Go build cache dir (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        cache_dir="$(go env GOCACHE)"
-        if [ -f "$cache_dir" ]; then rm -f "$cache_dir"; fi
-        mkdir -p "$cache_dir"
 
     # macOS runners have ~14GB RAM. GOGC=400 lets the Go heap grow to ~31GB (measured), causing
     # heavy swap and lint timeout. Cap heap to keep golangci-lint within available physical memory.

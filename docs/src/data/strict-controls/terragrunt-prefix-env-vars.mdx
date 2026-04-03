@@ -1,0 +1,14 @@
+---
+name: terragrunt-prefix-env-vars
+status: active
+---
+
+Throw an error when using the `TERRAGRUNT_` prefix for environment variables.
+
+### `terragrunt-prefix-env-vars` - Reason
+
+This prefix has been renamed to `TG_` to shorten the prefix, due to the work in RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445).
+
+### `terragrunt-prefix-env-vars` - Example
+
+The `TERRAGRUNT_LOG_LEVEL` env var is deprecated and will be removed in a future version. Use `TG_LOG_LEVEL=info` instead.

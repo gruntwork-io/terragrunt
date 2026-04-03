@@ -39,6 +39,9 @@ const (
 	// DependencyFetchOutputFromState is the experiment that enables fetching dependency outputs
 	// directly from state files instead of using terraform/tofu output commands.
 	DependencyFetchOutputFromState = "dependency-fetch-output-from-state"
+	// DAGQueueDisplay is the experiment that shows the run queue as a DAG tree
+	// with dependency hierarchy instead of a flat list.
+	DAGQueueDisplay = "dag-queue-display"
 )
 
 const (
@@ -90,6 +93,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DependencyFetchOutputFromState,
+		},
+		{
+			Name: DAGQueueDisplay,
 		},
 	}
 }
