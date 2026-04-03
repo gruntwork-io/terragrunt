@@ -33,6 +33,7 @@ type WorktreePhase struct {
 
 // NewWorktreePhase creates a new WorktreePhase.
 func NewWorktreePhase(gitExpressions filter.GitExpressions, numWorkers int) *WorktreePhase {
+	// Default to available CPUs when no explicit worker count is given.
 	if numWorkers <= 0 {
 		numWorkers = runtime.GOMAXPROCS(0)
 	}
@@ -232,6 +233,7 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 	allChanged = append(allChanged, stackDiff.ReadingAffected...)
 
 	g, ctx := errgroup.WithContext(ctx)
+	// Cap workers to the total number of diff operations, but no more than available CPUs (at least 1).
 	g.SetLimit(max(1, min(runtime.GOMAXPROCS(0), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
 
 	var (
@@ -302,6 +304,7 @@ func (p *WorktreePhase) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
+	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
 	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 	var (
@@ -400,6 +403,7 @@ func (p *WorktreePhase) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
+		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
 		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 		shaGroup.Go(func() error {

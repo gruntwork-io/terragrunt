@@ -17,7 +17,7 @@
 // The package provides several constructors for different use cases:
 //
 //   - [NewDiscovery]: Creates a Discovery with sensible defaults including CPU-aware worker
-//     count (scales with runtime.NumCPU, min 4, max 8) and pre-initialized [component.DiscoveryContext].
+//     count (scales with runtime.GOMAXPROCS, min 4, max 8) and pre-initialized [component.DiscoveryContext].
 //     This is the recommended constructor for most use cases.
 //
 //   - [NewForDiscoveryCommand]: Creates a Discovery configured for discovery commands (find/list)
