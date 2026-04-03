@@ -12,6 +12,9 @@ import (
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -221,6 +224,8 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
+// It also checks for terragrunt.autoinclude.hcl in the same directory and extracts
+// dependency config_path values from it, so the DAG correctly orders units.
 func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
@@ -232,6 +237,12 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	deduped := make(map[string]struct{}, maxDedupLen)
+
+	// Check for autoinclude file and extract its dependency paths for the DAG.
+	autoIncludeDeps := extractAutoIncludeDependencyPaths(c.Path())
+	for _, dep := range autoIncludeDeps {
+		deduped[dep] = struct{}{}
+	}
 
 	errs := make([]error, 0, maxDedupLen)
 
@@ -322,6 +333,62 @@ func ExtractUnitPathsFromStackFile(data []byte, stackDir string) []string {
 	for _, unit := range result.Units {
 		unitPath := filepath.Join(stackDir, config.StackDir, unit.Path)
 		paths = append(paths, unitPath)
+	}
+
+	return paths
+}
+
+// extractAutoIncludeDependencyPaths checks for a terragrunt.autoinclude.hcl file
+// in the given unit directory and extracts dependency config_path values.
+// This ensures the DAG sees dependencies defined in autoinclude files during
+// graph construction, even though they're not in the main terragrunt.hcl.
+func extractAutoIncludeDependencyPaths(unitDir string) []string {
+	autoIncludePath := filepath.Join(unitDir, config.DefaultAutoIncludeFile)
+
+	if !util.FileExists(autoIncludePath) {
+		return nil
+	}
+
+	data, err := os.ReadFile(autoIncludePath)
+	if err != nil {
+		return nil
+	}
+
+	// Minimal HCL parse — just extract dependency blocks and their config_path.
+	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	var paths []string
+
+	for _, block := range body.Blocks {
+		if block.Type != "dependency" || len(block.Labels) == 0 {
+			continue
+		}
+
+		configPathAttr, exists := block.Body.Attributes["config_path"]
+		if !exists {
+			continue
+		}
+
+		// Evaluate config_path — it's already a resolved string literal in the generated file.
+		val, valDiags := configPathAttr.Expr.Value(nil)
+		if valDiags.HasErrors() || val.Type() != cty.String {
+			continue
+		}
+
+		depPath := val.AsString()
+		if !filepath.IsAbs(depPath) {
+			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
+		}
+
+		paths = append(paths, util.ResolvePath(depPath))
 	}
 
 	return paths

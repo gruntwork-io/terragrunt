@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -39,9 +40,16 @@ const (
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
-	Locals *terragruntLocal `hcl:"locals,block"`
-	Stacks []*Stack         `hcl:"stack,block"`
-	Units  []*Unit          `hcl:"unit,block"`
+	Locals   *terragruntLocal    `hcl:"locals,block"`
+	Includes []*StackIncludeFile `hcl:"include,block"`
+	Stacks   []*Stack            `hcl:"stack,block"`
+	Units    []*Unit             `hcl:"unit,block"`
+}
+
+// StackIncludeFile represents an include block in a stack file.
+type StackIncludeFile struct {
+	Name string `hcl:",label"`
+	Path string `hcl:"path,attr"`
 }
 
 // StackConfig represents the structure of terragrunt.stack.hcl stack file.
@@ -53,6 +61,7 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`
@@ -63,6 +72,7 @@ type Unit struct {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`

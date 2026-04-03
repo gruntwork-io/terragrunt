@@ -1459,7 +1459,18 @@ func mergeAutoIncludeIfPresent(
 
 	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
 
-	autoIncludeConfig, err := ParseConfigFile(ctx, pctx, l, autoIncludePath, nil)
+	// Clone the parsing context and reset DecodedDependencies so the
+	// autoinclude file gets its own dependency resolution pass.
+	//
+	// PartialParseDecodeList is intentionally inherited from the parent:
+	// - During DAG construction (partial mode): extracts dependency config_path
+	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
+	// - During actual unit run (full mode): resolves dependency outputs normally
+	//   because the DAG already ensured dependencies ran first
+	autoIncludePctx := pctx.Clone()
+	autoIncludePctx.DecodedDependencies = nil
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
 	if err != nil {
 		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
