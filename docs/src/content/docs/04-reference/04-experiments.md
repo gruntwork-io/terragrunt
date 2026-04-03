@@ -62,6 +62,7 @@ Including the environment variable:
 ```bash
 TG_EXPERIMENT='symlinks,stacks' terragrunt plan
 ```
+<<<<<<< HEAD
 
 ## Active Experiments
 
@@ -462,3 +463,5 @@ To transition the `auto-provider-cache-dir` feature to stable, the following hav
 - [x] Performance comparison with the existing provider cache server approach.
 - [x] Documentation and examples of best practices for usage.
 - [x] Community feedback on real-world usage and any edge cases discovered.
+=======
+>>>>>>> 6d02911579a3c8e2a61cdd8fbf21f8b131fc5466
