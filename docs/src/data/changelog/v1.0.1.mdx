@@ -61,6 +61,10 @@ The provider cache failed on Windows with `CreateFile https://...: The filename,
 
 ---
 
+#### Concurrency limits now respect `GOMAXPROCS`
+
+All internal concurrency limits now use `runtime.GOMAXPROCS(0)` instead of `runtime.NumCPU()`. This means Terragrunt correctly honors the `GOMAXPROCS` environment variable and container CPU quotas (e.g., cgroups), resulting in better behavior in resource-constrained environments like Kubernetes pods and CI runners with CPU limits.
+
 #### AWS SDK updated to v1.41.5
 
 The `aws-sdk-go-v2` dependency has been updated to v1.41.5.
