@@ -9,10 +9,15 @@ Support for the `autoinclude` block in `terragrunt.stack.hcl` files, enabling de
 ### `stack-dependencies` - What it does
 When enabled, this experiment adds support for the `autoinclude` block nested inside `unit` and `stack` blocks in `terragrunt.stack.hcl` files. The `autoinclude` block allows users to define `dependency` blocks and arbitrary configuration that gets generated into a `terragrunt.autoinclude.hcl` file during stack generation. This file is automatically merged into the unit/stack configuration when parsed.
 
-This experiment also enables:
-- `unit.<name>.path` and `stack.<name>.path` variables in `terragrunt.stack.hcl` for referencing sibling component paths
-- `dependency` blocks targeting stack directories (aggregated outputs from all units)
-- Automatic deep merge of `terragrunt.autoinclude.hcl` into unit configurations
+This experiment enables:
+
+- **`unit.<name>.path`** and **`stack.<name>.path`** variables in `terragrunt.stack.hcl` for referencing sibling component paths
+- **`stack.<name>.<unit_name>.path`** for referencing individual units within a nested stack (fine-grained dependency)
+- **`dependency` blocks targeting stack directories** — aggregated outputs from all units in the stack (`dependency.stack_name.outputs.unit_name.output_key`)
+- **Automatic deep merge** of `terragrunt.autoinclude.hcl` into unit configurations (autoinclude wins)
+- **Stack dependency expansion** in the run queue — depending on a stack blocks until all its units complete
+
+#### Unit-to-unit dependencies within a stack
 
 ```hcl
 # terragrunt.stack.hcl
@@ -37,6 +42,61 @@ unit "app" {
 }
 ```
 
+#### Dependencies on units within a nested stack
+
+```hcl
+# terragrunt.stack.hcl
+stack "stack_w_outputs" {
+  source = "../catalog/stacks/stack-w-outputs"
+  path   = "stack-w-outputs"
+}
+
+unit "unit_w_inputs" {
+  source = "../catalog/units/unit-w-inputs"
+  path   = "unit-w-inputs"
+
+  autoinclude {
+    dependency "unit_w_outputs" {
+      config_path = stack.stack_w_outputs.unit_w_outputs.path
+
+      mock_outputs_allowed_terraform_commands = ["plan"]
+      mock_outputs = {
+        val = "fake-val"
+      }
+    }
+
+    inputs = {
+      val = dependency.unit_w_outputs.outputs.val
+    }
+  }
+}
+```
+
+#### Dependencies on entire stacks
+
+```hcl
+# terragrunt.stack.hcl
+stack "infra" {
+  source = "../catalog/stacks/infra"
+  path   = "infra"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "infra" {
+      config_path = stack.infra.path
+    }
+
+    inputs = {
+      vpc_id = dependency.infra.outputs.vpc.vpc_id
+    }
+  }
+}
+```
+
 ```bash
 terragrunt run --all --experiment stack-dependencies -- plan
 ```
@@ -49,7 +109,8 @@ To transition the `stack-dependencies` feature to a stable release, the followin
 
 - [ ] Community feedback on `autoinclude` syntax and merge behavior
 - [ ] Partial evaluation of `dependency.*` references in `autoinclude.inputs`
-- [ ] Support for stack-level dependencies (coarse and fine-grained)
-- [ ] Mock outputs support in autoinclude dependency blocks
-- [ ] Deep merge precedence behavior validated
+- [x] Support for stack-level dependencies (coarse and fine-grained)
+- [x] Mock outputs support in autoinclude dependency blocks
+- [x] Deep merge precedence behavior validated
 - [ ] Integration with CAS (content-addressable storage) for generated files
+- [ ] Performance validation at scale

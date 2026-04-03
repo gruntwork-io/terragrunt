@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
@@ -265,8 +266,16 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	depPaths := make([]string, 0, len(deduped))
+
 	for depPath := range deduped {
-		depPaths = append(depPaths, depPath)
+		// When the stack-dependencies experiment is active and the dependency
+		// path points to a stack (directory with terragrunt.stack.hcl), expand
+		// it to all constituent unit paths so the DAG correctly blocks on each unit.
+		if expandedPaths := ExpandStackDependency(depPath); len(expandedPaths) > 0 {
+			depPaths = append(depPaths, expandedPaths...)
+		} else {
+			depPaths = append(depPaths, depPath)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -274,4 +283,46 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	return depPaths, nil
+}
+
+// ExpandStackDependency checks if a dependency path points to a stack directory.
+// If so, it reads the stack config and returns paths to all generated units
+// within .terragrunt-stack/. Returns nil if not a stack.
+func ExpandStackDependency(depPath string) []string {
+	stackFile := filepath.Join(depPath, config.DefaultStackFile)
+
+	if !util.FileExists(stackFile) {
+		return nil
+	}
+
+	// Read the stack file to discover unit paths.
+	// We only need the raw HCL to extract unit path attributes — no eval context needed.
+	data, err := os.ReadFile(stackFile)
+	if err != nil {
+		return nil
+	}
+
+	unitPaths := ExtractUnitPathsFromStackFile(data, depPath)
+
+	return unitPaths
+}
+
+// ExtractUnitPathsFromStackFile parses a stack file and returns absolute paths
+// to each unit's generated directory under .terragrunt-stack/.
+func ExtractUnitPathsFromStackFile(data []byte, stackDir string) []string {
+	// Use a minimal HCL parse to extract unit blocks and their path attributes.
+	// We import the internal hclparse package which can handle this.
+	result, err := intHclparse.ParseStackFile(data, filepath.Join(stackDir, config.DefaultStackFile), stackDir)
+	if err != nil {
+		return nil
+	}
+
+	paths := make([]string, 0, len(result.Units))
+
+	for _, unit := range result.Units {
+		unitPath := filepath.Join(stackDir, config.StackDir, unit.Path)
+		paths = append(paths, unitPath)
+	}
+
+	return paths
 }

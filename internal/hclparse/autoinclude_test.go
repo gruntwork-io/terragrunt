@@ -5,7 +5,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +33,6 @@ func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 func TestAutoIncludeHCL_Resolve_DependencyConfigPath(t *testing.T) {
 	t.Parallel()
 
-	// Simulate the autoinclude body content (what's inside the autoinclude block)
 	src := `
 dependency "vpc" {
   config_path = unit.vpc.path
@@ -64,6 +62,8 @@ dependency "vpc" {
 	require.Len(t, result.Dependencies, 1)
 	assert.Equal(t, "vpc", result.Dependencies[0].Name)
 	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
+	assert.NotNil(t, result.Dependencies[0].Block)
+	assert.NotNil(t, result.RawBody)
 }
 
 func TestAutoIncludeHCL_Resolve_MultipleDependencies(t *testing.T) {
@@ -144,53 +144,52 @@ dependency "networking" {
 	assert.Equal(t, "../networking", result.Dependencies[0].ConfigPath)
 }
 
-func TestStackFileHCL_ParseWithAutoInclude(t *testing.T) {
+func TestAutoIncludeHCL_Resolve_DependencyWithMockOutputs(t *testing.T) {
 	t.Parallel()
 
-	// Full stack file with autoinclude
+	// dependency block with config_path + mock_outputs + inputs
+	// Only config_path should be evaluated; inputs are left in RawBody
 	src := `
-unit "vpc" {
-  source = "../catalog/units/vpc"
-  path   = "vpc"
+dependency "vpc" {
+  config_path = unit.vpc.path
+
+  mock_outputs_allowed_terraform_commands = ["plan"]
+  mock_outputs = {
+    val = "fake-val"
+  }
 }
 
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
-    }
-  }
+inputs = {
+  val = dependency.vpc.outputs.val
 }
 `
 	body := parseHCLBody(t, src)
 
-	// First phase: decode without eval context (autoinclude body captured as remain)
-	stackFile := &hclparse.StackFileHCL{}
-	diags := gohcl.DecodeBody(body, nil, stackFile)
-	// This will fail because unit.vpc.path can't be evaluated yet
-	// The autoinclude body needs eval context - so first pass should
-	// only extract unit names/paths, not resolve autoinclude
-
-	// For the first pass, we expect units to be partially decoded
-	// The autoinclude.remain captures the body for later
-	if diags.HasErrors() {
-		// Expected: the autoinclude block contains unit.vpc.path which
-		// needs eval context. The remain pattern means gohcl captures
-		// the autoinclude block body, but the dependency.config_path
-		// inside it references unit.vpc.path which can't be evaluated.
-		//
-		// In the actual implementation, the first pass would use a
-		// partial struct without autoinclude to extract unit/stack
-		// names and paths, then do a second pass with eval context.
-		t.Skipf("First-pass decode expected to need eval context for autoinclude: %s", diags.Error())
+	autoInclude := &hclparse.AutoIncludeHCL{
+		Remain: body,
 	}
 
-	require.Len(t, stackFile.Units, 2)
-	assert.Equal(t, "vpc", stackFile.Units[0].Name)
-	assert.Equal(t, "app", stackFile.Units[1].Name)
-	assert.Nil(t, stackFile.Units[0].AutoInclude)
-	assert.NotNil(t, stackFile.Units[1].AutoInclude)
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"unit": cty.ObjectVal(map[string]cty.Value{
+				"vpc": cty.ObjectVal(map[string]cty.Value{
+					"path": cty.StringVal("/abs/path/to/.terragrunt-stack/vpc"),
+					"name": cty.StringVal("vpc"),
+				}),
+			}),
+			"stack": cty.EmptyObjectVal,
+		},
+	}
+
+	result, diags := autoInclude.Resolve(evalCtx)
+	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
+	require.NotNil(t, result)
+
+	// Dependency config_path resolved
+	require.Len(t, result.Dependencies, 1)
+	assert.Equal(t, "vpc", result.Dependencies[0].Name)
+	assert.Equal(t, "/abs/path/to/.terragrunt-stack/vpc", result.Dependencies[0].ConfigPath)
+
+	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
+	assert.NotNil(t, result.RawBody)
 }

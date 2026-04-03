@@ -1,6 +1,8 @@
 package hclparse_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -37,6 +39,36 @@ func TestBuildComponentRefMap_WithRefs(t *testing.T) {
 	require.True(t, appVal.Type().IsObjectType())
 	assert.Equal(t, "app-service", appVal.GetAttr("path").AsString())
 	assert.Equal(t, "app", appVal.GetAttr("name").AsString())
+}
+
+func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
+	t.Parallel()
+
+	refs := []hclparse.ComponentRef{
+		{
+			Name: "networking",
+			Path: "/project/.terragrunt-stack/networking",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc"},
+				{Name: "subnets", Path: "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets"},
+			},
+		},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	netVal := result.GetAttr("networking")
+	require.True(t, netVal.Type().IsObjectType())
+	assert.Equal(t, "/project/.terragrunt-stack/networking", netVal.GetAttr("path").AsString())
+
+	// Child unit refs are accessible as nested attributes
+	vpcVal := netVal.GetAttr("vpc")
+	require.True(t, vpcVal.Type().IsObjectType())
+	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/vpc", vpcVal.GetAttr("path").AsString())
+	assert.Equal(t, "vpc", vpcVal.GetAttr("name").AsString())
+
+	subnetsVal := netVal.GetAttr("subnets")
+	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
 }
 
 func TestExtractUnitRefs(t *testing.T) {
@@ -94,4 +126,94 @@ func TestBuildAutoIncludeEvalContext(t *testing.T) {
 
 	stackVar := evalCtx.Variables["stack"]
 	assert.Equal(t, "infra-stack", stackVar.GetAttr("infra").GetAttr("path").AsString())
+}
+
+func TestDiscoverStackChildUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackSrcDir := filepath.Join(tmpDir, "stack-src")
+	require.NoError(t, os.MkdirAll(stackSrcDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackSrcDir, "terragrunt.stack.hcl"), []byte(`
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+
+unit "db" {
+  source = "../../units/db"
+  path   = "db"
+}
+`), 0644))
+
+	refs := hclparse.DiscoverStackChildUnits(stackSrcDir, "/gen/networking")
+
+	require.Len(t, refs, 2)
+	assert.Equal(t, "vpc", refs[0].Name)
+	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "vpc"), refs[0].Path)
+	assert.Equal(t, "db", refs[1].Name)
+	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
+}
+
+func TestDiscoverStackChildUnits_NoDotTerragruntStack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackSrcDir := filepath.Join(tmpDir, "stack-src")
+	require.NoError(t, os.MkdirAll(stackSrcDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(stackSrcDir, "terragrunt.stack.hcl"), []byte(`
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+  no_dot_terragrunt_stack = true
+}
+
+unit "db" {
+  source = "../../units/db"
+  path   = "db"
+}
+`), 0644))
+
+	refs := hclparse.DiscoverStackChildUnits(stackSrcDir, "/gen/networking")
+
+	require.Len(t, refs, 2)
+	// vpc has no_dot_terragrunt_stack=true, goes directly under stackGenDir
+	assert.Equal(t, "vpc", refs[0].Name)
+	assert.Equal(t, filepath.Join("/gen/networking", "vpc"), refs[0].Path)
+	// db is normal, goes under .terragrunt-stack/
+	assert.Equal(t, "db", refs[1].Name)
+	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
+}
+
+func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
+	t.Parallel()
+
+	refs := hclparse.DiscoverStackChildUnits("/nonexistent", "/gen")
+	assert.Nil(t, refs)
+}
+
+func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
+	t.Parallel()
+
+	stackRefs := []hclparse.ComponentRef{
+		{
+			Name: "stack_w_outputs",
+			Path: "/project/.terragrunt-stack/stack-w-outputs",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "unit_w_outputs", Path: "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs"},
+			},
+		},
+	}
+
+	evalCtx := hclparse.BuildAutoIncludeEvalContext(nil, stackRefs)
+
+	stackVar := evalCtx.Variables["stack"]
+	stackRef := stackVar.GetAttr("stack_w_outputs")
+
+	// stack.stack_w_outputs.path works
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs", stackRef.GetAttr("path").AsString())
+
+	// stack.stack_w_outputs.unit_w_outputs.path works
+	unitRef := stackRef.GetAttr("unit_w_outputs")
+	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
 }

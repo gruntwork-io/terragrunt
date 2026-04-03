@@ -2,7 +2,7 @@ package hclparse
 
 import (
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -26,58 +26,111 @@ type AutoIncludeHCL struct {
 }
 
 // AutoIncludeResolved represents the second-phase resolved autoinclude content.
-// Dependencies have their config_path evaluated, but inputs containing
-// dependency.*.outputs.* references are preserved as raw HCL for generation
-// into the terragrunt.autoinclude.hcl file.
+//
+// After the first parse extracts unit/stack names and paths, the autoinclude
+// body is partially evaluated:
+//   - dependency.config_path is resolved (references unit.*.path)
+//   - dependency remain (mock_outputs etc) is preserved for generation
+//   - inputs and other blocks are NOT evaluated (contain dependency.*.outputs.*)
+//
+// The RawBody is preserved for serializing the generated
+// terragrunt.autoinclude.hcl file.
 type AutoIncludeResolved struct {
-	// RawBody is the original HCL body, preserved for serialization
-	// into terragrunt.autoinclude.hcl. This allows writing the content
-	// with dependency.* references intact (not evaluated).
+	// RawBody is the original autoinclude HCL body, preserved so
+	// the generator can write non-dependency content (inputs, etc.)
+	// directly from the AST without evaluating dependency.* references.
 	RawBody      hcl.Body
-	Dependencies []*AutoIncludeDependency
+	Dependencies []AutoIncludeDependency
 }
 
-// AutoIncludeDependency represents a dependency block inside autoinclude.
-// Only config_path is evaluated during resolution; mock_outputs and other
-// fields are preserved as-is for the generated file.
+// AutoIncludeDependency represents a resolved dependency block from autoinclude.
+// config_path has been evaluated (e.g. unit.vpc.path → "/abs/path/to/.terragrunt-stack/vpc").
+// The original HCL block is preserved for writing all attributes (mock_outputs, etc.)
+// into the generated file.
 type AutoIncludeDependency struct {
-	Remain     hcl.Body `hcl:",remain"`
-	Name       string   `hcl:",label"`
-	ConfigPath string   `hcl:"config_path,attr"`
-}
-
-// autoIncludePartial is used for the second-phase partial decode of
-// the autoinclude body. We extract dependency blocks (to resolve
-// config_path) while capturing everything else in Remain.
-type autoIncludePartial struct {
-	Remain       hcl.Body                 `hcl:",remain"`
-	Dependencies []*AutoIncludeDependency `hcl:"dependency,block"`
+	// Block is the original HCL block, preserved for serialization.
+	Block      *hcl.Block
+	Name       string
+	ConfigPath string
 }
 
 // Resolve evaluates the autoinclude body using the provided eval context,
-// which should contain unit.* and stack.* variables for path resolution.
+// which must contain unit.* and stack.* variables for path resolution.
 //
-// The resolution is intentionally partial: dependency.config_path values
-// are evaluated (they reference unit.*.path), but dependency.*.outputs.*
-// references in inputs are NOT evaluated (they are runtime-only).
+// The resolution follows three levels:
 //
-// Returns the resolved autoinclude with dependency config paths filled in,
-// and the raw body preserved for file generation.
+//  1. First parse: autoinclude body captured as Remain (unit.*.path not yet available)
+//  2. This method (second parse): dependency.config_path evaluated using unit/stack context.
+//     All other dependency attributes (mock_outputs, etc.) are preserved as raw HCL.
+//  3. inputs and other non-dependency content: NOT evaluated here.
+//     They contain dependency.*.outputs.* which is runtime-only.
+//     The RawBody is preserved so the generator can copy these from the AST.
 func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
 
-	partial := &autoIncludePartial{}
+	body, ok := a.Remain.(*hclsyntax.Body)
+	if !ok {
+		return &AutoIncludeResolved{RawBody: a.Remain}, nil
+	}
 
-	diags := gohcl.DecodeBody(a.Remain, evalCtx, partial)
+	var (
+		deps  []AutoIncludeDependency
+		diags hcl.Diagnostics
+	)
+
+	for _, block := range body.Blocks {
+		if block.Type != "dependency" || len(block.Labels) == 0 {
+			continue
+		}
+
+		dep, depDiags := resolveDependencyBlock(block, evalCtx)
+		diags = append(diags, depDiags...)
+
+		if depDiags.HasErrors() {
+			continue
+		}
+
+		deps = append(deps, dep)
+	}
+
 	if diags.HasErrors() {
 		return nil, diags
 	}
 
 	return &AutoIncludeResolved{
-		Dependencies: partial.Dependencies,
+		Dependencies: deps,
 		RawBody:      a.Remain,
+	}, nil
+}
+
+// resolveDependencyBlock extracts config_path from a dependency block
+// by evaluating it against the eval context (which has unit/stack paths).
+// The full block is preserved for generation.
+func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (AutoIncludeDependency, hcl.Diagnostics) {
+	name := block.Labels[0]
+
+	// Decode only config_path from the block body, leaving everything else.
+	configPathAttr, exists := block.Body.Attributes["config_path"]
+	if !exists {
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Missing config_path",
+			Detail:   "dependency block must have a config_path attribute",
+			Subject:  block.DefRange().Ptr(),
+		}}
+	}
+
+	val, diags := configPathAttr.Expr.Value(evalCtx)
+	if diags.HasErrors() {
+		return AutoIncludeDependency{}, diags
+	}
+
+	return AutoIncludeDependency{
+		Name:       name,
+		ConfigPath: val.AsString(),
+		Block:      block.AsHCLBlock(),
 	}, nil
 }
 
@@ -85,9 +138,9 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 // unit and stack path references for resolving autoinclude blocks.
 //
 // The context provides:
-//   - unit.<name>.path - relative path of each unit in the stack
+//   - unit.<name>.path - resolved path of each unit in the stack
 //   - unit.<name>.name - name label of each unit
-//   - stack.<name>.path - relative path of each stack in the stack
+//   - stack.<name>.path - resolved path of each stack in the stack
 //   - stack.<name>.name - name label of each stack
 //
 // Additional variables (locals, values) can be merged into the returned
