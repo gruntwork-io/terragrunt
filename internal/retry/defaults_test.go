@@ -1,22 +1,11 @@
 package retry_test
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestDefaultRetryableErrorsCompile(t *testing.T) {
-	t.Parallel()
-
-	for _, pattern := range retry.DefaultRetryableErrors {
-		_, err := regexp.Compile(pattern)
-		require.NoError(t, err, "pattern failed to compile: %s", pattern)
-	}
-}
 
 func TestDefaultRetryableErrorsMatch(t *testing.T) {
 	t.Parallel()
@@ -147,22 +136,13 @@ func TestDefaultRetryableErrorsMatch(t *testing.T) {
 		},
 	}
 
-	compiled := make([]*regexp.Regexp, 0, len(retry.DefaultRetryableErrors))
-
-	for _, pattern := range retry.DefaultRetryableErrors {
-		re, err := regexp.Compile(pattern)
-		require.NoError(t, err)
-
-		compiled = append(compiled, re)
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			matched := false
 
-			for _, re := range compiled {
+			for _, re := range retry.DefaultRetryableRegexps {
 				if re.MatchString(tt.errMsg) {
 					matched = true
 					break
