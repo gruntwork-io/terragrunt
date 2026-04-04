@@ -155,6 +155,11 @@ jobs:
           sudo docker builder prune -a
           df -h
 
+      - name: Mount tmpfs / RAM disk
+        shell: bash
+        if: runner.os != 'Windows'
+        run: ./.github/scripts/setup/mount-tmpfs.sh --go-build-only
+
       # install dependencies for the integration tests
       - name: Use mise to install dependencies
         uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
