@@ -239,8 +239,8 @@ jobs:
       - name: Notify Slack
         if: ${{ inputs.notify_slack }}
         env:
-          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           BASE_REF: ${{ inputs.base_ref }}
           HEAD_REF: ${{ inputs.head_ref }}
           REPO: ${{ github.repository }}
-        run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json
+        run: ./.github/scripts/notify-slack.sh comparison-report.json

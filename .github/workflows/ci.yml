@@ -91,6 +91,14 @@ jobs:
       actions: read
     secrets: inherit
 
+  duration_compare:
+    needs: [base_tests]
+    uses: ./.github/workflows/duration-compare-main.yml
+    permissions:
+      contents: read
+      actions: read
+    secrets: inherit
+
   integration_tests:
     needs: [base_tests, build]
     uses: ./.github/workflows/integration-test.yml
