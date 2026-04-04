@@ -533,7 +533,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 	}
 
 	if client.SkipBucketTagging {
-		l.Debugf("Access logging bucket tagging is disabled for the remote state S3 bucket %s using 'skip_bucket_tagging' config.", cfg.Bucket)
+		l.Debugf("Access logging bucket tagging is disabled for access logging bucket %s using 'skip_bucket_tagging' config.", client.AccessLoggingBucketName)
 	} else if err := client.TagS3BucketAccessLogging(ctx, l); err != nil {
 		return err
 	}
