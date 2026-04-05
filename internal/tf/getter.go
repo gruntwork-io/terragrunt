@@ -132,19 +132,30 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 
 	versionList, hasVersion := queryValues[versionQueryKey]
-	if !hasVersion {
-		return errors.New(MalformedRegistryURLErr{reason: "missing version query"})
-	}
 
-	if len(versionList) != 1 {
+	if hasVersion && len(versionList) != 1 {
 		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
-
-	version := versionList[0]
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, registryDomain)
 	if err != nil {
 		return err
+	}
+
+	var version string
+
+	if hasVersion {
+		version = versionList[0]
+	} else {
+		// When version is not specified, query the registry to find the latest version
+		latestVersion, err := GetLatestModuleVersion(ctx, tfrGetter.Logger, registryDomain, moduleRegistryBasePath, modulePath)
+		if err != nil {
+			return err
+		}
+
+		tfrGetter.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+
+		version = latestVersion
 	}
 
 	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version)
@@ -271,6 +282,56 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 	}
 
 	return respJSON.ModulesPath, nil
+}
+
+// moduleVersionsResponse represents the response from the registry's list versions API endpoint.
+type moduleVersionsResponse struct {
+	Modules []moduleVersionsEntry `json:"modules"`
+}
+
+// moduleVersionsEntry represents a single module entry in the versions response.
+type moduleVersionsEntry struct {
+	Versions []moduleVersion `json:"versions"`
+}
+
+// moduleVersion represents a single version of a module.
+type moduleVersion struct {
+	Version string `json:"version"`
+}
+
+// GetLatestModuleVersion queries the Terraform module registry to list available versions for the given module
+// and returns the latest (first listed) version. This implements the "List Available Versions for a Specific Module"
+// endpoint of the Terraform Module Registry Protocol.
+// See: https://developer.hashicorp.com/terraform/registry/api-docs#list-available-versions-for-a-specific-module
+func GetLatestModuleVersion(ctx context.Context, logger log.Logger, registryDomain string, moduleRegistryBasePath string, modulePath string) (string, error) {
+	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
+	modulePath = strings.TrimSuffix(modulePath, "/")
+	modulePath = strings.TrimPrefix(modulePath, "/")
+
+	versionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
+
+	versionsURL := &url.URL{
+		Scheme: "https",
+		Host:   registryDomain,
+		Path:   versionsPath,
+	}
+
+	bodyData, _, err := httpGETAndGetResponse(ctx, logger, versionsURL)
+	if err != nil {
+		return "", errors.Errorf("failed to query module versions for %s: %w", modulePath, err)
+	}
+
+	var versionsResp moduleVersionsResponse
+	if err := json.Unmarshal(bodyData, &versionsResp); err != nil {
+		return "", errors.Errorf("failed to parse module versions response for %s: %w", modulePath, err)
+	}
+
+	if len(versionsResp.Modules) == 0 || len(versionsResp.Modules[0].Versions) == 0 {
+		return "", errors.Errorf("no versions found for module %s on registry %s", modulePath, registryDomain)
+	}
+
+	// The registry returns versions in order, with the latest first
+	return versionsResp.Modules[0].Versions[0].Version, nil
 }
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
