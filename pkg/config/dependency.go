@@ -659,7 +659,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) && !dependencyConfig.shouldReturnMockOutputs(pctx) {
 			return nil, true, err
 		}
 
