@@ -10,12 +10,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
+	goversion "github.com/hashicorp/go-version"
 	safetemp "github.com/hashicorp/go-safetemp"
 	svchost "github.com/hashicorp/terraform-svchost"
 
@@ -153,7 +155,9 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 			return err
 		}
 
-		tfrGetter.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+		if tfrGetter.Logger != nil {
+			tfrGetter.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+		}
 
 		version = latestVersion
 	}
@@ -330,8 +334,26 @@ func GetLatestModuleVersion(ctx context.Context, logger log.Logger, registryDoma
 		return "", errors.Errorf("no versions found for module %s on registry %s", modulePath, registryDomain)
 	}
 
-	// The registry returns versions in order, with the latest first
-	return versionsResp.Modules[0].Versions[0].Version, nil
+	// The registry API does not guarantee version ordering, so we parse and sort by semver
+	// to reliably find the latest version.
+	var parsed []*goversion.Version
+
+	for _, v := range versionsResp.Modules[0].Versions {
+		pv, err := goversion.NewVersion(v.Version)
+		if err != nil {
+			continue // skip unparseable versions
+		}
+
+		parsed = append(parsed, pv)
+	}
+
+	if len(parsed) == 0 {
+		return "", errors.Errorf("no valid semver versions found for module %s on registry %s", modulePath, registryDomain)
+	}
+
+	sort.Sort(goversion.Collection(parsed))
+
+	return parsed[len(parsed)-1].Original(), nil
 }
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json

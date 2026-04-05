@@ -183,3 +183,23 @@ func TestTFRGetterWithoutVersion(t *testing.T) {
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
+
+func TestTFRGetterWithoutVersionNilLogger(t *testing.T) {
+	t.Parallel()
+
+	testModuleURL, err := url.Parse("tfr://registry.terraform.io/terraform-aws-modules/vpc/aws")
+	require.NoError(t, err)
+
+	dstPath := helpers.TmpDirWOSymlinks(t)
+
+	// The dest path must not exist for go getter to work
+	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
+	assert.False(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+
+	// Intentionally not setting Logger to match production behavior via UpdateGetters
+	tfrGetter := new(tf.RegistryGetter)
+	tfrGetter.TofuImplementation = tfimpl.Terraform
+
+	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
+	assert.True(t, util.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+}
