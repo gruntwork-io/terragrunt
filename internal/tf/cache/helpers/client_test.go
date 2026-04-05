@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestDecodeResponse_429ReturnsError verifies that decodeResponse returns an error with rate-limiting details
+// when the HTTP response status is 429 Too Many Requests.
 func TestDecodeResponse_429ReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -26,6 +28,8 @@ func TestDecodeResponse_429ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "rate limited")
 }
 
+// TestDecodeResponse_NonOKReturnsError verifies that decodeResponse returns an error with the HTTP status code
+// and status text when the response has a non-200 status code.
 func TestDecodeResponse_NonOKReturnsError(t *testing.T) {
 	t.Parallel()
 
