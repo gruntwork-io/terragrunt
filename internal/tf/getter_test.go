@@ -164,6 +164,16 @@ func TestGetLatestModuleVersion(t *testing.T) {
 	assert.NotEmpty(t, latestVersion)
 }
 
+// TestGetLatestModuleVersionAbsoluteBasePath verifies that GetLatestModuleVersion works correctly
+// when the modules.v1 service discovery value is an absolute URL (e.g. "https://registry.terraform.io/v1/modules/").
+func TestGetLatestModuleVersionAbsoluteBasePath(t *testing.T) {
+	t.Parallel()
+
+	latestVersion, err := tf.GetLatestModuleVersion(t.Context(), logger.CreateLogger(), "registry.terraform.io", "https://registry.terraform.io/v1/modules/", "terraform-aws-modules/vpc/aws")
+	require.NoError(t, err)
+	assert.NotEmpty(t, latestVersion)
+}
+
 func TestTFRGetterWithoutVersion(t *testing.T) {
 	t.Parallel()
 

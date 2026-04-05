@@ -320,10 +320,18 @@ func GetLatestModuleVersion(ctx context.Context, logger log.Logger, registryDoma
 
 	versionsPath := fmt.Sprintf("%s/%s/versions", moduleRegistryBasePath, modulePath)
 
-	versionsURL := &url.URL{
-		Scheme: "https",
-		Host:   registryDomain,
-		Path:   versionsPath,
+	versionsURL, err := url.Parse(versionsPath)
+	if err != nil {
+		return "", errors.Errorf("failed to parse versions URL for %s: %w", modulePath, err)
+	}
+
+	// If the base path is relative (no scheme), construct the full URL using the registry domain.
+	if versionsURL.Scheme == "" {
+		versionsURL = &url.URL{
+			Scheme: "https",
+			Host:   registryDomain,
+			Path:   versionsPath,
+		}
 	}
 
 	bodyData, _, err := httpGETAndGetResponse(ctx, logger, versionsURL)
