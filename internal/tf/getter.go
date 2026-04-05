@@ -17,8 +17,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
-	goversion "github.com/hashicorp/go-version"
 	safetemp "github.com/hashicorp/go-safetemp"
+	goversion "github.com/hashicorp/go-version"
 	svchost "github.com/hashicorp/terraform-svchost"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -118,6 +118,32 @@ func (tfrGetter *RegistryGetter) ClientMode(u *url.URL) (getter.ClientMode, erro
 	return getter.ClientModeDir, nil
 }
 
+// resolveVersion determines the module version to download. If a version is specified in the URL query, it is
+// validated and returned. Otherwise, the latest version is queried from the registry.
+func (tfrGetter *RegistryGetter) resolveVersion(ctx context.Context, queryValues url.Values, registryDomain, moduleRegistryBasePath, modulePath string) (string, error) {
+	versionList, hasVersion := queryValues[versionQueryKey]
+
+	if hasVersion && len(versionList) != 1 {
+		return "", errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
+	}
+
+	if hasVersion {
+		return versionList[0], nil
+	}
+
+	// When version is not specified, query the registry to find the latest version
+	latestVersion, err := GetLatestModuleVersion(ctx, tfrGetter.Logger, registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return "", err
+	}
+
+	if tfrGetter.Logger != nil {
+		tfrGetter.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
+	}
+
+	return latestVersion, nil
+}
+
 // Get is the main routine to fetch the module contents specified at the given URL and download it to the dstPath.
 // This routine assumes that the srcURL points to the Terraform registry URL, with the Path configured to the module
 // path encoded as `:namespace/:name/:system` as expected by the Terraform registry. Note that the URL query parameter
@@ -130,36 +156,16 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		registryDomain = tfrGetter.registryDomain()
 	}
 
-	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
-
-	versionList, hasVersion := queryValues[versionQueryKey]
-
-	if hasVersion && len(versionList) != 1 {
-		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
-	}
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
 
-	var version string
-
-	if hasVersion {
-		version = versionList[0]
-	} else {
-		// When version is not specified, query the registry to find the latest version
-		latestVersion, err := GetLatestModuleVersion(ctx, tfrGetter.Logger, registryDomain, moduleRegistryBasePath, modulePath)
-		if err != nil {
-			return err
-		}
-
-		if tfrGetter.Logger != nil {
-			tfrGetter.Logger.Infof("No version specified for module %s, using latest version %s", modulePath, latestVersion)
-		}
-
-		version = latestVersion
+	version, err := tfrGetter.resolveVersion(ctx, srcURL.Query(), registryDomain, moduleRegistryBasePath, modulePath)
+	if err != nil {
+		return err
 	}
 
 	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version)
