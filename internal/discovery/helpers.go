@@ -239,7 +239,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	deduped := make(map[string]struct{}, maxDedupLen)
 
 	// Check for autoinclude file and extract its dependency paths for the DAG.
-	autoIncludeDeps := extractAutoIncludeDependencyPaths(c.Path())
+	autoIncludeDeps := ExtractAutoIncludeDependencyPaths(c.Path())
 	for _, dep := range autoIncludeDeps {
 		deduped[dep] = struct{}{}
 	}
@@ -338,11 +338,11 @@ func ExtractUnitPathsFromStackFile(data []byte, stackDir string) []string {
 	return paths
 }
 
-// extractAutoIncludeDependencyPaths checks for a terragrunt.autoinclude.hcl file
+// ExtractAutoIncludeDependencyPaths checks for a terragrunt.autoinclude.hcl file
 // in the given unit directory and extracts dependency config_path values.
 // This ensures the DAG sees dependencies defined in autoinclude files during
 // graph construction, even though they're not in the main terragrunt.hcl.
-func extractAutoIncludeDependencyPaths(unitDir string) []string {
+func ExtractAutoIncludeDependencyPaths(unitDir string) []string {
 	autoIncludePath := filepath.Join(unitDir, config.DefaultAutoIncludeFile)
 
 	if !util.FileExists(autoIncludePath) {

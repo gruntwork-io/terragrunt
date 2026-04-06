@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,6 +80,90 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 
 	// Clean up generated files
 	os.RemoveAll(filepath.Join(liveDir, ".terragrunt-stack"))
+}
+
+func TestStackDependenciesDAGOrdering(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that the DAG correctly orders units when dependencies
+	// are defined in autoinclude files. Without the fix in extractDependencyPaths
+	// (reading autoinclude files for dependency config_paths), both units would
+	// run in parallel, causing the dependent unit to fail.
+
+	tmpDir := t.TempDir()
+
+	err := copyDirSimple("fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
+	require.NoError(t, err)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	// Step 1: Parse and generate the autoinclude file
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := intHclparse.ParseStackFile(srcBytes, stackFile, liveDir, nil)
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes["app"]
+	require.NotNil(t, resolved)
+
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+
+	err = intHclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	// Step 2: Verify the generated autoinclude file can be read by the
+	// discovery system for DAG construction.
+	autoIncludePath := filepath.Join(appDir, intHclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath)
+
+	// Step 3: Use ExtractAutoIncludeDependencyPaths to verify the DAG
+	// would see the dependency from unit-w-inputs → unit-w-outputs.
+	depPaths := discovery.ExtractAutoIncludeDependencyPaths(appDir)
+
+	require.Len(t, depPaths, 1, "unit-w-inputs should have exactly 1 dependency from autoinclude")
+
+	// The dependency path should point to the vpc directory
+	// (../vpc resolved relative to appDir = .terragrunt-stack/app)
+	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
+	assert.Equal(t, vpcDir, depPaths[0],
+		"dependency should point to vpc unit, got %s", depPaths[0])
+}
+
+func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	// Verify that units WITHOUT autoinclude files return no extra dependency paths.
+	tmpDir := t.TempDir()
+
+	err := copyDirSimple("fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
+	require.NoError(t, err)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := intHclparse.ParseStackFile(srcBytes, stackFile, liveDir, nil)
+	require.NoError(t, err)
+
+	// Generate autoinclude only for app (vpc has no autoinclude)
+	resolved := result.AutoIncludes["app"]
+	require.NotNil(t, resolved)
+
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+
+	err = intHclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	// vpc unit has NO autoinclude → should return no deps
+	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
+	require.NoError(t, os.MkdirAll(vpcDir, 0755))
+
+	vpcDeps := discovery.ExtractAutoIncludeDependencyPaths(vpcDir)
+	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
 }
 
 // copyDirSimple copies a directory tree. Simple implementation for test use.
