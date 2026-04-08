@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -16,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -37,9 +40,16 @@ const (
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
-	Locals *terragruntLocal `hcl:"locals,block"`
-	Stacks []*Stack         `hcl:"stack,block"`
-	Units  []*Unit          `hcl:"unit,block"`
+	Locals   *terragruntLocal    `hcl:"locals,block"`
+	Includes []*StackIncludeFile `hcl:"include,block"`
+	Stacks   []*Stack            `hcl:"stack,block"`
+	Units    []*Unit             `hcl:"unit,block"`
+}
+
+// StackIncludeFile represents an include block in a stack file.
+type StackIncludeFile struct {
+	Name string `hcl:",label"`
+	Path string `hcl:"path,attr"`
 }
 
 // StackConfig represents the structure of terragrunt.stack.hcl stack file.
@@ -51,6 +61,7 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`
@@ -61,6 +72,7 @@ type Unit struct {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`
@@ -87,19 +99,41 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
+	// When the stack-dependencies experiment is enabled, perform a two-pass
+	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
+	var autoIncludes map[string]*intHclparse.AutoIncludeResolved
+
+	var stackSrcBytes []byte
+
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		stackSrcBytes, err = os.ReadFile(stackFilePath)
+		if err != nil {
+			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
+		}
+
+		parseResult, parseErr := intHclparse.ParseStackFile(stackSrcBytes, stackFilePath, stackSourceDir, values)
+		if parseErr != nil {
+			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+		} else {
+			autoIncludes = parseResult.AutoIncludes
+		}
+	}
+
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
 		noStackValidate: pctx.NoStackValidate,
 		stackConfigPath: pctx.TerragruntStackConfigPath,
+		autoIncludes:    autoIncludes,
+		stackSrcBytes:   stackSrcBytes,
 	}
 
-	if err := generateUnits(ctx, l, genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, &genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, &genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -108,9 +142,11 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
+	autoIncludes    map[string]*intHclparse.AutoIncludeResolved
 	sourceMap       map[string]string
 	rootWorkingDir  string
 	stackConfigPath string
+	stackSrcBytes   []byte
 	logShowAbsPaths bool
 	noStackValidate bool
 }
@@ -118,7 +154,7 @@ type generateOpts struct {
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the generating progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, l log.Logger, opts generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
 	for _, unit := range units {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -151,7 +187,7 @@ func generateUnits(ctx context.Context, l log.Logger, opts generateOpts, pool *w
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, l log.Logger, opts generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
 	for _, stack := range stacks {
 		pool.Submit(func() error {
 			item := componentToGenerate{
@@ -205,7 +241,7 @@ type componentToGenerate struct {
 }
 
 // generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp *componentToGenerate) error {
+func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cmp *componentToGenerate) error {
 	source := cmp.source
 	// Adjust source path using the provided source mapping configuration if available
 	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
@@ -294,6 +330,17 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 	// generate values file
 	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+	}
+
+	// generate autoinclude file if the component has one
+	if opts.autoIncludes != nil {
+		if resolved, ok := opts.autoIncludes[cmp.name]; ok {
+			l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
+
+			if err := intHclparse.GenerateAutoIncludeFile(resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
+				return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
+			}
+		}
 	}
 
 	return nil
