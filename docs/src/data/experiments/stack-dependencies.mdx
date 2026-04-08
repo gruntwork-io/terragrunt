@@ -104,11 +104,17 @@ terragrunt run --all --experiment stack-dependencies -- plan
 ### `stack-dependencies` - How to provide feedback
 Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwork-io/terragrunt/issues/5663) GitHub Issue.
 
-### `stack-dependencies` - Criteria for stabilization
-To transition the `stack-dependencies` feature to a stable release, the following must be addressed, at a minimum:
+### `stack-dependencies` - Implementation roadmap
 
-- [ ] Partial evaluation of `dependency.*` references in `autoinclude.inputs`
-- [ ] Support for stack-level dependencies (coarse and fine-grained)
-- [ ] Mock outputs support in autoinclude dependency blocks
-- [ ] Deep merge precedence behavior validated
+- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- [ ] Add integration tests and test fixtures for end-to-end validation
+- [ ] E2E validation with `stack run apply` and `stack run destroy`
+- [ ] Community feedback on `autoinclude` syntax and merge behavior
+- [ ] Integration with CAS for generated files
 - [ ] Performance validation at scale
