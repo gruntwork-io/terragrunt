@@ -522,7 +522,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filterStrings: []string{},
 			componentPath: "/project/foo",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 		},
 		{
@@ -530,7 +530,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filterStrings: []string{"./foo"},
 			componentPath: "/project/foo",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 		},
 		{
@@ -554,7 +554,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filterStrings: []string{"!./foo"},
 			componentPath: "/project/bar",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 		},
 		{
@@ -578,7 +578,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filterStrings: []string{"./apps/*"},
 			componentPath: "/project/apps/frontend",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 		},
 		{
@@ -586,7 +586,7 @@ func TestCandidacyClassifier_ClassifiesComponentsCorrectly(t *testing.T) {
 			filterStrings: []string{"name=foo"},
 			componentPath: "/project/foo",
 			workingDir:    "/project",
-			expectStatus:  filter.StatusDiscovered,
+			expectStatus:  filter.StatusReadyForFilter,
 			expectReason:  filter.CandidacyReasonNone,
 		},
 	}

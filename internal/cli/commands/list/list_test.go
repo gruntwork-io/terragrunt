@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -469,18 +470,18 @@ dependency "C" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := list.NewColorizer(true)
+	colorizer := dag.NewColorizer(true)
 
 	tests := []struct {
 		name   string
-		config *list.ListedComponent
+		config *dag.ListedComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedComponent{
+			config: &dag.ListedComponent{
 				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
@@ -488,7 +489,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &list.ListedComponent{
+			config: &dag.ListedComponent{
 				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
@@ -505,7 +506,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &list.ListedComponent{
+				diffConfig := &dag.ListedComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}

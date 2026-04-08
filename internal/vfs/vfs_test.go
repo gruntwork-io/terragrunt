@@ -20,8 +20,12 @@ func TestNewOSFS(t *testing.T) {
 	fs := vfs.NewOSFS()
 
 	assert.NotNil(t, fs)
-	_, ok := fs.(*afero.OsFs)
-	assert.True(t, ok, "expected *afero.OsFs type")
+
+	_, ok := fs.(afero.Symlinker)
+	assert.True(t, ok, "expected OSFS to implement afero.Symlinker")
+
+	_, ok = fs.(vfs.HardLinker)
+	assert.True(t, ok, "expected OSFS to implement vfs.HardLinker")
 }
 
 func TestNewMemMapFS(t *testing.T) {
@@ -30,8 +34,12 @@ func TestNewMemMapFS(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 
 	assert.NotNil(t, fs)
-	_, ok := fs.(*afero.MemMapFs)
-	assert.True(t, ok, "expected *afero.MemMapFs type")
+
+	_, ok := fs.(afero.Symlinker)
+	assert.True(t, ok, "expected MemMapFS to implement afero.Symlinker")
+
+	_, ok = fs.(vfs.HardLinker)
+	assert.True(t, ok, "expected MemMapFS to implement vfs.HardLinker")
 }
 
 func TestFileExists(t *testing.T) {

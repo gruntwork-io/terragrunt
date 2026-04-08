@@ -4,18 +4,23 @@ package worktrees
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -24,9 +29,17 @@ import (
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
-	WorktreePairs      map[string]WorktreePair
-	gitRunner          *git.GitRunner
+	// WorktreePairs maps Git expression strings to their corresponding worktree pairs.
+	WorktreePairs map[string]WorktreePair
+	// gitRunner is the Git runner used to create and manage the worktrees.
+	gitRunner *git.GitRunner
+	// OriginalWorkingDir is the user's working directory before worktrees were created.
 	OriginalWorkingDir string
+	// ReadingAffectedStacks holds stacks identified during generation as affected by
+	// changes to files they read, even though the stack file itself did not change in
+	// the git diff. These are included in Stacks().ReadingAffected so that the worktree
+	// discovery phase walks them for unit-level changes.
+	ReadingAffectedStacks []StackDiffChangedPair
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
@@ -42,6 +55,13 @@ type WorktreePair struct {
 type Worktree struct {
 	Ref  string
 	Path string
+}
+
+// WorktreeOpts contains parameters for NewWorktrees.
+type WorktreeOpts struct {
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
 }
 
 // WorkingDir returns the path within a worktree that corresponds to the user's
@@ -108,7 +128,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 				seen[worktree.Path] = struct{}{}
 
 				// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
-				if _, err := os.Stat(worktree.Path); os.IsNotExist(err) {
+				if _, err := os.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 					l.Debugf("Worktree path %s already removed, skipping cleanup", worktree.Path)
 
 					continue
@@ -144,9 +164,16 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 }
 
 type StackDiff struct {
-	Added   []*component.Stack
+	// Added contains stacks whose terragrunt.stack.hcl was added in the git diff.
+	Added []*component.Stack
+	// Removed contains stacks whose terragrunt.stack.hcl was removed in the git diff.
 	Removed []*component.Stack
+	// Changed contains stacks whose terragrunt.stack.hcl was modified in the git diff.
 	Changed []StackDiffChangedPair
+	// ReadingAffected contains stacks whose terragrunt.stack.hcl did not change directly,
+	// but that read files which did. These are identified during stack generation and need
+	// to be walked for unit-level changes.
+	ReadingAffected []StackDiffChangedPair
 }
 
 type StackDiffChangedPair struct {
@@ -234,6 +261,8 @@ func (w *Worktrees) Stacks() StackDiff {
 		}
 	}
 
+	stackDiff.ReadingAffected = w.ReadingAffectedStacks
+
 	return stackDiff
 }
 
@@ -317,9 +346,12 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
-	workingDir string,
-	gitExpressions filter.GitExpressions,
+	opts WorktreeOpts,
 ) (*Worktrees, error) {
+	workingDir := opts.WorkingDir
+	gitExpressions := opts.GitExpressions
+	experiments := opts.Experiments
+
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),
@@ -356,13 +388,14 @@ func NewWorktrees(
 		expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
 
 		gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-		gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
+		// Cap concurrent git commands to the number of refs, but no more than available CPUs.
+		gitCmdGroup.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
 
 		refsToPaths := make(map[string]string, len(gitRefs))
 
 		if len(gitRefs) > 0 {
 			gitCmdGroup.Go(func() error {
-				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
+				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit, experiments)
 				if err != nil {
 					mu.Lock()
 
@@ -534,8 +567,11 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
+	experiments experiment.Experiments,
 ) (map[string]string, error) {
 	var errs []error
+
+	slowReporting := experiments.Evaluate(experiment.SlowTaskReporting)
 
 	refsToPaths := make(map[string]string, len(gitRefs))
 
@@ -563,6 +599,15 @@ func createGitWorktrees(
 
 		// Wrap individual worktree creation with telemetry including repo info
 		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
+			if slowReporting {
+				return util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+					Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
+					Done:    "Created Git worktree for reference " + ref,
+				}, func() error {
+					return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+				})
+			}
+
 			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
 		})
 		if err != nil {

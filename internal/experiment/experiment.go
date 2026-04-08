@@ -42,6 +42,11 @@ const (
 	// StacksGenerateBlock is the experiment that enables processing generate blocks during
 	// stack generation so that dependency resolution via "terraform output" sees correct files.
 	StacksGenerateBlock = "stacks-generate-block"
+	// SlowTaskReporting enables progress spinners and completion logs for long-running operations.
+	SlowTaskReporting = "slow-task-reporting"
+	// DAGQueueDisplay is the experiment that shows the run queue as a DAG tree
+	// with dependency hierarchy instead of a flat list.
+	DAGQueueDisplay = "dag-queue-display"
 )
 
 const (
@@ -96,6 +101,12 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: StacksGenerateBlock,
+		},
+		{
+			Name: SlowTaskReporting,
+		},
+		{
+			Name: DAGQueueDisplay,
 		},
 	}
 }

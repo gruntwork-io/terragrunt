@@ -1,0 +1,46 @@
+---
+name: dependency-fetch-output-from-state
+status: active
+---
+
+Support for fetching dependency outputs directly from state files.
+
+### `dependency-fetch-output-from-state` - What it does
+By default, Terragrunt retrieves dependency outputs by running `tofu output` or `terraform output` commands, which requires initializing the dependency unit and can be slow. When this experiment is enabled, Terragrunt will attempt to fetch dependency outputs directly from the remote state file, bypassing the need to initialize the dependency and significantly speeding up dependency processing.
+
+**Current Backend Support:**
+
+- S3 backend: Fully supported
+- Other backends: Falls back to the normal method (using `tofu/terraform output`)
+
+When an unsupported backend is encountered, Terragrunt will automatically fall back to the default method of using `tofu/terraform output`.
+
+**Known Limitations:**
+
+This experiment is **not compatible with OpenTofu state encryption**. When OpenTofu's [client-side state encryption](https://opentofu.org/docs/language/state/encryption/) is enabled, the state file stored in S3 is encrypted before upload. Since this experiment reads the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, you must disable this experiment using the `--no-dependency-fetch-output-from-state` flag.
+
+**Disabling the feature:**
+
+You can disable the dependency-fetch-output-from-state feature using the `--no-dependency-fetch-output-from-state` flag, even when the experiment is enabled:
+
+```bash
+terragrunt run --all --experiment-mode --no-dependency-fetch-output-from-state -- plan
+```
+
+### `dependency-fetch-output-from-state` - How to provide feedback
+Provide your feedback in the dedicated [GitHub discussion](https://github.com/gruntwork-io/terragrunt/discussions/5200) page. When reporting issues or providing feedback, please include:
+
+- The backend type you're using
+- Any performance improvements you've observed
+- Any issues or edge cases you've encountered
+
+### `dependency-fetch-output-from-state` - Criteria for stabilization
+To transition the `dependency-fetch-output-from-state` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Add support for additional backends (e.g., GCS, etc.)
+- [ ] Comprehensive integration testing across different backend types
+- [ ] Performance benchmarking to validate speed improvements
+- [ ] Error handling and edge case testing
+- [ ] Documentation of supported backends and limitations
+- [ ] Handle OpenTofu state encryption gracefully (fallback or explicit error message)
+- [ ] Community feedback on real-world usage

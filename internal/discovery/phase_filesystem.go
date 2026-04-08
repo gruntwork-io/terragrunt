@@ -82,11 +82,11 @@ func (p *FilesystemPhase) Run(ctx context.Context, l log.Logger, input *PhaseInp
 		}
 
 		switch result.Status {
-		case StatusDiscovered:
+		case filter.StatusReadyForFilter:
 			results.AddDiscovered(*result)
-		case StatusCandidate:
+		case filter.StatusCandidate:
 			results.AddCandidate(*result)
-		case StatusExcluded:
+		case filter.StatusExcluded:
 			// Excluded components are not added
 		}
 
@@ -140,8 +140,8 @@ func (p *FilesystemPhase) processFile(
 
 	return &DiscoveryResult{
 		Component: c,
-		Status:    StatusDiscovered,
-		Reason:    CandidacyReasonNone,
+		Status:    filter.StatusReadyForFilter,
+		Reason:    filter.CandidacyReasonNone,
 		Phase:     PhaseFilesystem,
 	}
 }

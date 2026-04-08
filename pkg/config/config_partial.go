@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -269,7 +270,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
@@ -321,7 +322,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
+	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
 	if pctx.UsePartialParseConfigCache {

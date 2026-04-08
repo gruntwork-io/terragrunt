@@ -184,7 +184,8 @@ func checkVersionConstraints(
 ) error {
 	g, checkCtx := errgroup.WithContext(ctx)
 
-	maxWorkers := min(runtime.NumCPU(), opts.Parallelism)
+	// Cap concurrent unit checks to user-specified parallelism or available CPUs, whichever is lower.
+	maxWorkers := min(runtime.GOMAXPROCS(0), opts.Parallelism)
 	g.SetLimit(maxWorkers)
 
 	for _, unit := range units {

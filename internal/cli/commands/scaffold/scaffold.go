@@ -3,6 +3,7 @@ package scaffold
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -298,7 +299,7 @@ func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *optio
 
 // generateDefaultTemplate - write default template to provided dir
 func generateDefaultTemplate(boilerplateDir string) (string, error) {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 	if err := os.WriteFile(
 		filepath.Join(
 			boilerplateDir,
@@ -369,7 +370,7 @@ func downloadTemplate(
 		subFolder = strings.TrimPrefix(subFolder, "/")
 		templateDir = filepath.Join(templateDir, subFolder)
 		// Verify that subfolder exists
-		if _, err := os.Stat(templateDir); os.IsNotExist(err) {
+		if _, err := os.Stat(templateDir); errors.Is(err, fs.ErrNotExist) {
 			return "", errors.Errorf(
 				"subfolder \"//%s\" not found in downloaded template from %s",
 				subFolder,
@@ -505,7 +506,7 @@ func rewriteModuleURL(
 	vars map[string]any,
 	moduleURL string,
 ) (*url.URL, error) {
-	var updatedModuleURL = moduleURL
+	updatedModuleURL := moduleURL
 
 	sourceURLType := sourceURLTypeHTTPS
 	if value, found := vars[sourceURLTypeVar]; found {
@@ -590,7 +591,7 @@ func addRefToModuleURL(
 	parsedModuleURL *url.URL,
 	vars map[string]any,
 ) (*url.URL, error) {
-	var moduleURL = parsedModuleURL
+	moduleURL := parsedModuleURL
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleURL.Query()
 
@@ -669,22 +670,19 @@ func collectDependencyFiles(deps []manifest.ManifestDependency, depth int) ([]st
 	return files, nil
 }
 
-type MaxDependencyDepthExceededError struct {
-}
+type MaxDependencyDepthExceededError struct{}
 
 func (err MaxDependencyDepthExceededError) Error() string {
 	return fmt.Sprintf("dependency depth limit of %d exceeded, possible circular dependencies", maxDependencyDepth)
 }
 
-type failedToParseURLError struct {
-}
+type failedToParseURLError struct{}
 
 func (err failedToParseURLError) Error() string {
 	return "Failed to parse Url."
 }
 
-type NoModuleURLPassed struct {
-}
+type NoModuleURLPassed struct{}
 
 func (err NoModuleURLPassed) Error() string {
 	return "No module URL passed."
