@@ -246,7 +246,7 @@ unit "vpc" {
 }
 `, includeDir)
 
-	result, err := hclparse.ParseStackFile([]byte(mainSrc), filepath.Join(tmpDir, "terragrunt.stack.hcl"), tmpDir, nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(tmpDir, "terragrunt.stack.hcl"), StackDir: tmpDir})
 	require.NoError(t, err)
 
 	// Should have both units: vpc from main + monitoring from include

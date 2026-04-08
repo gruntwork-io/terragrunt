@@ -193,7 +193,7 @@ func TestPartialEval(t *testing.T) {
 			t.Parallel()
 
 			expr, srcBytes := parseFirstAttrExpr(t, tc.hcl)
-			result := string(hclparse.PartialEval(expr, srcBytes, tc.evalCtx, testDeferred))
+			result := string(hclparse.PartialEval(expr, &hclparse.EvalArgs{SrcBytes: srcBytes, EvalCtx: tc.evalCtx, Deferred: testDeferred}))
 
 			for _, want := range tc.contains {
 				assert.Contains(t, result, want, "expected result to contain %q, got %q", want, result)

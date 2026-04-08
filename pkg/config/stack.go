@@ -111,7 +111,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := intHclparse.ParseStackFile(stackSrcBytes, stackFilePath, stackSourceDir, values)
+		parseResult, parseErr := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
 			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
 		} else {

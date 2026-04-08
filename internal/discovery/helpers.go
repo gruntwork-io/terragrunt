@@ -323,7 +323,7 @@ func ExpandStackDependency(depPath string) []string {
 func ExtractUnitPathsFromStackFile(data []byte, stackDir string) []string {
 	// Use a minimal HCL parse to extract unit blocks and their path attributes.
 	// We import the internal hclparse package which can handle this.
-	result, err := intHclparse.ParseStackFile(data, filepath.Join(stackDir, config.DefaultStackFile), stackDir, nil)
+	result, err := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: data, Filename: filepath.Join(stackDir, config.DefaultStackFile), StackDir: stackDir})
 	if err != nil {
 		return nil
 	}

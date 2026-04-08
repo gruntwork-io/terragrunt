@@ -25,7 +25,7 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
@@ -56,7 +56,7 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -102,7 +102,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -144,7 +144,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -175,7 +175,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -217,7 +217,7 @@ unit "app" {
 	srcBytes := []byte(src)
 
 	// Parse with two-pass
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -301,7 +301,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -336,7 +336,7 @@ unit "vpc" {
 }
 `
 
-	result, err := hclparse.ParseStackFile([]byte(src), "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 1)
 	assert.Empty(t, result.AutoIncludes)
@@ -369,7 +369,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -420,7 +420,7 @@ unit "app" {
 	srcBytes := []byte(src)
 
 	// ParseStackFile resolves dep.ConfigPath to stackRoot/.terragrunt-stack/vpc
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", stackRoot, nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: stackRoot})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -484,7 +484,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -549,7 +549,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -625,7 +625,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(srcBytes, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -710,7 +710,7 @@ unit "app" {
 	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
 	require.NoError(t, os.WriteFile(parentStackFile, []byte(parentSrc), 0644))
 
-	result, err := hclparse.ParseStackFile([]byte(parentSrc), parentStackFile, parentStackDir, nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: parentStackFile, StackDir: parentStackDir})
 	require.NoError(t, err)
 
 	// app's autoinclude should resolve vpc dependency to the nested unit path
@@ -747,7 +747,7 @@ unit "app" {
 	b.ResetTimer()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(src, "terragrunt.stack.hcl", "/project", nil)
+		_, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -801,7 +801,7 @@ unit "app" {
 	b.ResetTimer()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(src, "terragrunt.stack.hcl", "/project", nil)
+		_, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -833,7 +833,7 @@ unit "app" {
 }
 `)
 
-	result, err := hclparse.ParseStackFile(src, "terragrunt.stack.hcl", "/project", nil)
+	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	if err != nil {
 		b.Fatal(err)
 	}

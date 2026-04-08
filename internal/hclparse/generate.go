@@ -125,7 +125,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		result := PartialEval(attr.Expr, srcBytes, evalCtx, deferredRoots)
+		result := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
 		outBody.SetAttributeRaw(attr.Name, rawTokens(result))
 	}
 

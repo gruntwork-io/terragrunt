@@ -23,6 +23,14 @@ const (
 	varDependency = "dependency"
 )
 
+// ParseStackFileInput holds the input for ParseStackFile.
+type ParseStackFileInput struct {
+	Values   *cty.Value
+	Filename string
+	StackDir string
+	Src      []byte
+}
+
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
 type ParseResult struct {
 	// AutoIncludes maps component name → resolved autoinclude (only for units/stacks
@@ -45,8 +53,8 @@ type ParseResult struct {
 // Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
-func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Value) (*ParseResult, error) {
-	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
+	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -60,24 +68,24 @@ func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Va
 	}
 
 	// Process includes — merge included units/stacks.
-	if err := processStackIncludes(stackFile, stackDir); err != nil {
+	if err := processStackIncludes(stackFile, input.StackDir); err != nil {
 		return nil, err
 	}
 
 	// Build component refs with absolute paths for the eval context.
-	// stackDir is the directory containing the terragrunt.stack.hcl file.
-	// Generated units go to stackDir/.terragrunt-stack/{unit.path}.
-	stackTargetDir := filepath.Join(stackDir, StackDir)
+	// StackDir is the directory containing the terragrunt.stack.hcl file.
+	// Generated units go to StackDir/.terragrunt-stack/{unit.path}.
+	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-	stackRefs := buildStackRefsWithAbsPath(stackDir, stackTargetDir, stackFile.Stacks)
+	stackRefs := buildStackRefsWithAbsPath(input.StackDir, stackTargetDir, stackFile.Stacks)
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
 
 	// Add values to context if provided.
-	if values != nil {
-		evalCtx.Variables[varValues] = *values
+	if input.Values != nil {
+		evalCtx.Variables[varValues] = *input.Values
 	}
 
 	// Evaluate locals block iteratively.

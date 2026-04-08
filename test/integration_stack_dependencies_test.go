@@ -34,7 +34,7 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(srcBytes, stackFile, liveDir, nil)
+	result, err := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
 	// Verify units were parsed
@@ -102,7 +102,7 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(srcBytes, stackFile, liveDir, nil)
+	result, err := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -146,7 +146,7 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(srcBytes, stackFile, liveDir, nil)
+	result, err := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
 	// Generate autoinclude only for app (vpc has no autoinclude)
