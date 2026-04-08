@@ -1,0 +1,27 @@
+---
+name: stacks-generate-block
+status: active
+since: "1.0.1"
+---
+
+Process generate blocks during stack generation so that dependency resolution sees correct files.
+
+### `stacks-generate-block` - What it does
+When Terragrunt generates a stack (via `stack generate` or `stack run`), units may contain `generate` blocks with conditional logic such as `if_disabled = "remove"`. Without this experiment, those generate blocks are not processed during stack generation. This means that when a dependent unit runs and triggers dependency resolution via `tofu/terraform output -json`, the generated unit directory may contain stale or conflicting files (e.g., duplicate `required_providers` blocks), causing an error in OpenTofu/Terraform.
+
+Enabling this experiment makes Terragrunt process all `generate` blocks for each unit immediately after copying files during stack generation. This ensures the generated directory is in the correct state for dependency resolution.
+
+```bash
+terragrunt stack run --experiment stacks-generate-block -- plan
+```
+
+### `stacks-generate-block` - How to provide feedback
+Provide your feedback on [#5702](https://github.com/gruntwork-io/terragrunt/issues/5702).
+
+### `stacks-generate-block` - Criteria for stabilization
+To transition the `stacks-generate-block` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] Integration testing across different generate block configurations (`if_disabled`, `if_exists`, `disable`)
+- [ ] Performance impact assessment for stacks with many units containing generate blocks
+- [ ] Ensure correct behavior with remote sources
+- [ ] Community feedback on real-world usage

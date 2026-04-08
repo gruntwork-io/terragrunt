@@ -301,7 +301,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 	}
 
 	// Process generate blocks in the generated directory so that dependency
-	// resolution via "terraform output -json" sees the correct files (#5702).
+	// resolution via "tofu/terraform output -json" sees the correct files (#5702).
 	// Generate block processing is best-effort during stack generation.
 	// Failure here doesn't prevent the stack from being generated;
 	// the unit will simply lack the generated file adjustments.
@@ -331,6 +331,10 @@ func processUnitGenerateBlocks(ctx context.Context, l log.Logger, pctx *ParsingC
 	cfg, err := ParseConfigFile(ctx, unitPctx, l, configPath, nil)
 	if err != nil {
 		l.Debugf("Could not parse generate blocks for %s during stack generation: %v", configPath, err)
+		return nil
+	}
+
+	if cfg == nil {
 		return nil
 	}
 
