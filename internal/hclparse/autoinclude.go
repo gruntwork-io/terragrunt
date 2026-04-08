@@ -150,8 +150,8 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 // context by the caller.
 func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalContext {
 	vars := map[string]cty.Value{
-		"unit":  BuildComponentRefMap(unitRefs),
-		"stack": BuildComponentRefMap(stackRefs),
+		varUnit:  BuildComponentRefMap(unitRefs),
+		varStack: BuildComponentRefMap(stackRefs),
 	}
 
 	return &hcl.EvalContext{

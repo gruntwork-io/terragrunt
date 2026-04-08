@@ -13,7 +13,7 @@ import (
 
 // deferredRoots lists variable root names that cannot be evaluated at generation time.
 var deferredRoots = map[string]bool{
-	"dependency": true,
+	varDependency: true,
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text.

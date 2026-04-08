@@ -14,6 +14,13 @@ import (
 const (
 	// StackDir is the directory name where generated stack components are placed.
 	StackDir = ".terragrunt-stack"
+
+	// HCL variable root names used in eval context.
+	varLocal      = "local"
+	varValues     = "values"
+	varUnit       = "unit"
+	varStack      = "stack"
+	varDependency = "dependency"
 )
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
@@ -70,7 +77,7 @@ func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Va
 
 	// Add values to context if provided.
 	if values != nil {
-		evalCtx.Variables["values"] = *values
+		evalCtx.Variables[varValues] = *values
 	}
 
 	// Evaluate locals block iteratively.
@@ -153,7 +160,7 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
 			break
 		}
 
-		evalCtx.Variables["local"] = cty.ObjectVal(evaluated)
+		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 	}
 }
 
