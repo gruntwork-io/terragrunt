@@ -85,38 +85,9 @@ func ParseStackFile(src []byte, filename string, stackDir string, values *cty.Va
 		evaluateLocals(stackFile.Locals.Remain, evalCtx)
 	}
 
-	autoIncludes := make(map[string]*AutoIncludeResolved)
-
-	for _, unit := range stackFile.Units {
-		if unit.AutoInclude == nil {
-			continue
-		}
-
-		resolved, resolveDiags := unit.AutoInclude.Resolve(evalCtx)
-		if resolveDiags.HasErrors() {
-			return nil, resolveDiags
-		}
-
-		if resolved != nil {
-			resolved.EvalCtx = evalCtx
-			autoIncludes[unit.Name] = resolved
-		}
-	}
-
-	for _, stack := range stackFile.Stacks {
-		if stack.AutoInclude == nil {
-			continue
-		}
-
-		resolved, resolveDiags := stack.AutoInclude.Resolve(evalCtx)
-		if resolveDiags.HasErrors() {
-			return nil, resolveDiags
-		}
-
-		if resolved != nil {
-			resolved.EvalCtx = evalCtx
-			autoIncludes[stack.Name] = resolved
-		}
+	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx)
+	if err != nil {
+		return nil, err
 	}
 
 	return &ParseResult{
@@ -162,6 +133,57 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
 
 		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 	}
+}
+
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
+func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map[string]*AutoIncludeResolved, error) {
+	autoIncludes := make(map[string]*AutoIncludeResolved)
+
+	for _, unit := range stackFile.Units {
+		if unit.AutoInclude == nil {
+			continue
+		}
+
+		resolved, err := resolveOneAutoInclude(unit.AutoInclude, evalCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		if resolved != nil {
+			autoIncludes[unit.Name] = resolved
+		}
+	}
+
+	for _, stack := range stackFile.Stacks {
+		if stack.AutoInclude == nil {
+			continue
+		}
+
+		resolved, err := resolveOneAutoInclude(stack.AutoInclude, evalCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		if resolved != nil {
+			autoIncludes[stack.Name] = resolved
+		}
+	}
+
+	return autoIncludes, nil
+}
+
+// resolveOneAutoInclude resolves a single autoinclude block and attaches the eval context.
+func resolveOneAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (*AutoIncludeResolved, error) {
+	resolved, diags := autoInclude.Resolve(evalCtx)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	if resolved != nil {
+		resolved.EvalCtx = evalCtx
+	}
+
+	return resolved, nil
 }
 
 // processStackIncludes resolves include blocks by parsing the included files
