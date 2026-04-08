@@ -14,10 +14,10 @@ import (
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) error {
 	if _, err := tea.NewProgram(NewModel(l, opts, svc), tea.WithContext(ctx)).Run(); err != nil {
-		if err := context.Cause(ctx); errors.Is(err, context.Canceled) {
+		if cause := context.Cause(ctx); errors.Is(cause, context.Canceled) {
 			return nil
-		} else if err != nil {
-			return err
+		} else if cause != nil {
+			return cause
 		}
 
 		return err

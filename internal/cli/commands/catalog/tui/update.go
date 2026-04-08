@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -40,8 +41,13 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					var content string
 
 					if selectedModule.IsMarkDown() {
+						style := "dark"
+						if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
+							style = "light"
+						}
+
 						renderer, err := glamour.NewTermRenderer(
-							glamour.WithStandardStyle("dark"),
+							glamour.WithStandardStyle(style),
 							glamour.WithWordWrap(m.width),
 						)
 						if err != nil {
