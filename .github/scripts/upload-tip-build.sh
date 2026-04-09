@@ -64,11 +64,12 @@ function main {
 
 	if [[ "$failed" -ne 0 ]]; then
 		echo "ERROR: One or more uploads failed" >&2
-		exit 1
+		return 1
 	fi
 
 	echo ""
 	echo "Upload complete to ${s3_path}/"
+	return 0
 }
 
 main "$@"
