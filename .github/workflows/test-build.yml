@@ -8,10 +8,9 @@ jobs:
     name: Build Binaries
     uses: ./.github/workflows/build.yml
     with:
-      version: test-${{ github.sha }}
+      version: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}-${{ github.sha }}
     permissions:
       contents: read
-    secrets: inherit
 
   upload:
     needs: [build]
@@ -22,4 +21,8 @@ jobs:
       contents: read
       id-token: write
       actions: read
-    secrets: inherit
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
