@@ -1,0 +1,25 @@
+name: Test Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Binaries
+    uses: ./.github/workflows/build.yml
+    with:
+      version: test-${{ github.sha }}
+    permissions:
+      contents: read
+    secrets: inherit
+
+  upload:
+    needs: [build]
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    secrets: inherit

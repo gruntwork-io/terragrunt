@@ -70,8 +70,22 @@ jobs:
   build:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
     permissions:
       contents: read
+    secrets: inherit
+
+  tip_build:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: tip
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
     secrets: inherit
 
   build_no_proxy:
