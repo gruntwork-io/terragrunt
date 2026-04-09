@@ -93,6 +93,12 @@ Dependents are now correctly discovered when units are discovered in worktrees. 
 
 A regression introduced in v0.99.4 caused `read_terragrunt_config()` to fail to parse `dependency` blocks in external configurations during stack execution. This is fixed by resetting parsing context fields that prevented proper evaluation of dependencies in configurations read by `read_terragrunt_config()`.
 
+#### `get_original_terragrunt_dir()` now resolves correctly during dependency parsing
+
+A regression introduced in `v1.0.0-rc3` caused `get_original_terragrunt_dir()` to return the dependent directory instead of the dependency's directory when parsing dependency configurations from a unit. 
+
+This broke configurations where a dependency's `read_terragrunt_config()` chain relied on `get_original_terragrunt_dir()` to locate sibling files. The fix introduces a dedicated `WithDependencyConfigPath` method that correctly resets the original config path when parsing a dependency as an independent unit.
+
 #### Chained dependency with exposed include conversion fixed
 
 Chaining dependencies with exposed includes no longer produces a spurious "Could not convert include to the execution ctx to evaluate additional locals" error during partial parsing.
