@@ -196,8 +196,14 @@ func (p *WorktreePhase) discoverInWorktree(
 		return nil, err
 	}
 
+	// Propagate non-git filters from the parent discovery to the worktree sub-discovery.
+	// Git expressions are excluded to avoid infinite recursion (the worktree phase is
+	// already handling them). All other filters (path, attribute, negation) are included
+	// so that exclusions and type constraints apply within sub-discoveries.
+	allFilters := append(filters, discovery.filters.ExcludingGitFilters()...)
+
 	subDiscovery := NewDiscovery(wt.Path).
-		WithFilters(filters).
+		WithFilters(allFilters).
 		WithDiscoveryContext(discoveryContext).
 		WithNumWorkers(p.numWorkers)
 
@@ -312,10 +318,12 @@ func (p *WorktreePhase) walkChangedStack(
 		errs = make([]error, 0, 2) //nolint:mnd
 	)
 
+	parentFilters := discovery.filters.ExcludingGitFilters()
+
 	discoveryGroup.Go(func() error {
 		fromDiscovery := NewDiscovery(fromStack.Path()).
 			WithDiscoveryContext(fromDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var fromDiscoveryErr error
@@ -343,7 +351,7 @@ func (p *WorktreePhase) walkChangedStack(
 	discoveryGroup.Go(func() error {
 		toDiscovery := NewDiscovery(toStack.Path()).
 			WithDiscoveryContext(toDiscoveryContext).
-			WithFilters(filter.Filters{}).
+			WithFilters(parentFilters).
 			WithNumWorkers(p.numWorkers)
 
 		var toDiscoveryErr error

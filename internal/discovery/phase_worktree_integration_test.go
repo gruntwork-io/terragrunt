@@ -2365,3 +2365,93 @@ unit "myapp" {
 		"Expected at least one unit to be discovered when a read file changes, "+
 			"but got no units. All components: %v", componentPaths)
 }
+
+// TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
+// negated path filters (e.g., from .terragrunt-filters) are applied within worktree
+// sub-discoveries, not just during the final filter evaluation.
+// This is a regression test for #5821: source catalog units in worktrees were being
+// discovered and parsed despite being excluded by a negated path filter, because the
+// worktree sub-discoveries did not receive the exclusion filters.
+func TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create two units: one that should be discovered and one that should be excluded.
+	createUnit(t, tmpDir, "app", `# App unit`)
+	// This catalog unit references values.* — it's a template that only works
+	// when generated through a stack. Without the fix, the worktree sub-discovery
+	// tries to parse it and fails with "Unknown variable: values".
+	createUnit(t, tmpDir, "catalog/units/svc", `
+locals {
+  environment = values.environment
+}
+`)
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Modify both units
+	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "catalog", "units", "svc", "terragrunt.hcl"), []byte(`
+locals {
+  environment = values.environment
+  region      = "us-east-1"
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify both units")
+
+	l := logger.CreateLogger()
+
+	// Parse filters: git expression + negated path that excludes catalog
+	filterQueries := []string{"[HEAD~1...HEAD]", "!./catalog/**"}
+	filters, parseErr := filter.ParseFilterQueries(l, filterQueries)
+	require.NoError(t, parseErr)
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+			Cmd:        "plan",
+		}).
+		WithWorktrees(w).
+		WithRelationships().
+		WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	toWorktree := worktreePair.ToWorktree.Path
+
+	// The app unit should be discovered (it's in the git diff and not excluded)
+	assert.Contains(t, unitPaths, filepath.Join(toWorktree, "app"),
+		"app unit should be discovered")
+
+	// The catalog unit should NOT be discovered (excluded by !./catalog/**)
+	for _, p := range unitPaths {
+		assert.NotContains(t, p, "catalog",
+			"catalog units should be excluded by the negated filter, but found: %s", p)
+	}
+}
