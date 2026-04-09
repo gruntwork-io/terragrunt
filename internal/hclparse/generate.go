@@ -1,12 +1,11 @@
 package hclparse
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -66,13 +65,13 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 	filePath := filepath.Join(targetDir, AutoIncludeFile)
 
 	if err := os.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", targetDir, err)
+		return errors.Errorf("failed to create directory %s: %w", targetDir, err)
 	}
 
 	formatted := hclwrite.Format(out.Bytes())
 
 	if err := os.WriteFile(filePath, formatted, autoIncludeFilePerm); err != nil {
-		return fmt.Errorf("failed to write %s: %w", filePath, err)
+		return errors.Errorf("failed to write %s: %w", filePath, err)
 	}
 
 	return nil
@@ -188,7 +187,7 @@ func quotedStringTokens(value string) hclwrite.Tokens {
 }
 
 // rawTokens wraps raw bytes as a single hclwrite token. hclwrite.Format
-// will handle final formatting of the output.
+// will handle the final formatting of the output.
 func rawTokens(b []byte) hclwrite.Tokens {
 	if len(b) == 0 {
 		return nil

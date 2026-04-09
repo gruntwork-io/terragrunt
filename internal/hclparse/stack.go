@@ -1,10 +1,10 @@
 package hclparse
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -153,7 +153,7 @@ func ParseStackFileFromPath(stackDir string) (*ParseResult, error) {
 			return nil, nil
 		}
 
-		return nil, fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
+		return nil, errors.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
 	return ParseStackFile(&ParseStackFileInput{

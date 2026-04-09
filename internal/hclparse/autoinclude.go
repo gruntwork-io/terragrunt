@@ -1,10 +1,10 @@
 package hclparse
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -176,17 +176,17 @@ func AutoIncludeDependencyPaths(unitDir string) ([]string, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", autoIncludePath, err)
+		return nil, errors.Errorf("failed to read %s: %w", autoIncludePath, err)
 	}
 
 	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, diags)
+		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, diags)
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, fmt.Errorf("unexpected body type in %s", autoIncludePath)
+		return nil, errors.Errorf("unexpected body type in %s", autoIncludePath)
 	}
 
 	var paths []string

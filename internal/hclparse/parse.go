@@ -1,10 +1,10 @@
 package hclparse
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -210,17 +210,17 @@ func processStackIncludes(stackFile *StackFileHCL, stackDir string) error {
 
 		data, err := os.ReadFile(includePath)
 		if err != nil {
-			return fmt.Errorf("failed to read include %q: %w", inc.Name, err)
+			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
 
 		incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
 		if diags.HasErrors() {
-			return fmt.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
+			return errors.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
 		}
 
 		included := &StackFileHCL{}
 		if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
-			return fmt.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
+			return errors.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
 		}
 
 		stackFile.Units = append(stackFile.Units, included.Units...)
