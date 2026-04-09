@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -120,7 +119,7 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 
 	// Step 3: Use ExtractAutoIncludeDependencyPaths to verify the DAG
 	// would see the dependency from unit-w-inputs → unit-w-outputs.
-	depPaths := discovery.ExtractAutoIncludeDependencyPaths(appDir)
+	depPaths := intHclparse.AutoIncludeDependencyPaths(appDir)
 
 	require.Len(t, depPaths, 1, "unit-w-inputs should have exactly 1 dependency from autoinclude")
 
@@ -162,7 +161,7 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
 
-	vpcDeps := discovery.ExtractAutoIncludeDependencyPaths(vpcDir)
+	vpcDeps := intHclparse.AutoIncludeDependencyPaths(vpcDir)
 	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
 }
 

@@ -1,6 +1,8 @@
 package hclparse_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -192,4 +194,56 @@ inputs = {
 
 	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
 	assert.NotNil(t, result.RawBody)
+}
+
+func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, hclparse.AutoIncludeDependencyPaths(t.TempDir()))
+}
+
+func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../unit-w-outputs"
+}
+`), 0644))
+
+	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.Len(t, paths, 1)
+	assert.Equal(t, filepath.Clean(filepath.Join(tmpDir, "..", "unit-w-outputs")), paths[0])
+}
+
+func TestAutoIncludeDependencyPaths_MultipleDeps(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../vpc"
+}
+dependency "db" {
+  config_path = "../database"
+}
+`), 0644))
+
+	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.Len(t, paths, 2)
+}
+
+func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "/absolute/path/to/vpc"
+}
+`), 0644))
+
+	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.Len(t, paths, 1)
+	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
 }

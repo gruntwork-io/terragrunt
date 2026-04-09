@@ -1,12 +1,11 @@
 package hclparse
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -143,6 +142,44 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 	return refs
 }
 
+// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk
+// and performs a two-pass parse. Returns nil, nil if the file does not exist.
+func ParseStackFileFromPath(stackDir string) (*ParseResult, error) {
+	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
+
+	data, err := os.ReadFile(stackFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
+	}
+
+	return ParseStackFile(&ParseStackFileInput{
+		Src:      data,
+		Filename: stackFile,
+		StackDir: stackDir,
+	})
+}
+
+// UnitPathsFromStackDir parses the stack file in stackDir and returns
+// absolute paths to each unit's generated directory under .terragrunt-stack/.
+// Returns nil if the file does not exist or cannot be parsed.
+func UnitPathsFromStackDir(stackDir string) []string {
+	result, err := ParseStackFileFromPath(stackDir)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	paths := make([]string, 0, len(result.Units))
+	for _, unit := range result.Units {
+		paths = append(paths, filepath.Join(stackDir, StackDir, unit.Path))
+	}
+
+	return paths
+}
+
 // DiscoverStackChildUnits parses a stack's source directory to find the
 // terragrunt.stack.hcl within it and extracts unit paths. This enables
 // stack.stack_name.unit_name.path references in autoinclude blocks.
@@ -151,31 +188,17 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 // (or will be generated). stackGenDir is the absolute path where this
 // stack's units will be generated (.terragrunt-stack/stack_path/).
 func DiscoverStackChildUnits(stackSourceDir, stackGenDir string) []ComponentRef {
-	stackFile := filepath.Join(stackSourceDir, "terragrunt.stack.hcl")
-
-	data, err := os.ReadFile(stackFile)
-	if err != nil {
-		return nil
-	}
-
-	file, diags := hclsyntax.ParseConfig(data, stackFile, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		return nil
-	}
-
-	parsed := &StackFileHCL{}
-	if diags := gohcl.DecodeBody(file.Body, nil, parsed); diags.HasErrors() {
+	result, err := ParseStackFileFromPath(stackSourceDir)
+	if err != nil || result == nil {
 		return nil
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(parsed.Units))
+	refs := make([]ComponentRef, 0, len(result.Units))
 
-	for _, u := range parsed.Units {
+	for _, u := range result.Units {
 		unitPath := filepath.Join(childTargetDir, u.Path)
 
-		// When no_dot_terragrunt_stack is set, the unit is placed directly
-		// under the stack's generated directory, not under .terragrunt-stack/.
 		if u.NoStack != nil && *u.NoStack {
 			unitPath = filepath.Join(stackGenDir, u.Path)
 		}

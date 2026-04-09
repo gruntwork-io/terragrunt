@@ -219,6 +219,64 @@ func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
 	assert.Equal(t, "/project/.terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs", unitRef.GetAttr("path").AsString())
 }
 
+func TestUnitPathsFromStackDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.stack.hcl"), []byte(`
+unit "vpc" {
+  source = "../units/vpc"
+  path   = "vpc"
+}
+
+unit "db" {
+  source = "../units/db"
+  path   = "db"
+}
+`), 0644))
+
+	paths := hclparse.UnitPathsFromStackDir(tmpDir)
+	require.Len(t, paths, 2)
+	assert.Contains(t, paths[0], ".terragrunt-stack")
+	assert.Contains(t, paths[1], ".terragrunt-stack")
+}
+
+func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, hclparse.UnitPathsFromStackDir(t.TempDir()))
+}
+
+func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, hclparse.UnitPathsFromStackDir("/nonexistent"))
+}
+
+func TestParseStackFileFromPath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.stack.hcl"), []byte(`
+unit "app" {
+  source = "../units/app"
+  path   = "app"
+}
+`), 0644))
+
+	result, err := hclparse.ParseStackFileFromPath(tmpDir)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "app", result.Units[0].Name)
+}
+
+func TestParseStackFileFromPath_NoFile(t *testing.T) {
+	t.Parallel()
+
+	result, err := hclparse.ParseStackFileFromPath(t.TempDir())
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestParseStackFile_WithInclude(t *testing.T) {
 	t.Parallel()
 
