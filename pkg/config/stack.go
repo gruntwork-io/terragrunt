@@ -113,12 +113,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+			return errors.Errorf("autoinclude parse failed for %s: %w", stackFilePath, parseErr)
 		}
 
-		if parseErr == nil {
-			autoIncludes = parseResult.AutoIncludes
-		}
+		autoIncludes = parseResult.AutoIncludes
 	}
 
 	genOpts := generateOpts{

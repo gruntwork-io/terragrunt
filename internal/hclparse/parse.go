@@ -223,6 +223,14 @@ func processStackIncludes(stackFile *StackFileHCL, stackDir string) error {
 			return errors.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
 		}
 
+		if included.Locals != nil {
+			return errors.Errorf("included stack file %q must not define locals", inc.Name)
+		}
+
+		if len(included.Includes) > 0 {
+			return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
+		}
+
 		stackFile.Units = append(stackFile.Units, included.Units...)
 		stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
 	}
@@ -236,9 +244,15 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 	refs := make([]ComponentRef, 0, len(units))
 
 	for _, u := range units {
+		unitPath := filepath.Join(stackTargetDir, u.Path)
+
+		if u.NoStack != nil && *u.NoStack {
+			unitPath = filepath.Join(filepath.Dir(stackTargetDir), u.Path)
+		}
+
 		refs = append(refs, ComponentRef{
 			Name: u.Name,
-			Path: filepath.Join(stackTargetDir, u.Path),
+			Path: unitPath,
 		})
 	}
 

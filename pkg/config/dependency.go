@@ -735,6 +735,8 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
+				l.Debugf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
+
 				continue
 			}
 

@@ -79,8 +79,8 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 
 	body, ok := a.Remain.(*hclsyntax.Body)
 	if !ok {
-		// Non-syntax body — return result without EvalCtx since partial evaluation is not possible.
-		return &AutoIncludeResolved{RawBody: a.Remain}, nil
+		// Non-syntax body — return result with EvalCtx even though partial evaluation is not possible.
+		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
 	var (
@@ -133,6 +133,15 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	val, diags := configPathAttr.Expr.Value(evalCtx)
 	if diags.HasErrors() || !val.IsKnown() || val.IsNull() {
 		return AutoIncludeDependency{}, diags
+	}
+
+	if val.Type() != cty.String {
+		return AutoIncludeDependency{}, hcl.Diagnostics{{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid config_path type",
+			Detail:   "dependency config_path must evaluate to a string",
+			Subject:  configPathAttr.Expr.Range().Ptr(),
+		}}
 	}
 
 	return AutoIncludeDependency{

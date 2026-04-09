@@ -174,7 +174,13 @@ func UnitPathsFromStackDir(stackDir string) []string {
 
 	paths := make([]string, 0, len(result.Units))
 	for _, unit := range result.Units {
-		paths = append(paths, filepath.Join(stackDir, StackDir, unit.Path))
+		unitPath := filepath.Join(stackDir, StackDir, unit.Path)
+
+		if unit.NoStack != nil && *unit.NoStack {
+			unitPath = filepath.Join(stackDir, unit.Path)
+		}
+
+		paths = append(paths, unitPath)
 	}
 
 	return paths

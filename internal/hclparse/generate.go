@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -179,11 +180,7 @@ func rangeBytes(src []byte, r hcl.Range) []byte {
 
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
-	return hclwrite.Tokens{
-		{Type: hclsyntax.TokenOQuote, Bytes: []byte{'"'}},
-		{Type: hclsyntax.TokenQuotedLit, Bytes: []byte(value)},
-		{Type: hclsyntax.TokenCQuote, Bytes: []byte{'"'}},
-	}
+	return hclwrite.TokensForValue(cty.StringVal(value))
 }
 
 // rawTokens wraps raw bytes as a single hclwrite token. hclwrite.Format
