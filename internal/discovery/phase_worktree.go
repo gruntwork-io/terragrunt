@@ -33,8 +33,9 @@ type WorktreePhase struct {
 
 // NewWorktreePhase creates a new WorktreePhase.
 func NewWorktreePhase(gitExpressions filter.GitExpressions, numWorkers int) *WorktreePhase {
+	// Default to available CPUs when no explicit worker count is given.
 	if numWorkers <= 0 {
-		numWorkers = runtime.NumCPU()
+		numWorkers = runtime.GOMAXPROCS(0)
 	}
 
 	return &WorktreePhase{
@@ -140,7 +141,7 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 	}
 
 	for _, c := range discoveredComponents.ToComponents() {
-		status, reason, graphIdx := StatusDiscovered, CandidacyReasonNone, -1
+		status, reason, graphIdx := filter.StatusReadyForFilter, filter.CandidacyReasonNone, -1
 
 		if input.Classifier != nil {
 			classCtx := filter.ClassificationContext{}
@@ -156,11 +157,11 @@ func (p *WorktreePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput
 		}
 
 		switch result.Status {
-		case StatusDiscovered:
+		case filter.StatusReadyForFilter:
 			results.AddDiscovered(result)
-		case StatusCandidate:
+		case filter.StatusCandidate:
 			results.AddCandidate(result)
-		case StatusExcluded:
+		case filter.StatusExcluded:
 			// Excluded components are not added
 		}
 	}
@@ -227,15 +228,20 @@ func (p *WorktreePhase) discoverChangesInWorktreeStacks(
 
 	stackDiff := w.Stacks()
 
+	allChanged := make([]worktrees.StackDiffChangedPair, 0, len(stackDiff.Changed)+len(stackDiff.ReadingAffected))
+	allChanged = append(allChanged, stackDiff.Changed...)
+	allChanged = append(allChanged, stackDiff.ReadingAffected...)
+
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(max(1, min(runtime.NumCPU(), len(stackDiff.Added)+len(stackDiff.Removed)+len(stackDiff.Changed)*2)))
+	// Cap workers to the total number of diff operations, but no more than available CPUs (at least 1).
+	g.SetLimit(max(1, min(runtime.GOMAXPROCS(0), len(stackDiff.Added)+len(stackDiff.Removed)+len(allChanged)*2)))
 
 	var (
 		mu   sync.Mutex
-		errs = make([]error, 0, len(stackDiff.Changed))
+		errs = make([]error, 0, len(allChanged))
 	)
 
-	for _, changed := range stackDiff.Changed {
+	for _, changed := range allChanged {
 		g.Go(func() error {
 			components, err := p.walkChangedStack(ctx, l, input, changed.FromStack, changed.ToStack)
 			if err != nil {
@@ -298,7 +304,8 @@ func (p *WorktreePhase) walkChangedStack(
 	var fromComponents, toComponents component.Components
 
 	discoveryGroup, discoveryCtx := errgroup.WithContext(ctx)
-	discoveryGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
+	// Run at most 2 discovery tasks (from/to) in parallel, capped by available CPUs.
+	discoveryGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 	var (
 		mu   sync.Mutex
@@ -396,7 +403,8 @@ func (p *WorktreePhase) walkChangedStack(
 		var fromSHA, toSHA string
 
 		shaGroup, _ := errgroup.WithContext(ctx)
-		shaGroup.SetLimit(min(runtime.NumCPU(), 2)) //nolint:mnd
+		// Hash from/to directories in parallel (at most 2), capped by available CPUs.
+		shaGroup.SetLimit(min(runtime.GOMAXPROCS(0), 2)) //nolint:mnd
 
 		shaGroup.Go(func() error {
 			var localErr error

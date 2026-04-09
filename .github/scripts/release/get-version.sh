@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to get the version from either workflow dispatch input or git ref
 # Usage: get-version.sh
@@ -12,7 +12,7 @@ set -e
 
 function resolve_version {
   # Handle workflow_dispatch event (manual trigger with INPUT_TAG)
-  if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+  if [[ "$EVENT_NAME" = "workflow_dispatch" ]]; then
     if [[ -z "$INPUT_TAG" ]]; then
       echo "ERROR: INPUT_TAG is empty for workflow_dispatch event" >&2
       exit 1
@@ -34,6 +34,8 @@ function resolve_version {
 
   # Strip refs/tags/ prefix and return
   echo "${GITHUB_REF#refs/tags/}"
+
+  return 0
 }
 
 function validate_version {
@@ -49,6 +51,8 @@ function validate_version {
     echo "ERROR: Invalid version format: '$version' (must start with alphanumeric character)" >&2
     exit 1
   fi
+
+  return 0
 }
 
 function main {
@@ -60,6 +64,8 @@ function main {
   # Write to GitHub output
   printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
   printf 'Release version: %s\n' "$version"
+
+  return 0
 }
 
 main "$@"

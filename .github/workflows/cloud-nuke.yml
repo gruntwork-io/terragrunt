@@ -5,12 +5,11 @@ on:
   workflow_dispatch:
 
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   run_cloud_nuke:
+    permissions:
+      id-token: write
+      contents: read
     name: Nuke
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +29,7 @@ jobs:
             VERSION: 0.40.0
 
       - name: Authenticate to AWS
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
         with:
           role-to-assume: ${{ secrets.CLOUD_NUKE_ROLE }}
           aws-region: us-east-1

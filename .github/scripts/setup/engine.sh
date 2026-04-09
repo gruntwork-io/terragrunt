@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 export TOFU_ENGINE_VERSION="v0.0.20"

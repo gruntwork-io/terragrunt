@@ -152,7 +152,7 @@ In the simplest case, a run in a unit with an empty `terragrunt.hcl` file will b
 
 An execution is a single command run by Terragrunt, which does not necessarily have anything to do with OpenTofu/Terraform.
 
-Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/hooks/), [run_cmd](/reference/hcl/functions#run_cmd), etc.
+Ways in which Terragrunt can perform executions are limited to features like [hooks](/features/units/hooks/), [run_cmd](/reference/hcl/functions#run_cmd), etc.
 
 These utilities are part of what makes Terragrunt so powerful, as they allow users to move infrastructure management complexity out of modules.
 
@@ -227,7 +227,7 @@ Like all good feature flags, you are encouraged to use them with good judgement 
 
 ### IaC Engine
 
-[IaC Engines](/features/engine/) (typically abbreviated "Engines") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
+[IaC Engines](/features/units/engine/) (typically abbreviated "Engines") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
 
 Engines allow Terragrunt users to author custom logic for how runs are to be executed in plugins, including defining exactly how OpenTofu/Terraform is to be invoked, where OpenTofu/Terraform is to be invoked, etc.
 

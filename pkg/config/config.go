@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"net/url"
 	"os"
 	"path"
@@ -34,8 +35,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
-
-	"maps"
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
@@ -1188,7 +1187,7 @@ func ParseConfigFile(
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
@@ -1340,9 +1339,9 @@ func ParseConfig(
 		TraceParseBaseBlocksResult(ctx, file.ConfigPath, baseBlocks)
 	}
 
-	if !pctx.SkipOutputsResolution && pctx.DecodedDependencies == nil {
+	if pctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
-		// process.
+		// process. Note: the actual `tofu/terraform output` side effect is gated by SkipOutput, not here.
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = errs.Append(err)
@@ -1945,7 +1944,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}
 		}
 

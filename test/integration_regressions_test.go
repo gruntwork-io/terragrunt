@@ -29,6 +29,10 @@ const (
 	testFixtureScopeEscape                       = "fixtures/regressions/5195-scope-escape"
 	testFixtureNotExistingDependency             = "fixtures/regressions/not-existing-dependency"
 	testFixtureDependencyIncludeError            = "fixtures/regressions/dependency-include-error"
+	testFixtureReadConfigDependencyStack         = "fixtures/regressions/read-config-dependency-stack"
+	testFixtureChainedDepsExposedInclude         = "fixtures/regressions/chained-deps-exposed-include"
+	testFixtureExposedIncludePartialParseError   = "fixtures/regressions/exposed-include-partial-parse-error"
+	testFixtureDAGQueueDisplay                   = "fixtures/regressions/dag-queue-display"
 )
 
 func TestNoAutoInit(t *testing.T) {
@@ -710,4 +714,254 @@ func TestDependencyIncludeError(t *testing.T) {
 	// Verify the command actually completed successfully
 	assert.Contains(t, stdout, "Apply complete!",
 		"Apply should complete successfully")
+}
+
+// TestReadTerragruntConfigDependencyInStack tests that read_terragrunt_config()
+// can parse a config with dependency blocks when running as an implicit stack.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5624
+func TestReadTerragruntConfigDependencyInStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadConfigDependencyStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfigDependencyStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfigDependencyStack)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "\"dependency\" is not defined",
+		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
+}
+
+// TestReadTerragruntConfigDependencyInStackWithRacing exercises the same scenario
+// as TestReadTerragruntConfigDependencyInStack under the race detector.
+// The `run --all` command internally processes units concurrently, which is
+// sufficient to trigger races in the download/cache path.
+// The CI "Race" job runs tests matching .*WithRacing with -race.
+func TestReadTerragruntConfigDependencyInStackWithRacing(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureReadConfigDependencyStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfigDependencyStack)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfigDependencyStack)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all plan --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "\"dependency\" is not defined",
+		"read_terragrunt_config should be able to parse dependency blocks during stack runs")
+}
+
+// TestChainedDepsExposedIncludeNoErrorLog verifies that chaining dependencies with exposed
+// includes does not produce spurious ERROR-level log messages.
+// This is a regression test for https://github.com/gruntwork-io/terragrunt/issues/4153
+// where parsing a dependency's config that has an exposed include on a root config with its
+// own dependency block would log "Could not convert include to the execution ctx to evaluate
+// additional locals" at ERROR level, even though the operation succeeds.
+func TestChainedDepsExposedIncludeNoErrorLog(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureChainedDepsExposedInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureChainedDepsExposedInclude)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// Apply ancestor-dependency first (the dependency referenced by root.hcl)
+	ancestorPath := filepath.Join(rootPath, "ancestor-dependency")
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+ancestorPath+" -- apply -auto-approve")
+
+	// Apply dependency (depends on ancestor-dependency via root.hcl include)
+	depPath := filepath.Join(rootPath, "dependency")
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+depPath+" -- apply -auto-approve")
+
+	// Apply dependent (depends on dependency AND ancestor-dependency via root.hcl include)
+	// This is where the spurious ERROR log previously appeared.
+	dependentPath := filepath.Join(rootPath, "dependent")
+	depStdout, depStderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+dependentPath+" -- apply -auto-approve",
+	)
+	require.NoError(t, err)
+
+	output := depStdout + depStderr
+	assert.NotContains(
+		t,
+		output,
+		"Could not convert include to the execution",
+		"Should not log 'Could not convert include' error when chaining dependencies with exposed includes (issue #4153)",
+	)
+}
+
+// TestExposedIncludePartialParseSucceeds verifies that partial parsing (used during module discovery)
+// succeeds when an included config has an unresolved dependency, because the include resolution error
+// is gracefully swallowed during partial parse.
+func TestExposedIncludePartialParseSucceeds(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	// list --dag triggers partial parsing during discovery.
+	// The child includes root.hcl with expose=true, and root.hcl has a dependency
+	// whose outputs aren't available. During partial parse, this should be tolerated.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt list --dag --format=dot --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "Partial parsing should succeed even when exposed include has unresolved dependency")
+	assert.Contains(t, stdout, "child")
+	assert.Contains(t, stdout, "unreachable-dep")
+}
+
+// TestExposedIncludeFullParseReturnsError verifies that full parsing surfaces an error when an
+// included config (with expose=true) has a dependency whose outputs cannot be resolved.
+// This ensures we only swallow include resolution errors during partial parse, not during full parse.
+func TestExposedIncludeFullParseReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExposedIncludePartialParseError)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureExposedIncludePartialParseError)
+
+	helpers.CleanupTerraformFolder(t, rootPath)
+
+	childPath := filepath.Join(rootPath, "child")
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+childPath+" -- plan",
+	)
+	require.Error(t, err, "Full parsing should fail when exposed include has unresolved dependency")
+	assert.Contains(t, stderr, "detected no outputs",
+		"Error should mention that dependency has no outputs")
+}
+
+// TestQueueDisplayOrder verifies that the flat queue display lists units in
+// dependency order: dependencies before dependents.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
+func TestQueueDisplayOrder(t *testing.T) {
+	t.Parallel()
+
+	if helpers.IsExperimentMode(t) {
+		t.Skip("Skipping: experiment mode enables dag-queue-display which changes queue output format")
+	}
+
+	// The fixture has the chain: vpc -> database -> backend-app -> frontend-app
+	// plus monitoring (independent).
+
+	t.Run("up", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan",
+		)
+		require.NoError(t, err)
+
+		// In apply order, dependencies come before their dependents.
+		vpcIdx := strings.Index(stderr, "vpc")
+		databaseIdx := strings.Index(stderr, "database")
+		backendIdx := strings.Index(stderr, "backend-app")
+		frontendIdx := strings.Index(stderr, "frontend-app")
+
+		assert.Greater(t, vpcIdx, -1, "vpc should appear in output")
+		assert.Greater(t, databaseIdx, -1, "database should appear in output")
+		assert.Greater(t, backendIdx, -1, "backend-app should appear in output")
+		assert.Greater(t, frontendIdx, -1, "frontend-app should appear in output")
+
+		assert.Less(t, vpcIdx, databaseIdx, "vpc should appear before database")
+		assert.Less(t, databaseIdx, backendIdx, "database should appear before backend-app")
+		assert.Less(t, backendIdx, frontendIdx, "backend-app should appear before frontend-app")
+	})
+
+	t.Run("down", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --working-dir "+rootPath+" -- plan -destroy",
+		)
+		require.NoError(t, err)
+
+		// In destroy order, dependents come before their dependencies.
+		frontendIdx := strings.Index(stderr, "frontend-app")
+		backendIdx := strings.Index(stderr, "backend-app")
+		databaseIdx := strings.Index(stderr, "database")
+		vpcIdx := strings.Index(stderr, "vpc")
+
+		assert.Greater(t, frontendIdx, -1, "frontend-app should appear in output")
+		assert.Greater(t, backendIdx, -1, "backend-app should appear in output")
+		assert.Greater(t, databaseIdx, -1, "database should appear in output")
+		assert.Greater(t, vpcIdx, -1, "vpc should appear in output")
+
+		assert.Less(t, frontendIdx, backendIdx, "frontend-app should appear before backend-app")
+		assert.Less(t, backendIdx, databaseIdx, "backend-app should appear before database")
+		assert.Less(t, databaseIdx, vpcIdx, "database should appear before vpc")
+	})
+}
+
+// TestDAGQueueDisplay verifies that the run queue is displayed as a DAG tree
+// showing dependency hierarchy, and that the header message differs for
+// up (plan) vs down (plan -destroy) commands.
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5035
+func TestDAGQueueDisplay(t *testing.T) {
+	t.Parallel()
+
+	expectedUpTree := `.
+├── monitoring
+╰── vpc
+    ╰── database
+        ╰── backend-app
+            ╰── frontend-app`
+
+	expectedDownTree := `.
+├── monitoring
+╰── frontend-app
+    ╰── backend-app
+        ╰── database
+            ╰── vpc`
+
+	t.Run("up", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan",
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stderr, "starting with dependencies and then their dependents")
+		assert.Contains(t, stderr, expectedUpTree)
+	})
+
+	t.Run("down", func(t *testing.T) {
+		t.Parallel()
+
+		helpers.CleanupTerraformFolder(t, testFixtureDAGQueueDisplay)
+		tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDAGQueueDisplay)
+		rootPath := filepath.Join(tmpEnvPath, testFixtureDAGQueueDisplay)
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+			t, "terragrunt run --all --non-interactive --no-color --experiment dag-queue-display --working-dir "+rootPath+" -- plan -destroy",
+		)
+		require.NoError(t, err)
+
+		assert.Contains(t, stderr, "starting with dependents and then their dependencies")
+		assert.Contains(t, stderr, expectedDownTree)
+	})
 }

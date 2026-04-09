@@ -3,10 +3,6 @@ name: CI
 on:
   push:
 
-# Restrict default GITHUB_TOKEN to read-only; jobs needing more (e.g. checks: write) declare it explicitly
-permissions:
-  contents: read
-
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -14,34 +10,50 @@ concurrency:
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   precommit:
     uses: ./.github/workflows/precommit.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   codespell:
     uses: ./.github/workflows/codespell.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   go_mod_tidy_check:
     uses: ./.github/workflows/go-mod-tidy-check.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   markdownlint:
     uses: ./.github/workflows/markdownlint.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   install_script_test:
     uses: ./.github/workflows/install-script-test.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   license_check:
     uses: ./.github/workflows/license-check.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   fuzz:
     uses: ./.github/workflows/fuzz.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
@@ -58,6 +70,8 @@ jobs:
   build:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   build_no_proxy:
@@ -65,6 +79,16 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build-no-proxy.yml
+    permissions:
+      contents: read
+    secrets: inherit
+
+  coverage_compare:
+    needs: [base_tests]
+    uses: ./.github/workflows/coverage-compare-main.yml
+    permissions:
+      contents: read
+      actions: read
     secrets: inherit
 
   integration_tests:

@@ -16,10 +16,6 @@ var (
 	FlagSplitter = strings.Split
 )
 
-// FlagStringer converts a flag definition to a string. This is used by help
-// to display a flag.
-var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
-
 // FlagSetterFunc represents function type that is called when the flag is specified.
 // Unlike `FlagActionFunc` where the function is called after the value has been parsed and assigned to the `Destination` field,
 // `FlagSetterFunc` is called earlier, during the variable parsing.
@@ -273,10 +269,6 @@ func (flag *flag) GetCategory() string {
 // AllowedSubcommandScope implements `cli.Flag` interface.
 func (flag *flag) AllowedSubcommandScope() bool {
 	return true
-}
-
-func (flag *flag) SplitValue(val string) []string {
-	return []string{val}
 }
 
 func ApplyFlag(flag Flag, set *libflag.FlagSet) error {

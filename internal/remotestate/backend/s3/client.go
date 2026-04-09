@@ -466,7 +466,7 @@ func (client *Client) CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(c
 
 	l.Debugf("Create S3 bucket %s with versioning, SSE encryption, and access logging.", cfg.Bucket)
 
-	err := client.CreateS3Bucket(ctx, l, cfg.Bucket)
+	err := client.CreateS3Bucket(ctx, l, cfg.Bucket, CreateS3BucketOpts{Tags: client.S3BucketTags})
 	if err != nil {
 		if accessError := client.checkBucketAccess(ctx, cfg.Bucket, cfg.Key); accessError != nil {
 			return accessError
@@ -554,7 +554,7 @@ func (client *Client) CreateLogsS3BucketIfNecessary(ctx context.Context, l log.L
 	}
 
 	if shouldCreateBucket {
-		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName)
+		return client.CreateS3BucketWithRetry(ctx, l, logsBucketName, CreateS3BucketOpts{Tags: client.AccessLoggingBucketTags})
 	}
 
 	return nil
@@ -666,8 +666,16 @@ func (client *Client) WaitUntilS3BucketExists(ctx context.Context, l log.Logger,
 	return errors.New(MaxRetriesWaitingForS3BucketExceeded(bucketName))
 }
 
+// CreateS3BucketOpts holds optional parameters for CreateS3Bucket.
+type CreateS3BucketOpts struct {
+	// Tags to apply at bucket creation time via CreateBucketConfiguration.Tags.
+	// This is required in environments where an AWS SCP or tag policy enforces
+	// mandatory tags on s3:CreateBucket.
+	Tags map[string]string
+}
+
 // CreateS3Bucket creates the S3 bucket specified in the given config.
-func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string) error {
+func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket string, opts ...CreateS3BucketOpts) error {
 	if client.s3Client == nil {
 		return errors.Errorf("S3 client is nil - cannot create S3 bucket %s", bucket)
 	}
@@ -689,6 +697,18 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 		}
 	}
 
+	if len(opts) > 0 && len(opts[0].Tags) > 0 {
+		l.Debugf("Including %d tag(s) in CreateBucket request for %s", len(opts[0].Tags), bucket)
+
+		sdkTags := convertTags(opts[0].Tags)
+
+		if input.CreateBucketConfiguration == nil {
+			input.CreateBucketConfiguration = &types.CreateBucketConfiguration{}
+		}
+
+		input.CreateBucketConfiguration.Tags = sdkTags
+	}
+
 	_, err := client.s3Client.CreateBucket(ctx, input)
 	if err != nil {
 		return errors.New(err)
@@ -703,11 +723,11 @@ func (client *Client) CreateS3Bucket(ctx context.Context, l log.Logger, bucket s
 // - Retry logic for transient errors
 // - Concurrent creation handling (BucketAlreadyOwnedByYou)
 // - Eventual consistency waiting after creation
-func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string) error {
+func (client *Client) CreateS3BucketWithRetry(ctx context.Context, l log.Logger, bucketName string, opts ...CreateS3BucketOpts) error {
 	description := "Create S3 bucket '" + bucketName + "' with retry"
 
 	return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, l, log.DebugLevel, func(ctx context.Context) error {
-		err := client.CreateS3Bucket(ctx, l, bucketName)
+		err := client.CreateS3Bucket(ctx, l, bucketName, opts...)
 		if err != nil {
 			if isBucketAlreadyOwnedByYouError(err) {
 				l.Debugf("Looks like you're already creating bucket %s at the same time. Will not attempt to create it again.", bucketName)
@@ -1678,16 +1698,6 @@ func (client *Client) DoesTableItemExist(ctx context.Context, tableName, key str
 	return exists, nil
 }
 
-func (client *Client) DoesTableItemExistWithLogging(ctx context.Context, l log.Logger, tableName, key string) (bool, error) {
-	if exists, err := client.DoesTableItemExist(ctx, tableName, key); err != nil || exists {
-		return exists, err
-	}
-
-	l.Debugf("Remote state DynamoDB table %s item %s does not exist or you don't have permissions to access it.", tableName, key)
-
-	return false, nil
-}
-
 // MoveS3Object copies the S3 object at the specified srcKey to dstKey and then removes srcKey.
 func (client *Client) MoveS3Object(ctx context.Context, l log.Logger, srcBucketName, srcKey, dstBucketName, dstKey string) error {
 	if err := client.CopyS3BucketObject(ctx, l, srcBucketName, srcKey, dstBucketName, dstKey); err != nil {
@@ -2011,6 +2021,11 @@ func (client *Client) CreateTableItemIfNecessary(ctx context.Context, l log.Logg
 // GetDynamoDBClient returns the DynamoDB client for testing purposes.
 func (client *Client) GetDynamoDBClient() *dynamodb.Client {
 	return client.dynamoClient
+}
+
+// GetS3Client returns the S3 client for testing purposes.
+func (client *Client) GetS3Client() *s3.Client {
+	return client.s3Client
 }
 
 // isAWSResourceNotFoundError checks if an error indicates that an AWS resource was not found

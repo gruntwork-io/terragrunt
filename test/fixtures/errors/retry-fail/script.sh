@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # script that will  fail before $1 attempts
 
 RETRY_ATTEMPTS="$1"
@@ -8,13 +8,13 @@ if [[ ! -f "$COUNTER_FILE" ]]; then
     echo "0" > "$COUNTER_FILE"
 fi
 
-CURRENT_COUNT=$(($(cat "$COUNTER_FILE") + 1))
+CURRENT_COUNT=$(($(< "$COUNTER_FILE") + 1))
 
 echo "$CURRENT_COUNT" > "$COUNTER_FILE"
 
 echo "Current attempt: $CURRENT_COUNT"
 
-if [ "$CURRENT_COUNT" -eq "$RETRY_ATTEMPTS" ]; then
+if (( CURRENT_COUNT == RETRY_ATTEMPTS )); then
     echo "Success !"
     echo "0" > "$COUNTER_FILE"
     exit 0

@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to create ZIP and TAR.GZ archives for each binary
 # Usage: create-archives.sh <bin-directory>
@@ -9,7 +9,7 @@ function main {
   local -r bin_dir="${1:-bin}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -44,6 +44,8 @@ function main {
 
   # Return to original directory
   popd || return 1
+
+  return 0
 }
 
 main "$@"

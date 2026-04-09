@@ -32,7 +32,7 @@ You may see deprecation warnings, and new HCL configurations will continue to be
 
 ### Run Report
 
-The [Run Report](/features/run-report/) generated using the [`--report-file`](/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by [`--report-schema-file`](/reference/cli/commands/run/#report-schema-file). You can also find the schema at the URL listed in the `$id` field, e.g., https://docs.terragrunt.com/schemas/run/report/v4/schema.json.
+The [Run Report](/features/stacks/run-report/) generated using the [`--report-file`](/reference/cli/commands/run/#report-file) flag can be parsed using the schema output by [`--report-schema-file`](/reference/cli/commands/run/#report-schema-file). You can also find the schema at the URL listed in the `$id` field, e.g., https://docs.terragrunt.com/schemas/run/report/v4/schema.json.
 
 Any modifications made to the schema that break parsing of existing report files using a modern JSON parser will only be done on an opt-in basis for the duration of 1.x, and you will be able to use the `$id` field of the generated schema to confirm that you are parsing a file with an expected schema.
 

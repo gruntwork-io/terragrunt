@@ -1,0 +1,47 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import StrictControlEntries from '@components/StrictControlEntries.astro';
+import { getCollection } from 'astro:content';
+import { sidebar } from '../../../data/sidebar';
+
+const showUnreleased = import.meta.env.DEV;
+
+const allEntries = await getCollection('strictControls');
+
+const entries = allEntries
+	.filter((e) => e.data.status === 'active')
+	.sort((a, b) => a.data.name.localeCompare(b.data.name));
+
+const headings: { depth: number; slug: string; text: string }[] = [];
+
+for (const entry of entries) {
+	headings.push({ depth: 2, slug: entry.data.name, text: entry.data.name });
+
+	const h3Lines = entry.body?.match(/^### .+/gm) ?? [];
+	for (const line of h3Lines) {
+		const text = line.replace(/^### /, '').replaceAll('`', '');
+		const slug = text
+			.toLowerCase()
+			.replace(/[^\w\s-]/g, '')
+			.trim()
+			.replace(/\s+/g, '-');
+		headings.push({ depth: 3, slug, text });
+	}
+}
+---
+
+<StarlightPage
+	frontmatter={{
+		title: 'Active Strict Controls',
+		description: 'Strict controls that convert deprecated feature warnings into errors.',
+	}}
+	headings={headings}
+	sidebar={sidebar}
+>
+	<p>
+		The following strict controls are available. See the <a href="/reference/strict-controls">strict controls overview</a> for how to enable them.
+	</p>
+	<hr />
+	<StrictControlEntries status="active" showUnreleased={showUnreleased} />
+</StarlightPage>

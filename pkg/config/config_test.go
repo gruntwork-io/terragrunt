@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -112,6 +113,54 @@ remote_state = {
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.True(t, terragruntConfig.RemoteState.DisableInit)
 		assert.False(t, terragruntConfig.RemoteState.DisableDependencyOptimization)
+	}
+}
+
+// TestParseTerragruntConfigRemoteStateTernaryUseLockfile reproduces issue #5646:
+// when remote_state.config is produced from a local resolved with a ternary operator,
+// HCL type unification converts bool values (like use_lockfile) to strings.
+// The S3 backend must normalize these back to native bools before codegen.
+func TestParseTerragruntConfigRemoteStateTernaryUseLockfile(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+locals {
+  is_prod = true
+  remote_state_config = local.is_prod ? {
+    bucket       = "prod-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  } : {
+    bucket       = "dev-bucket"
+    key          = "terraform.tfstate"
+    region       = "us-west-2"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
+
+remote_state {
+  backend = "s3"
+  config  = local.remote_state_config
+}
+`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	if assert.NotNil(t, terragruntConfig.RemoteState) {
+		assert.Equal(t, "s3", terragruntConfig.RemoteState.BackendName)
+		assert.Equal(t, "prod-bucket", terragruntConfig.RemoteState.BackendConfig["bucket"])
+
+		// After parsing, verify S3 backend normalizes string bools in GetTFInitArgs
+		s3Backend := s3.NewBackend()
+		initArgs := s3Backend.GetTFInitArgs(terragruntConfig.RemoteState.BackendConfig)
+		assert.IsType(t, true, initArgs["use_lockfile"])
 	}
 }
 

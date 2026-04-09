@@ -273,7 +273,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(
+	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
 		terraformSource,
@@ -434,7 +434,7 @@ func testDownloadTerraformSourceIfNecessary(
 
 	require.NoError(t, err)
 
-	err = run.DownloadTerraformSourceIfNecessary(
+	_, err = run.DownloadTerraformSourceIfNecessary(
 		t.Context(),
 		logger.CreateLogger(),
 		terraformSource,
@@ -774,7 +774,7 @@ func TestDownloadSourceWithCASExperimentDisabled(t *testing.T) {
 	// Mock the download source function call
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 
 	require.NoError(t, err)
 
@@ -817,7 +817,7 @@ func TestDownloadSourceWithCASExperimentEnabled(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -859,7 +859,7 @@ func TestDownloadSourceWithCASGitSource(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	// Verify the file was downloaded
@@ -900,7 +900,7 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	r := report.NewReport()
 
-	err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+	_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 	require.NoError(t, err)
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
@@ -962,7 +962,7 @@ func TestDownloadSourceWithCASMultipleSources(t *testing.T) {
 				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
 			}
 
-			err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
+			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, r)
 
 			if tc.name == "Local file source" {
 				require.NoError(t, err)

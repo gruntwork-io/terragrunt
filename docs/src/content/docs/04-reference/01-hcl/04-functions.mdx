@@ -93,7 +93,7 @@ include "root" {
 ```
 
 Note that this function searches relative to the `terragrunt.hcl` file when called from a parent config. For
-example, if you had the following folder structure:
+example, if you had the following filesystem layout:
 
 <FileTree>
 
@@ -122,7 +122,7 @@ finding the `env.hcl` file in the `prod` directory.
 
 ## path_relative_to_include
 
-`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following folder structure:
+`path_relative_to_include()` returns the relative path between the current `terragrunt.hcl` file and the `path` specified in its `include` block. For example, consider the following filesystem layout:
 
 <FileTree>
 
@@ -186,7 +186,7 @@ terraform {
 
 ## path_relative_from_include
 
-`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following folder structure:
+`path_relative_from_include()` returns the relative path between the `path` specified in its `include` block and the current `terragrunt.hcl` file (it is the counterpart of `path_relative_to_include()`). For example, consider the following filesystem layout:
 
 <FileTree>
 
@@ -529,7 +529,7 @@ configs via `read_terragrunt_config()`.
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -544,7 +544,7 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -560,7 +560,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -576,7 +576,7 @@ terraform {
 
 ## get_terraform_commands_that_need_parallelism
 
-`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments](/features/units/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl

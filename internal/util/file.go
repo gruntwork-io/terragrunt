@@ -29,7 +29,6 @@ const (
 	TerraformCacheDir     = ".terraform"
 	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
-	TfFileExtension       = ".tf"
 	ChecksumReadBlock     = 8192
 )
 
@@ -66,7 +65,7 @@ func FileExists(path string) bool {
 // FileNotExists returns true if the given file does not exist.
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
-	return os.IsNotExist(err)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
@@ -74,7 +73,7 @@ func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
 		return errors.New(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
-		const ownerReadWriteExecutePerms = 0700
+		const ownerReadWriteExecutePerms = 0o700
 
 		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
@@ -96,74 +95,6 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	}
 
 	return filepath.Clean(path), nil
-}
-
-// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]string, error) {
-	if len(globPaths) == 0 {
-		return []string{}, nil
-	}
-
-	var err error
-
-	// Ensure basePath is canonical
-	basePath, err = CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	for _, globPath := range globPaths {
-		// Log a warning if globPath uses the old glob pattern
-		if strings.HasSuffix(globPath, "**/*") {
-			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
-		}
-
-		// Ensure globPath are absolute
-		if !filepath.IsAbs(globPath) {
-			globPath = filepath.Join(basePath, globPath)
-		}
-
-		const stackDir = "/.terragrunt-stack/"
-
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
-			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(filepath.Clean(globPath), stackDir) {
-			// when using the stack feature, the directory may not exist yet,
-			// as stack generation occurs after parsing the argument flags.
-			paths = append(paths, globPath)
-		}
-	}
-
-	// Make sure all paths are canonical
-	for i := range paths {
-		paths[i], err = CanonicalPath(paths[i], basePath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return paths, nil
-}
-
-// CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
-// relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
-// components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
-func CanonicalPaths(paths []string, basePath string) ([]string, error) {
-	canonicalPaths := []string{}
-
-	for _, path := range paths {
-		canonicalPath, err := CanonicalPath(path, basePath)
-		if err != nil {
-			return canonicalPaths, err
-		}
-
-		canonicalPaths = append(canonicalPaths, canonicalPath)
-	}
-
-	return canonicalPaths, nil
 }
 
 // Grep returns true if the given regex can be found in any of the files matched by the given glob.
@@ -453,7 +384,7 @@ func CopyFolderContents(
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
-	const ownerReadWriteExecutePerms = 0700
+	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
@@ -514,7 +445,7 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 		} else {
 			parentDir := filepath.Dir(dest)
 
-			const ownerReadWriteExecutePerms = 0700
+			const ownerReadWriteExecutePerms = 0o700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.New(err)
 			}
@@ -573,17 +504,19 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
-	contents, err := os.ReadFile(source)
+	file, err := os.Open(source)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	return WriteFileWithSamePermissions(source, destination, contents)
+	err = WriteFileWithSamePermissions(source, destination, file)
+
+	return errors.New(errors.Join(err, file.Close()))
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
 // using the same permissions as the file at source.
-func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
+func WriteFileWithSamePermissions(source string, destination string, contents io.Reader) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
 		return errors.New(err)
@@ -592,12 +525,19 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	// If destination exists, remove it first to avoid permission issues
 	// This is especially important when CAS creates read-only files
 	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return errors.New(err)
 		}
 	}
 
-	return os.WriteFile(destination, contents, fileInfo.Mode())
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(file, contents)
+
+	return errors.Join(err, file.Close())
 }
 
 // ContainsPath returns true if path contains the given subpath
@@ -718,7 +658,7 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 				return errors.New(err)
 			}
 		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return errors.New(err)
 			}
 		}
@@ -729,7 +669,7 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
@@ -795,7 +735,7 @@ func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) 
 			return err
 		}
 
-		if !d.IsDir() && filepath.Ext(path) == TfFileExtension {
+		if !d.IsDir() && IsTFFile(path) {
 			tfFiles = append(tfFiles, path)
 		}
 

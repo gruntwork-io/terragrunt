@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Apple certificate used to validate developer certificates https://www.apple.com/certificateauthority/
 readonly APPLE_ROOT_CERTIFICATE="http://certs.apple.com/devidg2.der"
@@ -9,15 +9,17 @@ function print_usage {
   echo
   echo "Usage: $0 [OPTIONS] <Path to files used to sign...>"
   echo
-  echo -e "  MACOS_CERTIFICATE\t\tMac developer certificate in P12 format, encoded in base64."
-  echo -e "  MACOS_CERTIFICATE_PASSWORD\tMac certificate password"
+  printf '  MACOS_CERTIFICATE\t\tMac developer certificate in P12 format, encoded in base64.\n'
+  printf '  MACOS_CERTIFICATE_PASSWORD\tMac certificate password\n'
   echo
   echo "Optional Arguments:"
-  echo -e "  --macos-skip-root-certificate\t\tSkip importing Apple Root certificate. Useful when running in already configured environment."
-  echo -e "  --help\t\t\t\tShow this help text and exit."
+  printf '  --macos-skip-root-certificate\t\tSkip importing Apple Root certificate. Useful when running in already configured environment.\n'
+  printf '  --help\t\t\t\tShow this help text and exit.\n'
   echo
   echo "Examples:"
   echo "  $0 sign.hcl"
+
+  return 0
 }
 
 function main {
@@ -36,7 +38,7 @@ function main {
         exit
         ;;
       -* )
-        echo "ERROR: Unrecognized argument: $key"
+        echo "ERROR: Unrecognized argument: $key" >&2
         print_usage
         exit 1
         ;;
@@ -48,13 +50,17 @@ function main {
   ensure_macos
   import_certificate_mac "${mac_skip_root_certificate}"
   sign_mac "${assets[@]}"
+
+  return 0
 }
 
 function ensure_macos {
   if [[ $OSTYPE != 'darwin'* ]]; then
-    echo -e "Signing of Mac binaries is supported only on MacOS"
+    echo "Signing of Mac binaries is supported only on MacOS" >&2
     exit 1
   fi
+
+  return 0
 }
 
 function sign_mac {
@@ -64,6 +70,8 @@ function sign_mac {
     echo "Signing ${filepath}"
     "${gon_cmd}" -log-level=info "${filepath}"
   done
+
+  return 0
 }
 
 function import_certificate_mac {
@@ -91,6 +99,8 @@ function import_certificate_mac {
     sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain certificate.der
   fi
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keystore_pw}" "${db_file}"
+
+  return 0
 }
 
 function assert_env_var_not_empty {
@@ -98,9 +108,11 @@ function assert_env_var_not_empty {
   local -r var_value="${!var_name}"
 
   if [[ -z "$var_value" ]]; then
-    echo "ERROR: Required environment $var_name not set."
+    echo "ERROR: Required environment $var_name not set." >&2
     exit 1
   fi
+
+  return 0
 }
 
 main "$@"

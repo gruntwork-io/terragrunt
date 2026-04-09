@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to prepare macOS artifacts for signing
 # Usage: prepare-macos-artifacts.sh <artifacts-dir> <bin-dir>
@@ -10,7 +10,7 @@ function main {
   local -r bin_dir="${2:-bin}"
 
   if [[ ! -d "$artifacts_dir" ]]; then
-    echo "ERROR: Artifacts directory $artifacts_dir does not exist"
+    echo "ERROR: Artifacts directory $artifacts_dir does not exist" >&2
     exit 1
   fi
 
@@ -24,12 +24,14 @@ function main {
 
   # Verify we found macOS binaries
   if ! ls "$bin_dir"/terragrunt_darwin_* > /dev/null 2>&1; then
-    echo "ERROR: No macOS binaries (terragrunt_darwin_*) found in $artifacts_dir"
+    echo "ERROR: No macOS binaries (terragrunt_darwin_*) found in $artifacts_dir" >&2
     exit 1
   fi
 
   echo "Binary files to sign:"
   ls -lahrt "$bin_dir"/*
+
+  return 0
 }
 
 main "$@"

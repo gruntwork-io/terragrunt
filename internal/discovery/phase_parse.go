@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
@@ -51,7 +52,7 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 
 	componentsToParse := make([]DiscoveryResult, 0, len(input.Candidates))
 	for _, candidate := range input.Candidates {
-		if candidate.Reason == CandidacyReasonRequiresParse {
+		if candidate.Reason == filter.CandidacyReasonRequiresParse {
 			componentsToParse = append(componentsToParse, candidate)
 
 			continue
@@ -66,8 +67,8 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 		for _, c := range input.Components {
 			componentsToParse = append(componentsToParse, DiscoveryResult{
 				Component: c,
-				Status:    StatusDiscovered,
-				Reason:    CandidacyReasonNone,
+				Status:    filter.StatusReadyForFilter,
+				Reason:    filter.CandidacyReasonNone,
 				Phase:     PhaseParse,
 			})
 		}
@@ -103,11 +104,11 @@ func (p *ParsePhase) Run(ctx context.Context, l log.Logger, input *PhaseInput) (
 			}
 
 			switch result.Status {
-			case StatusDiscovered:
+			case filter.StatusReadyForFilter:
 				results.AddDiscovered(*result)
-			case StatusCandidate:
+			case filter.StatusCandidate:
 				results.AddCandidate(*result)
-			case StatusExcluded:
+			case filter.StatusExcluded:
 				// Excluded components are not added
 			}
 
@@ -136,19 +137,14 @@ func (p *ParsePhase) parseAndReclassify(
 ) (*DiscoveryResult, error) {
 	c := candidate.Component
 
-	_, ok := c.(*component.Unit)
-	if !ok {
-		return &candidate, nil
-	}
-
 	if err := parseComponent(ctx, l, c, opts, discovery); err != nil {
 		if discovery.suppressParseErrors {
 			l.Debugf("Suppressed parse error for %s: %v", c.Path(), err)
 
 			return &DiscoveryResult{
 				Component: c,
-				Status:    StatusExcluded,
-				Reason:    CandidacyReasonNone,
+				Status:    filter.StatusExcluded,
+				Reason:    filter.CandidacyReasonNone,
 				Phase:     PhaseParse,
 			}, nil
 		}
@@ -167,8 +163,8 @@ func (p *ParsePhase) parseAndReclassify(
 			if len(matched) > 0 {
 				return &DiscoveryResult{
 					Component: c,
-					Status:    StatusDiscovered,
-					Reason:    CandidacyReasonNone,
+					Status:    filter.StatusReadyForFilter,
+					Reason:    filter.CandidacyReasonNone,
 					Phase:     PhaseParse,
 				}, nil
 			}
@@ -233,6 +229,10 @@ func parseComponent(
 	parseOpts.SkipOutput = true
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
+
+	if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, configbridge.ShellRunOptsFromOpts(parseOpts)); err != nil {
+		return err
+	}
 
 	ctx, parsingCtx := configbridge.NewParsingContext(ctx, l, parseOpts)
 	parsingCtx = parsingCtx.WithDecodeList(

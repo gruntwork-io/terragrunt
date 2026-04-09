@@ -22,11 +22,6 @@ type ReverseProxy struct {
 	Logger log.Logger
 }
 
-func (reverseProxy ReverseProxy) WithRewrite(fn func(req *httputil.ProxyRequest)) *ReverseProxy {
-	reverseProxy.Rewrite = fn
-	return &reverseProxy
-}
-
 func (reverseProxy ReverseProxy) WithModifyResponse(fn func(resp *http.Response) error) *ReverseProxy {
 	reverseProxy.ModifyResponse = fn
 	return &reverseProxy

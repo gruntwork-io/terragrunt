@@ -20,6 +20,10 @@ terragrunt
 .licensei.cache
 bin
 
+# Coverage reports
+coverage-summary.*
+comparison-report.*
+
 # Windows code signing resources
 rsrc.syso
 resource.syso

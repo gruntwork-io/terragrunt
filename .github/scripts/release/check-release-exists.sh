@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to check if a GitHub release exists for a given tag
 # Usage: check-release-exists.sh
@@ -46,6 +46,8 @@ function main {
   printf '  Release ID: %s\n' "$release_id"
   printf '  Draft: %s\n' "$is_draft"
   printf '  Upload URL: %s\n' "${upload_url%\{*}"
+
+  return 0
 }
 
 main "$@"

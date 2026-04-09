@@ -1,0 +1,364 @@
+---
+title: Explicit Stacks
+description: Define stacks using terragrunt.stack.hcl files for reusable patterns.
+slug: features/stacks/explicit
+sidebar:
+  order: 3
+---
+
+import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
+
+### What is a terragrunt.stack.hcl file?
+
+A `terragrunt.stack.hcl` file is a blueprint that defines how to generate Terragrunt configurations programmatically. It tells Terragrunt:
+
+- What units to create.
+- Where to get their configurations from.
+- Where to place them in the directory structure.
+- What values to pass to each unit.
+
+<Aside type="caution">
+It is invalid for a unit to contain a `terragrunt.stack.hcl` file and for a stack to contain a `terragrunt.hcl` file. If either is true, Terragrunt will throw an error.
+
+This is to prevent ambiguity in deciding whether a component is a unit or a stack.
+</Aside>
+
+### Supported Configuration Blocks
+
+#### `unit` blocks - Define Individual Infrastructure Components
+
+- **Purpose**: Define a single, deployable piece of infrastructure.
+- **Use case**: When you want to create a single piece of isolated infrastructure (e.g. a specific VPC, database, or application).
+- **Result**: Generates a directory with a single `terragrunt.hcl` file in the specified `path` from the specified `source`.
+
+#### `stack` blocks - Define Reusable Infrastructure Patterns
+
+- **Purpose**: Define a stack of units to be deployed together.
+- **Use case**: When you have a common, multi-unit pattern (like "dev environment" or "three-tier web application") that you want to deploy multiple times.
+- **Result**: Generates a directory with another `terragrunt.stack.hcl` file in the specified `path` from the specified `source`.
+
+### Example: Simple Stack with Units
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = "main"
+    cidr     = "10.0.0.0/16"
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    engine   = "postgres"
+    version  = "13"
+    vpc_path = "../vpc"
+  }
+}
+```
+
+Running `terragrunt stack generate` in the directory containing that `terragrunt.stack.hcl` file generates:
+
+<FileTree>
+
+- .terragrunt-stack
+  - vpc
+    - terragrunt.hcl
+    - terragrunt.values.hcl
+  - database
+    - terragrunt.hcl
+    - terragrunt.values.hcl
+
+</FileTree>
+
+<Aside type="note">
+Note that the contents are generated into a `.terragrunt-stack` directory. This is to make it convenient to add `.terragrunt-stack` to your `.gitignore` file, and always generate the stack on demand instead of checking it in.
+
+Also note the `terragrunt.values.hcl` files generated next to the `terragrunt.hcl` files of the units. These files contain the values specified in the `values` block for the unit.
+</Aside>
+
+### Example: Nested Stack with Reusable Patterns
+
+```hcl
+# terragrunt.stack.hcl
+
+stack "dev" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "dev"
+  values = {
+    environment = "development"
+    cidr        = "10.0.0.0/16"
+  }
+}
+
+stack "prod" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//stacks/environment?ref=v0.0.1"
+  path   = "prod"
+  values = {
+    environment = "production"
+    cidr        = "10.1.0.0/16"
+  }
+}
+```
+
+The referenced stack might contain:
+
+```hcl
+# stacks/environment/terragrunt.stack.hcl
+
+unit "vpc" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/vpc?ref=v0.0.1"
+  path   = "vpc"
+  values = {
+    vpc_name = values.environment
+    cidr     = values.cidr
+  }
+}
+
+unit "database" {
+  source = "git::git@github.com:acme/infrastructure-catalog.git//units/database?ref=v0.0.1"
+  path   = "database"
+  values = {
+    environment = values.environment
+    vpc_path    = "../vpc"
+  }
+}
+```
+
+Running `terragrunt stack generate` in the directory containing that `terragrunt.stack.hcl` file generates:
+
+<FileTree>
+
+- .terragrunt-stack
+  - dev
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+      - database
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+  - prod
+    - terragrunt.stack.hcl
+    - .terragrunt-stack
+      - vpc
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+      - database
+        - terragrunt.hcl
+        - terragrunt.values.hcl
+
+</FileTree>
+
+### Working with Explicit Stacks
+
+```bash
+# Generate units from the `terragrunt.stack.hcl` file in the current
+# working directory (and all stacks in child directories).
+terragrunt stack generate
+
+# Deploy all generated units defined using the `terragrunt.stack.hcl` file
+# in the current working directory (and any units generated by stacks in this file).
+#
+# Note that this will also automatically generate the stack if it is not already generated.
+terragrunt stack run apply
+```
+
+### Advantages of Explicit Stacks
+
+- **Reusability**: Define patterns once, reuse them across environments.
+- **Consistency**: Ensure all environments follow the same structure.
+- **Version Control**: Version collections of infrastructure patterns alongside the units of infrastructure that make them up.
+- **Automation**: Generate complex infrastructure from simple blueprints.
+- **Flexibility**: Easy to create variations with different values.
+
+### Limitations of Explicit Stacks
+
+- **Complexity**: Requires understanding another configuration file.
+- **Generation Overhead**: Units must be generated before use.
+- **Debugging**: Generated files can be harder to debug if you accidentally generate files that are not what you intended.
+
+## Stack Outputs
+
+When defining a stack using a `terragrunt.stack.hcl` file, you also have the ability to interact with the aggregated outputs of all the units in the stack from the CLI.
+
+To do this, use the [`stack output`](/reference/cli/commands/stack/output) command (not the [`stack run output`](/reference/cli/commands/stack/run) command).
+
+```bash
+$ terragrunt stack output
+backend_app = {
+  domain = "backend-app.example.com"
+}
+frontend_app = {
+  domain = "frontend-app.example.com"
+}
+mysql = {
+  endpoint = "terraform-20250504140737772400000001.abcdefghijkl.us-east-1.rds.amazonaws.com"
+}
+valkey = {
+  endpoint = "serverless-valkey-01.amazonaws.com"
+}
+vpc = {
+  vpc_id = "vpc-1234567890"
+}
+```
+
+This returns a single aggregated HCL object aggregating all the outputs for all the units within the stack.
+
+<Aside type="tip">
+You can use the `--format json` flag to get the output in JSON format, which can be useful for accessing values programmatically.
+</Aside>
+
+## Using Local State with Stacks
+
+When using Explicit Stacks, you might want to use local state files instead of remote state for development, testing, or specific use cases. However, this presents a challenge because the generated `.terragrunt-stack` directory can be safely deleted and regenerated using `terragrunt stack clean && terragrunt stack generate`, which would normally cause local state files to be lost.
+
+To solve this problem, you can configure your stack to store state files outside of the `.terragrunt-stack` directory, in a persistent location that survives stack regeneration.
+
+### Configuration
+
+Here's how to configure local state that persists across stack regeneration:
+
+**1. Create a `root.hcl` file with local backend configuration:**
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "local"
+
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
+  config = {
+    path = "${get_parent_terragrunt_dir()}/.terragrunt-local-state/${path_relative_to_include()}/tofu.tfstate"
+  }
+}
+```
+
+**2. Create your stack definition:**
+
+```hcl
+# live/terragrunt.stack.hcl
+unit "vpc" {
+  source = "${find_in_parent_folders("units/vpc")}"
+  path   = "vpc"
+}
+
+unit "database" {
+  source = "${find_in_parent_folders("units/database")}"
+  path   = "database"
+}
+
+unit "app" {
+  source = "${find_in_parent_folders("units/app")}"
+  path   = "app"
+}
+```
+
+**3. Configure your units to include the root configuration:**
+
+```hcl
+# units/vpc/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "."
+}
+```
+
+**4. Add a `.gitignore` file to exclude state files from version control:**
+
+```text
+# .gitignore
+.terragrunt-local-state
+```
+
+**Important:** Local state files should never be committed to version control as they may contain sensitive information and can cause conflicts when multiple developers work on the same infrastructure.
+
+### How It Works
+
+The key insight is using `path_relative_to_include()` in the state path configuration. This function returns the relative path from each unit to the `root.hcl` file, creating unique state file paths like:
+
+```text
+.terragrunt-local-state/live/.terragrunt-stack/vpc/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/database/tofu.tfstate
+.terragrunt-local-state/live/.terragrunt-stack/app/tofu.tfstate
+```
+
+Since these state files are stored in `.terragrunt-local-state/` (outside of `.terragrunt-stack/`), they persist when you run:
+
+```bash
+terragrunt stack clean && terragrunt stack generate
+```
+
+### Directory Structure
+
+After running the stack, your directory structure will look like this:
+
+<FileTree>
+
+- .
+  - root.hcl
+  - .gitignore (Excludes .terragrunt-local-state)
+  - .terragrunt-local-state/ (Persistent state files - ignored by git)
+    - live/
+      - .terragrunt-stack/
+        - vpc/
+          - tofu.tfstate
+        - database/
+          - tofu.tfstate
+        - app/
+          - tofu.tfstate
+  - live/
+    - terragrunt.stack.hcl
+    - .terragrunt-stack/ (Generated stack - can be deleted)
+      - vpc/
+        - terragrunt.hcl
+        - main.tf
+      - database/
+        - terragrunt.hcl
+        - main.tf
+      - app/
+        - terragrunt.hcl
+        - main.tf
+  - units/ (Reusable unit definitions)
+    - vpc/
+    - database/
+    - app/
+
+</FileTree>
+
+## Known Limitations of Explicit Stacks
+
+There are currently some known limitations with explicit stacks that you should be aware of as you start to adopt them.
+
+### Dependencies cannot be set on stacks
+
+The `dependency` block cannot set the value of the `config_path` attribute to that of a stack. This is functionality that is planned for the future, but is not currently supported.
+
+As such, if you currently have multiple stacks that need to depend on each other, or on units within each other's stacks, you will need to either use implicit stacks, or work around this limitation by setting the `config_path` attribute to the path of the unit within the stack, and carefully ensuring that all stacks are generated before any units are run.
+
+### Deeply nested stack generation can be slow
+
+Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
+
+The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
+
+### Includes are not supported in `terragrunt.stack.hcl` files
+
+The `include` block is not supported in `terragrunt.stack.hcl` files. This isn't functionality that is planned for future implementation, but may change based on community feedback, and proven use-cases.
+
+The current design of explicit stacks is that, when necessary, stacks can be nested into other stacks making them better organized and reusable without relying on includes to share configuration between stacks.

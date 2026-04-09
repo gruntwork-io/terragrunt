@@ -623,8 +623,6 @@ func TestLogWithRelPath(t *testing.T) {
 			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
-				assert.Contains(t, stderr, "Unit bbb/ccc/workspace")
-				assert.Contains(t, stderr, "Unit bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
 				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
@@ -1257,14 +1255,16 @@ func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
 	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
 
 	// validate the modules
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --working-dir "+disjointSymlinksEnvironmentPath,
+		"terragrunt run --all validate --experiment symlinks --log-level info --non-interactive --report-file report.json --working-dir "+disjointSymlinksEnvironmentPath,
 	)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Unit a")
-	assert.Contains(t, stderr, "Unit b")
-	assert.Contains(t, stderr, "Unit c")
+
+	runs := helpers.ReadReport(t, disjointSymlinksEnvironmentPath, "report.json")
+	assert.NotNil(t, runs.FindByName("a"))
+	assert.NotNil(t, runs.FindByName("b"))
+	assert.NotNil(t, runs.FindByName("c"))
 
 	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
 	require.NoError(t, os.Chtimes(filepath.Join(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
@@ -3367,6 +3367,42 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	assert.Equal(t, "app3-bar", outputs["foo-app3"].Value)
 }
 
+// TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll verifies that
+// auth-provider-cmd credentials are available during discovery queue
+// construction (run --all). Without the fix in phase_parse.go, get_env()
+// in locals cannot see env vars injected by --auth-provider-cmd because
+// ObtainCredsForParsing is never called during the discovery parse phase.
+func TestReadTerragruntAuthProviderCmdEnvInLocalsRunAll(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "env-in-locals")
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	helpers.RunTerragrunt(
+		t, fmt.Sprintf(
+			`terragrunt run --all --non-interactive --working-dir %s --auth-provider-cmd %s -- apply -auto-approve`,
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t, fmt.Sprintf(
+			"terragrunt run --non-interactive --working-dir %s --auth-provider-cmd %s -- output -json",
+			rootPath,
+			mockAuthCmd,
+		),
+	)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, "from-auth-provider", outputs["secret"].Value)
+}
+
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 
@@ -3729,16 +3765,17 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureModulePathError)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureModulePathError)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt run --all --non-interactive --working-dir "+rootPath+" -- plan -no-color",
+		"terragrunt run --all --non-interactive --report-file report.json --working-dir "+rootPath+" -- plan -no-color",
 	)
 	require.Error(t, err)
 
-	output := fmt.Sprintf("%s\n%s\n", stdout, stderr)
 	// catch "Run failed" message printed in case of error in apply of units
-	assert.Contains(t, output, "Run failed")
-	assert.Contains(t, output, "Unit d1", output)
+	assert.Contains(t, stderr, "Run failed")
+
+	runs := helpers.ReadReport(t, rootPath, "report.json")
+	assert.NotNil(t, runs.FindByName("d1"))
 }
 
 func TestHclFmtDiff(t *testing.T) {
@@ -3866,28 +3903,13 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app")
 
-	_, output, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+testPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all plan --non-interactive --working-dir "+testPath)
 	require.NoError(t, err)
 
 	// check that only enabled dependencies are evaluated
-
-	for _, path := range []string{
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "app"),
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-without-enabled"),
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-enabled"),
-	} {
-		relPath, err := filepath.Rel(testPath, path)
-		require.NoError(t, err)
-		assert.Contains(t, output, relPath, output)
-	}
-
-	for _, path := range []string{
-		filepath.Join(tmpEnvPath, testFixtureDisabledModule, "unit-disabled"),
-	} {
-		relPath, err := filepath.Rel(testPath, path)
-		require.NoError(t, err)
-		assert.NotContains(t, output, "- Unit "+relPath, output)
-	}
+	assert.Contains(t, stderr, "unit-without-enabled")
+	assert.Contains(t, stderr, "unit-enabled")
+	assert.NotContains(t, stderr, "unit-disabled")
 }
 
 func TestTerragruntHandleEmptyStateFile(t *testing.T) {

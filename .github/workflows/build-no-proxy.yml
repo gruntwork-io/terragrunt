@@ -27,21 +27,11 @@ jobs:
             arch: amd64
 
     steps:
-      - name: "Mount tmpfs"
-        shell: bash
-        if: runner.os == 'Linux'
-        run: |
-          sudo mount -t tmpfs -o size=12G tmpfs /tmp
-          mkdir -p /home/runner/go
-          sudo mount -t tmpfs -o size=12G tmpfs /home/runner/go
-          mkdir -p /home/runner/.cache/go-build
-          sudo mount -t tmpfs -o size=4G tmpfs /home/runner/.cache/go-build
-
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use mise to install dependencies
-        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
         with:
           version: 2026.1.9
           experimental: true

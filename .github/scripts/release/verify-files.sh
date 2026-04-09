@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 # Script to verify all required files are present before upload
 # Usage: verify-files.sh <bin-directory>
@@ -13,7 +13,7 @@ function main {
   local -r bin_dir="${1:-bin}"
 
   if [[ ! -d "$bin_dir" ]]; then
-    echo "ERROR: Directory $bin_dir does not exist"
+    echo "ERROR: Directory $bin_dir does not exist" >&2
     exit 1
   fi
 
@@ -27,10 +27,10 @@ function main {
 
   # Check each binary
   for file in "${binaries[@]}"; do
-    if [ -f "$bin_dir/$file" ]; then
+    if [[ -f "$bin_dir/$file" ]]; then
       echo "$file present"
     else
-      echo "$file missing"
+      echo "$file missing" >&2
       exit 1
     fi
   done
@@ -40,15 +40,17 @@ function main {
   mapfile -t additional_files < <(get_additional_files)
 
   for file in "${additional_files[@]}"; do
-    if [ -f "$bin_dir/$file" ]; then
+    if [[ -f "$bin_dir/$file" ]]; then
       echo "$file present"
     else
-      echo "$file missing"
+      echo "$file missing" >&2
       exit 1
     fi
   done
 
   echo "All required files verified"
+
+  return 0
 }
 
 main "$@"

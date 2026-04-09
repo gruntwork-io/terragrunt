@@ -154,6 +154,10 @@ func RunCommandWithOutput(
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
+		// Save/restore console mode around subprocess — Windows subprocesses can reset it.
+		savedConsole := exec.SaveConsoleState()
+		defer savedConsole.Restore()
+
 		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
 			err = util.ProcessExecutionError{
 				Err:             err,
