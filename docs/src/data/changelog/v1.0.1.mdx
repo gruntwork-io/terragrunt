@@ -109,6 +109,10 @@ Added retry patterns for provider resolution and registry connection failures co
 
 ---
 
+#### Tip builds now available from `main`
+
+Every successful CI run on the `main` branch now automatically produces tip build binaries with signed checksums for all supported platforms (Windows and macOS binaries are not codesigned in tip builds). These builds are accessible via the builds API at `https://builds.terragrunt.com` — see the [releases process documentation](/process/releases#tip-builds) for API endpoints and usage examples. Maintainers can also trigger on-demand test builds from any branch using the `test-build.yml` workflow.
+
 #### Concurrency limits now respect `GOMAXPROCS`
 
 All internal concurrency limits now use `runtime.GOMAXPROCS(0)` instead of `runtime.NumCPU()`. This means Terragrunt correctly honors the `GOMAXPROCS` environment variable and container CPU quotas (e.g., cgroups), resulting in better behavior in resource-constrained environments like Kubernetes pods and CI runners with CPU limits.
