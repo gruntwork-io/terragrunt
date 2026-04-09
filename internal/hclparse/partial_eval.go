@@ -3,7 +3,6 @@ package hclparse
 import (
 	"bytes"
 	"slices"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -136,7 +135,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 	for _, part := range e.Parts {
 		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok {
-			buf.WriteString(escapeHCLStringLit(lit.Val.AsString()))
+			buf.Write(hclStringContent(lit.Val.AsString()))
 
 			continue
 		}
@@ -144,7 +143,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 		if IsPure(part, args.Deferred) {
 			val, diags := part.Value(args.EvalCtx)
 			if !diags.HasErrors() && val.Type() == cty.String {
-				buf.WriteString(escapeHCLStringLit(val.AsString()))
+				buf.Write(hclStringContent(val.AsString()))
 
 				continue
 			}
@@ -159,6 +158,20 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 	buf.WriteByte('"')
 
 	return buf.Bytes()
+}
+
+// hclStringContent returns the inner content of an HCL-escaped string
+// (without surrounding quotes). Uses hclwrite.TokensForValue for correct
+// escaping of all HCL special characters.
+func hclStringContent(s string) []byte {
+	raw := hclwrite.TokensForValue(cty.StringVal(s)).Bytes()
+
+	// TokensForValue produces `"escaped content"` — strip the quotes.
+	if len(raw) >= 2 {
+		return raw[1 : len(raw)-1]
+	}
+
+	return raw
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
@@ -213,34 +226,6 @@ func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
 	return buf.Bytes()
 }
 
-func escapeHCLStringLit(s string) string {
-	var buf strings.Builder
-
-	buf.Grow(len(s))
-
-	for _, r := range s {
-		switch r {
-		case '\\':
-			buf.WriteString(`\\`)
-		case '"':
-			buf.WriteString(`\"`)
-		case '\n':
-			buf.WriteString(`\n`)
-		case '\r':
-			buf.WriteString(`\r`)
-		case '\t':
-			buf.WriteString(`\t`)
-		default:
-			buf.WriteRune(r)
-		}
-	}
-
-	result := buf.String()
-	result = strings.ReplaceAll(result, "${", "$${")
-	result = strings.ReplaceAll(result, "%{", "%%{")
-
-	return result
-}
 
 func valueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
