@@ -703,42 +703,12 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, errors.New(err)
 }
 
-// tryGetStackOutput checks if targetConfigPath points to a stack directory
-// (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
-// units in the stack. Returns (output, handled, error) where handled=true
-// means the path was a stack and was processed (even if there was an error).
-func tryGetStackOutput(
-	ctx context.Context,
-	pctx *ParsingContext,
-	l log.Logger,
-	targetConfigPath string,
-	dependencyConfig *Dependency,
-) (*cty.Value, bool, error) {
-	// Check if the path is a directory containing a stack file
-	stackFilePath := targetConfigPath
-
-	if !strings.HasSuffix(stackFilePath, DefaultStackFile) {
-		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
-	}
-
-	if !util.FileExists(stackFilePath) {
-		return nil, false, nil
-	}
-
-	l.Debugf("Dependency %s points to stack %s, resolving stack outputs", dependencyConfig.Name, stackFilePath)
-
-	stackDir := filepath.Dir(stackFilePath)
-
-	// Parse the stack config to discover units
-	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
-	if err != nil {
-		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
-	}
-
-	// Collect outputs from each unit in the stack
+// collectStackUnitOutputs iterates over stack units, reads their cached
+// terraform outputs, and returns them as a map keyed by unit name.
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
 	unitOutputs := make(map[string]cty.Value)
 
-	for _, unit := range stackConfig.Units {
+	for _, unit := range units {
 		unitDir := GetUnitDir(stackDir, unit)
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
@@ -771,6 +741,43 @@ func tryGetStackOutput(
 			unitOutputs[unit.Name] = convertedOutput
 		}
 	}
+
+	return unitOutputs
+}
+
+// tryGetStackOutput checks if targetConfigPath points to a stack directory
+// (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
+// units in the stack. Returns (output, handled, error) where handled=true
+// means the path was a stack and was processed (even if there was an error).
+func tryGetStackOutput(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	targetConfigPath string,
+	dependencyConfig *Dependency,
+) (*cty.Value, bool, error) {
+	// Check if the path is a directory containing a stack file
+	stackFilePath := targetConfigPath
+
+	if !strings.HasSuffix(stackFilePath, DefaultStackFile) {
+		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	}
+
+	if !util.FileExists(stackFilePath) {
+		return nil, false, nil
+	}
+
+	l.Debugf("Dependency %s points to stack %s, resolving stack outputs", dependencyConfig.Name, stackFilePath)
+
+	stackDir := filepath.Dir(stackFilePath)
+
+	// Parse the stack config to discover units
+	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
+	}
+
+	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
 
 	if len(unitOutputs) == 0 {
 		return nil, true, nil
