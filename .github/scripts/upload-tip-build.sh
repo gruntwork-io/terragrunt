@@ -39,8 +39,8 @@ function main {
 	local pids=()
 
 	# Upload tar.gz archives
+	local filename
 	for f in "${bin_dir}"/*.tar.gz; do
-		local filename
 		filename="$(basename "$f")"
 		echo "Uploading ${filename}..."
 		aws s3 cp "${bin_dir}/${filename}" "${s3_path}/${filename}" &
@@ -49,6 +49,10 @@ function main {
 
 	# Upload checksums and signatures
 	for f in SHA256SUMS SHA256SUMS.gpgsig SHA256SUMS.sigstore.json; do
+		if [[ ! -f "${bin_dir}/${f}" ]]; then
+			echo "WARNING: ${f} not found in ${bin_dir}, skipping" >&2
+			continue
+		fi
 		echo "Uploading ${f}..."
 		aws s3 cp "${bin_dir}/${f}" "${s3_path}/${f}" &
 		pids+=($!)

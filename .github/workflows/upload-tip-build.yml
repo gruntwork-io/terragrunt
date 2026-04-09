@@ -55,7 +55,7 @@ jobs:
 
       - name: Verify binaries downloaded
         if: steps.check_secrets.outputs.has_secrets == 'true'
-        run: .github/scripts/release/verify-binaries-downloaded.sh bin 7
+        run: .github/scripts/release/verify-binaries-downloaded.sh bin
 
       - name: Set execution permissions
         if: steps.check_secrets.outputs.has_secrets == 'true'

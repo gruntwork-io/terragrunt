@@ -86,7 +86,11 @@ jobs:
       contents: read
       id-token: write
       actions: read
-    secrets: inherit
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
