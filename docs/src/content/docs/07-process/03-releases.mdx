@@ -14,11 +14,11 @@ Once 1.0 is released, Terragrunt backwards compatibility will be guaranteed for 
 
 This documentation should be updated at that time to reflect the new policy. If it has not, please file a bug report.
 
-### When to Cut a New Release
+## When to Cut a New Release
 
 While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a new feature is added or a bug is fixed. Maintainers will exercise their best judgment to determine when a new release is necessary, and bias towards cutting a new release as frequently as possible when in doubt.
 
-### How to Create a New Release
+## How to Create a New Release
 
 To release a new version of Terragrunt, go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and cut a new pre-release off the `main` branch. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
 
@@ -34,7 +34,7 @@ See [`.github/workflows/release.yml`](https://github.com/gruntwork-io/terragrunt
 
 Follow the GitHub Actions logs to ensure that the assets are built and uploaded correctly. Once the job is successful, go back to the release, give the release notes a final review, then uncheck the **Set as a pre-release** checkbox and check the **Set as the latest release** checkbox.
 
-### Pre-releases
+## Pre-releases
 
 Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to give the community a chance to test it in the wild before making it generally available.
 
@@ -61,4 +61,68 @@ The current plan for how maintainers are going to handle pre-releases after 1.0 
 2. Pre-releases for the `rc` channel will be cut from the `main` branch, and use a naming convention that looks like `v1.0.0-rc1`, which is incremented for each release candidate.
 
 Release candidates in the `rc` channel will undergo more thorough testing, both automated and manual.
+
+## Tip Builds
+
+Every successful CI run on the `main` branch automatically produces a **tip build** — a set of signed binaries built from the latest commit. Tip builds are versioned as `tip-{commit_sha}` and are available for all supported platforms as `.tar.gz` archives.
+
+Tip builds are useful for testing the latest changes on `main` before a release is cut, or for reproducing issues against the most recent code.
+
+### Accessing Tip Builds
+
+Tip builds are served via the builds API at `https://builds.terragrunt.com`. The following endpoints are available:
+
+| Endpoint | Description |
+|---|---|
+| `/api/v1/tip/latest` | Returns metadata for the latest tip build |
+| `/api/v1/tip/latest/download?filename=<name>` | Redirects to a specific file from the latest build (e.g., `SHA256SUMS`) |
+| `/api/v1/tip/latest/download?os=<os>&arch=<arch>` | Redirects to the latest `.tar.gz` archive for the given platform |
+| `/api/v1/tip/{ref}` | Returns metadata for a specific build by commit SHA |
+| `/api/v1/tip/{ref}/download?filename=<name>` | Redirects to a specific file from the given build |
+| `/api/v1/tip/{ref}/download?os=<os>&arch=<arch>` | Redirects to a specific build's `.tar.gz` archive |
+
+The `download` endpoints accept either `os` and `arch` query parameters to download a platform-specific archive, or a `filename` query parameter to download a specific file by name (e.g., `?filename=SHA256SUMS` for checksums).
+
+**Examples:**
+
+Get metadata for the latest tip build:
+
+```bash
+curl https://builds.terragrunt.com/api/v1/tip/latest
+```
+
+Download the latest tip build for Linux amd64:
+
+```bash
+curl -L -o terragrunt.tar.gz \
+  "https://builds.terragrunt.com/api/v1/tip/latest/download?os=linux&arch=amd64"
+```
+
+Download a specific build by commit SHA:
+
+```bash
+curl -L -o terragrunt.tar.gz \
+  "https://builds.terragrunt.com/api/v1/tip/abc123def456/download?os=darwin&arch=arm64"
+```
+
+Download the SHA256SUMS file for the latest build:
+
+```bash
+curl -L -o SHA256SUMS \
+  "https://builds.terragrunt.com/api/v1/tip/latest/download?filename=SHA256SUMS"
+```
+
+### Signing and Verification
+
+Tip builds are signed using the same process as official releases. Each build includes:
+
+- `SHA256SUMS` — checksums for all archives
+- `SHA256SUMS.gpgsig` — GPG signature of the checksums file
+- `SHA256SUMS.sigstore.json` — Sigstore (Cosign) signature of the checksums file
+
+### Test Builds (Maintainers)
+
+Maintainers can manually trigger a test build from any branch using the [`test-build.yml`](https://github.com/gruntwork-io/terragrunt/blob/main/.github/workflows/test-build.yml) workflow via `workflow_dispatch`. Test builds are versioned as `test-{commit_sha}` and uploaded under the `test` prefix (or `tip` if triggered from `main`).
+
+This is useful for giving stakeholders a binary to test before a feature branch is merged.
 
