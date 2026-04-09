@@ -200,7 +200,7 @@ func (p *WorktreePhase) discoverInWorktree(
 	// Git expressions are excluded to avoid infinite recursion (the worktree phase is
 	// already handling them). All other filters (path, attribute, negation) are included
 	// so that exclusions and type constraints apply within sub-discoveries.
-	allFilters := append(filters, discovery.filters.ExcludingGitFilters()...)
+	allFilters := slices.Concat(filters, discovery.filters.ExcludingGitFilters())
 
 	subDiscovery := NewDiscovery(wt.Path).
 		WithFilters(allFilters).
