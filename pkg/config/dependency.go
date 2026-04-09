@@ -312,6 +312,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
+		depCtx.OriginalTerragruntConfigPath = depPath
 		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
 
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
@@ -398,6 +399,8 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 			return err
 		}
 
+		dependencyContext.OriginalTerragruntConfigPath = dependencyPath
+
 		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
 			return err
 		}
@@ -440,6 +443,8 @@ func checkForDependencyBlockCyclesUsingDFS(
 		if err != nil {
 			return err
 		}
+
+		dependencyContext.OriginalTerragruntConfigPath = dependencyPath
 
 		if err := checkForDependencyBlockCyclesUsingDFS(ctx, dependencyContext, l, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
 			return err
