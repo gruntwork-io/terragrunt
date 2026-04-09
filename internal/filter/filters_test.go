@@ -629,6 +629,82 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 	})
 }
 
+func TestFilters_ExcludingGitFilters(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{}
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("only git expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]"})
+		require.NoError(t, err)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("no git expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./live/**", "!./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("mixed git and non-git", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "!./iac/**", "type=unit"})
+		require.NoError(t, err)
+		require.Len(t, filters, 3)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+
+		// Verify the remaining filters are the non-git ones
+		resultStrs := make([]string, 0, len(result))
+		for _, f := range result {
+			resultStrs = append(resultStrs, f.String())
+		}
+
+		assert.Contains(t, resultStrs, "!./iac/**")
+		assert.Contains(t, resultStrs, "type=unit")
+	})
+
+	t.Run("infix containing git expression is excluded", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD] | !./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 1)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result, "infix filter containing a git expression should be excluded")
+	})
+
+	t.Run("does not modify original", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "./live/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 1)
+		assert.Len(t, filters, 2, "original should not be modified")
+	})
+}
+
 func TestFilters_RequiresGitReferences(t *testing.T) {
 	t.Parallel()
 
