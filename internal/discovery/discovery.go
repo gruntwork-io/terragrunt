@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -388,6 +389,10 @@ func (d *Discovery) buildComponentDependencies(
 	depPaths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
 		return err
+	}
+
+	if opts.Experiments.Evaluate(experiment.StackDependencies) {
+		depPaths = addStackDependencyPaths(depPaths, c)
 	}
 
 	if len(depPaths) == 0 {

@@ -221,8 +221,6 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
-// It also checks for terragrunt.autoinclude.hcl in the same directory and extracts
-// dependency config_path values from it, so the DAG correctly orders units.
 func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
@@ -234,12 +232,6 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	deduped := make(map[string]struct{}, maxDedupLen)
-
-	// Check for autoinclude file and extract its dependency paths for the DAG.
-	autoIncludeDeps := intHclparse.AutoIncludeDependencyPaths(c.Path())
-	for _, dep := range autoIncludeDeps {
-		deduped[util.ResolvePath(dep)] = struct{}{}
-	}
 
 	errs := make([]error, 0, maxDedupLen)
 
@@ -258,8 +250,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPath = util.ResolvePath(depPath)
-		deduped[depPath] = struct{}{}
+		deduped[util.ResolvePath(depPath)] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -268,24 +259,13 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			dependency = util.ResolvePath(dependency)
-			deduped[dependency] = struct{}{}
+			deduped[util.ResolvePath(dependency)] = struct{}{}
 		}
 	}
 
 	depPaths := make([]string, 0, len(deduped))
 
 	for depPath := range deduped {
-		// When the stack-dependencies experiment is active and the dependency
-		// path points to a stack (directory with terragrunt.stack.hcl), expand
-		// it to all constituent unit paths so the DAG correctly blocks on each unit.
-		expandedPaths := intHclparse.UnitPathsFromStackDir(depPath)
-		if len(expandedPaths) > 0 {
-			depPaths = append(depPaths, expandedPaths...)
-
-			continue
-		}
-
 		depPaths = append(depPaths, depPath)
 	}
 
@@ -294,4 +274,30 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	return depPaths, nil
+}
+
+// addStackDependencyPaths enriches dependency paths with stack-dependencies
+// experiment features: autoinclude dependency extraction and stack-to-unit
+// path expansion. Called by discovery phases when the experiment is enabled.
+func addStackDependencyPaths(depPaths []string, c component.Component) []string {
+	// Add dependencies declared in autoinclude files.
+	for _, dep := range intHclparse.AutoIncludeDependencyPaths(c.Path()) {
+		depPaths = append(depPaths, util.ResolvePath(dep))
+	}
+
+	// Expand stack dependency paths to individual unit paths.
+	var expanded []string
+
+	for _, depPath := range depPaths {
+		unitPaths := intHclparse.UnitPathsFromStackDir(depPath)
+		if len(unitPaths) > 0 {
+			expanded = append(expanded, unitPaths...)
+
+			continue
+		}
+
+		expanded = append(expanded, depPath)
+	}
+
+	return expanded
 }
