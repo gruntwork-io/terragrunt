@@ -282,11 +282,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		// When the stack-dependencies experiment is active and the dependency
 		// path points to a stack (directory with terragrunt.stack.hcl), expand
 		// it to all constituent unit paths so the DAG correctly blocks on each unit.
-		if expandedPaths := ExpandStackDependency(depPath); len(expandedPaths) > 0 {
+		expandedPaths := ExpandStackDependency(depPath)
+		if len(expandedPaths) > 0 {
 			depPaths = append(depPaths, expandedPaths...)
-		} else {
-			depPaths = append(depPaths, depPath)
+
+			continue
 		}
+
+		depPaths = append(depPaths, depPath)
 	}
 
 	if len(errs) > 0 {
