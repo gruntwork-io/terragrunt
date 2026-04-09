@@ -166,66 +166,45 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 func hclStringContent(s string) []byte {
 	raw := hclwrite.TokensForValue(cty.StringVal(s)).Bytes()
 
-	// TokensForValue produces `"escaped content"` — strip the quotes.
-	if len(raw) >= 2 {
-		return raw[1 : len(raw)-1]
-	}
-
-	return raw
+	// TokensForValue produces `"escaped content"` — strip surrounding quotes.
+	return bytes.TrimPrefix(bytes.TrimSuffix(raw, []byte{'"'}), []byte{'"'})
 }
 
 func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
-	var buf bytes.Buffer
-
-	buf.WriteString("{\n")
+	f := hclwrite.NewEmptyFile()
+	body := f.Body()
 
 	for _, item := range e.Items {
-		keyBytes := partialEvalObjectKey(item.KeyExpr, args)
-		valBytes := PartialEval(item.ValueExpr, args)
-
-		buf.WriteString("  ")
-		buf.Write(keyBytes)
-		buf.WriteString(" = ")
-		buf.Write(valBytes)
-		buf.WriteByte('\n')
+		key := objectKeyName(item.KeyExpr, args.SrcBytes)
+		body.SetAttributeRaw(key, rawTokens(PartialEval(item.ValueExpr, args)))
 	}
 
-	buf.WriteByte('}')
+	// hclwrite produces file-level attributes; wrap in braces for object syntax.
+	inner := bytes.TrimSpace(f.Bytes())
 
-	return buf.Bytes()
+	return slices.Concat([]byte("{\n"), inner, []byte("\n}"))
 }
 
-func partialEvalObjectKey(expr hclsyntax.Expression, args *EvalArgs) []byte {
+func objectKeyName(expr hclsyntax.Expression, srcBytes []byte) string {
 	if keyExpr, ok := expr.(*hclsyntax.ObjectConsKeyExpr); ok {
 		kw := hcl.ExprAsKeyword(keyExpr)
 		if kw != "" {
-			return []byte(kw)
+			return kw
 		}
-
-		return PartialEval(keyExpr.Wrapped, args)
 	}
 
-	return PartialEval(expr, args)
+	return string(rangeBytes(srcBytes, expr.Range()))
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
-	var buf bytes.Buffer
+	parts := make([][]byte, 0, len(e.Exprs))
 
-	buf.WriteByte('[')
-
-	for i, elem := range e.Exprs {
-		if i > 0 {
-			buf.WriteString(", ")
-		}
-
-		buf.Write(PartialEval(elem, args))
+	for _, elem := range e.Exprs {
+		parts = append(parts, PartialEval(elem, args))
 	}
 
-	buf.WriteByte(']')
-
-	return buf.Bytes()
+	return slices.Concat([]byte("["), bytes.Join(parts, []byte(", ")), []byte("]"))
 }
-
 
 func valueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
