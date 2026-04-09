@@ -169,7 +169,7 @@ func (p *RelationshipPhase) discoverRelationships(
 	}
 
 	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		paths = addStackDependencyPaths(paths, c)
+		paths = addStackDependencyPaths(l, paths, c)
 	}
 
 	if len(paths) == 0 {

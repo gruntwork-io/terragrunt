@@ -116,6 +116,7 @@ func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
 func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
+		// Non-syntax bodies (e.g. from JSON configs) cannot be iteratively evaluated.
 		return
 	}
 

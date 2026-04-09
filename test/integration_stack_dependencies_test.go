@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,12 +20,7 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Copy the fixture tree
-	err := copyDirSimple("fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
-	if err != nil {
-		// Fallback: use fixture directly and clean up .terragrunt-stack after
-		tmpDir = "fixtures/stacks/stack-dependencies-autoinclude"
-		defer os.RemoveAll(filepath.Join(tmpDir, "live", ".terragrunt-stack"))
-	}
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
@@ -91,8 +87,7 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	err := copyDirSimple("fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
-	require.NoError(t, err)
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
@@ -119,7 +114,8 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 
 	// Step 3: Use ExtractAutoIncludeDependencyPaths to verify the DAG
 	// would see the dependency from unit-w-inputs → unit-w-outputs.
-	depPaths := intHclparse.AutoIncludeDependencyPaths(appDir)
+	depPaths, depErr := intHclparse.AutoIncludeDependencyPaths(appDir)
+	require.NoError(t, depErr)
 
 	require.Len(t, depPaths, 1, "unit-w-inputs should have exactly 1 dependency from autoinclude")
 
@@ -136,8 +132,7 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	// Verify that units WITHOUT autoinclude files return no extra dependency paths.
 	tmpDir := t.TempDir()
 
-	err := copyDirSimple("fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
-	require.NoError(t, err)
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
@@ -161,29 +156,7 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
 
-	vpcDeps := intHclparse.AutoIncludeDependencyPaths(vpcDir)
+	vpcDeps, vpcErr := intHclparse.AutoIncludeDependencyPaths(vpcDir)
+	require.NoError(t, vpcErr)
 	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
-}
-
-// copyDirSimple copies a directory tree. Simple implementation for test use.
-func copyDirSimple(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, _ := filepath.Rel(src, path)
-		targetPath := filepath.Join(dst, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		return os.WriteFile(targetPath, data, info.Mode())
-	})
 }

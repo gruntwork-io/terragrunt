@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -78,6 +79,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 
 	body, ok := a.Remain.(*hclsyntax.Body)
 	if !ok {
+		// Non-syntax body — return result without EvalCtx since partial evaluation is not possible.
 		return &AutoIncludeResolved{RawBody: a.Remain}, nil
 	}
 
@@ -164,23 +166,27 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 
 // AutoIncludeDependencyPaths reads the terragrunt.autoinclude.hcl file in
 // unitDir and returns resolved dependency config_path values.
-// Returns nil if the file does not exist or has no dependencies.
-func AutoIncludeDependencyPaths(unitDir string) []string {
+// Returns (nil, nil) if the file does not exist or has no dependencies.
+func AutoIncludeDependencyPaths(unitDir string) ([]string, error) {
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
 	data, err := os.ReadFile(autoIncludePath)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to read %s: %w", autoIncludePath, err)
 	}
 
 	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil
+		return nil, fmt.Errorf("failed to parse %s: %w", autoIncludePath, diags)
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("unexpected body type in %s", autoIncludePath)
 	}
 
 	var paths []string
@@ -208,5 +214,5 @@ func AutoIncludeDependencyPaths(unitDir string) []string {
 		paths = append(paths, depPath)
 	}
 
-	return paths
+	return paths, nil
 }

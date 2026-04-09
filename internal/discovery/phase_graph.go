@@ -280,7 +280,7 @@ func (p *GraphPhase) discoverDependencies(
 	}
 
 	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths = addStackDependencyPaths(depPaths, c)
+		depPaths = addStackDependencyPaths(l, depPaths, c)
 	}
 
 	if len(depPaths) == 0 {
@@ -661,7 +661,7 @@ func (p *GraphPhase) processUpstreamCandidate(
 	}
 
 	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
-		deps = addStackDependencyPaths(deps, candidate)
+		deps = addStackDependencyPaths(l, deps, candidate)
 	}
 
 	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)

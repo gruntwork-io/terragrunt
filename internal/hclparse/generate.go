@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -207,18 +208,14 @@ func commentTokens(text string) hclwrite.Tokens {
 
 // sortedAttributes returns attributes in a deterministic order by source position.
 func sortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
-	// hclsyntax.Attributes is a map; sort by source position for determinism.
 	sorted := make([]*hclsyntax.Attribute, 0, len(attrs))
 	for _, attr := range attrs {
 		sorted = append(sorted, attr)
 	}
 
-	// Sort by byte offset in source file.
-	for i := 1; i < len(sorted); i++ {
-		for j := i; j > 0 && sorted[j].SrcRange.Start.Byte < sorted[j-1].SrcRange.Start.Byte; j-- {
-			sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
-		}
-	}
+	slices.SortFunc(sorted, func(a, b *hclsyntax.Attribute) int {
+		return a.SrcRange.Start.Byte - b.SrcRange.Start.Byte
+	})
 
 	return sorted
 }

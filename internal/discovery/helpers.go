@@ -12,6 +12,7 @@ import (
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -279,9 +280,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 // addStackDependencyPaths enriches dependency paths with stack-dependencies
 // experiment features: autoinclude dependency extraction and stack-to-unit
 // path expansion. Called by discovery phases when the experiment is enabled.
-func addStackDependencyPaths(depPaths []string, c component.Component) []string {
+func addStackDependencyPaths(l log.Logger, depPaths []string, c component.Component) []string {
 	// Add dependencies declared in autoinclude files.
-	for _, dep := range intHclparse.AutoIncludeDependencyPaths(c.Path()) {
+	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(c.Path())
+	if err != nil {
+		l.Warnf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
+	}
+
+	for _, dep := range autoIncludeDeps {
 		depPaths = append(depPaths, util.ResolvePath(dep))
 	}
 
@@ -299,5 +305,18 @@ func addStackDependencyPaths(depPaths []string, c component.Component) []string 
 		expanded = append(expanded, depPath)
 	}
 
-	return expanded
+	// Deduplicate expanded paths.
+	seen := make(map[string]struct{}, len(expanded))
+	result := make([]string, 0, len(expanded))
+
+	for _, p := range expanded {
+		if _, exists := seen[p]; exists {
+			continue
+		}
+
+		seen[p] = struct{}{}
+		result = append(result, p)
+	}
+
+	return result
 }

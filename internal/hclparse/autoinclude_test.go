@@ -198,7 +198,10 @@ inputs = {
 
 func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, hclparse.AutoIncludeDependencyPaths(t.TempDir()))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(t.TempDir())
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
@@ -211,7 +214,8 @@ dependency "vpc" {
 }
 `), 0644))
 
-	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, filepath.Clean(filepath.Join(tmpDir, "..", "unit-w-outputs")), paths[0])
 }
@@ -229,7 +233,8 @@ dependency "db" {
 }
 `), 0644))
 
-	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 2)
 }
 
@@ -243,7 +248,8 @@ dependency "vpc" {
 }
 `), 0644))
 
-	paths := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
 }

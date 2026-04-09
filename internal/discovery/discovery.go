@@ -392,7 +392,7 @@ func (d *Discovery) buildComponentDependencies(
 	}
 
 	if opts.Experiments.Evaluate(experiment.StackDependencies) {
-		depPaths = addStackDependencyPaths(depPaths, c)
+		depPaths = addStackDependencyPaths(l, depPaths, c)
 	}
 
 	if len(depPaths) == 0 {
