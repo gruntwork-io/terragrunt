@@ -2,6 +2,7 @@ package hclparse
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -42,7 +43,12 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 		return rangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Not pure — dispatch by expression type for partial evaluation.
+	return partialEvalByType(expr, args)
+}
+
+// partialEvalByType dispatches to type-specific handlers for mixed expressions.
+// Unhandled types fall through to verbatim source bytes.
+func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	switch e := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
 		return valueToHCLBytes(e.Val)
@@ -101,19 +107,15 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 }
 
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
-	if IsPure(e.Expression, args.Deferred) {
-		return PartialEval(e.Expression, args)
-	}
-
 	inner := PartialEval(e.Expression, args)
 
-	var buf bytes.Buffer
+	// Pure expressions evaluate to literals — parens not needed.
+	if IsPure(e.Expression, args.Deferred) {
+		return inner
+	}
 
-	buf.WriteByte('(')
-	buf.Write(inner)
-	buf.WriteByte(')')
-
-	return buf.Bytes()
+	// Wrap deferred expressions in parentheses.
+	return slices.Concat([]byte("("), inner, []byte(")"))
 }
 
 // IsPure returns true if the expression has no references to deferred root names.
