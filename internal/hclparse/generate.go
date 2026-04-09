@@ -50,7 +50,7 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 
 	// Write dependency blocks with resolved config_path.
 	for _, dep := range resolved.Dependencies {
-		origBlock := findOriginalBlock(body, "dependency", dep.Name)
+		origBlock := findOriginalBlock(body, blockDependency, dep.Name)
 		if origBlock == nil {
 			continue
 		}
@@ -81,7 +81,7 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 // The config_path is converted to a path relative to targetDir. All other
 // attributes are copied from source bytes to preserve original expressions.
 func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
-	depBlock := outBody.AppendNewBlock("dependency", []string{dep.Name})
+	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
 	depBody := depBlock.Body()
 
 	// Convert config_path to relative from the target directory.
@@ -90,11 +90,11 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 		relPath = dep.ConfigPath // fallback to absolute
 	}
 
-	depBody.SetAttributeRaw("config_path", quotedStringTokens(relPath))
+	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
 
 	// Copy all other attributes from source bytes (mock_outputs, etc.).
 	for _, attr := range sortedAttributes(origBlock.Body.Attributes) {
-		if attr.Name == "config_path" {
+		if attr.Name == attrConfigPath {
 			continue
 		}
 
@@ -130,7 +130,7 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 	}
 
 	for _, block := range body.Blocks {
-		if block.Type == "dependency" {
+		if block.Type == blockDependency {
 			continue
 		}
 

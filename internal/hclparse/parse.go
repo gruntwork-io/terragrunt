@@ -15,12 +15,16 @@ const (
 	// StackDir is the directory name where generated stack components are placed.
 	StackDir = ".terragrunt-stack"
 
+	// HCL block type and attribute names.
+	blockDependency = "dependency"
+	attrConfigPath  = "config_path"
+
 	// HCL variable root names used in eval context.
 	varLocal      = "local"
 	varValues     = "values"
 	varUnit       = "unit"
 	varStack      = "stack"
-	varDependency = "dependency"
+	varDependency = blockDependency
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.

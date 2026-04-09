@@ -87,7 +87,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	)
 
 	for _, block := range body.Blocks {
-		if block.Type != "dependency" || len(block.Labels) == 0 {
+		if block.Type != blockDependency || len(block.Labels) == 0 {
 			continue
 		}
 
@@ -118,7 +118,7 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	name := block.Labels[0]
 
 	// Decode only config_path from the block body, leaving everything else.
-	configPathAttr, exists := block.Body.Attributes["config_path"]
+	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 	if !exists {
 		return AutoIncludeDependency{}, hcl.Diagnostics{{
 			Severity: hcl.DiagError,
@@ -129,7 +129,7 @@ func resolveDependencyBlock(block *hclsyntax.Block, evalCtx *hcl.EvalContext) (A
 	}
 
 	val, diags := configPathAttr.Expr.Value(evalCtx)
-	if diags.HasErrors() {
+	if diags.HasErrors() || !val.IsKnown() || val.IsNull() {
 		return AutoIncludeDependency{}, diags
 	}
 
@@ -186,17 +186,17 @@ func AutoIncludeDependencyPaths(unitDir string) []string {
 	var paths []string
 
 	for _, block := range body.Blocks {
-		if block.Type != "dependency" || len(block.Labels) == 0 {
+		if block.Type != blockDependency || len(block.Labels) == 0 {
 			continue
 		}
 
-		configPathAttr, exists := block.Body.Attributes["config_path"]
+		configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 		if !exists {
 			continue
 		}
 
 		val, valDiags := configPathAttr.Expr.Value(nil)
-		if valDiags.HasErrors() || val.Type() != cty.String {
+		if valDiags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
 			continue
 		}
 
