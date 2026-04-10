@@ -192,7 +192,7 @@ export default defineConfig({
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-scale": "https://terragrunt.com/terragrunt-scale",
+    "/terragrunt-scale": "/terragrunt-scale/overview/",
     "/contact/": "https://gruntwork.io/contact",
     "/commercial-support/": "https://gruntwork.io/support",
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",

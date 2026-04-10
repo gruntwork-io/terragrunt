@@ -1,0 +1,60 @@
+---
+title: Terragrunt Scale
+description: GitOps infrastructure pipelines, drift detection, and automated updates for Terragrunt. No black boxes.
+slug: terragrunt-scale/overview
+sidebar:
+  label: Overview
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Terragrunt Scale is a GitOps platform that extends Terragrunt with production-grade infrastructure automation. It runs entirely within your own CI/CD environment (GitHub Actions or GitLab CI), giving you full control with no black boxes.
+
+<Aside type="tip" title="Free Tier Available">
+
+Terragrunt Scale is free for up to 25 [units](/getting-started/terminology#unit).
+
+[Sign up](https://app.gruntwork.io) to get started today!
+
+</Aside>
+
+## What You Get
+
+Terragrunt Scale includes three core products:
+
+- **[Pipelines](/terragrunt-scale/pipelines)** — CI/CD for for Terragrunt, built by the creators. Plan on PR/MR, apply on merge, with blast radius minimization and OIDC authentication.
+
+- **[Drift Detection](/terragrunt-scale/drift-detection)** — Scheduled scans that compare your deployed infrastructure against your Terragrunt code, with automatic pull requests to remediate drift.
+
+- **[Patcher](/terragrunt-scale/patcher)** — Automated dependency updates that open PR/MRs when your OpenTofu/Terraform modules or Terragrunt units/stacks have new versions available, including handling of breaking changes.
+
+## How It Works
+
+Terragrunt Scale integrates directly with your version control system and CI/CD platform:
+
+1. A GitHub App or GitLab machine user connects to your repositories.
+2. Infrastructure changes trigger plan/apply workflows in your own CI/CD runners (GitHub Actions or GitLab CI).
+3. OIDC handshakes acquire temporary, least-privilege credentials for each environment.
+4. Terragrunt's directed acyclic graph (DAG) ensures resources are created, updated, and destroyed in the correct order.
+
+All operations run inside your infrastructure and runners. Terragrunt Scale never has direct access to your cloud accounts or state files.
+
+## Supported Platforms
+
+- **VCS**: GitHub, GitLab, GitHub Enterprise, GitLab Self-Managed
+- **IaC**: Terragrunt, OpenTofu, Terraform
+- **Cloud**: AWS, GCP, Azure (and any other platform supported by OpenTofu/Terraform with custom authentication)
+
+<Aside type="note" title="Free Tier Platform Support">
+
+The free tier currently only supports GitHub and AWS.
+
+[Join the waitlist](https://form.typeform.com/to/c8xJ0vdx) to get notified when GitLab, Azure, and GCP are supported in the free tier.
+
+</Aside>
+
+## Learn More
+
+- [Installation](/terragrunt-scale/installation) — Get started with Terragrunt Scale
+- [Full documentation](https://docs.gruntwork.io) — Detailed guides and reference on the Gruntwork docs site
