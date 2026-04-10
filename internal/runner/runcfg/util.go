@@ -28,7 +28,9 @@ const DefaultEngineType = "rpc"
 //
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder.
-func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string) error {
+func CopyLockFile(
+	l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string,
+) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
@@ -59,7 +61,9 @@ func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sou
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-func GetTerraformSourceURL(source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig) (string, error) {
+func GetTerraformSourceURL(
+	source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig,
+) (string, error) {
 	switch {
 	case source != "":
 		return source, nil
@@ -143,7 +147,11 @@ type InvalidSourceURLWithMapError struct {
 }
 
 func (err InvalidSourceURLWithMapError) Error() string {
-	return fmt.Sprintf("The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"The --source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'."+
+			" Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!",
+		err.ModulePath, err.ModuleSourceURL,
+	)
 }
 
 // ParsingModulePathError is an error type for when module path cannot be parsed from source URL.
@@ -152,7 +160,11 @@ type ParsingModulePathError struct {
 }
 
 func (err ParsingModulePathError) Error() string {
-	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceURL)
+	return fmt.Sprintf(
+		"Unable to obtain the module path from the source URL '%s'."+
+			" Ensure that the URL is in a supported format.",
+		err.ModuleSourceURL,
+	)
 }
 
 // Regexp for module name extraction. It assumes that the query string has already been stripped off.
@@ -170,7 +182,8 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 
 	matches := moduleNameRegexp.FindStringSubmatch(sourceURL)
 
-	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
+	// if regexp returns less/more than the full match + 1 capture group,
+	// then something went wrong with regex (invalid source string)
 	const matchedPats = 2
 	if len(matches) != matchedPats {
 		return "", errors.New(ParsingModulePathError{ModuleSourceURL: sourceURL})
@@ -237,11 +250,17 @@ func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
 
 		// Validate retry settings
 		if retryBlock.MaxAttempts < 1 {
-			return nil, errors.Errorf("cannot have less than 1 max retry in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.MaxAttempts)
+			return nil, errors.Errorf(
+				"cannot have less than 1 max retry in errors.retry %q, but you specified %d",
+				retryBlock.Label, retryBlock.MaxAttempts,
+			)
 		}
 
 		if retryBlock.SleepIntervalSec < 0 {
-			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
+			return nil, errors.Errorf(
+				"cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d",
+				retryBlock.Label, retryBlock.SleepIntervalSec,
+			)
 		}
 
 		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
