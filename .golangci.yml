@@ -114,7 +114,7 @@ linters:
       # trying to get this merged in.
       - linters:
           - lll
-        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/configbridge/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/gcphelper/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/runner/(common|graph|run/creds|runcfg)/|internal/stacks/(generate|output)/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/)'
+        path-except: '^(internal/awshelper/|internal/cas/|internal/cli/commands/(backend/(delete|migrate)|catalog/tui/command|dag/graph|exec|find|help|list|scaffold|stack)/|internal/cloner/|internal/configbridge/|internal/engine/|internal/errorconfig/|internal/errors/|internal/experiment/|internal/gcphelper/|internal/git/|internal/os/exec/|internal/prepare/|internal/queue/|internal/runner/(common|graph|run/creds|runall|runcfg)/|internal/stacks/(generate|output)/|internal/tf/cache/(controllers|middleware)/|internal/tflint/|internal/tips/|internal/vfs/|internal/worktrees/|pkg/log/(format/(options|placeholders)|writer)/)'
     paths:
       - docs
       - _ci
