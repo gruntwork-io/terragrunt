@@ -26,7 +26,7 @@ All execution happens in your own CI/CD runners (GitHub Actions or GitLab CI). P
 - **DAG-aware execution** — Respects Terragrunt's dependency graph for creates, updates, and destroys. Units are always run in the correct order.
 - **Blast radius minimization** — Only plans and applies units that were actually changed, rather than running against your entire stack.
 - **Least-privilege OIDC authentication** — Acquires temporary credentials via OIDC for each environment, scoped by read/write and segmented per environment. No long-lived secrets stored in CI.
-- **Concurrent runs with unified output** — Runs multiple independent units in parallel and aggregates all results into a single, well structured PR comment, giving reviewers a complete picture of every change in one place.
+- **Concurrent runs with unified output** — Runs multiple independent units in parallel and aggregates all results into a single, well-structured PR comment, giving reviewers a complete picture of every change in one place.
 - **Multi-environment support** — Deploy changes across multiple environments in a single PR, with per-environment authentication and cross-environment dependencies supported.
 - **Configuration-as-code** — Pipeline behavior is defined in HCL and can be customized at the repository, environment, or individual unit level. See the [configuration reference](https://docs.gruntwork.io/2.0/reference/pipelines/configurations-as-code/) for details.
 
