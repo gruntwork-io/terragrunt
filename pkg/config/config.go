@@ -1345,6 +1345,16 @@ func ParseConfig(
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = errs.Append(err)
+
+			// During hcl validate, dependency resolution can fail for many reasons (invalid
+			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
+			// that the "dependency" variable still exists in the eval context — otherwise every
+			// dependency.x.outputs.y reference cascades into a confusing "dependency is not
+			// defined" error that obscures the real problem.
+			if pctx.SkipOutput && retrievedOutputs == nil {
+				dynamicVal := cty.DynamicVal
+				retrievedOutputs = &dynamicVal
+			}
 		}
 
 		pctx.DecodedDependencies = retrievedOutputs
