@@ -141,8 +141,9 @@ export default defineConfig({
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
 
-            // Used as a redirect to the Terragrunt Discord server
+            // Used as redirects to the Terragrunt Discord server
             "/community/invite",
+            "/tgs-discord",
           ],
         }),
         starlightLlmsTxt()
@@ -192,7 +193,7 @@ export default defineConfig({
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-scale": "https://terragrunt.com/terragrunt-scale",
+    "/terragrunt-scale": "/terragrunt-scale/overview/",
     "/contact/": "https://gruntwork.io/contact",
     "/commercial-support/": "https://gruntwork.io/support",
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",

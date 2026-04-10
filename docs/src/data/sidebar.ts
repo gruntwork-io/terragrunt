@@ -120,4 +120,9 @@ export const sidebar = [
     autogenerate: { directory: "08-migrate", collapsed: true },
     collapsed: true,
   },
+  {
+    label: "Terragrunt Scale",
+    autogenerate: { directory: "09-terragrunt-scale", collapsed: true },
+    collapsed: true,
+  },
 ];
