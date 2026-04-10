@@ -380,7 +380,7 @@ func worktreeStacksToGenerate(
 
 		g.Go(func() error {
 			// Discover all stacks in both worktrees for generation.
-			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, nil)
+			allFromStacks, err := discoverStacks(ctx, l, opts, pair.FromWorktree, false)
 			if err != nil {
 				mu.Lock()
 
@@ -390,12 +390,10 @@ func worktreeStacksToGenerate(
 				return nil
 			}
 
-			// Appending the reading filter to the "to" discovery forces all stacks through
+			// The "to" discovery uses readFiles to force all stacks through
 			// the parse phase (populating Reading()), while still returning every stack
 			// (because they all match type=stack).
-			readingFilters := filter.Filters{filter.NewFilter(parseExpr, parseExpr.String())}
-
-			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, readingFilters)
+			allToStacks, err := discoverStacks(ctx, l, opts, pair.ToWorktree, true)
 			if err != nil {
 				mu.Lock()
 
@@ -474,21 +472,27 @@ func worktreeStacksToGenerate(
 	return stacksToGenerate.ToComponents(), nil
 }
 
-// discoverStacks discovers stacks in a worktree using the given additional filters.
+// discoverStacks discovers stacks in a worktree.
 // User-provided filters from opts.Filters are included (restricted to stacks) so that
 // explicit exclusions like --filter '!./land-mine | type=stack' are respected.
+// When readFiles is true, all discovered stacks are parsed to populate their Reading
+// attribute (used by reading-affected detection).
 func discoverStacks(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	wt worktrees.Worktree,
-	additionalFilters filter.Filters,
+	readFiles bool,
 ) (component.Components, error) {
-	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks(), additionalFilters)
+	allFilters := slices.Concat(stackTypeFilter(), opts.Filters.RestrictToStacks())
 
 	d := discovery.NewDiscovery(wt.Path).
 		WithSuppressParseErrors().
 		WithFilters(allFilters)
+
+	if readFiles {
+		d = d.WithReadFiles()
+	}
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
