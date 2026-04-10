@@ -7,6 +7,8 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -165,6 +167,10 @@ func (p *RelationshipPhase) discoverRelationships(
 	paths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
 		return err
+	}
+
+	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		paths = addStackDependencyPaths(l, vfs.NewOSFS(), paths, c)
 	}
 
 	if len(paths) == 0 {

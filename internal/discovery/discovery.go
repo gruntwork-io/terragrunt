@@ -8,10 +8,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 
@@ -388,6 +390,10 @@ func (d *Discovery) buildComponentDependencies(
 	depPaths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
 		return err
+	}
+
+	if opts.Experiments.Evaluate(experiment.StackDependencies) {
+		depPaths = addStackDependencyPaths(l, vfs.NewOSFS(), depPaths, c)
 	}
 
 	if len(depPaths) == 0 {

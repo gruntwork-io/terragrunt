@@ -1,0 +1,225 @@
+package hclparse
+
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
+)
+
+// StackFileHCL represents the first-phase parse of a terragrunt.stack.hcl file.
+// The autoinclude body inside each unit/stack block is captured as hcl.Body
+// via remain, allowing deferred evaluation once unit/stack path variables
+// are available.
+type StackFileHCL struct {
+	Locals   *LocalsHCL         `hcl:"locals,block"`
+	Includes []*StackIncludeHCL `hcl:"include,block"`
+	Stacks   []*StackBlockHCL   `hcl:"stack,block"`
+	Units    []*UnitBlockHCL    `hcl:"unit,block"`
+}
+
+// StackIncludeHCL represents an include block in a terragrunt.stack.hcl file.
+// The path is evaluated immediately during the first parse pass.
+type StackIncludeHCL struct {
+	Name string `hcl:",label"`
+	Path string `hcl:"path,attr"`
+}
+
+// UnitBlockHCL represents the first-phase parse of a unit block.
+// Known attributes are decoded directly. The autoinclude block body
+// is captured in Remain for second-phase evaluation.
+type UnitBlockHCL struct {
+	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool           `hcl:"no_validation,attr"`
+	Values       *cty.Value      `hcl:"values,attr"`
+	Name         string          `hcl:",label"`
+	Source       string          `hcl:"source,attr"`
+	Path         string          `hcl:"path,attr"`
+}
+
+// StackBlockHCL represents the first-phase parse of a stack block.
+// Same remain pattern as UnitBlockHCL.
+type StackBlockHCL struct {
+	AutoInclude  *AutoIncludeHCL `hcl:"autoinclude,block"`
+	NoStack      *bool           `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation *bool           `hcl:"no_validation,attr"`
+	Values       *cty.Value      `hcl:"values,attr"`
+	Name         string          `hcl:",label"`
+	Source       string          `hcl:"source,attr"`
+	Path         string          `hcl:"path,attr"`
+}
+
+// LocalsHCL captures the locals block body for iterative evaluation.
+type LocalsHCL struct {
+	Remain hcl.Body `hcl:",remain"`
+}
+
+// ComponentRef holds the path and name metadata for a unit or stack block,
+// used to build the evaluation context for the second parsing phase.
+type ComponentRef struct {
+	Name string
+	Path string
+	// ChildRefs holds nested unit refs for stack components.
+	// When a stack block references a source with a terragrunt.stack.hcl,
+	// the child units within that stack are parsed and stored here.
+	// This enables stack.stack_name.unit_name.path references.
+	ChildRefs []ComponentRef
+}
+
+// BuildComponentRefMap creates a cty.Value map from a slice of ComponentRef.
+// The resulting value is an object like:
+//
+//	{
+//	  "unit_name": { "path": "../relative/path", "name": "unit_name" }
+//	}
+//
+// For stack refs with children, it also includes nested unit refs:
+//
+//	{
+//	  "stack_name": {
+//	    "path": "/abs/path",
+//	    "name": "stack_name",
+//	    "unit_name": { "path": "/abs/path/to/unit", "name": "unit_name" }
+//	  }
+//	}
+//
+// This is injected into the HCL eval context as the `unit` or `stack` variable.
+func BuildComponentRefMap(refs []ComponentRef) cty.Value {
+	if len(refs) == 0 {
+		return cty.EmptyObjectVal
+	}
+
+	refMap := make(map[string]cty.Value, len(refs))
+
+	for _, ref := range refs {
+		attrs := map[string]cty.Value{
+			"path": cty.StringVal(ref.Path),
+			"name": cty.StringVal(ref.Name),
+		}
+
+		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path)
+		for _, child := range ref.ChildRefs {
+			attrs[child.Name] = cty.ObjectVal(map[string]cty.Value{
+				"path": cty.StringVal(child.Path),
+				"name": cty.StringVal(child.Name),
+			})
+		}
+
+		refMap[ref.Name] = cty.ObjectVal(attrs)
+	}
+
+	return cty.ObjectVal(refMap)
+}
+
+// ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
+func ExtractUnitRefs(units []*UnitBlockHCL) []ComponentRef {
+	refs := make([]ComponentRef, 0, len(units))
+
+	for _, u := range units {
+		refs = append(refs, ComponentRef{
+			Name: u.Name,
+			Path: u.Path,
+		})
+	}
+
+	return refs
+}
+
+// ExtractStackRefs extracts ComponentRef values from parsed StackBlockHCL slices.
+func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
+	refs := make([]ComponentRef, 0, len(stacks))
+
+	for _, s := range stacks {
+		refs = append(refs, ComponentRef{
+			Name: s.Name,
+			Path: s.Path,
+		})
+	}
+
+	return refs
+}
+
+// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk
+// and performs a two-pass parse. Returns nil, nil if the file does not exist.
+func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
+	stackDir = resolveSymlinks(stackDir)
+	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
+
+	data, err := vfs.ReadFile(fs, stackFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, errors.Errorf("failed to read stack file %s: %w", stackFile, err)
+	}
+
+	return ParseStackFile(fs, &ParseStackFileInput{
+		Src:      data,
+		Filename: stackFile,
+		StackDir: stackDir,
+	})
+}
+
+// UnitPathsFromStackDir parses the stack file in stackDir and returns
+// absolute paths to each unit's generated directory under .terragrunt-stack/.
+// Returns nil if the file does not exist or cannot be parsed.
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
+	stackDir = resolveSymlinks(stackDir)
+
+	result, err := ParseStackFileFromPath(fs, stackDir)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	paths := make([]string, 0, len(result.Units))
+	for _, unit := range result.Units {
+		unitPath := filepath.Join(stackDir, StackDir, unit.Path)
+
+		if unit.NoStack != nil && *unit.NoStack {
+			unitPath = filepath.Join(stackDir, unit.Path)
+		}
+
+		paths = append(paths, unitPath)
+	}
+
+	return paths
+}
+
+// DiscoverStackChildUnits parses a stack's source directory to find the
+// terragrunt.stack.hcl within it and extracts unit paths. This enables
+// stack.stack_name.unit_name.path references in autoinclude blocks.
+//
+// stackSourceDir is the directory where the stack's source files live
+// (or will be generated). stackGenDir is the absolute path where this
+// stack's units will be generated (.terragrunt-stack/stack_path/).
+func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+	stackSourceDir = resolveSymlinks(stackSourceDir)
+
+	result, err := ParseStackFileFromPath(fs, stackSourceDir)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	childTargetDir := filepath.Join(stackGenDir, StackDir)
+	refs := make([]ComponentRef, 0, len(result.Units))
+
+	for _, u := range result.Units {
+		unitPath := filepath.Join(childTargetDir, u.Path)
+
+		if u.NoStack != nil && *u.NoStack {
+			unitPath = filepath.Join(stackGenDir, u.Path)
+		}
+
+		refs = append(refs, ComponentRef{
+			Name: u.Name,
+			Path: unitPath,
+		})
+	}
+
+	return refs
+}

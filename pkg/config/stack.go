@@ -8,7 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/hashicorp/go-getter/v2"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -37,9 +41,16 @@ const (
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
-	Locals *terragruntLocal `hcl:"locals,block"`
-	Stacks []*Stack         `hcl:"stack,block"`
-	Units  []*Unit          `hcl:"unit,block"`
+	Locals   *terragruntLocal    `hcl:"locals,block"`
+	Includes []*StackIncludeFile `hcl:"include,block"`
+	Stacks   []*Stack            `hcl:"stack,block"`
+	Units    []*Unit             `hcl:"unit,block"`
+}
+
+// StackIncludeFile represents an include block in a stack file.
+type StackIncludeFile struct {
+	Name string `hcl:",label"`
+	Path string `hcl:"path,attr"`
 }
 
 // StackConfig represents the structure of terragrunt.stack.hcl stack file.
@@ -51,6 +62,7 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`
@@ -61,6 +73,7 @@ type Unit struct {
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
+	Remain       hcl.Body   `hcl:",remain"`
 	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
 	NoValidation *bool      `hcl:"no_validation,attr"`
 	Values       *cty.Value `hcl:"values,attr"`
@@ -87,19 +100,49 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
+	// When the stack-dependencies experiment is enabled, perform a two-pass
+	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
+	var autoIncludes map[string]*intHclparse.AutoIncludeResolved
+
+	var stackSrcBytes []byte
+
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		stackSrcBytes, err = os.ReadFile(stackFilePath)
+		if err != nil {
+			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
+		}
+
+		parseResult, parseErr := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		if parseErr != nil {
+			// Stack files using HCL functions (e.g. find_in_parent_folders) will
+			// fail the two-pass parse since it uses nil eval context. This is
+			// expected for stacks without autoinclude blocks — log and continue.
+			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+		}
+
+		if parseErr == nil {
+			autoIncludes = parseResult.AutoIncludes
+		}
+	}
+
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
 		noStackValidate: pctx.NoStackValidate,
 		stackConfigPath: pctx.TerragruntStackConfigPath,
+		sourceFile:      stackFilePath,
+		sourceDir:       stackSourceDir,
+		targetDir:       stackTargetDir,
+		autoIncludes:    autoIncludes,
+		stackSrcBytes:   stackSrcBytes,
 	}
 
-	if err := generateUnits(ctx, l, genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Units); err != nil {
+	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
 		return err
 	}
 
-	if err := generateStacks(ctx, l, genOpts, pool, stackFilePath, stackSourceDir, stackTargetDir, stackFile.Stacks); err != nil {
+	if err := generateStacks(ctx, l, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
 	}
 
@@ -108,9 +151,14 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
+	autoIncludes    map[string]*intHclparse.AutoIncludeResolved
 	sourceMap       map[string]string
 	rootWorkingDir  string
 	stackConfigPath string
+	sourceFile      string
+	sourceDir       string
+	targetDir       string
+	stackSrcBytes   []byte
 	logShowAbsPaths bool
 	noStackValidate bool
 }
@@ -118,12 +166,12 @@ type generateOpts struct {
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
 // source files to their destination paths and writing unit-specific values.
 // It logs the generating progress and returns any errors encountered during the operation.
-func generateUnits(ctx context.Context, l log.Logger, opts generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, units []*Unit) error {
+func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, units []*Unit) error {
 	for _, unit := range units {
 		pool.Submit(func() error {
 			item := componentToGenerate{
-				sourceDir:    sourceDir,
-				targetDir:    targetDir,
+				sourceDir:    opts.sourceDir,
+				targetDir:    opts.targetDir,
 				name:         unit.Name,
 				path:         unit.Path,
 				source:       unit.Source,
@@ -133,10 +181,10 @@ func generateUnits(ctx context.Context, l log.Logger, opts generateOpts, pool *w
 				kind:         unitKind,
 			}
 
-			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.rootWorkingDir, sourceFile, opts.logShowAbsPaths))
+			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_unit", map[string]any{
-				"stack_file":  sourceFile,
+				"stack_file":  opts.sourceFile,
 				"unit_name":   unit.Name,
 				"unit_source": unit.Source,
 				"unit_path":   unit.Path,
@@ -151,12 +199,12 @@ func generateUnits(ctx context.Context, l log.Logger, opts generateOpts, pool *w
 
 // generateStacks generates each stack by resolving its destination path and copying files from the source.
 // It logs each operation and returns early if any error is encountered.
-func generateStacks(ctx context.Context, l log.Logger, opts generateOpts, pool *worker.Pool, sourceFile, sourceDir, targetDir string, stacks []*Stack) error {
+func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool *worker.Pool, stacks []*Stack) error {
 	for _, stack := range stacks {
 		pool.Submit(func() error {
 			item := componentToGenerate{
-				sourceDir:    sourceDir,
-				targetDir:    targetDir,
+				sourceDir:    opts.sourceDir,
+				targetDir:    opts.targetDir,
 				name:         stack.Name,
 				path:         stack.Path,
 				source:       stack.Source,
@@ -166,10 +214,10 @@ func generateStacks(ctx context.Context, l log.Logger, opts generateOpts, pool *
 				kind:         stackKind,
 			}
 
-			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.rootWorkingDir, sourceFile, opts.logShowAbsPaths))
+			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
 
 			return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate_stack", map[string]any{
-				"stack_file":   sourceFile,
+				"stack_file":   opts.sourceFile,
 				"stack_name":   stack.Name,
 				"stack_source": stack.Source,
 				"stack_path":   stack.Path,
@@ -204,17 +252,76 @@ type componentToGenerate struct {
 	kind         componentKind
 }
 
-// generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
-func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp *componentToGenerate) error {
-	source := cmp.source
-	// Adjust source path using the provided source mapping configuration if available
-	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
-	if err != nil {
-		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
+// resolveDestPath builds and validates the destination path for a generated component.
+func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, error) {
+	if filepath.IsAbs(cmp.path) {
+		return "", errors.Errorf("path %s must be relative", cmp.path)
 	}
 
-	if filepath.IsAbs(cmp.path) {
-		return errors.Errorf("path %s must be relative", cmp.path)
+	// building destination path based on target directory
+	dest := filepath.Join(opts.targetDir, cmp.path)
+
+	// validate destination path is within the stack directory
+	absDest := filepath.Clean(dest)
+	absStackDir := filepath.Clean(opts.targetDir)
+
+	if !strings.HasPrefix(absDest, absStackDir) {
+		return "", errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, absDest, absStackDir)
+	}
+
+	if cmp.noStack {
+		// for noStack components, we copy the files to the base directory of the target directory
+		dest = filepath.Join(filepath.Dir(opts.targetDir), cmp.path)
+	}
+
+	return dest, nil
+}
+
+// validateGeneratedComponent validates the generated component directory contains the expected config file.
+func validateGeneratedComponent(l log.Logger, cmp *componentToGenerate, opts *generateOpts, dest string) error {
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
+	}
+
+	if cmp.noStack {
+		l.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
+
+		return nil
+	}
+
+	if cmp.noValidation {
+		l.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
+
+		return nil
+	}
+
+	expectedFile := DefaultTerragruntConfigPath
+
+	if cmp.kind == stackKind {
+		expectedFile = DefaultStackFile
+	}
+
+	if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
+		if opts.noStackValidate {
+			l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
+		} else {
+			return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, opts.targetDir, kindStr, expectedFile)
+		}
+	}
+
+	return nil
+}
+
+// generateAutoInclude writes the autoinclude file for a component if one was resolved.
+func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGenerate, dest string) error {
+	if opts.autoIncludes == nil {
+		return nil
+	}
+
+	resolved, ok := opts.autoIncludes[cmp.name]
+	if !ok {
+		return nil
 	}
 
 	kindStr := "unit"
@@ -222,21 +329,32 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 		kindStr = "stack"
 	}
 
-	// building destination path based on target directory
-	dest := filepath.Join(cmp.targetDir, cmp.path)
+	l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
 
-	// validate destination path is within the stack directory
-	absDest := filepath.Clean(dest)
-	absStackDir := filepath.Clean(cmp.targetDir)
-
-	// validate that the destination path is within the stack directory
-	if !strings.HasPrefix(absDest, absStackDir) {
-		return errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, absDest, absStackDir)
+	if err := intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
+		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
 	}
 
-	if cmp.noStack {
-		// for noStack components, we copy the files to the base directory of the target directory
-		dest = filepath.Join(filepath.Dir(cmp.targetDir), cmp.path)
+	return nil
+}
+
+// generateComponent copies files from the source directory to the target destination and generates a corresponding values file.
+func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cmp *componentToGenerate) error {
+	source := cmp.source
+	// Adjust source path using the provided source mapping configuration if available
+	source, err := adjustSourceWithMap(opts.sourceMap, source, opts.stackConfigPath)
+	if err != nil {
+		return errors.Errorf("failed to adjust source %s: %w", cmp.source, err)
+	}
+
+	dest, err := resolveDestPath(cmp, opts)
+	if err != nil {
+		return err
+	}
+
+	kindStr := "unit"
+	if cmp.kind == stackKind {
+		kindStr = "stack"
 	}
 
 	l.Debugf("Generating: %s (%s) to %s", cmp.name, source, dest)
@@ -259,36 +377,8 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 		)
 	}
 
-	skipValidation := false
-
-	if cmp.noStack {
-		l.Debugf("Skipping validation for %s %s due to no_stack flag", kindStr, cmp.name)
-
-		skipValidation = true
-	}
-
-	if cmp.noValidation {
-		l.Debugf("Skipping validation for %s %s due to no_validation flag", kindStr, cmp.name)
-
-		skipValidation = true
-	}
-
-	if !skipValidation {
-		// validate what was copied to the destination, don't do validation for special noStack components
-		expectedFile := DefaultTerragruntConfigPath
-
-		if cmp.kind == stackKind {
-			expectedFile = DefaultStackFile
-		}
-
-		if err := validateTargetDir(kindStr, cmp.name, dest, expectedFile); err != nil {
-			if opts.noStackValidate {
-				// print warning if validation is skipped
-				l.Warnf("Suppressing validation error for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
-			} else {
-				return errors.Errorf("Validation failed for %s %s at path %s: expected %s to generate with %s file at root of generated directory.", kindStr, cmp.name, cmp.targetDir, kindStr, expectedFile)
-			}
-		}
+	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+		return err
 	}
 
 	// generate values file
@@ -296,7 +386,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
 	}
 
-	return nil
+	return generateAutoInclude(l, opts, cmp, dest)
 }
 
 // copyFiles copies files or directories from a source to a destination path.

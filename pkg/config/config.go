@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"net/url"
 	"os"
 	"path"
@@ -18,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -36,6 +36,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
+	"maps"
+
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/engine"
@@ -49,6 +51,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
+	DefaultAutoIncludeFile          = intHclparse.AutoIncludeFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -1187,7 +1190,7 @@ func ParseConfigFile(
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if os.IsNotExist(err) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
@@ -1389,6 +1392,17 @@ func ParseConfig(
 		errs = errs.Append(err)
 	}
 
+	// Auto-merge terragrunt.autoinclude.hcl if present in the same directory.
+	// Gated by the stack-dependencies experiment and skipped for autoinclude files themselves.
+	if filepath.Base(file.ConfigPath) != DefaultAutoIncludeFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
+		if mergeErr != nil {
+			errs = errs.Append(mergeErr)
+		} else if autoMerged != nil {
+			config = autoMerged
+		}
+	}
+
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	if pctx.TrackInclude != nil {
@@ -1437,6 +1451,49 @@ func ParseConfig(
 	}
 
 	return config, errs.ErrorOrNil()
+}
+
+// mergeAutoIncludeIfPresent checks for terragrunt.autoinclude.hcl in the same directory
+// as the config file and deep-merges it into the config. The autoinclude takes precedence.
+func mergeAutoIncludeIfPresent(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	config *TerragruntConfig,
+	configPath string,
+) (*TerragruntConfig, error) {
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil
+	}
+
+	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
+
+	// Clone the parsing context and reset DecodedDependencies so the
+	// autoinclude file gets its own dependency resolution pass.
+	//
+	// PartialParseDecodeList is intentionally inherited from the parent:
+	// - During DAG construction (partial mode): extracts dependency config_path
+	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
+	// - During actual unit run (full mode): resolves dependency outputs normally
+	//   because the DAG already ensured dependencies ran first
+	autoIncludePctx := pctx.Clone()
+	autoIncludePctx.DecodedDependencies = nil
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// Deep merge: autoinclude wins over the unit config.
+	// DeepMerge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
+	// So we call config.DeepMerge(autoIncludeConfig) — autoinclude is sourceConfig and wins.
+	if err := config.DeepMerge(l, autoIncludeConfig); err != nil {
+		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return config, nil
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
@@ -1954,7 +2011,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if os.IsNotExist(err) {
 			return false, DependencyFileNotFoundError{Path: configPath}
 		}
 
