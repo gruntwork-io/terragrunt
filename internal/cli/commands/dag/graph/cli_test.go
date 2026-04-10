@@ -23,10 +23,26 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 		workingDir           string
 		usePartialParseCache bool
 	}{
-		{"PartialParseBenchmarkRegressionCaching", "regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl", true},
-		{"PartialParseBenchmarkRegressionNoCache", "regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl", false},
-		{"PartialParseBenchmarkRegressionIncludesCaching", "regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl", true},
-		{"PartialParseBenchmarkRegressionIncludesNoCache", "regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl", false},
+		{
+			"PartialParseBenchmarkRegressionCaching",
+			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
+			true,
+		},
+		{
+			"PartialParseBenchmarkRegressionNoCache",
+			"regressions/benchmark-parsing/production/deployment-group-1/webserver/terragrunt.hcl",
+			false,
+		},
+		{
+			"PartialParseBenchmarkRegressionIncludesCaching",
+			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
+			true,
+		},
+		{
+			"PartialParseBenchmarkRegressionIncludesNoCache",
+			"regressions/benchmark-parsing-includes/production/deployment-group-1/webserver/terragrunt.hcl",
+			false,
+		},
 	}
 
 	// Run benchmarks
