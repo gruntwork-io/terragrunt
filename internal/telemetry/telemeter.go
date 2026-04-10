@@ -14,7 +14,9 @@ type Telemeter struct {
 }
 
 // NewTelemeter initializes the telemetry collector.
-func NewTelemeter(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Telemeter, error) {
+func NewTelemeter(
+	ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options,
+) (*Telemeter, error) {
 	tracer, err := NewTracer(ctx, appName, appVersion, writer, opts)
 	if err != nil {
 		return nil, errors.New(err)
@@ -53,7 +55,9 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 }
 
 // Collect collects telemetry from function execution metrics and traces.
-func (tlm *Telemeter) Collect(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (tlm *Telemeter) Collect(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	// wrap telemetry collection with trace and time metric
 	return tlm.Trace(ctx, name, attrs, func(ctx context.Context) error {
 		return tlm.Time(ctx, name, attrs, fn)

@@ -112,7 +112,9 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 }
 
 // newTraceProvider creates a new trace tracer with terragrunt version.
-func newTraceProvider(exp sdktrace.SpanExporter, appName, appVersion string, opts *Options) (*sdktrace.TracerProvider, error) {
+func newTraceProvider(
+	exp sdktrace.SpanExporter, appName, appVersion string, opts *Options,
+) (*sdktrace.TracerProvider, error) {
 	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
@@ -186,7 +188,9 @@ func NewTraceExporter(ctx context.Context, writer io.Writer, opts *Options) (sdk
 }
 
 // Trace collects traces for method execution.
-func (tracer *Tracer) Trace(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+func (tracer *Tracer) Trace(
+	ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error,
+) error {
 	if tracer == nil || tracer.spanExporter == nil || tracer.provider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
