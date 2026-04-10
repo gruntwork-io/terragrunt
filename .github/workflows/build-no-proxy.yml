@@ -27,9 +27,6 @@ jobs:
             arch: amd64
 
     steps:
-      - name: Disable git autocrlf
-        run: git config --global core.autocrlf false
-
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
@@ -66,6 +63,11 @@ jobs:
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
+          # Prevent git-lfs (installed on ubuntu runners) from smudging LFS
+          # pointers into full binaries during VCS-based module downloads.
+          # Without this, dependencies using LFS (e.g. charm.land/glamour)
+          # produce a different zip hash than what go.sum records.
+          GIT_LFS_SKIP_SMUDGE: "1"
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
