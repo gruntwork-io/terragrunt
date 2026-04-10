@@ -299,7 +299,9 @@ func sanitizeZipPath(dst, name string) (string, error) {
 }
 
 // extractZipFile extracts a single file from a zip archive.
-func (z *ZipDecompressor) extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64) error {
+func (z *ZipDecompressor) extractZipFile(
+	l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64,
+) error {
 	destPath, err := sanitizeZipPath(dst, zipFile.Name)
 	if err != nil {
 		return err
