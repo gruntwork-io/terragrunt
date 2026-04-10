@@ -186,8 +186,6 @@ dependency "enabled" {
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
 
-// TestDisabledDependencyWithEmptyConfigPath verifies that disabled dependencies
-// with empty config_path don't cause errors.
 // TestDependencyOriginalTerragruntDir verifies that when parsing a dependency's
 // config during cycle detection, get_original_terragrunt_dir() returns the
 // dependency's directory, not the caller's directory.
@@ -215,10 +213,36 @@ func TestDependencyOriginalTerragruntDir(t *testing.T) {
 	pctx.OriginalTerragruntConfigPath = filename
 	pctx.SkipOutput = true
 
-	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
 	require.NoError(t, err)
+	require.NotNil(t, tfConfig)
+
+	// Parse unit-b directly and verify that its locals resolved correctly
+	// through the get_original_terragrunt_dir() -> common.hcl -> _common.hcl chain.
+	unitBFilename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"dependency-original-terragrunt-dir",
+			"unit-b",
+			"terragrunt.hcl",
+		),
+	)
+	require.NoError(t, err)
+
+	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
+	pctxB.OriginalTerragruntConfigPath = unitBFilename
+
+	unitBConfig, err := config.ParseConfigFile(ctxB, pctxB, logger.CreateLogger(), unitBFilename, nil)
+	require.NoError(t, err)
+	require.NotNil(t, unitBConfig)
+	assert.Equal(t, "myapp", unitBConfig.Locals["app_name"])
 }
 
+// TestDisabledDependencyWithEmptyConfigPath verifies that disabled dependencies
+// with empty config_path don't cause errors.
 func TestDisabledDependencyWithEmptyConfigPath(t *testing.T) {
 	t.Parallel()
 
