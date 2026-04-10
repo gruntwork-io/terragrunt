@@ -188,6 +188,37 @@ dependency "enabled" {
 
 // TestDisabledDependencyWithEmptyConfigPath verifies that disabled dependencies
 // with empty config_path don't cause errors.
+// TestDependencyOriginalTerragruntDir verifies that when parsing a dependency's
+// config during cycle detection, get_original_terragrunt_dir() returns the
+// dependency's directory, not the caller's directory.
+//
+// Regression test: when unit-a depends on unit-b, and unit-b's config chain
+// calls get_original_terragrunt_dir(), it must resolve to unit-b's directory so
+// that paths constructed from it point to files that exist alongside unit-b.
+func TestDependencyOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	filename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"dependency-original-terragrunt-dir",
+			"unit-a",
+			"terragrunt.hcl",
+		),
+	)
+	require.NoError(t, err)
+
+	ctx, pctx := newTestParsingContext(t, filename)
+	pctx.OriginalTerragruntConfigPath = filename
+	pctx.SkipOutput = true
+
+	_, err = config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
+	require.NoError(t, err)
+}
+
 func TestDisabledDependencyWithEmptyConfigPath(t *testing.T) {
 	t.Parallel()
 
