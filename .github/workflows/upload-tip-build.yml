@@ -1,0 +1,119 @@
+name: Upload Tip Build
+
+on:
+  workflow_call:
+    inputs:
+      prefix:
+        description: 'S3 key prefix for uploaded assets (e.g. "tip" or "test")'
+        required: true
+        type: string
+    secrets:
+      TIP_BUILD_ROLE_ARN:
+        required: false
+      TIP_BUILD_BUCKET:
+        required: false
+      SIGNING_GPG_PRIVATE_KEY:
+        required: false
+      SIGNING_GPG_PASSPHRASE:
+        required: false
+
+jobs:
+  upload:
+    name: Package, Sign, and Upload to S3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Check if tip build secrets are set
+        id: check_secrets
+        env:
+          ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+          BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+        run: |
+          if [[ -n "${ROLE_ARN}" && -n "${BUCKET}" ]]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+            echo "Tip build secrets are configured"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "Tip build secrets are NOT configured - skipping"
+          fi
+
+      - name: Checkout code
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Download all build artifacts
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: terragrunt_*
+          path: bin/
+          merge-multiple: true
+
+      - name: Verify binaries downloaded
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: .github/scripts/release/verify-binaries-downloaded.sh bin
+
+      - name: Set execution permissions
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: chmod +x bin/terragrunt_*
+
+      - name: Create tar.gz archives
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          cd bin
+          for binary in terragrunt_*; do
+            tar -czf "${binary}.tar.gz" "$binary"
+            echo "Created: ${binary}.tar.gz"
+          done
+
+      - name: Remove bare binaries
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: |
+          cd bin
+          for f in terragrunt_*; do
+            if [[ "$f" != *.tar.gz ]]; then
+              rm "$f"
+            fi
+          done
+
+      - name: Generate SHA256SUMS
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        run: .github/scripts/release/generate-checksums.sh bin
+
+      - name: Import GPG key
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+        run: |
+          echo "${SIGNING_GPG_PRIVATE_KEY}" | base64 --decode | gpg --batch --import
+          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
+          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >> "${GITHUB_ENV}"
+
+      - name: Install Cosign
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
+
+      - name: Sign SHA256SUMS
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
+        run: .github/scripts/release/sign-checksums.sh bin
+
+      - name: Configure AWS credentials
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
+        with:
+          role-to-assume: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Upload to S3
+        if: steps.check_secrets.outputs.has_secrets == 'true'
+        env:
+          BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+          PREFIX: ${{ inputs.prefix }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: .github/scripts/upload-tip-build.sh bin
