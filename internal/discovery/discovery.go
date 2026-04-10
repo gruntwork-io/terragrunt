@@ -76,24 +76,26 @@ func (d *Discovery) Discover(
 		components = filtered
 	}
 
-	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "discovery_cycle_check", map[string]any{}, func(childCtx context.Context) error {
-		if _, cycleErr := components.CycleCheck(); cycleErr != nil {
-			l.Debugf("Cycle: %v", cycleErr)
+	cycleCheckErr := telemetry.TelemeterFromContext(ctx).Collect(
+		ctx, "discovery_cycle_check", map[string]any{},
+		func(childCtx context.Context) error {
+			if _, cycleErr := components.CycleCheck(); cycleErr != nil {
+				l.Debugf("Cycle: %v", cycleErr)
 
-			if d.breakCycles {
-				l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
+				if d.breakCycles {
+					l.Warnf("Cycle detected in dependency graph, attempting removal of cycles.")
 
-				var removeErr error
+					var removeErr error
 
-				components, removeErr = removeCycles(components)
-				if removeErr != nil {
-					return removeErr
+					components, removeErr = removeCycles(components)
+					if removeErr != nil {
+						return removeErr
+					}
 				}
 			}
-		}
 
-		return nil
-	})
+			return nil
+		})
 
 	if cycleCheckErr != nil && !d.suppressParseErrors {
 		return components, cycleCheckErr
@@ -248,10 +250,12 @@ func (d *Discovery) runGraphPhase(
 
 		var buildErrs []error
 
-		telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependents", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
-			buildErrs = d.buildDependencyGraph(childCtx, l, opts, allComponents)
-			return errors.Join(buildErrs...)
-		})
+		telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+			ctx, "discover_dependents", map[string]any{},
+			func(childCtx context.Context) error {
+				buildErrs = d.buildDependencyGraph(childCtx, l, opts, allComponents)
+				return errors.Join(buildErrs...)
+			})
 
 		if len(buildErrs) > 0 && !d.suppressParseErrors {
 			return &PhaseResults{
@@ -268,17 +272,19 @@ func (d *Discovery) runGraphPhase(
 		err    error
 	)
 
-	telemetry.TelemeterFromContext(ctx).Collect(ctx, "discover_dependencies", map[string]any{}, func(childCtx context.Context) error { //nolint:errcheck
-		result, err = phase.Run(childCtx, l, &PhaseInput{
-			Opts:       opts,
-			Components: resultsToComponents(discovered),
-			Candidates: candidates,
-			Classifier: d.classifier,
-			Discovery:  d,
-		})
+	telemetry.TelemeterFromContext(ctx).Collect( //nolint:errcheck
+		ctx, "discover_dependencies", map[string]any{},
+		func(childCtx context.Context) error {
+			result, err = phase.Run(childCtx, l, &PhaseInput{
+				Opts:       opts,
+				Components: resultsToComponents(discovered),
+				Candidates: candidates,
+				Classifier: d.classifier,
+				Discovery:  d,
+			})
 
-		return err
-	})
+			return err
+		})
 
 	allDiscovered := discovered
 	if result != nil {
@@ -571,14 +577,20 @@ func filterByAllowSet(components component.Components, allowed map[string]struct
 
 // applyQueueFilters marks discovered units as excluded or included based on queue-related CLI flags and config.
 // The runner consumes the exclusion markers instead of re-evaluating the filters.
-func (d *Discovery) applyQueueFilters(opts *options.TerragruntOptions, components component.Components) component.Components {
+func (d *Discovery) applyQueueFilters(
+	opts *options.TerragruntOptions,
+	components component.Components,
+) component.Components {
 	components = d.applyExcludeModules(opts, components)
 
 	return components
 }
 
 // applyExcludeModules marks units (and optionally their dependencies) excluded via terragrunt exclude blocks.
-func (d *Discovery) applyExcludeModules(opts *options.TerragruntOptions, components component.Components) component.Components {
+func (d *Discovery) applyExcludeModules(
+	opts *options.TerragruntOptions,
+	components component.Components,
+) component.Components {
 	for _, c := range components {
 		unit, ok := c.(*component.Unit)
 		if !ok {

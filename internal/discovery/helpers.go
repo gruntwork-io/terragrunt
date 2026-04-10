@@ -240,7 +240,11 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 		}
 
 		if !config.IsValidConfigPath(dependency.ConfigPath) {
-			errs = append(errs, errors.Errorf("skipping dependency %q in %q: config_path could not be resolved", dependency.Name, c.Path()))
+			errs = append(errs, errors.Errorf(
+				"skipping dependency %q in %q: "+
+					"config_path could not be resolved",
+				dependency.Name, c.Path()))
+
 			continue
 		}
 
