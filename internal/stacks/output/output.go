@@ -143,7 +143,8 @@ func StackOutput(
 
 	unitOutputs := make(map[string]map[string]cty.Value)
 
-	// Build stack list separated by stacks, find all nested stacks, and build a dotted path. If no stack is found, use the unit name.
+	// Build stack list separated by stacks, find all nested stacks, and build
+	// a dotted path. If no stack is found, use the unit name.
 	for path, unit := range declaredUnits {
 		output, found := outputs[path]
 		if !found {
@@ -273,5 +274,9 @@ func buildWorktreesIfNeeded(
 		return nil, nil
 	}
 
-	return worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+	return worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: gitFilters,
+		Experiments:    opts.Experiments,
+	})
 }
