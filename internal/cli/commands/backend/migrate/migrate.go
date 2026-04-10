@@ -94,9 +94,18 @@ func Run(ctx context.Context, l log.Logger, srcPath, dstPath string, opts *optio
 		}
 
 		if !enabled {
-			return errors.Errorf("src bucket is not versioned, refusing to migrate backend state. If you are sure you want to migrate the backend state anyways, use the --%s flag", ForceBackendMigrateFlagName)
+			return errors.Errorf(
+				"src bucket is not versioned, refusing to migrate backend state."+
+					" If you are sure you want to migrate the backend state anyways, use the --%s flag",
+				ForceBackendMigrateFlagName,
+			)
 		}
 	}
 
-	return srcRemoteState.Migrate(ctx, l, configbridge.RemoteStateOptsFromOpts(srcOpts), configbridge.RemoteStateOptsFromOpts(dstOpts), dstRemoteState)
+	return srcRemoteState.Migrate(
+		ctx, l,
+		configbridge.RemoteStateOptsFromOpts(srcOpts),
+		configbridge.RemoteStateOptsFromOpts(dstOpts),
+		dstRemoteState,
+	)
 }
