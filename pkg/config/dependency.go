@@ -307,7 +307,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, depPath, pctx.Writers.LogShowAbsPaths))
 		}
 
-		_, depCtx, err := pctx.WithConfigPath(l, depPath)
+		_, depCtx, err := pctx.WithDependencyConfigPath(l, depPath)
 		if err != nil {
 			return nil, err
 		}
@@ -393,7 +393,7 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -436,7 +436,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -760,14 +760,12 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Create dependency context using WithConfigPath
-	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
+	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set dependency-specific fields
-	pctx.OriginalTerragruntConfigPath = targetConfig
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"
