@@ -540,12 +540,16 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 					// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
 					// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
 					// to unknown rather than producing an "Unsupported attribute" error.
+					l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
 					dependencyEncodingMap["outputs"] = cty.DynamicVal
 				}
 
 				if dependencyConfig.Inputs != nil {
 					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 				} else if pctx.SkipOutput {
+					l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
 					dependencyEncodingMap["inputs"] = cty.DynamicVal
 				}
 
