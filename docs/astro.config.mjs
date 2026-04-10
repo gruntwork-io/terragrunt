@@ -141,8 +141,9 @@ export default defineConfig({
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
 
-            // Used as a redirect to the Terragrunt Discord server
+            // Used as redirects to the Terragrunt Discord server
             "/community/invite",
+            "/tgs-discord",
           ],
         }),
         starlightLlmsTxt()
