@@ -35,6 +35,38 @@ INFO Downloaded source from git::https://github.com/example/module.git (3.2s)
 
 To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).
 
+#### `stack-dependencies` — Dependency wiring between units in stacks
+
+A new `stack-dependencies` experiment enables the `autoinclude` block in `terragrunt.stack.hcl` files, allowing units and stacks to define dependency relationships and arbitrary configuration overrides during stack generation. This implements [RFC #5663](https://github.com/gruntwork-io/terragrunt/issues/5663).
+
+```hcl
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment stack-dependencies -- plan
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).
+
 ### 💡 Tip Added
 
 ---
@@ -76,6 +108,10 @@ Added retry patterns for provider resolution and registry connection failures co
 ### ⚙️ Process Updates
 
 ---
+
+#### Tip builds now available from `main`
+
+Every successful CI run on the `main` branch now automatically produces tip build binaries with signed checksums for all supported platforms (Windows and macOS binaries are not codesigned in tip builds). These builds are accessible via the builds API at `https://builds.terragrunt.com` — see the [releases process documentation](/process/releases#tip-builds) for API endpoints and usage examples. Maintainers can also trigger on-demand test builds from any branch using the `test-build.yml` workflow.
 
 #### Concurrency limits now respect `GOMAXPROCS`
 
