@@ -39,8 +39,10 @@ type Entry struct {
 	// including its path, dependencies, and discovery context (such as the command being run).
 	Component component.Component
 
-	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
-	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
+	// Status represents the current lifecycle state of this entry in the
+	// queue. It tracks whether the entry is pending, blocked, ready,
+	// running, succeeded, or failed. Status is updated as dependencies
+	// are resolved and as execution progresses.
 	Status Status
 }
 
@@ -294,7 +296,8 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
+// GetReadyWithDependencies returns all entries that are ready to run and
+// have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
