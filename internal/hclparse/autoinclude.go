@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -176,10 +177,11 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 // AutoIncludeDependencyPaths reads the terragrunt.autoinclude.hcl file in
 // unitDir and returns resolved dependency config_path values.
 // Returns (nil, nil) if the file does not exist or has no dependencies.
-func AutoIncludeDependencyPaths(unitDir string) ([]string, error) {
+func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
+	unitDir = resolveSymlinks(unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
-	data, err := os.ReadFile(autoIncludePath)
+	data, err := vfs.ReadFile(fs, autoIncludePath)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -220,7 +222,7 @@ func AutoIncludeDependencyPaths(unitDir string) ([]string, error) {
 			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
 		}
 
-		paths = append(paths, depPath)
+		paths = append(paths, resolveSymlinks(depPath))
 	}
 
 	return paths, nil

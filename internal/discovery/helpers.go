@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -280,9 +281,9 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 // addStackDependencyPaths enriches dependency paths with stack-dependencies
 // experiment features: autoinclude dependency extraction and stack-to-unit
 // path expansion. Called by discovery phases when the experiment is enabled.
-func addStackDependencyPaths(l log.Logger, depPaths []string, c component.Component) []string {
+func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c component.Component) []string {
 	// Add dependencies declared in autoinclude files.
-	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(c.Path())
+	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
 		l.Warnf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
 	}
@@ -295,7 +296,7 @@ func addStackDependencyPaths(l log.Logger, depPaths []string, c component.Compon
 	var expanded []string
 
 	for _, depPath := range depPaths {
-		unitPaths := intHclparse.UnitPathsFromStackDir(depPath)
+		unitPaths := intHclparse.UnitPathsFromStackDir(fs, depPath)
 		if len(unitPaths) > 0 {
 			expanded = append(expanded, unitPaths...)
 

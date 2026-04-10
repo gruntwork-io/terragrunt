@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -144,10 +145,11 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 
 // ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk
 // and performs a two-pass parse. Returns nil, nil if the file does not exist.
-func ParseStackFileFromPath(stackDir string) (*ParseResult, error) {
+func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
+	stackDir = resolveSymlinks(stackDir)
 	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
 
-	data, err := os.ReadFile(stackFile)
+	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -156,7 +158,7 @@ func ParseStackFileFromPath(stackDir string) (*ParseResult, error) {
 		return nil, errors.Errorf("failed to read stack file %s: %w", stackFile, err)
 	}
 
-	return ParseStackFile(&ParseStackFileInput{
+	return ParseStackFile(fs, &ParseStackFileInput{
 		Src:      data,
 		Filename: stackFile,
 		StackDir: stackDir,
@@ -166,8 +168,10 @@ func ParseStackFileFromPath(stackDir string) (*ParseResult, error) {
 // UnitPathsFromStackDir parses the stack file in stackDir and returns
 // absolute paths to each unit's generated directory under .terragrunt-stack/.
 // Returns nil if the file does not exist or cannot be parsed.
-func UnitPathsFromStackDir(stackDir string) []string {
-	result, err := ParseStackFileFromPath(stackDir)
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
+	stackDir = resolveSymlinks(stackDir)
+
+	result, err := ParseStackFileFromPath(fs, stackDir)
 	if err != nil || result == nil {
 		return nil
 	}
@@ -193,8 +197,10 @@ func UnitPathsFromStackDir(stackDir string) []string {
 // stackSourceDir is the directory where the stack's source files live
 // (or will be generated). stackGenDir is the absolute path where this
 // stack's units will be generated (.terragrunt-stack/stack_path/).
-func DiscoverStackChildUnits(stackSourceDir, stackGenDir string) []ComponentRef {
-	result, err := ParseStackFileFromPath(stackSourceDir)
+func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+	stackSourceDir = resolveSymlinks(stackSourceDir)
+
+	result, err := ParseStackFileFromPath(fs, stackSourceDir)
 	if err != nil || result == nil {
 		return nil
 	}

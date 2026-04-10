@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
@@ -199,7 +200,7 @@ inputs = {
 func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 	t.Parallel()
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(t.TempDir())
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), t.TempDir())
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -214,7 +215,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, filepath.Clean(filepath.Join(tmpDir, "..", "unit-w-outputs")), paths[0])
@@ -233,9 +234,39 @@ dependency "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
+}
+
+func TestAutoIncludeDependencyPaths_Symlink(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create real unit directory with autoinclude file
+	realDir := filepath.Join(tmpDir, "real-unit")
+	require.NoError(t, os.MkdirAll(realDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(realDir, hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`), 0644))
+
+	// Create symlink to unit directory
+	symlinkDir := filepath.Join(tmpDir, "symlinked-unit")
+	require.NoError(t, os.Symlink(realDir, symlinkDir))
+
+	// AutoIncludeDependencyPaths via symlink should resolve correctly
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), symlinkDir)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+
+	// The dependency path should be resolved relative to the REAL directory, not the symlink
+	assert.NotContains(t, paths[0], "symlinked-unit")
+	// ../vpc resolved from real-unit gives <tmpDir>/vpc
+	expected := filepath.Clean(filepath.Join(realDir, "..", "vpc"))
+	assert.Equal(t, expected, paths[0])
 }
 
 func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
@@ -248,7 +279,7 @@ dependency "vpc" {
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])

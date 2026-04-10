@@ -3,10 +3,10 @@
 package hclparse
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -59,7 +59,7 @@ type ParseResult struct {
 // Pass 2: For each unit/stack with an autoinclude block, resolve the autoinclude
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
-func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
+func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
@@ -74,7 +74,7 @@ func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
 	}
 
 	// Process includes — merge included units/stacks.
-	if err := processStackIncludes(stackFile, input.StackDir); err != nil {
+	if err := processStackIncludes(fs, stackFile, input.StackDir); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +84,7 @@ func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-	stackRefs := buildStackRefsWithAbsPath(input.StackDir, stackTargetDir, stackFile.Stacks)
+	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks)
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
@@ -96,7 +96,9 @@ func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
 
 	// Evaluate locals block iteratively.
 	if stackFile.Locals != nil {
-		evaluateLocals(stackFile.Locals.Remain, evalCtx)
+		if err := evaluateLocals(stackFile.Locals.Remain, evalCtx); err != nil {
+			return nil, err
+		}
 	}
 
 	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx)
@@ -112,42 +114,82 @@ func ParseStackFile(input *ParseStackFileInput) (*ParseResult, error) {
 }
 
 // evaluateLocals iteratively evaluates attributes from a locals block body.
-// On each pass, attributes that can be evaluated with the current context are
-// resolved and added to the `local` variable. Iteration continues until no
-// progress is made or the maximum iteration count is reached.
-func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) {
+// Uses Variables() to pre-check whether each local's dependencies are satisfied
+// before attempting evaluation. Shrinks the work set each pass. Returns an error
+// if any locals cannot be evaluated (cycle or invalid reference).
+func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {
 		// Non-syntax bodies (e.g. from JSON configs) cannot be iteratively evaluated.
-		return
+		return nil
 	}
 
-	attrs := syntaxBody.Attributes
-	evaluated := make(map[string]cty.Value)
+	remaining := make(map[string]*hclsyntax.Attribute, len(syntaxBody.Attributes))
+	for name, attr := range syntaxBody.Attributes {
+		remaining[name] = attr
+	}
 
-	const maxIter = 100
+	evaluated := make(map[string]cty.Value, len(remaining))
 
-	for i := 0; i < maxIter; i++ {
+	for len(remaining) > 0 {
 		progress := false
 
-		for name, attr := range attrs {
-			if _, done := evaluated[name]; done {
+		for name, attr := range remaining {
+			if !canEvalLocal(attr, evaluated) {
 				continue
 			}
 
 			val, diags := attr.Expr.Value(evalCtx)
-			if !diags.HasErrors() {
-				evaluated[name] = val
-				progress = true
+			if diags.HasErrors() {
+				return errors.Errorf("failed to evaluate local %q: %s", name, diags.Error())
 			}
+
+			evaluated[name] = val
+			delete(remaining, name)
+
+			progress = true
 		}
 
 		if !progress {
-			break
+			names := make([]string, 0, len(remaining))
+			for name := range remaining {
+				names = append(names, name)
+			}
+
+			return errors.Errorf("could not evaluate locals (possible cycle): %v", names)
 		}
 
 		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 	}
+
+	return nil
+}
+
+// canEvalLocal checks whether all local.* dependencies of an attribute
+// are already evaluated. Non-local references (unit, stack, values, etc.)
+// are assumed available in the eval context.
+func canEvalLocal(attr *hclsyntax.Attribute, evaluated map[string]cty.Value) bool {
+	for _, traversal := range attr.Expr.Variables() {
+		if traversal.RootName() != varLocal {
+			continue
+		}
+
+		split := traversal.SimpleSplit()
+		if len(split.Rel) == 0 {
+			continue
+		}
+
+		step, ok := split.Rel[0].(hcl.TraverseAttr)
+		if !ok {
+			continue
+		}
+
+		if _, exists := evaluated[step.Name]; !exists {
+			return false
+		}
+	}
+
+	return true
 }
 
 // resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
@@ -203,14 +245,14 @@ func resolveOneAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext
 
 // processStackIncludes resolves include blocks by parsing the included files
 // and merging their unit/stack blocks into the main stack file.
-func processStackIncludes(stackFile *StackFileHCL, stackDir string) error {
+func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) error {
 	for _, inc := range stackFile.Includes {
 		includePath := inc.Path
 		if !filepath.IsAbs(includePath) {
 			includePath = filepath.Join(stackDir, includePath)
 		}
 
-		data, err := os.ReadFile(includePath)
+		data, err := vfs.ReadFile(fs, includePath)
 		if err != nil {
 			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
 		}
@@ -264,7 +306,7 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 // buildStackRefsWithAbsPath creates ComponentRef values for stack blocks.
 // It also attempts to parse each stack's source to discover child units,
 // enabling stack.stack_name.unit_name.path references.
-func buildStackRefsWithAbsPath(stackDir string, stackTargetDir string, stacks []*StackBlockHCL) []ComponentRef {
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
@@ -282,10 +324,21 @@ func buildStackRefsWithAbsPath(stackDir string, stackTargetDir string, stacks []
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		ref.ChildRefs = DiscoverStackChildUnits(sourceDir, stackGenPath)
+		ref.ChildRefs = DiscoverStackChildUnits(fs, sourceDir, stackGenPath)
 
 		refs = append(refs, ref)
 	}
 
 	return refs
+}
+
+// resolveSymlinks resolves symlinks in a path for consistent path handling.
+// Returns the original path if resolution fails (e.g. path does not exist).
+func resolveSymlinks(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }

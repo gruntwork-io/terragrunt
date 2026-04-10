@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
@@ -111,7 +112,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		parseResult, parseErr := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
 			// Stack files using HCL functions (e.g. find_in_parent_folders) will
 			// fail the two-pass parse since it uses nil eval context. This is
@@ -330,7 +331,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
 
-	if err := intHclparse.GenerateAutoIncludeFile(resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
+	if err := intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
 	}
 

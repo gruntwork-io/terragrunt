@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
@@ -56,7 +57,7 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
@@ -102,7 +103,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -144,7 +145,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -175,7 +176,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -217,7 +218,7 @@ unit "app" {
 	srcBytes := []byte(src)
 
 	// Parse with two-pass
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -230,7 +231,7 @@ unit "app" {
 	tmpDir := t.TempDir()
 	targetDir := filepath.Join(tmpDir, ".terragrunt-stack", "app")
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, targetDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, targetDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	// Read generated file
@@ -261,7 +262,7 @@ unit "app" {
 func TestGenerateAutoIncludeFile_NilResolved(t *testing.T) {
 	t.Parallel()
 
-	err := hclparse.GenerateAutoIncludeFile(nil, t.TempDir(), nil, nil)
+	err := hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), nil, t.TempDir(), nil, nil)
 	assert.NoError(t, err)
 }
 
@@ -301,7 +302,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -309,7 +310,7 @@ unit "app" {
 
 	tmpDir := t.TempDir()
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, tmpDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, tmpDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile))
@@ -336,7 +337,7 @@ unit "vpc" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 1)
 	assert.Empty(t, result.AutoIncludes)
@@ -369,7 +370,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -377,7 +378,7 @@ unit "app" {
 
 	tmpDir := t.TempDir()
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, tmpDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, tmpDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile))
@@ -420,7 +421,7 @@ unit "app" {
 	srcBytes := []byte(src)
 
 	// ParseStackFile resolves dep.ConfigPath to stackRoot/.terragrunt-stack/vpc
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: stackRoot})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: stackRoot})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -429,7 +430,7 @@ unit "app" {
 	// Generate into stackRoot/.terragrunt-stack/app (sibling of vpc)
 	appDir := filepath.Join(stackRoot, ".terragrunt-stack", "app")
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(appDir, hclparse.AutoIncludeFile))
@@ -484,7 +485,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -493,7 +494,7 @@ unit "app" {
 	tmpDir := t.TempDir()
 	appDir := filepath.Join(tmpDir, ".terragrunt-stack", "app")
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(appDir, hclparse.AutoIncludeFile))
@@ -549,7 +550,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes["app"]
@@ -558,7 +559,7 @@ unit "app" {
 	tmpDir := t.TempDir()
 	appDir := filepath.Join(tmpDir, ".terragrunt-stack", "app")
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(appDir, hclparse.AutoIncludeFile))
@@ -625,7 +626,7 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes["app"]
@@ -634,7 +635,7 @@ unit "app" {
 	tmpDir := t.TempDir()
 	appDir := filepath.Join(tmpDir, ".terragrunt-stack", "app")
 
-	err = hclparse.GenerateAutoIncludeFile(resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	generated, err := os.ReadFile(filepath.Join(appDir, hclparse.AutoIncludeFile))
@@ -710,7 +711,7 @@ unit "app" {
 	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
 	require.NoError(t, os.WriteFile(parentStackFile, []byte(parentSrc), 0644))
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: parentStackFile, StackDir: parentStackDir})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: parentStackFile, StackDir: parentStackDir})
 	require.NoError(t, err)
 
 	// app's autoinclude should resolve vpc dependency to the nested unit path
@@ -747,7 +748,7 @@ unit "app" {
 	b.ResetTimer()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -801,7 +802,7 @@ unit "app" {
 	b.ResetTimer()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -833,7 +834,7 @@ unit "app" {
 }
 `)
 
-	result, err := hclparse.ParseStackFile(&hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -844,7 +845,7 @@ unit "app" {
 	b.ResetTimer()
 
 	for b.Loop() {
-		err := hclparse.GenerateAutoIncludeFile(resolved, tmpDir, src, resolved.EvalCtx)
+		err := hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, tmpDir, src, resolved.EvalCtx)
 		if err != nil {
 			b.Fatal(err)
 		}

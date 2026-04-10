@@ -1,11 +1,11 @@
 package hclparse
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -34,7 +34,7 @@ const (
 //
 // srcBytes is the original terragrunt.stack.hcl file content, used to extract
 // source text for expressions via byte ranges.
-func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if resolved == nil {
 		return nil
 	}
@@ -65,13 +65,13 @@ func GenerateAutoIncludeFile(resolved *AutoIncludeResolved, targetDir string, sr
 
 	filePath := filepath.Join(targetDir, AutoIncludeFile)
 
-	if err := os.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
+	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
 		return errors.Errorf("failed to create directory %s: %w", targetDir, err)
 	}
 
 	formatted := hclwrite.Format(out.Bytes())
 
-	if err := os.WriteFile(filePath, formatted, autoIncludeFilePerm); err != nil {
+	if err := vfs.WriteFile(fs, filePath, formatted, autoIncludeFilePerm); err != nil {
 		return errors.Errorf("failed to write %s: %w", filePath, err)
 	}
 
