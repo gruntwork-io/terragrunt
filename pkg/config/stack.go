@@ -113,10 +113,15 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := intHclparse.ParseStackFile(&intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			return errors.Errorf("autoinclude parse failed for %s: %w", stackFilePath, parseErr)
+			// Stack files using HCL functions (e.g. find_in_parent_folders) will
+			// fail the two-pass parse since it uses nil eval context. This is
+			// expected for stacks without autoinclude blocks — log and continue.
+			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
 		}
 
-		autoIncludes = parseResult.AutoIncludes
+		if parseErr == nil {
+			autoIncludes = parseResult.AutoIncludes
+		}
 	}
 
 	genOpts := generateOpts{

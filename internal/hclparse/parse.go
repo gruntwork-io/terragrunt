@@ -1,3 +1,5 @@
+// Package hclparse provides two-phase HCL parsing for stack files with
+// support for autoinclude blocks and deferred evaluation.
 package hclparse
 
 import (
