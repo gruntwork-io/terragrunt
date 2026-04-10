@@ -223,6 +223,13 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			// During hcl validate, config_path may be unresolvable (e.g., references an
+			// unavailable local). Skip the invalid dependency instead of aborting — it will
+			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
@@ -279,6 +286,11 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			if pctx.SkipOutput {
+				updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+				continue
+			}
+
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -388,10 +400,19 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 		}
 
 		if !IsValidConfigPath(dependency.ConfigPath) {
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
+
+		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
+		if !util.FileExists(dependencyPath) {
+			continue
+		}
 
 		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
@@ -515,10 +536,21 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 					lock.Unlock()
 
 					dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				} else if pctx.SkipOutput {
+					// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
+					// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
+					// to unknown rather than producing an "Unsupported attribute" error.
+					l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["outputs"] = cty.DynamicVal
 				}
 
 				if dependencyConfig.Inputs != nil {
 					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				} else if pctx.SkipOutput {
+					l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["inputs"] = cty.DynamicVal
 				}
 
 				// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
