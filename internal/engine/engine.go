@@ -647,7 +647,12 @@ func createEngine(
 }
 
 // invoke engine for working directory
-func invoke(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
+func invoke(
+	ctx context.Context,
+	l log.Logger,
+	runOptions *ExecutionOptions,
+	client *proto.EngineClient,
+) (*util.CmdOutput, error) {
 	l = l.WithField(placeholders.TFPathKeyName, "engine")
 
 	meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
@@ -865,7 +870,12 @@ func initialize(ctx context.Context, l log.Logger, runOptions *ExecutionOptions,
 var ErrEngineShutdownFailed = errors.New("engine shutdown failed")
 
 // shutdown engine for working directory
-func shutdown(ctx context.Context, l log.Logger, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
+func shutdown(
+	ctx context.Context,
+	l log.Logger,
+	runOptions *ExecutionOptions,
+	terragruntEngine *proto.EngineClient,
+) error {
 	meta, err := ConvertMetaToProtobuf(runOptions.EngineConfig.Meta)
 	if err != nil {
 		return errors.New(err)
