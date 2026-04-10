@@ -559,8 +559,8 @@ github.com/gruntwork-io/go-commons v0.17.2/go.mod h1:zs7Q2AbUKuTarBPy19CIxJVUX/r
 github.com/gruntwork-io/terragrunt-engine-go v0.1.0 h1:N/8q099DtaKUgzVGMW2oOYhV8kc5x3Wd/PKlh7G8TRA=
 github.com/gruntwork-io/terragrunt-engine-go v0.1.0/go.mod h1:bkjFHAYc8NBV8SkTQyHRhqBebbIsZyFv8mX5r/PAjcM=
 github.com/hashicorp/aws-sdk-go-base v0.6.0/go.mod h1:2fRjWDv3jJBeN6mVWFHV6hFTNeFBx2gpDLQaZNxUVAY=
-github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.71 h1:3qrWTgbR0uMacRVnE6//G1B20hUJexxqqmQ2OTs1+0s=
-github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.71/go.mod h1:YV27+mh2SLUqeP36G1a9MiqL5eBkFnZQJjNTR9Q9NcY=
+github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72 h1:vTCWu1wbdYo7PEZFem/rlr01+Un+wwVmI7wiegFdRLk=
+github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72/go.mod h1:Vn+BBgKQHVQYdVQ4NZDICE1Brb+JfaONyDHr3q07oQc=
 github.com/hashicorp/consul v0.0.0-20171026175957-610f3c86a089/go.mod h1:mFrjN1mfidgJfYP1xrJCF+AfRhr6Eaqhb2+sfyn/OOI=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
@@ -573,8 +573,8 @@ github.com/hashicorp/go-cleanhttp v0.5.1/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtng
 github.com/hashicorp/go-cleanhttp v0.5.2 h1:035FKYIWjmULyFRBKPs8TBQoi0x6d9G4xc9neXJWAZQ=
 github.com/hashicorp/go-cleanhttp v0.5.2/go.mod h1:kO/YDlP8L1346E6Sodw+PrpBSV4/SoxCXGY6BqNFT48=
 github.com/hashicorp/go-getter v1.5.1/go.mod h1:a7z7NPPfNQpJWcn4rSWFtdrSldqLdLPEF3d8nFMsSLM=
-github.com/hashicorp/go-getter v1.8.5 h1:DMPV5CSw5JrNg/IK7kDZt3+l2REKXOi3oAw7uYLh2NM=
-github.com/hashicorp/go-getter v1.8.5/go.mod h1:WIffejwAyDSJhoVptc3UEshEMkR9O63rw34V7k43O3Q=
+github.com/hashicorp/go-getter v1.8.6 h1:9sQboWULaydVphxc4S64oAI4YqpuCk7nPmvbk131ebY=
+github.com/hashicorp/go-getter v1.8.6/go.mod h1:nVH12eOV2P58dIiL3rsU6Fh3wLeJEKBOJzhMmzlSWoo=
 github.com/hashicorp/go-getter/v2 v2.2.3 h1:6CVzhT0KJQHqd9b0pK3xSP0CM/Cv+bVhk+jcaRJ2pGk=
 github.com/hashicorp/go-getter/v2 v2.2.3/go.mod h1:hp5Yy0GMQvwWVUmwLs3ygivz1JSLI323hdIE9J9m7TY=
 github.com/hashicorp/go-hclog v0.14.1/go.mod h1:whpDNt7SSdeAju8AWKIWsul05p54N/39EeqMAyrmvFQ=

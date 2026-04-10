@@ -24,7 +24,7 @@ require (
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
-	github.com/hashicorp/go-getter v1.8.5
+	github.com/hashicorp/go-getter v1.8.6
 	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
@@ -209,7 +209,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
-	github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.71 // indirect
+	github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
