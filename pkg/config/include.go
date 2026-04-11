@@ -299,6 +299,10 @@ func (cfg *TerragruntConfig) Merge(l log.Logger, sourceConfig *TerragruntConfig)
 		cfg.IamWebIdentityToken = sourceConfig.IamWebIdentityToken
 	}
 
+	if sourceConfig.IamAssumeRoleWithExistingCredentials {
+		cfg.IamAssumeRoleWithExistingCredentials = sourceConfig.IamAssumeRoleWithExistingCredentials
+	}
+
 	if sourceConfig.TerraformVersionConstraint != "" {
 		cfg.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}

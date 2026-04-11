@@ -57,35 +57,36 @@ const (
 
 	logMsgSeparator = "\n"
 
-	DefaultEngineType                   = "rpc"
-	MetadataTerraform                   = "terraform"
-	MetadataTerraformBinary             = "terraform_binary"
-	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
-	MetadataTerragruntVersionConstraint = "terragrunt_version_constraint"
-	MetadataRemoteState                 = "remote_state"
-	MetadataDependencies                = "dependencies"
-	MetadataDependency                  = "dependency"
-	MetadataDownloadDir                 = "download_dir"
-	MetadataPreventDestroy              = "prevent_destroy"
-	MetadataIamRole                     = "iam_role"
-	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
-	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
-	MetadataIamWebIdentityToken         = "iam_web_identity_token"
-	MetadataInputs                      = "inputs"
-	MetadataLocals                      = "locals"
-	MetadataLocal                       = "local"
-	MetadataCatalog                     = "catalog"
-	MetadataEngine                      = "engine"
-	MetadataGenerateConfigs             = "generate"
-	MetadataInclude                     = "include"
-	MetadataFeatureFlag                 = "feature"
-	MetadataExclude                     = "exclude"
-	MetadataErrors                      = "errors"
-	MetadataRetry                       = "retry"
-	MetadataIgnore                      = "ignore"
-	MetadataValues                      = "values"
-	MetadataStack                       = "stack"
-	MetadataUnit                        = "unit"
+	DefaultEngineType                            = "rpc"
+	MetadataTerraform                            = "terraform"
+	MetadataTerraformBinary                      = "terraform_binary"
+	MetadataTerraformVersionConstraint           = "terraform_version_constraint"
+	MetadataTerragruntVersionConstraint          = "terragrunt_version_constraint"
+	MetadataRemoteState                          = "remote_state"
+	MetadataDependencies                         = "dependencies"
+	MetadataDependency                           = "dependency"
+	MetadataDownloadDir                          = "download_dir"
+	MetadataPreventDestroy                       = "prevent_destroy"
+	MetadataIamRole                              = "iam_role"
+	MetadataIamAssumeRoleDuration                = "iam_assume_role_duration"
+	MetadataIamAssumeRoleSessionName             = "iam_assume_role_session_name"
+	MetadataIamWebIdentityToken                  = "iam_web_identity_token"
+	MetadataIamAssumeRoleWithExistingCredentials = "iam_assume_role_with_existing_credentials"
+	MetadataInputs                               = "inputs"
+	MetadataLocals                               = "locals"
+	MetadataLocal                                = "local"
+	MetadataCatalog                              = "catalog"
+	MetadataEngine                               = "engine"
+	MetadataGenerateConfigs                      = "generate"
+	MetadataInclude                              = "include"
+	MetadataFeatureFlag                          = "feature"
+	MetadataExclude                              = "exclude"
+	MetadataErrors                               = "errors"
+	MetadataRetry                                = "retry"
+	MetadataIgnore                               = "ignore"
+	MetadataValues                               = "values"
+	MetadataStack                                = "stack"
+	MetadataUnit                                 = "unit"
 )
 
 var (
@@ -139,30 +140,31 @@ type DecodedBaseBlocks struct {
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
-	Locals                      map[string]any
-	ProcessedIncludes           IncludeConfigsMap
-	FieldsMetadata              map[string]map[string]any
-	Terraform                   *TerraformConfig
-	Errors                      *ErrorsConfig
-	RemoteState                 *remotestate.RemoteState
-	Dependencies                *ModuleDependencies
-	Exclude                     *ExcludeConfig
-	PreventDestroy              *bool
-	GenerateConfigs             map[string]codegen.GenerateConfig
-	IamAssumeRoleDuration       *int64
-	Inputs                      map[string]any
-	Engine                      *EngineConfig
-	Catalog                     *CatalogConfig
-	IamWebIdentityToken         string
-	IamAssumeRoleSessionName    string
-	IamRole                     string
-	DownloadDir                 string
-	TerragruntVersionConstraint string
-	TerraformVersionConstraint  string
-	TerraformBinary             string
-	TerragruntDependencies      Dependencies
-	FeatureFlags                FeatureFlags
-	IsPartial                   bool
+	Locals                               map[string]any
+	ProcessedIncludes                    IncludeConfigsMap
+	FieldsMetadata                       map[string]map[string]any
+	Terraform                            *TerraformConfig
+	Errors                               *ErrorsConfig
+	RemoteState                          *remotestate.RemoteState
+	Dependencies                         *ModuleDependencies
+	Exclude                              *ExcludeConfig
+	PreventDestroy                       *bool
+	GenerateConfigs                      map[string]codegen.GenerateConfig
+	IamAssumeRoleDuration                *int64
+	Inputs                               map[string]any
+	Engine                               *EngineConfig
+	Catalog                              *CatalogConfig
+	IamWebIdentityToken                  string
+	IamAssumeRoleSessionName             string
+	IamRole                              string
+	DownloadDir                          string
+	TerragruntVersionConstraint          string
+	TerraformVersionConstraint           string
+	TerraformBinary                      string
+	TerragruntDependencies               Dependencies
+	FeatureFlags                         FeatureFlags
+	IsPartial                            bool
+	IamAssumeRoleWithExistingCredentials bool
 }
 
 func (cfg *TerragruntConfig) GetRemoteState(l log.Logger, pctx *ParsingContext) (*remotestate.RemoteState, error) {
@@ -199,9 +201,10 @@ func (cfg *TerragruntConfig) String() string {
 // iam.RoleOptions struct.
 func (cfg *TerragruntConfig) GetIAMRoleOptions() iam.RoleOptions {
 	configIAMRoleOptions := iam.RoleOptions{
-		RoleARN:               cfg.IamRole,
-		AssumeRoleSessionName: cfg.IamAssumeRoleSessionName,
-		WebIdentityToken:      cfg.IamWebIdentityToken,
+		RoleARN:                           cfg.IamRole,
+		AssumeRoleSessionName:             cfg.IamAssumeRoleSessionName,
+		WebIdentityToken:                  cfg.IamWebIdentityToken,
+		AssumeRoleWithExistingCredentials: cfg.IamAssumeRoleWithExistingCredentials,
 	}
 	if cfg.IamAssumeRoleDuration != nil {
 		configIAMRoleOptions.AssumeRoleDuration = *cfg.IamAssumeRoleDuration
@@ -649,17 +652,18 @@ type terragruntConfigFile struct {
 	RemoteState     *remotestate.ConfigFile `hcl:"remote_state,block"`
 	RemoteStateAttr *cty.Value              `hcl:"remote_state,optional"`
 
-	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
-	DownloadDir              *string             `hcl:"download_dir,attr"`
-	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
-	IamRole                  *string             `hcl:"iam_role,attr"`
-	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
-	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
-	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
-	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
-	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
-	Errors                   *ErrorsConfig       `hcl:"errors,block"`
+	Dependencies                         *ModuleDependencies `hcl:"dependencies,block"`
+	DownloadDir                          *string             `hcl:"download_dir,attr"`
+	PreventDestroy                       *bool               `hcl:"prevent_destroy,attr"`
+	IamRole                              *string             `hcl:"iam_role,attr"`
+	IamAssumeRoleDuration                *int64              `hcl:"iam_assume_role_duration,attr"`
+	IamAssumeRoleSessionName             *string             `hcl:"iam_assume_role_session_name,attr"`
+	IamWebIdentityToken                  *string             `hcl:"iam_web_identity_token,attr"`
+	IamAssumeRoleWithExistingCredentials *bool               `hcl:"iam_assume_role_with_existing_credentials,attr"`
+	TerragruntDependencies               []Dependency        `hcl:"dependency,block"`
+	FeatureFlags                         []*FeatureFlag      `hcl:"feature,block"`
+	Exclude                              *ExcludeConfig      `hcl:"exclude,block"`
+	Errors                               *ErrorsConfig       `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -1772,6 +1776,11 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	if terragruntConfigFromFile.IamWebIdentityToken != nil {
 		terragruntConfig.IamWebIdentityToken = *terragruntConfigFromFile.IamWebIdentityToken
 		terragruntConfig.SetFieldMetadata(MetadataIamWebIdentityToken, defaultMetadata)
+	}
+
+	if terragruntConfigFromFile.IamAssumeRoleWithExistingCredentials != nil {
+		terragruntConfig.IamAssumeRoleWithExistingCredentials = *terragruntConfigFromFile.IamAssumeRoleWithExistingCredentials
+		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleWithExistingCredentials, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.Engine != nil {
