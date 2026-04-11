@@ -230,7 +230,11 @@ func parseComponent(
 	parseOpts.TerragruntConfigPath = filepath.Join(parseOpts.WorkingDir, configFilename)
 	parseOpts.OriginalTerragruntConfigPath = parseOpts.TerragruntConfigPath
 
-	if _, err := creds.ObtainCredsForParsing(ctx, l, parseOpts.AuthProviderCmd, parseOpts.Env, configbridge.ShellRunOptsFromOpts(parseOpts)); err != nil {
+	shellRunOpts := configbridge.ShellRunOptsFromOpts(parseOpts)
+	if _, err := creds.ObtainCredsForParsing(
+		ctx, l, parseOpts.AuthProviderCmd,
+		parseOpts.Env, shellRunOpts,
+	); err != nil {
 		return err
 	}
 
