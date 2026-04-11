@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -88,6 +90,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	stackTargetDir := filepath.Join(stackSourceDir, StackDir)
 
 	genOpts := generateOpts{
+		pctx:            pctx,
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
 		sourceMap:       pctx.SourceMap,
@@ -108,6 +111,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
+	pctx            *ParsingContext
 	sourceMap       map[string]string
 	rootWorkingDir  string
 	stackConfigPath string
@@ -294,6 +298,50 @@ func generateComponent(ctx context.Context, l log.Logger, opts generateOpts, cmp
 	// generate values file
 	if err := writeValues(l, cmp.values, dest); err != nil {
 		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+	}
+
+	// Process generate blocks in the generated directory so that dependency
+	// resolution via "tofu/terraform output -json" sees the correct files (#5702).
+	// Generate block processing is best-effort during stack generation.
+	// Failure here doesn't prevent the stack from being generated;
+	// the unit will simply lack the generated file adjustments.
+	if cmp.kind == unitKind && opts.pctx != nil && opts.pctx.Experiments.Evaluate(experiment.StacksGenerateBlock) {
+		if err := processUnitGenerateBlocks(ctx, l, opts.pctx, dest); err != nil {
+			l.Warnf("Failed to process generate blocks for %s: %v", cmp.name, err)
+		}
+	}
+
+	return nil
+}
+
+// processUnitGenerateBlocks parses the unit's terragrunt.hcl with dependency
+// resolution skipped, then applies all generate blocks to the generated unit
+// directory.
+func processUnitGenerateBlocks(ctx context.Context, l log.Logger, pctx *ParsingContext, unitDir string) error {
+	configPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+	if !util.FileExists(configPath) {
+		return nil
+	}
+
+	unitPctx := pctx.Clone()
+	unitPctx.TerragruntConfigPath = configPath
+	unitPctx.WorkingDir = unitDir
+	unitPctx.SkipOutputsResolution = true
+
+	cfg, err := ParseConfigFile(ctx, unitPctx, l, configPath, nil)
+	if err != nil {
+		l.Debugf("Could not parse generate blocks for %s during stack generation: %v", configPath, err)
+		return nil
+	}
+
+	if cfg == nil {
+		return nil
+	}
+
+	for name, genCfg := range cfg.GenerateConfigs {
+		if err := codegen.WriteToFile(l, unitDir, &genCfg); err != nil {
+			return errors.Errorf("failed to process generate block %q (path %q) in %s: %w", name, genCfg.Path, unitDir, err)
+		}
 	}
 
 	return nil
