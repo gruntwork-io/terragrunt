@@ -336,6 +336,25 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			args: []string{
 				"plan",
+				doubleDashed(run.IAMAssumeRoleWithExistingCredentialsFlagName),
+			},
+			expectedOptions: mockOptionsWithIamAssumeRoleWithExistingCredentials(
+				t,
+				filepath.Join(
+					workingDir,
+					config.DefaultTerragruntConfigPath,
+				),
+				workingDir,
+				[]string{"plan"},
+				false,
+				"",
+				false,
+			),
+		},
+
+		{
+			args: []string{
+				"plan",
 				doubleDashed(run.ConfigFlagName),
 				"/some/path/" + config.DefaultTerragruntConfigPath,
 				"-non-interactive",
@@ -529,6 +548,16 @@ func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath strin
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
+
+	return opts
+}
+
+func mockOptionsWithIamAssumeRoleWithExistingCredentials(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool) *options.TerragruntOptions {
+	t.Helper()
+
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.OriginalIAMRoleOptions.AssumeRoleWithExistingCredentials = true
+	opts.IAMRoleOptions.AssumeRoleWithExistingCredentials = true
 
 	return opts
 }

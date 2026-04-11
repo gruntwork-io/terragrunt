@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	IAMAssumeRoleFlagName                 = "iam-assume-role"
-	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
-	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
-	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
+	IAMAssumeRoleFlagName                        = "iam-assume-role"
+	IAMAssumeRoleDurationFlagName                = "iam-assume-role-duration"
+	IAMAssumeRoleSessionNameFlagName             = "iam-assume-role-session-name"
+	IAMAssumeRoleWebIdentityTokenFlagName        = "iam-assume-role-web-identity-token"
+	IAMAssumeRoleWithExistingCredentialsFlagName = "iam-assume-role-with-existing-credentials"
 )
 
 // NewIAMAssumeRoleFlags creates flags for IAM assume role configuration.
@@ -70,6 +71,15 @@ func NewIAMAssumeRoleFlags(opts *options.TerragruntOptions, prefix flags.Prefix,
 				),
 				terragruntPrefixControl,
 			),
+		),
+
+		flags.NewFlag(
+			&clihelper.BoolFlag{
+				Name:        IAMAssumeRoleWithExistingCredentialsFlagName,
+				EnvVars:     tgPrefix.EnvVars(IAMAssumeRoleWithExistingCredentialsFlagName),
+				Destination: &opts.IAMRoleOptions.AssumeRoleWithExistingCredentials,
+				Usage:       "When true, assume the configured IAM role even when AWS credentials are already present in the environment, using them as source credentials for role chaining.",
+			},
 		),
 	}
 }
