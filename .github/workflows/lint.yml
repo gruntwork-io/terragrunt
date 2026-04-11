@@ -16,6 +16,17 @@ jobs:
       GOGC: "400"
 
     steps:
+    - name: Fetch setup scripts
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        sparse-checkout: .github/scripts/setup
+        path: _setup-scripts
+        fetch-depth: 1
+
+    - name: Mount tmpfs / RAM disk
+      shell: bash
+      run: ./_setup-scripts/.github/scripts/setup/mount-tmpfs.sh golangci-lint:2G
+
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
         fetch-depth: 0

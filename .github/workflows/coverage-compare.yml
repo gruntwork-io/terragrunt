@@ -24,17 +24,20 @@ jobs:
       MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
+      - name: Mount tmpfs
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.base_ref }}
-          fetch-depth: 1
-
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
           fetch-depth: 1
 
       - name: Use mise to install dependencies
@@ -91,17 +94,20 @@ jobs:
       MISE_PROFILE: cicd
       GOGC: "400"
     steps:
+      - name: Fetch coverage scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+          path: _coverage-scripts
+          fetch-depth: 1
+
+      - name: Mount tmpfs
+        run: ./_coverage-scripts/.github/scripts/setup/mount-tmpfs.sh
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           ref: ${{ inputs.head_ref }}
-          fetch-depth: 1
-
-      - name: Fetch coverage scripts
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          sparse-checkout: .github/scripts/coverage
-          path: _coverage-scripts
           fetch-depth: 1
 
       - name: Use mise to install dependencies
@@ -159,7 +165,7 @@ jobs:
       - name: Checkout (scripts only)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          sparse-checkout: .github/scripts/coverage
+          sparse-checkout: .github/scripts
           fetch-depth: 1
 
       - name: Download Base Coverage
@@ -184,41 +190,7 @@ jobs:
         env:
           BASE_REF: ${{ inputs.base_ref }}
           HEAD_REF: ${{ inputs.head_ref }}
-        run: |
-          # Sanitize user inputs for markdown injection
-          BASE_REF=$(echo "$BASE_REF" | tr -d '<>|`\n\r')
-          HEAD_REF=$(echo "$HEAD_REF" | tr -d '<>|`\n\r')
-
-          echo "## Coverage Comparison: ${BASE_REF} vs ${HEAD_REF}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          CURR=$(jq -r '.current_total' comparison-report.json)
-          PREV=$(jq -r '.previous_total' comparison-report.json)
-          DELTA=$(jq -r '.total_delta' comparison-report.json)
-
-          echo "| Ref | Coverage |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-----|----------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${BASE_REF} (base) | ${PREV}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ${HEAD_REF} (head) | ${CURR}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Delta | ${DELTA}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          DROPS=$(jq -r '.top_drops[:10][] | "| \(.package) | \(.previous)% | \(.current)% | \(.delta)% |"' comparison-report.json 2>/dev/null || true)
-          if [[ -n "$DROPS" ]]; then
-            echo "### Top Drops" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Package | Base | Head | Delta |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---------|------|------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "$DROPS" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          GAINS=$(jq -r '.top_gains[:5][] | "| \(.package) | \(.previous)% | \(.current)% | +\(.delta)% |"' comparison-report.json 2>/dev/null || true)
-          if [[ -n "$GAINS" ]]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "### Top Gains" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Package | Base | Head | Delta |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|---------|------|------|-------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "$GAINS" >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: ./.github/scripts/coverage/write-summary-compare.sh comparison-report.json
 
       - name: Upload comparison-report.json
         if: always()
@@ -237,7 +209,7 @@ jobs:
           retention-days: 30
 
       - name: Notify Slack
-        if: ${{ inputs.notify_slack }}
+        if: ${{ inputs.notify_slack && env.COVERAGE_SLACK_WEBHOOK_URL != '' }}
         env:
           COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
           BASE_REF: ${{ inputs.base_ref }}
