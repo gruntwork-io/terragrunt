@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -13,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-multierror"
@@ -135,7 +133,6 @@ func ProcessHooks(
 	l log.Logger,
 	hooks []runcfg.Hook,
 	opts *Options,
-	cfg *runcfg.RunConfig,
 	previousExecErrors *errors.MultiError,
 	_ *report.Report,
 ) error {
@@ -160,7 +157,7 @@ func ProcessHooks(
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(ctx context.Context) error {
-				return runHook(ctx, l, opts, cfg, curHook)
+				return runHook(ctx, l, opts, curHook)
 			})
 			if err != nil {
 				errorsOccured = multierror.Append(errorsOccured, err)
@@ -192,7 +189,6 @@ func runHook(
 	ctx context.Context,
 	l log.Logger,
 	opts *Options,
-	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
 ) error {
 	l.Infof("Executing hook: %s", curHook.Name)
@@ -205,7 +201,9 @@ func runHook(
 	hookOpts := optsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
-		return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
+		actionParams = slices.DeleteFunc(actionParams, func(arg string) bool {
+			return arg == "--terragrunt-external-tflint"
+		})
 	}
 
 	_, possibleError := shell.RunCommandWithOutput(
@@ -222,30 +220,6 @@ func runHook(
 	}
 
 	return possibleError
-}
-
-func executeTFLint(
-	ctx context.Context,
-	l log.Logger,
-	opts *Options,
-	cfg *runcfg.RunConfig,
-	curHook *runcfg.Hook,
-	workingDir string,
-) error {
-	// fetching source code changes lock since tflint is not thread safe
-	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
-	actualLock := rawActualLock.(*sync.Mutex)
-
-	actualLock.Lock()
-	defer actualLock.Unlock()
-
-	err := tflint.RunTflintWithOpts(ctx, l, opts.tflintRunOptions(), cfg, curHook)
-	if err != nil {
-		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
-		return err
-	}
-
-	return nil
 }
 
 func optsWithHookEnvs(opts *Options, hookName string) *Options {

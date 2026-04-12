@@ -25,7 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -218,18 +217,6 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 		},
 		TFRunOpts:           o.tfRunOptions(),
 		DisableBucketUpdate: o.DisableBucketUpdate,
-	}
-}
-
-// tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
-	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
-		Writers:              o.Writers,
-		WorkingDir:           o.WorkingDir,
-		RootWorkingDir:       o.RootWorkingDir,
-		TerragruntConfigPath: o.TerragruntConfigPath,
-		MaxFoldersToCheck:    o.MaxFoldersToCheck,
 	}
 }
 
