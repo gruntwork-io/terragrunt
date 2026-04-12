@@ -1,0 +1,45 @@
+---
+title: Pipelines
+description: DAG-aware CI/CD pipelines for Terragrunt with blast radius minimization and OIDC authentication.
+slug: terragrunt-scale/pipelines
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Pipelines is the CI/CD component of Terragrunt Scale. It automates `terragrunt plan` and `terragrunt apply` in your pull request workflow, with features designed to leverage Terragrunt's dependency graph.
+
+## How It Works
+
+When you open a pull request with infrastructure changes:
+
+1. Pipelines detects which Terragrunt units were modified (or potentially impacted by other changes in your repository).
+2. It runs `terragrunt plan` for only the affected units, minimizing blast radius.
+3. Plan results are posted as PR comments for review.
+4. On merge, `terragrunt apply` runs in dependency order, respecting your DAG.
+
+All execution happens in your own CI/CD runners (GitHub Actions or GitLab CI). Pipelines never has direct access to your cloud accounts.
+
+## Key Capabilities
+
+- **DAG-aware execution** — Respects Terragrunt's dependency graph for creates, updates, and destroys. Units are always run in the correct order.
+- **Blast radius minimization** — Only plans and applies units that were actually changed, rather than running against your entire stack.
+- **Least-privilege OIDC authentication** — Acquires temporary credentials via OIDC for each environment, scoped by read/write and segmented per environment. No long-lived secrets stored in CI.
+- **Concurrent runs with unified output** — Runs multiple independent units in parallel and aggregates all results into a single, well-structured PR comment, giving reviewers a complete picture of every change in one place.
+- **Multi-environment support** — Deploy changes across multiple environments in a single PR, with per-environment authentication and cross-environment dependencies supported.
+- **Configuration-as-code** — Pipeline behavior is defined in HCL and can be customized at the repository, environment, or individual unit level. See the [configuration reference](https://docs.gruntwork.io/2.0/reference/pipelines/configurations-as-code/) for details.
+
+## Terragrunt Integration
+
+Pipelines has native support for the complete Terragrunt lifecycle:
+
+- `terragrunt plan` / `terragrunt apply` / `terragrunt destroy`
+- `terragrunt run --all` for stack-wide operations
+- Full support for [Stacks](/features/stacks) and [Units](/features/units)
+
+<Aside type="tip" title="Full Documentation">
+
+For architecture details, configuration reference, and tutorials, see the [Gruntwork Pipelines documentation](https://docs.gruntwork.io/2.0/docs/pipelines/concepts/overview).
+
+</Aside>

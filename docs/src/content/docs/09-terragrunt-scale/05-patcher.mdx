@@ -1,0 +1,45 @@
+---
+title: Patcher
+description: Automated dependency updates for your Terragrunt modules and configurations.
+slug: terragrunt-scale/patcher
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Patcher is the dependency management component of Terragrunt Scale. It automates the process of keeping your infrastructure modules up to date, including handling breaking changes.
+
+## How It Works
+
+1. Patcher scans your repositories for Terragrunt module/unit/stack references, and their current versions.
+2. When new versions are available, it opens PRs with the updated version pins.
+3. For breaking changes, Patcher applies code transformations (patches) to automate resolution of breaking changes, or generates documentation for changes that require manual intervention.
+
+## Key Capabilities
+
+- **Automated update PRs** — New module versions are surfaced as PRs on a configurable schedule, fitting into your existing review workflow.
+- **Breaking change handling** — Patcher doesn't just bump versions. It applies code patches for breaking changes or clearly documents what manual steps are needed so you can safely stay up to date.
+- **Environment promotion** — Roll out updates to dev first, then staging, then production, with promotion workflows between environments.
+- **Stack awareness** — Detects updates within nested stacks and `terragrunt.stack.hcl` files, not just individual units.
+- **Grouping modes** — Combine related updates into a single PR to reduce noise, or keep them separate for granular review.
+
+## Two Modes of Operation
+
+- **Ongoing updates** — A GitHub Action that continuously scans your repositories and opens PRs when new versions are available. This is the primary mode for day-to-day use.
+- **Legacy upgrades** — An interactive CLI mode for bringing significantly outdated repositories up to current versions. Useful for one-time catch-up migrations.
+
+## Supported Sources
+
+Patcher works with any IaC source that Terragrunt supports, including:
+
+- The Gruntwork IaC Library
+- Your own internal IaC
+- Open-source OpenTofu/Terraform modules
+- Open-source Terragrunt units/stacks
+
+<Aside type="tip" title="Full Documentation">
+
+For setup instructions, patching tutorials, and configuration reference, see the [Gruntwork Patcher documentation](https://docs.gruntwork.io/2.0/docs/patcher/concepts/).
+
+</Aside>
