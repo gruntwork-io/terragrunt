@@ -712,10 +712,7 @@ func runTerraformInitRunCfg(
 
 // checkProtectedModuleRunCfg checks if module is protected using runcfg types.
 func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
-	var destroyFlag = false
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		destroyFlag = true
-	}
+	destroyFlag := opts.TerraformCliArgs.First() == tf.CommandNameDestroy
 
 	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
 		destroyFlag = true
@@ -756,7 +753,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 
 	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
 
-	const ownerReadWritePermissions = 0600
+	const ownerReadWritePermissions = 0o600
 
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
 		return "", errors.New(err)

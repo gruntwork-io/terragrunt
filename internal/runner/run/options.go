@@ -338,7 +338,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 		return err
 	}
 
-	const ownerPerms = 0644
+	const ownerPerms = 0o644
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
