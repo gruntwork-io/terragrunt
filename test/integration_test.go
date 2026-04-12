@@ -1040,7 +1040,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 	cfgPath := filepath.Join(rootPath, "terragrunt.hcl")
 	bytes, err := os.ReadFile(cfgPath)
 	require.NoError(t, err)
-	err = os.WriteFile(cfgPath, bytes, 0644)
+	err = os.WriteFile(cfgPath, bytes, 0o644)
 	require.NoError(t, err)
 
 	stdout, _, err = helpers.RunTerragruntCommandWithOutput(
@@ -3473,7 +3473,7 @@ inputs = {
 `
 
 	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	require.NoError(t, os.WriteFile(configPath, []byte(dependencyConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(dependencyConfig), 0o644))
 
 	var (
 		stdout bytes.Buffer
@@ -3578,7 +3578,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	}
 
 	updatedHcl := strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.78.4")
-	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0o444))
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -3589,7 +3589,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	updatedHcl = strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.79.0")
-	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
+	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0o444))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -3802,7 +3802,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
-	if err := os.WriteFile(tfFile, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(tfFile, []byte(""), 0o644); err != nil {
 		t.Fatalf("Error writing new Terraform file to %s: %v", tfFile, err)
 	}
 
@@ -4215,7 +4215,7 @@ func TestLogFormatJSONOutput(t *testing.T) {
 
 	multipeJSONs := bytes.Split(output, []byte("\n"))
 
-	var msgs = make([]string, 0, len(multipeJSONs))
+	msgs := make([]string, 0, len(multipeJSONs))
 
 	for _, jsonBytes := range multipeJSONs {
 		if len(jsonBytes) == 0 {
@@ -4570,11 +4570,11 @@ func TestDiscoveryDoesntResolveOutputs(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
-	err := os.MkdirAll(depDir, 0755)
+	err := os.MkdirAll(depDir, 0o755)
 	require.NoError(t, err)
 
 	mainDir := filepath.Join(tmpDir, "main")
-	err = os.MkdirAll(mainDir, 0755)
+	err = os.MkdirAll(mainDir, 0o755)
 	require.NoError(t, err)
 
 	depConfig := `
@@ -4582,7 +4582,7 @@ terraform {
   source = "."
 }
 `
-	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0644)
+	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0o644)
 	require.NoError(t, err)
 
 	depTerraform := `
@@ -4590,7 +4590,7 @@ output "value" {
   value = "hello from dependency"
 }
 `
-	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0644)
+	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0o644)
 	require.NoError(t, err)
 
 	mainConfig := `
@@ -4610,7 +4610,7 @@ inputs = {
   dep_value = dependency.dep.outputs.value
 }
 `
-	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0644)
+	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0o644)
 	require.NoError(t, err)
 
 	mainTerraform := `
@@ -4622,7 +4622,7 @@ output "result" {
   value = var.dep_value
 }
 `
-	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0644)
+	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0o644)
 	require.NoError(t, err)
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+depDir)
@@ -4652,11 +4652,11 @@ func TestExternalDependenciesAreResolved(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	depDir := filepath.Join(tmpDir, "dep")
-	err := os.MkdirAll(depDir, 0755)
+	err := os.MkdirAll(depDir, 0o755)
 	require.NoError(t, err)
 
 	mainDir := filepath.Join(tmpDir, "main")
-	err = os.MkdirAll(mainDir, 0755)
+	err = os.MkdirAll(mainDir, 0o755)
 	require.NoError(t, err)
 
 	depConfig := `
@@ -4664,7 +4664,7 @@ terraform {
   source = "."
 }
 `
-	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0644)
+	err = os.WriteFile(filepath.Join(depDir, "terragrunt.hcl"), []byte(depConfig), 0o644)
 	require.NoError(t, err)
 
 	depTerraform := `
@@ -4672,7 +4672,7 @@ output "value" {
   value = "hello from dependency"
 }
 `
-	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0644)
+	err = os.WriteFile(filepath.Join(depDir, "main.tf"), []byte(depTerraform), 0o644)
 	require.NoError(t, err)
 
 	mainConfig := `
@@ -4692,7 +4692,7 @@ inputs = {
   dep_value = dependency.dep.outputs.value
 }
 `
-	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0644)
+	err = os.WriteFile(filepath.Join(mainDir, "terragrunt.hcl"), []byte(mainConfig), 0o644)
 	require.NoError(t, err)
 
 	mainTerraform := `
@@ -4704,7 +4704,7 @@ output "result" {
   value = var.dep_value
 }
 `
-	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0644)
+	err = os.WriteFile(filepath.Join(mainDir, "main.tf"), []byte(mainTerraform), 0o644)
 	require.NoError(t, err)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
