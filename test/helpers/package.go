@@ -988,20 +988,16 @@ func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.RemoveAll(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 
