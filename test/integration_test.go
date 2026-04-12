@@ -3516,34 +3516,6 @@ func TestDependenciesOptimisation(t *testing.T) {
 	assert.NotContains(t, stderr, "Retrieved output from ../module-a/terragrunt.hcl")
 }
 
-func cleanupTerraformFolder(t *testing.T, templatesPath string) {
-	t.Helper()
-
-	removeFile(t, filepath.Join(templatesPath, terraformState))
-	removeFile(t, filepath.Join(templatesPath, terraformStateBackup))
-	removeFolder(t, filepath.Join(templatesPath, terraformFolder))
-}
-
-func removeFile(t *testing.T, path string) {
-	t.Helper()
-
-	if util.FileExists(path) {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
-	}
-}
-
-func removeFolder(t *testing.T, path string) {
-	t.Helper()
-
-	if util.FileExists(path) {
-		if err := os.RemoveAll(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
-	}
-}
-
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	t.Parallel()
 
