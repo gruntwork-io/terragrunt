@@ -29,7 +29,7 @@ type EvalArgs struct {
 // deferred parts keep their original source text.
 func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	if args.EvalCtx == nil {
-		return rangeBytes(args.SrcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
 	// Fast path: no deferred refs anywhere — evaluate the whole thing.
@@ -39,7 +39,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 			return valueToHCLBytes(val)
 		}
 
-		return rangeBytes(args.SrcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
 	return partialEvalByType(expr, args)
@@ -56,7 +56,7 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	case *hclsyntax.TemplateExpr:
 		return partialEvalTemplate(e, args)
 	case *hclsyntax.TemplateWrapExpr:
-		return rangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range())
 	case *hclsyntax.ObjectConsExpr:
 		return partialEvalObject(e, args)
 	case *hclsyntax.TupleConsExpr:
@@ -66,13 +66,17 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	case *hclsyntax.ParenthesesExpr:
 		return partialEvalParens(e, args)
 	default:
-		return rangeBytes(args.SrcBytes, e.Range())
+		// Deliberate fallback: unhandled expression types (FunctionCallExpr, ForExpr,
+		// SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) are emitted as verbatim source
+		// bytes. This is safe — the generated HCL will contain the original expression
+		// text, which is valid HCL that will be evaluated at runtime.
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
 }
 
 func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byte {
 	if args.Deferred[e.Traversal.RootName()] {
-		return rangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
 
 	val, diags := e.Value(args.EvalCtx)
@@ -80,22 +84,22 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 		return valueToHCLBytes(val)
 	}
 
-	return rangeBytes(args.SrcBytes, e.Range())
+	return RangeBytes(args.SrcBytes, e.Range())
 }
 
 func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
 	if !IsPure(e.Condition, args.Deferred) {
-		return rangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
 
 	condVal, diags := e.Condition.Value(args.EvalCtx)
 	if diags.HasErrors() {
-		return rangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
 
 	boolVal, err := convert.Convert(condVal, cty.Bool)
 	if err != nil {
-		return rangeBytes(args.SrcBytes, e.Range())
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
 
 	if boolVal.True() {
@@ -151,7 +155,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 		// Deferred or eval failed — emit as interpolation.
 		buf.WriteString("${")
-		buf.Write(rangeBytes(args.SrcBytes, part.Range()))
+		buf.Write(RangeBytes(args.SrcBytes, part.Range()))
 		buf.WriteByte('}')
 	}
 
@@ -193,7 +197,7 @@ func objectKeyName(expr hclsyntax.Expression, srcBytes []byte) string {
 		}
 	}
 
-	return string(rangeBytes(srcBytes, expr.Range()))
+	return string(RangeBytes(srcBytes, expr.Range()))
 }
 
 func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {

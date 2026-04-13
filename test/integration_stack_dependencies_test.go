@@ -91,6 +91,8 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-autoinclude", tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
 	// Step 1: Parse and generate the autoinclude file

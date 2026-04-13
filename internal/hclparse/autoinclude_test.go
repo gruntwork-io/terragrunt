@@ -14,15 +14,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func parseHCLBody(t *testing.T, src string) hcl.Body {
-	t.Helper()
-
-	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
-
-	return file.Body
-}
-
 func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 	t.Parallel()
 
@@ -209,6 +200,8 @@ func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	resolvedTmpDir, _ := filepath.EvalSymlinks(tmpDir)
+
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
   config_path = "../unit-w-outputs"
@@ -218,7 +211,7 @@ dependency "vpc" {
 	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.Equal(t, filepath.Clean(filepath.Join(tmpDir, "..", "unit-w-outputs")), paths[0])
+	assert.Equal(t, filepath.Clean(filepath.Join(resolvedTmpDir, "..", "unit-w-outputs")), paths[0])
 }
 
 func TestAutoIncludeDependencyPaths_MultipleDeps(t *testing.T) {
@@ -243,9 +236,10 @@ func TestAutoIncludeDependencyPaths_Symlink(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
+	resolvedTmpDir, _ := filepath.EvalSymlinks(tmpDir)
 
 	// Create real unit directory with autoinclude file
-	realDir := filepath.Join(tmpDir, "real-unit")
+	realDir := filepath.Join(resolvedTmpDir, "real-unit")
 	require.NoError(t, os.MkdirAll(realDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(realDir, hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
@@ -283,4 +277,14 @@ dependency "vpc" {
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+}
+
+// parseHCLBody is a test helper that parses an HCL string and returns the body.
+func parseHCLBody(t *testing.T, src string) hcl.Body {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
+
+	return file.Body
 }

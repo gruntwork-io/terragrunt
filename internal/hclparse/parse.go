@@ -201,7 +201,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveOneAutoInclude(unit.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +216,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveOneAutoInclude(stack.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -229,8 +229,8 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 	return autoIncludes, nil
 }
 
-// resolveOneAutoInclude resolves a single autoinclude block and attaches the eval context.
-func resolveOneAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (*AutoIncludeResolved, error) {
+// resolveAutoInclude resolves a single autoinclude block and attaches the eval context.
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags

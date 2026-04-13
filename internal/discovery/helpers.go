@@ -278,14 +278,13 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
-// addStackDependencyPaths enriches dependency paths with stack-dependencies
-// experiment features: autoinclude dependency extraction and stack-to-unit
-// path expansion. Called by discovery phases when the experiment is enabled.
+// addStackDependencyPaths appends dependency paths from generated autoinclude
+// files and expands any stack directory paths into their constituent unit paths.
 func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c component.Component) []string {
 	// Add dependencies declared in autoinclude files.
 	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
-		l.Warnf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
+		l.Errorf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
 	}
 
 	for _, dep := range autoIncludeDeps {
@@ -293,7 +292,7 @@ func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c compo
 	}
 
 	// Expand stack dependency paths to individual unit paths.
-	var expanded []string
+	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
 		unitPaths := intHclparse.UnitPathsFromStackDir(fs, depPath)

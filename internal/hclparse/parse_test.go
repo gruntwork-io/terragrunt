@@ -745,8 +745,6 @@ unit "app" {
 }
 `)
 
-	b.ResetTimer()
-
 	for b.Loop() {
 		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
@@ -799,8 +797,6 @@ unit "app" {
 }
 `)
 
-	b.ResetTimer()
-
 	for b.Loop() {
 		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 		if err != nil {
@@ -841,8 +837,6 @@ unit "app" {
 
 	resolved := result.AutoIncludes["app"]
 	tmpDir := b.TempDir()
-
-	b.ResetTimer()
 
 	for b.Loop() {
 		err := hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, tmpDir, src, resolved.EvalCtx)
