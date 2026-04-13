@@ -105,7 +105,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	// Copy nested blocks within the dependency (if any).
 	for _, nested := range origBlock.Body.Blocks {
-		CopyBlockFromSource(depBody, nested, srcBytes)
+		CopyBlockFromSource(nil, depBody, nested, srcBytes)
 	}
 }
 
@@ -135,27 +135,30 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		CopyBlockFromSource(outBody, block, srcBytes)
+		CopyBlockFromSource(evalCtx, outBody, block, srcBytes)
 	}
 }
 
-// CopyBlockFromSource copies a block from the original AST to hclwrite output,
-// using source bytes for all attribute expressions.
-//
-// TODO: Non-dependency blocks containing local.* references are currently
-// copied verbatim without evaluation. A future improvement should apply
-// partial evaluation to nested block attributes as well.
-func CopyBlockFromSource(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
+// CopyBlockFromSource copies a block from the original AST to hclwrite output.
+// When evalCtx is provided, attributes are partially evaluated (local.* resolved,
+// dependency.* preserved). When evalCtx is nil, attributes are copied verbatim.
+func CopyBlockFromSource(evalCtx *hcl.EvalContext, outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-		blockBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
+		if evalCtx == nil {
+			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
+
+			continue
+		}
+
+		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		CopyBlockFromSource(blockBody, nested, srcBytes)
+		CopyBlockFromSource(evalCtx, blockBody, nested, srcBytes)
 	}
 }
 
