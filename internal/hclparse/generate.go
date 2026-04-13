@@ -106,7 +106,7 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 
 	// Copy nested blocks within the dependency (if any).
 	for _, nested := range origBlock.Body.Blocks {
-		CopyBlockFromSource(nil, depBody, nested, srcBytes)
+		NewCopier().CopyBlock(depBody, nested, srcBytes)
 	}
 }
 
@@ -136,30 +136,48 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 			continue
 		}
 
-		CopyBlockFromSource(evalCtx, outBody, block, srcBytes)
+		NewCopier().WithEvalCtx(evalCtx).CopyBlock(outBody, block, srcBytes)
 	}
 }
 
-// CopyBlockFromSource copies a block from the original AST to hclwrite output.
-// When evalCtx is provided, attributes are partially evaluated (local.* resolved,
-// dependency.* preserved). When evalCtx is nil, attributes are copied verbatim.
-func CopyBlockFromSource(evalCtx *hcl.EvalContext, outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
+// Copier copies HCL blocks from AST source to hclwrite output.
+// When an eval context is set, attributes are partially evaluated
+// (local.* resolved, dependency.* preserved). Without it, attributes
+// are copied verbatim from source bytes.
+type Copier struct {
+	evalCtx *hcl.EvalContext
+}
+
+// NewCopier creates a Copier that copies blocks verbatim.
+func NewCopier() *Copier {
+	return &Copier{}
+}
+
+// WithEvalCtx returns the Copier with partial evaluation enabled.
+func (c *Copier) WithEvalCtx(evalCtx *hcl.EvalContext) *Copier {
+	c.evalCtx = evalCtx
+
+	return c
+}
+
+// CopyBlock copies a block from the original AST to hclwrite output.
+func (c *Copier) CopyBlock(outBody *hclwrite.Body, block *hclsyntax.Block, srcBytes []byte) {
 	newBlock := outBody.AppendNewBlock(block.Type, block.Labels)
 	blockBody := newBlock.Body()
 
 	for _, attr := range SortedAttributes(block.Body.Attributes) {
-		if evalCtx == nil {
+		if c.evalCtx == nil {
 			blockBody.SetAttributeRaw(attr.Name, RawTokens(RangeBytes(srcBytes, attr.Expr.Range())))
 
 			continue
 		}
 
-		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
+		result := PartialEval(attr.Expr, &EvalArgs{EvalCtx: c.evalCtx, Deferred: deferredRoots, SrcBytes: srcBytes})
 		blockBody.SetAttributeRaw(attr.Name, RawTokens(result))
 	}
 
 	for _, nested := range block.Body.Blocks {
-		CopyBlockFromSource(evalCtx, blockBody, nested, srcBytes)
+		c.CopyBlock(blockBody, nested, srcBytes)
 	}
 }
 

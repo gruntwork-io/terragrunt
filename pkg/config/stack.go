@@ -280,7 +280,7 @@ func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, erro
 	// instead of strings.HasPrefix to avoid prefix-overlap bypasses.
 	rel, err := filepath.Rel(filepath.Clean(baseDir), dest)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", errors.Errorf("%s destination path '%s' is outside of the allowed directory '%s'", cmp.name, dest, baseDir)
+		return "", errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, dest, baseDir)
 	}
 
 	return dest, nil

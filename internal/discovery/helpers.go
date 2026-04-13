@@ -280,6 +280,10 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
+// defaultFS is the shared filesystem instance for discovery operations.
+// Created once and reused across calls to avoid repeated allocations.
+var defaultFS = vfs.NewOSFS()
+
 // enrichWithStackDeps conditionally adds stack dependency paths when the
 // StackDependencies experiment is enabled.
 func enrichWithStackDeps(l log.Logger, opts *options.TerragruntOptions, depPaths []string, c component.Component) []string {
@@ -287,7 +291,7 @@ func enrichWithStackDeps(l log.Logger, opts *options.TerragruntOptions, depPaths
 		return depPaths
 	}
 
-	return addStackDependencyPaths(l, vfs.NewOSFS(), depPaths, c)
+	return addStackDependencyPaths(l, defaultFS, depPaths, c)
 }
 
 // addStackDependencyPaths appends dependency paths from generated autoinclude
