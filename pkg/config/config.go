@@ -1190,7 +1190,7 @@ func ParseConfigFile(
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
