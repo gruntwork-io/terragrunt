@@ -105,6 +105,44 @@ test_missing_dir_arg_fails() {
     ! bash "$INSTALL_SCRIPT" -d 2>/dev/null
 }
 
+# --- Tip/Test Build Argument Tests ---
+
+test_help_shows_tip_test_commit_options() {
+    local output
+    output=$(bash "$INSTALL_SCRIPT" --help 2>&1)
+    [[ "$output" == *"--tip"* ]] &&
+    [[ "$output" == *"--test"* ]] &&
+    [[ "$output" == *"--commit"* ]]
+}
+
+test_tip_and_version_mutually_exclusive() {
+    ! bash "$INSTALL_SCRIPT" --tip -v v1.0.0 2>/dev/null
+}
+
+test_test_and_version_mutually_exclusive() {
+    ! bash "$INSTALL_SCRIPT" --test --commit abc1234 -v v1.0.0 2>/dev/null
+}
+
+test_tip_and_test_mutually_exclusive() {
+    ! bash "$INSTALL_SCRIPT" --tip --test 2>/dev/null
+}
+
+test_test_requires_commit() {
+    ! bash "$INSTALL_SCRIPT" --test 2>/dev/null
+}
+
+test_commit_requires_channel() {
+    ! bash "$INSTALL_SCRIPT" --commit abc1234 2>/dev/null
+}
+
+test_invalid_commit_sha_fails() {
+    ! bash "$INSTALL_SCRIPT" --tip --commit "not-a-sha" 2>/dev/null
+}
+
+test_missing_commit_arg_fails() {
+    ! bash "$INSTALL_SCRIPT" --tip --commit 2>/dev/null
+}
+
 # Test OS detection by sourcing functions
 test_os_detection() {
     local os
@@ -393,6 +431,85 @@ test_temp_directory_cleanup() {
     [[ "$after" -le "$before" ]]
 }
 
+# --- Tip/Test Build Integration Tests ---
+
+check_builds_api_connectivity() {
+    # The root URL returns 403 (S3/CloudFront), so check an actual API endpoint
+    curl -fsL --connect-timeout 5 "https://builds.terragrunt.com/api/v1/tip/latest" >/dev/null 2>&1
+}
+
+# Fetch a valid tip commit SHA from the builds API for use in tests
+get_latest_tip_commit() {
+    curl -fsL --connect-timeout 10 "https://builds.terragrunt.com/api/v1/tip/latest" 2>/dev/null | grep -oE '"commit"\s*:\s*"[^"]*"' | head -1 | cut -d'"' -f4
+}
+
+test_install_tip_latest() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig >/dev/null 2>&1 &&
+    [[ -f "$tmpdir/terragrunt" ]] &&
+    [[ -x "$tmpdir/terragrunt" ]]
+}
+
+test_install_tip_with_commit() {
+    local commit
+    commit=$(get_latest_tip_commit)
+    [[ -z "$commit" ]] && { echo "Could not fetch tip commit SHA"; return 1; }
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --commit "$commit" --no-verify-sig >/dev/null 2>&1 &&
+    [[ -f "$tmpdir/terragrunt" ]] &&
+    [[ -x "$tmpdir/terragrunt" ]]
+}
+
+test_tip_build_checksum_verification() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig 2>&1)
+    [[ "$output" == *"SHA256 checksum verified"* ]]
+}
+
+test_tip_build_gpg_signature_verification() {
+    command -v gpg &>/dev/null || { echo "gpg required"; return 1; }
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    local output
+    output=$(bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip 2>&1)
+    [[ "$output" == *"Verifying GPG signature"* ]] &&
+    [[ "$output" == *"Signature verified"* ]]
+}
+
+test_tip_build_force_overwrites() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    # shellcheck disable=SC2064  # Intentional: expand tmpdir now, not at trap time
+    trap "rm -rf '$tmpdir'" RETURN
+
+    # First install
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig >/dev/null 2>&1 || return 1
+
+    # Second install without --force should fail
+    ! bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --no-verify-sig 2>/dev/null || return 1
+
+    # Third install with --force should succeed
+    bash "$INSTALL_SCRIPT" -d "$tmpdir" --tip --force --no-verify-sig >/dev/null 2>&1
+}
+
 # --- Main ---
 
 main() {
@@ -414,6 +531,17 @@ main() {
     run_test "Invalid option fails" test_invalid_option_fails
     run_test "Missing -v argument fails" test_missing_version_arg_fails
     run_test "Missing -d argument fails" test_missing_dir_arg_fails
+    echo ""
+
+    echo "--- Tip/Test Build Argument Tests ---"
+    run_test "Help shows --tip, --test, --commit options" test_help_shows_tip_test_commit_options
+    run_test "--tip and -v are mutually exclusive" test_tip_and_version_mutually_exclusive
+    run_test "--test and -v are mutually exclusive" test_test_and_version_mutually_exclusive
+    run_test "--tip and --test are mutually exclusive" test_tip_and_test_mutually_exclusive
+    run_test "--test requires --commit" test_test_requires_commit
+    run_test "--commit requires --tip or --test" test_commit_requires_channel
+    run_test "Invalid commit SHA rejected" test_invalid_commit_sha_fails
+    run_test "Missing --commit argument fails" test_missing_commit_arg_fails
     echo ""
 
     echo "--- Environment Tests ---"
@@ -471,6 +599,32 @@ main() {
         run_test "GPG is default signature method" test_gpg_is_default_signature_method
         run_test "Temp directory cleanup" test_temp_directory_cleanup
     fi
+    echo ""
+
+    # Tip/test build integration tests (gated on builds API connectivity)
+    local skip_builds_reason=""
+    if [[ "$quick_mode" == true ]]; then
+        skip_builds_reason="quick mode"
+    elif ! check_builds_api_connectivity; then
+        skip_builds_reason="builds API unreachable"
+    fi
+
+    if [[ -n "$skip_builds_reason" ]]; then
+        echo "--- Tip/Test Build Integration Tests (SKIPPED - ${skip_builds_reason}) ---"
+        skip_test "Install latest tip build"
+        skip_test "Install tip build by commit"
+        skip_test "Tip build checksum verification"
+        skip_test "Tip build GPG signature verification"
+        skip_test "Tip build --force overwrites"
+    fi
+    [[ -z "$skip_builds_reason" ]] && {
+        echo "--- Tip/Test Build Integration Tests (require builds API) ---"
+        run_test "Install latest tip build" test_install_tip_latest
+        run_test "Install tip build by commit" test_install_tip_with_commit
+        run_test "Tip build checksum verification" test_tip_build_checksum_verification
+        run_test "Tip build GPG signature verification" test_tip_build_gpg_signature_verification
+        run_test "Tip build --force overwrites" test_tip_build_force_overwrites
+    }
     echo ""
 
     echo "=========================================="
