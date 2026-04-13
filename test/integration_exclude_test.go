@@ -183,7 +183,7 @@ func TestExcludeBlockBehavior(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cleanupTerraformFolder(t, testExcludeComprehensive)
+			helpers.CleanupTerraformFolder(t, testExcludeComprehensive)
 			tmpEnvPath := helpers.CopyEnvironment(t, testExcludeComprehensive)
 
 			var rootPath string
@@ -316,7 +316,7 @@ func TestExcludeBlockFeatureFlagDefaultInDependency(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
-	cleanupTerraformFolder(t, testFixturePath)
+	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath, "dependent-unit")
 
@@ -336,7 +336,7 @@ func TestExcludeBlockFeatureFlagDefaultRunAll(t *testing.T) {
 	t.Parallel()
 
 	testFixturePath := "fixtures/exclude/dependency-feature-flags"
-	cleanupTerraformFolder(t, testFixturePath)
+	helpers.CleanupTerraformFolder(t, testFixturePath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
 

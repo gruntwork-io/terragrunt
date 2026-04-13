@@ -20,11 +20,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -32,10 +35,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/mattn/go-shellwords"
-
-	"os"
-	"path/filepath"
-	"testing"
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -73,9 +72,9 @@ const (
 
 	ReportFile = "report.json"
 
-	readPermissions      = 0444
-	readWritePermissions = 0666
-	allPermissions       = 0777
+	readPermissions      = 0o444
+	readWritePermissions = 0o666
+	allPermissions       = 0o777
 
 	caKeyBits = 4096
 
@@ -988,20 +987,16 @@ func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.RemoveAll(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 

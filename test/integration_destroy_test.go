@@ -287,8 +287,8 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	appV1Path := filepath.Join(rootPath, "app-v1")
 	appV2Path := filepath.Join(rootPath, "app-v2")
 
-	cleanupTerraformFolder(t, rootPath)
-	cleanupTerraformFolder(t, vpcPath)
+	helpers.CleanupTerraformFolder(t, rootPath)
+	helpers.CleanupTerraformFolder(t, vpcPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
