@@ -1,7 +1,7 @@
 package hclparse
 
 import (
-	"os"
+	iofs "io/fs"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -182,7 +182,7 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
 	data, err := vfs.ReadFile(fs, autoIncludePath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, iofs.ErrNotExist) {
 		return nil, nil
 	}
 

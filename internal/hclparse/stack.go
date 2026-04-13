@@ -1,7 +1,7 @@
 package hclparse
 
 import (
-	"os"
+	iofs "io/fs"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -151,7 +151,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, iofs.ErrNotExist) {
 			return nil, nil
 		}
 

@@ -11,50 +11,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// testDeferred is the standard deferred roots map for tests.
-var testDeferred = map[string]bool{
-	"dependency": true,
-}
-
-// parseFirstAttrExpr parses an HCL snippet with a single attribute and returns
-// the attribute's expression, the source bytes, and the eval context.
-func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte) {
-	t.Helper()
-
-	srcBytes := []byte(src)
-
-	file, diags := hclsyntax.ParseConfig(srcBytes, "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	require.True(t, ok)
-	require.NotEmpty(t, body.Attributes, "expected at least one attribute")
-
-	// Return the first attribute (map iteration order, but single attr).
-	for _, attr := range body.Attributes {
-		return attr.Expr, srcBytes
-	}
-
-	t.Fatal("unreachable")
-
-	return nil, nil
-}
-
-// buildEvalCtx creates an eval context with local.env = "production" and
-// local.region = "us-east-1" for testing.
-func buildEvalCtx() *hcl.EvalContext {
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"local": cty.ObjectVal(map[string]cty.Value{
-				"env":    cty.StringVal("production"),
-				"region": cty.StringVal("us-east-1"),
-				"count":  cty.NumberIntVal(3),
-				"flag":   cty.BoolVal(true),
-			}),
-		},
-	}
-}
-
 func TestPartialEval(t *testing.T) {
 	t.Parallel()
 
@@ -249,5 +205,49 @@ func TestIsPure(t *testing.T) {
 			got := hclparse.IsPure(expr, testDeferred)
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+// testDeferred is the standard deferred roots map for tests.
+var testDeferred = map[string]bool{
+	"dependency": true,
+}
+
+// parseFirstAttrExpr parses an HCL snippet with a single attribute and returns
+// the attribute's expression, the source bytes, and the eval context.
+func parseFirstAttrExpr(t *testing.T, src string) (hclsyntax.Expression, []byte) {
+	t.Helper()
+
+	srcBytes := []byte(src)
+
+	file, diags := hclsyntax.ParseConfig(srcBytes, "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	require.True(t, ok)
+	require.NotEmpty(t, body.Attributes, "expected at least one attribute")
+
+	// Return the first attribute (map iteration order, but single attr).
+	for _, attr := range body.Attributes {
+		return attr.Expr, srcBytes
+	}
+
+	t.Fatal("unreachable")
+
+	return nil, nil
+}
+
+// buildEvalCtx creates an eval context with local.env = "production" and
+// local.region = "us-east-1" for testing.
+func buildEvalCtx() *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"local": cty.ObjectVal(map[string]cty.Value{
+				"env":    cty.StringVal("production"),
+				"region": cty.StringVal("us-east-1"),
+				"count":  cty.NumberIntVal(3),
+				"flag":   cty.BoolVal(true),
+			}),
+		},
 	}
 }

@@ -1486,10 +1486,9 @@ func mergeAutoIncludeIfPresent(
 		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Deep merge: autoinclude wins over the unit config.
-	// DeepMerge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
-	// So we call config.DeepMerge(autoIncludeConfig) — autoinclude is sourceConfig and wins.
-	if err := config.DeepMerge(l, autoIncludeConfig); err != nil {
+	// Shallow merge: autoinclude wins over the unit config.
+	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
+	if err := config.Merge(l, autoIncludeConfig); err != nil {
 		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
@@ -2011,7 +2010,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}
 		}
 
