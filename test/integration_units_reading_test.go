@@ -27,7 +27,7 @@ const (
 func TestSOPSUnitsReading(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureUnitsReading)
+	helpers.CleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	testCases := []struct {
 		name           string
@@ -348,7 +348,7 @@ func TestUnitsReadingWithFilter(t *testing.T) {
 func TestQueueStrictIncludeWithUnitsReading(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureUnitsReading)
+	helpers.CleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureUnitsReading)

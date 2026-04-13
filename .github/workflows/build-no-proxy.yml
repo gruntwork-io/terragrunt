@@ -63,6 +63,11 @@ jobs:
       - name: Build Terragrunt without Go proxy
         env:
           GOPROXY: direct
+          # Prevent git-lfs (installed on ubuntu runners) from smudging LFS
+          # pointers into full binaries during VCS-based module downloads.
+          # Without this, dependencies using LFS (e.g. charm.land/glamour)
+          # produce a different zip hash than what go.sum records.
+          GIT_LFS_SKIP_SMUDGE: "1"
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
