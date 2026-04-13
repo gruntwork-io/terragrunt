@@ -29,7 +29,7 @@ const (
 func TestErrorsHandling(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testSimpleErrors)
+	helpers.CleanupTerraformFolder(t, testSimpleErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleErrors)
 	rootPath := filepath.Join(tmpEnvPath, testSimpleErrors)
 
@@ -41,7 +41,7 @@ func TestErrorsHandling(t *testing.T) {
 func TestIgnoreError(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testIgnoreErrors)
+	helpers.CleanupTerraformFolder(t, testIgnoreErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testIgnoreErrors)
 	rootPath := filepath.Join(tmpEnvPath, testIgnoreErrors)
 
@@ -55,7 +55,7 @@ func TestIgnoreError(t *testing.T) {
 func TestRunAllIgnoreError(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRunAllIgnoreErrors)
+	helpers.CleanupTerraformFolder(t, testRunAllIgnoreErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllIgnoreErrors)
 	rootPath := filepath.Join(tmpEnvPath, testRunAllIgnoreErrors)
 
@@ -70,7 +70,7 @@ func TestRunAllIgnoreError(t *testing.T) {
 func TestRetryError(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRetryErrors)
+	helpers.CleanupTerraformFolder(t, testRetryErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRetryErrors)
 	rootPath := filepath.Join(tmpEnvPath, testRetryErrors)
 
@@ -84,7 +84,7 @@ func TestRetryError(t *testing.T) {
 func TestRetryFailError(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRetryFailErrors)
+	helpers.CleanupTerraformFolder(t, testRetryFailErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRetryFailErrors)
 	rootPath := filepath.Join(tmpEnvPath, testRetryFailErrors)
 
@@ -97,7 +97,7 @@ func TestRetryFailError(t *testing.T) {
 func TestIgnoreSignal(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testIgnoreSignalErrors)
+	helpers.CleanupTerraformFolder(t, testIgnoreSignalErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testIgnoreSignalErrors)
 	rootPath := filepath.Join(tmpEnvPath, testIgnoreSignalErrors)
 
@@ -126,7 +126,7 @@ func TestIgnoreSignal(t *testing.T) {
 func TestRunAllError(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRunAllErrors)
+	helpers.CleanupTerraformFolder(t, testRunAllErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
 	rootPath := filepath.Join(tmpEnvPath, testRunAllErrors)
 
@@ -141,7 +141,7 @@ func TestRunAllError(t *testing.T) {
 func TestRunAllFail(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testRunAllErrors)
+	helpers.CleanupTerraformFolder(t, testRunAllErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
 	rootPath := filepath.Join(tmpEnvPath, testRunAllErrors)
 
@@ -155,7 +155,7 @@ func TestRunAllFail(t *testing.T) {
 func TestIgnoreNegativePattern(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testNegativePatternErrors)
+	helpers.CleanupTerraformFolder(t, testNegativePatternErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testNegativePatternErrors)
 	rootPath := filepath.Join(tmpEnvPath, testNegativePatternErrors)
 
@@ -168,7 +168,7 @@ func TestIgnoreNegativePattern(t *testing.T) {
 func TestHandleMultiLineErrors(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testMultiLineErrors)
+	helpers.CleanupTerraformFolder(t, testMultiLineErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testMultiLineErrors)
 	rootPath := filepath.Join(tmpEnvPath, testMultiLineErrors)
 
@@ -181,7 +181,7 @@ func TestHandleMultiLineErrors(t *testing.T) {
 func TestGetDefaultRetryableErrors(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testGetDefaultErrors)
+	helpers.CleanupTerraformFolder(t, testGetDefaultErrors)
 	tmpEnvPath := helpers.CopyEnvironment(t, testGetDefaultErrors)
 	rootPath := filepath.Join(tmpEnvPath, testGetDefaultErrors)
 
@@ -205,7 +205,7 @@ func TestGetDefaultRetryableErrors(t *testing.T) {
 func TestNoAutoRetryFlag(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testNoAutoRetry)
+	helpers.CleanupTerraformFolder(t, testNoAutoRetry)
 	tmpEnvPath := helpers.CopyEnvironment(t, testNoAutoRetry)
 	rootPath := filepath.Join(tmpEnvPath, testNoAutoRetry)
 
@@ -219,7 +219,7 @@ func TestNoAutoRetryFlag(t *testing.T) {
 	successFile := filepath.Join(cacheDir, "success.txt")
 	err = os.Remove(successFile)
 	require.NoError(t, err)
-	cleanupTerraformFolder(t, testNoAutoRetry)
+	helpers.CleanupTerraformFolder(t, testNoAutoRetry)
 
 	// Test without flag - should succeed with retry
 	_, stderr2, err2 := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive --working-dir "+rootPath)

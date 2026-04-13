@@ -223,6 +223,13 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			// During hcl validate, config_path may be unresolvable (e.g., references an
+			// unavailable local). Skip the invalid dependency instead of aborting — it will
+			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
@@ -279,6 +286,11 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			if pctx.SkipOutput {
+				updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+				continue
+			}
+
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -307,7 +319,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, depPath, pctx.Writers.LogShowAbsPaths))
 		}
 
-		_, depCtx, err := pctx.WithConfigPath(l, depPath)
+		_, depCtx, err := pctx.WithDependencyConfigPath(l, depPath)
 		if err != nil {
 			return nil, err
 		}
@@ -388,12 +400,21 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 		}
 
 		if !IsValidConfigPath(dependency.ConfigPath) {
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
+		if !util.FileExists(dependencyPath) {
+			continue
+		}
+
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -436,7 +457,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -515,10 +536,21 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 					lock.Unlock()
 
 					dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				} else if pctx.SkipOutput {
+					// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
+					// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
+					// to unknown rather than producing an "Unsupported attribute" error.
+					l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["outputs"] = cty.DynamicVal
 				}
 
 				if dependencyConfig.Inputs != nil {
 					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				} else if pctx.SkipOutput {
+					l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["inputs"] = cty.DynamicVal
 				}
 
 				// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
@@ -760,14 +792,12 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Create dependency context using WithConfigPath
-	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
+	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set dependency-specific fields
-	pctx.OriginalTerragruntConfigPath = targetConfig
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"

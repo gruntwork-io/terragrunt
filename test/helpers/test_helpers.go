@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultDirPerms = 0755
+const defaultDirPerms = 0o755
 
 func IsWindows() bool {
 	return runtime.GOOS == "windows"
@@ -88,6 +88,11 @@ func CreateGitRepo(t *testing.T, path string) {
 	cmd.Dir = path
 	_, err = cmd.CombinedOutput()
 	require.NoError(t, err, "git config user.name failed")
+
+	cmd = exec.CommandContext(ctx, "git", "config", "commit.gpgsign", "false")
+	cmd.Dir = path
+	_, err = cmd.CombinedOutput()
+	require.NoError(t, err, "git config commit.gpgsign failed")
 
 	// Add all files and commit
 	cmd = exec.CommandContext(ctx, "git", "add", "-A")

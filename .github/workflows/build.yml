@@ -2,6 +2,12 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: 'Version string for ldflags (defaults to github.ref_name)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   detect_release:
@@ -87,13 +93,14 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
+          BUILD_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME}" \
+            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${BUILD_VERSION}" \
             .
 
       - name: Verify Static Linking
