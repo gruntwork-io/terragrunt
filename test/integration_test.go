@@ -120,12 +120,6 @@ const (
 	testFixtureVersionFilesCacheKey           = "fixtures/version-files-cache-key"
 	testFixtureNoColorDependency              = "fixtures/no-color-dependency"
 	hiddenRunAllFixturePath                   = "fixtures/hidden-runall"
-
-	terraformFolder = ".terraform"
-
-	terraformState = "terraform.tfstate"
-
-	terraformStateBackup = "terraform.tfstate.backup"
 )
 
 func TestCLIFlagHints(t *testing.T) {
