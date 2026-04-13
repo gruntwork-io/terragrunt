@@ -14,6 +14,16 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// newTestMemFS creates a MemMapFS with /test directory pre-created.
+func newTestMemFS(t *testing.T) vfs.FS {
+	t.Helper()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	return fs
+}
+
 func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 	t.Parallel()
 
@@ -191,7 +201,9 @@ inputs = {
 func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 	t.Parallel()
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), t.TempDir())
+	fs := newTestMemFS(t)
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.NoError(t, err)
 	assert.Nil(t, paths)
 }
@@ -199,26 +211,26 @@ func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	resolvedTmpDir, _ := filepath.EvalSymlinks(tmpDir)
+	fs := newTestMemFS(t)
 
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
   config_path = "../unit-w-outputs"
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	assert.Equal(t, filepath.Clean(filepath.Join(resolvedTmpDir, "..", "unit-w-outputs")), paths[0])
+	assert.Equal(t, filepath.Clean(filepath.Join("/test", "..", "unit-w-outputs")), paths[0])
 }
 
 func TestAutoIncludeDependencyPaths_MultipleDeps(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+	fs := newTestMemFS(t)
+
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -227,7 +239,7 @@ dependency "db" {
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.NoError(t, err)
 	require.Len(t, paths, 2)
 }
@@ -266,14 +278,15 @@ dependency "vpc" {
 func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, hclparse.AutoIncludeFile), []byte(`
+	fs := newTestMemFS(t)
+
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
   config_path = "/absolute/path/to/vpc"
 }
 `), 0644))
 
-	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), tmpDir)
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])

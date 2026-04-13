@@ -1,7 +1,6 @@
 package hclparse_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -133,10 +132,9 @@ func TestBuildAutoIncludeEvalContext(t *testing.T) {
 func TestDiscoverStackChildUnits(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	stackSrcDir := filepath.Join(tmpDir, "stack-src")
-	require.NoError(t, os.MkdirAll(stackSrcDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(stackSrcDir, "terragrunt.stack.hcl"), []byte(`
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`
 unit "vpc" {
   source = "../../units/vpc"
   path   = "vpc"
@@ -148,7 +146,7 @@ unit "db" {
 }
 `), 0644))
 
-	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), stackSrcDir, "/gen/networking")
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
 
 	require.Len(t, refs, 2)
 	assert.Equal(t, "vpc", refs[0].Name)
@@ -160,10 +158,9 @@ unit "db" {
 func TestDiscoverStackChildUnits_NoDotTerragruntStack(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	stackSrcDir := filepath.Join(tmpDir, "stack-src")
-	require.NoError(t, os.MkdirAll(stackSrcDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(stackSrcDir, "terragrunt.stack.hcl"), []byte(`
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`
 unit "vpc" {
   source = "../../units/vpc"
   path   = "vpc"
@@ -176,7 +173,7 @@ unit "db" {
 }
 `), 0644))
 
-	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), stackSrcDir, "/gen/networking")
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
 
 	require.Len(t, refs, 2)
 	// vpc has no_dot_terragrunt_stack=true, goes directly under stackGenDir
@@ -190,7 +187,9 @@ unit "db" {
 func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 	t.Parallel()
 
-	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), "/nonexistent", "/gen")
+	fs := vfs.NewMemMapFS()
+
+	refs := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
 	assert.Nil(t, refs)
 }
 
@@ -223,8 +222,9 @@ func TestBuildAutoIncludeEvalContext_WithChildRefs(t *testing.T) {
 func TestUnitPathsFromStackDir(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.stack.hcl"), []byte(`
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
 unit "vpc" {
   source = "../units/vpc"
   path   = "vpc"
@@ -236,7 +236,7 @@ unit "db" {
 }
 `), 0644))
 
-	paths := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), tmpDir)
+	paths := hclparse.UnitPathsFromStackDir(fs, "/test")
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
@@ -244,26 +244,34 @@ unit "db" {
 
 func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), t.TempDir()))
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/test"))
 }
 
 func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 	t.Parallel()
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), "/nonexistent"))
+
+	fs := vfs.NewMemMapFS()
+
+	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/nonexistent"))
 }
 
 func TestParseStackFileFromPath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "terragrunt.stack.hcl"), []byte(`
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`
 unit "app" {
   source = "../units/app"
   path   = "app"
 }
 `), 0644))
 
-	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), tmpDir)
+	result, err := hclparse.ParseStackFileFromPath(fs, "/test")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, result.Units, 1)
@@ -273,7 +281,10 @@ unit "app" {
 func TestParseStackFileFromPath_NoFile(t *testing.T) {
 	t.Parallel()
 
-	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), t.TempDir())
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	result, err := hclparse.ParseStackFileFromPath(fs, "/test")
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -358,12 +369,9 @@ unit "db" {
 func TestParseStackFile_WithInclude(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	// Create the included file
-	includeDir := filepath.Join(tmpDir, "includes")
-	require.NoError(t, os.MkdirAll(includeDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(includeDir, "extra.stack.hcl"), []byte(`
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/includes", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/includes/extra.stack.hcl", []byte(`
 unit "monitoring" {
   source = "../catalog/units/monitoring"
   path   = "monitoring"
@@ -371,18 +379,18 @@ unit "monitoring" {
 `), 0644))
 
 	// Create the main stack file
-	mainSrc := fmt.Sprintf(`
+	mainSrc := `
 include "extra" {
-  path = "%s/extra.stack.hcl"
+  path = "/test/includes/extra.stack.hcl"
 }
 
 unit "vpc" {
   source = "../catalog/units/vpc"
   path   = "vpc"
 }
-`, includeDir)
+`
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(tmpDir, "terragrunt.stack.hcl"), StackDir: tmpDir})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: "/test/terragrunt.stack.hcl", StackDir: "/test"})
 	require.NoError(t, err)
 
 	// Should have both units: vpc from main + monitoring from include
