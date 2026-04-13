@@ -23,6 +23,7 @@ func TestReflinkOnDarwinWithinAPFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(apfsMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -50,6 +51,7 @@ func TestReflinkOnDarwinAcrossAPFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(apfsMount2))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -59,6 +61,7 @@ func TestReflinkOnDarwinAcrossAPFS(t *testing.T) {
 	if toFile != nil {
 		defer toFile.Close() // nolint:errcheck
 	}
+
 	ts.IsErr(t, err, reflink.ErrCanNotReflink{})
 }
 
@@ -75,6 +78,7 @@ func TestReflinkOnDarwinWithinExFAT(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(exfatMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -84,6 +88,7 @@ func TestReflinkOnDarwinWithinExFAT(t *testing.T) {
 	if toFile != nil {
 		defer toFile.Close() // nolint:errcheck
 	}
+
 	ts.IsErr(t, err, reflink.ErrCanNotReflink{})
 }
 
@@ -100,6 +105,7 @@ func TestReflinkOnLinuxWithinXFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(xfsMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -126,6 +132,7 @@ func TestReflinkOnLinuxAcrossXFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(xfsMount2))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -135,6 +142,7 @@ func TestReflinkOnLinuxAcrossXFS(t *testing.T) {
 	if toFile != nil {
 		defer toFile.Close() // nolint:errcheck
 	}
+
 	ts.IsErr(t, err, reflink.ErrCanNotReflink{})
 }
 
@@ -151,6 +159,7 @@ func TestReflinkOnLinuxWithinEXT4(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(ext4Mount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -160,5 +169,6 @@ func TestReflinkOnLinuxWithinEXT4(t *testing.T) {
 	if toFile != nil {
 		defer toFile.Close() // nolint:errcheck
 	}
+
 	ts.IsErr(t, err, reflink.ErrCanNotReflink{})
 }

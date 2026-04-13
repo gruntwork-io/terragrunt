@@ -3,6 +3,7 @@
 package reflink
 
 import (
+	"errors"
 	"os"
 	"syscall"
 
@@ -14,7 +15,7 @@ func clonefile(from *os.File, toDir *os.File, toName string) error {
 	toDirFD := int(toDir.Fd())
 	err := unix.Fclonefileat(fromFD, toDirFD, toName, unix.CLONE_NOFOLLOW)
 
-	if err, ok := err.(syscall.Errno); ok {
+	if err, ok := errors.AsType[syscall.Errno](err); ok {
 		if clonefileNonRetryableErrors[err] {
 			return ErrCanNotReflink{wrapped: err}
 		}

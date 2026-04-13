@@ -23,6 +23,7 @@ func TestReflinkOrCopyOnDarwinWithinAPFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(apfsMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -48,6 +49,7 @@ func TestReflinkOrCopyOnDarwinAcrossAPFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(apfsMount2))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -70,6 +72,7 @@ func TestReflinkOrCopyOnDarwinWithinExFAT(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(exfatMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -92,6 +95,7 @@ func TestReflinkOrCopyOnLinuxWithinXFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(xfsMount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -116,6 +120,7 @@ func TestReflinkOrCopyOnLinuxAcrossXFS(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(xfsMount2))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
@@ -138,6 +143,7 @@ func TestReflinkOrCopyOnLinuxWithinEXT4(t *testing.T) {
 
 	fromFD := ts.NoErr(os.Open(fileName))(t)
 	toDirFD := ts.NoErr(os.Open(ext4Mount))(t)
+
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 

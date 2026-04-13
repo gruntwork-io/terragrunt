@@ -50,9 +50,12 @@ func MountDiskImageMacOS(t testing.TB, mountpoint, fsType string) {
 				if slices.Contains(retryableDetachExitCodes, unmountCmd.ProcessState.ExitCode()) {
 					t.Logf("warning: failed to unmount disk image (attempt %d): %v, output: %s", attempt+1, err, string(out))
 					t.Logf("if this was \"No such file or directory\", it may be safe to ignore as the test cleanup may have just deleted the file and mount point")
+
 					continue
 				}
+
 				t.Logf("failed to unmount disk image: %v, output: %s", err, string(out))
+
 				break
 			} else {
 				break

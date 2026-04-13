@@ -15,9 +15,11 @@ func OnlyOn(t testing.TB, platforms ...string) {
 		if strings.HasSuffix(platform, "_") {
 			platform = platform + runtime.GOARCH
 		}
+
 		if thisPlatform == platform {
 			return
 		}
 	}
+
 	t.Skipf("skipping test on %s", thisPlatform)
 }
