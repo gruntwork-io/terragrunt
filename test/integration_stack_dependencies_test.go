@@ -102,7 +102,8 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes["app"]
+	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
 	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
@@ -180,7 +181,8 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate autoinclude only for app (vpc has no autoinclude)
-	resolved := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes["app"]
+	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
 	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
