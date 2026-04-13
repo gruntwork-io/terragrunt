@@ -36,7 +36,7 @@ type AutoIncludeHCL struct {
 // body is partially evaluated:
 //   - dependency.config_path is resolved (references unit.*.path)
 //   - dependency remain (mock_outputs etc) is preserved for generation
-//   - inputs and other blocks are NOT evaluated (contain dependency.*.outputs.*)
+//   - inputs and other blocks are partially evaluated (local.* resolved, dependency.* preserved)
 //
 // The RawBody is preserved for serializing the generated
 // terragrunt.autoinclude.hcl file.

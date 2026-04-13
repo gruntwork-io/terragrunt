@@ -258,20 +258,20 @@ func resolveDestPath(cmp *componentToGenerate, opts *generateOpts) (string, erro
 		return "", errors.Errorf("path %s must be relative", cmp.path)
 	}
 
-	// building destination path based on target directory
-	dest := filepath.Join(opts.targetDir, cmp.path)
-
-	// validate destination path is within the stack directory
-	absDest := filepath.Clean(dest)
-	absStackDir := filepath.Clean(opts.targetDir)
-
-	if !strings.HasPrefix(absDest, absStackDir) {
-		return "", errors.Errorf("%s destination path '%s' is outside of the stack directory '%s'", cmp.name, absDest, absStackDir)
+	// Compute destination: noStack components go to parent of targetDir,
+	// regular components go inside targetDir (.terragrunt-stack/).
+	baseDir := opts.targetDir
+	if cmp.noStack {
+		baseDir = filepath.Dir(opts.targetDir)
 	}
 
-	if cmp.noStack {
-		// for noStack components, we copy the files to the base directory of the target directory
-		dest = filepath.Join(filepath.Dir(opts.targetDir), cmp.path)
+	dest := filepath.Clean(filepath.Join(baseDir, cmp.path))
+
+	// Validate destination is within the allowed directory using filepath.Rel
+	// instead of strings.HasPrefix to avoid prefix-overlap bypasses.
+	rel, err := filepath.Rel(filepath.Clean(baseDir), dest)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", errors.Errorf("%s destination path '%s' is outside of the allowed directory '%s'", cmp.name, dest, baseDir)
 	}
 
 	return dest, nil
