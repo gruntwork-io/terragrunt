@@ -440,7 +440,7 @@ check_builds_api_connectivity() {
 
 # Fetch a valid tip commit SHA from the builds API for use in tests
 get_latest_tip_commit() {
-    curl -fsL --connect-timeout 10 "https://builds.terragrunt.com/api/v1/tip/latest" 2>/dev/null | grep -oE '"commit"\s*:\s*"[^"]*"' | head -1 | cut -d'"' -f4
+    curl -fsL --connect-timeout 10 "https://builds.terragrunt.com/api/v1/tip/latest" 2>/dev/null | jq -r '.commit'
 }
 
 test_install_tip_latest() {
