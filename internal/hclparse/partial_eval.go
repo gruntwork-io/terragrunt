@@ -36,7 +36,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	if IsPure(expr, args.Deferred) {
 		val, diags := expr.Value(args.EvalCtx)
 		if !diags.HasErrors() {
-			return valueToHCLBytes(val)
+			return ValueToHCLBytes(val)
 		}
 
 		return RangeBytes(args.SrcBytes, expr.Range())
@@ -50,7 +50,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	switch e := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
-		return valueToHCLBytes(e.Val)
+		return ValueToHCLBytes(e.Val)
 	case *hclsyntax.ScopeTraversalExpr:
 		return partialEvalTraversal(e, args)
 	case *hclsyntax.TemplateExpr:
@@ -81,7 +81,7 @@ func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byt
 
 	val, diags := e.Value(args.EvalCtx)
 	if !diags.HasErrors() {
-		return valueToHCLBytes(val)
+		return ValueToHCLBytes(val)
 	}
 
 	return RangeBytes(args.SrcBytes, e.Range())
@@ -139,7 +139,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 	for _, part := range e.Parts {
 		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok {
-			buf.Write(hclStringContent(lit.Val.AsString()))
+			buf.Write(HCLStringContent(lit.Val.AsString()))
 
 			continue
 		}
@@ -147,7 +147,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 		if IsPure(part, args.Deferred) {
 			val, diags := part.Value(args.EvalCtx)
 			if !diags.HasErrors() && val.Type() == cty.String {
-				buf.Write(hclStringContent(val.AsString()))
+				buf.Write(HCLStringContent(val.AsString()))
 
 				continue
 			}
@@ -164,10 +164,10 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 	return buf.Bytes()
 }
 
-// hclStringContent returns the inner content of an HCL-escaped string
+// HCLStringContent returns the inner content of an HCL-escaped string
 // (without surrounding quotes). Uses hclwrite.TokensForValue for correct
 // escaping of all HCL special characters.
-func hclStringContent(s string) []byte {
+func HCLStringContent(s string) []byte {
 	raw := hclwrite.TokensForValue(cty.StringVal(s)).Bytes()
 
 	// TokensForValue produces `"escaped content"` — strip surrounding quotes.
@@ -180,7 +180,7 @@ func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
 
 	for _, item := range e.Items {
 		key := objectKeyName(item.KeyExpr, args.SrcBytes)
-		body.SetAttributeRaw(key, rawTokens(PartialEval(item.ValueExpr, args)))
+		body.SetAttributeRaw(key, RawTokens(PartialEval(item.ValueExpr, args)))
 	}
 
 	// hclwrite produces file-level attributes; wrap in braces for object syntax.
@@ -210,7 +210,7 @@ func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
 	return slices.Concat([]byte("["), bytes.Join(parts, []byte(", ")), []byte("]"))
 }
 
-func valueToHCLBytes(val cty.Value) []byte {
+func ValueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 
 	return tokens.Bytes()

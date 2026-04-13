@@ -178,7 +178,7 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 // unitDir and returns resolved dependency config_path values.
 // Returns (nil, nil) if the file does not exist or has no dependencies.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
-	unitDir = resolveSymlinks(unitDir)
+	unitDir = ResolveSymlinks(unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
 	data, err := vfs.ReadFile(fs, autoIncludePath)
@@ -222,7 +222,7 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
 		}
 
-		paths = append(paths, resolveSymlinks(depPath))
+		paths = append(paths, ResolveSymlinks(depPath))
 	}
 
 	return paths, nil
