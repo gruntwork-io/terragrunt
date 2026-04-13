@@ -9,11 +9,15 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       go-dependencies:
         patterns:
@@ -32,6 +36,8 @@ updates:
       - "**/*"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       js-dependencies:
         patterns:
