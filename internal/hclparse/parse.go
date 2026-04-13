@@ -79,8 +79,8 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	}
 
 	// Build component refs with absolute paths for the eval context.
-	// StackDir is the directory containing the terragrunt.stack.hcl file.
-	// Generated units go to StackDir/.terragrunt-stack/{unit.path}.
+	// Default target is StackDir/.terragrunt-stack/{unit.path}, but units
+	// with no_dot_terragrunt_stack go to StackDir/{unit.path} instead.
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
@@ -132,37 +132,53 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 	evaluated := make(map[string]cty.Value, len(remaining))
 
 	for len(remaining) > 0 {
-		progress := false
-
-		for name, attr := range remaining {
-			if !canEvalLocal(attr, evaluated) {
-				continue
-			}
-
-			val, diags := attr.Expr.Value(evalCtx)
-			if diags.HasErrors() {
-				return errors.Errorf("failed to evaluate local %q: %s", name, diags.Error())
-			}
-
-			evaluated[name] = val
-			delete(remaining, name)
-
-			progress = true
+		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx)
+		if err != nil {
+			return err
 		}
 
 		if !progress {
-			names := make([]string, 0, len(remaining))
-			for name := range remaining {
-				names = append(names, name)
-			}
-
-			return errors.Errorf("could not evaluate locals (possible cycle): %v", names)
+			return localsEvalCycleError(remaining)
 		}
 
 		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 	}
 
 	return nil
+}
+
+// evaluateLocalsPass attempts to evaluate all ready locals in a single pass.
+// Returns true if at least one local was evaluated.
+func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map[string]cty.Value, evalCtx *hcl.EvalContext) (bool, error) {
+	progress := false
+
+	for name, attr := range remaining {
+		if !canEvalLocal(attr, evaluated) {
+			continue
+		}
+
+		val, diags := attr.Expr.Value(evalCtx)
+		if diags.HasErrors() {
+			return false, errors.Errorf("failed to evaluate local %q: %s", name, diags.Error())
+		}
+
+		evaluated[name] = val
+		delete(remaining, name)
+
+		progress = true
+	}
+
+	return progress, nil
+}
+
+// localsEvalCycleError builds an error listing the locals that could not be evaluated.
+func localsEvalCycleError(remaining map[string]*hclsyntax.Attribute) error {
+	names := make([]string, 0, len(remaining))
+	for name := range remaining {
+		names = append(names, name)
+	}
+
+	return errors.Errorf("could not evaluate locals (possible cycle): %v", names)
 }
 
 // canEvalLocal checks whether all local.* dependencies of an attribute
