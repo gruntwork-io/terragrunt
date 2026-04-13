@@ -4,6 +4,7 @@ package hclhelper
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -33,8 +34,7 @@ func WrapListToSingleLineHcl(values []any) string {
 func FormatValueToSingleLineHcl(value any) string {
 	switch v := value.(type) {
 	case string:
-		escapedValue := strings.ReplaceAll(v, `"`, `\"`)
-		return fmt.Sprintf(`"%s"`, escapedValue)
+		return strconv.Quote(v)
 	case map[string]any:
 		return WrapMapToSingleLineHcl(v)
 	case []any:
