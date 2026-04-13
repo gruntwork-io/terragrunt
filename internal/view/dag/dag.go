@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/tree"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/tree"
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/mgutz/ansi"
 )
