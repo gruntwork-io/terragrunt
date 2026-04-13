@@ -77,7 +77,7 @@ func MountDiskImageLinux(t testing.TB, mountpoint, fsType string) {
 
 	mkfsCmd := exec.Command("mkfs", "-t", fsType, imagePath)
 	if out, err := mkfsCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to create xfs filesystem on disk image: %v, output: %s", err, string(out))
+		t.Fatalf("failed to create %v filesystem on disk image: %v, output: %s", fsType, err, string(out))
 	}
 
 	mountCmd := exec.Command("sudo", "mount", "-o", "loop", "-t", fsType, imagePath, mountpoint)
