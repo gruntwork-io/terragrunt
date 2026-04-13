@@ -210,6 +210,7 @@ func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
 	return slices.Concat([]byte("["), bytes.Join(parts, []byte(", ")), []byte("]"))
 }
 
+// ValueToHCLBytes converts a cty.Value to HCL source text bytes.
 func ValueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 

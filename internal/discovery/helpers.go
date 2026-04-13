@@ -9,11 +9,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -278,12 +280,24 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
+// enrichWithStackDeps conditionally adds stack dependency paths when the
+// StackDependencies experiment is enabled.
+func enrichWithStackDeps(l log.Logger, opts *options.TerragruntOptions, depPaths []string, c component.Component) []string {
+	if !opts.Experiments.Evaluate(experiment.StackDependencies) {
+		return depPaths
+	}
+
+	return addStackDependencyPaths(l, vfs.NewOSFS(), depPaths, c)
+}
+
 // addStackDependencyPaths appends dependency paths from generated autoinclude
 // files and expands any stack directory paths into their constituent unit paths.
 func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c component.Component) []string {
 	// Add dependencies declared in autoinclude files.
 	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
+		// Log at error level but continue — missing autoinclude deps will cause
+		// the dependent unit to fail at runtime with a clear error message.
 		l.Errorf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
 	}
 

@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"cmp"
 	"path/filepath"
 	"slices"
 
@@ -218,7 +219,7 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 	}
 
 	slices.SortFunc(sorted, func(a, b *hclsyntax.Attribute) int {
-		return a.SrcRange.Start.Byte - b.SrcRange.Start.Byte
+		return cmp.Compare(a.SrcRange.Start.Byte, b.SrcRange.Start.Byte)
 	})
 
 	return sorted

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -107,6 +108,9 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var stackSrcBytes []byte
 
 	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		// Note: stackSrcBytes is read separately for the two-pass autoinclude parser
+		// which uses a simplified eval context. ReadStackConfigFile does the full parse
+		// with the complete Terragrunt eval context including functions.
 		stackSrcBytes, err = os.ReadFile(stackFilePath)
 		if err != nil {
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
@@ -116,8 +120,13 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		if parseErr != nil {
 			// Stack files using HCL functions (e.g. find_in_parent_folders) will
 			// fail the two-pass parse since it uses nil eval context. This is
-			// expected for stacks without autoinclude blocks — log and continue.
-			l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+			// expected for stacks without autoinclude blocks — warn if the file
+			// actually contains autoinclude references, debug otherwise.
+			if bytes.Contains(stackSrcBytes, []byte("autoinclude")) {
+				l.Warnf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+			} else {
+				l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
+			}
 		}
 
 		if parseErr == nil {

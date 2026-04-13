@@ -101,8 +101,13 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 			"name": cty.StringVal(ref.Name),
 		}
 
-		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path)
+		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path).
+		// Skip children whose names collide with reserved attributes.
 		for _, child := range ref.ChildRefs {
+			if child.Name == "path" || child.Name == "name" {
+				continue
+			}
+
 			attrs[child.Name] = cty.ObjectVal(map[string]cty.Value{
 				"path": cty.StringVal(child.Path),
 				"name": cty.StringVal(child.Name),
@@ -190,6 +195,10 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 	return paths
 }
 
+// maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits
+// to prevent infinite loops from circular stack references.
+const maxDiscoverDepth = 10
+
 // DiscoverStackChildUnits parses a stack's source directory to find the
 // terragrunt.stack.hcl within it and extracts unit paths. This enables
 // stack.stack_name.unit_name.path references in autoinclude blocks.
@@ -198,6 +207,14 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 // (or will be generated). stackGenDir is the absolute path where this
 // stack's units will be generated (.terragrunt-stack/stack_path/).
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
+}
+
+func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
+	if depth > maxDiscoverDepth {
+		return nil
+	}
+
 	stackSourceDir = ResolveSymlinks(stackSourceDir)
 
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)

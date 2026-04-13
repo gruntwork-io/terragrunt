@@ -745,21 +745,21 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
 
 		if !util.FileExists(unitConfigPath) {
-			l.Debugf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
+			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
 
 			continue
 		}
 
 		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
 		if err != nil {
-			l.Debugf("Failed to get output for stack unit %s: %v", unit.Name, err)
+			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
 
 			continue
 		}
 
 		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
 		if err != nil {
-			l.Debugf("Failed to parse output for stack unit %s: %v", unit.Name, err)
+			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
 
 			continue
 		}
@@ -767,7 +767,7 @@ func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Lo
 		if len(outputMap) > 0 {
 			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 			if err != nil {
-				l.Debugf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
+				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
 
 				continue
 			}
@@ -793,7 +793,7 @@ func tryGetStackOutput(
 	// Check if the path is a directory containing a stack file
 	stackFilePath := targetConfigPath
 
-	if !strings.HasSuffix(stackFilePath, DefaultStackFile) {
+	if filepath.Base(stackFilePath) != DefaultStackFile {
 		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
 	}
 

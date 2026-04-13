@@ -4,6 +4,7 @@ package hclparse
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -84,7 +85,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks)
+	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
@@ -131,7 +132,9 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 
 	evaluated := make(map[string]cty.Value, len(remaining))
 
-	for len(remaining) > 0 {
+	const maxLocalsIterations = 10000
+
+	for i := 0; len(remaining) > 0 && i < maxLocalsIterations; i++ {
 		progress, err := evaluateLocalsPass(remaining, evaluated, evalCtx)
 		if err != nil {
 			return err
@@ -177,6 +180,8 @@ func localsEvalCycleError(remaining map[string]*hclsyntax.Attribute) error {
 	for name := range remaining {
 		names = append(names, name)
 	}
+
+	slices.Sort(names)
 
 	return errors.Errorf("could not evaluate locals (possible cycle): %v", names)
 }
@@ -295,6 +300,16 @@ func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) e
 		stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
 	}
 
+	// Validate no duplicate unit names after merge.
+	seen := make(map[string]bool, len(stackFile.Units))
+	for _, u := range stackFile.Units {
+		if seen[u.Name] {
+			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
+		}
+
+		seen[u.Name] = true
+	}
+
 	return nil
 }
 
@@ -322,7 +337,8 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 // buildStackRefsWithAbsPath creates ComponentRef values for stack blocks.
 // It also attempts to parse each stack's source to discover child units,
 // enabling stack.stack_name.unit_name.path references.
-func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL) []ComponentRef {
+// depth is threaded to prevent unbounded recursion in circular stacks.
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
@@ -340,7 +356,7 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		ref.ChildRefs = DiscoverStackChildUnits(fs, sourceDir, stackGenPath)
+		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, depth+1)
 
 		refs = append(refs, ref)
 	}

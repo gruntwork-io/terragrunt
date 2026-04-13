@@ -109,6 +109,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	}
 
 	return &AutoIncludeResolved{
+		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
 	}, nil
