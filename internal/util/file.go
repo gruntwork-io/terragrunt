@@ -18,10 +18,10 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util/copy"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
-	"github.com/thisguycodes/copy"
 )
 
 const (
