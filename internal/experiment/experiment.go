@@ -49,6 +49,8 @@ const (
 	// dependency relationships and arbitrary configuration overrides during
 	// stack generation. See RFC #5663.
 	StackDependencies = "stack-dependencies"
+	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
+	CatalogRedesign = "catalog-redesign"
 )
 
 const (
@@ -109,6 +111,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: StackDependencies,
+		},
+		{
+			Name: CatalogRedesign,
 		},
 	}
 }
