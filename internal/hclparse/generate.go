@@ -30,7 +30,7 @@ const (
 //     (mock_outputs, mock_outputs_allowed_terraform_commands, etc.) copied
 //     from the original AST source bytes.
 //   - All non-dependency content (inputs, retry blocks, etc.) copied verbatim
-//     from the original AST source bytes — dependency.*.outputs.* references
+//     from the original AST source bytes: dependency.*.outputs.* references
 //     are preserved without evaluation.
 //
 // srcBytes is the original terragrunt.stack.hcl file content, used to extract

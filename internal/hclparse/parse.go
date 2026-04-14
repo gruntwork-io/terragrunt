@@ -74,7 +74,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return nil, diags
 	}
 
-	// Process includes — merge included units/stacks.
+	// Process includes: merge included units/stacks.
 	if err := processStackIncludes(fs, stackFile, input.StackDir); err != nil {
 		return nil, err
 	}

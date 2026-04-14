@@ -80,7 +80,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 
 	body, ok := a.Remain.(*hclsyntax.Body)
 	if !ok {
-		// Non-syntax body — return result with EvalCtx even though partial evaluation is not possible.
+		// Non-syntax body: return result with EvalCtx even though partial evaluation is not possible.
 		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 

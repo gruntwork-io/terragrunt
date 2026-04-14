@@ -119,11 +119,11 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		if parseErr != nil {
 			// The two-pass parser uses a simplified eval context that cannot
 			// evaluate HCL functions (find_in_parent_folders, get_repo_root, etc.).
-			// Stacks without autoinclude blocks are unaffected — the production
+			// Stacks without autoinclude blocks are unaffected: the production
 			// parser handles them correctly. Stacks WITH autoinclude blocks that
 			// also use functions in source/path will silently lose autoinclude
-			// generation — this is a known limitation logged at warn level.
-			l.Warnf("Failed to parse %s for autoinclude resolution: %v. Autoinclude blocks in this stack file will be ignored.", stackFilePath, parseErr)
+			// generation: this is a known limitation logged at warn level.
+			l.Warnf("Failed to parse %s for autoinclude resolution: %v.", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {
@@ -543,7 +543,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(decodeErr)
 	}
 
-	// Process include blocks — merge included units/stacks into the config.
+	// Process include blocks: merge included units/stacks into the config.
 	// Process include blocks when the stack-dependencies experiment is enabled.
 	if parser.Experiments.Evaluate(experiment.StackDependencies) {
 		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {

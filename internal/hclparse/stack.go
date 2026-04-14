@@ -197,7 +197,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 
 // maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits
 // to prevent infinite loops from circular stack references.
-const maxDiscoverDepth = 10
+const maxDiscoverDepth = 1000
 
 // DiscoverStackChildUnits parses a stack's source directory to find the
 // terragrunt.stack.hcl within it and extracts unit paths. This enables

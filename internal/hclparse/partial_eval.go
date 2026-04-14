@@ -33,7 +33,7 @@ func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
 		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Fast path: no deferred refs anywhere — evaluate the whole thing.
+	// Fast path: no deferred refs anywhere: evaluate the whole thing.
 	if IsPure(expr, args.Deferred) {
 		val, diags := expr.Value(args.EvalCtx)
 		if !diags.HasErrors() {
@@ -69,7 +69,7 @@ func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	default:
 		// Deliberate fallback: unhandled expression types (FunctionCallExpr, ForExpr,
 		// SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) are emitted as verbatim source
-		// bytes. This is safe — the generated HCL will contain the original expression
+		// bytes. This is safe: the generated HCL will contain the original expression
 		// text, which is valid HCL that will be evaluated at runtime.
 		return RangeBytes(args.SrcBytes, e.Range())
 	}
@@ -113,7 +113,7 @@ func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte
 func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
 	inner := PartialEval(e.Expression, args)
 
-	// Pure expressions evaluate to literals — parens not needed.
+	// Pure expressions evaluate to literals: parens not needed.
 	if IsPure(e.Expression, args.Deferred) {
 		return inner
 	}
@@ -157,7 +157,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 			}
 		}
 
-		// Deferred or eval failed — emit as interpolation.
+		// Deferred or eval failed: emit as interpolation.
 		buf.WriteString("${")
 		buf.Write(RangeBytes(args.SrcBytes, part.Range()))
 		buf.WriteByte('}')
@@ -174,7 +174,7 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 func HCLStringContent(s string) []byte {
 	raw := hclwrite.TokensForValue(cty.StringVal(s)).Bytes()
 
-	// TokensForValue produces `"escaped content"` — strip surrounding quotes.
+	// TokensForValue produces `"escaped content"`: strip surrounding quotes.
 	return bytes.TrimPrefix(bytes.TrimSuffix(raw, []byte{'"'}), []byte{'"'})
 }
 
