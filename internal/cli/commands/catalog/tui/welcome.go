@@ -50,18 +50,23 @@ var (
 				Foreground(lipgloss.Color("#6272A4"))
 )
 
+// OpenURLFunc opens a URL in the user's browser. Injected so tests can
+// substitute a no-op or a recording stub.
+type OpenURLFunc func(url string) error
+
 // WelcomeModel is a BubbleTea model that shows a loading screen while
 // discovery runs in the background, then either transitions to the module
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	ctx      context.Context
-	logger   log.Logger
-	opts     *options.TerragruntOptions
-	loadFunc LoadFunc
-	spinner  spinner.Model
-	state    welcomeState
-	width    int
-	height   int
+	ctx       context.Context
+	logger    log.Logger
+	opts      *options.TerragruntOptions
+	loadFunc  LoadFunc
+	openURL   OpenURLFunc
+	spinner   spinner.Model
+	state     welcomeState
+	width     int
+	height    int
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
@@ -75,9 +80,17 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		logger:   l,
 		opts:     opts,
 		loadFunc: loadFunc,
+		openURL:  browser.OpenURL,
 		spinner:  s,
 		state:    welcomeLoading,
 	}
+}
+
+// WithOpenURL replaces the function used to open URLs in the browser.
+func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel { //nolint:gocritic
+	m.openURL = fn
+
+	return m
 }
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
@@ -107,7 +120,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 			return m, tea.Quit
 		case "h":
 			if m.state == welcomeNoSources {
-				_ = browser.OpenURL(welcomeDocsURL)
+				_ = m.openURL(welcomeDocsURL)
 			}
 		}
 	case tea.WindowSizeMsg:
