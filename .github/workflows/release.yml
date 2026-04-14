@@ -38,15 +38,7 @@ jobs:
         if: github.event.action == 'edited'
         env:
           CHANGES_JSON: ${{ toJSON(github.event.changes) }}
-        run: |
-          NON_BODY_KEYS=$(echo "$CHANGES_JSON" | jq -r 'keys[]' | grep -v '^body$' || true)
-          if [[ -z "$NON_BODY_KEYS" ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Only release notes changed, skipping rebuild"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Meaningful changes detected: $NON_BODY_KEYS"
-          fi
+        run: .github/scripts/release/check-edit-meaningful.sh
 
       - name: Resolve version and ref
         id: resolve
@@ -57,31 +49,7 @@ jobs:
           RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
           RELEASE_TARGET: ${{ github.event.release.target_commitish }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            VERSION="$INPUT_VERSION"
-
-            # Look up the release to get target_commitish
-            if ! RELEASE_JSON=$(gh release view "$VERSION" --json 'isDraft,targetCommitish' 2>/dev/null); then
-              echo "ERROR: No release found for version $VERSION" >&2
-              exit 1
-            fi
-
-            IS_DRAFT=$(echo "$RELEASE_JSON" | jq -r '.isDraft')
-            if [[ "$IS_DRAFT" != "true" ]]; then
-              echo "ERROR: Release $VERSION is already published. Cannot rebuild a published release." >&2
-              exit 1
-            fi
-
-            REF=$(echo "$RELEASE_JSON" | jq -r '.targetCommitish')
-          else
-            VERSION="$RELEASE_TAG_NAME"
-            REF="$RELEASE_TARGET"
-          fi
-
-          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
-          printf 'ref=%s\n' "$REF" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: $VERSION, ref: $REF"
+        run: .github/scripts/release/resolve-version-ref.sh
 
       - name: Validate semver
         if: steps.check_changes.outputs.skip != 'true'
@@ -93,13 +61,7 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         env:
           REF: ${{ steps.resolve.outputs.ref }}
-        run: |
-          if [[ ! "$REF" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: target_commitish must be a full 40-character commit SHA, got: '$REF'" >&2
-            echo "This prevents new commits from being pulled into the release between draft creation and publishing." >&2
-            echo "When creating the draft release, select a specific commit instead of a branch name." >&2
-            exit 1
-          fi
+        run: .github/scripts/release/enforce-commit-sha.sh "$REF"
 
   # Build and sign all binaries (reuses build.yml workflow)
   build-and-sign:
@@ -162,11 +124,7 @@ jobs:
       - name: Import GPG key and export public key
         env:
           SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
-        run: |
-          echo "${SIGNING_GPG_PRIVATE_KEY}" | base64 --decode | gpg --batch --import
-          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
-          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >> "${GITHUB_ENV}"
-          gpg --armor --export "${GPG_FINGERPRINT}" > bin/terragrunt-signing-key.asc
+        run: .github/scripts/release/import-gpg-key.sh bin
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
