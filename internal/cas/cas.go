@@ -22,15 +22,23 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options configures the behavior of CAS
-type Options struct {
-	// FS specifies the filesystem for file operations.
-	// If nil, defaults to the real OS filesystem.
-	FS vfs.FS
+// Option configures the behavior of CAS.
+type Option func(*CAS)
 
-	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cas/store
-	StorePath string
+// WithStorePath specifies a custom path for the content store.
+// If not set, defaults to $HOME/.cache/terragrunt/cas/store.
+func WithStorePath(path string) Option {
+	return func(c *CAS) {
+		c.storePath = path
+	}
+}
+
+// WithFS specifies the filesystem for file operations.
+// If not set, defaults to the real OS filesystem.
+func WithFS(fs vfs.FS) Option {
+	return func(c *CAS) {
+		c.fs = fs
+	}
 }
 
 // CloneOptions configures the behavior of a specific clone operation
@@ -50,10 +58,10 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	fs    vfs.FS
-	store *Store
-	git   *git.GitRunner
-	opts  Options
+	fs        vfs.FS
+	store     *Store
+	git       *git.GitRunner
+	storePath string
 }
 
 // FS returns the configured filesystem.
@@ -61,41 +69,41 @@ func (c *CAS) FS() vfs.FS {
 	return c.fs
 }
 
-// New creates a new CAS instance with the given options
-//
-// TODO: Make these options optional
-func New(opts Options) (*CAS, error) {
-	fs := opts.FS
-	if fs == nil {
-		fs = vfs.NewOSFS()
+// New creates a new CAS instance with the given options.
+func New(opts ...Option) (*CAS, error) {
+	c := &CAS{}
+
+	for _, opt := range opts {
+		opt(c)
 	}
 
-	if opts.StorePath == "" {
+	if c.fs == nil {
+		c.fs = vfs.NewOSFS()
+	}
+
+	if c.storePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, err
 		}
 
-		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
+		c.storePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
-	if err := fs.MkdirAll(opts.StorePath, DefaultDirPerms); err != nil {
+	if err := c.fs.MkdirAll(c.storePath, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("failed to create CAS store path: %w", err)
 	}
 
-	store := NewStore(opts.StorePath).WithFS(fs)
+	c.store = NewStore(c.storePath).WithFS(c.fs)
 
 	g, err := git.NewGitRunner()
 	if err != nil {
 		return nil, err
 	}
 
-	return &CAS{
-		store: store,
-		git:   g,
-		opts:  opts,
-		fs:    fs,
-	}, nil
+	c.git = g
+
+	return c, nil
 }
 
 // Clone performs the clone operation

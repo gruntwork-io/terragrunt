@@ -31,9 +31,7 @@ func BenchmarkClone(b *testing.B) {
 			storePath := filepath.Join(tempDir, "store", strconv.Itoa(i))
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			c, err := cas.New(cas.Options{
-				StorePath: storePath,
-			})
+			c, err := cas.New(cas.WithStorePath(storePath))
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -53,9 +51,7 @@ func BenchmarkClone(b *testing.B) {
 		storePath := filepath.Join(tempDir, "store")
 
 		// First clone to populate store
-		c, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		c, err := cas.New(cas.WithStorePath(storePath))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -73,9 +69,7 @@ func BenchmarkClone(b *testing.B) {
 
 			targetPath := filepath.Join(tempDir, "repo", strconv.Itoa(i))
 
-			c, err := cas.New(cas.Options{
-				StorePath: storePath,
-			})
+			c, err := cas.New(cas.WithStorePath(storePath))
 			if err != nil {
 				b.Fatal(err)
 			}

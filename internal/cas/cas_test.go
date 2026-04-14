@@ -22,9 +22,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
@@ -47,9 +45,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
@@ -69,9 +65,7 @@ func TestCAS_Clone(t *testing.T) {
 		storePath := filepath.Join(tempDir, "store")
 		targetPath := filepath.Join(tempDir, "repo")
 
-		c, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{

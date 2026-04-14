@@ -381,7 +381,7 @@ func downloadSource(
 	if allowCAS && !isLocalSource {
 		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
-		c, err := cas.New(cas.Options{})
+		c, err := cas.New()
 		if err != nil {
 			l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		} else {

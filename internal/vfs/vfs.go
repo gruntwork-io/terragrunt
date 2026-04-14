@@ -62,6 +62,7 @@ func NewMemMapFS() FS {
 	return &memMapFS{
 		Fs:       afero.NewMemMapFs(),
 		symlinks: make(map[string]string),
+		locks:    make(map[string]*memLock),
 	}
 }
 
@@ -69,7 +70,8 @@ func NewMemMapFS() FS {
 type memMapFS struct {
 	afero.Fs
 	symlinks map[string]string
-	locks    sync.Map // map[string]*memLock
+	locks    map[string]*memLock
+	locksMu  sync.Mutex
 }
 
 func (fs *memMapFS) SymlinkIfPossible(oldname, newname string) error {
@@ -258,9 +260,16 @@ func (l *memLock) Unlock() error {
 }
 
 func (fs *memMapFS) getOrCreateLock(name string) *memLock {
-	actual, _ := fs.locks.LoadOrStore(name, &memLock{})
+	fs.locksMu.Lock()
+	defer fs.locksMu.Unlock()
 
-	return actual.(*memLock)
+	l, ok := fs.locks[name]
+	if !ok {
+		l = &memLock{}
+		fs.locks[name] = l
+	}
+
+	return l
 }
 
 func (fs *memMapFS) Lock(name string) (Unlocker, error) {

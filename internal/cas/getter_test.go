@@ -100,9 +100,7 @@ func TestCASGetterGet(t *testing.T) {
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.Options{
-		StorePath: storePath,
-	})
+	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{
@@ -155,9 +153,7 @@ func TestCASGetterLocalDir(t *testing.T) {
 	tmp := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tmp, "store")
 
-	c, err := cas.New(cas.Options{
-		StorePath: storePath,
-	})
+	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{

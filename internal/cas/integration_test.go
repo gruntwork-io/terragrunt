@@ -25,9 +25,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// First clone
 		firstClonePath := filepath.Join(tempDir, "first")
-		cas1, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		cas1, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas1.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: firstClonePath,
@@ -40,9 +38,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 
 		// Second clone
 		secondClonePath := filepath.Join(tempDir, "second")
-		cas2, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		cas2, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas2.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir: secondClonePath,
@@ -65,9 +61,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.Options{
-			StorePath: filepath.Join(tempDir, "store"),
-		})
+		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
@@ -85,9 +79,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 
-		c, err := cas.New(cas.Options{
-			StorePath: filepath.Join(tempDir, "store"),
-		})
+		c, err := cas.New(cas.WithStorePath(filepath.Join(tempDir, "store")))
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
@@ -116,9 +108,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		const testTag = "v0.98.0"
 
 		// First clone to populate store
-		c, err := cas.New(cas.Options{
-			StorePath: storePath,
-		})
+		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, c.Clone(ctx, l, &cas.CloneOptions{
 			Dir:    filepath.Join(tempDir, "repo"),
