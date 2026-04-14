@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -104,9 +103,8 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 	}
 
 	// Acquire global clone lock to ensure only one clone at a time
-	globalLock := flock.New(filepath.Join(c.store.Path(), "clone.lock"))
-
-	if err := globalLock.Lock(); err != nil {
+	globalLock, err := vfs.Lock(c.fs, filepath.Join(c.store.Path(), "clone.lock"))
+	if err != nil {
 		return fmt.Errorf("failed to acquire global clone lock: %w", err)
 	}
 

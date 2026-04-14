@@ -14,7 +14,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
 )
@@ -67,6 +69,7 @@ func NewMemMapFS() FS {
 type memMapFS struct {
 	afero.Fs
 	symlinks map[string]string
+	locks    sync.Map // map[string]*memLock
 }
 
 func (fs *memMapFS) SymlinkIfPossible(oldname, newname string) error {
@@ -173,6 +176,104 @@ func Symlink(fs FS, oldname, newname string) error {
 	}
 
 	return linker.SymlinkIfPossible(oldname, newname)
+}
+
+// Unlocker can release a held lock.
+type Unlocker interface {
+	Unlock() error
+}
+
+// Locker is an optional interface for filesystems that support locking.
+type Locker interface {
+	// Lock acquires a blocking lock for the given name.
+	Lock(name string) (Unlocker, error)
+	// TryLock attempts a non-blocking lock for the given name.
+	// Returns the unlocker and true if acquired, nil and false otherwise.
+	TryLock(name string) (Unlocker, bool, error)
+}
+
+// ErrNoLock is returned when a filesystem does not support locking.
+var ErrNoLock = errors.New("locking not supported")
+
+// Lock acquires a blocking lock for the given name on the filesystem.
+func Lock(fs FS, name string) (Unlocker, error) {
+	locker, ok := fs.(Locker)
+	if !ok {
+		return nil, ErrNoLock
+	}
+
+	return locker.Lock(name)
+}
+
+// TryLock attempts a non-blocking lock for the given name on the filesystem.
+func TryLock(fs FS, name string) (Unlocker, bool, error) {
+	locker, ok := fs.(Locker)
+	if !ok {
+		return nil, false, ErrNoLock
+	}
+
+	return locker.TryLock(name)
+}
+
+// osFS Locker implementation using flock (file-based locks).
+
+func (f *osFS) Lock(name string) (Unlocker, error) {
+	l := flock.New(name)
+	if err := l.Lock(); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (f *osFS) TryLock(name string) (Unlocker, bool, error) {
+	l := flock.New(name)
+
+	acquired, err := l.TryLock()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	return l, true, nil
+}
+
+// memMapFS Locker implementation using mutexes.
+
+// memLock is an in-memory lock backed by a mutex.
+type memLock struct {
+	mu sync.Mutex
+}
+
+func (l *memLock) Unlock() error {
+	l.mu.Unlock()
+	return nil
+}
+
+func (f *memMapFS) getOrCreateLock(name string) *memLock {
+	actual, _ := f.locks.LoadOrStore(name, &memLock{})
+
+	return actual.(*memLock)
+}
+
+func (f *memMapFS) Lock(name string) (Unlocker, error) {
+	l := f.getOrCreateLock(name)
+	l.mu.Lock()
+
+	return l, nil
+}
+
+func (f *memMapFS) TryLock(name string) (Unlocker, bool, error) {
+	l := f.getOrCreateLock(name)
+
+	if !l.mu.TryLock() {
+		return nil, false, nil
+	}
+
+	return l, true, nil
 }
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
