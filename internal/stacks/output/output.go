@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -115,6 +116,16 @@ func StackOutput(
 
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
+
+			if isUnitExcluded(ctx, l, opts, pctx, unitDir) {
+				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
+
+				key := filepath.Join(targetDir, unit.Path)
+				declaredUnits[key] = unit
+				outputs[key] = map[string]cty.Value{}
+
+				continue
+			}
 
 			var output map[string]cty.Value
 
@@ -259,6 +270,40 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	}
 
 	return nested, nil
+}
+
+// isUnitExcluded checks whether the unit's terragrunt config has an exclude block
+// that prevents the "output" action. Returns false if the config cannot be parsed
+// so that the caller falls through to the normal output path.
+func isUnitExcluded(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	pctx *config.ParsingContext,
+	unitDir string,
+) bool {
+	configFilename := config.DefaultTerragruntConfigPath
+	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
+		configFilename = filepath.Base(opts.TerragruntConfigPath)
+	}
+
+	unitConfigPath := filepath.Join(unitDir, configFilename)
+	if !util.FileExists(unitConfigPath) {
+		return false
+	}
+
+	partialConfig, err := config.PartialParseConfigFile(
+		ctx,
+		pctx.WithDecodeList(config.ExcludeBlock, config.FeatureFlagsBlock),
+		l,
+		unitConfigPath,
+		nil,
+	)
+	if err != nil || partialConfig == nil || partialConfig.Exclude == nil {
+		return false
+	}
+
+	return partialConfig.Exclude.ShouldPreventRun("output")
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.

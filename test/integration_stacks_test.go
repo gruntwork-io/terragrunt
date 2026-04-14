@@ -59,6 +59,7 @@ const (
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
+	testFixtureStackExcludeOutput              = "fixtures/stacks/exclude-output"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -2111,4 +2112,48 @@ func TestStackVersionConstraints(t *testing.T) {
 
 	var invalidVersionError run.InvalidTerragruntVersion
 	assert.ErrorAs(t, err, &invalidVersionError)
+}
+
+func TestStackOutputWithExclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackExcludeOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackExcludeOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackExcludeOutput, "live")
+
+	// Apply the stack -- excluded-app is skipped because "apply" is in its exclude actions
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+
+	// Test stack output -- should succeed, showing only normal_app output
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack output --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+	// normal_app output value should be present
+	assert.Contains(t, stdout, `result = "normal"`)
+	// excluded_app should appear as empty (no output values fetched)
+	assert.Contains(t, stdout, "excluded_app = {}")
+	// the excluded unit's output value "excluded" should not appear
+	assert.NotContains(t, stdout, `"excluded"`)
+
+	// Test JSON output to verify structure
+	stdoutJSON, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack output --format json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdoutJSON), &result))
+
+	// normal_app should be present with its output
+	assert.Contains(t, result, "normal_app")
+
+	// excluded_app should be present but empty
+	if excludedApp, ok := result["excluded_app"]; ok {
+		excludedMap, isMap := excludedApp.(map[string]any)
+		assert.True(t, isMap)
+		assert.Empty(t, excludedMap)
+	}
 }
