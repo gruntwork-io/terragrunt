@@ -165,12 +165,7 @@ func validateNoCoexistence(results []DiscoveryResult) error {
 		path := result.Component.Path()
 
 		if existing, ok := seen[path]; ok && existing.Component.Kind() != result.Component.Kind() {
-			unitFile, stackFile := existing.Component.ConfigFile(), result.Component.ConfigFile()
-			if result.Component.Kind() == component.UnitKind {
-				unitFile, stackFile = result.Component.ConfigFile(), existing.Component.ConfigFile()
-			}
-
-			return NewCoexistenceError(path, unitFile, stackFile)
+			return NewCoexistenceError(existing.Component, result.Component)
 		}
 
 		seen[path] = result
