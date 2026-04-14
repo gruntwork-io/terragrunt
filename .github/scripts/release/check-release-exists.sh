@@ -20,8 +20,11 @@ function main {
   # Check if release exists using gh CLI (only care about exit code)
   if ! gh release view "$VERSION" > /dev/null 2>&1; then
     printf 'exists=false\n' >> "$GITHUB_OUTPUT"
+    printf 'is_draft=false\n' >> "$GITHUB_OUTPUT"
+    printf 'is_published=false\n' >> "$GITHUB_OUTPUT"
+    printf 'release_id=\n' >> "$GITHUB_OUTPUT"
     printf 'Release not found for tag %s\n' "$VERSION"
-    exit 1
+    return 0
   fi
 
   # Get release details
@@ -31,20 +34,29 @@ function main {
   local release_id
   local upload_url
   local is_draft
+  local is_published
 
   release_id=$(jq -r '.id' <<< "$release_json")
   upload_url=$(jq -r '.uploadUrl' <<< "$release_json")
   is_draft=$(jq -r '.isDraft' <<< "$release_json")
+
+  if [[ "$is_draft" == "true" ]]; then
+    is_published="false"
+  else
+    is_published="true"
+  fi
 
   # Write to GitHub output
   printf 'exists=true\n' >> "$GITHUB_OUTPUT"
   printf 'release_id=%s\n' "$release_id" >> "$GITHUB_OUTPUT"
   printf 'upload_url=%s\n' "$upload_url" >> "$GITHUB_OUTPUT"
   printf 'is_draft=%s\n' "$is_draft" >> "$GITHUB_OUTPUT"
+  printf 'is_published=%s\n' "$is_published" >> "$GITHUB_OUTPUT"
 
   echo "Found existing release:"
   printf '  Release ID: %s\n' "$release_id"
   printf '  Draft: %s\n' "$is_draft"
+  printf '  Published: %s\n' "$is_published"
   printf '  Upload URL: %s\n' "${upload_url%\{*}"
 
   return 0
