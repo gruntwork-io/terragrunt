@@ -18,7 +18,7 @@ This documentation should be updated at that time to reflect the new policy. If 
 
 ## Immutable Releases
 
-Terragrunt uses [GitHub's immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) to ensure that once a release is published, its tag and assets cannot be modified or deleted. This provides a strong supply chain security guarantee — the binary you download today is the same binary that was uploaded when the release was published.
+Terragrunt uses [GitHub's immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases) to ensure that once a release is published, its tag and assets cannot be modified or deleted. This means the binary you download today is the same binary that was uploaded when the release was published.
 
 To support immutability, releases are built as **drafts** first. All artifacts are uploaded and verified before the release is published. Once published, the git tag is created and the release is locked.
 
@@ -34,9 +34,9 @@ To release a new version of Terragrunt:
 
 2. In the **Choose a tag** field, enter the version (e.g., `v1.0.2`). Select **Create new tag: v1.0.2 on publish**.
 
-3. **Set the target to an explicit commit SHA** — do not use a branch name. This prevents new commits from being pulled into the release between draft creation and publishing. You can find the commit SHA from the tip of the branch you want to release (e.g., `main`).
+3. **Set the target to an explicit commit SHA**, not a branch name. This prevents new commits from being pulled into the release between draft creation and publishing. You can find the commit SHA from the tip of the branch you want to release (e.g., `main`).
 
-4. Set the release title to something descriptive (the tag is the version identifier, so the title can provide additional context).
+4. Set the release title to the version tag (e.g., `v1.0.2`).
 
 5. Click **Save draft**. This automatically triggers the Release workflow via the `release: created` event.
 
@@ -53,7 +53,7 @@ To release a new version of Terragrunt:
 8. Write or finalize the release notes.
 
 <Aside type="caution" title="Editing a draft triggers a rebuild">
-  Editing a draft release (other than just updating the release notes) will re-trigger the build workflow. This is by design — it ensures assets always match the current release configuration. Release note edits alone do not trigger a rebuild.
+  Editing a draft release (other than just updating the release notes) will re-trigger the build workflow to ensure assets always match the current release configuration. Release note edits alone do not trigger a rebuild.
 </Aside>
 
 9. When ready:
@@ -66,7 +66,7 @@ To release a new version of Terragrunt:
 
 If the build workflow fails mid-way:
 
-- **Edit the draft** (e.g., update the title) to re-trigger the workflow. Assets are automatically overwritten.
+- **Edit the draft** (e.g., point it at a new commit) to re-trigger the workflow. Assets are automatically overwritten.
 - Alternatively, use the **workflow_dispatch** trigger on the Release workflow, providing the version string (e.g., `v1.0.2`). This looks up the existing draft release and rebuilds.
 
 ## Pre-releases
@@ -75,11 +75,9 @@ Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on t
 
 All pre-releases use semver-compliant version strings:
 
-- `v1.0.0-alpha.1` — Alpha pre-releases, recommended for testing in non-production environments only. Intended for testing new features with stakeholders external to Gruntwork before a general release.
-- `v1.0.0-beta.1` — Beta pre-releases, for broader testing.
-- `v1.0.0-rc1` — Release candidates, which undergo more thorough testing (automated and manual) before the final release.
-
-Alpha pre-releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times. When creating a pre-release draft, target the specific commit on the feature branch and check **Set as a pre-release**.
+- `v1.0.0-alpha.1`: Alpha pre-releases, recommended for testing in non-production environments only. Intended for testing new features with stakeholders external to Gruntwork before a general release.
+- `v1.0.0-beta.1`: Beta pre-releases, for broader testing.
+- `v1.0.0-rc1`: Release candidates, which undergo more thorough testing (automated and manual) before the final release.
 
 This pre-release system is subject to change, and maintainers will update this documentation to reflect any changes.
 
