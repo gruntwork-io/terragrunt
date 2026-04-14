@@ -15,11 +15,16 @@
 #   curl -sL https://docs.terragrunt.com/install | bash
 #   curl -sL https://docs.terragrunt.com/install | bash -s -- -v v0.72.5
 #   curl -sL https://docs.terragrunt.com/install | bash -s -- -d ~/bin
+#   curl -sL https://docs.terragrunt.com/install | bash -s -- --tip
+#   curl -sL https://docs.terragrunt.com/install | bash -s -- --test --commit abc123def
 #
 # Options:
 #   -v, --version VERSION    Install specific version (default: latest)
 #   -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
 #   -f, --force              Overwrite existing installation
+#   --tip                    Install the latest tip build (from main branch)
+#   --test                   Install a test build (requires --commit)
+#   --commit SHA             Specify commit SHA for --tip or --test builds
 #   --verify-cosign          Use Cosign instead of GPG for signature verification
 #   --no-verify-sig          Skip GPG/Cosign signature verification
 #   --no-verify              Skip SHA256 checksum verification
@@ -41,6 +46,8 @@ readonly DEFAULT_INSTALL_DIR="${HOME}/.terragrunt/bin"
 readonly BINARY_NAME="terragrunt"
 # Minimum version that has signed release assets (GPG and Cosign)
 readonly MIN_SIGNED_VERSION="0.98.0"
+# Builds API base URL for tip/test builds
+readonly BUILDS_API_BASE="https://builds.terragrunt.com"
 
 # --- Colors (if terminal) ---
 # Use $'...' syntax for reliable escape sequence interpretation on macOS/Linux
@@ -88,6 +95,9 @@ Options:
   -v, --version VERSION    Install specific version (default: latest)
   -d, --dir PATH           Installation directory (default: ~/.terragrunt/bin)
   -f, --force              Overwrite existing installation
+  --tip                    Install the latest tip build (from main branch)
+  --test                   Install a test build (requires --commit)
+  --commit SHA             Specify commit SHA for --tip or --test builds
   --verify-cosign          Use Cosign instead of GPG for signature verification
   --no-verify-sig          Skip GPG/Cosign signature verification
   --no-verify              Skip SHA256 checksum verification
@@ -111,6 +121,15 @@ Examples:
 
   # Install using Cosign instead of GPG
   curl -sL https://docs.terragrunt.com/install | bash -s -- --verify-cosign
+
+  # Install the latest tip build
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --tip
+
+  # Install a specific tip build by commit
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --tip --commit abc123def
+
+  # Install a test build by commit
+  curl -sL https://docs.terragrunt.com/install | bash -s -- --test --commit abc123def
 EOF
 }
 
@@ -160,18 +179,18 @@ detect_os() {
     local os
     os="$(uname -s)"
     case "$os" in
-        Darwin) echo "darwin" ;;
-        Linux)  echo "linux" ;;
-        MINGW*|MSYS*|CYGWIN*)
-            abort "Windows detected. Please use PowerShell or install via Chocolatey:
+    Darwin) echo "darwin" ;;
+    Linux) echo "linux" ;;
+    MINGW* | MSYS* | CYGWIN*)
+        abort "Windows detected. Please use PowerShell or install via Chocolatey:
   choco install terragrunt
 
 Or download manually from: https://github.com/gruntwork-io/terragrunt/releases"
-            ;;
-        *)
-            abort "Unsupported operating system: $os
+        ;;
+    *)
+        abort "Unsupported operating system: $os
 Supported: Linux, macOS (Darwin)"
-            ;;
+        ;;
     esac
 }
 
@@ -179,13 +198,13 @@ detect_arch() {
     local arch
     arch="$(uname -m)"
     case "$arch" in
-        x86_64|amd64)  echo "amd64" ;;
-        aarch64|arm64) echo "arm64" ;;
-        i386|i686)     echo "386" ;;
-        *)
-            abort "Unsupported architecture: $arch
+    x86_64 | amd64) echo "amd64" ;;
+    aarch64 | arm64) echo "arm64" ;;
+    i386 | i686) echo "386" ;;
+    *)
+        abort "Unsupported architecture: $arch
 Supported: x86_64 (amd64), aarch64 (arm64), i386/i686 (386)"
-            ;;
+        ;;
     esac
 }
 
@@ -253,6 +272,106 @@ download_checksums() {
     download_file "$url" "${output_dir}/SHA256SUMS" "checksums"
 }
 
+# --- Tip/Test Build Functions ---
+
+get_build_file_url() {
+    local channel="$1"
+    local commit="$2"
+    local os="$3"
+    local arch="$4"
+    local filename="$5"
+
+    if [[ "$channel" == "tip" ]]; then
+        local ref="$commit"
+
+        [[ -z "$ref" ]] && ref="latest"
+        local base="${BUILDS_API_BASE}/api/v1/tip/${ref}/download"
+        if [[ -n "$filename" ]]; then
+            echo "${base}?filename=${filename}"
+            return
+        fi
+
+        echo "${base}?os=${os}&arch=${arch}"
+
+        return
+    fi
+
+    local archive_name="terragrunt_${os}_${arch}.tar.gz"
+
+    if [[ -n "$filename" ]]; then
+        echo "${BUILDS_API_BASE}/test/${commit}/${filename}"
+
+        return
+    fi
+
+    echo "${BUILDS_API_BASE}/test/${commit}/${archive_name}"
+}
+
+download_build_archive() {
+    local channel="$1"
+    local commit="$2"
+    local os="$3"
+    local arch="$4"
+    local output_dir="$5"
+
+    local archive_name="terragrunt_${os}_${arch}.tar.gz"
+
+    local url
+    url=$(get_build_file_url "$channel" "$commit" "$os" "$arch" "")
+
+    download_file "$url" "${output_dir}/${archive_name}" "Terragrunt ${channel} build"
+}
+
+download_build_checksums() {
+    local channel="$1"
+    local commit="$2"
+    local os="$3"
+    local arch="$4"
+    local output_dir="$5"
+
+    local url
+    url=$(get_build_file_url "$channel" "$commit" "$os" "$arch" "SHA256SUMS")
+
+    download_file "$url" "${output_dir}/SHA256SUMS" "checksums"
+}
+
+download_build_signature_files() {
+    local channel="$1"
+    local commit="$2"
+    local os="$3"
+    local arch="$4"
+    local tmpdir="$5"
+    local method="$6"
+
+    local url
+    case "$method" in
+    gpg)
+        url=$(get_build_file_url "$channel" "$commit" "$os" "$arch" "SHA256SUMS.gpgsig")
+        download_file "$url" "${tmpdir}/SHA256SUMS.gpgsig" "GPG signature"
+        ;;
+    cosign)
+        url=$(get_build_file_url "$channel" "$commit" "$os" "$arch" "SHA256SUMS.sigstore.json")
+        download_file "$url" "${tmpdir}/SHA256SUMS.sigstore.json" "Cosign signature bundle"
+        ;;
+    esac
+}
+
+extract_archive() {
+    local archive_path="$1"
+    local output_dir="$2"
+    local binary_name="$3"
+
+    info "Extracting archive..."
+
+    if ! tar -xzf "$archive_path" -C "$output_dir" 2>/dev/null; then
+        abort "Failed to extract archive: $archive_path"
+    fi
+
+    if [[ ! -f "${output_dir}/${binary_name}" ]]; then
+        abort "Expected binary '${binary_name}' not found in archive"
+    fi
+}
+
 # --- Verification Functions ---
 verify_sha256() {
     local binary_path="$1"
@@ -272,7 +391,7 @@ verify_sha256() {
 
     local expected_checksum
     # Strip CRLF and find checksum for binary
-    expected_checksum=$(tr -d '\r' < "$checksums_path" | awk -v bin="$binary_name" '$2 == bin {print $1; exit}')
+    expected_checksum=$(tr -d '\r' <"$checksums_path" | awk -v bin="$binary_name" '$2 == bin {print $1; exit}')
 
     if [[ -z "$expected_checksum" ]]; then
         abort "Could not find checksum for $binary_name in SHA256SUMS file"
@@ -292,14 +411,17 @@ verify_gpg() {
     local checksums_path="$2"
     local tmpdir="$3"
 
-    local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
     local sig_path="${tmpdir}/SHA256SUMS.gpgsig"
     local gnupg_home="${tmpdir}/gnupg"
 
-    info "Downloading GPG signature..."
-    if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
-        warn "Failed to download GPG signature file"
-        return 1
+    # Download signature file if not already present (tip/test builds pre-download it)
+    if [[ ! -f "$sig_path" ]]; then
+        local sig_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.gpgsig"
+        info "Downloading GPG signature..."
+        if ! curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null; then
+            warn "Failed to download GPG signature file"
+            return 1
+        fi
     fi
 
     # Create temporary GNUPGHOME to avoid polluting user's keyring
@@ -315,9 +437,8 @@ verify_gpg() {
     info "Verifying GPG signature..."
     if GNUPGHOME="$gnupg_home" gpg --verify "$sig_path" "$checksums_path" 2>/dev/null; then
         return 0
-    else
-        return 1
     fi
+    return 1
 }
 
 verify_cosign() {
@@ -326,10 +447,15 @@ verify_cosign() {
     local tmpdir="$3"
 
     # Try bundle verification first (cosign v3+ / sigstore bundle)
-    local bundle_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sigstore.json"
     local bundle_path="${tmpdir}/SHA256SUMS.sigstore.json"
 
-    if curl -sL --fail "$bundle_url" -o "$bundle_path" 2>/dev/null; then
+    # Download bundle if not already present (tip/test builds pre-download it)
+    if [[ ! -f "$bundle_path" ]]; then
+        local bundle_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/SHA256SUMS.sigstore.json"
+        curl -sL --fail "$bundle_url" -o "$bundle_path" 2>/dev/null || true
+    fi
+
+    if [[ -f "$bundle_path" ]]; then
         info "Verifying Cosign signature (bundle)..."
         cosign verify-blob "$checksums_path" \
             --bundle "$bundle_path" \
@@ -345,8 +471,14 @@ verify_cosign() {
     local cert_path="${tmpdir}/SHA256SUMS.pem"
 
     info "Downloading Cosign signature files..."
-    curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null || { warn "Failed to download Cosign signature file"; return 1; }
-    curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null || { warn "Failed to download Cosign certificate file"; return 1; }
+    curl -sL --fail "$sig_url" -o "$sig_path" 2>/dev/null || {
+        warn "Failed to download Cosign signature file"
+        return 1
+    }
+    curl -sL --fail "$cert_url" -o "$cert_path" 2>/dev/null || {
+        warn "Failed to download Cosign certificate file"
+        return 1
+    }
 
     info "Verifying Cosign signature..."
     cosign verify-blob "$checksums_path" \
@@ -362,19 +494,19 @@ verify_signature() {
     local version="$1"
     local checksums_path="$2"
     local tmpdir="$3"
-    local method="$4"  # gpg or cosign
+    local method="$4" # gpg or cosign
 
     case "$method" in
-        gpg)
-            command -v gpg &>/dev/null || abort "GPG verification requested but gpg is not installed"
-            verify_gpg "$version" "$checksums_path" "$tmpdir" && return 0
-            abort "GPG signature verification failed!"
-            ;;
-        cosign)
-            command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed"
-            verify_cosign "$version" "$checksums_path" "$tmpdir" && return 0
-            abort "Cosign signature verification failed!"
-            ;;
+    gpg)
+        command -v gpg &>/dev/null || abort "GPG verification requested but gpg is not installed"
+        verify_gpg "$version" "$checksums_path" "$tmpdir" && return 0
+        abort "GPG signature verification failed!"
+        ;;
+    cosign)
+        command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed"
+        verify_cosign "$version" "$checksums_path" "$tmpdir" && return 0
+        abort "Cosign signature verification failed!"
+        ;;
     esac
 }
 
@@ -383,19 +515,19 @@ detect_shell_rc() {
     local shell_name
     shell_name=$(basename "${SHELL:-}")
     case "$shell_name" in
-        bash)
-            if [[ -f "${HOME}/.bashrc" ]]; then
-                echo "${HOME}/.bashrc"
-            elif [[ -f "${HOME}/.bash_profile" ]]; then
-                echo "${HOME}/.bash_profile"
-            fi
-            ;;
-        zsh)
-            echo "${HOME}/.zshrc"
-            ;;
-        fish)
-            echo "${HOME}/.config/fish/config.fish"
-            ;;
+    bash)
+        if [[ -f "${HOME}/.bashrc" ]]; then
+            echo "${HOME}/.bashrc"
+        elif [[ -f "${HOME}/.bash_profile" ]]; then
+            echo "${HOME}/.bash_profile"
+        fi
+        ;;
+    zsh)
+        echo "${HOME}/.zshrc"
+        ;;
+    fish)
+        echo "${HOME}/.config/fish/config.fish"
+        ;;
     esac
 }
 
@@ -418,10 +550,15 @@ install_binary() {
 
     # Check if already exists (skip if force)
     if [[ -f "$target_path" && "$force" != "true" ]]; then
+        # For tip/test builds, version comparison is unreliable — just require --force
+        [[ -n "$BUILD_CHANNEL" ]] &&
+            abort "Terragrunt is already installed at $target_path
+Use --force to overwrite with ${requested_version}"
+
         local existing_version
         existing_version=$("$target_path" --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || echo "unknown")
 
-        [[ "$existing_version" == "$requested_version" ]] && \
+        [[ "$existing_version" == "$requested_version" ]] &&
             abort "Terragrunt ${existing_version} is already installed at $target_path"
 
         abort "A different version (${existing_version}) is installed at $target_path
@@ -451,52 +588,87 @@ parse_args() {
     VERSION="${TERRAGRUNT_VERSION:-}"
     INSTALL_DIR="${TERRAGRUNT_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
     VERIFY_SHA=true
-    VERIFY_SIG="gpg"  # gpg (default), cosign, or empty (via --no-verify-sig)
-    SKIP_SIG_VERIFY=false  # set by --no-verify-sig to disable signature verification
+    VERIFY_SIG="gpg"      # gpg (default), cosign, or empty (via --no-verify-sig)
+    SKIP_SIG_VERIFY=false # set by --no-verify-sig to disable signature verification
     FORCE=false
+    BUILD_CHANNEL="" # "", "tip", or "test"
+    COMMIT_SHA=""    # commit SHA for --commit
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -v|--version)
-                [[ -z "${2:-}" ]] && abort "Option $1 requires a version argument"
-                VERSION="$2"
-                shift 2
-                ;;
-            -d|--dir)
-                [[ -z "${2:-}" ]] && abort "Option $1 requires a directory argument"
-                INSTALL_DIR="$2"
-                shift 2
-                ;;
-            -f|--force)
-                FORCE=true
-                shift
-                ;;
-            --verify-cosign)
-                VERIFY_SIG="cosign"
-                shift
-                ;;
-            --no-verify-sig)
-                SKIP_SIG_VERIFY=true
-                shift
-                ;;
-            --no-verify)
-                VERIFY_SHA=false
-                shift
-                ;;
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            -*)
-                abort "Unknown option: $1
+        -v | --version)
+            [[ -z "${2:-}" ]] && abort "Option $1 requires a version argument"
+            VERSION="$2"
+            shift 2
+            ;;
+        -d | --dir)
+            [[ -z "${2:-}" ]] && abort "Option $1 requires a directory argument"
+            INSTALL_DIR="$2"
+            shift 2
+            ;;
+        -f | --force)
+            FORCE=true
+            shift
+            ;;
+        --tip)
+            [[ -n "$BUILD_CHANNEL" ]] && abort "--tip and --test are mutually exclusive"
+            BUILD_CHANNEL="tip"
+            shift
+            ;;
+        --test)
+            [[ -n "$BUILD_CHANNEL" ]] && abort "--tip and --test are mutually exclusive"
+            BUILD_CHANNEL="test"
+            shift
+            ;;
+        --commit)
+            [[ -z "${2:-}" ]] && abort "Option $1 requires a commit SHA argument"
+            COMMIT_SHA="$2"
+            shift 2
+            ;;
+        --verify-cosign)
+            VERIFY_SIG="cosign"
+            shift
+            ;;
+        --no-verify-sig)
+            SKIP_SIG_VERIFY=true
+            shift
+            ;;
+        --no-verify)
+            VERIFY_SHA=false
+            shift
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        -*)
+            abort "Unknown option: $1
 Use -h or --help for usage information"
-                ;;
-            *)
-                abort "Unexpected argument: $1
+            ;;
+        *)
+            abort "Unexpected argument: $1
 Use -h or --help for usage information"
-                ;;
+            ;;
         esac
     done
+
+    # Validate tip/test/commit flag combinations
+    if [[ -n "$BUILD_CHANNEL" && -n "$VERSION" ]]; then
+        abort "--${BUILD_CHANNEL} and --version are mutually exclusive"
+    fi
+
+    if [[ "$BUILD_CHANNEL" == "test" && -z "$COMMIT_SHA" ]]; then
+        abort "--test requires --commit <sha> to specify which test build to install"
+    fi
+
+    if [[ -n "$COMMIT_SHA" && -z "$BUILD_CHANNEL" ]]; then
+        abort "--commit requires --tip or --test"
+    fi
+
+    if [[ -n "$COMMIT_SHA" && ! "$COMMIT_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+        abort "Invalid commit SHA: $COMMIT_SHA
+Commit SHA must be 7-40 hexadecimal characters"
+    fi
 }
 
 # --- Dependency Check ---
@@ -504,51 +676,95 @@ check_dependencies() {
     command -v curl &>/dev/null || abort "curl is required but not installed.
 Please install curl and try again."
 
-    [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null && \
+    [[ "$VERIFY_SHA" == true ]] && ! command -v sha256sum &>/dev/null && ! command -v shasum &>/dev/null &&
         abort "Neither sha256sum nor shasum found.
 Install one of these tools or skip checksum verification with:
   curl -sL https://docs.terragrunt.com/install | bash -s -- --no-verify"
 
+    # Tip/test builds require tar for archive extraction
+    [[ -n "$BUILD_CHANNEL" ]] && ! command -v tar &>/dev/null &&
+        abort "tar is required to extract tip/test build archives but is not installed."
+
     # Handle signature verification setup
-    [[ "$SKIP_SIG_VERIFY" == true ]] && { VERIFY_SIG=""; return; }
+    [[ "$SKIP_SIG_VERIFY" == true ]] && {
+        VERIFY_SIG=""
+        return
+    }
 
     # Verify required tool is available
     case "$VERIFY_SIG" in
-        gpg)
-            command -v gpg &>/dev/null || abort "GPG signature verification requires gpg but it is not installed.
+    gpg)
+        command -v gpg &>/dev/null || abort "GPG signature verification requires gpg but it is not installed.
 Install gpg or skip signature verification with:
   curl -sL https://docs.terragrunt.com/install | bash -s -- --no-verify-sig
 Or use Cosign instead:
   curl -sL https://docs.terragrunt.com/install | bash -s -- --verify-cosign"
-            ;;
-        cosign)
-            command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed."
-            ;;
+        ;;
+    cosign)
+        command -v cosign &>/dev/null || abort "Cosign verification requested but cosign is not installed."
+        ;;
     esac
 }
 
 # --- Main ---
-main() {
-    parse_args "$@"
 
-    # Expand tilde in INSTALL_DIR (bash doesn't expand ~ in quoted variables)
-    INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
+# Install a tip or test build from builds.terragrunt.com
+install_build() {
+    local os="$1"
+    local arch="$2"
 
-    # Check dependencies
-    check_dependencies
+    local commit="${COMMIT_SHA:-latest}"
+    local archive_name="terragrunt_${os}_${arch}.tar.gz"
+    local binary_name="terragrunt_${os}_${arch}"
 
-    # Detect platform
-    local os arch version binary_name
-    os=$(detect_os)
-    arch=$(detect_arch)
+    local display_version="${BUILD_CHANNEL} (${commit})"
 
-    # Resolve version
+    info "Installing Terragrunt ${display_version} for ${os}/${arch}"
+
+    # Create temp directory with safe cleanup
+    local tmpdir
+    tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'terragrunt-install')
+    trap '[[ -n "${tmpdir:-}" && -d "${tmpdir:-}" ]] && rm -rf "$tmpdir"' EXIT
+
+    # Download archive and checksums
+    download_build_archive "$BUILD_CHANNEL" "$commit" "$os" "$arch" "$tmpdir"
+    download_build_checksums "$BUILD_CHANNEL" "$commit" "$os" "$arch" "$tmpdir"
+
+    # Verify signature first (all tip/test builds are signed)
+    if [[ -n "$VERIFY_SIG" ]]; then
+        download_build_signature_files "$BUILD_CHANNEL" "$commit" "$os" "$arch" "$tmpdir" "$VERIFY_SIG"
+        verify_signature "" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
+        success "Signature verified"
+    fi
+
+    # Verify checksum (validates archive against authenticated checksums)
+    if [[ "$VERIFY_SHA" == true ]]; then
+        verify_sha256 "$tmpdir/$archive_name" "$tmpdir/SHA256SUMS" "$archive_name"
+        success "SHA256 checksum verified"
+    fi
+    [[ "$VERIFY_SHA" != true ]] && warn "Skipping checksum verification (--no-verify specified)"
+
+    # Extract binary from archive
+    extract_archive "$tmpdir/$archive_name" "$tmpdir" "$binary_name"
+
+    # Install
+    install_binary "$tmpdir/$binary_name" "$INSTALL_DIR" "$FORCE" "$display_version"
+
+    local target_path="${INSTALL_DIR}/${BINARY_NAME}"
+    success "Terragrunt ${display_version} installed successfully to ${target_path}"
+}
+
+# Install a release build from GitHub Releases
+install_release() {
+    local os="$1"
+    local arch="$2"
+
+    local version binary_name
     if [[ -z "$VERSION" ]]; then
         info "Fetching latest version..."
         version=$(get_latest_version)
-    else
-        version=$(validate_version "$VERSION")
     fi
+    [[ -n "$VERSION" ]] && version=$(validate_version "$VERSION")
 
     binary_name="terragrunt_${os}_${arch}"
 
@@ -568,24 +784,45 @@ main() {
         if supports_signature_verification "$version"; then
             verify_signature "$version" "$tmpdir/SHA256SUMS" "$tmpdir" "$VERIFY_SIG"
             success "Signature verified"
-        else
-            warn "Skipping signature verification: not available for versions older than v${MIN_SIGNED_VERSION}"
         fi
+        ! supports_signature_verification "$version" &&
+            warn "Skipping signature verification: not available for versions older than v${MIN_SIGNED_VERSION}"
     fi
 
     # Verify checksum (validates binary against authenticated checksums)
     if [[ "$VERIFY_SHA" == true ]]; then
         verify_sha256 "$tmpdir/$binary_name" "$tmpdir/SHA256SUMS" "$binary_name"
         success "SHA256 checksum verified"
-    else
-        warn "Skipping checksum verification (--no-verify specified)"
     fi
+    [[ "$VERIFY_SHA" != true ]] && warn "Skipping checksum verification (--no-verify specified)"
 
     # Install
     install_binary "$tmpdir/$binary_name" "$INSTALL_DIR" "$FORCE" "$version"
 
     local target_path="${INSTALL_DIR}/${BINARY_NAME}"
     success "Terragrunt ${version} installed successfully to ${target_path}"
+}
+
+main() {
+    parse_args "$@"
+
+    # Expand tilde in INSTALL_DIR (bash doesn't expand ~ in quoted variables)
+    INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
+
+    # Check dependencies
+    check_dependencies
+
+    # Detect platform
+    local os arch
+    os=$(detect_os)
+    arch=$(detect_arch)
+
+    # Install tip/test build or release
+    if [[ -n "$BUILD_CHANNEL" ]]; then
+        install_build "$os" "$arch"
+    fi
+    [[ -z "$BUILD_CHANNEL" ]] && install_release "$os" "$arch"
+
     echo ""
 
     # Show PATH instructions if using default dir and not already configured
@@ -598,11 +835,12 @@ main() {
             echo ""
             echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ${rc_file}"
             echo "  source ${rc_file}"
-        else
+        fi
+        [[ -z "$rc_file" ]] && {
             echo "Add to your shell configuration:"
             echo ""
             echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-        fi
+        }
         echo ""
     fi
 
