@@ -671,26 +671,26 @@ func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 		_ = f.Close()
 	}()
 
-	var entries []fs.DirEntry
-
 	if rdf, ok := f.(fs.ReadDirFile); ok {
-		entries, err = rdf.ReadDir(-1)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		var infos []os.FileInfo
-
-		infos, err = f.Readdir(-1)
+		entries, err := rdf.ReadDir(-1)
 		if err != nil {
 			return nil, err
 		}
 
-		entries = make([]fs.DirEntry, len(infos))
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
-		for i, info := range infos {
-			entries[i] = FileInfoDirEntry{FileInfo: info}
-		}
+		return entries, nil
+	}
+
+	infos, err := f.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]fs.DirEntry, len(infos))
+
+	for i, info := range infos {
+		entries[i] = FileInfoDirEntry{FileInfo: info}
 	}
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })

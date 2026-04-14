@@ -3,6 +3,7 @@ package vfs_test
 import (
 	"archive/zip"
 	"bytes"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -907,4 +908,228 @@ func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
 	require.NoError(t, w.Close())
 
 	return buf.Bytes()
+}
+
+func TestWalkDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("walks files in lexical order", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(memFs, "/root/b.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/a.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/c.txt", []byte("c"), 0644))
+
+		var names []string
+
+		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			names = append(names, d.Name())
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"root", "a.txt", "b.txt", "c.txt"}, names)
+	})
+
+	t.Run("walks nested directories", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(memFs, "/root/dir/nested.txt", []byte("n"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/top.txt", []byte("t"), 0644))
+
+		var paths []string
+
+		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			paths = append(paths, path)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"/root", "/root/dir", "/root/dir/nested.txt", "/root/top.txt"}, paths)
+	})
+
+	t.Run("empty directory", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/empty", 0755))
+
+		var paths []string
+
+		err := vfs.WalkDir(memFs, "/empty", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			paths = append(paths, path)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"/empty"}, paths)
+	})
+
+	t.Run("SkipDir skips directory", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(memFs, "/root/skip/hidden.txt", []byte("h"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/keep/visible.txt", []byte("v"), 0644))
+
+		var paths []string
+
+		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if d.IsDir() && d.Name() == "skip" {
+				return filepath.SkipDir
+			}
+
+			paths = append(paths, path)
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"/root", "/root/keep", "/root/keep/visible.txt"}, paths)
+	})
+
+	t.Run("nonexistent root returns error to callback", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+
+		var callbackErr error
+
+		err := vfs.WalkDir(memFs, "/nonexistent", func(path string, d fs.DirEntry, err error) error {
+			callbackErr = err
+			return err
+		})
+
+		require.Error(t, err)
+		require.Error(t, callbackErr)
+	})
+
+	t.Run("DirEntry reports correct types", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/root/subdir", 0755))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/file.txt", []byte("f"), 0644))
+
+		var dirs, files int
+
+		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if d.IsDir() {
+				dirs++
+			} else {
+				files++
+			}
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 2, dirs)  // /root, /root/subdir
+		assert.Equal(t, 1, files) // /root/file.txt
+	})
+}
+
+func TestWalkDir_OSFS(t *testing.T) {
+	t.Parallel()
+
+	osFs := vfs.NewOSFS()
+	root := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "sub"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("a"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "sub", "b.txt"), []byte("b"), 0644))
+
+	var paths []string
+
+	err := vfs.WalkDir(osFs, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, relErr := filepath.Rel(root, path)
+		require.NoError(t, relErr)
+
+		paths = append(paths, rel)
+
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
+}
+
+func TestLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("memMapFS lock and unlock", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+
+		lock, err := vfs.Lock(memFs, "test.lock")
+		require.NoError(t, err)
+		require.NotNil(t, lock)
+
+		// TryLock should fail while held
+		_, acquired, err := vfs.TryLock(memFs, "test.lock")
+		require.NoError(t, err)
+		assert.False(t, acquired)
+
+		require.NoError(t, lock.Unlock())
+
+		// TryLock should succeed after unlock
+		lock2, acquired, err := vfs.TryLock(memFs, "test.lock")
+		require.NoError(t, err)
+		assert.True(t, acquired)
+		require.NoError(t, lock2.Unlock())
+	})
+
+	t.Run("osFS lock and unlock", func(t *testing.T) {
+		t.Parallel()
+
+		osFs := vfs.NewOSFS()
+		lockPath := filepath.Join(t.TempDir(), "test.lock")
+
+		lock, err := vfs.Lock(osFs, lockPath)
+		require.NoError(t, err)
+		require.NotNil(t, lock)
+		require.NoError(t, lock.Unlock())
+	})
+
+	t.Run("unsupported filesystem returns error", func(t *testing.T) {
+		t.Parallel()
+
+		readOnlyFs := afero.NewReadOnlyFs(vfs.NewMemMapFS())
+
+		_, err := vfs.Lock(readOnlyFs, "test.lock")
+		require.ErrorIs(t, err, vfs.ErrNoLock)
+
+		_, _, err = vfs.TryLock(readOnlyFs, "test.lock")
+		require.ErrorIs(t, err, vfs.ErrNoLock)
+	})
 }

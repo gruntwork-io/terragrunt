@@ -107,7 +107,7 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		if ok {
 			// Check if this is a FileDetector using type assertion
 			if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
-				fs := g.fs()
+				fs := g.getFS()
 
 				info, statErr := fs.Stat(src)
 				if statErr != nil {
@@ -131,10 +131,10 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	return false, nil
 }
 
-// fs returns the filesystem from the CAS instance, or a default OSFS if CAS is nil.
-func (g *CASGetter) fs() vfs.FS {
+// getFS returns the filesystem from the CAS instance, or a default OSFS if CAS is nil.
+func (g *CASGetter) getFS() vfs.FS {
 	if g.CAS != nil {
-		return g.CAS.fs
+		return g.CAS.FS()
 	}
 
 	return vfs.NewOSFS()

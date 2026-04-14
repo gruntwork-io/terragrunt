@@ -56,6 +56,11 @@ type CAS struct {
 	opts  Options
 }
 
+// FS returns the configured filesystem.
+func (c *CAS) FS() vfs.FS {
+	return c.fs
+}
+
 // New creates a new CAS instance with the given options
 //
 // TODO: Make these options optional

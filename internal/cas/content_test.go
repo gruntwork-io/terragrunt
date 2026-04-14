@@ -1,6 +1,7 @@
 package cas_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -124,6 +125,34 @@ func TestContent_Link(t *testing.T) {
 		linkedData, err := vfs.ReadFile(memFs, targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, linkedData)
+	})
+
+	t.Run("create hard link on real filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		osFs := vfs.NewOSFS()
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir).WithFS(osFs)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		err := content.Store(l, testHash, testData)
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		err = content.Link(t.Context(), testHash, targetPath)
+		require.NoError(t, err)
+
+		// Verify hard link by comparing inodes
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
+		require.NoError(t, err)
+		targetInfo, err := os.Stat(targetPath)
+		require.NoError(t, err)
+		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
 	t.Run("link to existing file", func(t *testing.T) {
