@@ -12,6 +12,7 @@ import (
 )
 
 // deferredRoots lists variable root names that cannot be evaluated at generation time.
+// This map must not be modified after package initialization.
 var deferredRoots = map[string]bool{
 	varDependency: true,
 }
@@ -146,10 +147,13 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 
 		if IsPure(part, args.Deferred) {
 			val, diags := part.Value(args.EvalCtx)
-			if !diags.HasErrors() && val.Type() == cty.String {
-				buf.Write(HCLStringContent(val.AsString()))
+			if !diags.HasErrors() {
+				strVal, err := convert.Convert(val, cty.String)
+				if err == nil {
+					buf.Write(HCLStringContent(strVal.AsString()))
 
-				continue
+					continue
+				}
 			}
 		}
 
