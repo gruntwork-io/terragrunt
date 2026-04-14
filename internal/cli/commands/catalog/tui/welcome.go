@@ -23,7 +23,7 @@ type LoadFunc func(ctx context.Context) (catalog.CatalogService, error)
 type welcomeState int
 
 const (
-	welcomeLoading   welcomeState = iota
+	welcomeLoading welcomeState = iota
 	welcomeNoSources
 )
 
@@ -41,7 +41,7 @@ var (
 				Padding(0, 1)
 
 	welcomeBodyStyle = lipgloss.NewStyle().
-				Padding(1, 2)
+				Padding(1, 2) //nolint:mnd
 
 	welcomeCodeStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#8BE9FD"))
@@ -81,11 +81,11 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 }
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
-func (m WelcomeModel) Init() tea.Cmd {
+func (m WelcomeModel) Init() tea.Cmd { //nolint:gocritic
 	return tea.Batch(m.spinner.Tick, m.startDiscovery())
 }
 
-func (m WelcomeModel) startDiscovery() tea.Cmd {
+func (m WelcomeModel) startDiscovery() tea.Cmd { //nolint:gocritic
 	ctx := m.ctx
 	loadFunc := m.loadFunc
 
@@ -117,6 +117,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 
 	if m.state == welcomeLoading {
 		var cmd tea.Cmd
+
 		m.spinner, cmd = m.spinner.Update(msg)
 
 		return m, cmd
@@ -125,7 +126,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 	return m, nil
 }
 
-func (m WelcomeModel) handleDiscoveryComplete(msg discoveryCompleteMsg) (tea.Model, tea.Cmd) {
+func (m WelcomeModel) handleDiscoveryComplete(msg discoveryCompleteMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	if msg.err != nil {
 		m.logger.Warnf("Discovery error: %v", msg.err)
 	}

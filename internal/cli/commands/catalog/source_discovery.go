@@ -16,10 +16,10 @@ import (
 // statically-known URLs are captured.
 var terraformSourceReg = regexp.MustCompile(`(?s)terraform\s*\{[^}]*?source\s*=\s*"([^"$]+)"`)
 
-// discoverSourceURLs walks the project tree starting from rootDir, finds all
+// DiscoverSourceURLs walks the project tree starting from rootDir, finds all
 // terragrunt.hcl files, extracts terraform.source URLs, normalizes them to
 // repo-level URLs, and returns a deduplicated list.
-func discoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]string, error) {
+func DiscoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]string, error) {
 	configFiles, err := config.FindConfigFilesInPath(rootDir, experiments, config.DefaultTerragruntConfigPath, nil, "")
 	if err != nil {
 		return nil, err
@@ -33,12 +33,12 @@ func discoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]s
 			continue
 		}
 
-		source := extractTerraformSource(content)
+		source := ExtractTerraformSource(content)
 		if source == "" {
 			continue
 		}
 
-		repoURL := extractRepoURL(source)
+		repoURL := ExtractRepoURL(source)
 		if repoURL == "" {
 			continue
 		}
@@ -49,22 +49,22 @@ func discoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]s
 	return util.RemoveDuplicates(repoURLs), nil
 }
 
-// extractTerraformSource extracts the terraform.source attribute value from
+// ExtractTerraformSource extracts the terraform.source attribute value from
 // HCL content. Returns an empty string if no literal source is found or if
 // the source uses interpolation.
-func extractTerraformSource(content string) string {
+func ExtractTerraformSource(content string) string {
 	matches := terraformSourceReg.FindStringSubmatch(content)
-	if len(matches) < 2 {
+	if len(matches) < 2 { //nolint:mnd
 		return ""
 	}
 
 	return matches[1]
 }
 
-// extractRepoURL normalizes a terraform source URL to a repo-level URL by
+// ExtractRepoURL normalizes a terraform source URL to a repo-level URL by
 // stripping subdirectory paths, query parameters, and getter prefixes.
 // Returns an empty string for local paths and registry sources.
-func extractRepoURL(source string) string {
+func ExtractRepoURL(source string) string {
 	if strings.HasPrefix(source, ".") || strings.HasPrefix(source, "/") {
 		return ""
 	}

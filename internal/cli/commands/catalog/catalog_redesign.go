@@ -26,7 +26,7 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context) (catalog.CatalogService, error) {
 		// Discover source URLs from terraform.source in terragrunt.hcl files
-		discoveredURLs, err := discoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
+		discoveredURLs, err := DiscoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
 		if err != nil {
 			l.Warnf("Failed to discover source URLs: %v", err)
 		}

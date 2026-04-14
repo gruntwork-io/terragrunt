@@ -1,27 +1,16 @@
-package catalog
+package catalog_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// tmpDirResolved returns a temp directory with symlinks resolved.
-// This avoids macOS issues where t.TempDir() returns a symlinked path.
-func tmpDirResolved(t *testing.T) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	resolved, err := filepath.EvalSymlinks(dir)
-	require.NoError(t, err)
-
-	return resolved
-}
 
 func TestExtractTerraformSource_Simple(t *testing.T) {
 	t.Parallel()
@@ -31,7 +20,7 @@ terraform {
   source = "github.com/gruntwork-io/terraform-aws-vpc"
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc", result)
 }
 
@@ -43,7 +32,7 @@ terraform {
   source = "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0"
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0", result)
 }
 
@@ -55,7 +44,7 @@ terraform {
   source = "git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0"
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Equal(t, "git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0", result)
 }
 
@@ -67,7 +56,7 @@ terraform {
   source = "${local.base_source_url}?ref=v0.26.0"
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Empty(t, result)
 }
 
@@ -83,7 +72,7 @@ inputs = {
   name = "my-vpc"
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Empty(t, result)
 }
 
@@ -99,64 +88,64 @@ terraform {
   }
 }
 `
-	result := extractTerraformSource(content)
+	result := catalog.ExtractTerraformSource(content)
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0", result)
 }
 
 func TestExtractRepoURL_Simple(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("github.com/gruntwork-io/terraform-aws-vpc")
+	result := catalog.ExtractRepoURL("github.com/gruntwork-io/terraform-aws-vpc")
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc", result)
 }
 
 func TestExtractRepoURL_WithSubdirAndRef(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0")
+	result := catalog.ExtractRepoURL("github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0")
 	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc", result)
 }
 
 func TestExtractRepoURL_GitPrefix(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("git::https://github.com/gruntwork-io/terraform-aws-vpc.git")
+	result := catalog.ExtractRepoURL("git::https://github.com/gruntwork-io/terraform-aws-vpc.git")
 	assert.Equal(t, "https://github.com/gruntwork-io/terraform-aws-vpc.git", result)
 }
 
 func TestExtractRepoURL_GitPrefixWithSubdir(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0")
+	result := catalog.ExtractRepoURL("git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0")
 	assert.Equal(t, "https://github.com/gruntwork-io/terraform-aws-vpc.git", result)
 }
 
 func TestExtractRepoURL_LocalPath(t *testing.T) {
 	t.Parallel()
 
-	assert.Empty(t, extractRepoURL("../modules/vpc"))
-	assert.Empty(t, extractRepoURL("./modules/vpc"))
-	assert.Empty(t, extractRepoURL("/absolute/path/to/modules"))
+	assert.Empty(t, catalog.ExtractRepoURL("../modules/vpc"))
+	assert.Empty(t, catalog.ExtractRepoURL("./modules/vpc"))
+	assert.Empty(t, catalog.ExtractRepoURL("/absolute/path/to/modules"))
 }
 
 func TestExtractRepoURL_Registry(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("tfr:///terraform-aws-modules/vpc/aws?version=3.5.0")
+	result := catalog.ExtractRepoURL("tfr:///terraform-aws-modules/vpc/aws?version=3.5.0")
 	assert.Empty(t, result)
 }
 
 func TestExtractRepoURL_S3Prefix(t *testing.T) {
 	t.Parallel()
 
-	result := extractRepoURL("s3::https://s3-eu-west-1.amazonaws.com/bucket/module.zip")
+	result := catalog.ExtractRepoURL("s3::https://s3-eu-west-1.amazonaws.com/bucket/module.zip")
 	assert.Equal(t, "https://s3-eu-west-1.amazonaws.com/bucket/module.zip", result)
 }
 
 func TestDiscoverSourceURLs(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := tmpDirResolved(t)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Create directory structure:
 	// tmpDir/
@@ -210,7 +199,7 @@ inputs = {
 }
 `), 0644))
 
-	urls, err := discoverSourceURLs(tmpDir, experiment.NewExperiments())
+	urls, err := catalog.DiscoverSourceURLs(tmpDir, experiment.NewExperiments())
 	require.NoError(t, err)
 
 	// Should have 2 unique repo URLs (repo-a deduplicated, repo-b, interpolated and no-source skipped)
@@ -222,9 +211,9 @@ inputs = {
 func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := tmpDirResolved(t)
+	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	urls, err := discoverSourceURLs(tmpDir, experiment.NewExperiments())
+	urls, err := catalog.DiscoverSourceURLs(tmpDir, experiment.NewExperiments())
 	require.NoError(t, err)
 	assert.Empty(t, urls)
 }
