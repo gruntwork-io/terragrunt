@@ -99,31 +99,34 @@ async function findMergedPRs({ github, owner, repo, commitSha }) {
  *   closes #123, fixes #456, resolves #789
  *   close #123, fix #456, resolve #789
  *   closed #123, fixed #456, resolved #789
+ *   fixes #123, #456, #789
  *   closes https://github.com/owner/repo/issues/123
  *
  * @returns {Array<{owner: string, repo: string, number: number}>}
  */
 function parseIssueReferences(body, defaultOwner, defaultRepo) {
-  const pattern = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)|#(\d+))/gi;
+  const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+((?:(?:https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+|#\d+)[\s,&]*(?:and\s+)?)+)/gi;
   const refs = [];
   const seen = new Set();
 
   let match;
   while ((match = pattern.exec(body)) !== null) {
-    let refOwner, refRepo, refNumber;
+    const refsStr = match[1];
 
-    if (match[1]) {
-      // Full URL form: https://github.com/owner/repo/issues/123
-      refOwner = match[1];
-      refRepo = match[2];
-      refNumber = parseInt(match[3], 10);
-    } else {
-      // Shorthand form: #123
-      refOwner = defaultOwner;
-      refRepo = defaultRepo;
-      refNumber = parseInt(match[4], 10);
+    const urlRefPattern = /https?:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/g;
+    let urlMatch;
+    while ((urlMatch = urlRefPattern.exec(refsStr)) !== null) {
+      addRef(urlMatch[1], urlMatch[2], parseInt(urlMatch[3], 10));
     }
 
+    const shortRefPattern = /#(\d+)/g;
+    let shortMatch;
+    while ((shortMatch = shortRefPattern.exec(refsStr)) !== null) {
+      addRef(defaultOwner, defaultRepo, parseInt(shortMatch[1], 10));
+    }
+  }
+
+  function addRef(refOwner, refRepo, refNumber) {
     const key = `${refOwner}/${refRepo}#${refNumber}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -138,7 +141,7 @@ function parseIssueReferences(body, defaultOwner, defaultRepo) {
  * Checks whether a tip build comment for this commit already exists on the issue.
  */
 async function hasExistingComment({ github, owner, repo, issueNumber, commitSha }) {
-  const { data: comments } = await github.rest.issues.listComments({
+  const comments = await github.paginate(github.rest.issues.listComments, {
     owner,
     repo,
     issue_number: issueNumber,
@@ -163,3 +166,8 @@ function buildComment({ owner, repo, commitSha, prNumbers, runId }) {
     'This fix will also be included in a future release.',
   ].join('\n');
 }
+
+module.exports.parseIssueReferences = parseIssueReferences;
+module.exports.buildComment = buildComment;
+module.exports.hasExistingComment = hasExistingComment;
+module.exports.findMergedPRs = findMergedPRs;

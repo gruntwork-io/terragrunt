@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -49,6 +50,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
+	DefaultAutoIncludeFile          = intHclparse.AutoIncludeFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -1389,6 +1391,17 @@ func ParseConfig(
 		errs = errs.Append(err)
 	}
 
+	// Auto-merge terragrunt.autoinclude.hcl if present in the same directory.
+	// Gated by the stack-dependencies experiment and skipped for autoinclude files themselves.
+	if filepath.Base(file.ConfigPath) != DefaultAutoIncludeFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
+		if mergeErr != nil {
+			errs = errs.Append(mergeErr)
+		} else if autoMerged != nil {
+			config = autoMerged
+		}
+	}
+
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
 	if pctx.TrackInclude != nil {
@@ -1437,6 +1450,48 @@ func ParseConfig(
 	}
 
 	return config, errs.ErrorOrNil()
+}
+
+// mergeAutoIncludeIfPresent checks for terragrunt.autoinclude.hcl in the same directory
+// as the config file and merges it into the config. The autoinclude takes precedence.
+func mergeAutoIncludeIfPresent(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	config *TerragruntConfig,
+	configPath string,
+) (*TerragruntConfig, error) {
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil
+	}
+
+	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
+
+	// Clone the parsing context and reset DecodedDependencies so the
+	// autoinclude file gets its own dependency resolution pass.
+	//
+	// PartialParseDecodeList is intentionally inherited from the parent:
+	// - During DAG construction (partial mode): extracts dependency config_path
+	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
+	// - During actual unit run (full mode): resolves dependency outputs normally
+	//   because the DAG already ensured dependencies ran first
+	autoIncludePctx := pctx.Clone()
+	autoIncludePctx.DecodedDependencies = nil
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// Shallow merge: autoinclude wins over the unit config.
+	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
+	if err := config.Merge(l, autoIncludeConfig); err != nil {
+		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return config, nil
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
