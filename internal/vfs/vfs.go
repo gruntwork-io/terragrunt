@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -21,6 +22,9 @@ import (
 // FS is the filesystem interface used throughout the codebase.
 // It provides an abstraction over real and in-memory filesystems.
 type FS = afero.Fs
+
+// File represents a file in the filesystem.
+type File = afero.File
 
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
@@ -462,4 +466,127 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 // applyUmask applies a umask to a file mode.
 func applyUmask(mode, umask os.FileMode) os.FileMode {
 	return mode &^ umask
+}
+
+// FileInfoDirEntry wraps os.FileInfo to implement fs.DirEntry.
+// Adapted from spf13/afero#571 — replace with afero equivalent once merged.
+type FileInfoDirEntry struct {
+	FileInfo os.FileInfo
+}
+
+func (d FileInfoDirEntry) Name() string              { return d.FileInfo.Name() }
+func (d FileInfoDirEntry) IsDir() bool               { return d.FileInfo.IsDir() }
+func (d FileInfoDirEntry) Type() fs.FileMode         { return d.FileInfo.Mode().Type() }
+func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
+
+// WalkDir walks the file tree rooted at root, calling fn for each file or
+// directory in the tree, including root. The fn callback receives an fs.DirEntry
+// instead of os.FileInfo, which can be more efficient since it does not require
+// a stat call for every visited file.
+//
+// All errors that arise visiting files and directories are filtered by fn:
+// see the fs.WalkDirFunc documentation for details.
+//
+// The files are walked in lexical order, which makes the output deterministic
+// but means that for very large directories WalkDir can be inefficient.
+// WalkDir does not follow symbolic links.
+//
+// Adapted from spf13/afero#571 — replace with afero.WalkDir once merged.
+func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
+	info, err := lstatIfPossible(fsys, root)
+	if err != nil {
+		err = fn(root, nil, err)
+	} else {
+		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
+	}
+
+	if err == filepath.SkipDir || err == filepath.SkipAll {
+		return nil
+	}
+
+	return err
+}
+
+// lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat.
+func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
+	if lstater, ok := fsys.(afero.Lstater); ok {
+		info, _, err := lstater.LstatIfPossible(path)
+		return info, err
+	}
+
+	return fsys.Stat(path)
+}
+
+// walkDir recursively descends path, calling walkDirFn.
+// Adapted from https://go.dev/src/path/filepath/path.go
+func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
+	if err := walkDirFn(path, d, nil); err != nil || !d.IsDir() {
+		if err == filepath.SkipDir && d.IsDir() {
+			err = nil
+		}
+
+		return err
+	}
+
+	entries, err := readDirEntries(fsys, path)
+	if err != nil {
+		err = walkDirFn(path, d, err)
+		if err != nil {
+			if err == filepath.SkipDir && d.IsDir() {
+				err = nil
+			}
+
+			return err
+		}
+	}
+
+	for _, entry := range entries {
+		name := filepath.Join(path, entry.Name())
+		if err := walkDir(fsys, name, entry, walkDirFn); err != nil {
+			if err == filepath.SkipDir {
+				break
+			}
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// readDirEntries reads the directory named by dirname and returns
+// a sorted list of directory entries.
+func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
+	f, err := fsys.Open(dirname)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	var entries []fs.DirEntry
+
+	if rdf, ok := f.(fs.ReadDirFile); ok {
+		entries, err = rdf.ReadDir(-1)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var infos []os.FileInfo
+
+		infos, err = f.Readdir(-1)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = make([]fs.DirEntry, len(infos))
+
+		for i, info := range infos {
+			entries[i] = FileInfoDirEntry{FileInfo: info}
+		}
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+
+	return entries, nil
 }
