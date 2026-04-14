@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 )
@@ -107,7 +107,9 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		if ok {
 			// Check if this is a FileDetector using type assertion
 			if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
-				info, statErr := os.Stat(src)
+				fs := g.fs()
+
+				info, statErr := fs.Stat(src)
 				if statErr != nil {
 					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)
 				}
@@ -127,6 +129,15 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// fs returns the filesystem from the CAS instance, or a default OSFS if CAS is nil.
+func (g *CASGetter) fs() vfs.FS {
+	if g.CAS != nil {
+		return g.CAS.fs
+	}
+
+	return vfs.NewOSFS()
 }
 
 var (

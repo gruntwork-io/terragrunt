@@ -19,6 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -27,6 +28,10 @@ type Options struct {
 	// StorePath specifies a custom path for the content store
 	// If empty, uses $HOME/.cache/terragrunt/cas/store
 	StorePath string
+
+	// FS specifies the filesystem for file operations.
+	// If nil, defaults to the real OS filesystem.
+	FS vfs.FS
 }
 
 // CloneOptions configures the behavior of a specific clone operation
@@ -49,12 +54,18 @@ type CAS struct {
 	store *Store
 	git   *git.GitRunner
 	opts  Options
+	fs    vfs.FS
 }
 
 // New creates a new CAS instance with the given options
 //
 // TODO: Make these options optional
 func New(opts Options) (*CAS, error) {
+	fs := opts.FS
+	if fs == nil {
+		fs = vfs.NewOSFS()
+	}
+
 	if opts.StorePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -64,11 +75,11 @@ func New(opts Options) (*CAS, error) {
 		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
-	if err := os.MkdirAll(opts.StorePath, DefaultDirPerms); err != nil {
+	if err := fs.MkdirAll(opts.StorePath, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("failed to create CAS store path: %w", err)
 	}
 
-	store := NewStore(opts.StorePath)
+	store := NewStore(opts.StorePath).WithFS(fs)
 
 	g, err := git.NewGitRunner()
 	if err != nil {
@@ -79,6 +90,7 @@ func New(opts Options) (*CAS, error) {
 		store: store,
 		git:   g,
 		opts:  opts,
+		fs:    fs,
 	}, nil
 }
 
@@ -87,7 +99,7 @@ func New(opts Options) (*CAS, error) {
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
 	// Ensure the store path exists
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err := c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return fmt.Errorf("failed to create store path: %w", err)
 	}
 
@@ -211,7 +223,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 	}
 
 	for _, file := range opts.IncludedGitFiles {
-		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
+		stat, err := c.fs.Stat(filepath.Join(c.git.WorkDir, file))
 		if err != nil {
 			return err
 		}
@@ -222,7 +234,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		includedHash, err := hashFile(workDirPath)
+		includedHash, err := hashFile(c.fs, workDirPath)
 		if err != nil {
 			return err
 		}
@@ -310,8 +322,8 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
 	// We want to make sure we remove the temporary file
 	// if we encounter an error
 	defer func() {
-		if _, osStatErr := os.Stat(tmpPath); osStatErr == nil {
-			err = errors.Join(err, os.Remove(tmpPath))
+		if _, statErr := c.fs.Stat(tmpPath); statErr == nil {
+			err = errors.Join(err, c.fs.Remove(tmpPath))
 		}
 	}()
 
@@ -331,19 +343,19 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
 		return err
 	}
 
-	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+	if err = c.fs.Rename(tmpPath, content.getPath(hash)); err != nil {
 		return err
 	}
 
-	if err = os.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
+	if err = c.fs.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func hashFile(path string) (string, error) {
-	file, err := os.Open(path)
+func hashFile(fs vfs.FS, path string) (string, error) {
+	file, err := fs.Open(path)
 	if err != nil {
 		return "", err
 	}

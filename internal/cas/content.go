@@ -9,12 +9,14 @@ import (
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // Content manages git object storage and linking
 type Content struct {
 	store *Store
+	fs    vfs.FS
 }
 
 const (
@@ -32,6 +34,7 @@ const (
 func NewContent(store *Store) *Content {
 	return &Content{
 		store: store,
+		fs:    store.FS(),
 	}
 }
 
@@ -44,7 +47,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 		sourcePath := c.getPath(hash)
 
 		// Try to create hard link directly (most efficient path)
-		if err := os.Link(sourcePath, targetPath); err != nil {
+		if err := vfs.Link(c.fs, sourcePath, targetPath); err != nil {
 			// Check if it's because target already exists
 			if os.IsExist(err) {
 				// File already exists, which is fine
@@ -52,7 +55,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 			}
 
 			// If hard link fails for other reasons, try to copy the file
-			data, readErr := os.ReadFile(sourcePath)
+			data, readErr := vfs.ReadFile(c.fs, sourcePath)
 			if readErr != nil {
 				return &WrappedError{
 					Op:   "read_source",
@@ -63,7 +66,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 
 			// Write to temporary file first
 			tempPath := targetPath + ".tmp"
-			if err := os.WriteFile(tempPath, data, RegularFilePerms); err != nil {
+			if err := vfs.WriteFile(c.fs, tempPath, data, RegularFilePerms); err != nil {
 				return &WrappedError{
 					Op:   "write_target",
 					Path: tempPath,
@@ -72,7 +75,7 @@ func (c *Content) Link(ctx context.Context, hash, targetPath string) error {
 			}
 
 			// Atomic rename to final path
-			if err := os.Rename(tempPath, targetPath); err != nil {
+			if err := c.fs.Rename(tempPath, targetPath); err != nil {
 				return &WrappedError{
 					Op:   "rename_target",
 					Path: tempPath,
@@ -99,13 +102,13 @@ func (c *Content) Store(l log.Logger, hash string, data []byte) error {
 		}
 	}()
 
-	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err = c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
@@ -142,13 +145,13 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 		}
 	}()
 
-	if err = os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err = c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return wrapError("create_store_dir", c.store.Path(), ErrCreateDir)
 	}
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
@@ -161,7 +164,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
-	f, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
+	f, err := c.fs.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, RegularFilePerms)
 	if err != nil {
 		return wrapError("create_temp_file", tempPath, err)
 	}
@@ -171,7 +174,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	if _, err := buf.Write(data); err != nil {
 		f.Close()
 
-		if removeErr := os.Remove(tempPath); removeErr != nil {
+		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
@@ -181,7 +184,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	if err := buf.Flush(); err != nil {
 		f.Close()
 
-		if removeErr := os.Remove(tempPath); removeErr != nil {
+		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
@@ -189,7 +192,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	}
 
 	if err := f.Close(); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
+		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
@@ -197,8 +200,8 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	}
 
 	// Set read-only permissions on the temporary file
-	if err := os.Chmod(tempPath, StoredFilePerms); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
+	if err := c.fs.Chmod(tempPath, StoredFilePerms); err != nil {
+		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
@@ -208,17 +211,17 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	// For Windows, handle readonly attributes specifically
 	if runtime.GOOS == WindowsOS {
 		// Check if a destination file exists and is read-only
-		if _, err := os.Stat(path); err == nil {
+		if _, err := c.fs.Stat(path); err == nil {
 			// File exists, make it writable before rename operation
-			if err := os.Chmod(path, RegularFilePerms); err != nil {
+			if err := c.fs.Chmod(path, RegularFilePerms); err != nil {
 				l.Warnf("failed to make destination file writable %s: %v", path, err)
 			}
 		}
 	}
 
 	// Atomic rename
-	if err := os.Rename(tempPath, path); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil {
+	if err := c.fs.Rename(tempPath, path); err != nil {
+		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
 		}
 
@@ -228,7 +231,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	// For Windows, we need to set the permissions again after rename
 	if runtime.GOOS == WindowsOS {
 		// Ensure the file has read-only permissions after rename
-		if err := os.Chmod(path, StoredFilePerms); err != nil {
+		if err := c.fs.Chmod(path, StoredFilePerms); err != nil {
 			return wrapError("chmod_final_file", path, err)
 		}
 	}
@@ -256,18 +259,18 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 
 	// Ensure partition directory exists
 	partitionDir := c.getPartition(hash)
-	if err = os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
-	f, err := os.Create(path)
+	f, err := c.fs.Create(path)
 	if err != nil {
 		return wrapError("create_file", path, err)
 	}
 
 	defer f.Close()
 
-	r, err := os.Open(src)
+	r, err := c.fs.Open(src)
 	if err != nil {
 		return wrapError("open_source", src, err)
 	}
@@ -282,16 +285,16 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 }
 
 // GetTmpHandle returns a file handle to a temporary file where content will be stored.
-func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
+func (c *Content) GetTmpHandle(hash string) (vfs.File, error) {
 	partitionDir := c.getPartition(hash)
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err := c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
 	}
 
 	path := c.getPath(hash)
 	tempPath := path + ".tmp"
 
-	f, err := os.Create(tempPath)
+	f, err := c.fs.Create(tempPath)
 	if err != nil {
 		return nil, wrapError("create_temp_file", tempPath, err)
 	}
@@ -302,7 +305,7 @@ func (c *Content) GetTmpHandle(hash string) (*os.File, error) {
 // Read retrieves content from the store by hash
 func (c *Content) Read(hash string) ([]byte, error) {
 	path := c.getPath(hash)
-	return os.ReadFile(path)
+	return vfs.ReadFile(c.fs, path)
 }
 
 // getPartition returns the partition path for a given hash

@@ -1,22 +1,35 @@
 package cas
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/gofrs/flock"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // Store manages the store directory and filesystem locks to prevent concurrent writes
 type Store struct {
 	path string
+	fs   vfs.FS
 }
 
-// NewStore creates a new Store instance.
+// NewStore creates a new Store instance with the OS filesystem.
 func NewStore(path string) *Store {
 	return &Store{
 		path: path,
+		fs:   vfs.NewOSFS(),
 	}
+}
+
+// WithFS sets the filesystem for file operations and returns the Store for method chaining.
+func (s *Store) WithFS(fs vfs.FS) *Store {
+	s.fs = fs
+	return s
+}
+
+// FS returns the configured filesystem.
+func (s *Store) FS() vfs.FS {
+	return s.fs
 }
 
 // Path returns the current store path
@@ -34,7 +47,7 @@ func (s *Store) NeedsWrite(hash string) bool {
 
 // HasContent checks if a given hash exists in the store
 func (s *Store) hasContent(path string) bool {
-	_, err := os.Stat(path)
+	_, err := s.fs.Stat(path)
 
 	return err == nil
 }
@@ -46,7 +59,7 @@ func (s *Store) AcquireLock(hash string) (*flock.Flock, error) {
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
 	// Ensure the partition directory exists
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err := s.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, err
 	}
 
@@ -65,7 +78,7 @@ func (s *Store) TryAcquireLock(hash string) (*flock.Flock, bool, error) {
 	lockPath := filepath.Join(partitionDir, hash+".lock")
 
 	// Ensure the partition directory exists
-	if err := os.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+	if err := s.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
 		return nil, false, err
 	}
 
