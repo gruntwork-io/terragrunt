@@ -54,15 +54,20 @@ type CatalogService interface {
 	// WithRepoURL allows overriding the repository URL.
 	// This is primarily useful for testing.
 	WithRepoURL(repoURL string) CatalogService
+
+	// WithRepoURLs allows setting multiple repository URLs directly.
+	// When set, these URLs take precedence over both WithRepoURL and catalog config.
+	WithRepoURLs(urls []string) CatalogService
 }
 
 // catalogServiceImpl is the concrete implementation of CatalogService.
 // It holds the necessary options and configuration to perform its tasks.
 type catalogServiceImpl struct {
-	opts    *options.TerragruntOptions
-	newRepo NewRepoFunc
-	repoURL string
-	modules module.Modules
+	opts     *options.TerragruntOptions
+	newRepo  NewRepoFunc
+	repoURL  string
+	repoURLs []string
+	modules  module.Modules
 }
 
 // NewCatalogService creates a new instance of catalogServiceImpl with default settings.
@@ -91,13 +96,25 @@ func (s *catalogServiceImpl) WithRepoURL(repoURL string) CatalogService {
 	return s
 }
 
+// WithRepoURLs sets multiple repository URLs directly.
+// When set, these URLs take precedence over both WithRepoURL and catalog config.
+func (s *catalogServiceImpl) WithRepoURLs(urls []string) CatalogService {
+	s.repoURLs = urls
+
+	return s
+}
+
 // Load implements the CatalogService interface.
 // It contains the core logic for cloning/updating repositories and finding Terragrunt modules within them.
 func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
-	repoURLs := []string{s.repoURL}
+	var repoURLs []string
 
-	// If no specific repoURL was provided to the service, try to read from catalog config.
-	if s.repoURL == "" {
+	switch {
+	case len(s.repoURLs) > 0:
+		repoURLs = s.repoURLs
+	case s.repoURL != "":
+		repoURLs = []string{s.repoURL}
+	default:
 		_, pctx := configbridge.NewParsingContext(ctx, l, s.opts)
 
 		catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
