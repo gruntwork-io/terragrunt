@@ -65,7 +65,7 @@ unit "db" {
 	assert.NotContains(t, result.AutoIncludes, "vpc")
 
 	// db has autoinclude with resolved dependency
-	resolved, ok := result.AutoIncludes["db"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "db")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -106,7 +106,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -148,7 +148,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 2)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -179,7 +179,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "networking", resolved.Dependencies[0].Name)
@@ -223,7 +223,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 
 	// Generate to a target dir that is a sibling of the resolved config_path
@@ -308,7 +308,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
 	err = hclparse.GenerateAutoIncludeFile(fs, resolved, "/test", srcBytes, resolved.EvalCtx)
@@ -376,7 +376,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
 	err = hclparse.GenerateAutoIncludeFile(fs, resolved, "/test", srcBytes, resolved.EvalCtx)
@@ -427,7 +427,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: stackRoot})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
 	// Generate into stackRoot/.terragrunt-stack/app (sibling of vpc)
@@ -493,7 +493,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
 	appDir := "/test/.terragrunt-stack/app"
@@ -559,7 +559,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
 	appDir := "/test/.terragrunt-stack/app"
@@ -636,7 +636,7 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 
 	appDir := "/test/.terragrunt-stack/app"
@@ -721,7 +721,7 @@ unit "app" {
 	require.NoError(t, err)
 
 	// app's autoinclude should resolve vpc dependency to the nested unit path
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -841,7 +841,7 @@ unit "app" {
 		require.NoError(b, err)
 	}
 
-	resolved := result.AutoIncludes["app"]
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	tmpDir := b.TempDir()
 
 	for b.Loop() {

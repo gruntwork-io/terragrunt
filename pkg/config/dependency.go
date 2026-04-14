@@ -805,8 +805,15 @@ func tryGetStackOutput(
 
 	stackDir := filepath.Dir(stackFilePath)
 
+	// Load values from the target stack's directory before parsing,
+	// mirroring the GenerateStackFile flow so stacks using values.* work.
+	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+	}
+
 	// Parse the stack config to discover units
-	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
+	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
 	if err != nil {
 		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}

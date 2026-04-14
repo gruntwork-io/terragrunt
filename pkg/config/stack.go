@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -118,15 +117,13 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Stack files using HCL functions (e.g. find_in_parent_folders) will
-			// fail the two-pass parse since it uses nil eval context. This is
-			// expected for stacks without autoinclude blocks — warn if the file
-			// actually contains autoinclude references, debug otherwise.
-			if bytes.Contains(stackSrcBytes, []byte("autoinclude")) {
-				l.Warnf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
-			} else {
-				l.Debugf("Autoinclude parse for %s: %v", stackFilePath, parseErr)
-			}
+			// The two-pass parser uses a simplified eval context that cannot
+			// evaluate HCL functions (find_in_parent_folders, get_repo_root, etc.).
+			// Stacks without autoinclude blocks are unaffected — the production
+			// parser handles them correctly. Stacks WITH autoinclude blocks that
+			// also use functions in source/path will silently lose autoinclude
+			// generation — this is a known limitation logged at warn level.
+			l.Warnf("Failed to parse %s for autoinclude resolution: %v. Autoinclude blocks in this stack file will be ignored.", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {
@@ -328,14 +325,14 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return nil
 	}
 
-	resolved, ok := opts.autoIncludes[cmp.name]
-	if !ok {
-		return nil
-	}
-
 	kindStr := "unit"
 	if cmp.kind == stackKind {
 		kindStr = "stack"
+	}
+
+	resolved, ok := opts.autoIncludes[intHclparse.AutoIncludeKey(kindStr, cmp.name)]
+	if !ok {
+		return nil
 	}
 
 	l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
@@ -546,6 +543,14 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(decodeErr)
 	}
 
+	// Process include blocks — merge included units/stacks into the config.
+	// Process include blocks when the stack-dependencies experiment is enabled.
+	if parser.Experiments.Evaluate(experiment.StackDependencies) {
+		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
+			return nil, err
+		}
+	}
+
 	localsParsed := map[string]any{}
 
 	if parser.Locals != nil {
@@ -568,6 +573,34 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	}
 
 	return stackConfig, nil
+}
+
+// processStackConfigIncludes resolves include blocks in the production stack parsing path.
+// It reads each included file, parses it with the same eval context, and merges its
+// units and stacks into the main config. This ensures the production path generates
+// all components, not just those in the root file.
+func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
+	for _, inc := range config.Includes {
+		includePath := inc.Path
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(stackDir, includePath)
+		}
+
+		incFile, err := hclparse.NewParser(parserOpts...).ParseFromFile(includePath)
+		if err != nil {
+			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
+		}
+
+		included := &StackConfigFile{}
+		if decodeErr := incFile.Decode(included, evalCtx); decodeErr != nil {
+			return errors.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
+		}
+
+		config.Units = append(config.Units, included.Units...)
+		config.Stacks = append(config.Stacks, included.Stacks...)
+	}
+
+	return nil
 }
 
 // writeValues generates and writes values to a terragrunt.values.hcl file in the specified directory.

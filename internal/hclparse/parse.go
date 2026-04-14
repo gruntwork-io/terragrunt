@@ -213,7 +213,14 @@ func canEvalLocal(attr *hclsyntax.Attribute, evaluated map[string]cty.Value) boo
 	return true
 }
 
+// AutoIncludeKey returns the map key for an autoinclude entry, namespaced
+// by component kind to prevent collisions between same-name units and stacks.
+func AutoIncludeKey(kind, name string) string {
+	return kind + ":" + name
+}
+
 // resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
+// Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions.
 func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -228,7 +235,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 		}
 
 		if resolved != nil {
-			autoIncludes[unit.Name] = resolved
+			autoIncludes[AutoIncludeKey("unit", unit.Name)] = resolved
 		}
 	}
 
@@ -243,7 +250,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 		}
 
 		if resolved != nil {
-			autoIncludes[stack.Name] = resolved
+			autoIncludes[AutoIncludeKey("stack", stack.Name)] = resolved
 		}
 	}
 

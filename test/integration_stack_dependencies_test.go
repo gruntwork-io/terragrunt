@@ -37,7 +37,7 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 	require.Len(t, result.Units, 2)
 
 	// Verify autoinclude was resolved for app
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -102,7 +102,7 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
@@ -158,7 +158,7 @@ func TestStackDependenciesAutoInclude_Symlink(t *testing.T) {
 	require.Len(t, result.Units, 2)
 
 	// Autoinclude should still resolve
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 }
@@ -181,7 +181,7 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate autoinclude only for app (vpc has no autoinclude)
-	resolved, ok := result.AutoIncludes["app"]
+	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
