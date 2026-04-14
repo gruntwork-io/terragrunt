@@ -275,41 +275,55 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (
 // and merging their unit/stack blocks into the main stack file.
 func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) error {
 	for _, inc := range stackFile.Includes {
-		includePath := inc.Path
-		if !filepath.IsAbs(includePath) {
-			includePath = filepath.Join(stackDir, includePath)
+		if err := mergeOneInclude(fs, stackFile, inc, stackDir); err != nil {
+			return err
 		}
-
-		data, err := vfs.ReadFile(fs, includePath)
-		if err != nil {
-			return errors.Errorf("failed to read include %q: %w", inc.Name, err)
-		}
-
-		incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
-		if diags.HasErrors() {
-			return errors.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
-		}
-
-		included := &StackFileHCL{}
-		if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
-			return errors.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
-		}
-
-		if included.Locals != nil {
-			return errors.Errorf("included stack file %q must not define locals", inc.Name)
-		}
-
-		if len(included.Includes) > 0 {
-			return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
-		}
-
-		stackFile.Units = append(stackFile.Units, included.Units...)
-		stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
 	}
 
-	// Validate no duplicate unit names after merge.
-	seen := make(map[string]bool, len(stackFile.Units))
-	for _, u := range stackFile.Units {
+	return validateNoDuplicateUnits(stackFile.Units)
+}
+
+// mergeOneInclude reads and merges a single included stack file.
+func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, stackDir string) error {
+	includePath := inc.Path
+	if !filepath.IsAbs(includePath) {
+		includePath = filepath.Join(stackDir, includePath)
+	}
+
+	data, err := vfs.ReadFile(fs, includePath)
+	if err != nil {
+		return errors.Errorf("failed to read include %q: %w", inc.Name, err)
+	}
+
+	incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return errors.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
+	}
+
+	included := &StackFileHCL{}
+	if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
+		return errors.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
+	}
+
+	if included.Locals != nil {
+		return errors.Errorf("included stack file %q must not define locals", inc.Name)
+	}
+
+	if len(included.Includes) > 0 {
+		return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
+	}
+
+	stackFile.Units = append(stackFile.Units, included.Units...)
+	stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
+
+	return nil
+}
+
+// validateNoDuplicateUnits checks for duplicate unit names after include merge.
+func validateNoDuplicateUnits(units []*UnitBlockHCL) error {
+	seen := make(map[string]bool, len(units))
+
+	for _, u := range units {
 		if seen[u.Name] {
 			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
 		}
