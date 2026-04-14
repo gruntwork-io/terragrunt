@@ -15,55 +15,51 @@ import (
 // runRedesign is the entry point for the redesigned catalog experience.
 // It is invoked when the catalog-redesign experiment is enabled.
 //
-// Unlike the default path, it discovers module sources by scanning terraform.source
-// attributes in terragrunt.hcl files across the project tree. It merges these with
-// any catalog block URLs and feeds them into the standard repo/module pipeline.
-// If no sources are found, it shows a welcome screen.
+// It launches the TUI immediately with a loading screen, then runs source
+// discovery and module loading in the background. When loading completes,
+// the TUI transitions to the module list or shows a welcome screen.
 func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
 	// If an explicit URL was passed via CLI, use the default path
 	if repoURL != "" {
 		return runDefault(ctx, l, opts, repoURL)
 	}
 
-	// Discover source URLs from terraform.source in terragrunt.hcl files
-	discoveredURLs, err := discoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
-	if err != nil {
-		l.Warnf("Failed to discover source URLs: %v", err)
-	}
+	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context) (catalog.CatalogService, error) {
+		// Discover source URLs from terraform.source in terragrunt.hcl files
+		discoveredURLs, err := discoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
+		if err != nil {
+			l.Warnf("Failed to discover source URLs: %v", err)
+		}
 
-	// Also read catalog config if it exists
-	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+		// Also read catalog config if it exists
+		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
-	catalogCfg, catalogErr := config.ReadCatalogConfig(ctx, l, pctx)
-	if catalogErr != nil {
-		l.Debugf("No catalog config found: %v", catalogErr)
-	}
+		catalogCfg, catalogErr := config.ReadCatalogConfig(ctx, l, pctx)
+		if catalogErr != nil {
+			l.Debugf("No catalog config found: %v", catalogErr)
+		}
 
-	// Merge: catalog URLs first, then discovered URLs
-	var allURLs []string
-	if catalogCfg != nil {
-		allURLs = append(allURLs, catalogCfg.URLs...)
-	}
+		// Merge: catalog URLs first, then discovered URLs
+		var allURLs []string
+		if catalogCfg != nil {
+			allURLs = append(allURLs, catalogCfg.URLs...)
+		}
 
-	allURLs = append(allURLs, discoveredURLs...)
-	allURLs = util.RemoveDuplicates(allURLs)
+		allURLs = append(allURLs, discoveredURLs...)
+		allURLs = util.RemoveDuplicates(allURLs)
 
-	// No sources at all -> welcome screen
-	if len(allURLs) == 0 {
-		return tui.RunWelcome(ctx)
-	}
+		if len(allURLs) == 0 {
+			return nil, nil
+		}
 
-	// Load modules from all discovered repos
-	svc := catalog.NewCatalogService(opts)
-	svc.WithRepoURLs(allURLs)
+		// Load modules from all discovered repos
+		svc := catalog.NewCatalogService(opts)
+		svc.WithRepoURLs(allURLs)
 
-	if err := svc.Load(ctx, l); err != nil {
-		l.Error(err)
-	}
+		if err := svc.Load(ctx, l); err != nil {
+			return svc, err
+		}
 
-	if len(svc.Modules()) == 0 {
-		return tui.RunWelcome(ctx)
-	}
-
-	return tui.Run(ctx, l, opts, svc)
+		return svc, nil
+	})
 }
