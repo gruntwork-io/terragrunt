@@ -22,11 +22,11 @@ We copy over `.terraform.lock.hcl` files in addition to `terragrunt.hcl` files h
 </Aside>
 
 ```bash
-mkdir -p catalog/units/{ddb, iam, lambda, s3}
-cp live/dev/ddb/{terragrunt.hcl, .terraform.lock.hcl} catalog/units/ddb/
-cp live/dev/iam/{terragrunt.hcl, .terraform.lock.hcl} catalog/units/iam/
-cp live/dev/lambda/{terragrunt.hcl, .terraform.lock.hcl} catalog/units/lambda/
-cp live/dev/s3/{terragrunt.hcl, .terraform.lock.hcl} catalog/units/s3/
+mkdir -p catalog/units/{ddb,iam,lambda,s3}
+cp live/dev/ddb/{terragrunt.hcl,.terraform.lock.hcl}catalog/units/ddb/
+cp live/dev/iam/{terragrunt.hcl,.terraform.lock.hcl}catalog/units/iam/
+cp live/dev/lambda/{terragrunt.hcl,.terraform.lock.hcl}catalog/units/lambda/
+cp live/dev/s3/{terragrunt.hcl,.terraform.lock.hcl}catalog/units/s3/
 ```
 
 You might remember that the unit configurations differed very slightly between `dev` and `prod`. Luckily, Terragrunt has special tooling to handle that via the usage of `values` variables.
