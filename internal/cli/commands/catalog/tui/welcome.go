@@ -6,7 +6,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/pkg/browser"
 )
+
+const welcomeDocsURL = "https://docs.terragrunt.com/features/catalog/"
 
 var (
 	welcomeTitleStyle = lipgloss.NewStyle().
@@ -53,6 +56,8 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
 			return m, tea.Quit
+		case "h":
+			_ = browser.OpenURL(welcomeDocsURL)
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -70,7 +75,7 @@ func (m WelcomeModel) View() tea.View {
 		"",
 		"No module sources were discovered in your infrastructure.",
 		"",
-		"To get started, you can:",
+		"To get started, you can either:",
 		"",
 		"  1. Add a catalog block to your root terragrunt.hcl:",
 		"",
@@ -81,12 +86,15 @@ func (m WelcomeModel) View() tea.View {
 		"  2. Add terraform.source attributes to your unit configurations.",
 		"     The catalog will automatically discover referenced modules.",
 		"",
-		"Learn more: "+welcomeLinkStyle.Render("https://docs.terragrunt.com/features/catalog/"),
-		"",
-		welcomeHintStyle.Render("Press q or Esc to exit."),
+		welcomeHintStyle.Render("h: open docs in browser  q/esc: exit"),
 	))
 
-	content := lipgloss.JoinVertical(lipgloss.Left, title, body)
+	content := lipgloss.JoinVertical(lipgloss.Center, title, body)
+
+	// Center the content in the terminal if dimensions are known
+	if m.width > 0 && m.height > 0 {
+		content = lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	}
 
 	v := tea.NewView(content)
 	v.AltScreen = true
