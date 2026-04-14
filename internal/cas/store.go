@@ -8,8 +8,8 @@ import (
 
 // Store manages the store directory and filesystem locks to prevent concurrent writes
 type Store struct {
-	path string
 	fs   vfs.FS
+	path string
 }
 
 // NewStore creates a new Store instance with the OS filesystem.

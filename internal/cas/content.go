@@ -3,6 +3,7 @@ package cas
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -172,7 +173,9 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	buf := bufio.NewWriter(f)
 
 	if _, err := buf.Write(data); err != nil {
-		f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
+		}
 
 		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
@@ -182,7 +185,9 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	}
 
 	if err := buf.Flush(); err != nil {
-		f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			l.Warnf("failed to close temp file %s: %v", tempPath, closeErr)
+		}
 
 		if removeErr := c.fs.Remove(tempPath); removeErr != nil {
 			l.Warnf("failed to remove temp file %s: %v", tempPath, removeErr)
@@ -240,7 +245,7 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 }
 
 // EnsureCopy ensures that a content item exists in the store by copying from a file
-func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
+func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 	path := c.getPath(hash)
 	if c.store.hasContent(path) {
 		return nil
@@ -252,9 +257,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 	}
 
 	defer func() {
-		if unlockErr := lock.Unlock(); unlockErr != nil {
-			l.Warnf("failed to unlock filesystem lock for hash %s: %v", hash, unlockErr)
-		}
+		err = errors.Join(lock.Unlock())
 	}()
 
 	// Ensure partition directory exists
@@ -268,14 +271,18 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) error {
 		return wrapError("create_file", path, err)
 	}
 
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	r, err := c.fs.Open(src)
 	if err != nil {
 		return wrapError("open_source", src, err)
 	}
 
-	defer r.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	if _, err := io.Copy(f, r); err != nil {
 		return wrapError("copy_file", src, err)

@@ -24,13 +24,13 @@ import (
 
 // Options configures the behavior of CAS
 type Options struct {
-	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cas/store
-	StorePath string
-
 	// FS specifies the filesystem for file operations.
 	// If nil, defaults to the real OS filesystem.
 	FS vfs.FS
+
+	// StorePath specifies a custom path for the content store
+	// If empty, uses $HOME/.cache/terragrunt/cas/store
+	StorePath string
 }
 
 // CloneOptions configures the behavior of a specific clone operation
@@ -50,10 +50,10 @@ type CloneOptions struct {
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
+	fs    vfs.FS
 	store *Store
 	git   *git.GitRunner
 	opts  Options
-	fs    vfs.FS
 }
 
 // New creates a new CAS instance with the given options
@@ -358,13 +358,23 @@ func hashFile(fs vfs.FS, path string) (string, error) {
 		return "", err
 	}
 
-	defer file.Close()
-
 	h := sha1.New()
 
 	if _, err := io.Copy(h, file); err != nil {
 		return "", err
 	}
 
-	return hex.EncodeToString(h.Sum(nil)), nil
+	hash := hex.EncodeToString(h.Sum(nil))
+
+	if err := file.Close(); err != nil {
+		return hash, fmt.Errorf(
+			"hash of %s successfully computed as "+
+				"%s, but closing the file failed: %w",
+			path,
+			hash,
+			err,
+		)
+	}
+
+	return hash, nil
 }

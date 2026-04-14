@@ -20,6 +20,7 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)
@@ -41,6 +42,7 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)
@@ -66,6 +68,7 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("overwrite existing content", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)
@@ -97,6 +100,7 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		require.NoError(t, memFs.MkdirAll("/target", 0755))
@@ -124,6 +128,7 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("link to existing file", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		require.NoError(t, memFs.MkdirAll("/target", 0755))
@@ -160,6 +165,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)
@@ -186,6 +192,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 
 	t.Run("content doesn't exist", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)
@@ -208,6 +215,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 
 	t.Run("concurrent writes - optimization", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		require.NoError(t, memFs.MkdirAll("/store", 0755))
 		store := cas.NewStore("/store").WithFS(memFs)

@@ -11,11 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const defaultStorePath = "/store"
+
 func TestStore(t *testing.T) {
 	t.Parallel()
 
 	t.Run("custom path", func(t *testing.T) {
 		t.Parallel()
+
 		memFs := vfs.NewMemMapFS()
 		customPath := "/custom-store"
 
@@ -26,8 +29,9 @@ func TestStore(t *testing.T) {
 
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
+
 	memFs := vfs.NewMemMapFS()
-	storePath := "/store"
+	storePath := defaultStorePath
 	store := cas.NewStore(storePath).WithFS(memFs)
 
 	// Create a fake content file
@@ -68,8 +72,9 @@ func TestStore_NeedsWrite(t *testing.T) {
 
 func TestStore_AcquireLock(t *testing.T) {
 	t.Parallel()
+
 	memFs := vfs.NewMemMapFS()
-	storePath := "/store"
+	storePath := defaultStorePath
 	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -90,8 +95,9 @@ func TestStore_AcquireLock(t *testing.T) {
 
 func TestStore_TryAcquireLock(t *testing.T) {
 	t.Parallel()
+
 	memFs := vfs.NewMemMapFS()
-	storePath := "/store"
+	storePath := defaultStorePath
 	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -124,8 +130,9 @@ func TestStore_TryAcquireLock(t *testing.T) {
 
 func TestStore_LockConcurrency(t *testing.T) {
 	t.Parallel()
+
 	memFs := vfs.NewMemMapFS()
-	storePath := "/store"
+	storePath := defaultStorePath
 	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
@@ -173,8 +180,9 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
+
 	memFs := vfs.NewMemMapFS()
-	storePath := "/store"
+	storePath := defaultStorePath
 	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
