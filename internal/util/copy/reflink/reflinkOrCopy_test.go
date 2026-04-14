@@ -10,6 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util/copy/reflink/testutils/ts"
 )
 
+const reflinkedFileName = "test-reflink.txt"
+
 func TestReflinkOrCopyOnDarwinWithinAPFS(t *testing.T) {
 	ts.OnlyOn(t, "darwin_")
 	t.Parallel()
@@ -27,7 +29,7 @@ func TestReflinkOrCopyOnDarwinWithinAPFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(true)(t, didReflink)
@@ -53,7 +55,7 @@ func TestReflinkOrCopyOnDarwinAcrossAPFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(false)(t, didReflink)
@@ -76,7 +78,7 @@ func TestReflinkOrCopyOnDarwinWithinExFAT(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(false)(t, didReflink)
@@ -99,7 +101,7 @@ func TestReflinkOrCopyOnLinuxWithinXFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(true)(t, didReflink)
@@ -124,7 +126,7 @@ func TestReflinkOrCopyOnLinuxAcrossXFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(false)(t, didReflink)
@@ -147,7 +149,7 @@ func TestReflinkOrCopyOnLinuxWithinEXT4(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	didReflink := ts.NoErr(reflink.ReflinkOrCopy(fromFD, toDirFD, toName))(t)
 	ts.Is(false)(t, didReflink)

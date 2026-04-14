@@ -27,7 +27,7 @@ func TestReflinkOnDarwinWithinAPFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile := ts.NoErr(reflink.Reflink(fromFD, toDirFD, toName))(t)
 	if toFile != nil {
@@ -55,7 +55,7 @@ func TestReflinkOnDarwinAcrossAPFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile, err := reflink.Reflink(fromFD, toDirFD, toName)
 	if toFile != nil {
@@ -82,7 +82,7 @@ func TestReflinkOnDarwinWithinExFAT(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile, err := reflink.Reflink(fromFD, toDirFD, toName)
 	if toFile != nil {
@@ -109,7 +109,7 @@ func TestReflinkOnLinuxWithinXFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile := ts.NoErr(reflink.Reflink(fromFD, toDirFD, toName))(t)
 	if toFile != nil {
@@ -136,7 +136,7 @@ func TestReflinkOnLinuxAcrossXFS(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile, err := reflink.Reflink(fromFD, toDirFD, toName)
 	if toFile != nil {
@@ -163,7 +163,7 @@ func TestReflinkOnLinuxWithinEXT4(t *testing.T) {
 	defer fromFD.Close()  // nolint:errcheck
 	defer toDirFD.Close() // nolint:errcheck
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	toFile, err := reflink.Reflink(fromFD, toDirFD, toName)
 	if toFile != nil {

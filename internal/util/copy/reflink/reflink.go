@@ -96,7 +96,9 @@ func ReflinkOrCopyAfero(fs afero.Fs, from, to string) (wasReflinked bool, joinEr
 
 	fullToName := filepath.Join(toDirFile.Name(), to)
 
-	toFile, runningErr := fs.OpenFile(fullToName, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+	const defaultPerms = 0o644
+
+	toFile, runningErr := fs.OpenFile(fullToName, os.O_CREATE|os.O_WRONLY|os.O_EXCL, defaultPerms)
 	if runningErr != nil {
 		return
 	}

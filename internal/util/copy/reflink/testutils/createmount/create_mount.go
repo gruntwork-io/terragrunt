@@ -19,42 +19,47 @@ const imageSizeMB = 512
 
 // MountDiskImageMacOS creates a disk image with the specified filesystem type,
 // mounts it, and registers cleanup on the provided testing.TB.
-func MountDiskImageMacOS(t testing.TB, mountpoint, fsType string) {
-	t.Helper()
+func MountDiskImageMacOS(tb testing.TB, mountpoint, fsType string) {
+	tb.Helper()
 
 	if runtime.GOOS != "darwin" {
-		t.Fatalf("this only works on macOS")
+		tb.Fatalf("this only works on macOS")
 	}
 
 	// Create the disk image file path in the temp directory managed by TB
-	imagePath := filepath.Join(t.TempDir(), "test_image.sparseimage")
+	imagePath := filepath.Join(tb.TempDir(), "test_image.sparseimage")
 
 	// Create the disk image file
-	cmd := exec.Command("hdiutil", "create", "-size", strconv.Itoa(imageSizeMB)+"m", "-fs", fsType, "-volname", "TestVolume", "-type", "SPARSE", "-quiet", imagePath)
+	cmd := exec.CommandContext(tb.Context(), "hdiutil", "create", "-size", strconv.Itoa(imageSizeMB)+"m", "-fs", fsType, "-volname", "TestVolume", "-type", "SPARSE", "-quiet", imagePath)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to create disk image: %v, output: %s", err, string(out))
+		tb.Fatalf("failed to create disk image: %v, output: %s", err, string(out))
 	}
 
 	// Mount the disk image to the provided location
-	mountCmd := exec.Command("hdiutil", "attach", "-mountPoint", mountpoint, imagePath)
+	mountCmd := exec.CommandContext(tb.Context(), "hdiutil", "attach", "-mountPoint", mountpoint, imagePath)
 	if err := mountCmd.Run(); err != nil {
-		t.Fatalf("failed to mount disk image: %v", err)
+		tb.Fatalf("failed to mount disk image: %v", err)
 	}
 
 	// Register cleanup to unmount the disk after the test
 	// this may not be necessary since it seemse deleting the image and mount location does this automatically
-	t.Cleanup(func() {
-		for attempt := range ts.Backoff(4, 100*time.Millisecond, time.Second) {
-			unmountCmd := exec.Command("hdiutil", "detach", mountpoint)
+	tb.Cleanup(func() {
+		const (
+			maxRetries   = 5
+			initialDelay = 100 * time.Millisecond
+		)
+
+		for attempt := range ts.Backoff(maxRetries, initialDelay, time.Second) {
+			unmountCmd := exec.CommandContext(tb.Context(), "hdiutil", "detach", mountpoint)
 			if out, err := unmountCmd.CombinedOutput(); err != nil {
 				if slices.Contains(retryableDetachExitCodes, unmountCmd.ProcessState.ExitCode()) {
-					t.Logf("warning: failed to unmount disk image (attempt %d): %v, output: %s", attempt+1, err, string(out))
-					t.Logf("if this was \"No such file or directory\", it may be safe to ignore as the test cleanup may have just deleted the file and mount point")
+					tb.Logf("warning: failed to unmount disk image (attempt %d): %v, output: %s", attempt+1, err, string(out))
+					tb.Logf("if this was \"No such file or directory\", it may be safe to ignore as the test cleanup may have just deleted the file and mount point")
 
 					continue
 				}
 
-				t.Logf("failed to unmount disk image: %v, output: %s", err, string(out))
+				tb.Logf("failed to unmount disk image: %v, output: %s", err, string(out))
 
 				break
 			} else {
@@ -68,36 +73,44 @@ var retryableDetachExitCodes = []int{
 	16, // "resource busy"
 }
 
-func MountDiskImageLinux(t testing.TB, mountpoint, fsType string) {
-	t.Helper()
+func MountDiskImageLinux(tb testing.TB, mountpoint, fsType string) {
+	tb.Helper()
 
-	imagePath := filepath.Join(t.TempDir(), "test_image.img")
+	imagePath := filepath.Join(tb.TempDir(), "test_image.img")
 
-	imageFile := ts.NoErr(os.OpenFile(imagePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o644))(t)
+	const defaultPerms = 0o644
 
-	ts.NoErr(0, imageFile.Truncate(imageSizeMB*1024*1024))(t)
-	ts.NoErr(0, imageFile.Close())(t)
+	imageFile := ts.NoErr(os.OpenFile(imagePath, os.O_CREATE|os.O_EXCL|os.O_RDWR, defaultPerms))(tb)
 
-	mkfsCmd := exec.Command("mkfs", "-t", fsType, imagePath)
+	const mb = 1024 * 1024
+	ts.NoErr(0, imageFile.Truncate(imageSizeMB*mb))(tb)
+	ts.NoErr(0, imageFile.Close())(tb)
+
+	mkfsCmd := exec.CommandContext(tb.Context(), "mkfs", "-t", fsType, imagePath)
 	if out, err := mkfsCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to create %v filesystem on disk image: %v, output: %s", fsType, err, string(out))
+		tb.Fatalf("failed to create %v filesystem on disk image: %v, output: %s", fsType, err, string(out))
 	}
 
-	mountCmd := exec.Command("sudo", "mount", "-o", "loop", "-t", fsType, imagePath, mountpoint)
+	mountCmd := exec.CommandContext(tb.Context(), "sudo", "mount", "-o", "loop", "-t", fsType, imagePath, mountpoint)
 	if out, err := mountCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to mount disk image: %v, output: %s", err, string(out))
+		tb.Fatalf("failed to mount disk image: %v, output: %s", err, string(out))
 	}
 
-	chownCmd := exec.Command("sudo", "chown", strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()), mountpoint)
+	chownCmd := exec.CommandContext(tb.Context(), "sudo", "chown", strconv.Itoa(os.Getuid())+":"+strconv.Itoa(os.Getgid()), mountpoint)
 	if out, err := chownCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to chown mountpoint: %v, output: %s", err, string(out))
+		tb.Fatalf("failed to chown mountpoint: %v, output: %s", err, string(out))
 	}
 
-	t.Cleanup(func() {
-		for range ts.Backoff(5, 100*time.Millisecond, time.Second) {
-			unmountCmd := exec.Command("sudo", "umount", mountpoint)
+	tb.Cleanup(func() {
+		const (
+			maxRetries   = 5
+			initialDelay = 100 * time.Millisecond
+		)
+
+		for range ts.Backoff(maxRetries, initialDelay, time.Second) {
+			unmountCmd := exec.CommandContext(tb.Context(), "sudo", "umount", mountpoint)
 			if out, err := unmountCmd.CombinedOutput(); err != nil {
-				t.Logf("warning: failed to unmount disk image: %v, output: %s", err, string(out))
+				tb.Logf("warning: failed to unmount disk image: %v, output: %s", err, string(out))
 			} else {
 				break
 			}

@@ -10,6 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util/copy/reflink/testutils/ts"
 )
 
+const reflinkedFileName = "test-reflink.txt"
+
 func TestCopyOnDarwinWithinAPFS(t *testing.T) {
 	ts.OnlyOn(t, "darwin_")
 	t.Parallel()
@@ -21,7 +23,7 @@ func TestCopyOnDarwinWithinAPFS(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(filepath.Dir(fileName), toName)))(t)
 
@@ -44,7 +46,7 @@ func TestCopyOnDarwinAcrossAPFS(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(filepath.Dir(fileName), toName)))(t)
 
@@ -64,7 +66,7 @@ func TestCopyOnDarwinWithinExFAT(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(filepath.Dir(fileName), toName)))(t)
 
@@ -84,7 +86,7 @@ func TestCopyOnLinuxWithinXFS(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(filepath.Dir(fileName), toName)))(t)
 
@@ -106,7 +108,7 @@ func TestCopyOnLinuxAcrossXFS(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(filepath.Dir(fileName), toName)))(t)
 
@@ -126,7 +128,7 @@ func TestCopyOnLinuxWithinEXT4(t *testing.T) {
 
 	ts.NoErr(0, os.WriteFile(fileName, []byte("Hello, World!"), 0o644))(t)
 
-	toName := "test-reflink.txt"
+	toName := reflinkedFileName
 
 	ts.NoErr(0, copy.Copy(fileName, filepath.Join(ext4Mount, toName)))(t)
 

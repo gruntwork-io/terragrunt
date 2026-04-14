@@ -8,11 +8,11 @@ import (
 )
 
 func NoErr[T any](ret T, err error) func(t testing.TB) T {
-	return func(t testing.TB) T {
-		t.Helper()
+	return func(tb testing.TB) T {
+		tb.Helper()
 
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			tb.Fatalf("unexpected error: %v", err)
 		}
 
 		return ret
@@ -20,38 +20,38 @@ func NoErr[T any](ret T, err error) func(t testing.TB) T {
 }
 
 func True(ret bool) func(t testing.TB) bool {
-	return func(t testing.TB) bool {
-		t.Helper()
+	return func(tb testing.TB) bool {
+		tb.Helper()
 
 		if !ret {
-			t.Fatalf("expected true, got false")
+			tb.Fatalf("expected true, got false")
 		}
 
 		return ret
 	}
 }
 
-func Is[T any](val T) func(t testing.TB, actual T) T {
-	return func(t testing.TB, actual T) T {
-		t.Helper()
+func Is[T any](val T) func(tb testing.TB, actual T) T {
+	return func(tb testing.TB, actual T) T {
+		tb.Helper()
 
 		if !reflect.DeepEqual(actual, val) {
-			t.Fatalf("expected %v, got %v", val, actual)
+			tb.Fatalf("expected %v, got %v", val, actual)
 		}
 
 		return val
 	}
 }
 
-func IsErr(t testing.TB, err error, target error) {
-	t.Helper()
+func IsErr(tb testing.TB, err error, target error) {
+	tb.Helper()
 
 	if !errors.Is(err, target) {
 		var err syscall.Errno
 		if errors.As(err, &err) {
-			t.Logf("hint: received syscall error %v", uintptr(err))
+			tb.Logf("hint: received syscall error %v", uintptr(err))
 		}
 
-		t.Fatalf("expected error %q, got %q", target, err)
+		tb.Fatalf("expected error %q, got %q", target, err)
 	}
 }

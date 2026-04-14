@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-func OnlyOn(t testing.TB, platforms ...string) {
-	t.Helper()
+func OnlyOn(tb testing.TB, platforms ...string) {
+	tb.Helper()
 
 	thisPlatform := runtime.GOOS + "_" + runtime.GOARCH
 
 	for _, platform := range platforms {
 		if strings.HasSuffix(platform, "_") {
-			platform = platform + runtime.GOARCH
+			platform += runtime.GOARCH
 		}
 
 		if thisPlatform == platform {
@@ -21,5 +21,5 @@ func OnlyOn(t testing.TB, platforms ...string) {
 		}
 	}
 
-	t.Skipf("skipping test on %s", thisPlatform)
+	tb.Skipf("skipping test on %s", thisPlatform)
 }

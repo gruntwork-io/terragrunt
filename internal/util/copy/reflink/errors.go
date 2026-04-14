@@ -12,10 +12,6 @@ type ErrCanNotReflink struct {
 	wrapped error
 }
 
-func newErrCanNotReflink(underlying error) ErrCanNotReflink {
-	return ErrCanNotReflink{wrapped: underlying}
-}
-
 func (nr ErrCanNotReflink) Error() string {
 	return "Reflink doesn't work here"
 }
