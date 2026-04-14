@@ -83,6 +83,10 @@ func (fs *memMapFS) SymlinkIfPossible(oldname, newname string) error {
 }
 
 func (fs *memMapFS) LinkIfPossible(oldname, newname string) error {
+	if _, err := fs.Fs.Stat(newname); err == nil {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: os.ErrExist}
+	}
+
 	data, err := afero.ReadFile(fs.Fs, oldname)
 	if err != nil {
 		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: err}
@@ -217,7 +221,7 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 
 // osFS Locker implementation using flock (file-based locks).
 
-func (f *osFS) Lock(name string) (Unlocker, error) {
+func (fs *osFS) Lock(name string) (Unlocker, error) {
 	l := flock.New(name)
 	if err := l.Lock(); err != nil {
 		return nil, err
@@ -226,7 +230,7 @@ func (f *osFS) Lock(name string) (Unlocker, error) {
 	return l, nil
 }
 
-func (f *osFS) TryLock(name string) (Unlocker, bool, error) {
+func (fs *osFS) TryLock(name string) (Unlocker, bool, error) {
 	l := flock.New(name)
 
 	acquired, err := l.TryLock()
@@ -253,21 +257,21 @@ func (l *memLock) Unlock() error {
 	return nil
 }
 
-func (f *memMapFS) getOrCreateLock(name string) *memLock {
-	actual, _ := f.locks.LoadOrStore(name, &memLock{})
+func (fs *memMapFS) getOrCreateLock(name string) *memLock {
+	actual, _ := fs.locks.LoadOrStore(name, &memLock{})
 
 	return actual.(*memLock)
 }
 
-func (f *memMapFS) Lock(name string) (Unlocker, error) {
-	l := f.getOrCreateLock(name)
+func (fs *memMapFS) Lock(name string) (Unlocker, error) {
+	l := fs.getOrCreateLock(name)
 	l.mu.Lock()
 
 	return l, nil
 }
 
-func (f *memMapFS) TryLock(name string) (Unlocker, bool, error) {
-	l := f.getOrCreateLock(name)
+func (fs *memMapFS) TryLock(name string) (Unlocker, bool, error) {
+	l := fs.getOrCreateLock(name)
 
 	if !l.mu.TryLock() {
 		return nil, false, nil
@@ -575,9 +579,9 @@ type FileInfoDirEntry struct {
 	FileInfo os.FileInfo
 }
 
-func (d FileInfoDirEntry) Name() string              { return d.FileInfo.Name() }
-func (d FileInfoDirEntry) IsDir() bool               { return d.FileInfo.IsDir() }
-func (d FileInfoDirEntry) Type() fs.FileMode         { return d.FileInfo.Mode().Type() }
+func (d FileInfoDirEntry) Name() string               { return d.FileInfo.Name() }
+func (d FileInfoDirEntry) IsDir() bool                { return d.FileInfo.IsDir() }
+func (d FileInfoDirEntry) Type() fs.FileMode          { return d.FileInfo.Mode().Type() }
 func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
 
 // WalkDir walks the file tree rooted at root, calling fn for each file or
@@ -601,7 +605,7 @@ func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
 		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
 	}
 
-	if err == filepath.SkipDir || err == filepath.SkipAll {
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
 		return nil
 	}
 
@@ -622,7 +626,7 @@ func lstatIfPossible(fsys FS, path string) (os.FileInfo, error) {
 // Adapted from https://go.dev/src/path/filepath/path.go
 func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) error {
 	if err := walkDirFn(path, d, nil); err != nil || !d.IsDir() {
-		if err == filepath.SkipDir && d.IsDir() {
+		if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 			err = nil
 		}
 
@@ -633,7 +637,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
-			if err == filepath.SkipDir && d.IsDir() {
+			if errors.Is(err, filepath.SkipDir) && d.IsDir() {
 				err = nil
 			}
 
@@ -644,7 +648,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	for _, entry := range entries {
 		name := filepath.Join(path, entry.Name())
 		if err := walkDir(fsys, name, entry, walkDirFn); err != nil {
-			if err == filepath.SkipDir {
+			if errors.Is(err, filepath.SkipDir) {
 				break
 			}
 
@@ -663,7 +667,9 @@ func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 		return nil, err
 	}
 
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	var entries []fs.DirEntry
 

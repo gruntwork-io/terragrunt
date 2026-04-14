@@ -1,13 +1,12 @@
 package cas_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,28 +16,29 @@ func TestStore(t *testing.T) {
 
 	t.Run("custom path", func(t *testing.T) {
 		t.Parallel()
-		tempDir := helpers.TmpDirWOSymlinks(t)
-		customPath := filepath.Join(tempDir, "custom-store")
+		memFs := vfs.NewMemMapFS()
+		customPath := "/custom-store"
 
-		store := cas.NewStore(customPath)
+		store := cas.NewStore(customPath).WithFS(memFs)
 		assert.Equal(t, customPath, store.Path())
 	})
 }
 
 func TestStore_NeedsWrite(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+	memFs := vfs.NewMemMapFS()
+	storePath := "/store"
+	store := cas.NewStore(storePath).WithFS(memFs)
 
 	// Create a fake content file
 	testHash := "abcdef123456"
 	// Create partition directory
 	partitionDir := filepath.Join(store.Path(), testHash[:2])
-	err := os.MkdirAll(partitionDir, 0755)
+	err := memFs.MkdirAll(partitionDir, 0755)
 	require.NoError(t, err, "Failed to create partition directory")
 
 	testPath := filepath.Join(partitionDir, testHash)
-	err = os.WriteFile(testPath, []byte("test"), 0644)
+	err = vfs.WriteFile(memFs, testPath, []byte("test"), 0644)
 	require.NoError(t, err, "Failed to create test file")
 
 	tests := []struct {
@@ -68,8 +68,9 @@ func TestStore_NeedsWrite(t *testing.T) {
 
 func TestStore_AcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+	memFs := vfs.NewMemMapFS()
+	storePath := "/store"
+	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test successful lock acquisition
@@ -77,9 +78,10 @@ func TestStore_AcquireLock(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, lock)
 
-	// Verify lock file exists
-	lockPath := filepath.Join(tempDir, testHash[:2], testHash+".lock")
-	assert.FileExists(t, lockPath)
+	// Verify partition directory was created
+	partitionDir := filepath.Join(storePath, testHash[:2])
+	_, err = memFs.Stat(partitionDir)
+	require.NoError(t, err)
 
 	// Clean up
 	err = lock.Unlock()
@@ -88,8 +90,9 @@ func TestStore_AcquireLock(t *testing.T) {
 
 func TestStore_TryAcquireLock(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+	memFs := vfs.NewMemMapFS()
+	storePath := "/store"
+	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test successful lock acquisition
@@ -121,8 +124,9 @@ func TestStore_TryAcquireLock(t *testing.T) {
 
 func TestStore_LockConcurrency(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+	memFs := vfs.NewMemMapFS()
+	storePath := "/store"
+	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	// Test that multiple goroutines can't acquire the same lock
@@ -169,20 +173,21 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 func TestStore_EnsureWithWait(t *testing.T) {
 	t.Parallel()
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	store := cas.NewStore(tempDir)
+	memFs := vfs.NewMemMapFS()
+	storePath := "/store"
+	store := cas.NewStore(storePath).WithFS(memFs)
 	testHash := "abcdef1234567890abcdef1234567890abcdef12"
 
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
 		// Create the content manually
-		partitionDir := filepath.Join(tempDir, testHash[:2])
-		err := os.MkdirAll(partitionDir, 0755)
+		partitionDir := filepath.Join(storePath, testHash[:2])
+		err := memFs.MkdirAll(partitionDir, 0755)
 		require.NoError(t, err)
 
 		contentPath := filepath.Join(partitionDir, testHash)
-		err = os.WriteFile(contentPath, []byte("existing content"), 0644)
+		err = vfs.WriteFile(memFs, contentPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
 		// EnsureWithWait should return false (no write needed)
