@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -279,7 +280,12 @@ func (p *GraphPhase) discoverDependencies(
 		return err
 	}
 
-	depPaths = enrichWithStackDeps(l, state.opts, depPaths, c)
+	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		depPaths, err = stackDependencyPaths(vfs.NewOSFS(), depPaths, c)
+		if err != nil {
+			return err
+		}
+	}
 
 	if len(depPaths) == 0 {
 		return nil
@@ -658,7 +664,18 @@ func (p *GraphPhase) processUpstreamCandidate(
 		return nil
 	}
 
-	deps = enrichWithStackDeps(l, state.graphTraversalState.opts, deps, candidate)
+	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		var stackErr error
+
+		deps, stackErr = stackDependencyPaths(vfs.NewOSFS(), deps, candidate)
+		if stackErr != nil {
+			state.errMu.Lock()
+			*state.errs = append(*state.errs, stackErr)
+			state.errMu.Unlock()
+
+			return nil
+		}
+	}
 
 	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)
 	if created {

@@ -9,13 +9,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -280,29 +277,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
-// defaultFS is the shared filesystem instance for discovery operations.
-// Created once and reused across calls to avoid repeated allocations.
-var defaultFS = vfs.NewOSFS()
-
-// enrichWithStackDeps conditionally adds stack dependency paths when the
-// StackDependencies experiment is enabled.
-func enrichWithStackDeps(l log.Logger, opts *options.TerragruntOptions, depPaths []string, c component.Component) []string {
-	if !opts.Experiments.Evaluate(experiment.StackDependencies) {
-		return depPaths
-	}
-
-	return addStackDependencyPaths(l, defaultFS, depPaths, c)
-}
-
-// addStackDependencyPaths appends dependency paths from generated autoinclude
-// files and expands any stack directory paths into their constituent unit paths.
-func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c component.Component) []string {
+// stackDependencyPaths returns additional dependency paths from autoinclude
+// files and expands stack directory paths into constituent unit paths.
+// Only called when the StackDependencies experiment is enabled.
+func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) ([]string, error) {
 	// Add dependencies declared in autoinclude files.
 	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
-		// Log at error level but continue — missing autoinclude deps will cause
-		// the dependent unit to fail at runtime with a clear error message.
-		l.Errorf("Failed to read autoinclude dependencies for %s: %v", c.Path(), err)
+		return nil, err
 	}
 
 	for _, dep := range autoIncludeDeps {
@@ -336,5 +318,5 @@ func addStackDependencyPaths(l log.Logger, fs vfs.FS, depPaths []string, c compo
 		result = append(result, p)
 	}
 
-	return result
+	return result, nil
 }
