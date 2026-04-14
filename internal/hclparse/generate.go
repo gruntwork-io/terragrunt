@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -42,7 +41,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 
 	body, ok := resolved.RawBody.(*hclsyntax.Body)
 	if !ok {
-		return errors.New("autoinclude raw body is not *hclsyntax.Body")
+		return UnexpectedBodyTypeError{FilePath: "autoinclude"}
 	}
 
 	out := hclwrite.NewEmptyFile()
@@ -67,13 +66,13 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	filePath := filepath.Join(targetDir, AutoIncludeFile)
 
 	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
-		return errors.Errorf("failed to create directory %s: %w", targetDir, err)
+		return DirCreateError{DirPath: targetDir, Err: err}
 	}
 
 	formatted := hclwrite.Format(out.Bytes())
 
 	if err := vfs.WriteFile(fs, filePath, formatted, autoIncludeFilePerm); err != nil {
-		return errors.Errorf("failed to write %s: %w", filePath, err)
+		return FileWriteError{FilePath: filePath, Err: err}
 	}
 
 	return nil

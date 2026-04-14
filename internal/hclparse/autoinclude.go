@@ -188,17 +188,17 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	}
 
 	if err != nil {
-		return nil, errors.Errorf("failed to read %s: %w", autoIncludePath, err)
+		return nil, FileReadError{FilePath: autoIncludePath, Err: err}
 	}
 
 	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, diags)
+		return nil, FileParseError{FilePath: autoIncludePath, Detail: diags.Error()}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, errors.Errorf("unexpected body type in %s", autoIncludePath)
+		return nil, UnexpectedBodyTypeError{FilePath: autoIncludePath}
 	}
 
 	var paths []string

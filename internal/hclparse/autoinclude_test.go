@@ -14,16 +14,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// newTestMemFS creates a MemMapFS with /test directory pre-created.
-func newTestMemFS(t *testing.T) vfs.FS {
-	t.Helper()
-
-	fs := vfs.NewMemMapFS()
-	require.NoError(t, fs.MkdirAll("/test", 0755))
-
-	return fs
-}
-
 func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +191,7 @@ inputs = {
 func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 	t.Parallel()
 
-	fs := newTestMemFS(t)
+	fs := vfs.NewMemMapFS()
 
 	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
 	require.NoError(t, err)
@@ -211,7 +201,7 @@ func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
 func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
 	t.Parallel()
 
-	fs := newTestMemFS(t)
+	fs := vfs.NewMemMapFS()
 
 	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
@@ -228,7 +218,7 @@ dependency "vpc" {
 func TestAutoIncludeDependencyPaths_MultipleDeps(t *testing.T) {
 	t.Parallel()
 
-	fs := newTestMemFS(t)
+	fs := vfs.NewMemMapFS()
 
 	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {
@@ -278,7 +268,7 @@ dependency "vpc" {
 func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 	t.Parallel()
 
-	fs := newTestMemFS(t)
+	fs := vfs.NewMemMapFS()
 
 	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
 dependency "vpc" {

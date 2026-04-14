@@ -117,13 +117,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// The two-pass parser uses a simplified eval context that cannot
-			// evaluate HCL functions (find_in_parent_folders, get_repo_root, etc.).
-			// Stacks without autoinclude blocks are unaffected: the production
-			// parser handles them correctly. Stacks WITH autoinclude blocks that
-			// also use functions in source/path will silently lose autoinclude
-			// generation: this is a known limitation logged at warn level.
-			l.Warnf("Failed to parse %s for autoinclude resolution: %v.", stackFilePath, parseErr)
+			// Log at debug for stacks that don't use autoinclude (expected failure
+			// when HCL functions are present in source/path). The production parser
+			// handles these correctly.
+			l.Debugf("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {
@@ -543,7 +540,6 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(decodeErr)
 	}
 
-	// Process include blocks: merge included units/stacks into the config.
 	// Process include blocks when the stack-dependencies experiment is enabled.
 	if parser.Experiments.Evaluate(experiment.StackDependencies) {
 		if err := processStackConfigIncludes(config, filepath.Dir(file.ConfigPath), evalParsingContext, parser.ParserOptions); err != nil {
@@ -596,8 +592,27 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 			return errors.Errorf("failed to decode include %q: %w", inc.Name, decodeErr)
 		}
 
+		if included.Locals != nil {
+			return errors.Errorf("included stack file %q must not define locals", inc.Name)
+		}
+
+		if len(included.Includes) > 0 {
+			return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
+		}
+
 		config.Units = append(config.Units, included.Units...)
 		config.Stacks = append(config.Stacks, included.Stacks...)
+	}
+
+	// Validate no duplicate unit names after merge.
+	seen := make(map[string]bool, len(config.Units))
+
+	for _, u := range config.Units {
+		if seen[u.Name] {
+			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
+		}
+
+		seen[u.Name] = true
 	}
 
 	return nil

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -147,6 +146,10 @@ func evaluateLocals(body hcl.Body, evalCtx *hcl.EvalContext) error {
 		evalCtx.Variables[varLocal] = cty.ObjectVal(evaluated)
 	}
 
+	if len(remaining) > 0 {
+		return LocalsMaxIterError{MaxIterations: maxLocalsIterations, Remaining: len(remaining)}
+	}
+
 	return nil
 }
 
@@ -162,7 +165,7 @@ func evaluateLocalsPass(remaining map[string]*hclsyntax.Attribute, evaluated map
 
 		val, diags := attr.Expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return false, errors.Errorf("failed to evaluate local %q: %s", name, diags.Error())
+			return false, LocalEvalError{Name: name, Detail: diags.Error()}
 		}
 
 		evaluated[name] = val
@@ -183,7 +186,7 @@ func localsEvalCycleError(remaining map[string]*hclsyntax.Attribute) error {
 
 	slices.Sort(names)
 
-	return errors.Errorf("could not evaluate locals (possible cycle): %v", names)
+	return LocalsCycleError{Names: names}
 }
 
 // canEvalLocal checks whether all local.* dependencies of an attribute
@@ -292,25 +295,25 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 
 	data, err := vfs.ReadFile(fs, includePath)
 	if err != nil {
-		return errors.Errorf("failed to read include %q: %w", inc.Name, err)
+		return FileReadError{FilePath: inc.Path, Err: err}
 	}
 
 	incFile, diags := hclsyntax.ParseConfig(data, includePath, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return errors.Errorf("failed to parse include %q: %s", inc.Name, diags.Error())
+		return FileParseError{FilePath: inc.Path, Detail: diags.Error()}
 	}
 
 	included := &StackFileHCL{}
 	if decodeDiags := gohcl.DecodeBody(incFile.Body, nil, included); decodeDiags.HasErrors() {
-		return errors.Errorf("failed to decode include %q: %s", inc.Name, decodeDiags.Error())
+		return FileDecodeError{Name: inc.Name, Detail: decodeDiags.Error()}
 	}
 
 	if included.Locals != nil {
-		return errors.Errorf("included stack file %q must not define locals", inc.Name)
+		return IncludeValidationError{IncludeName: inc.Name, Reason: "must not define locals"}
 	}
 
 	if len(included.Includes) > 0 {
-		return errors.Errorf("included stack file %q must not define nested includes", inc.Name)
+		return IncludeValidationError{IncludeName: inc.Name, Reason: "must not define nested includes"}
 	}
 
 	stackFile.Units = append(stackFile.Units, included.Units...)
@@ -325,7 +328,7 @@ func validateNoDuplicateUnits(units []*UnitBlockHCL) error {
 
 	for _, u := range units {
 		if seen[u.Name] {
-			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
+			return DuplicateUnitNameError{Name: u.Name}
 		}
 
 		seen[u.Name] = true

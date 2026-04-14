@@ -160,7 +160,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 			return nil, nil
 		}
 
-		return nil, errors.Errorf("failed to read stack file %s: %w", stackFile, err)
+		return nil, FileReadError{FilePath: stackFile, Err: err}
 	}
 
 	return ParseStackFile(fs, &ParseStackFileInput{
