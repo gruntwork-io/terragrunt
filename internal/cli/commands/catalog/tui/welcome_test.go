@@ -28,7 +28,7 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -58,7 +58,7 @@ func TestWelcomeLoadingScreen_TransitionsToModuleList(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		return svc, nil
 	}
 
@@ -89,7 +89,7 @@ func TestWelcomeLoadingScreen_ModuleListNavigation(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		return svc, nil
 	}
 
@@ -126,7 +126,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	slowLoad := func(ctx context.Context) (catalog.CatalogService, error) {
+	slowLoad := func(ctx context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		// Simulate slow discovery
 		select {
 		case <-time.After(5 * time.Second):
@@ -158,7 +158,7 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -197,7 +197,7 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 

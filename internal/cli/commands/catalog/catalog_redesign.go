@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -24,7 +25,9 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return runDefault(ctx, l, opts, repoURL)
 	}
 
-	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context) (catalog.CatalogService, error) {
+	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context, status tui.StatusFunc) (catalog.CatalogService, error) {
+		status("Scanning terragrunt.hcl files for module sources...")
+
 		// Discover source URLs from terraform.source in terragrunt.hcl files
 		discoveredURLs, err := DiscoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
 		if err != nil {
@@ -52,6 +55,8 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			return nil, nil
 		}
 
+		status(fmt.Sprintf("Found %d source(s), cloning repositories...", len(allURLs)))
+
 		// Load modules from all discovered repos
 		svc := catalog.NewCatalogService(opts)
 		svc.WithRepoURLs(allURLs)
@@ -59,6 +64,8 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		if err := svc.Load(ctx, l); err != nil {
 			return svc, err
 		}
+
+		status(fmt.Sprintf("Found %d module(s), loading catalog...", len(svc.Modules())))
 
 		return svc, nil
 	})

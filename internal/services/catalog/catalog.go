@@ -185,7 +185,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 			continue
 		}
 
-		l.Infof("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
+		l.Debugf("Found %d module(s) in repository %q", len(repoModules), currentRepoURL)
 		allModules = append(allModules, repoModules...)
 	}
 
@@ -207,7 +207,7 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 }
 
 func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {
-	l.Infof("Scaffolding module: %q", module.TerraformSourcePath())
+	l.Debugf("Scaffolding module: %q", module.TerraformSourcePath())
 
 	return scaffold.Run(ctx, l, opts, module.TerraformSourcePath(), "")
 }

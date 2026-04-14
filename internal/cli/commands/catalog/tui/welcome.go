@@ -16,9 +16,17 @@ import (
 
 const welcomeDocsURL = "https://docs.terragrunt.com/features/catalog/"
 
+// StatusFunc receives progress updates during discovery and loading.
+type StatusFunc func(msg string)
+
 // LoadFunc performs source discovery and module loading in the background.
+// It calls status with human-readable progress updates.
 // It returns a ready CatalogService, or nil if no sources were found.
-type LoadFunc func(ctx context.Context) (catalog.CatalogService, error)
+type LoadFunc func(ctx context.Context, status StatusFunc) (catalog.CatalogService, error)
+
+// OpenURLFunc opens a URL in the user's browser. Injected so tests can
+// substitute a no-op or a recording stub.
+type OpenURLFunc func(url string) error
 
 type welcomeState int
 
@@ -32,6 +40,11 @@ type discoveryCompleteMsg struct {
 	svc catalog.CatalogService
 	err error
 }
+
+// statusUpdateMsg carries a progress update from the LoadFunc.
+type statusUpdateMsg string
+
+const statusChannelSize = 10
 
 var (
 	welcomeTitleStyle = lipgloss.NewStyle().
@@ -50,23 +63,21 @@ var (
 				Foreground(lipgloss.Color("#6272A4"))
 )
 
-// OpenURLFunc opens a URL in the user's browser. Injected so tests can
-// substitute a no-op or a recording stub.
-type OpenURLFunc func(url string) error
-
 // WelcomeModel is a BubbleTea model that shows a loading screen while
 // discovery runs in the background, then either transitions to the module
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	ctx       context.Context
-	logger    log.Logger
-	opts      *options.TerragruntOptions
-	loadFunc  LoadFunc
-	openURL   OpenURLFunc
-	spinner   spinner.Model
-	state     welcomeState
-	width     int
-	height    int
+	ctx        context.Context
+	logger     log.Logger
+	opts       *options.TerragruntOptions
+	loadFunc   LoadFunc
+	openURL    OpenURLFunc
+	statusCh   chan string
+	statusText string
+	spinner    spinner.Model
+	state      welcomeState
+	width      int
+	height     int
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
@@ -76,13 +87,15 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
 
 	return WelcomeModel{
-		ctx:      ctx,
-		logger:   l,
-		opts:     opts,
-		loadFunc: loadFunc,
-		openURL:  browser.OpenURL,
-		spinner:  s,
-		state:    welcomeLoading,
+		ctx:        ctx,
+		logger:     l,
+		opts:       opts,
+		loadFunc:   loadFunc,
+		openURL:    browser.OpenURL,
+		statusCh:   make(chan string, statusChannelSize),
+		spinner:    s,
+		statusText: "Discovering modules from your infrastructure...",
+		state:      welcomeLoading,
 	}
 }
 
@@ -95,17 +108,38 @@ func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel { //nolint:gocrit
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
 func (m WelcomeModel) Init() tea.Cmd { //nolint:gocritic
-	return tea.Batch(m.spinner.Tick, m.startDiscovery())
+	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus())
 }
 
 func (m WelcomeModel) startDiscovery() tea.Cmd { //nolint:gocritic
 	ctx := m.ctx
 	loadFunc := m.loadFunc
+	ch := m.statusCh
 
 	return func() tea.Msg {
-		svc, err := loadFunc(ctx)
+		defer close(ch)
+
+		svc, err := loadFunc(ctx, func(msg string) {
+			select {
+			case ch <- msg:
+			default:
+			}
+		})
 
 		return discoveryCompleteMsg{svc: svc, err: err}
+	}
+}
+
+func (m WelcomeModel) listenForStatus() tea.Cmd { //nolint:gocritic
+	ch := m.statusCh
+
+	return func() tea.Msg {
+		status, ok := <-ch
+		if !ok {
+			return nil
+		}
+
+		return statusUpdateMsg(status)
 	}
 }
 
@@ -114,6 +148,10 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 	switch msg := msg.(type) {
 	case discoveryCompleteMsg:
 		return m.handleDiscoveryComplete(msg)
+	case statusUpdateMsg:
+		m.statusText = string(msg)
+
+		return m, m.listenForStatus()
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
@@ -189,9 +227,7 @@ func (m WelcomeModel) loadingView() string { //nolint:gocritic
 
 	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
 		"",
-		m.spinner.View()+" Discovering modules from your infrastructure...",
-		"",
-		welcomeHintStyle.Render("Scanning terragrunt.hcl files for module sources."),
+		m.spinner.View()+" "+m.statusText,
 	))
 
 	return lipgloss.JoinVertical(lipgloss.Center, title, body)
