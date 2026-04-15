@@ -2,45 +2,34 @@ package git
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/go-git/go-billy/v6/osfs"
+	"github.com/go-git/go-billy/v6/memfs"
 	gogit "github.com/go-git/go-git/v6"
 	backendhttp "github.com/go-git/go-git/v6/backend/http"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/plumbing/transport"
 	"github.com/go-git/go-git/v6/storage"
-	"github.com/go-git/go-git/v6/storage/filesystem"
+	"github.com/go-git/go-git/v6/storage/memory"
 )
 
-// Server is a pure-Go HTTP Git server backed by on-disk storage in a
-// temporary directory. It is intended for use in tests.
+// Server is a pure-Go HTTP Git server backed by in-memory storage.
+// It is intended for use in tests.
 type Server struct {
-	store   storage.Storer
-	repo    *gogit.Repository
-	ln      net.Listener
-	srv     *http.Server
-	tempDir string
+	store storage.Storer
+	repo  *gogit.Repository
+	ln    net.Listener
+	srv   *http.Server
 }
 
-// NewServer creates a Server with an empty repository backed by a temporary
-// directory. The directory is removed when Close is called.
+// NewServer creates a Server with an empty in-memory repository.
 func NewServer() (*Server, error) {
-	tempDir, err := os.MkdirTemp("", "git-server-*")
-	if err != nil {
-		return nil, fmt.Errorf("create temp dir: %w", err)
-	}
-
-	dotGit := osfs.New(tempDir, osfs.WithBoundOS())
-	wt := osfs.New(tempDir, osfs.WithBoundOS())
-
-	store := filesystem.NewStorage(dotGit, nil)
+	store := memory.NewStorage()
+	wt := memfs.New()
 
 	repo, err := gogit.Init(
 		store,
@@ -48,13 +37,12 @@ func NewServer() (*Server, error) {
 		gogit.WithDefaultBranch(plumbing.NewBranchReferenceName("main")),
 	)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("init repo: %w", err), os.RemoveAll(tempDir))
+		return nil, fmt.Errorf("init repo: %w", err)
 	}
 
 	return &Server{
-		store:   store,
-		repo:    repo,
-		tempDir: tempDir,
+		store: store,
+		repo:  repo,
 	}, nil
 }
 
@@ -129,20 +117,13 @@ func (s *Server) Start(ctx context.Context) (string, error) {
 	return "http://" + ln.Addr().String(), nil
 }
 
-// Close shuts down the server and removes the temporary directory.
+// Close shuts down the server.
 func (s *Server) Close() error {
-	var err error
 	if s.srv != nil {
-		err = s.srv.Close()
+		return s.srv.Close()
 	}
 
-	if s.tempDir != "" {
-		if removeErr := os.RemoveAll(s.tempDir); removeErr != nil && err == nil {
-			err = removeErr
-		}
-	}
-
-	return err
+	return nil
 }
 
 // singleRepoLoader implements transport.Loader by always returning the same
