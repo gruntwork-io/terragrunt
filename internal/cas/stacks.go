@@ -61,10 +61,11 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 
 	cloneDir := filepath.Join(tempDir, "repo")
 
-	// Clone the full repo via CAS
+	// Clone the repo via CAS
 	if err := c.Clone(ctx, l, &CloneOptions{
 		Dir:    cloneDir,
 		Branch: ref,
+		Depth:  c.cloneDepth,
 	}, cleanURL); err != nil {
 		cleanup()
 
@@ -195,7 +196,13 @@ func (c *CAS) processStackFile(
 		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
 	}
 
-	// Write the rewritten stack file back
+	// The file may be a read-only hard link from the CAS store, so remove it
+	// before writing the rewritten content to avoid permission errors and to
+	// avoid mutating the stored blob.
+	if err := os.Remove(stackFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove stack file before rewrite %s: %w", stackFile, err)
+	}
+
 	return os.WriteFile(stackFile, content, RegularFilePerms)
 }
 
@@ -244,6 +251,13 @@ func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash
 	}
 
 	l.Debugf("Rewrote terraform source to %s", newSource)
+
+	// The file may be a read-only hard link from the CAS store, so remove it
+	// before writing the rewritten content to avoid permission errors and to
+	// avoid mutating the stored blob.
+	if err := os.Remove(unitFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove unit file before rewrite %s: %w", unitFile, err)
+	}
 
 	return os.WriteFile(unitFile, content, RegularFilePerms)
 }

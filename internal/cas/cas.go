@@ -55,6 +55,7 @@ type CAS struct {
 	synthStore *Store
 	git        *git.GitRunner
 	storePath  string
+	cloneDepth int
 }
 
 // WithStorePath specifies a custom path for the content store.
@@ -62,6 +63,15 @@ type CAS struct {
 func WithStorePath(path string) Option {
 	return func(c *CAS) {
 		c.storePath = path
+	}
+}
+
+// WithCloneDepth overrides the default clone depth.
+// A value of 0 uses the default (shallow clone, depth 1).
+// A negative value (e.g. -1) clones the full history.
+func WithCloneDepth(depth int) Option {
+	return func(c *CAS) {
+		c.cloneDepth = depth
 	}
 }
 
