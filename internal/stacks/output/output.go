@@ -119,7 +119,7 @@ func StackOutput(
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
 
-			if excludedPaths[unitDir] {
+			if excludedPaths[filepath.Clean(unitDir)] {
 				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
 
 				key := filepath.Join(targetDir, unit.Path)
@@ -274,9 +274,9 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
-// discoverExcludedPaths uses the discovery system to find units that are excluded
-// from the current terraform command (typically "output"). Returns a set of
-// absolute unit directory paths that should be skipped.
+// discoverExcludedPaths uses the discovery system to parse unit configs and
+// determine which units should be excluded from the "output" action.
+// Uses ShouldPreventRun for consistent behavior with the runner (run/run.go:229).
 func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dir string) map[string]bool {
 	d := discovery.NewDiscovery(dir).
 		WithParseExclude().
@@ -287,7 +287,7 @@ func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.Terr
 
 	components, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		l.Debugf("Failed to discover units for exclude check: %v", err)
+		l.Warnf("Failed to discover units for exclude check: %v", err)
 
 		return make(map[string]bool)
 	}
@@ -296,11 +296,20 @@ func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.Terr
 
 	for _, c := range components {
 		unit, ok := c.(*component.Unit)
-		if !ok || !unit.Excluded() {
+		if !ok {
 			continue
 		}
 
-		excluded[unit.Path()] = true
+		cfg := unit.Config()
+		if cfg == nil || cfg.Exclude == nil {
+			continue
+		}
+
+		// Use ShouldPreventRun to match the runner's exclude semantics exactly.
+		// This correctly handles no_run, if, actions, and special values like "all"/"all_except_output".
+		if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+			excluded[filepath.Clean(unit.Path())] = true
+		}
 	}
 
 	return excluded
