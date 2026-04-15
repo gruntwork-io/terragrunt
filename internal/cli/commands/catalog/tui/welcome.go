@@ -261,6 +261,9 @@ func (m WelcomeModel) noSourcesView() string { //nolint:gocritic
 // screen immediately while discovery runs in the background, then transitions
 // to the module list if modules are found.
 func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, loadFunc LoadFunc) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	model := NewWelcomeModel(ctx, l, opts, loadFunc)
 
 	if _, err := tea.NewProgram(model, tea.WithContext(ctx)).Run(); err != nil {

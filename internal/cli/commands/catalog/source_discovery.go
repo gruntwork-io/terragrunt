@@ -1,44 +1,47 @@
 package catalog
 
 import (
-	"regexp"
+	"context"
 	"strings"
 
 	"github.com/hashicorp/go-getter"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// terraformSourceReg matches a terraform block's source attribute with a literal string value.
-// It intentionally excludes interpolated sources (containing $) so that only
-// statically-known URLs are captured.
-var terraformSourceReg = regexp.MustCompile(`(?s)terraform\s*\{[^}]*?source\s*=\s*"([^"$]+)"`)
-
-// DiscoverSourceURLs walks the project tree starting from rootDir, finds all
-// terragrunt.hcl files, extracts terraform.source URLs, normalizes them to
-// repo-level URLs, and returns a deduplicated list.
-func DiscoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]string, error) {
-	configFiles, err := config.FindConfigFilesInPath(rootDir, experiments, config.DefaultTerragruntConfigPath, nil, "")
+// DiscoverSourceURLs walks the project tree starting from pctx.RootWorkingDir,
+// finds all terragrunt.hcl files, parses them to extract terraform.source URLs,
+// normalizes them to repo-level URLs, and returns a deduplicated list.
+func DiscoverSourceURLs(ctx context.Context, l log.Logger, pctx *config.ParsingContext) ([]string, error) {
+	configFiles, err := config.FindConfigFilesInPath(pctx.RootWorkingDir, pctx.Experiments, config.DefaultTerragruntConfigPath, nil, "")
 	if err != nil {
 		return nil, err
 	}
 
+	sourcePctx := pctx.WithDecodeList(config.TerraformSource).WithDiagnosticsSuppressed(l)
+
 	var repoURLs []string
 
 	for _, configFile := range configFiles {
-		content, err := util.ReadFileAsString(configFile)
+		fileLogger, filePctx, err := sourcePctx.WithConfigPath(l, configFile)
 		if err != nil {
+			l.Debugf("Skipping %s: %v", configFile, err)
 			continue
 		}
 
-		source := ExtractTerraformSource(content)
-		if source == "" {
+		cfg, err := config.PartialParseConfigFile(ctx, filePctx, fileLogger, configFile, nil)
+		if err != nil {
+			l.Debugf("Skipping %s: failed to parse: %v", configFile, err)
 			continue
 		}
 
-		repoURL := ExtractRepoURL(source)
+		if cfg.Terraform == nil || cfg.Terraform.Source == nil {
+			continue
+		}
+
+		repoURL := ExtractRepoURL(*cfg.Terraform.Source)
 		if repoURL == "" {
 			continue
 		}
@@ -47,18 +50,6 @@ func DiscoverSourceURLs(rootDir string, experiments experiment.Experiments) ([]s
 	}
 
 	return util.RemoveDuplicates(repoURLs), nil
-}
-
-// ExtractTerraformSource extracts the terraform.source attribute value from
-// HCL content. Returns an empty string if no literal source is found or if
-// the source uses interpolation.
-func ExtractTerraformSource(content string) string {
-	matches := terraformSourceReg.FindStringSubmatch(content)
-	if len(matches) < 2 { //nolint:mnd
-		return ""
-	}
-
-	return matches[1]
 }
 
 // ExtractRepoURL normalizes a terraform source URL to a repo-level URL by

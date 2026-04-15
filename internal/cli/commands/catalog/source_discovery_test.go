@@ -6,91 +6,13 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestExtractTerraformSource_Simple(t *testing.T) {
-	t.Parallel()
-
-	content := `
-terraform {
-  source = "github.com/gruntwork-io/terraform-aws-vpc"
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc", result)
-}
-
-func TestExtractTerraformSource_WithSubdirAndRef(t *testing.T) {
-	t.Parallel()
-
-	content := `
-terraform {
-  source = "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0"
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0", result)
-}
-
-func TestExtractTerraformSource_GitPrefix(t *testing.T) {
-	t.Parallel()
-
-	content := `
-terraform {
-  source = "git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0"
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Equal(t, "git::https://github.com/gruntwork-io/terraform-aws-vpc.git//modules/vpc?ref=v1.0.0", result)
-}
-
-func TestExtractTerraformSource_Interpolated(t *testing.T) {
-	t.Parallel()
-
-	content := `
-terraform {
-  source = "${local.base_source_url}?ref=v0.26.0"
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Empty(t, result)
-}
-
-func TestExtractTerraformSource_NoTerraformBlock(t *testing.T) {
-	t.Parallel()
-
-	content := `
-include "root" {
-  path = find_in_parent_folders()
-}
-
-inputs = {
-  name = "my-vpc"
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Empty(t, result)
-}
-
-func TestExtractTerraformSource_WithOtherAttributes(t *testing.T) {
-	t.Parallel()
-
-	content := `
-terraform {
-  source = "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0"
-
-  extra_arguments "common" {
-    arguments = ["-var-file=common.tfvars"]
-  }
-}
-`
-	result := catalog.ExtractTerraformSource(content)
-	assert.Equal(t, "github.com/gruntwork-io/terraform-aws-vpc//modules/vpc-app?ref=v0.26.0", result)
-}
 
 func TestExtractRepoURL_Simple(t *testing.T) {
 	t.Parallel()
@@ -199,7 +121,11 @@ inputs = {
 }
 `), 0644))
 
-	urls, err := catalog.DiscoverSourceURLs(tmpDir, experiment.NewExperiments())
+	l := logger.CreateLogger()
+	ctx, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	pctx.RootWorkingDir = tmpDir
+
+	urls, err := catalog.DiscoverSourceURLs(ctx, l, pctx)
 	require.NoError(t, err)
 
 	// Should have 2 unique repo URLs (repo-a deduplicated, repo-b, interpolated and no-source skipped)
@@ -213,7 +139,11 @@ func TestDiscoverSourceURLs_EmptyDir(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	urls, err := catalog.DiscoverSourceURLs(tmpDir, experiment.NewExperiments())
+	l := logger.CreateLogger()
+	ctx, pctx := config.NewParsingContext(t.Context(), l, config.WithStrictControls(controls.New()))
+	pctx.RootWorkingDir = tmpDir
+
+	urls, err := catalog.DiscoverSourceURLs(ctx, l, pctx)
 	require.NoError(t, err)
 	assert.Empty(t, urls)
 }

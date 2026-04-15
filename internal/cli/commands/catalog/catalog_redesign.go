@@ -28,15 +28,16 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context, status tui.StatusFunc) (catalog.CatalogService, error) {
 		status("Scanning terragrunt.hcl files for module sources...")
 
+		// Create parsing context for source discovery and catalog config
+		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
 		// Discover source URLs from terraform.source in terragrunt.hcl files
-		discoveredURLs, err := DiscoverSourceURLs(opts.RootWorkingDir, opts.Experiments)
+		discoveredURLs, err := DiscoverSourceURLs(ctx, l, pctx)
 		if err != nil {
 			l.Warnf("Failed to discover source URLs: %v", err)
 		}
 
 		// Also read catalog config if it exists
-		_, pctx := configbridge.NewParsingContext(ctx, l, opts)
-
 		catalogCfg, catalogErr := config.ReadCatalogConfig(ctx, l, pctx)
 		if catalogErr != nil {
 			l.Debugf("No catalog config found: %v", catalogErr)
