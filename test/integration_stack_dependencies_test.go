@@ -164,7 +164,7 @@ func TestStackDepsDAGWithoutAutoInclude(t *testing.T) {
 	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
 }
 
-// TestStackDepsUnitDependsOnStack verifies OSS-3101:
+// TestStackDepsUnitDependsOnStack verifies that
 // a unit can declare a dependency on an entire stack via stack.networking.path.
 func TestStackDepsUnitDependsOnStack(t *testing.T) {
 	t.Parallel()
@@ -218,7 +218,7 @@ func TestStackDepsUnitDependsOnStack(t *testing.T) {
 	assert.NotContains(t, content, "local.env")
 }
 
-// TestStackDepsUnitDependsOnUnitWithinStack verifies OSS-3102:
+// TestStackDepsUnitDependsOnUnitWithinStack verifies that
 // a unit can depend on a specific unit within a stack via stack.networking.vpc.path.
 func TestStackDepsUnitDependsOnUnitWithinStack(t *testing.T) {
 	t.Parallel()

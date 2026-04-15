@@ -8,7 +8,7 @@ stack "networking" {
   path   = "networking"
 }
 
-# OSS-3101: Unit that depends on the entire networking stack
+# Unit that depends on the entire networking stack
 unit "app_stack_dep" {
   source = "../units/app"
   path   = "app-stack-dep"
@@ -32,7 +32,7 @@ unit "app_stack_dep" {
   }
 }
 
-# OSS-3102: Unit that depends on a specific unit within the stack
+# Unit that depends on a specific unit within the stack
 unit "app_unit_in_stack" {
   source = "../units/app"
   path   = "app-unit-in-stack"
