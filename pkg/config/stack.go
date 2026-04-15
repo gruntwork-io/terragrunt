@@ -136,7 +136,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var casInstance *cas.CAS
 
 	if casEnabled {
-		c, casErr := cas.New(cas.Options{})
+		c, casErr := cas.New()
 		if casErr != nil {
 			l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", casErr)
 

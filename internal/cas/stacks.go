@@ -273,7 +273,7 @@ func (c *CAS) buildSyntheticTree(
 		// Convert to forward slashes for consistency (git-style paths)
 		relPath = strings.ReplaceAll(relPath, string(filepath.Separator), "/")
 
-		fileHash, err := hashFile(path)
+		fileHash, err := hashFile(c.fs, path)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
 		}

@@ -57,7 +57,7 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 		}
 	}
 
-	fs := store.FS()
+	fs := blobStore.FS()
 
 	for dirPath := range dirsToCreate {
 		if err := fs.MkdirAll(dirPath, DefaultDirPerms); err != nil {

@@ -41,7 +41,7 @@ func TestMaterializeTree_FromSynthStore(t *testing.T) {
 	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
 
 	// Build a CAS instance using the same store paths
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -81,7 +81,7 @@ func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
 	treeContent := cas.NewContent(treeStore)
 	require.NoError(t, treeContent.Store(nil, treeHash, treeData))
 
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -100,7 +100,7 @@ func TestMaterializeTree_NotFound(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -141,7 +141,7 @@ func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
 	gitContent := cas.NewContent(treeStore)
 	require.NoError(t, gitContent.Store(nil, hash, []byte("100644 blob blobB\tfile.txt\n")))
 
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	destDir := helpers.TmpDirWOSymlinks(t)
@@ -201,7 +201,7 @@ func TestCASProtocolGetterGet(t *testing.T) {
 	synthContent := cas.NewContent(synthStore)
 	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
 
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
@@ -227,7 +227,7 @@ func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
 
 	storeDir := helpers.TmpDirWOSymlinks(t)
 
-	c, err := cas.New(cas.Options{StorePath: storeDir})
+	c, err := cas.New(cas.WithStorePath(storeDir))
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
