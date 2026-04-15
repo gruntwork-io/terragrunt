@@ -2,9 +2,7 @@ package catalog
 
 import (
 	"context"
-	"os"
 	"runtime"
-	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -16,13 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
-
-// slowDownCatalog is a test environment variable to
-// slow down the processes taking place in this package.
-//
-// This is useful for testing how
-// the TUI behaves when the catalog is slow to load.
-const slowDownCatalog = "TEST_SLOW_DOWN_CATALOG"
 
 // runRedesign is the entry point for the redesigned catalog experience.
 // It is invoked when the catalog-redesign experiment is enabled.
@@ -43,16 +34,7 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		) (catalog.CatalogService, error) {
 			svc := catalog.NewCatalogService(opts)
 
-			// This is a test environment variable to slow down the processes
-			// taking place in this funcion. This is useful for testing how
-			// the TUI behaves when the catalog is slow to load.
-			slowDown := os.Getenv(slowDownCatalog) != ""
-
 			onModule := func(mod *module.Module) {
-				if slowDown {
-					time.Sleep(time.Second)
-				}
-
 				moduleCh <- mod
 			}
 
@@ -91,10 +73,6 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
-					if slowDown {
-						time.Sleep(time.Second)
-					}
-
 					if err := svc.LoadStreamingURL(loadCtx, l, repoURL, onModule); err != nil {
 						l.Warnf("Error loading %s: %v", repoURL, err)
 					}

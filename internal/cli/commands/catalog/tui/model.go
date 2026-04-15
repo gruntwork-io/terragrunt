@@ -81,6 +81,10 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 		items = append(items, mod)
 	}
 
+	sort.Slice(items, func(i, j int) bool {
+		return strings.ToLower(items[i].(*module.Module).Title()) < strings.ToLower(items[j].(*module.Module).Title())
+	})
+
 	return newModelWithItems(l, opts, svc, items, nil)
 }
 
