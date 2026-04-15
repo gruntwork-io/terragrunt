@@ -15,24 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func startBenchServer(b *testing.B) string {
-	b.Helper()
-
-	srv, err := git.NewServer()
-	require.NoError(b, err)
-
-	b.Cleanup(func() { _ = srv.Close() })
-
-	require.NoError(b, srv.CommitFile("README.md", []byte("# test repo"), "add readme"))
-	require.NoError(b, srv.CommitFile("main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
-	require.NoError(b, srv.CommitFile("test/integration_test.go", []byte("package test"), "add test file"))
-
-	url, err := srv.Start(b.Context())
-	require.NoError(b, err)
-
-	return url
-}
-
 func BenchmarkClone(b *testing.B) {
 	repoURL := startBenchServer(b)
 
@@ -206,4 +188,22 @@ func BenchmarkGitOperations(b *testing.B) {
 			require.NoError(b, err)
 		}
 	})
+}
+
+func startBenchServer(b *testing.B) string {
+	b.Helper()
+
+	srv, err := git.NewServer()
+	require.NoError(b, err)
+
+	b.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(b, srv.CommitFile("README.md", []byte("# test repo"), "add readme"))
+	require.NoError(b, srv.CommitFile("main.tf", []byte(`resource "null_resource" "test" {}`), "add main.tf"))
+	require.NoError(b, srv.CommitFile("test/integration_test.go", []byte("package test"), "add test file"))
+
+	url, err := srv.Start(b.Context())
+	require.NoError(b, err)
+
+	return url
 }

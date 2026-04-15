@@ -14,12 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Content manages git object storage and linking
-type Content struct {
-	store *Store
-	fs    vfs.FS
-}
-
 const (
 	// DefaultDirPerms represents standard directory permissions (rwxr-xr-x)
 	DefaultDirPerms = os.FileMode(0755)
@@ -30,6 +24,12 @@ const (
 	// WindowsOS is the name of the Windows operating system
 	WindowsOS = "windows"
 )
+
+// Content manages git object storage and linking
+type Content struct {
+	store *Store
+	fs    vfs.FS
+}
 
 // NewContent creates a new Content instance
 func NewContent(store *Store) *Content {
@@ -159,6 +159,77 @@ func (c *Content) EnsureWithWait(l log.Logger, hash string, data []byte) error {
 	return c.writeContentToFile(l, hash, data)
 }
 
+// EnsureCopy ensures that a content item exists in the store by copying from a file
+func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
+	path := c.getPath(hash)
+	if c.store.hasContent(path) {
+		return nil
+	}
+
+	lock, err := c.store.AcquireLock(hash)
+	if err != nil {
+		return wrapError("acquire_lock", hash, err)
+	}
+
+	defer func() {
+		err = errors.Join(lock.Unlock())
+	}()
+
+	// Ensure partition directory exists
+	partitionDir := c.getPartition(hash)
+	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	f, err := c.fs.Create(path)
+	if err != nil {
+		return wrapError("create_file", path, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
+
+	r, err := c.fs.Open(src)
+	if err != nil {
+		return wrapError("open_source", src, err)
+	}
+
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return wrapError("copy_file", src, err)
+	}
+
+	return nil
+}
+
+// GetTmpHandle returns a file handle to a temporary file where content will be stored.
+func (c *Content) GetTmpHandle(hash string) (vfs.File, error) {
+	partitionDir := c.getPartition(hash)
+	if err := c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
+		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
+	}
+
+	path := c.getPath(hash)
+	tempPath := path + ".tmp"
+
+	f, err := c.fs.Create(tempPath)
+	if err != nil {
+		return nil, wrapError("create_temp_file", tempPath, err)
+	}
+
+	return f, err
+}
+
+// Read retrieves content from the store by hash
+func (c *Content) Read(hash string) ([]byte, error) {
+	path := c.getPath(hash)
+	return vfs.ReadFile(c.fs, path)
+}
+
 // writeContentToFile writes data to a temporary file,
 // sets appropriate permissions, and performs an atomic rename.
 func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) error {
@@ -242,77 +313,6 @@ func (c *Content) writeContentToFile(l log.Logger, hash string, data []byte) err
 	}
 
 	return nil
-}
-
-// EnsureCopy ensures that a content item exists in the store by copying from a file
-func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
-	path := c.getPath(hash)
-	if c.store.hasContent(path) {
-		return nil
-	}
-
-	lock, err := c.store.AcquireLock(hash)
-	if err != nil {
-		return wrapError("acquire_lock", hash, err)
-	}
-
-	defer func() {
-		err = errors.Join(lock.Unlock())
-	}()
-
-	// Ensure partition directory exists
-	partitionDir := c.getPartition(hash)
-	if err = c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return wrapError("create_partition_dir", partitionDir, ErrCreateDir)
-	}
-
-	f, err := c.fs.Create(path)
-	if err != nil {
-		return wrapError("create_file", path, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, f.Close())
-	}()
-
-	r, err := c.fs.Open(src)
-	if err != nil {
-		return wrapError("open_source", src, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, f.Close())
-	}()
-
-	if _, err := io.Copy(f, r); err != nil {
-		return wrapError("copy_file", src, err)
-	}
-
-	return nil
-}
-
-// GetTmpHandle returns a file handle to a temporary file where content will be stored.
-func (c *Content) GetTmpHandle(hash string) (vfs.File, error) {
-	partitionDir := c.getPartition(hash)
-	if err := c.fs.MkdirAll(partitionDir, DefaultDirPerms); err != nil {
-		return nil, wrapError("create_partition_dir", partitionDir, ErrCreateDir)
-	}
-
-	path := c.getPath(hash)
-	tempPath := path + ".tmp"
-
-	f, err := c.fs.Create(tempPath)
-	if err != nil {
-		return nil, wrapError("create_temp_file", tempPath, err)
-	}
-
-	return f, err
-}
-
-// Read retrieves content from the store by hash
-func (c *Content) Read(hash string) ([]byte, error) {
-	path := c.getPath(hash)
-	return vfs.ReadFile(c.fs, path)
 }
 
 // getPartition returns the partition path for a given hash

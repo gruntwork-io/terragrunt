@@ -453,143 +453,6 @@ func TestUnzipWithSymlinks(t *testing.T) {
 	assert.Equal(t, []byte("target content"), linkData)
 }
 
-// createZipArchive creates a zip archive in memory with the given files.
-func createZipArchive(t *testing.T, files map[string][]byte) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	for name, content := range files {
-		f, err := w.Create(name)
-		require.NoError(t, err)
-
-		_, err = f.Write(content)
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
-// createZipArchiveWithDirs creates a zip archive that includes directory entries.
-func createZipArchiveWithDirs(t *testing.T, files map[string][]byte) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	for name, content := range files {
-		if content == nil {
-			_, err := w.Create(name)
-			require.NoError(t, err)
-
-			continue
-		}
-
-		f, err := w.Create(name)
-		require.NoError(t, err)
-
-		_, err = f.Write(content)
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
-// createZipArchiveUnsafe creates a zip archive with potentially malicious paths (for testing ZipSlip).
-func createZipArchiveUnsafe(t *testing.T, files map[string][]byte) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	for name, content := range files {
-		header := &zip.FileHeader{
-			Name:   name,
-			Method: zip.Deflate,
-		}
-
-		f, err := w.CreateHeader(header)
-		require.NoError(t, err)
-
-		_, err = f.Write(content)
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
-// createZipArchiveWithMode creates a zip archive with a single file with specific permissions.
-func createZipArchiveWithMode(t *testing.T, name string, content []byte, mode os.FileMode) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	header := &zip.FileHeader{
-		Name:   name,
-		Method: zip.Deflate,
-	}
-	header.SetMode(mode)
-
-	f, err := w.CreateHeader(header)
-	require.NoError(t, err)
-
-	_, err = f.Write(content)
-	require.NoError(t, err)
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
-// createZipArchiveWithSymlink creates a zip archive with a regular file and a symlink to it.
-func createZipArchiveWithSymlink(t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	targetHeader := &zip.FileHeader{
-		Name:   targetName,
-		Method: zip.Deflate,
-	}
-	targetHeader.SetMode(0644)
-
-	f, err := w.CreateHeader(targetHeader)
-	require.NoError(t, err)
-
-	_, err = f.Write(targetContent)
-	require.NoError(t, err)
-
-	linkHeader := &zip.FileHeader{
-		Name:   linkName,
-		Method: zip.Deflate,
-	}
-	linkHeader.SetMode(os.ModeSymlink | 0777)
-
-	linkFile, err := w.CreateHeader(linkHeader)
-	require.NoError(t, err)
-
-	_, err = linkFile.Write([]byte(linkTarget))
-	require.NoError(t, err)
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
 func TestContainsDotDot(t *testing.T) {
 	t.Parallel()
 
@@ -871,45 +734,6 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 	})
 }
 
-// createZipArchiveWithNestedSymlink creates a zip with a symlink in a subdirectory.
-func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
-	t.Helper()
-
-	var buf bytes.Buffer
-
-	w := zip.NewWriter(&buf)
-
-	// Create target file in subdir
-	targetHeader := &zip.FileHeader{
-		Name:   "subdir/target.txt",
-		Method: zip.Deflate,
-	}
-	targetHeader.SetMode(0644)
-
-	f, err := w.CreateHeader(targetHeader)
-	require.NoError(t, err)
-
-	_, err = f.Write([]byte("target content"))
-	require.NoError(t, err)
-
-	// Create symlink in same subdir pointing to target
-	linkHeader := &zip.FileHeader{
-		Name:   "subdir/link.txt",
-		Method: zip.Deflate,
-	}
-	linkHeader.SetMode(os.ModeSymlink | 0777)
-
-	linkFile, err := w.CreateHeader(linkHeader)
-	require.NoError(t, err)
-
-	_, err = linkFile.Write([]byte("target.txt"))
-	require.NoError(t, err)
-
-	require.NoError(t, w.Close())
-
-	return buf.Bytes()
-}
-
 func TestWalkDir(t *testing.T) {
 	t.Parallel()
 
@@ -1132,4 +956,180 @@ func TestLock(t *testing.T) {
 		_, _, err = vfs.TryLock(readOnlyFs, "test.lock")
 		require.ErrorIs(t, err, vfs.ErrNoLock)
 	})
+}
+
+// createZipArchive creates a zip archive in memory with the given files.
+func createZipArchive(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		f, err := w.Create(name)
+		require.NoError(t, err)
+
+		_, err = f.Write(content)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+// createZipArchiveWithDirs creates a zip archive that includes directory entries.
+func createZipArchiveWithDirs(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		if content == nil {
+			_, err := w.Create(name)
+			require.NoError(t, err)
+
+			continue
+		}
+
+		f, err := w.Create(name)
+		require.NoError(t, err)
+
+		_, err = f.Write(content)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+// createZipArchiveUnsafe creates a zip archive with potentially malicious paths (for testing ZipSlip).
+func createZipArchiveUnsafe(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		header := &zip.FileHeader{
+			Name:   name,
+			Method: zip.Deflate,
+		}
+
+		f, err := w.CreateHeader(header)
+		require.NoError(t, err)
+
+		_, err = f.Write(content)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+// createZipArchiveWithMode creates a zip archive with a single file with specific permissions.
+func createZipArchiveWithMode(t *testing.T, name string, content []byte, mode os.FileMode) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	header := &zip.FileHeader{
+		Name:   name,
+		Method: zip.Deflate,
+	}
+	header.SetMode(mode)
+
+	f, err := w.CreateHeader(header)
+	require.NoError(t, err)
+
+	_, err = f.Write(content)
+	require.NoError(t, err)
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+// createZipArchiveWithSymlink creates a zip archive with a regular file and a symlink to it.
+func createZipArchiveWithSymlink(t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	targetHeader := &zip.FileHeader{
+		Name:   targetName,
+		Method: zip.Deflate,
+	}
+	targetHeader.SetMode(0644)
+
+	f, err := w.CreateHeader(targetHeader)
+	require.NoError(t, err)
+
+	_, err = f.Write(targetContent)
+	require.NoError(t, err)
+
+	linkHeader := &zip.FileHeader{
+		Name:   linkName,
+		Method: zip.Deflate,
+	}
+	linkHeader.SetMode(os.ModeSymlink | 0777)
+
+	linkFile, err := w.CreateHeader(linkHeader)
+	require.NoError(t, err)
+
+	_, err = linkFile.Write([]byte(linkTarget))
+	require.NoError(t, err)
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
+}
+
+// createZipArchiveWithNestedSymlink creates a zip with a symlink in a subdirectory.
+func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+
+	w := zip.NewWriter(&buf)
+
+	// Create target file in subdir
+	targetHeader := &zip.FileHeader{
+		Name:   "subdir/target.txt",
+		Method: zip.Deflate,
+	}
+	targetHeader.SetMode(0644)
+
+	f, err := w.CreateHeader(targetHeader)
+	require.NoError(t, err)
+
+	_, err = f.Write([]byte("target content"))
+	require.NoError(t, err)
+
+	// Create symlink in same subdir pointing to target
+	linkHeader := &zip.FileHeader{
+		Name:   "subdir/link.txt",
+		Method: zip.Deflate,
+	}
+	linkHeader.SetMode(os.ModeSymlink | 0777)
+
+	linkFile, err := w.CreateHeader(linkHeader)
+	require.NoError(t, err)
+
+	_, err = linkFile.Write([]byte("target.txt"))
+	require.NoError(t, err)
+
+	require.NoError(t, w.Close())
+
+	return buf.Bytes()
 }

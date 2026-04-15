@@ -15,6 +15,11 @@ import (
 // Assert that CASGetter implements the Getter interface
 var _ getter.Getter = &CASGetter{}
 
+var (
+	ErrDirectoryNotFound = errors.New("directory not found")
+	ErrNotADirectory     = errors.New("not a directory")
+)
+
 // CASGetter is a go-getter Getter implementation.
 type CASGetter struct {
 	CAS       *CAS
@@ -139,8 +144,3 @@ func (g *CASGetter) getFS() vfs.FS {
 
 	return vfs.NewOSFS()
 }
-
-var (
-	ErrDirectoryNotFound = errors.New("directory not found")
-	ErrNotADirectory     = errors.New("not a directory")
-)

@@ -44,13 +44,6 @@ func (s *Store) NeedsWrite(hash string) bool {
 	return !s.hasContent(path)
 }
 
-// HasContent checks if a given hash exists in the store
-func (s *Store) hasContent(path string) bool {
-	_, err := s.fs.Stat(path)
-
-	return err == nil
-}
-
 // AcquireLock acquires a filesystem lock for the given hash
 // Returns the lock that should be unlocked when done
 func (s *Store) AcquireLock(hash string) (vfs.Unlocker, error) {
@@ -135,4 +128,10 @@ func (s *Store) EnsureWithWait(hash string) (needsWrite bool, lock vfs.Unlocker,
 
 	// Content still doesn't exist, caller should write it
 	return true, waitLock, nil
+}
+
+func (s *Store) hasContent(path string) bool {
+	_, err := s.fs.Stat(path)
+
+	return err == nil
 }
