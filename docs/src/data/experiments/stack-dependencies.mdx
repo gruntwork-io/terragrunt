@@ -106,11 +106,11 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 
 ### `stack-dependencies` - Implementation roadmap
 
-- [ ] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
-- [ ] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
-- [ ] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
-- [ ] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
-- [ ] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
 - [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
 - [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
 - [ ] Add integration tests and test fixtures for end-to-end validation
