@@ -2,9 +2,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=coverage.conf
-source "$SCRIPT_DIR/coverage.conf"
+COVERAGE_CHANGE_THRESHOLD="${COVERAGE_CHANGE_THRESHOLD:-3}"
 
 CURRENT="${1:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
 PREVIOUS="${2:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
