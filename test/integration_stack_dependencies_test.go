@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -19,6 +20,7 @@ const (
 	testFixtureStackDepsStackRef    = "fixtures/stacks/stack-dependencies-stack-ref"
 	testFixtureStackDepsBasic       = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain       = "fixtures/stacks/stack-deps-chain"
+	testFixtureStackDepsCrossStack  = "fixtures/stacks/stack-deps-cross-stack"
 )
 
 func TestStackDepsAutoIncludeGeneration(t *testing.T) {
@@ -424,4 +426,58 @@ func TestStackDepsE2EChain(t *testing.T) {
 	assert.Equal(t, "unit-b received: from-c", string(markerContentB))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+}
+
+// TestStackDepsE2ECrossStack tests stack generation with cross-stack dependencies:
+// a "network" stack (containing vpc + subnets units) and an "app" unit
+// that depends on the entire network stack via stack.network.path.
+//
+// Uses get_repo_root() in the nested stack for go-getter path resolution,
+// so git init is required.
+func TestStackDepsE2ECrossStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsCrossStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossStack)
+	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossStack)
+
+	// git init so get_repo_root() resolves in nested stack source paths
+	runner, err := git.NewGitRunner()
+	require.NoError(t, err)
+
+	err = runner.WithWorkDir(gitPath).Init(t.Context())
+	require.NoError(t, err)
+
+	rootPath := filepath.Join(gitPath, "live")
+	rootPath, err = filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	// Step 1: generate — should create autoinclude for app with stack dep
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	// Verify autoinclude was generated for app unit
+	autoIncludePath := filepath.Join(rootPath, ".terragrunt-stack", "app", "terragrunt.autoinclude.hcl")
+	require.FileExists(t, autoIncludePath)
+
+	autoIncludeContent, err := os.ReadFile(autoIncludePath)
+	require.NoError(t, err)
+
+	content := string(autoIncludeContent)
+	assert.Contains(t, content, `dependency "network"`)
+	assert.Contains(t, content, "../network")
+	assert.Contains(t, content, "dependency.network.outputs.vpc_id")
+
+	// Verify network stack units were generated (vpc and subnets)
+	networkStackDir := filepath.Join(rootPath, ".terragrunt-stack", "network", ".terragrunt-stack")
+	assert.DirExists(t, filepath.Join(networkStackDir, "vpc"))
+	assert.DirExists(t, filepath.Join(networkStackDir, "subnets"))
+
+	// Verify DAG sees the dependency from app to the network stack dir
+	appDir := filepath.Join(rootPath, ".terragrunt-stack", "app")
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+
+	expectedNetworkPath := filepath.Join(rootPath, ".terragrunt-stack", "network")
+	assert.Equal(t, expectedNetworkPath, depPaths[0])
 }
