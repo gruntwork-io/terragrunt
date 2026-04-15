@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -30,14 +30,14 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
 	// Verify units were parsed
 	require.Len(t, result.Units, 2)
 
 	// Verify autoinclude was resolved for app
-	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
@@ -45,11 +45,11 @@ func TestStackDependenciesAutoIncludeGeneration(t *testing.T) {
 	// Generate the autoinclude file
 	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
 
-	err = intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	// Verify generated file exists
-	autoIncludePath := filepath.Join(appDir, intHclparse.AutoIncludeFile)
+	autoIncludePath := filepath.Join(appDir, inthclparse.AutoIncludeFile)
 	assert.FileExists(t, autoIncludePath)
 
 	// Read and verify contents
@@ -99,26 +99,26 @@ func TestStackDependenciesDAGOrdering(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
-	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
 	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
 
-	err = intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	// Step 2: Verify the generated autoinclude file can be read by the
 	// discovery system for DAG construction.
-	autoIncludePath := filepath.Join(appDir, intHclparse.AutoIncludeFile)
+	autoIncludePath := filepath.Join(appDir, inthclparse.AutoIncludeFile)
 	require.FileExists(t, autoIncludePath)
 
 	// Step 3: Use ExtractAutoIncludeDependencyPaths to verify the DAG
 	// would see the dependency from unit-w-inputs → unit-w-outputs.
-	depPaths, depErr := intHclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
 	require.NoError(t, depErr)
 
 	require.Len(t, depPaths, 1, "unit-w-inputs should have exactly 1 dependency from autoinclude")
@@ -149,7 +149,7 @@ func TestStackDependenciesAutoInclude_Symlink(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse via symlinked directory — should work
-	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
 		Src:      srcBytes,
 		Filename: stackFile,
 		StackDir: symlinkDir,
@@ -158,7 +158,7 @@ func TestStackDependenciesAutoInclude_Symlink(t *testing.T) {
 	require.Len(t, result.Units, 2)
 
 	// Autoinclude should still resolve
-	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 }
@@ -177,24 +177,24 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	srcBytes, err := os.ReadFile(stackFile)
 	require.NoError(t, err)
 
-	result, err := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: srcBytes, Filename: stackFile, StackDir: liveDir})
 	require.NoError(t, err)
 
 	// Generate autoinclude only for app (vpc has no autoinclude)
-	resolved, ok := result.AutoIncludes[intHclparse.AutoIncludeKey("unit", "app")]
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok, "app should have autoinclude")
 	require.NotNil(t, resolved)
 
 	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
 
-	err = intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	// vpc unit has NO autoinclude → should return no deps
 	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
 
-	vpcDeps, vpcErr := intHclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), vpcDir)
+	vpcDeps, vpcErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), vpcDir)
 	require.NoError(t, vpcErr)
 	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
 }

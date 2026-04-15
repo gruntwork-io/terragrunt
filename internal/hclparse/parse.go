@@ -387,14 +387,3 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 
 	return refs
 }
-
-// ResolveSymlinks resolves symlinks in a path for consistent path handling.
-// Returns the original path if resolution fails (e.g. path does not exist).
-func ResolveSymlinks(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
-}
