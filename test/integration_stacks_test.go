@@ -1745,12 +1745,12 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 		content, readErr := os.ReadFile(valuesPath)
 		require.NoError(t, readErr)
 
-		idx := strings.Index(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
-		if idx == -1 {
+		before, _, ok := strings.Cut(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
+		if !ok {
 			continue
 		}
 
-		expected := valuesPath[:idx]
+		expected := before
 
 		isNoLocals := strings.Contains(valuesPath, "no-locals")
 		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
@@ -2165,4 +2165,113 @@ func TestStackOutputWithExclude(t *testing.T) {
 		assert.True(t, util.FileNotExists(tfDir),
 			"excluded unit %s should not have .terraform directory", excluded)
 	}
+}
+
+// TestCASInStacks verifies that CAS works when integrated with stacks.
+func TestCASInStacks(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	bazModule := ``
+	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`), "commit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	liveStackPath := filepath.Join(tmp, "live", "terragrunt.stack.hcl")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(liveStackPath, []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	// Generated tree lives next to the stack file: <tmp>/live/.terragrunt-stack/...
+	stackDir := filepath.Join(tmp, "live", ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+		"foo/.terragrunt-stack/bar/main.tf",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	unitDir := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar")
+	assert.DirExists(t, unitDir)
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(unitDir, "terragrunt.hcl")
+
+	require.FileExists(t, stackConfig)
+	require.FileExists(t, unitConfig)
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, remoteStack, string(stackConfigContent))
+
+	expectedUnitConfigContent := `terraform {
+  source = "."
+}
+`
+	assert.Equal(t, expectedUnitConfigContent, string(unitConfigContent))
+
+	mainTfPath := filepath.Join(unitDir, "main.tf")
+	require.FileExists(t, mainTfPath)
+
+	mainTfContent, err := os.ReadFile(mainTfPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, "# empty tf", string(mainTfContent))
 }
