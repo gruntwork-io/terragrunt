@@ -94,6 +94,15 @@ func TestExcludeConfig_ShouldPreventRun_Output(t *testing.T) {
 			action: "output",
 			want:   false,
 		},
+		{
+			name: "all actions with no_run nil uses legacy Contains",
+			exclude: config.ExcludeConfig{
+				If:      true,
+				Actions: []string{"all"},
+			},
+			action: "output",
+			want:   false,
+		},
 	}
 
 	for _, tt := range tests {

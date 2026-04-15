@@ -2156,4 +2156,9 @@ func TestStackOutputWithExclude(t *testing.T) {
 		assert.True(t, isMap)
 		assert.Empty(t, excludedMap)
 	}
+
+	// Verify no terraform init/output was attempted for the excluded unit
+	excludedTFDir := filepath.Join(rootPath, ".terragrunt-stack", "excluded-app", ".terraform")
+	assert.True(t, util.FileNotExists(excludedTFDir),
+		"excluded unit should not have .terraform directory from output command")
 }

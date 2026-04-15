@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -108,6 +109,7 @@ func StackOutput(
 		parsedStackFiles[path] = stackFile
 
 		targetDir := filepath.Join(dir, config.StackDir)
+		excludedPaths := discoverExcludedPaths(ctx, l, opts, targetDir)
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
@@ -117,7 +119,7 @@ func StackOutput(
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
 
-			if isUnitExcluded(ctx, l, opts, pctx, unitDir) {
+			if excludedPaths[unitDir] {
 				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
 
 				key := filepath.Join(targetDir, unit.Path)
@@ -272,38 +274,36 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
-// isUnitExcluded checks whether the unit's terragrunt config has an exclude block
-// that prevents the "output" action. Returns false if the config cannot be parsed
-// so that the caller falls through to the normal output path.
-func isUnitExcluded(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	pctx *config.ParsingContext,
-	unitDir string,
-) bool {
-	configFilename := config.DefaultTerragruntConfigPath
-	if opts.TerragruntConfigPath != "" && !util.IsDir(opts.TerragruntConfigPath) {
-		configFilename = filepath.Base(opts.TerragruntConfigPath)
+// discoverExcludedPaths uses the discovery system to find units that are excluded
+// from the current terraform command (typically "output"). Returns a set of
+// absolute unit directory paths that should be skipped.
+func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dir string) map[string]bool {
+	d := discovery.NewDiscovery(dir).
+		WithParseExclude().
+		WithSuppressParseErrors().
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: dir,
+		})
+
+	components, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		l.Debugf("Failed to discover units for exclude check: %v", err)
+
+		return make(map[string]bool)
 	}
 
-	unitConfigPath := filepath.Join(unitDir, configFilename)
-	if !util.FileExists(unitConfigPath) {
-		return false
+	excluded := make(map[string]bool)
+
+	for _, c := range components {
+		unit, ok := c.(*component.Unit)
+		if !ok || !unit.Excluded() {
+			continue
+		}
+
+		excluded[unit.Path()] = true
 	}
 
-	partialConfig, err := config.PartialParseConfigFile(
-		ctx,
-		pctx.WithDecodeList(config.ExcludeBlock, config.FeatureFlagsBlock),
-		l,
-		unitConfigPath,
-		nil,
-	)
-	if err != nil || partialConfig == nil || partialConfig.Exclude == nil {
-		return false
-	}
-
-	return partialConfig.Exclude.ShouldPreventRun("output")
+	return excluded
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.
