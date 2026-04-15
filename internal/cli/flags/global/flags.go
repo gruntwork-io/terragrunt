@@ -39,6 +39,7 @@ const (
 
 	ExperimentModeFlagName = "experiment-mode"
 	ExperimentFlagName     = "experiment"
+	NoCASFlagName          = "no-cas"
 
 	// Tips related flags.
 
@@ -202,6 +203,13 @@ func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix
 			},
 		},
 			flags.WithDeprecatedEnvVars(terragruntPrefix.EnvVars(DeprecatedExperimentFlagName), terragruntPrefixControl)),
+
+		flags.NewFlag(&clihelper.BoolFlag{
+			Name:        NoCASFlagName,
+			EnvVars:     tgPrefix.EnvVars(NoCASFlagName),
+			Destination: &opts.NoCAS,
+			Usage:       "Disable the CAS (Content Addressable Storage) feature even when the experiment is enabled.",
+		}),
 
 		// Tips Mode flags.
 

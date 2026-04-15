@@ -99,6 +99,7 @@ type ParsingContext struct {
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
+	NoCAS                            bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {

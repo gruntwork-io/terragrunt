@@ -66,6 +66,7 @@ func populateFromOpts(pctx *config.ParsingContext, opts *options.TerragruntOptio
 	pctx.CheckDependentUnits = opts.CheckDependentUnits
 	pctx.Telemetry = opts.Telemetry
 	pctx.NoStackValidate = opts.NoStackValidate
+	pctx.NoCAS = opts.NoCAS
 	pctx.ScaffoldRootFileName = opts.ScaffoldRootFileName
 	pctx.TerragruntStackConfigPath = opts.TerragruntStackConfigPath
 	pctx.ProviderCacheOptions = opts.ProviderCacheOptions

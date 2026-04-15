@@ -45,7 +45,7 @@ func NewCASGetter(l log.Logger, cas *CAS, opts *CloneOptions) *CASGetter {
 
 func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	if req.Copy {
-		// Handle local directory by persisting to CAS and linking
+		// Handle local directory by persisting to CAS and linking.
 		return g.CAS.StoreLocalDirectory(ctx, g.Logger, req.Src, req.Dst)
 	}
 

@@ -1,0 +1,336 @@
+package cas
+
+import (
+	"context"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/go-getter/v2"
+)
+
+// StackCASResult holds the results of CAS processing for a stack component.
+type StackCASResult struct {
+	// Cleanup removes the temporary directory when called.
+	Cleanup func()
+	// ContentDir is the path to the directory containing rewritten content to copy.
+	ContentDir string
+}
+
+// ProcessStackComponent clones a remote source via CAS, resolves update_source_with_cas
+// references, rewrites sources to CAS references, and creates synthetic CAS entries.
+//
+// The source should be a remote URL with an optional //subdir and ?ref= query.
+// The kind should be "unit" or "stack".
+func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, kind string) (*StackCASResult, error) {
+	repoURL, subdir := getter.SourceDirSubdir(source)
+
+	parsedURL, err := url.Parse(repoURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse source URL %q: %w", repoURL, err)
+	}
+
+	ref := parsedURL.Query().Get("ref")
+
+	// Remove ref from query so we can clone
+	q := parsedURL.Query()
+	q.Del("ref")
+	parsedURL.RawQuery = q.Encode()
+
+	cleanURL := strings.TrimPrefix(parsedURL.String(), "git::")
+
+	// Resolve ref to commit hash
+	refHash, err := c.resolveReference(ctx, cleanURL, ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve reference %q: %w", ref, err)
+	}
+
+	// Create temp dir for the clone
+	tempDir, err := os.MkdirTemp("", "terragrunt-cas-stack-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
+	}
+
+	cleanup := func() {
+		_ = os.RemoveAll(tempDir)
+	}
+
+	cloneDir := filepath.Join(tempDir, "repo")
+
+	// Clone the full repo via CAS
+	if err := c.Clone(ctx, l, &CloneOptions{
+		Dir:    cloneDir,
+		Branch: ref,
+	}, cleanURL); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to CAS clone %q: %w", cleanURL, err)
+	}
+
+	// Detect the repository's hash algorithm from the cloned content.
+	hashAlg, err := detectRepoHashAlgorithm(ctx, cloneDir)
+	if err != nil {
+		l.Debugf("Failed to detect object format, defaulting to SHA-1: %v", err)
+
+		hashAlg = HashSHA1
+	}
+
+	// Navigate to the subdir within the cloned repo
+	contentDir := cloneDir
+	if subdir != "" {
+		contentDir = filepath.Join(cloneDir, subdir)
+	}
+
+	if _, err := os.Stat(contentDir); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("subdir %q not found in cloned repo: %w", subdir, err)
+	}
+
+	// Process the directory: rewrite sources, create synthetic CAS entries
+	if err := c.processDirectory(ctx, l, cloneDir, contentDir, refHash, hashAlg); err != nil {
+		cleanup()
+
+		return nil, fmt.Errorf("failed to process directory for CAS: %w", err)
+	}
+
+	return &StackCASResult{
+		ContentDir: contentDir,
+		Cleanup:    cleanup,
+	}, nil
+}
+
+// detectRepoHashAlgorithm queries the git object format of a cloned repository.
+func detectRepoHashAlgorithm(ctx context.Context, repoDir string) (HashAlgorithm, error) {
+	g, err := git.NewGitRunner()
+	if err != nil {
+		return "", fmt.Errorf("failed to create git runner: %w", err)
+	}
+
+	g.WorkDir = repoDir
+
+	format, err := g.ObjectFormat(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return HashAlgorithm(format), nil
+}
+
+// processDirectory recursively processes a stack or unit directory,
+// rewriting sources and creating synthetic CAS entries.
+func (c *CAS) processDirectory(
+	ctx context.Context, l log.Logger,
+	repoRoot, dirPath, refHash string, hashAlg HashAlgorithm,
+) error {
+	stackFile := filepath.Join(dirPath, "terragrunt.stack.hcl")
+	unitFile := filepath.Join(dirPath, "terragrunt.hcl")
+
+	if _, err := os.Stat(stackFile); err == nil {
+		return c.processStackFile(ctx, l, repoRoot, dirPath, stackFile, refHash, hashAlg)
+	}
+
+	if _, err := os.Stat(unitFile); err == nil {
+		return c.processUnitFile(l, repoRoot, dirPath, unitFile, refHash)
+	}
+
+	return nil
+}
+
+// processStackFile processes a terragrunt.stack.hcl file, rewriting sources for blocks
+// that have update_source_with_cas = true.
+func (c *CAS) processStackFile(
+	ctx context.Context, l log.Logger,
+	repoRoot, dirPath, stackFile, refHash string, hashAlg HashAlgorithm,
+) error {
+	content, err := os.ReadFile(stackFile)
+	if err != nil {
+		return fmt.Errorf("failed to read stack file %s: %w", stackFile, err)
+	}
+
+	blocks, err := ReadStackBlocks(content)
+	if err != nil {
+		return fmt.Errorf("failed to parse stack file %s: %w", stackFile, err)
+	}
+
+	for _, block := range blocks {
+		if !block.UpdateSourceWithCAS {
+			continue
+		}
+
+		l.Debugf("Processing CAS source rewrite for %s %q with source %q", block.BlockType, block.Name, block.Source)
+
+		// Resolve the relative source path
+		sourcePath, sourceSubdir := SplitSourceDoubleSlash(block.Source)
+		resolvedPath := filepath.Clean(filepath.Join(dirPath, sourcePath))
+
+		// Recursively process the resolved directory
+		targetDir := resolvedPath
+		if sourceSubdir != "" {
+			targetDir = filepath.Join(resolvedPath, sourceSubdir)
+		}
+
+		if err := c.processDirectory(ctx, l, repoRoot, targetDir, refHash, hashAlg); err != nil {
+			return fmt.Errorf("failed to process %s %q source: %w", block.BlockType, block.Name, err)
+		}
+
+		// Build a synthetic tree for the target directory
+		synthHash, err := c.buildSyntheticTree(l, targetDir, refHash, repoRoot, hashAlg)
+		if err != nil {
+			return fmt.Errorf("failed to build synthetic tree for %s %q: %w", block.BlockType, block.Name, err)
+		}
+
+		// Rewrite the source in the stack file
+		newSource := FormatCASRef(synthHash)
+
+		content, err = RewriteStackBlockSource(content, block.BlockType, block.Name, newSource)
+		if err != nil {
+			return fmt.Errorf("failed to rewrite source for %s %q: %w", block.BlockType, block.Name, err)
+		}
+
+		l.Debugf("Rewrote %s %q source to %s", block.BlockType, block.Name, newSource)
+	}
+
+	// Write the rewritten stack file back
+	return os.WriteFile(stackFile, content, RegularFilePerms)
+}
+
+// processUnitFile processes a terragrunt.hcl file, rewriting the terraform.source
+// if update_source_with_cas is set.
+func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash string) error {
+	content, err := os.ReadFile(unitFile)
+	if err != nil {
+		return fmt.Errorf("failed to read unit file %s: %w", unitFile, err)
+	}
+
+	source, updateWithCAS, err := ReadTerraformSourceInfo(content)
+	if err != nil {
+		return fmt.Errorf("failed to parse unit file %s: %w", unitFile, err)
+	}
+
+	if !updateWithCAS || source == "" {
+		return nil
+	}
+
+	l.Debugf("Processing CAS source rewrite for terraform source %q in %s", source, unitFile)
+
+	// For unit files, the source is a relative path within the repo.
+	// The refHash points to the full repo tree.
+	// We rewrite to: cas::sha1:<refHash>//<subdir>
+	_, sourceSubdir := SplitSourceDoubleSlash(source)
+
+	var newSource string
+
+	if sourceSubdir != "" {
+		newSource = FormatCASRefWithSubdir(refHash, sourceSubdir)
+	} else {
+		// No // separator — the entire source path becomes the subdir
+		// relative to the repo root
+		relPath, err := filepath.Rel(repoRoot, filepath.Clean(filepath.Join(dirPath, source)))
+		if err != nil {
+			return fmt.Errorf("failed to compute relative path: %w", err)
+		}
+
+		newSource = FormatCASRefWithSubdir(refHash, relPath)
+	}
+
+	content, err = RewriteTerraformSource(content, newSource)
+	if err != nil {
+		return fmt.Errorf("failed to rewrite terraform source: %w", err)
+	}
+
+	l.Debugf("Rewrote terraform source to %s", newSource)
+
+	return os.WriteFile(unitFile, content, RegularFilePerms)
+}
+
+// buildSyntheticTree creates a synthetic CAS tree entry for a directory.
+// It hashes all files, stores blobs, and creates a tree entry in the synth store.
+// The tree hash is deterministic: SHA1(refHash + relPathInRepo).
+func (c *CAS) buildSyntheticTree(
+	l log.Logger, dirPath, refHash, repoRoot string, hashAlg HashAlgorithm,
+) (string, error) {
+	var treeData []byte
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return err
+		}
+
+		// Convert to forward slashes for consistency (git-style paths)
+		relPath = strings.ReplaceAll(relPath, string(filepath.Separator), "/")
+
+		fileHash, err := hashFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to hash file %s: %w", path, err)
+		}
+
+		// Store the blob
+		blobContent := NewContent(c.blobStore)
+		if err := blobContent.EnsureCopy(l, fileHash, path); err != nil {
+			return fmt.Errorf("failed to store blob %s: %w", path, err)
+		}
+
+		mode := fmt.Sprintf("%06o", info.Mode().Perm())
+		treeLine := fmt.Sprintf("%s blob %s\t%s\n", mode, fileHash, relPath)
+		treeData = append(treeData, []byte(treeLine)...)
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Compute deterministic hash: SHA1(refHash + relPathInRepo)
+	relPathInRepo, err := filepath.Rel(repoRoot, dirPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute relative path for deterministic hash: %w", err)
+	}
+
+	relPathInRepo = strings.ReplaceAll(relPathInRepo, string(filepath.Separator), "/")
+
+	treeHash := hashAlg.Sum([]byte(refHash + relPathInRepo))
+
+	// Store in synth tree store
+	synthContent := NewContent(c.synthStore)
+	if err := synthContent.Ensure(l, treeHash, treeData); err != nil {
+		return "", fmt.Errorf("failed to store synthetic tree: %w", err)
+	}
+
+	return treeHash, nil
+}
+
+// DeterministicTreeHash generates a deterministic hash for a synthetic tree entry
+// by combining the resolved git ref hash with the path within the repository.
+// The hash algorithm is detected from the refHash length to match the repository's object format.
+func DeterministicTreeHash(refHash, pathInRepo string) string {
+	alg := DetectHashAlgorithm(refHash)
+
+	return alg.Sum([]byte(refHash + pathInRepo))
+}
+
+// SplitSourceDoubleSlash splits a source string at the // separator.
+// Returns the base path and the subdirectory (if any).
+// Example: "../..//modules/ec2" -> ("../../", "modules/ec2")
+// Example: "../../modules/ec2"  -> ("../../modules/ec2", "")
+func SplitSourceDoubleSlash(source string) (basePath, subdir string) {
+	idx := strings.Index(source, "//")
+	if idx == -1 {
+		return source, ""
+	}
+
+	return source[:idx], source[idx+2:]
+}

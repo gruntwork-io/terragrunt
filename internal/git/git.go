@@ -696,6 +696,29 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 	return nil
 }
 
+// ObjectFormat returns the object format (hash algorithm) used by the repository in the
+// working directory. Returns "sha1" or "sha256". Requires a working directory with a
+// git repository (bare or non-bare).
+func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-object-format")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Older Git versions don't support --show-object-format; default to sha1.
+		return "sha1", nil //nolint:nilerr
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
 	cmd.Cancel = func() error {

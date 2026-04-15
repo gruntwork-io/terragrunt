@@ -240,6 +240,8 @@ type TerragruntOptions struct {
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
+	// NoCAS disables the CAS feature even when the experiment is enabled.
+	NoCAS bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.

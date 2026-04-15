@@ -390,10 +390,13 @@ func downloadSource(
 			}
 
 			casGetter := cas.NewCASGetter(l, c, &cloneOpts)
+			casProtocol := cas.NewCASProtocolGetter(l, c)
 
-			// Use go-getter v2 Client to properly process the Request
+			// Use go-getter v2 Client to properly process the Request.
+			// CASProtocolGetter handles cas::sha1:<hash> sources (from CAS-rewritten stacks).
+			// CASGetter handles git:: and other remote sources via CAS.
 			client := getterv2.Client{
-				Getters: []getterv2.Getter{casGetter},
+				Getters: []getterv2.Getter{casProtocol, casGetter},
 			}
 
 			// Set Pwd to the working directory so go-getter v2 can resolve relative paths

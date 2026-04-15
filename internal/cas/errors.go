@@ -22,6 +22,18 @@ const (
 	ErrReadFile Error = "failed to read file"
 	// ErrGitClone is returned when the git clone operation fails
 	ErrGitClone Error = "failed to complete git clone"
+	// ErrNoTerraformBlock is returned when a terragrunt.hcl file has no terraform block
+	ErrNoTerraformBlock Error = "no terraform block found"
+	// ErrBlockNotFound is returned when a named block is not found in a stack file
+	ErrBlockNotFound Error = "block not found"
+	// ErrGetFileNotSupported is returned when GetFile is called on the CAS protocol getter
+	ErrGetFileNotSupported Error = "CAS protocol does not support single file downloads"
+	// ErrCASRefMissingPrefix is returned when a CAS reference is missing the expected hash algorithm prefix
+	ErrCASRefMissingPrefix Error = "CAS reference missing expected hash algorithm prefix"
+	// ErrCASRefEmptyHash is returned when a CAS reference has an empty hash
+	ErrCASRefEmptyHash Error = "CAS reference has empty hash"
+	// ErrTreeNotFound is returned when a tree hash is not found in any CAS store
+	ErrTreeNotFound Error = "tree not found in CAS store"
 )
 
 // WrappedError provides additional context for errors

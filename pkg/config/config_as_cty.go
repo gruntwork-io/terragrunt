@@ -492,6 +492,7 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 type CtyTerraformConfig struct {
 	ExtraArgs             map[string]TerraformExtraArguments `cty:"extra_arguments"`
 	Source                *string                            `cty:"source"`
+	UpdateSourceWithCAS   *bool                              `cty:"update_source_with_cas"`
 	IncludeInCopy         *[]string                          `cty:"include_in_copy"`
 	ExcludeFromCopy       *[]string                          `cty:"exclude_from_copy"`
 	CopyTerraformLockFile *bool                              `cty:"copy_terraform_lock_file"`
@@ -508,6 +509,7 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 
 	configCty := CtyTerraformConfig{
 		Source:                config.Source,
+		UpdateSourceWithCAS:   config.UpdateSourceWithCAS,
 		IncludeInCopy:         config.IncludeInCopy,
 		ExcludeFromCopy:       config.ExcludeFromCopy,
 		CopyTerraformLockFile: config.CopyTerraformLockFile,
