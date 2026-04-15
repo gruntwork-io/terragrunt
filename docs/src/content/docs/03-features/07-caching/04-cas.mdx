@@ -7,12 +7,20 @@ sidebar:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt supports a Content Addressable Store (CAS) to deduplicate content across multiple Terragrunt configurations. This feature is still experimental and not recommended for general production usage.
 
-The CAS is used to speed up both catalog cloning and OpenTofu/Terraform source cloning by avoiding redundant downloads of Git repositories.
+The CAS is used to speed up catalog cloning, OpenTofu/Terraform source cloning, and stack generation by avoiding redundant downloads of Git repositories.
 
 To use the CAS, you will need to enable the [cas](/reference/experiments/active#cas) experiment.
+
+
+<Since version="1.0.2">
+You can disable the CAS at any time using the `--no-cas` flag, even when the experiment is enabled. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), and [`stack run`](/reference/cli/commands/stack/run) commands.
+</Since>
 
 ## Usage
 
@@ -40,6 +48,58 @@ terraform {
 }
 ```
 
+### Stack Usage
+
+<Before version="1.0.2">
+
+<Aside type="tip">
+Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
+</Aside>
+
+</Before>
+
+<Since version="1.0.2">
+
+<Aside type="tip">
+This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
+</Aside>
+
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to allow relative paths in `source` attributes. This removes the need to plumb remote Git URLs through `values` expressions.
+
+```hcl
+# stacks/my-stack/terragrunt.stack.hcl (in your catalog repository)
+
+unit "service" {
+  source = "../..//units/my-service"
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+```
+
+The referenced unit can also use relative paths:
+
+```hcl
+# units/my-service/terragrunt.hcl (in your catalog repository)
+
+terraform {
+  source = "../..//modules/my-module"
+
+  update_source_with_cas = true
+}
+```
+
+During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
+
+For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
+
+<Aside type="caution">
+Using `update_source_with_cas` requires the `cas` experiment to be enabled. If the experiment is not enabled or `--no-cas` is set, Terragrunt will return an error.
+</Aside>
+
+</Since>
+
 When Terragrunt clones a repository while using the CAS, if the repository is not found in the CAS, Terragrunt will clone the repository from the original URL and store it in the CAS for future use.
 
 When generating a repository from the CAS, Terragrunt will hard link entries from the CAS to the new repository. This allows Terragrunt to deduplicate content across multiple repositories.
@@ -54,18 +114,31 @@ Avoid partial deletions of the CAS directory without care, as that might result 
 
 ## How it works
 
-Terragrunt's CAS uses a content-addressable storage model to deduplicate repository content from Git clones to save disk space and improve performance. Each Git object is identified by its SHA1 hash, allowing identical content to be shared across multiple cloned repositories and repeated clones.
+Terragrunt's CAS uses a content-addressable storage model to deduplicate repository content from Git clones to save disk space and improve performance. Each Git object is identified by its hash, allowing identical content to be shared across multiple cloned repositories and repeated clones.
 
 ### Content Addressing
 
+
+<Before version="1.0.2">
 CAS uses Git's native content addressing scheme where each object is uniquely identified by its SHA1 hash. This means:
 
 - **Identical content** across different repositories shares the same hash
 - **Same commit hash** always represents the same content
 - **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
+</Before>
+
+<Since version="1.0.2">
+CAS uses Git's native content addressing scheme where each object is uniquely identified by its hash. Terragrunt detects the hash algorithm used by the repository (`sha1` or `sha256`) via `git rev-parse --show-object-format`. This means:
+
+- **Identical content** across different repositories shares the same hash
+- **Same commit hash** always represents the same content
+- **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
+- **Both SHA-1 and SHA-256** repositories are supported
+</Since>
 
 ### Storage Structure
 
+<Before version="1.0.2">
 The CAS store is organized in a partitioned structure to optimize file system performance:
 
 <FileTree>
@@ -83,6 +156,34 @@ The CAS store is organized in a partitioned structure to optimize file system pe
 </FileTree>
 
 Each content object is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory. This prevents having thousands of files in a single directory, which can degrade file system performance.
+</Before>
+
+<Since version="1.0.2">
+The CAS store is organized into namespaced directories:
+
+<FileTree>
+
+- ~/.cache/terragrunt/cas/store/
+  - blobs/ (file content from Git repositories and synthetic sources)
+    - ab/
+      - abc123...xyz
+      - abc123...xyz.lock
+    - cd/
+      - cd7890...xyz
+  - trees/ (Git-derived tree structures)
+    - f3/
+      - f39ea0...xyz
+  - synth/
+    - trees/ (synthetic trees created during CAS-backed stack generation)
+      - de/
+        - def456...xyz
+
+</FileTree>
+
+The `blobs/` directory stores all file content, identified by hash. Blobs are purely content-addressed, so the same file content always maps to the same hash regardless of origin. The `trees/` directory stores Git-derived tree structures that describe the layout of files in a repository. The `synth/trees/` directory stores synthetic tree structures created during CAS-backed stack generation when `update_source_with_cas` is used. These synthetic trees use a deterministic hash based on the Git reference and path within the repository.
+
+Each content object within a namespace is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory to avoid degraded file system performance from large flat directories.
+</Since>
 
 ### Clone Flow
 

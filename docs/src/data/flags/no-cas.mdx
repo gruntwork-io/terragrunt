@@ -1,0 +1,12 @@
+---
+name: no-cas
+description: Disable the CAS (Content Addressable Storage) feature even when the experiment is enabled.
+type: bool
+env:
+  - TG_NO_CAS
+---
+
+When enabled, Terragrunt will skip all CAS operations even if the `cas` experiment is active.
+This is useful for troubleshooting or when you want to temporarily bypass CAS without removing the experiment flag.
+
+Using `update_source_with_cas` in a `terragrunt.stack.hcl` or `terragrunt.hcl` file while this flag is set will result in an error.
