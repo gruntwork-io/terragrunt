@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -58,7 +59,11 @@ func TestWelcomeLoadingScreen_TransitionsToModuleList(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ tui.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+		for _, mod := range svc.Modules() {
+			moduleCh <- mod
+		}
+
 		return svc, nil
 	}
 
@@ -75,6 +80,8 @@ func TestWelcomeLoadingScreen_TransitionsToModuleList(t *testing.T) {
 	listModel, isList := finalModel.(tui.Model)
 	require.True(t, isList, "should transition to module list when modules found")
 	assert.Equal(t, tui.ListState, listModel.State)
+	assert.Len(t, listModel.List.Items(), 2, "should have 2 modules in the list")
+	require.NotNil(t, listModel.SVC, "SVC should be set after discovery completes")
 	assert.Len(t, listModel.SVC.Modules(), 2, "should have 2 test modules")
 }
 
@@ -89,7 +96,11 @@ func TestWelcomeLoadingScreen_ModuleListNavigation(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ tui.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+		for _, mod := range svc.Modules() {
+			moduleCh <- mod
+		}
+
 		return svc, nil
 	}
 
@@ -126,7 +137,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	slowLoad := func(ctx context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	slowLoad := func(ctx context.Context, _ tui.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
 		// Simulate slow discovery
 		select {
 		case <-time.After(5 * time.Second):
@@ -158,7 +169,7 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -197,7 +208,7 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ tui.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -217,6 +228,55 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 
 	_, isWelcome := finalModel.(tui.WelcomeModel)
 	assert.True(t, isWelcome, "should remain on welcome screen after pressing unhandled key")
+}
+
+// TestWelcomeStreamingModules verifies that modules stream into the list
+// one at a time, ending up in sorted order.
+func TestWelcomeStreamingModules(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	svc := createMockCatalogService(t, opts)
+
+	modules := svc.Modules()
+	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules for streaming test")
+
+	streamingLoad := func(_ context.Context, _ tui.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+		// Stream modules one at a time with a small delay to simulate real discovery
+		for _, mod := range modules {
+			moduleCh <- mod
+
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		return svc, nil
+	}
+
+	m := tui.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+
+	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
+		// Wait for all modules to stream in
+		time.Sleep(500 * time.Millisecond)
+
+		// Quit
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	listModel, isList := finalModel.(tui.Model)
+	require.True(t, isList, "should transition to module list")
+	assert.Equal(t, tui.ListState, listModel.State)
+	assert.Len(t, listModel.List.Items(), len(modules), "all streamed modules should appear in list")
+
+	// Verify alphabetical order
+	items := listModel.List.Items()
+	for i := 1; i < len(items); i++ {
+		prev := items[i-1].(*module.Module).Title()
+		curr := items[i].(*module.Module).Title()
+		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order")
+	}
 }
 
 // runTeaModel starts a tea.Program with any tea.Model, sends messages via

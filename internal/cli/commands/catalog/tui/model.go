@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"sort"
+	"strings"
+
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -51,51 +54,64 @@ func (b button) String() string {
 type Model struct {
 	List                list.Model
 	logger              log.Logger
-	terragruntOptions   *options.TerragruntOptions
 	SVC                 catalog.CatalogService
+	terragruntOptions   *options.TerragruntOptions
 	selectedModule      *module.Module
 	delegateKeys        *delegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
-	currentPagerButtons []button
+	moduleCh            chan *module.Module
 	pagerKeys           pagerKeyMap
 	listKeys            list.KeyMap
+	currentPagerButtons []button
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
 	height              int
 	width               int
 	ready               bool
+	loading             bool
+	userNavigated       bool
 }
 
 func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
-	var (
-		modules      = svc.Modules()
-		items        = make([]list.Item, 0, len(modules))
-		listKeys     = newListKeyMap()
-		delegateKeys = newDelegateKeyMap()
-		pagerKeys    = newPagerKeyMap()
-	)
+	modules := svc.Modules()
+	items := make([]list.Item, 0, len(modules))
 
-	// Make the initial list of items
-	for _, module := range modules {
-		items = append(items, module)
+	for _, mod := range modules {
+		items = append(items, mod)
 	}
 
-	// Setup the list
+	return newModelWithItems(l, opts, svc, items, nil)
+}
+
+// NewModelStreaming creates a Model with a single initial module and a channel
+// for receiving additional modules as they are discovered.
+func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *module.Module, moduleCh chan *module.Module) Model {
+	items := []list.Item{initial}
+
+	m := newModelWithItems(l, opts, nil, items, moduleCh)
+	m.loading = true
+
+	return m
+}
+
+func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, items []list.Item, moduleCh chan *module.Module) Model {
+	listKeys := newListKeyMap()
+	delegateKeys := newDelegateKeyMap()
+	pagerKeys := newPagerKeyMap()
+
 	delegate := newItemDelegate(delegateKeys)
-	list := list.New(items, delegate, 0, 0)
-	list.KeyMap = listKeys
-	list.SetFilteringEnabled(true)
-	list.Title = title
-	list.Styles.Title = lipgloss.NewStyle().
+	lst := list.New(items, delegate, 0, 0)
+	lst.KeyMap = listKeys
+	lst.SetFilteringEnabled(true)
+	lst.Title = title
+	lst.Styles.Title = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(titleForegroundColor)).
 		Background(lipgloss.Color(titleBackgroundColor)).
 		Padding(0, 1)
 
-	// Setup the markdown viewer
 	vp := viewport.New(viewport.WithWidth(0), viewport.WithHeight(0))
 
-	// Setup the button bar
 	bs := make([]string, len(availableButtons))
 	for i, b := range availableButtons {
 		bs[i] = b.String()
@@ -104,7 +120,7 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 	bb := buttonbar.New(bs)
 
 	return Model{
-		List:              list,
+		List:              lst,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
@@ -113,12 +129,87 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 		terragruntOptions: opts,
 		SVC:               svc,
 		logger:            l,
+		moduleCh:          moduleCh,
+	}
+}
+
+// insertModuleSorted inserts a module into the list in alphabetical order,
+// skipping duplicates. If the user has started navigating, the cursor stays
+// on the currently selected item. Otherwise it stays at the top of the list.
+func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
+	items := m.List.Items()
+	modTitle := mod.Title()
+
+	// Binary search finds the insertion point and doubles as a duplicate check:
+	// if the item at insertIdx matches, the module is already in the list.
+	insertIdx := sort.Search(len(items), func(i int) bool {
+		if existing, ok := items[i].(*module.Module); ok {
+			return strings.ToLower(existing.Title()) >= strings.ToLower(modTitle)
+		}
+
+		return false
+	})
+
+	if isDuplicate(items, insertIdx, modTitle) {
+		return nil
+	}
+
+	currentIdx := m.List.Index()
+
+	cmd := m.List.InsertItem(insertIdx, mod)
+
+	if m.userNavigated {
+		// Preserve cursor: if we inserted before or at the current
+		// selection, shift the cursor forward so it stays on the same item.
+		if insertIdx <= currentIdx {
+			m.List.Select(currentIdx + 1)
+		}
+	} else {
+		// User hasn't navigated yet — keep cursor at the top.
+		m.List.Select(0)
+	}
+
+	return cmd
+}
+
+// isDuplicate reports whether the item at idx in the sorted list has the
+// same title (case-insensitive) as modTitle.
+func isDuplicate(items []list.Item, idx int, modTitle string) bool {
+	if idx >= len(items) {
+		return false
+	}
+
+	existing, ok := items[idx].(*module.Module)
+	if !ok {
+		return false
+	}
+
+	return strings.EqualFold(existing.Title(), modTitle)
+}
+
+func (m Model) listenForModule() tea.Cmd { //nolint:gocritic
+	ch := m.moduleCh
+	if ch == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		mod, ok := <-ch
+		if !ok {
+			return nil
+		}
+
+		return moduleMsg{module: mod}
 	}
 }
 
 // Init implements bubbletea.Model.Init
 func (m Model) Init() tea.Cmd { //nolint:gocritic
-	return tea.Batch(
-		m.buttonBar.Init(),
-	)
+	cmds := []tea.Cmd{m.buttonBar.Init()}
+
+	if m.moduleCh != nil {
+		cmds = append(cmds, m.listenForModule())
+	}
+
+	return tea.Batch(cmds...)
 }

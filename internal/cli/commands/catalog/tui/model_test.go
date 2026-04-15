@@ -267,6 +267,75 @@ func TestTUIWindowResize(t *testing.T) {
 	assert.Equal(t, tui.ListState, finalModel.State)
 }
 
+// TestModelStreamingInsertsSorted verifies that modules sent via moduleMsg
+// are inserted in alphabetical order in the list.
+func TestModelStreamingInsertsSorted(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	svc := createMockCatalogService(t, opts)
+	modules := svc.Modules()
+	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules")
+
+	// Start with the last module alphabetically
+	moduleCh := make(chan *module.Module, len(modules))
+	m := tui.NewModelStreaming(l, opts, modules[len(modules)-1], moduleCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		// Send the remaining modules in reverse order
+		for i := len(modules) - 2; i >= 0; i-- {
+			p.Send(tui.ModuleMsg(modules[i]))
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, tui.ListState, finalModel.State)
+	items := finalModel.List.Items()
+	assert.Len(t, items, len(modules), "all modules should be in the list")
+
+	// Verify sorted order
+	for i := 1; i < len(items); i++ {
+		prev := items[i-1].(*module.Module).Title()
+		curr := items[i].(*module.Module).Title()
+		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order: %q should come before %q", prev, curr)
+	}
+}
+
+// TestModelStreamingDeduplicates verifies that sending the same module
+// twice does not result in a duplicate entry in the list.
+func TestModelStreamingDeduplicates(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	svc := createMockCatalogService(t, opts)
+	modules := svc.Modules()
+	require.NotEmpty(t, modules)
+
+	moduleCh := make(chan *module.Module, len(modules))
+	m := tui.NewModelStreaming(l, opts, modules[0], moduleCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		// Send the same module again — should be deduplicated
+		p.Send(tui.ModuleMsg(modules[0]))
+		time.Sleep(100 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, tui.ListState, finalModel.State)
+	assert.Len(t, finalModel.List.Items(), 1, "duplicate module should not appear twice")
+}
+
 // TestTUIScaffoldWithRealRepository tests scaffold functionality using a real git repository
 // This test requires network access and may be slower, but provides more realistic testing
 func TestTUIScaffoldWithRealRepository(t *testing.T) {

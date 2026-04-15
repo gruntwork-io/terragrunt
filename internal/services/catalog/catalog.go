@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -27,6 +28,9 @@ import (
 // NewRepoFunc defines the signature for a function that creates a new repository.
 // This allows for mocking in tests.
 type NewRepoFunc func(ctx context.Context, l log.Logger, opts module.RepoOpts) (*module.Repo, error)
+
+// ModuleFunc is called for each module discovered during streaming load.
+type ModuleFunc func(mod *module.Module)
 
 const (
 	// tempDirFormat is used to create unique temporary directory names for catalog repositories.
@@ -58,6 +62,11 @@ type CatalogService interface {
 	// WithRepoURLs allows setting multiple repository URLs directly.
 	// When set, these URLs take precedence over both WithRepoURL and catalog config.
 	WithRepoURLs(urls []string) CatalogService
+
+	// LoadStreamingURL clones a single repository and streams its modules
+	// via onModule. Modules are accumulated internally so Modules()
+	// returns the complete set across all LoadStreamingURL calls.
+	LoadStreamingURL(ctx context.Context, l log.Logger, repoURL string, onModule ModuleFunc) error
 }
 
 // catalogServiceImpl is the concrete implementation of CatalogService.
@@ -68,6 +77,7 @@ type catalogServiceImpl struct {
 	repoURL  string
 	repoURLs []string
 	modules  module.Modules
+	mu       sync.Mutex
 }
 
 // NewCatalogService creates a new instance of catalogServiceImpl with default settings.
@@ -202,7 +212,58 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 	return nil
 }
 
+// LoadStreamingURL clones a single repository and streams its modules
+// via onModule. Modules are accumulated internally so Modules()
+// returns the complete set across all LoadStreamingURL calls.
+func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger, repoURL string, onModule ModuleFunc) error {
+	if repoURL == "" {
+		l.Warnf("Empty repository URL encountered, skipping.")
+		return nil
+	}
+
+	walkWithSymlinks := s.opts.Experiments.Evaluate(experiment.Symlinks)
+	allowCAS := s.opts.Experiments.Evaluate(experiment.CAS)
+	slowReporting := s.opts.Experiments.Evaluate(experiment.SlowTaskReporting)
+
+	encodedRepoURL := util.EncodeBase64Sha1(repoURL)
+	tempPath := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, encodedRepoURL))
+
+	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
+
+	repo, err := s.newRepo(ctx, l, module.RepoOpts{
+		CloneURL:         repoURL,
+		Path:             tempPath,
+		WalkWithSymlinks: walkWithSymlinks,
+		AllowCAS:         allowCAS,
+		SlowReporting:    slowReporting,
+		RootWorkingDir:   s.opts.RootWorkingDir,
+	})
+	if err != nil {
+		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
+	}
+
+	repoModules, err := repo.FindModules(ctx)
+	if err != nil {
+		return errors.Errorf("failed to find modules in repository %s: %w", repoURL, err)
+	}
+
+	l.Debugf("Found %d module(s) in repository %q", len(repoModules), repoURL)
+
+	s.mu.Lock()
+	s.modules = append(s.modules, repoModules...)
+	s.mu.Unlock()
+
+	for _, mod := range repoModules {
+		onModule(mod)
+	}
+
+	return nil
+}
+
 func (s *catalogServiceImpl) Modules() module.Modules {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	return s.modules
 }
 

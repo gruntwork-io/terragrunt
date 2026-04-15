@@ -37,6 +37,12 @@ func (m Model) View() tea.View { //nolint:gocritic
 }
 
 func (m Model) listView() string { //nolint:gocritic
+	if m.loading {
+		m.List.Title = title + " (loading...)"
+	} else {
+		m.List.Title = title
+	}
+
 	return m.List.View()
 }
 
