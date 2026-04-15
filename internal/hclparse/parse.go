@@ -283,7 +283,11 @@ func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) e
 		}
 	}
 
-	return validateNoDuplicateUnits(stackFile.Units)
+	if err := validateNoDuplicateUnits(stackFile.Units); err != nil {
+		return err
+	}
+
+	return validateNoDuplicateStacks(stackFile.Stacks)
 }
 
 // mergeOneInclude reads and merges a single included stack file.
@@ -332,6 +336,21 @@ func validateNoDuplicateUnits(units []*UnitBlockHCL) error {
 		}
 
 		seen[u.Name] = true
+	}
+
+	return nil
+}
+
+// validateNoDuplicateStacks checks for duplicate stack names after include merge.
+func validateNoDuplicateStacks(stacks []*StackBlockHCL) error {
+	seen := make(map[string]bool, len(stacks))
+
+	for _, s := range stacks {
+		if seen[s.Name] {
+			return DuplicateStackNameError{Name: s.Name}
+		}
+
+		seen[s.Name] = true
 	}
 
 	return nil

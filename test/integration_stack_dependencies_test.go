@@ -302,24 +302,14 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 
 	stackDir := depPaths[0]
 
+	// Copy the nested stack fixture to the expected location
+	nestedStackSrc := filepath.Join(tmpEnvPath, testFixtureStackDepsStackRef, "catalog", "stacks", "networking", "terragrunt.stack.hcl")
+
 	require.NoError(t, os.MkdirAll(stackDir, 0755))
 
-	nestedStackContent := `
-unit "vpc" {
-  source = "../../units/vpc"
-  path   = "vpc"
-}
-
-unit "subnets" {
-  source = "../../units/subnets"
-  path   = "subnets"
-}
-`
-	require.NoError(t, os.WriteFile(
-		filepath.Join(stackDir, "terragrunt.stack.hcl"),
-		[]byte(nestedStackContent),
-		0644,
-	))
+	nestedContent, err := os.ReadFile(nestedStackSrc)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), nestedContent, 0644))
 
 	unitPaths := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
@@ -360,7 +350,7 @@ func TestStackDepsE2EBasic(t *testing.T) {
 
 	inputFiles, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs", ".terragrunt-cache", "*", "*", "input.txt"))
 	require.NoError(t, err)
-	require.NotEmpty(t, inputFiles, "input.txt should exist after apply")
+	require.Len(t, inputFiles, 1, "input.txt should exist after apply")
 
 	inputContent, err := os.ReadFile(inputFiles[0])
 	require.NoError(t, err)
@@ -411,7 +401,7 @@ func TestStackDepsE2EChain(t *testing.T) {
 
 	markerA, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-a", ".terragrunt-cache", "*", "*", "marker.txt"))
 	require.NoError(t, err)
-	require.NotEmpty(t, markerA, "unit-a marker.txt should exist after apply")
+	require.Len(t, markerA, 1, "unit-a marker.txt should exist after apply")
 
 	markerContentA, err := os.ReadFile(markerA[0])
 	require.NoError(t, err)
@@ -419,7 +409,7 @@ func TestStackDepsE2EChain(t *testing.T) {
 
 	markerB, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-b", ".terragrunt-cache", "*", "*", "marker.txt"))
 	require.NoError(t, err)
-	require.NotEmpty(t, markerB, "unit-b marker.txt should exist after apply")
+	require.Len(t, markerB, 1, "unit-b marker.txt should exist after apply")
 
 	markerContentB, err := os.ReadFile(markerB[0])
 	require.NoError(t, err)
