@@ -198,3 +198,196 @@ func TestStackDependenciesAutoIncludeDAGWithoutAutoInclude(t *testing.T) {
 	require.NoError(t, vpcErr)
 	assert.Empty(t, vpcDeps, "vpc unit should have no autoinclude dependencies")
 }
+
+// TestStackDependencies_UnitDependsOnStack verifies OSS-3101:
+// a unit can declare a dependency on an entire stack via stack.networking.path.
+// The autoinclude resolves config_path to the stack's generated directory,
+// and the DAG sees the stack directory as a dependency target.
+func TestStackDependencies_UnitDependsOnStack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-stack-ref", tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+
+	// Verify the stack block was parsed
+	require.Len(t, result.Stacks, 1)
+	assert.Equal(t, "networking", result.Stacks[0].Name)
+
+	// Verify app_stack_dep has autoinclude with stack.networking.path resolved
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_stack_dep")]
+	require.True(t, ok, "app_stack_dep should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "networking", resolved.Dependencies[0].Name)
+
+	// config_path should point to the networking stack's generated directory
+	expectedStackPath := filepath.Join(liveDir, ".terragrunt-stack", "networking")
+	assert.Equal(t, expectedStackPath, resolved.Dependencies[0].ConfigPath)
+
+	// Generate autoinclude file and verify DAG reads it
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app-stack-dep")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(appDir, inthclparse.AutoIncludeFile))
+
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+	assert.Equal(t, expectedStackPath, depPaths[0])
+
+	// Verify generated file content
+	generated, err := os.ReadFile(filepath.Join(appDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "networking"`)
+	assert.Contains(t, content, "dependency.networking.outputs.vpc.vpc_id")
+	assert.Contains(t, content, `"test"`)
+	assert.NotContains(t, content, "local.env")
+}
+
+// TestStackDependencies_UnitDependsOnUnitWithinStack verifies OSS-3102:
+// a unit can declare a dependency on a specific unit within a stack via
+// stack.networking.vpc.path. The autoinclude resolves config_path to the
+// nested unit's generated directory (.terragrunt-stack/networking/.terragrunt-stack/vpc).
+func TestStackDependencies_UnitDependsOnUnitWithinStack(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-stack-ref", tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+
+	// Verify app_unit_in_stack has autoinclude with stack.networking.vpc.path resolved
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_unit_in_stack")]
+	require.True(t, ok, "app_unit_in_stack should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
+
+	// config_path should point to the vpc unit nested inside the networking stack:
+	// .terragrunt-stack/networking/.terragrunt-stack/vpc
+	expectedUnitPath := filepath.Join(liveDir, ".terragrunt-stack", "networking", ".terragrunt-stack", "vpc")
+	assert.Equal(t, expectedUnitPath, resolved.Dependencies[0].ConfigPath)
+
+	// Generate autoinclude file and verify DAG reads it
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app-unit-in-stack")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(appDir, inthclparse.AutoIncludeFile))
+
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+	assert.Equal(t, expectedUnitPath, depPaths[0])
+
+	// Verify generated file content
+	generated, err := os.ReadFile(filepath.Join(appDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "vpc"`)
+	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
+	assert.Contains(t, content, `"test"`)
+}
+
+// TestStackDependencies_DAGExpandsStackToUnits verifies that when a dependency
+// points to a stack directory, stackDependencyPaths expands it to the
+// constituent unit paths for DAG ordering. This ensures all units within
+// a stack complete before the dependent unit runs.
+func TestStackDependencies_DAGExpandsStackToUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	helpers.CopyDir(t, "fixtures/stacks/stack-dependencies-stack-ref", tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+
+	// Generate autoinclude for app_stack_dep (depends on stack.networking.path)
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_stack_dep")]
+	require.True(t, ok)
+
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app-stack-dep")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	// Read the autoinclude dependency paths — should return the stack dir
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+
+	stackDir := depPaths[0]
+
+	// Create the nested stack's terragrunt.stack.hcl so UnitPathsFromStackDir can parse it
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+
+	nestedStackContent := `
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+
+unit "subnets" {
+  source = "../../units/subnets"
+  path   = "subnets"
+}
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stackDir, "terragrunt.stack.hcl"),
+		[]byte(nestedStackContent),
+		0644,
+	))
+
+	// UnitPathsFromStackDir should expand the stack dir to its unit paths
+	unitPaths := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
+
+	// Verify the expanded paths point to units within the stack
+	expectedVPC := filepath.Join(stackDir, ".terragrunt-stack", "vpc")
+	expectedSubnets := filepath.Join(stackDir, ".terragrunt-stack", "subnets")
+
+	assert.Contains(t, unitPaths, expectedVPC)
+	assert.Contains(t, unitPaths, expectedSubnets)
+}
