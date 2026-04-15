@@ -1,17 +1,18 @@
 ---
 /**
  * Conditionally renders its children only when the latest Terragrunt release
- * is equal to or newer than the specified semver version.
+ * is older than the specified semver version (i.e., the version has NOT been
+ * released yet).
  *
- * In dev mode, the version is always treated as released so that new content
- * is visible during local development.
+ * In dev mode, the version is always treated as released so that Before content
+ * is hidden during local development (mirroring how Since shows new content).
  *
  * Usage in .mdx files:
- *   <Since version="1.1.0">
- *     Content shown only when the latest release is >= 1.1.0
- *   </Since>
+ *   <Before version="1.1.0">
+ *     Content shown only when the latest release is < 1.1.0
+ *   </Before>
  *
- * IMPORTANT: Do not use markdown headings (##, ###, etc.) inside <Since>.
+ * IMPORTANT: Do not use markdown headings (##, ###, etc.) inside <Before>.
  * Starlight extracts headings at build time before the component renders,
  * so hidden headings will still appear in the Table of Contents.
  */
@@ -41,4 +42,4 @@ if (!isDev) {
 }
 ---
 
-{isReleased && <slot />}
+{!isReleased && <slot />}
