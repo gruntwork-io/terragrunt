@@ -21,6 +21,8 @@ const (
 	testFixtureStackDepsBasic       = "fixtures/stacks/stack-deps-basic"
 	testFixtureStackDepsChain       = "fixtures/stacks/stack-deps-chain"
 	testFixtureStackDepsCrossStack  = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsUnitInStack = "fixtures/stacks/stack-deps-unit-in-stack"
+	testFixtureStackDepsEntireStack = "fixtures/stacks/stack-deps-entire-stack"
 )
 
 func TestStackDepsAutoIncludeGeneration(t *testing.T) {
@@ -470,4 +472,121 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 
 	expectedNetworkPath := filepath.Join(rootPath, ".terragrunt-stack", "network")
 	assert.Equal(t, expectedNetworkPath, depPaths[0])
+}
+
+// TestStackDepsDocExample_UnitInStack tests the docs example:
+// "Dependencies on units within a nested stack"
+// stack.stack_w_outputs.unit_w_outputs.path resolves to the nested unit path.
+func TestStackDepsDocExample_UnitInStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsUnitInStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsUnitInStack)
+	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsUnitInStack, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+
+	// Verify stack and unit were parsed
+	require.Len(t, result.Stacks, 1)
+	assert.Equal(t, "stack_w_outputs", result.Stacks[0].Name)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "unit_w_inputs", result.Units[0].Name)
+
+	// Verify autoinclude resolved stack.stack_w_outputs.unit_w_outputs.path
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "unit_w_inputs")]
+	require.True(t, ok, "unit_w_inputs should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "unit_w_outputs", resolved.Dependencies[0].Name)
+
+	// Path should point to nested unit: .terragrunt-stack/stack-w-outputs/.terragrunt-stack/unit-w-outputs
+	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "stack-w-outputs", ".terragrunt-stack", "unit-w-outputs")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+
+	// Generate autoinclude and verify content
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "unit-w-inputs")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(appDir, inthclparse.AutoIncludeFile))
+
+	generated, err := os.ReadFile(filepath.Join(appDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "unit_w_outputs"`)
+	assert.Contains(t, content, "mock_outputs")
+	assert.Contains(t, content, `"fake-val"`)
+	assert.Contains(t, content, "dependency.unit_w_outputs.outputs.val")
+}
+
+// TestStackDepsDocExample_EntireStack tests the docs example:
+// "Dependencies on entire stacks"
+// stack.infra.path resolves to the stack's generated directory.
+func TestStackDepsDocExample_EntireStack(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsEntireStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsEntireStack)
+	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsEntireStack, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+
+	// Verify stack and unit were parsed
+	require.Len(t, result.Stacks, 1)
+	assert.Equal(t, "infra", result.Stacks[0].Name)
+	require.Len(t, result.Units, 1)
+	assert.Equal(t, "app", result.Units[0].Name)
+
+	// Verify autoinclude resolved stack.infra.path
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok, "app should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "infra", resolved.Dependencies[0].Name)
+
+	// Path should point to the stack directory: .terragrunt-stack/infra
+	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "infra")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+
+	// Generate autoinclude and verify content
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(appDir, inthclparse.AutoIncludeFile))
+
+	generated, err := os.ReadFile(filepath.Join(appDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "infra"`)
+	assert.Contains(t, content, "../infra")
+	assert.Contains(t, content, "dependency.infra.outputs.vpc.vpc_id")
+
+	// Verify DAG sees the dependency
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+	assert.Equal(t, expectedPath, depPaths[0])
 }
