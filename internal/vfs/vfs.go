@@ -86,6 +86,11 @@ func FileExists(vfs FS, path string) (bool, error) {
 
 // WriteFile writes data to a file on the given filesystem.
 func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(filename)
+	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+
 	return afero.WriteFile(fs, filename, data, perm)
 }
 

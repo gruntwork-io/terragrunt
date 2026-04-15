@@ -172,7 +172,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 	}
 
 	defer func() {
-		err = errors.Join(lock.Unlock())
+		err = errors.Join(err, lock.Unlock())
 	}()
 
 	// Ensure partition directory exists
@@ -196,7 +196,7 @@ func (c *Content) EnsureCopy(l log.Logger, hash, src string) (err error) {
 	}
 
 	defer func() {
-		err = errors.Join(err, f.Close())
+		err = errors.Join(err, r.Close())
 	}()
 
 	if _, err := io.Copy(f, r); err != nil {
