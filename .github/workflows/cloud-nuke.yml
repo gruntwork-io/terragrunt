@@ -26,7 +26,7 @@ jobs:
         env:
             # Authenticate to reduce the likelihood of hitting rate limit issues.
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            VERSION: 0.40.0
+            VERSION: 0.49.0
 
       - name: Authenticate to AWS
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
