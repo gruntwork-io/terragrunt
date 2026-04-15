@@ -15,6 +15,7 @@ func TestCAS_Clone(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
+	repoURL := startTestServer(t)
 
 	t.Run("clone new repository", func(t *testing.T) {
 		t.Parallel()
@@ -26,8 +27,9 @@ func TestCAS_Clone(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
-			Dir: targetPath,
-		}, "https://github.com/gruntwork-io/terragrunt.git")
+			Dir:   targetPath,
+			Depth: -1,
+		}, repoURL)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -51,7 +53,8 @@ func TestCAS_Clone(t *testing.T) {
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:    targetPath,
 			Branch: "main",
-		}, "https://github.com/gruntwork-io/terragrunt.git")
+			Depth:  -1,
+		}, repoURL)
 		require.NoError(t, err)
 
 		// Verify repository was cloned
@@ -71,7 +74,8 @@ func TestCAS_Clone(t *testing.T) {
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:              targetPath,
 			IncludedGitFiles: []string{"HEAD", "config"},
-		}, "https://github.com/gruntwork-io/terragrunt.git")
+			Depth:            -1,
+		}, repoURL)
 		require.NoError(t, err)
 
 		// Verify repository was cloned

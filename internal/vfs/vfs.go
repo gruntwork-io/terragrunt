@@ -28,9 +28,145 @@ type FS = afero.Fs
 // File represents a file in the filesystem.
 type File = afero.File
 
+// HardLinker is an optional interface for filesystems that support hard links.
+type HardLinker interface {
+	LinkIfPossible(oldname, newname string) error
+}
+
+// Unlocker can release a held lock.
+type Unlocker interface {
+	Unlock() error
+}
+
+// Locker is an optional interface for filesystems that support locking.
+type Locker interface {
+	// Lock acquires a blocking lock for the given name.
+	Lock(name string) (Unlocker, error)
+	// TryLock attempts a non-blocking lock for the given name.
+	// Returns the unlocker and true if acquired, nil and false otherwise.
+	TryLock(name string) (Unlocker, bool, error)
+}
+
+// ErrNoHardLink is returned when a filesystem does not support hard links.
+var ErrNoHardLink = errors.New("hard link not supported")
+
+// ErrNoLock is returned when a filesystem does not support locking.
+var ErrNoLock = errors.New("locking not supported")
+
 // NewOSFS returns a filesystem backed by the real operating system filesystem.
 func NewOSFS() FS {
 	return &osFS{afero.NewOsFs()}
+}
+
+// NewMemMapFS returns an in-memory filesystem for testing purposes.
+// The returned filesystem supports symlink operations via an in-memory link table.
+func NewMemMapFS() FS {
+	return &memMapFS{
+		Fs:       afero.NewMemMapFs(),
+		symlinks: make(map[string]string),
+		locks:    make(map[string]*memLock),
+	}
+}
+
+// FileExists checks if a path exists using the given filesystem.
+// Returns (true, nil) if the file exists, (false, nil) if it does not exist,
+// and (false, error) for other errors (e.g., permission denied).
+func FileExists(vfs FS, path string) (bool, error) {
+	_, err := vfs.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+
+	return false, err
+}
+
+// WriteFile writes data to a file on the given filesystem.
+func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
+	return afero.WriteFile(fs, filename, data, perm)
+}
+
+// ReadFile reads the contents of a file from the given filesystem.
+func ReadFile(fs FS, filename string) ([]byte, error) {
+	return afero.ReadFile(fs, filename)
+}
+
+// MkdirTemp creates a temporary directory on the given filesystem.
+func MkdirTemp(fs FS, dir, pattern string) (string, error) {
+	return afero.TempDir(fs, dir, pattern)
+}
+
+// Link creates a hard link. It delegates to LinkIfPossible for filesystems
+// that implement the HardLinker interface.
+func Link(fs FS, oldname, newname string) error {
+	linker, ok := fs.(HardLinker)
+	if !ok {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: ErrNoHardLink}
+	}
+
+	return linker.LinkIfPossible(oldname, newname)
+}
+
+// Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
+// which is supported by OsFs and any FS implementing afero.Linker.
+func Symlink(fs FS, oldname, newname string) error {
+	linker, ok := fs.(afero.Linker)
+	if !ok {
+		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: afero.ErrNoSymlink}
+	}
+
+	return linker.SymlinkIfPossible(oldname, newname)
+}
+
+// Lock acquires a blocking lock for the given name on the filesystem.
+func Lock(fs FS, name string) (Unlocker, error) {
+	locker, ok := fs.(Locker)
+	if !ok {
+		return nil, ErrNoLock
+	}
+
+	return locker.Lock(name)
+}
+
+// TryLock attempts a non-blocking lock for the given name on the filesystem.
+func TryLock(fs FS, name string) (Unlocker, bool, error) {
+	locker, ok := fs.(Locker)
+	if !ok {
+		return nil, false, ErrNoLock
+	}
+
+	return locker.TryLock(name)
+}
+
+// WalkDir walks the file tree rooted at root, calling fn for each file or
+// directory in the tree, including root. The fn callback receives an fs.DirEntry
+// instead of os.FileInfo, which can be more efficient since it does not require
+// a stat call for every visited file.
+//
+// All errors that arise visiting files and directories are filtered by fn:
+// see the fs.WalkDirFunc documentation for details.
+//
+// The files are walked in lexical order, which makes the output deterministic
+// but means that for very large directories WalkDir can be inefficient.
+// WalkDir does not follow symbolic links.
+//
+// Adapted from spf13/afero#571 — replace with afero.WalkDir once merged.
+func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
+	info, err := lstatIfPossible(fsys, root)
+	if err != nil {
+		err = fn(root, nil, err)
+	} else {
+		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
+	}
+
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
+	}
+
+	return err
 }
 
 // osFS wraps afero.OsFs with hard link support.
@@ -56,14 +192,28 @@ func (fs *osFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return info, true, err
 }
 
-// NewMemMapFS returns an in-memory filesystem for testing purposes.
-// The returned filesystem supports symlink operations via an in-memory link table.
-func NewMemMapFS() FS {
-	return &memMapFS{
-		Fs:       afero.NewMemMapFs(),
-		symlinks: make(map[string]string),
-		locks:    make(map[string]*memLock),
+func (fs *osFS) Lock(name string) (Unlocker, error) {
+	l := flock.New(name)
+	if err := l.Lock(); err != nil {
+		return nil, err
 	}
+
+	return l, nil
+}
+
+func (fs *osFS) TryLock(name string) (Unlocker, bool, error) {
+	l := flock.New(name)
+
+	acquired, err := l.TryLock()
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !acquired {
+		return nil, false, nil
+	}
+
+	return l, true, nil
 }
 
 // memMapFS wraps afero.MemMapFs with in-memory symlink support.
@@ -123,155 +273,6 @@ func (fs *memMapFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return info, false, err
 }
 
-// FileExists checks if a path exists using the given filesystem.
-// Returns (true, nil) if the file exists, (false, nil) if it does not exist,
-// and (false, error) for other errors (e.g., permission denied).
-func FileExists(vfs FS, path string) (bool, error) {
-	_, err := vfs.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-
-	return false, err
-}
-
-// WriteFile writes data to a file on the given filesystem.
-func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
-	return afero.WriteFile(fs, filename, data, perm)
-}
-
-// ReadFile reads the contents of a file from the given filesystem.
-func ReadFile(fs FS, filename string) ([]byte, error) {
-	return afero.ReadFile(fs, filename)
-}
-
-// MkdirTemp creates a temporary directory on the given filesystem.
-func MkdirTemp(fs FS, dir, pattern string) (string, error) {
-	return afero.TempDir(fs, dir, pattern)
-}
-
-// HardLinker is an optional interface for filesystems that support hard links.
-type HardLinker interface {
-	LinkIfPossible(oldname, newname string) error
-}
-
-// ErrNoHardLink is returned when a filesystem does not support hard links.
-var ErrNoHardLink = errors.New("hard link not supported")
-
-// Link creates a hard link. It delegates to LinkIfPossible for filesystems
-// that implement the HardLinker interface.
-func Link(fs FS, oldname, newname string) error {
-	linker, ok := fs.(HardLinker)
-	if !ok {
-		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: ErrNoHardLink}
-	}
-
-	return linker.LinkIfPossible(oldname, newname)
-}
-
-// Symlink creates a symbolic link. It uses afero's SymlinkIfPossible
-// which is supported by OsFs and any FS implementing afero.Linker.
-func Symlink(fs FS, oldname, newname string) error {
-	linker, ok := fs.(afero.Linker)
-	if !ok {
-		return &os.LinkError{Op: "symlink", Old: oldname, New: newname, Err: afero.ErrNoSymlink}
-	}
-
-	return linker.SymlinkIfPossible(oldname, newname)
-}
-
-// Unlocker can release a held lock.
-type Unlocker interface {
-	Unlock() error
-}
-
-// Locker is an optional interface for filesystems that support locking.
-type Locker interface {
-	// Lock acquires a blocking lock for the given name.
-	Lock(name string) (Unlocker, error)
-	// TryLock attempts a non-blocking lock for the given name.
-	// Returns the unlocker and true if acquired, nil and false otherwise.
-	TryLock(name string) (Unlocker, bool, error)
-}
-
-// ErrNoLock is returned when a filesystem does not support locking.
-var ErrNoLock = errors.New("locking not supported")
-
-// Lock acquires a blocking lock for the given name on the filesystem.
-func Lock(fs FS, name string) (Unlocker, error) {
-	locker, ok := fs.(Locker)
-	if !ok {
-		return nil, ErrNoLock
-	}
-
-	return locker.Lock(name)
-}
-
-// TryLock attempts a non-blocking lock for the given name on the filesystem.
-func TryLock(fs FS, name string) (Unlocker, bool, error) {
-	locker, ok := fs.(Locker)
-	if !ok {
-		return nil, false, ErrNoLock
-	}
-
-	return locker.TryLock(name)
-}
-
-// osFS Locker implementation using flock (file-based locks).
-
-func (fs *osFS) Lock(name string) (Unlocker, error) {
-	l := flock.New(name)
-	if err := l.Lock(); err != nil {
-		return nil, err
-	}
-
-	return l, nil
-}
-
-func (fs *osFS) TryLock(name string) (Unlocker, bool, error) {
-	l := flock.New(name)
-
-	acquired, err := l.TryLock()
-	if err != nil {
-		return nil, false, err
-	}
-
-	if !acquired {
-		return nil, false, nil
-	}
-
-	return l, true, nil
-}
-
-// memMapFS Locker implementation using mutexes.
-
-// memLock is an in-memory lock backed by a mutex.
-type memLock struct {
-	mu sync.Mutex
-}
-
-func (l *memLock) Unlock() error {
-	l.mu.Unlock()
-	return nil
-}
-
-func (fs *memMapFS) getOrCreateLock(name string) *memLock {
-	fs.locksMu.Lock()
-	defer fs.locksMu.Unlock()
-
-	l, ok := fs.locks[name]
-	if !ok {
-		l = &memLock{}
-		fs.locks[name] = l
-	}
-
-	return l
-}
-
 func (fs *memMapFS) Lock(name string) (Unlocker, error) {
 	l := fs.getOrCreateLock(name)
 	l.mu.Lock()
@@ -287,6 +288,29 @@ func (fs *memMapFS) TryLock(name string) (Unlocker, bool, error) {
 	}
 
 	return l, true, nil
+}
+
+func (fs *memMapFS) getOrCreateLock(name string) *memLock {
+	fs.locksMu.Lock()
+	defer fs.locksMu.Unlock()
+
+	l, ok := fs.locks[name]
+	if !ok {
+		l = &memLock{}
+		fs.locks[name] = l
+	}
+
+	return l
+}
+
+// memLock is an in-memory lock backed by a mutex.
+type memLock struct {
+	mu sync.Mutex
+}
+
+func (l *memLock) Unlock() error {
+	l.mu.Unlock()
+	return nil
 }
 
 // ZipDecompressor handles zip archive extraction with configurable limits.
@@ -388,34 +412,6 @@ func (z *ZipDecompressor) Unzip(l log.Logger, fs FS, dst, src string, umask os.F
 	return nil
 }
 
-// containsDotDot checks if a path contains ".." as a path component.
-// This is more precise than strings.Contains(name, "..") which would
-// reject legitimate files like "file..txt".
-func containsDotDot(v string) bool {
-	if !strings.Contains(v, "..") {
-		return false
-	}
-
-	return slices.Contains(strings.FieldsFunc(v, func(r rune) bool {
-		return r == '/' || r == '\\'
-	}), "..")
-}
-
-// sanitizeZipPath validates and sanitizes a zip entry path to prevent ZipSlip attacks.
-func sanitizeZipPath(dst, name string) (string, error) {
-	if containsDotDot(name) {
-		return "", fmt.Errorf("illegal file path in zip: %s", name)
-	}
-
-	destPath := filepath.Join(dst, filepath.Clean(name))
-
-	if !strings.HasPrefix(destPath, filepath.Clean(dst)+string(os.PathSeparator)) {
-		return "", fmt.Errorf("illegal destination path in zip: %s", destPath)
-	}
-
-	return destPath, nil
-}
-
 // extractZipFile extracts a single file from a zip archive.
 func (z *ZipDecompressor) extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64) error {
 	destPath, err := sanitizeZipPath(dst, zipFile.Name)
@@ -438,57 +434,6 @@ func (z *ZipDecompressor) extractZipFile(l log.Logger, fs FS, dst string, zipFil
 	}
 
 	return z.extractRegularFile(l, fs, destPath, zipFile, umask, totalSize)
-}
-
-// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
-func validateSymlinkTarget(dst, linkPath, target string) error {
-	// Resolve the target relative to the link's directory
-	absTarget := target
-	if !filepath.IsAbs(target) {
-		absTarget = filepath.Join(filepath.Dir(linkPath), target)
-	}
-
-	absTarget = filepath.Clean(absTarget)
-	cleanDst := filepath.Clean(dst)
-
-	// Ensure it stays within dst
-	if !strings.HasPrefix(absTarget, cleanDst+string(os.PathSeparator)) && absTarget != cleanDst {
-		return fmt.Errorf("symlink target escapes destination: %s -> %s", linkPath, target)
-	}
-
-	return nil
-}
-
-// extractSymlink extracts a symlink from a zip file.
-func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File) error {
-	rc, err := zipFile.Open()
-	if err != nil {
-		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
-	}
-
-	defer func() {
-		if closeErr := rc.Close(); closeErr != nil {
-			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
-		}
-	}()
-
-	targetBytes, err := io.ReadAll(rc)
-	if err != nil {
-		return fmt.Errorf("failed to read file %q: %w", zipFile.Name, err)
-	}
-
-	target := string(targetBytes)
-
-	// Validate symlink target doesn't escape destination
-	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
-		return err
-	}
-
-	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
-	}
-
-	return Symlink(fs, target, destPath)
 }
 
 // extractRegularFile extracts a regular file from a zip file.
@@ -556,6 +501,17 @@ func (z *ZipDecompressor) extractRegularFile(
 	return nil
 }
 
+// FileInfoDirEntry wraps os.FileInfo to implement fs.DirEntry.
+// Adapted from spf13/afero#571 — replace with afero equivalent once merged.
+type FileInfoDirEntry struct {
+	FileInfo os.FileInfo
+}
+
+func (d FileInfoDirEntry) Name() string               { return d.FileInfo.Name() }
+func (d FileInfoDirEntry) IsDir() bool                { return d.FileInfo.IsDir() }
+func (d FileInfoDirEntry) Type() fs.FileMode          { return d.FileInfo.Mode().Type() }
+func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
+
 // limitedReader wraps a reader and enforces a size limit.
 type limitedReader struct {
 	reader    io.Reader
@@ -575,50 +531,6 @@ func (r *limitedReader) Read(p []byte) (int, error) {
 	r.remaining -= int64(n)
 
 	return n, err
-}
-
-// applyUmask applies a umask to a file mode.
-func applyUmask(mode, umask os.FileMode) os.FileMode {
-	return mode &^ umask
-}
-
-// FileInfoDirEntry wraps os.FileInfo to implement fs.DirEntry.
-// Adapted from spf13/afero#571 — replace with afero equivalent once merged.
-type FileInfoDirEntry struct {
-	FileInfo os.FileInfo
-}
-
-func (d FileInfoDirEntry) Name() string               { return d.FileInfo.Name() }
-func (d FileInfoDirEntry) IsDir() bool                { return d.FileInfo.IsDir() }
-func (d FileInfoDirEntry) Type() fs.FileMode          { return d.FileInfo.Mode().Type() }
-func (d FileInfoDirEntry) Info() (fs.FileInfo, error) { return d.FileInfo, nil }
-
-// WalkDir walks the file tree rooted at root, calling fn for each file or
-// directory in the tree, including root. The fn callback receives an fs.DirEntry
-// instead of os.FileInfo, which can be more efficient since it does not require
-// a stat call for every visited file.
-//
-// All errors that arise visiting files and directories are filtered by fn:
-// see the fs.WalkDirFunc documentation for details.
-//
-// The files are walked in lexical order, which makes the output deterministic
-// but means that for very large directories WalkDir can be inefficient.
-// WalkDir does not follow symbolic links.
-//
-// Adapted from spf13/afero#571 — replace with afero.WalkDir once merged.
-func WalkDir(fsys FS, root string, fn fs.WalkDirFunc) error {
-	info, err := lstatIfPossible(fsys, root)
-	if err != nil {
-		err = fn(root, nil, err)
-	} else {
-		err = walkDir(fsys, root, FileInfoDirEntry{FileInfo: info}, fn)
-	}
-
-	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
-		return nil
-	}
-
-	return err
 }
 
 // lstatIfPossible calls Lstat if the filesystem supports it, otherwise Stat.
@@ -705,4 +617,88 @@ func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
 	return entries, nil
+}
+
+// containsDotDot checks if a path contains ".." as a path component.
+// This is more precise than strings.Contains(name, "..") which would
+// reject legitimate files like "file..txt".
+func containsDotDot(v string) bool {
+	if !strings.Contains(v, "..") {
+		return false
+	}
+
+	return slices.Contains(strings.FieldsFunc(v, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}), "..")
+}
+
+// sanitizeZipPath validates and sanitizes a zip entry path to prevent ZipSlip attacks.
+func sanitizeZipPath(dst, name string) (string, error) {
+	if containsDotDot(name) {
+		return "", fmt.Errorf("illegal file path in zip: %s", name)
+	}
+
+	destPath := filepath.Join(dst, filepath.Clean(name))
+
+	if !strings.HasPrefix(destPath, filepath.Clean(dst)+string(os.PathSeparator)) {
+		return "", fmt.Errorf("illegal destination path in zip: %s", destPath)
+	}
+
+	return destPath, nil
+}
+
+// validateSymlinkTarget validates that a symlink target doesn't escape the destination directory.
+func validateSymlinkTarget(dst, linkPath, target string) error {
+	// Resolve the target relative to the link's directory
+	absTarget := target
+	if !filepath.IsAbs(target) {
+		absTarget = filepath.Join(filepath.Dir(linkPath), target)
+	}
+
+	absTarget = filepath.Clean(absTarget)
+	cleanDst := filepath.Clean(dst)
+
+	// Ensure it stays within dst
+	if !strings.HasPrefix(absTarget, cleanDst+string(os.PathSeparator)) && absTarget != cleanDst {
+		return fmt.Errorf("symlink target escapes destination: %s -> %s", linkPath, target)
+	}
+
+	return nil
+}
+
+// extractSymlink extracts a symlink from a zip file.
+func extractSymlink(l log.Logger, fs FS, dst, destPath string, zipFile *zip.File) error {
+	rc, err := zipFile.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open file %q: %w", zipFile.Name, err)
+	}
+
+	defer func() {
+		if closeErr := rc.Close(); closeErr != nil {
+			l.Warnf("Error closing file %q: %v", zipFile.Name, closeErr)
+		}
+	}()
+
+	targetBytes, err := io.ReadAll(rc)
+	if err != nil {
+		return fmt.Errorf("failed to read file %q: %w", zipFile.Name, err)
+	}
+
+	target := string(targetBytes)
+
+	// Validate symlink target doesn't escape destination
+	if err := validateSymlinkTarget(dst, destPath, target); err != nil {
+		return err
+	}
+
+	if err := fs.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create directory %q: %w", filepath.Dir(destPath), err)
+	}
+
+	return Symlink(fs, target, destPath)
+}
+
+// applyUmask applies a umask to a file mode.
+func applyUmask(mode, umask os.FileMode) os.FileMode {
+	return mode &^ umask
 }

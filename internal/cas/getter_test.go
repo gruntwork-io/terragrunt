@@ -97,6 +97,8 @@ func TestCASGetterDetect(t *testing.T) {
 func TestCASGetterGet(t *testing.T) {
 	t.Parallel()
 
+	repoURL := startTestServer(t)
+
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
@@ -104,7 +106,7 @@ func TestCASGetterGet(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{
-		Branch: "main",
+		Depth: -1,
 	}
 
 	l := logger.CreateLogger()
@@ -115,15 +117,12 @@ func TestCASGetterGet(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		url       string
-		queryRef  string
-		expectRef string
+		name string
+		url  string
 	}{
 		{
-			name:      "URL with ref parameter",
-			url:       "github.com/gruntwork-io/terragrunt?ref=v0.75.0",
-			expectRef: "v0.75.0",
+			name: "clone via getter with ref",
+			url:  "git::" + repoURL + "?ref=main",
 		},
 	}
 

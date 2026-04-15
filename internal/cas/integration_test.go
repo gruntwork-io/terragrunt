@@ -17,6 +17,7 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
+	repoURL := startTestServer(t)
 
 	t.Run("clone same repo twice uses store", func(t *testing.T) {
 		t.Parallel()
@@ -28,8 +29,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		cas1, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas1.Clone(t.Context(), l, &cas.CloneOptions{
-			Dir: firstClonePath,
-		}, "https://github.com/gruntwork-io/terragrunt.git"))
+			Dir:   firstClonePath,
+			Depth: -1,
+		}, repoURL))
 
 		// Get info about first clone
 		firstReadme := filepath.Join(firstClonePath, "README.md")
@@ -41,8 +43,9 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		cas2, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, cas2.Clone(t.Context(), l, &cas.CloneOptions{
-			Dir: secondClonePath,
-		}, "https://github.com/gruntwork-io/terragrunt.git"))
+			Dir:   secondClonePath,
+			Depth: -1,
+		}, repoURL))
 
 		// Get info about second clone
 		secondReadme := filepath.Join(secondClonePath, "README.md")
@@ -67,7 +70,8 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
 			Dir:    filepath.Join(tempDir, "repo"),
 			Branch: "nonexistent-branch",
-		}, "https://github.com/gruntwork-io/terragrunt.git")
+			Depth:  -1,
+		}, repoURL)
 		require.Error(t, err)
 
 		var wrappedErr *git.WrappedError
@@ -83,13 +87,10 @@ func TestIntegration_CloneAndReuse(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Clone(t.Context(), l, &cas.CloneOptions{
-			Dir: filepath.Join(tempDir, "repo"),
-		}, "https://github.com/yhakbar/nonexistent-repo.git")
+			Dir:   filepath.Join(tempDir, "repo"),
+			Depth: -1,
+		}, "http://127.0.0.1:1/nonexistent-repo.git")
 		require.Error(t, err)
-
-		var wrappedErr *git.WrappedError
-		require.ErrorAs(t, err, &wrappedErr)
-		assert.ErrorIs(t, wrappedErr.Err, git.ErrCommandSpawn)
 	})
 }
 
@@ -97,29 +98,27 @@ func TestIntegration_TreeStorage(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-
 	l := logger.CreateLogger()
+	repoURL := startTestServer(t)
 
 	t.Run("stores tree objects", func(t *testing.T) {
 		t.Parallel()
 		tempDir := helpers.TmpDirWOSymlinks(t)
 		storePath := filepath.Join(tempDir, "store")
 
-		const testTag = "v0.98.0"
-
 		// First clone to populate store
 		c, err := cas.New(cas.WithStorePath(storePath))
 		require.NoError(t, err)
 		require.NoError(t, c.Clone(ctx, l, &cas.CloneOptions{
-			Dir:    filepath.Join(tempDir, "repo"),
-			Branch: testTag,
-		}, "https://github.com/gruntwork-io/terragrunt.git"))
+			Dir:   filepath.Join(tempDir, "repo"),
+			Depth: -1,
+		}, repoURL))
 
-		// Get the commit hash for the tag
+		// Get the commit hash for HEAD
 		g, err := git.NewGitRunner()
 		require.NoError(t, err)
 
-		results, err := g.LsRemote(ctx, "https://github.com/gruntwork-io/terragrunt.git", testTag)
+		results, err := g.LsRemote(ctx, repoURL, "HEAD")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash

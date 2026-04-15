@@ -22,8 +22,37 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+const defaultCloneDepth = 1
+
 // Option configures the behavior of CAS.
 type Option func(*CAS)
+
+// CloneOptions configures the behavior of a specific clone operation.
+type CloneOptions struct {
+	// Dir specifies the target directory for the clone.
+	// If empty, uses the repository name.
+	Dir string
+
+	// Branch specifies which branch to clone.
+	// If empty, uses HEAD.
+	Branch string
+
+	// IncludedGitFiles specifies the files to preserve from the .git directory.
+	// If empty, does not preserve any files.
+	IncludedGitFiles []string
+
+	// Depth limits the clone history to the given number of commits.
+	// If zero, defaults to 1 (shallow clone). Set to -1 for full history.
+	Depth int
+}
+
+// CAS clones a git repository using content-addressable storage.
+type CAS struct {
+	fs        vfs.FS
+	store     *Store
+	git       *git.GitRunner
+	storePath string
+}
 
 // WithStorePath specifies a custom path for the content store.
 // If not set, defaults to $HOME/.cache/terragrunt/cas/store.
@@ -39,34 +68,6 @@ func WithFS(fs vfs.FS) Option {
 	return func(c *CAS) {
 		c.fs = fs
 	}
-}
-
-// CloneOptions configures the behavior of a specific clone operation
-type CloneOptions struct {
-	// Dir specifies the target directory for the clone
-	// If empty, uses the repository name
-	Dir string
-
-	// Branch specifies which branch to clone
-	// If empty, uses HEAD
-	Branch string
-
-	// IncludedGitFiles specifies the files to preserve from the .git directory
-	// If empty, does not preserve any files
-	IncludedGitFiles []string
-}
-
-// CAS clones a git repository using content-addressable storage.
-type CAS struct {
-	fs        vfs.FS
-	store     *Store
-	git       *git.GitRunner
-	storePath string
-}
-
-// FS returns the configured filesystem.
-func (c *CAS) FS() vfs.FS {
-	return c.fs
 }
 
 // New creates a new CAS instance with the given options.
@@ -104,6 +105,11 @@ func New(opts ...Option) (*CAS, error) {
 	c.git = g
 
 	return c, nil
+}
+
+// FS returns the configured filesystem.
+func (c *CAS) FS() vfs.FS {
+	return c.fs
 }
 
 // Clone performs the clone operation
@@ -205,7 +211,16 @@ func (c *CAS) cloneAndStoreContent(
 	url,
 	hash string,
 ) error {
-	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
+	depth := opts.Depth
+	if depth == 0 {
+		depth = defaultCloneDepth
+	}
+
+	if depth < 0 {
+		depth = 0
+	}
+
+	if err := c.git.Clone(ctx, url, true, depth, opts.Branch); err != nil {
 		return err
 	}
 

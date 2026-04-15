@@ -1,42 +1,60 @@
 package git
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/go-git/go-billy/v6/memfs"
+	"github.com/go-git/go-billy/v6/osfs"
 	gogit "github.com/go-git/go-git/v6"
 	backendhttp "github.com/go-git/go-git/v6/backend/http"
+	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/plumbing/transport"
 	"github.com/go-git/go-git/v6/storage"
-	"github.com/go-git/go-git/v6/storage/memory"
+	"github.com/go-git/go-git/v6/storage/filesystem"
 )
 
-// Server is a pure-Go HTTP Git server backed by in-memory storage.
-// It is intended for use in tests.
+// Server is a pure-Go HTTP Git server backed by on-disk storage in a
+// temporary directory. It is intended for use in tests.
 type Server struct {
-	store storage.Storer
-	repo  *gogit.Repository
-	ln    net.Listener
-	srv   *http.Server
+	store   storage.Storer
+	repo    *gogit.Repository
+	ln      net.Listener
+	srv     *http.Server
+	tempDir string
 }
 
-// NewServer creates a Server with an empty in-memory repository.
+// NewServer creates a Server with an empty repository backed by a temporary
+// directory. The directory is removed when Close is called.
 func NewServer() (*Server, error) {
-	store := memory.NewStorage()
-	wt := memfs.New()
-
-	repo, err := gogit.Init(store, gogit.WithWorkTree(wt))
+	tempDir, err := os.MkdirTemp("", "git-server-*")
 	if err != nil {
-		return nil, fmt.Errorf("init in-memory repo: %w", err)
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+
+	dotGit := osfs.New(tempDir, osfs.WithBoundOS())
+	wt := osfs.New(tempDir, osfs.WithBoundOS())
+
+	store := filesystem.NewStorage(dotGit, nil)
+
+	repo, err := gogit.Init(
+		store,
+		gogit.WithWorkTree(wt),
+		gogit.WithDefaultBranch(plumbing.NewBranchReferenceName("main")),
+	)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("init repo: %w", err), os.RemoveAll(tempDir))
 	}
 
 	return &Server{
-		store: store,
-		repo:  repo,
+		store:   store,
+		repo:    repo,
+		tempDir: tempDir,
 	}, nil
 }
 
@@ -90,11 +108,13 @@ func (s *Server) CommitFile(path string, data []byte, msg string) error {
 
 // Start begins serving Git HTTP on a random local port.
 // Returns the base URL (e.g. "http://127.0.0.1:12345").
-func (s *Server) Start() (string, error) {
+func (s *Server) Start(ctx context.Context) (string, error) {
 	loader := &singleRepoLoader{store: s.store}
 	backend := backendhttp.NewBackend(loader)
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+
+	ln, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", fmt.Errorf("listen: %w", err)
 	}
@@ -109,13 +129,20 @@ func (s *Server) Start() (string, error) {
 	return "http://" + ln.Addr().String(), nil
 }
 
-// Close shuts down the server.
+// Close shuts down the server and removes the temporary directory.
 func (s *Server) Close() error {
-	if s.srv == nil {
-		return nil
+	var err error
+	if s.srv != nil {
+		err = s.srv.Close()
 	}
 
-	return s.srv.Close()
+	if s.tempDir != "" {
+		if removeErr := os.RemoveAll(s.tempDir); removeErr != nil && err == nil {
+			err = removeErr
+		}
+	}
+
+	return err
 }
 
 // singleRepoLoader implements transport.Loader by always returning the same

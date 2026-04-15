@@ -23,12 +23,13 @@ func TestServer(t *testing.T) {
 
 		require.NoError(t, srv.CommitFile("README.md", []byte("# test repo"), "initial commit"))
 
-		url, err := srv.Start()
+		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
+
 		runner = runner.WithWorkDir(cloneDir)
 
 		err = runner.Clone(t.Context(), url, false, 0, "")
@@ -48,7 +49,7 @@ func TestServer(t *testing.T) {
 
 		require.NoError(t, srv.CommitFile("file.txt", []byte("content"), "commit"))
 
-		url, err := srv.Start()
+		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
 
 		runner, err := git.NewGitRunner()
@@ -70,12 +71,13 @@ func TestServer(t *testing.T) {
 		require.NoError(t, srv.CommitFile("a.txt", []byte("aaa"), "add a"))
 		require.NoError(t, srv.CommitFile("dir/b.txt", []byte("bbb"), "add b"))
 
-		url, err := srv.Start()
+		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
+
 		runner = runner.WithWorkDir(cloneDir)
 
 		err = runner.Clone(t.Context(), url, false, 0, "")
@@ -99,12 +101,13 @@ func TestServer(t *testing.T) {
 
 		require.NoError(t, srv.CommitFile("file.txt", []byte("content"), "commit"))
 
-		url, err := srv.Start()
+		url, err := srv.Start(t.Context())
 		require.NoError(t, err)
 
 		cloneDir := helpers.TmpDirWOSymlinks(t)
 		runner, err := git.NewGitRunner()
 		require.NoError(t, err)
+
 		runner = runner.WithWorkDir(cloneDir)
 
 		err = runner.Clone(t.Context(), url, true, 0, "")
