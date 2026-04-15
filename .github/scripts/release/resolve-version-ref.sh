@@ -54,8 +54,10 @@ function main {
     ref="$RELEASE_TARGET"
   fi
 
-  printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
-  printf 'ref=%s\n' "$ref" >>"$GITHUB_OUTPUT"
+  {
+    printf 'version=%s\n' "$version"
+    printf 'ref=%s\n' "$ref"
+  } >>"$GITHUB_OUTPUT"
   echo "Resolved version: $version, ref: $ref"
 
   return 0
