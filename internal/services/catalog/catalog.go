@@ -175,6 +175,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 			Path:             tempPath,
 			WalkWithSymlinks: walkWithSymlinks,
 			AllowCAS:         allowCAS,
+			CASCloneDepth:    s.opts.CASCloneDepth,
 			SlowReporting:    slowReporting,
 			RootWorkingDir:   s.opts.RootWorkingDir,
 		})

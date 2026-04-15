@@ -101,6 +101,7 @@ func TestCASProtocolGetterDetect(t *testing.T) {
 	tests := []struct {
 		name     string
 		src      string
+		forced   string
 		detected bool
 	}{
 		{
@@ -112,6 +113,18 @@ func TestCASProtocolGetterDetect(t *testing.T) {
 			name:     "cas protocol with subdir",
 			src:      "cas::sha1:abc123//modules/vpc",
 			detected: true,
+		},
+		{
+			name:     "go-getter strips cas:: before Detect",
+			src:      "sha1:f39ea0ebf891c9954c89d07b73b487ff938ef08b",
+			forced:   "cas",
+			detected: true,
+		},
+		{
+			name:     "forced cas with invalid ref",
+			src:      "bogus:xyz",
+			forced:   "cas",
+			detected: false,
 		},
 		{
 			name:     "git URL",
@@ -129,7 +142,7 @@ func TestCASProtocolGetterDetect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := &getter.Request{Src: tt.src}
+			req := &getter.Request{Src: tt.src, Forced: tt.forced}
 			detected, err := g.Detect(req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.detected, detected)

@@ -96,6 +96,7 @@ func TestProcessStackComponent_RewritesStackSources(t *testing.T) {
 
 	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
 	require.NoError(t, err)
+
 	defer result.Cleanup()
 
 	// The content dir should contain the rewritten terragrunt.stack.hcl
@@ -130,6 +131,7 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 
 	result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
 	require.NoError(t, err)
+
 	defer result.Cleanup()
 
 	// The unit that was recursively processed should have its terraform.source rewritten.
@@ -148,9 +150,14 @@ func TestProcessStackComponent_RewritesUnitSources(t *testing.T) {
 
 	contentStr := string(content)
 
-	// The terraform source should be rewritten to a CAS ref with the modules/vpc subdir.
 	assert.Contains(t, contentStr, "cas::", "unit terraform source should be rewritten to CAS ref")
-	assert.Contains(t, contentStr, "modules/vpc", "CAS ref should include the module subdir")
+	assert.Contains(t, contentStr, "sha1:", "CAS ref should name the hash algorithm")
+	assert.NotContains(
+		t,
+		contentStr,
+		"modules/vpc",
+		"module path should not appear in the cas:: URL when using a synthetic tree",
+	)
 }
 
 func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
@@ -168,6 +175,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 
 	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
 	require.NoError(t, err)
+
 	defer result.Cleanup()
 
 	// Read the rewritten stack file to extract the CAS ref for the "service" unit.
@@ -179,6 +187,7 @@ func TestProcessStackComponent_CreatesSyntheticTrees(t *testing.T) {
 	require.NoError(t, err)
 
 	var serviceSource string
+
 	for _, b := range blocks {
 		if b.Name == "service" {
 			serviceSource = b.Source
@@ -221,6 +230,7 @@ func TestProcessStackComponent_DeterministicOutput(t *testing.T) {
 
 		result, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
 		require.NoError(t, err)
+
 		defer result.Cleanup()
 
 		content, err := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
@@ -253,6 +263,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 
 	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
 	require.NoError(t, err)
+
 	defer result.Cleanup()
 
 	// Extract the CAS hash from the rewritten stack file
@@ -263,6 +274,7 @@ func TestProcessStackComponent_MaterializeSynthTree(t *testing.T) {
 	require.NoError(t, err)
 
 	var serviceSource string
+
 	for _, b := range blocks {
 		if b.Name == "service" {
 			serviceSource = b.Source
@@ -333,6 +345,7 @@ func TestProcessStackComponent_BlobsStoredInCAS(t *testing.T) {
 
 	result, err := c.ProcessStackComponent(ctx, l, source, "stack")
 	require.NoError(t, err)
+
 	defer result.Cleanup()
 
 	// Verify that the blob store has content after processing.

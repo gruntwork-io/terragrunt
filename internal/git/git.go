@@ -245,7 +245,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	}
 
 	if depth > 0 {
-		args = append(args, "--depth", "1", "--single-branch")
+		args = append(args, "--depth", strconv.Itoa(depth), "--single-branch")
 	}
 
 	if branch != "" {

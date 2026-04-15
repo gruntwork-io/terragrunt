@@ -84,6 +84,7 @@ type ParsingContext struct {
 
 	MaxFoldersToCheck int
 	ParseDepth        int
+	CASCloneDepth     int
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool

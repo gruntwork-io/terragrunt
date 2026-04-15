@@ -78,12 +78,16 @@ func NewCASProtocolGetter(l log.Logger, cas *CAS) *CASProtocolGetter {
 }
 
 func (g *CASProtocolGetter) Get(ctx context.Context, req *getter.Request) error {
-	hash, err := ParseCASRef(req.Src)
+	src := strings.TrimPrefix(req.Src, CASProtocolPrefix)
+
+	hash, err := ParseCASRef(src)
 	if err != nil {
 		return fmt.Errorf("failed to parse CAS reference %q: %w", req.Src, err)
 	}
 
-	return g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst)
+	err = g.CAS.MaterializeTree(ctx, g.Logger, hash, req.Dst)
+
+	return err
 }
 
 func (g *CASProtocolGetter) GetFile(_ context.Context, _ *getter.Request) error {
@@ -97,16 +101,22 @@ func (g *CASProtocolGetter) Mode(_ context.Context, _ *url.URL) (getter.Mode, er
 func (g *CASProtocolGetter) Detect(req *getter.Request) (bool, error) {
 	src := req.Src
 
-	if !strings.HasPrefix(src, CASProtocolPrefix) {
+	if req.Forced == "cas" {
+		if _, err := ParseCASRef(src); err == nil {
+			return true, nil
+		}
+
 		return false, nil
 	}
 
-	// Strip the cas:: prefix for further processing by go-getter.
-	// go-getter handles //subdir extraction from req.Src.
-	req.Src = strings.TrimPrefix(src, CASProtocolPrefix)
-	req.Forced = "cas"
+	if strings.HasPrefix(src, CASProtocolPrefix) {
+		// Direct calls to Detect (tests) or sources that did not go through the wrapper.
+		req.Forced = "cas"
 
-	return true, nil
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // ParseCASRef extracts the hash and algorithm from a CAS reference string.

@@ -136,7 +136,7 @@ func (c *CAS) processDirectory(
 	}
 
 	if _, err := os.Stat(unitFile); err == nil {
-		return c.processUnitFile(l, repoRoot, dirPath, unitFile, refHash)
+		return c.processUnitFile(l, repoRoot, dirPath, unitFile, refHash, hashAlg)
 	}
 
 	return nil
@@ -208,7 +208,7 @@ func (c *CAS) processStackFile(
 
 // processUnitFile processes a terragrunt.hcl file, rewriting the terraform.source
 // if update_source_with_cas is set.
-func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash string) error {
+func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash string, hashAlg HashAlgorithm) error {
 	content, err := os.ReadFile(unitFile)
 	if err != nil {
 		return fmt.Errorf("failed to read unit file %s: %w", unitFile, err)
@@ -225,25 +225,21 @@ func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash
 
 	l.Debugf("Processing CAS source rewrite for terraform source %q in %s", source, unitFile)
 
-	// For unit files, the source is a relative path within the repo.
-	// The refHash points to the full repo tree.
-	// We rewrite to: cas::sha1:<refHash>//<subdir>
-	_, sourceSubdir := SplitSourceDoubleSlash(source)
+	// Resolve the terraform module directory (same pattern as stack blocks).
+	sourcePath, sourceSubdir := SplitSourceDoubleSlash(source)
+	resolvedPath := filepath.Clean(filepath.Join(dirPath, sourcePath))
 
-	var newSource string
-
+	moduleDir := resolvedPath
 	if sourceSubdir != "" {
-		newSource = FormatCASRefWithSubdir(refHash, sourceSubdir)
-	} else {
-		// No // separator — the entire source path becomes the subdir
-		// relative to the repo root
-		relPath, err := filepath.Rel(repoRoot, filepath.Clean(filepath.Join(dirPath, source)))
-		if err != nil {
-			return fmt.Errorf("failed to compute relative path: %w", err)
-		}
-
-		newSource = FormatCASRefWithSubdir(refHash, relPath)
+		moduleDir = filepath.Join(resolvedPath, sourceSubdir)
 	}
+
+	synthHash, err := c.buildSyntheticTree(l, moduleDir, refHash, repoRoot, hashAlg)
+	if err != nil {
+		return fmt.Errorf("failed to build synthetic tree for terraform source %q: %w", source, err)
+	}
+
+	newSource := FormatCASRef(synthHash)
 
 	content, err = RewriteTerraformSource(content, newSource)
 	if err != nil {

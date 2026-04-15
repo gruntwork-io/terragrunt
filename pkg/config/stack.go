@@ -136,7 +136,11 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	var casInstance *cas.CAS
 
 	if casEnabled {
-		c, casErr := cas.New()
+		if err := cas.ValidateCASCloneDepth(pctx.CASCloneDepth); err != nil {
+			return err
+		}
+
+		c, casErr := cas.New(cas.WithCloneDepth(pctx.CASCloneDepth))
 		if casErr != nil {
 			l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", casErr)
 
@@ -404,29 +408,18 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 }
 
 // fetchComponentSource handles the three paths for fetching a component's source:
-// 1. update_source_with_cas: CAS-backed clone, rewrite, copy from temp
-// 2. cas:: protocol source: materialize CAS tree directly
-// 3. Standard: local copy or remote getter
-func fetchComponentSource(ctx context.Context, l log.Logger, opts generateOpts, cmp *componentToGenerate, kindStr, source, dest string) error {
+//  1. cas:: protocol source: materialize CAS tree directly (must run before update_source_with_cas
+//     so nested components already rewritten to cas:: are not passed to git clone).
+//  2. update_source_with_cas: CAS-backed clone, rewrite, copy from temp
+//  3. Standard: local copy or remote getter
+func fetchComponentSource(
+	ctx context.Context,
+	l log.Logger,
+	opts generateOpts,
+	cmp *componentToGenerate,
+	kindStr, source, dest string,
+) error {
 	switch {
-	case cmp.updateSourceWithCAS:
-		if !opts.casEnabled {
-			return errors.Errorf("update_source_with_cas on %s %q requires the 'cas' experiment to be enabled (use --experiment cas) and --no-cas must not be set", kindStr, cmp.name)
-		}
-
-		result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
-		if err != nil {
-			return errors.Errorf("CAS processing failed for %s %s: %w", kindStr, cmp.name, err)
-		}
-
-		defer result.Cleanup()
-
-		if err := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
-			return true
-		}); err != nil {
-			return errors.Errorf("Failed to copy CAS content for %s %s: %w", kindStr, cmp.name, err)
-		}
-
 	case isCASProtocol(source):
 		if !opts.casEnabled {
 			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
@@ -446,6 +439,29 @@ func fetchComponentSource(ctx context.Context, l log.Logger, opts generateOpts, 
 
 		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest); err != nil {
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
+		}
+
+	case cmp.updateSourceWithCAS:
+		if !opts.casEnabled {
+			return errors.Errorf(
+				"update_source_with_cas on %s %q requires the 'cas' experiment to be enabled (use --experiment cas) "+
+					"and --no-cas must not be set",
+				kindStr,
+				cmp.name,
+			)
+		}
+
+		result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
+		if err != nil {
+			return errors.Errorf("CAS processing failed for %s %s: %w", kindStr, cmp.name, err)
+		}
+
+		defer result.Cleanup()
+
+		if err := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+			return true
+		}); err != nil {
+			return errors.Errorf("Failed to copy CAS content for %s %s: %w", kindStr, cmp.name, err)
 		}
 
 	default:

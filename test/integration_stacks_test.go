@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -2218,13 +2219,13 @@ func TestCASInStacks(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack generate --working-dir "+tmp,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
 	)
 	require.NoError(t, err)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack run plan --non-interactive --working-dir "+tmp,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
 	)
 	require.NoError(t, err)
 
@@ -2238,7 +2239,6 @@ func TestCASInStacks(t *testing.T) {
 	expectedFiles := []string{
 		"foo/terragrunt.stack.hcl",
 		"foo/.terragrunt-stack/bar/terragrunt.hcl",
-		"foo/.terragrunt-stack/bar/main.tf",
 	}
 
 	for _, expectedFile := range expectedFiles {
@@ -2259,19 +2259,32 @@ func TestCASInStacks(t *testing.T) {
 	unitConfigContent, err := os.ReadFile(unitConfig)
 	require.NoError(t, err)
 
-	assert.Equal(t, remoteStack, string(stackConfigContent))
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
 
-	expectedUnitConfigContent := `terraform {
-  source = "."
+	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
+	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha1:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
 }
-`
-	assert.Equal(t, expectedUnitConfigContent, string(unitConfigContent))
+`, stackMatch[1])
 
-	mainTfPath := filepath.Join(unitDir, "main.tf")
-	require.FileExists(t, mainTfPath)
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha1:%s"
 
-	mainTfContent, err := os.ReadFile(mainTfPath)
-	require.NoError(t, err)
+  update_source_with_cas = true
+}
+`, unitMatch[1])
 
-	assert.Equal(t, "# empty tf", string(mainTfContent))
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
 }

@@ -64,6 +64,7 @@ type Options struct {
 	Experiments                  experiment.Experiments
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
+	CASCloneDepth                int
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool
