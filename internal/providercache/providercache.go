@@ -47,6 +47,10 @@ const (
 	// Retry configuration for registry operations during cache warm-up
 	registryRetryMaxAttempts   = 3
 	registryRetrySleepInterval = 5 * time.Second
+
+	// Terraform service discovery keys used in host blocks and registry URLs.
+	serviceProvidersV1 = "providers.v1"
+	serviceModulesV1   = "modules.v1"
 )
 
 var (
@@ -148,10 +152,18 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
+	// Include custom host blocks from user config so the cache server handles them.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
+	pcOpts.RegistryNames = appendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
+
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pcOpts.RegistryNames)
 	if err != nil {
 		return errors.Errorf("creating provider handlers failed: %w", err)
 	}
+
+	// Pre-populate discovery cache for custom hosts using service URLs from user config.
+	// This avoids .well-known/terraform.json lookups for registries that don't support it.
+	populateCustomHostDiscoveryCache(cliCfg.Hosts, providerHandlers)
 
 	cacheServer := cache.NewServer(
 		cache.WithHostname(pcOpts.Hostname),
@@ -376,27 +388,12 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	cfg := pc.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	// Filter registries based on OpenTofu or Terraform implementation to avoid contacting unnecessary registries
-	filteredRegistryNames := filterRegistriesByImplementation(
-		pc.opts.RegistryNames,
-		implementation,
-	)
+	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
+	customHosts := pc.collectCustomHosts(&filteredRegistryNames)
 
-	var providerInstallationIncludes = make([]string, 0, len(filteredRegistryNames))
-
-	for _, registryName := range filteredRegistryNames {
-		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
-
-		apiURLs, err := pc.DiscoveryURL(ctx, registryName)
-		if err != nil {
-			return err
-		}
-
-		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", pc.ProviderController.URL(), cacheRequestID, registryName),
-			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
-			"modules.v1": ResolveModulesURL(registryName, apiURLs.ModulesV1),
-		})
+	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, customHosts, cacheRequestID)
+	if err != nil {
+		return err
 	}
 
 	if cacheRequestID == "" {
@@ -411,7 +408,76 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
-	// Use VFS for directory operations
+	return pc.saveCLIConfig(cfg, filename)
+}
+
+// collectCustomHosts collects custom host blocks from user config that are not already
+// in the registry list. For custom registries (e.g. Nexus, Artifactory), service URLs
+// are defined in the host block, so we skip .well-known/terraform.json discovery.
+// See: https://github.com/gruntwork-io/terragrunt/issues/5916
+func (pc *ProviderCache) collectCustomHosts(filteredRegistryNames *[]string) map[string]map[string]string {
+	customHosts := make(map[string]map[string]string, len(pc.cliCfg.Hosts))
+
+	for _, host := range pc.cliCfg.Hosts {
+		if !slices.Contains(*filteredRegistryNames, host.Name) {
+			*filteredRegistryNames = append(*filteredRegistryNames, host.Name)
+			customHosts[host.Name] = host.Services
+		}
+	}
+
+	return customHosts
+}
+
+// configureRegistryHosts sets up host redirects for each registry, routing provider
+// requests through the cache server. Returns the list of provider installation includes.
+func (pc *ProviderCache) configureRegistryHosts(
+	ctx context.Context,
+	cfg *cliconfig.Config,
+	registryNames []string,
+	customHosts map[string]map[string]string,
+	cacheRequestID string,
+) ([]string, error) {
+	includes := make([]string, 0, len(registryNames))
+
+	for _, registryName := range registryNames {
+		includes = append(includes, registryName+"/*/*")
+
+		modulesURL, err := pc.resolveModulesURL(ctx, registryName, customHosts)
+		if err != nil {
+			return nil, err
+		}
+
+		hostServices := map[string]string{
+			serviceProvidersV1: fmt.Sprintf("%s/%s/%s/", pc.ProviderController.URL(), cacheRequestID, registryName),
+		}
+
+		if modulesURL != "" {
+			hostServices[serviceModulesV1] = modulesURL
+		}
+
+		cfg.AddHost(registryName, hostServices)
+	}
+
+	return includes, nil
+}
+
+// resolveModulesURL returns the modules URL for a registry. For custom hosts, it uses
+// the service URL from the host block. For standard registries, it performs discovery.
+func (pc *ProviderCache) resolveModulesURL(ctx context.Context, registryName string, customHosts map[string]map[string]string) (string, error) {
+	if services, ok := customHosts[registryName]; ok {
+		return services[serviceModulesV1], nil
+	}
+
+	apiURLs, err := pc.DiscoveryURL(ctx, registryName)
+	if err != nil {
+		return "", err
+	}
+
+	return ResolveModulesURL(registryName, apiURLs.ModulesV1), nil
+}
+
+// saveCLIConfig writes the CLI config to disk, creating the directory if needed.
+func (pc *ProviderCache) saveCLIConfig(cfg *cliconfig.Config, filename string) error {
 	fs := pc.FS()
 	cfgDir := filepath.Dir(filename)
 
@@ -525,6 +591,9 @@ func (pc *ProviderCache) providerCacheEnvironment(env map[string]string, impleme
 		implementation,
 	)
 
+	// Include custom host blocks so auth tokens are set for them too.
+	filteredRegistryNames = appendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+
 	for _, registryName := range filteredRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
 
@@ -585,6 +654,38 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	}
 
 	return commandsArgs
+}
+
+// appendCustomHostRegistries adds custom host names from user config to the registry list
+// if they are not already present. This ensures the cache server handles them.
+// See: https://github.com/gruntwork-io/terragrunt/issues/5916
+func appendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []string) []string {
+	for _, host := range hosts {
+		if !slices.Contains(registryNames, host.Name) {
+			registryNames = append(registryNames, host.Name)
+		}
+	}
+
+	return registryNames
+}
+
+// populateCustomHostDiscoveryCache pre-populates the discovery URL cache for custom hosts
+// using service URLs from user config, avoiding .well-known/terraform.json lookups.
+func populateCustomHostDiscoveryCache(hosts []cliconfig.ConfigHost, providerHandlers handlers.ProviderHandlers) {
+	for _, host := range hosts {
+		providersURL, hasProviders := host.Services[serviceProvidersV1]
+		if !hasProviders {
+			continue
+		}
+
+		urls := &handlers.RegistryURLs{ProvidersV1: providersURL}
+
+		if v, ok := host.Services[serviceModulesV1]; ok {
+			urls.ModulesV1 = v
+		}
+
+		providerHandlers.SetDiscoveryURLCache(host.Name, urls)
+	}
 }
 
 // filterRegistriesByImplementation filters registry names based on the Terraform implementation being used.

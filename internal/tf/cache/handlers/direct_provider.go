@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cache/models"
@@ -41,17 +42,14 @@ func (handler *DirectProviderHandler) GetVersions(ctx context.Context, provider 
 		return nil, err
 	}
 
-	reqURL := &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
-	}
+	reqURL := resolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, "versions")
 
 	versions := struct {
 		Versions models.Versions `json:"versions"`
 	}{}
 
-	if err := handler.client.Do(ctx, http.MethodGet, reqURL.String(), &versions); err != nil {
+	if err := handler.client.Do(ctx, http.MethodGet, reqURL, &versions); err != nil {
 		return nil, err
 	}
 
@@ -65,19 +63,43 @@ func (handler *DirectProviderHandler) GetPlatform(ctx context.Context, provider 
 		return nil, err
 	}
 
-	platformURL := &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+	reqURLStr := resolveProviderURL(apiURLs.ProvidersV1, provider.RegistryName,
+		provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch)
+
+	platformURL, err := url.Parse(reqURLStr)
+	if err != nil {
+		return nil, err
 	}
 
 	var resp = new(models.ResponseBody)
 
-	if err := handler.client.Do(ctx, http.MethodGet, platformURL.String(), resp); err != nil {
+	if err := handler.client.Do(ctx, http.MethodGet, reqURLStr, resp); err != nil {
 		return nil, err
 	}
 
 	resp = resp.ResolveRelativeReferences(platformURL)
 
 	return resp, nil
+}
+
+// resolveProviderURL builds a provider API URL. If providersV1 is an absolute URL
+// (starts with http:// or https://), it is used as the base. Otherwise, it is
+// treated as a relative path on the registry host.
+func resolveProviderURL(providersV1, registryName string, pathParts ...string) string {
+	subPath := path.Join(pathParts...)
+
+	if strings.HasPrefix(providersV1, "http://") || strings.HasPrefix(providersV1, "https://") {
+		// Absolute URL from host block — append path parts directly
+		base := strings.TrimRight(providersV1, "/")
+		return base + "/" + subPath
+	}
+
+	// Relative path — build URL with registry host
+	reqURL := &url.URL{
+		Scheme: "https",
+		Host:   registryName,
+		Path:   path.Join(providersV1, subPath),
+	}
+
+	return reqURL.String()
 }

@@ -68,6 +68,17 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 	return providerHandlers, nil
 }
 
+// SetDiscoveryURLCache pre-populates the discovery URL cache for all handlers
+// that can handle the given registryName. This is used for custom host blocks
+// where service URLs are already known and .well-known discovery is not available.
+func (handlers ProviderHandlers) SetDiscoveryURLCache(registryName string, urls *RegistryURLs) {
+	for _, handler := range handlers {
+		if direct, ok := handler.(*DirectProviderHandler); ok {
+			direct.CommonProviderHandler.SetRegistryURLCache(registryName, urls)
+		}
+	}
+}
+
 // DiscoveryURL looks for the first handler that can handle the given `registryName`,
 // which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
