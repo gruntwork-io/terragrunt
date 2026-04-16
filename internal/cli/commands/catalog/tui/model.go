@@ -57,10 +57,9 @@ type Model struct {
 	SVC                 catalog.CatalogService
 	terragruntOptions   *options.TerragruntOptions
 	selectedModule      *module.Module
-	delegateKeys        *delegateKeyMap
+	delegateKeys        *DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
-	moduleCh            chan *module.Module
-	pagerKeys           pagerKeyMap
+	pagerKeys           PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
 	viewport            viewport.Model
@@ -69,8 +68,6 @@ type Model struct {
 	height              int
 	width               int
 	ready               bool
-	loading             bool
-	userNavigated       bool
 }
 
 func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
@@ -85,26 +82,11 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 		return strings.ToLower(items[i].(*module.Module).Title()) < strings.ToLower(items[j].(*module.Module).Title())
 	})
 
-	return newModelWithItems(l, opts, svc, items, nil)
-}
+	listKeys := NewListKeyMap()
+	delegateKeys := NewDelegateKeyMap()
+	pagerKeys := NewPagerKeyMap()
 
-// NewModelStreaming creates a Model with a single initial module and a channel
-// for receiving additional modules as they are discovered.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *module.Module, moduleCh chan *module.Module) Model {
-	items := []list.Item{initial}
-
-	m := newModelWithItems(l, opts, nil, items, moduleCh)
-	m.loading = true
-
-	return m
-}
-
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, items []list.Item, moduleCh chan *module.Module) Model {
-	listKeys := newListKeyMap()
-	delegateKeys := newDelegateKeyMap()
-	pagerKeys := newPagerKeyMap()
-
-	delegate := newItemDelegate(delegateKeys)
+	delegate := NewItemDelegate(delegateKeys)
 	lst := list.New(items, delegate, 0, 0)
 	lst.KeyMap = listKeys
 	lst.SetFilteringEnabled(true)
@@ -133,87 +115,10 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalo
 		terragruntOptions: opts,
 		SVC:               svc,
 		logger:            l,
-		moduleCh:          moduleCh,
-	}
-}
-
-// insertModuleSorted inserts a module into the list in alphabetical order,
-// skipping duplicates. If the user has started navigating, the cursor stays
-// on the currently selected item. Otherwise it stays at the top of the list.
-func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
-	items := m.List.Items()
-	modTitle := mod.Title()
-
-	// Binary search finds the insertion point and doubles as a duplicate check:
-	// if the item at insertIdx matches, the module is already in the list.
-	insertIdx := sort.Search(len(items), func(i int) bool {
-		if existing, ok := items[i].(*module.Module); ok {
-			return strings.ToLower(existing.Title()) >= strings.ToLower(modTitle)
-		}
-
-		return false
-	})
-
-	if isDuplicate(items, insertIdx, modTitle) {
-		return nil
-	}
-
-	currentIdx := m.List.Index()
-
-	cmd := m.List.InsertItem(insertIdx, mod)
-
-	if m.userNavigated {
-		// Preserve cursor: if we inserted before or at the current
-		// selection, shift the cursor forward so it stays on the same item.
-		if insertIdx <= currentIdx {
-			m.List.Select(currentIdx + 1)
-		}
-	} else {
-		// User hasn't navigated yet — keep cursor at the top.
-		m.List.Select(0)
-	}
-
-	return cmd
-}
-
-// isDuplicate reports whether the item at idx in the sorted list has the
-// same title (case-insensitive) as modTitle.
-func isDuplicate(items []list.Item, idx int, modTitle string) bool {
-	if idx >= len(items) {
-		return false
-	}
-
-	existing, ok := items[idx].(*module.Module)
-	if !ok {
-		return false
-	}
-
-	return strings.EqualFold(existing.Title(), modTitle)
-}
-
-func (m Model) listenForModule() tea.Cmd { //nolint:gocritic
-	ch := m.moduleCh
-	if ch == nil {
-		return nil
-	}
-
-	return func() tea.Msg {
-		mod, ok := <-ch
-		if !ok {
-			return nil
-		}
-
-		return moduleMsg{module: mod}
 	}
 }
 
 // Init implements bubbletea.Model.Init
 func (m Model) Init() tea.Cmd { //nolint:gocritic
-	cmds := []tea.Cmd{m.buttonBar.Init()}
-
-	if m.moduleCh != nil {
-		cmds = append(cmds, m.listenForModule())
-	}
-
-	return tea.Batch(cmds...)
+	return m.buttonBar.Init()
 }

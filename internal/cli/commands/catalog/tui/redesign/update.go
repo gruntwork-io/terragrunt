@@ -1,4 +1,4 @@
-package tui
+package redesign
 
 import (
 	"fmt"
@@ -27,6 +27,8 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
+		m.userNavigated = true
+
 		// Don't match any of the keys below if we're actively filtering.
 		if m.List.FilterState() == list.Filtering {
 			break
@@ -191,6 +193,19 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	switch msg := msg.(type) {
+	case moduleMsg:
+		cmd := m.insertModuleSorted(msg.module)
+
+		return m, tea.Batch(cmd, m.listenForModule())
+	case DiscoveryCompleteMsg:
+		m.SVC = msg.Svc
+		m.loading = false
+
+		if msg.Err != nil {
+			m.logger.Warnf("Discovery error: %v", msg.Err)
+		}
+
+		return m, nil
 	case tea.WindowSizeMsg:
 		h, v := AppStyle.GetFrameSize()
 		m.List.SetSize(msg.Width-h, msg.Height-v)

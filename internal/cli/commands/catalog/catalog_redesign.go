@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
@@ -27,10 +27,10 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return runDefault(ctx, l, opts, repoURL)
 	}
 
-	return tui.RunRedesign(
+	return redesign.RunRedesign(
 		ctx, l, opts,
 		func(
-			ctx context.Context, status tui.StatusFunc, moduleCh chan<- *module.Module,
+			ctx context.Context, status redesign.StatusFunc, moduleCh chan<- *module.Module,
 		) (catalog.CatalogService, error) {
 			svc := catalog.NewCatalogService(opts)
 
@@ -124,7 +124,7 @@ func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.
 func discoverSourceFileURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
 	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
 
-	urls, err := DiscoverSourceURLs(ctx, l, pctx)
+	urls, err := redesign.DiscoverSourceURLs(ctx, l, pctx)
 	if err != nil {
 		l.Warnf("Failed to discover source URLs: %v", err)
 		return nil
