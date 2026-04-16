@@ -118,39 +118,15 @@ func StackOutput(
 
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
-
-			if excludedPaths[filepath.Clean(unitDir)] {
-				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
-
-				key := filepath.Join(targetDir, unit.Path)
-				declaredUnits[key] = unit
-				outputs[key] = map[string]cty.Value{}
-
-				continue
-			}
-
-			var output map[string]cty.Value
-
-			telemetryErr := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
-				"unit_name":   unit.Name,
-				"unit_source": unit.Source,
-				"unit_path":   unit.Path,
-			}, func(ctx context.Context) error {
-				var outputErr error
-
-				output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
-
-				return outputErr
-			})
-			if telemetryErr != nil {
-				return cty.NilVal, errors.New(telemetryErr)
-			}
-
 			key := filepath.Join(targetDir, unit.Path)
-			declaredUnits[key] = unit
-			outputs[key] = output
 
-			l.Debugf("Added output for %s", key)
+			unitOutput, err := readUnitOutput(ctx, l, pctx, unit, unitDir, excludedPaths)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			declaredUnits[key] = unit
+			outputs[key] = unitOutput
 		}
 	}
 
@@ -274,9 +250,44 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
-// discoverExcludedPaths uses the discovery system to parse unit configs and
-// determine which units should be excluded from the "output" action.
-// Uses ShouldPreventRun for consistent behavior with the runner (run/run.go:229).
+// readUnitOutput returns the terraform outputs for a unit, or an empty map if the unit is excluded.
+func readUnitOutput(
+	ctx context.Context,
+	l log.Logger,
+	pctx *config.ParsingContext,
+	unit *config.Unit,
+	unitDir string,
+	excludedPaths map[string]bool,
+) (map[string]cty.Value, error) {
+	if excludedPaths[filepath.Clean(unitDir)] {
+		l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
+
+		return map[string]cty.Value{}, nil
+	}
+
+	var output map[string]cty.Value
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{
+		"unit_name":   unit.Name,
+		"unit_source": unit.Source,
+		"unit_path":   unit.Path,
+	}, func(ctx context.Context) error {
+		var outputErr error
+
+		output, outputErr = unit.ReadOutputs(ctx, l, pctx, unitDir)
+
+		return outputErr
+	})
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return output, nil
+}
+
+// discoverExcludedPaths uses discovery to find units excluded from the current
+// terraform command. Uses the same IsActionListed + If logic as find.go:153,
+// list.go:144, and discovery.go:602.
 func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dir string) map[string]bool {
 	d := discovery.NewDiscovery(dir).
 		WithParseExclude().
@@ -300,14 +311,7 @@ func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.Terr
 			continue
 		}
 
-		cfg := unit.Config()
-		if cfg == nil || cfg.Exclude == nil {
-			continue
-		}
-
-		// Use ShouldPreventRun to match the runner's exclude semantics exactly.
-		// This correctly handles no_run, if, actions, and special values like "all"/"all_except_output".
-		if cfg.Exclude.ShouldPreventRun(opts.TerraformCommand) {
+		if unit.Excluded() {
 			excluded[filepath.Clean(unit.Path())] = true
 		}
 	}
