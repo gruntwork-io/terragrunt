@@ -1,0 +1,24 @@
+---
+version: "v1.0.2"
+---
+
+### 🐛 Bug Fixes
+
+---
+
+#### `stack output` now respects the `exclude` block
+
+`terragrunt stack output` previously ignored the `exclude` block on units, attempting to fetch outputs (including directly from S3 state when using `--dependency-fetch-output-from-state`) for units that should have been excluded. This caused S3 404 errors when the excluded unit had never been applied.
+
+The fix uses Terragrunt's discovery system to identify excluded units before reading outputs, applying the same `IsActionListed` + `if` semantics used by `find`, `list`, and `run --all`. Excluded units now appear in the stack output as empty objects (`{}`), consistent with how they are handled during `stack run`.
+
+To exclude a unit from `stack output`, add `"output"` to the `actions` list in the `exclude` block:
+
+```hcl
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy", "output"]
+}
+```
+
+Special action values `"all"` and `"all_except_output"` are also supported.
