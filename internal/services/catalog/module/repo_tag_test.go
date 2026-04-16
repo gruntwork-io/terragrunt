@@ -1,4 +1,4 @@
-package module
+package module_test
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func initBareRepoWithTags(t *testing.T, tags []string) string {
 	runIn := func(dir string, args ...string) {
 		t.Helper()
 
-		cmd := exec.Command("git", args...)
+		cmd := exec.CommandContext(t.Context(), "git", args...) //nolint:gosec // test helper, args are hardcoded
 		cmd.Dir = dir
 		cmd.Env = gitEnv
 
@@ -61,8 +62,8 @@ func TestResolveLatestTag_FindsHighestSemver(t *testing.T) {
 	bareDir := initBareRepoWithTags(t, []string{"v1.0.0", "v1.10.2", "v1.5.0", "not-semver"})
 	l := logger.CreateLogger()
 
-	repo := &Repo{
-		logger:    l,
+	repo := &module.Repo{
+		Logger:    l,
 		RemoteURL: bareDir,
 	}
 
@@ -77,8 +78,8 @@ func TestResolveLatestTag_NoTags(t *testing.T) {
 	bareDir := initBareRepoWithTags(t, nil)
 	l := logger.CreateLogger()
 
-	repo := &Repo{
-		logger:    l,
+	repo := &module.Repo{
+		Logger:    l,
 		RemoteURL: bareDir,
 	}
 
@@ -92,8 +93,8 @@ func TestResolveLatestTag_EmptyRemoteURL(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	repo := &Repo{
-		logger: l,
+	repo := &module.Repo{
+		Logger: l,
 	}
 
 	repo.ResolveLatestTag(t.Context())

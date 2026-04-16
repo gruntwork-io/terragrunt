@@ -70,8 +70,6 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
-					// Collect modules from this repo so we can resolve the tag once
-					// for the shared Repo, then wrap all modules before sending.
 					var collected []*module.Module
 
 					onModule := func(mod *module.Module) {

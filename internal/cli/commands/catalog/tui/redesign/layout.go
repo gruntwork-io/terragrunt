@@ -11,6 +11,7 @@ const (
 	maxVerWidth    = 22
 	metaGap        = 2
 	minSourceWidth = 8
+	halveDivisor   = 2
 )
 
 // catalogMetaColors holds per-column lipgloss styles for the catalog metadata row.
@@ -40,7 +41,7 @@ func abbreviateMiddle(s string, maxWidth int) string {
 	}
 
 	avail := maxWidth - ellW
-	leftW := avail / 2
+	leftW := avail / halveDivisor
 	rightW := avail - leftW
 
 	return takeWidthPrefix(s, leftW) + ell + takeWidthSuffix(s, rightW)
@@ -62,6 +63,7 @@ func takeWidthPrefix(s string, maxW int) string {
 		}
 
 		b.WriteRune(r)
+
 		w += rw
 	}
 
@@ -100,7 +102,7 @@ func takeWidthSuffix(s string, maxW int) string {
 
 // buildMetaRow returns one lipgloss-rendered row: [type]  source  [version].
 // innerWidth is the available width for the metadata content (excluding title padding).
-func buildMetaRow(entry *ModuleEntry, innerWidth int, colors catalogMetaColors) string {
+func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors) string {
 	if entry == nil {
 		return ""
 	}
@@ -109,8 +111,10 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors catalogMetaColors) 
 	gapW := metaGap
 
 	// Render type pill
-	var typePart string
-	var typeW int
+	var (
+		typePart string
+		typeW    int
+	)
 
 	if entry.ItemType != "" {
 		typePart = colors.typePill.Render(entry.ItemType)
@@ -118,8 +122,10 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors catalogMetaColors) 
 	}
 
 	// Render version pill
-	var verPart string
-	var verW int
+	var (
+		verPart string
+		verW    int
+	)
 
 	if entry.Version != "" {
 		verDisplay := entry.Version
@@ -178,6 +184,7 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors catalogMetaColors) 
 	}
 
 	leftW := lipgloss.Width(left)
+
 	fill := innerWidth - leftW - verW
 	if fill < metaGap {
 		fill = metaGap

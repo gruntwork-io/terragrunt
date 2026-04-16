@@ -37,7 +37,8 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 		switch {
 		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
 			if selectedEntry, ok := m.List.SelectedItem().(*ModuleEntry); ok {
-			selectedModule := selectedEntry.Module
+				selectedModule := selectedEntry.Module
+
 				switch {
 				case key.Matches(msg, m.delegateKeys.Choose):
 					// prepare the viewport

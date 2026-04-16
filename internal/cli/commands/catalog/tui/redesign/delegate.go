@@ -29,15 +29,18 @@ const (
 	sourceColorSelected = "#B4DAFF"
 
 	metaMuted = "#6C7086"
+
+	// delegateHeight is the number of lines per catalog item (title + desc + meta).
+	delegateHeight = 3
 )
 
 // catalogDelegate renders catalog modules with a color-coded metadata row
 // (type pill, source, version pill) below the title and description.
 type catalogDelegate struct {
-	styles     list.DefaultItemStyles
-	keys       *tui.DelegateKeyMap
-	shortHelp  func() []key.Binding
-	fullHelp   func() [][]key.Binding
+	styles    list.DefaultItemStyles
+	keys      *tui.DelegateKeyMap
+	shortHelp func() []key.Binding
+	fullHelp  func() [][]key.Binding
 }
 
 func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
@@ -67,22 +70,22 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 }
 
 // Height returns the delegate's preferred height (title + desc + meta + spacing).
-func (d catalogDelegate) Height() int {
-	return 3
+func (d catalogDelegate) Height() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+	return delegateHeight
 }
 
 // Spacing returns the gap between items.
-func (d catalogDelegate) Spacing() int {
+func (d catalogDelegate) Spacing() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
 	return 1
 }
 
 // Update is a no-op; input is handled by the model.
-func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
+func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { //nolint:gocritic // value receiver required by list.ItemDelegate interface
 	return nil
 }
 
 // ShortHelp returns the delegate's short help bindings.
-func (d catalogDelegate) ShortHelp() []key.Binding {
+func (d catalogDelegate) ShortHelp() []key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
 	if d.shortHelp != nil {
 		return d.shortHelp()
 	}
@@ -91,7 +94,7 @@ func (d catalogDelegate) ShortHelp() []key.Binding {
 }
 
 // FullHelp returns the delegate's full help bindings.
-func (d catalogDelegate) FullHelp() [][]key.Binding {
+func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
 	if d.fullHelp != nil {
 		return d.fullHelp()
 	}
@@ -100,7 +103,7 @@ func (d catalogDelegate) FullHelp() [][]key.Binding {
 }
 
 // Render prints an item with title, description, and metadata row.
-func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:funlen,cyclop
+func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:funlen,cyclop,gocritic // value receiver required by list.ItemDelegate interface
 	entry, isEntry := item.(*ModuleEntry)
 	if !isEntry {
 		return
@@ -120,6 +123,7 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	// Limit description to a single line
 	var lines []string
+
 	for i, line := range strings.Split(desc, "\n") {
 		if i >= 1 {
 			break
@@ -190,7 +194,7 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	colors := metaPalette(isSelected && m.FilterState() != list.Filtering, emptyFilter)
 	metaLine := lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(
-		buildMetaRow(entry, metaInnerWidth, colors))
+		buildMetaRow(entry, metaInnerWidth, &colors))
 
 	fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
 }
