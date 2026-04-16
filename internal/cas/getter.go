@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 )
 
 // Assert that CASGetter implements the Getter interface
 var _ getter.Getter = &CASGetter{}
+
+var (
+	ErrDirectoryNotFound = errors.New("directory not found")
+	ErrNotADirectory     = errors.New("not a directory")
+)
 
 // CASGetter is a go-getter Getter implementation.
 type CASGetter struct {
@@ -107,7 +112,9 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 		if ok {
 			// Check if this is a FileDetector using type assertion
 			if _, isFileDetector := detector.(*getter.FileDetector); isFileDetector {
-				info, statErr := os.Stat(src)
+				fs := g.getFS()
+
+				info, statErr := fs.Stat(src)
 				if statErr != nil {
 					return false, fmt.Errorf("%w: %s", ErrDirectoryNotFound, src)
 				}
@@ -129,7 +136,11 @@ func (g *CASGetter) Detect(req *getter.Request) (bool, error) {
 	return false, nil
 }
 
-var (
-	ErrDirectoryNotFound = errors.New("directory not found")
-	ErrNotADirectory     = errors.New("not a directory")
-)
+// getFS returns the filesystem from the CAS instance, or a default OSFS if CAS is nil.
+func (g *CASGetter) getFS() vfs.FS {
+	if g.CAS != nil {
+		return g.CAS.FS()
+	}
+
+	return vfs.NewOSFS()
+}
