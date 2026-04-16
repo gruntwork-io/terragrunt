@@ -115,14 +115,14 @@ func TestModuleListView_LoadingTitle(t *testing.T) {
 
 	// Should show loading indicator
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "List of Modules (loading...)", "streaming model should show loading indicator")
+	assert.Contains(t, content, "All (loading...)", "streaming model should show loading indicator")
 
 	// Send discoveryComplete to clear loading state
 	updated, _ = m.Update(redesign.DiscoveryCompleteMsg{Svc: svc, Err: nil})
 	m = updated.(redesign.Model)
 
 	content = stripANSI(m.View().Content)
-	assert.Contains(t, content, "List of Modules", "should still have title")
+	assert.Contains(t, content, "All", "should still have title")
 	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
 }
 
