@@ -40,7 +40,7 @@ func TraceParentFromContext(ctx context.Context, telemetry *Options) string {
 		return ""
 	}
 
-	if len(telemetry.TraceParent) > 0 {
+	if telemetry != nil && len(telemetry.TraceParent) > 0 {
 		return telemetry.TraceParent
 	}
 
