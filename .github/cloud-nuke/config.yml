@@ -1,21 +1,21 @@
-s3:
+S3:
   timeout: 1h
   include:
     names_regex:
       - "^terragrunt-test-bucket-[a-zA-Z0-9]{6}.*"
 
-vpc:
+VPC:
   include:
-    name_regex:
+    names_regex:
       - "^vpc-.*"
       - "^step-.*"
 
-ec2:
+EC2:
   include:
-    name_regex:
+    names_regex:
       - "^single-instance$"
 
-dynamodb:
+DynamoDB:
   include:
-    table_names_regex:
+    names_regex:
       - "^terragrunt-test.*"
