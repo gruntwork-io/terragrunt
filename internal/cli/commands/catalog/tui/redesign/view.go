@@ -11,7 +11,7 @@ import (
 var (
 	AppStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
-	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252"))
+	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252F"))
 	infoHelp          = lipgloss.NewStyle().Padding(2, 0, 0, 2) //nolint:mnd
 )
 

@@ -35,6 +35,7 @@ type welcomeState int
 const (
 	welcomeLoading welcomeState = iota
 	welcomeNoSources
+	welcomeDiscoveryError
 )
 
 // DiscoveryCompleteMsg is sent when background discovery finishes.
@@ -79,18 +80,19 @@ var (
 // discovery runs in the background, then either transitions to the module
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	ctx        context.Context
-	logger     log.Logger
-	opts       *options.TerragruntOptions
-	loadFunc   LoadFunc
-	openURL    OpenURLFunc
-	statusCh   chan string
-	moduleCh   chan *module.Module
-	statusText string
-	spinner    spinner.Model
-	state      welcomeState
-	width      int
-	height     int
+	ctx              context.Context
+	logger           log.Logger
+	lastDiscoveryErr error
+	moduleCh         chan *module.Module
+	openURL          OpenURLFunc
+	statusCh         chan string
+	loadFunc         LoadFunc
+	opts             *options.TerragruntOptions
+	statusText       string
+	spinner          spinner.Model
+	state            welcomeState
+	width            int
+	height           int
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
@@ -213,17 +215,23 @@ func (m WelcomeModel) handleModuleMsg(msg moduleMsg) (tea.Model, tea.Cmd) { //no
 	newModel := NewModelStreaming(m.logger, m.opts, msg.module, m.moduleCh)
 	width, height := m.width, m.height
 
-	return newModel, tea.Batch(
-		newModel.Init(),
-		func() tea.Msg {
+	initCmds := []tea.Cmd{newModel.Init()}
+	if width > 0 && height > 0 {
+		initCmds = append(initCmds, func() tea.Msg {
 			return tea.WindowSizeMsg{Width: width, Height: height}
-		},
-	)
+		})
+	}
+
+	return newModel, tea.Batch(initCmds...)
 }
 
 func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	if msg.Err != nil {
 		m.logger.Warnf("Discovery error: %v", msg.Err)
+		m.lastDiscoveryErr = msg.Err
+		m.state = welcomeDiscoveryError
+
+		return m, nil
 	}
 
 	// Defensive: if we're still on the loading screen but the service has
@@ -233,12 +241,14 @@ func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Mod
 		newModel := NewModel(m.logger, m.opts, msg.Svc)
 		width, height := m.width, m.height
 
-		return newModel, tea.Batch(
-			newModel.Init(),
-			func() tea.Msg {
+		initCmds := []tea.Cmd{newModel.Init()}
+		if width > 0 && height > 0 {
+			initCmds = append(initCmds, func() tea.Msg {
 				return tea.WindowSizeMsg{Width: width, Height: height}
-			},
-		)
+			})
+		}
+
+		return newModel, tea.Batch(initCmds...)
 	}
 
 	// No modules were ever discovered — show the welcome screen.
@@ -256,6 +266,8 @@ func (m WelcomeModel) View() tea.View { //nolint:gocritic
 		content = m.loadingView()
 	case welcomeNoSources:
 		content = m.noSourcesView()
+	case welcomeDiscoveryError:
+		content = m.discoveryErrorView()
 	}
 
 	if m.width > 0 && m.height > 0 {
@@ -298,6 +310,29 @@ func (m WelcomeModel) noSourcesView() string { //nolint:gocritic
 		"     The catalog will automatically discover referenced modules.",
 		"",
 		welcomeHintStyle.Render("h: open docs in browser  q/esc: exit"),
+	))
+
+	return lipgloss.JoinVertical(lipgloss.Center, title, body)
+}
+
+func (m WelcomeModel) discoveryErrorView() string { //nolint:gocritic
+	title := welcomeTitleStyle.Render(" Terragrunt Catalog ")
+
+	errMsg := "unknown error"
+	if m.lastDiscoveryErr != nil {
+		errMsg = m.lastDiscoveryErr.Error()
+	}
+
+	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		"An error occurred while discovering catalog sources:",
+		"",
+		welcomeCodeStyle.Render("  "+errMsg),
+		"",
+		"Please check your network connection, authentication, and",
+		"catalog configuration, then try again.",
+		"",
+		welcomeHintStyle.Render("q/esc: exit"),
 	))
 
 	return lipgloss.JoinVertical(lipgloss.Center, title, body)

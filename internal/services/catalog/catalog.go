@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
@@ -199,7 +200,9 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 		allModules = append(allModules, repoModules...)
 	}
 
+	s.mu.Lock()
 	s.modules = allModules
+	s.mu.Unlock()
 
 	if len(errs) > 0 {
 		return errors.Errorf("failed to find modules in some repositories: %v", errs)
@@ -264,7 +267,7 @@ func (s *catalogServiceImpl) Modules() module.Modules {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.modules
+	return slices.Clone(s.modules)
 }
 
 func (s *catalogServiceImpl) Scaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, module *module.Module) error {

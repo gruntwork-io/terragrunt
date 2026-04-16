@@ -90,9 +90,11 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					// advance state
 					m.selectedModule = selectedModule
 					m.State = PagerState
+
+					return m, tea.Batch(cmds...)
 				case key.Matches(msg, m.delegateKeys.Scaffold):
 					if m.SVC == nil {
-						break
+						return m, nil
 					}
 
 					m.State = ScaffoldState
@@ -114,7 +116,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 	// Append any commands from button bar initialization
 	if len(cmds) > 0 {
-		return m, tea.Batch(cmd, tea.Batch(cmds...))
+		return m, tea.Batch(append([]tea.Cmd{cmd}, cmds...)...)
 	}
 
 	return m, cmd
@@ -146,7 +148,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			switch currentAction {
 			case scaffoldBtn:
 				if m.SVC == nil {
-					break
+					return m, nil
 				}
 
 				m.State = ScaffoldState
@@ -164,7 +166,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
 			if m.SVC == nil {
-				break
+				return m, nil
 			}
 
 			m.State = ScaffoldState
@@ -227,7 +229,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 	case scaffoldFinishedMsg:
 		if msg.err != nil {
-			tea.Printf("error scaffolding module: %s", msg.err.Error())
+			return m, tea.Batch(tea.Printf("error scaffolding module: %s", msg.err.Error()), tea.Quit)
 		}
 
 		return m, tea.Quit

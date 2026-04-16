@@ -77,11 +77,11 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 		repoURL := repoOpts.CloneURL
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
 
-		os.MkdirAll(dummyRepoDir, 0755)
+		require.NoError(t, os.MkdirAll(dummyRepoDir, 0755), "MkdirAll %s", dummyRepoDir)
 
 		gitDir := filepath.Join(dummyRepoDir, ".git")
-		os.MkdirAll(gitDir, 0755)
-		os.WriteFile(filepath.Join(gitDir, "config"), fmt.Appendf(nil, `[core]
+		require.NoError(t, os.MkdirAll(gitDir, 0755), "MkdirAll %s", gitDir)
+		require.NoError(t, os.WriteFile(filepath.Join(gitDir, "config"), fmt.Appendf(nil, `[core]
 	repositoryformatversion = 0
 	filemode = true
 	bare = false
@@ -92,29 +92,33 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 [branch "main"]
 	remote = origin
 	merge = refs/heads/main
-`, repoURL), 0644)
-		os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644)
+`, repoURL), 0644), "WriteFile %s/config", gitDir)
+		require.NoError(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644), "WriteFile %s/HEAD", gitDir)
 
 		refsDir := filepath.Join(gitDir, "refs")
 		headsDir := filepath.Join(refsDir, "heads")
 		remotesDir := filepath.Join(refsDir, "remotes", "origin")
 
-		os.MkdirAll(headsDir, 0755)
-		os.MkdirAll(remotesDir, 0755)
+		require.NoError(t, os.MkdirAll(headsDir, 0755), "MkdirAll %s", headsDir)
+		require.NoError(t, os.MkdirAll(remotesDir, 0755), "MkdirAll %s", remotesDir)
 
 		fakeCommitHash := "1234567890abcdef1234567890abcdef12345678"
-		os.WriteFile(filepath.Join(headsDir, "main"), []byte(fakeCommitHash+"\n"), 0644)
-		os.WriteFile(filepath.Join(remotesDir, "main"), []byte(fakeCommitHash+"\n"), 0644)
+		require.NoError(t, os.WriteFile(filepath.Join(headsDir, "main"), []byte(fakeCommitHash+"\n"), 0644), "WriteFile %s/main", headsDir)
+		require.NoError(t, os.WriteFile(filepath.Join(remotesDir, "main"), []byte(fakeCommitHash+"\n"), 0644), "WriteFile %s/main", remotesDir)
 
 		switch repoURL {
 		case "github.com/gruntwork-io/test-repo-1":
 			readme1Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# VPC terraform configuration"), 0644)
+			require.NoError(t, os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644), "WriteFile %s", readme1Path)
+
+			mainTF1 := filepath.Join(dummyRepoDir, "main.tf")
+			require.NoError(t, os.WriteFile(mainTF1, []byte("# VPC terraform configuration"), 0644), "WriteFile %s", mainTF1)
 		case "github.com/gruntwork-io/test-repo-2":
 			readme2Path := filepath.Join(dummyRepoDir, "README.md")
-			os.WriteFile(readme2Path, []byte("# AWS EKS Module\nThis module creates an EKS cluster in AWS."), 0644)
-			os.WriteFile(filepath.Join(dummyRepoDir, "main.tf"), []byte("# EKS terraform configuration"), 0644)
+			require.NoError(t, os.WriteFile(readme2Path, []byte("# AWS EKS Module\nThis module creates an EKS cluster in AWS."), 0644), "WriteFile %s", readme2Path)
+
+			mainTF2 := filepath.Join(dummyRepoDir, "main.tf")
+			require.NoError(t, os.WriteFile(mainTF2, []byte("# EKS terraform configuration"), 0644), "WriteFile %s", mainTF2)
 		default:
 			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
 		}
@@ -135,7 +139,7 @@ func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) cat
 	require.NoError(t, err)
 
 	unitDir := filepath.Join(tmpDir, "unit")
-	os.MkdirAll(unitDir, 0755)
+	require.NoError(t, os.MkdirAll(unitDir, 0755), "MkdirAll %s", unitDir)
 	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
@@ -182,10 +186,10 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 	items := finalModel.List.Items()
 	assert.Len(t, items, len(modules), "all modules should be in the list")
 
-	// Verify sorted order
+	// Verify sorted order (case-insensitive, matching the sort in model.go)
 	for i := 1; i < len(items); i++ {
-		prev := items[i-1].(*module.Module).Title()
-		curr := items[i].(*module.Module).Title()
+		prev := strings.ToLower(items[i-1].(*module.Module).Title())
+		curr := strings.ToLower(items[i].(*module.Module).Title())
 		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order: %q should come before %q", prev, curr)
 	}
 }

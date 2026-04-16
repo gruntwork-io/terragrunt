@@ -1,3 +1,5 @@
+// Package redesign implements the redesigned catalog TUI experience with
+// streaming module discovery and a welcome loading screen.
 package redesign
 
 import (
@@ -142,11 +144,14 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalo
 // skipping duplicates. If the user has started navigating, the cursor stays
 // on the currently selected item. Otherwise it stays at the top of the list.
 func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
+	if mod == nil {
+		return nil
+	}
+
 	items := m.List.Items()
 	modTitle := mod.Title()
 
-	// Binary search finds the insertion point and doubles as a duplicate check:
-	// if the item at insertIdx matches, the module is already in the list.
+	// Binary search finds the insertion point by title for sort order.
 	insertIdx := sort.Search(len(items), func(i int) bool {
 		if existing, ok := items[i].(*module.Module); ok {
 			return strings.ToLower(existing.Title()) >= strings.ToLower(modTitle)
@@ -155,7 +160,9 @@ func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
 		return false
 	})
 
-	if isDuplicate(items, insertIdx, modTitle) {
+	// De-duplicate by source path, not title, so distinct modules that
+	// share a display name are not collapsed.
+	if isDuplicate(items, mod.TerraformSourcePath()) {
 		return nil
 	}
 
@@ -177,19 +184,20 @@ func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
 	return cmd
 }
 
-// isDuplicate reports whether the item at idx in the sorted list has the
-// same title (case-insensitive) as modTitle.
-func isDuplicate(items []list.Item, idx int, modTitle string) bool {
-	if idx >= len(items) {
-		return false
+// isDuplicate reports whether any item in the list has the same source path
+// as sourcePath. This uses the stable TerraformSourcePath identity rather
+// than the display title, so distinct modules that share a title are not
+// incorrectly collapsed.
+func isDuplicate(items []list.Item, sourcePath string) bool {
+	for _, item := range items {
+		if existing, ok := item.(*module.Module); ok {
+			if existing.TerraformSourcePath() == sourcePath {
+				return true
+			}
+		}
 	}
 
-	existing, ok := items[idx].(*module.Module)
-	if !ok {
-		return false
-	}
-
-	return strings.EqualFold(existing.Title(), modTitle)
+	return false
 }
 
 func (m Model) listenForModule() tea.Cmd { //nolint:gocritic

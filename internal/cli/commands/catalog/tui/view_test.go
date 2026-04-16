@@ -70,14 +70,6 @@ func TestModulePagerView_RendersFooterAndButtons(t *testing.T) {
 // windowSize is a convenience WindowSizeMsg used across view tests.
 var windowSize = tea.WindowSizeMsg{Width: 120, Height: 40}
 
-// updateModel sends a message to a tea.Model and returns the updated model,
-// discarding commands.
-func updateModel(m tea.Model, msg tea.Msg) tea.Model {
-	updated, _ := m.Update(msg)
-
-	return updated
-}
-
 // stripANSI removes ANSI escape sequences from a string so assertions
 // can match on plain text.
 func stripANSI(s string) string {

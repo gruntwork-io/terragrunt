@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 
 	"golang.org/x/sync/errgroup"
@@ -35,7 +36,10 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			svc := catalog.NewCatalogService(opts)
 
 			onModule := func(mod *module.Module) {
-				moduleCh <- mod
+				select {
+				case moduleCh <- mod:
+				case <-ctx.Done():
+				}
 			}
 
 			urlCh := make(chan string, 10) //nolint:mnd
@@ -74,6 +78,8 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 				loaders.Go(func() error {
 					if err := svc.LoadStreamingURL(loadCtx, l, repoURL, onModule); err != nil {
+						// Individual repo failures are non-critical — warn and
+						// continue so remaining repos can still load.
 						l.Warnf("Error loading %s: %v", repoURL, err)
 					}
 
@@ -82,11 +88,11 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			}
 
 			if err := loaders.Wait(); err != nil {
-				l.Warnf("Loader error: %v", err)
+				return nil, fmt.Errorf("loading modules: %w", err)
 			}
 
 			if err := g.Wait(); err != nil {
-				l.Warnf("Discovery error: %v", err)
+				return nil, fmt.Errorf("discovering sources: %w", err)
 			}
 
 			if len(svc.Modules()) == 0 {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -270,11 +271,11 @@ func TestWelcomeStreamingModules(t *testing.T) {
 	assert.Equal(t, redesign.ListState, listModel.State)
 	assert.Len(t, listModel.List.Items(), len(modules), "all streamed modules should appear in list")
 
-	// Verify alphabetical order
+	// Verify alphabetical order (case-insensitive, matching the sort in model.go)
 	items := listModel.List.Items()
 	for i := 1; i < len(items); i++ {
-		prev := items[i-1].(*module.Module).Title()
-		curr := items[i].(*module.Module).Title()
+		prev := strings.ToLower(items[i-1].(*module.Module).Title())
+		curr := strings.ToLower(items[i].(*module.Module).Title())
 		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order")
 	}
 }

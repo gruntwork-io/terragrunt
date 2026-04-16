@@ -90,7 +90,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					m.State = PagerState
 				case key.Matches(msg, m.delegateKeys.Scaffold):
 					if m.SVC == nil {
-						break
+						return m, nil
 					}
 
 					m.State = ScaffoldState
@@ -144,7 +144,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			switch currentAction {
 			case scaffoldBtn:
 				if m.SVC == nil {
-					break
+					return m, nil
 				}
 
 				m.State = ScaffoldState
@@ -162,7 +162,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
 			if m.SVC == nil {
-				break
+				return m, nil
 			}
 
 			m.State = ScaffoldState

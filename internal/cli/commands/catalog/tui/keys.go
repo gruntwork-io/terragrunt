@@ -78,7 +78,7 @@ type DelegateKeyMap struct {
 	Scaffold key.Binding
 }
 
-// Additional short help entries. This satisfies the help.KeyMap interface and
+// ShortHelp returns additional short help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
 func (d DelegateKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
@@ -87,7 +87,7 @@ func (d DelegateKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	}
 }
 
-// Additional full help entries. This satisfies the help.KeyMap interface and
+// FullHelp returns additional full help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
 func (d DelegateKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	return [][]key.Binding{
