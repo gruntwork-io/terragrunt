@@ -192,6 +192,11 @@ func (tracer *Tracer) Trace(ctx context.Context, name string, attrs map[string]a
 	}
 
 	ctx, span := tracer.openSpan(ctx, name, attrs)
+
+	if span == nil {
+		return fn(ctx)
+	}
+
 	defer span.End()
 
 	if err := fn(ctx); err != nil {

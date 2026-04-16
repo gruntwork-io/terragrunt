@@ -33,6 +33,10 @@ func NewTelemeter(ctx context.Context, appName, appVersion string, writer io.Wri
 
 // Shutdown shutdowns the telemetry provider.
 func (tlm *Telemeter) Shutdown(ctx context.Context) error {
+	if tlm == nil {
+		return nil
+	}
+
 	if tlm.Tracer != nil && tlm.Tracer.provider != nil {
 		if err := tlm.Tracer.provider.Shutdown(ctx); err != nil {
 			return errors.New(err)
@@ -54,6 +58,10 @@ func (tlm *Telemeter) Shutdown(ctx context.Context) error {
 
 // Collect collects telemetry from function execution metrics and traces.
 func (tlm *Telemeter) Collect(ctx context.Context, name string, attrs map[string]any, fn func(childCtx context.Context) error) error {
+	if tlm == nil {
+		return fn(ctx)
+	}
+
 	// wrap telemetry collection with trace and time metric
 	return tlm.Trace(ctx, name, attrs, func(ctx context.Context) error {
 		return tlm.Time(ctx, name, attrs, fn)
