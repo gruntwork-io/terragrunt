@@ -1,0 +1,72 @@
+---
+version: "v1.0.2"
+---
+
+### 🧪 Experiments Updated
+
+---
+
+#### `stack-dependencies` — Cross-stack dependency support and autoinclude improvements
+
+The `stack-dependencies` experiment now supports cross-stack and nested-stack dependency patterns, expanding the `autoinclude` block capabilities in `terragrunt.stack.hcl` files.
+
+**New features:**
+
+- **`stack.<name>.path`** references for depending on an entire stack — the DAG expands the stack into its constituent units at runtime
+- **`stack.<name>.<unit_name>.path`** references for depending on a specific unit within a nested stack (fine-grained cross-stack dependencies)
+- **`dependency` blocks targeting stack directories** — aggregated outputs from all units in the stack are accessible as `dependency.stack_name.outputs.unit_name.output_key`
+- **Partial evaluation of `local.*` in autoinclude** — expressions mixing `local.*` and `dependency.*` are now partially evaluated: locals resolve to literals while dependency references are preserved for runtime
+
+**Dependency on an entire stack:**
+
+```hcl
+stack "infra" {
+  source = "../catalog/stacks/infra"
+  path   = "infra"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "infra" {
+      config_path = stack.infra.path
+    }
+
+    inputs = {
+      vpc_id = dependency.infra.outputs.vpc.vpc_id
+    }
+  }
+}
+```
+
+**Dependency on a unit within a nested stack:**
+
+```hcl
+stack "networking" {
+  source = "../catalog/stacks/networking"
+  path   = "networking"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = stack.networking.vpc.path
+    }
+
+    inputs = {
+      vpc_id = dependency.vpc.outputs.vpc_id
+    }
+  }
+}
+```
+
+```bash
+terragrunt run --all --experiment stack-dependencies -- plan
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).
