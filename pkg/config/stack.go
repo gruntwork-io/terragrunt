@@ -415,7 +415,7 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
-	opts generateOpts,
+	opts *generateOpts,
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
 ) error {
