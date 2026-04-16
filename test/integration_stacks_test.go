@@ -2148,9 +2148,13 @@ func TestStackOutputWithExclude(t *testing.T) {
 	assertExcludedUnit(t, result, "excluded_all")
 
 	// not_excluded_all_except_output (actions=["all_except_output"], no_run=true) is not excluded
-	// from "output" action by ShouldPreventRun, but was never applied (apply is excluded),
-	// so it returns empty output via the runner's no_run early exit
+	// from "output" action, but was never applied (apply matches all_except_output), so
+	// terraform output returns {} on the empty state directory
 	assert.Contains(t, result, "not_excluded_all_except_output")
+
+	notExcluded, ok := result["not_excluded_all_except_output"].(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, notExcluded, "unit was never applied so output should be empty")
 
 	// Verify no terraform was attempted for excluded units
 	for _, excluded := range []string{"excluded-app", "excluded-all"} {
