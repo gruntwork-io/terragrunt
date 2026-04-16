@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -22,9 +21,9 @@ type StatusFunc func(msg string)
 
 // LoadFunc performs source discovery and module loading in the background.
 // It calls status with human-readable progress updates and sends each
-// discovered module on moduleCh as it is found. It returns a ready
+// discovered module entry on moduleCh as it is found. It returns a ready
 // CatalogService (for scaffolding), or nil if no sources were found.
-type LoadFunc func(ctx context.Context, status StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error)
+type LoadFunc func(ctx context.Context, status StatusFunc, moduleCh chan<- *ModuleEntry) (catalog.CatalogService, error)
 
 // OpenURLFunc opens a URL in the user's browser. Injected so tests can
 // substitute a no-op or a recording stub.
@@ -44,14 +43,14 @@ type DiscoveryCompleteMsg struct {
 	Err error
 }
 
-// moduleMsg carries a single newly-discovered module from the LoadFunc.
+// moduleMsg carries a single newly-discovered module entry from the LoadFunc.
 type moduleMsg struct {
-	module *module.Module
+	entry *ModuleEntry
 }
 
 // ModuleMsg creates a moduleMsg for testing.
-func ModuleMsg(mod *module.Module) tea.Msg {
-	return moduleMsg{module: mod}
+func ModuleMsg(entry *ModuleEntry) tea.Msg {
+	return moduleMsg{entry: entry}
 }
 
 // StatusUpdateMsg carries a progress update from the LoadFunc.
@@ -83,11 +82,11 @@ type WelcomeModel struct {
 	ctx              context.Context
 	logger           log.Logger
 	lastDiscoveryErr error
-	moduleCh         chan *module.Module
+	opts             *options.TerragruntOptions
+	loadFunc         LoadFunc
 	openURL          OpenURLFunc
 	statusCh         chan string
-	loadFunc         LoadFunc
-	opts             *options.TerragruntOptions
+	moduleCh         chan *ModuleEntry
 	statusText       string
 	spinner          spinner.Model
 	state            welcomeState
@@ -108,7 +107,7 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		loadFunc:   loadFunc,
 		openURL:    browser.OpenURL,
 		statusCh:   make(chan string, statusChannelSize),
-		moduleCh:   make(chan *module.Module, statusChannelSize),
+		moduleCh:   make(chan *ModuleEntry, statusChannelSize),
 		spinner:    s,
 		statusText: "Discovering modules from your infrastructure...",
 		state:      welcomeLoading,
@@ -170,7 +169,7 @@ func (m WelcomeModel) listenForModule() tea.Cmd { //nolint:gocritic
 			return nil
 		}
 
-		return moduleMsg{module: mod}
+		return moduleMsg{entry: mod}
 	}
 }
 
@@ -212,7 +211,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 
 func (m WelcomeModel) handleModuleMsg(msg moduleMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	// First module: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.logger, m.opts, msg.module, m.moduleCh)
+	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.moduleCh)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}

@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
@@ -51,6 +52,7 @@ type Repo struct {
 
 	RemoteURL  string
 	BranchName string
+	LatestTag  string
 
 	walkWithSymlinks bool
 	allowCAS         bool
@@ -412,4 +414,57 @@ func (repo *Repo) parseBranchName() error {
 	}
 
 	return errors.Errorf("could not get branch name for repo %q", repo.path)
+}
+
+// ResolveLatestTag looks up the latest semver release tag from the remote.
+// The result is stored in LatestTag. If the lookup fails or the repo has no
+// semver tags, LatestTag is left empty.
+func (repo *Repo) ResolveLatestTag(ctx context.Context) {
+	remote := repo.remoteForTagLookup()
+	if remote == "" {
+		return
+	}
+
+	runner, err := gitpkg.NewGitRunner()
+	if err != nil {
+		repo.logger.Debugf("catalog: skip tag lookup: %v", err)
+
+		return
+	}
+
+	tag, err := runner.LatestReleaseTag(ctx, remote)
+	if err != nil {
+		repo.logger.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
+
+		return
+	}
+
+	repo.LatestTag = tag
+}
+
+// remoteForTagLookup returns a URL suitable for git ls-remote.
+// It prefers RemoteURL (parsed from .git/config) since that's what git
+// originally used to clone. Falls back to cloneURL with go-getter
+// prefixes and query params stripped.
+func (repo *Repo) remoteForTagLookup() string {
+	if repo.RemoteURL != "" {
+		return repo.RemoteURL
+	}
+
+	u := repo.cloneURL
+	if u == "" {
+		return ""
+	}
+
+	// Strip getter prefix (e.g. "git::", "s3::")
+	if idx := strings.Index(u, "::"); idx >= 0 {
+		u = u[idx+2:]
+	}
+
+	// Strip query parameters (e.g. "?ref=HEAD")
+	if idx := strings.IndexByte(u, '?'); idx >= 0 {
+		u = u[:idx]
+	}
+
+	return u
 }

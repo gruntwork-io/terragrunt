@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -72,7 +71,7 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -108,8 +107,8 @@ func TestModuleListView_LoadingTitle(t *testing.T) {
 	modules := svc.Modules()
 	require.NotEmpty(t, modules)
 
-	moduleCh := make(chan *module.Module, 10)
-	m := redesign.NewModelStreaming(l, opts, modules[0], moduleCh)
+	moduleCh := make(chan *redesign.ModuleEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[0]), moduleCh)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
@@ -127,6 +126,59 @@ func TestModuleListView_LoadingTitle(t *testing.T) {
 	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
 }
 
+func TestModuleListView_MetadataRowRendered(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	svc := createMockCatalogService(t, opts)
+	l := logger.CreateLogger()
+	modules := svc.Modules()
+	require.NotEmpty(t, modules)
+
+	entry := redesign.NewModuleEntry(modules[0]).
+		WithVersion("v1.10.2").
+		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+
+	moduleCh := make(chan *redesign.ModuleEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, entry, moduleCh)
+
+	updated, _ := m.Update(windowSize)
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "module", "metadata row should contain item type")
+	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
+	assert.Contains(t, content, "v1.10.2", "metadata row should contain version")
+}
+
+func TestModuleListView_NoVersionOmitsVersionPill(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	svc := createMockCatalogService(t, opts)
+	l := logger.CreateLogger()
+	modules := svc.Modules()
+	require.NotEmpty(t, modules)
+
+	entry := redesign.NewModuleEntry(modules[0]).
+		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+
+	moduleCh := make(chan *redesign.ModuleEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, entry, moduleCh)
+
+	updated, _ := m.Update(windowSize)
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "module", "metadata row should contain item type")
+	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
+	assert.NotContains(t, content, "v1.10.2", "version pill should not appear when version is empty")
+}
+
 // --- synctest: Streaming Flow ---
 
 func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
@@ -141,13 +193,13 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		modules := svc.Modules()
 		require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules")
 
-		streamingLoad := func(_ context.Context, status redesign.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+		streamingLoad := func(_ context.Context, status redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 			status("Discovering catalog sources...")
 
 			for _, mod := range modules {
 				time.Sleep(100 * time.Millisecond)
 
-				moduleCh <- mod
+				moduleCh <- redesign.NewModuleEntry(mod)
 			}
 
 			return svc, nil
@@ -240,8 +292,8 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 
 			// Verify alphabetical order if multiple items present
 			for i := 1; i < len(items); i++ {
-				prev := items[i-1].(*module.Module).Title()
-				curr := items[i].(*module.Module).Title()
+				prev := items[i-1].(*redesign.ModuleEntry).Title()
+				curr := items[i].(*redesign.ModuleEntry).Title()
 				assert.LessOrEqual(t, strings.ToLower(prev), strings.ToLower(curr),
 					"modules should be in alphabetical order: %q should come before %q", prev, curr)
 			}
@@ -260,7 +312,7 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 
 		l := logger.CreateLogger()
 
-		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 			// Block for a long time (fake time) so we stay in loading state
 			select {
 			case <-time.After(10 * time.Second):
@@ -342,7 +394,7 @@ var windowSize = tea.WindowSizeMsg{Width: 120, Height: 40}
 
 // blockingLoad is a LoadFunc that blocks until the context is cancelled,
 // keeping the WelcomeModel in the loading state.
-func blockingLoad(ctx context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+func blockingLoad(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 	<-ctx.Done()
 
 	return nil, nil

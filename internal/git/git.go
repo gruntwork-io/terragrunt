@@ -30,6 +30,7 @@ import (
 	"github.com/go-git/go-git/v6/storage/filesystem"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -179,6 +180,48 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 	}
 
 	return results, nil
+}
+
+const refsTags = "refs/tags/"
+
+// LatestReleaseTag returns the highest semver release tag from the given remote.
+// It uses `git ls-remote --tags` against the named remote (e.g. "origin") and
+// returns the tag with the greatest semantic version, or "" if none exist.
+func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string, error) {
+	results, err := g.LsRemote(ctx, remote, "refs/tags/*")
+	if err != nil {
+		// No tags is not an error — just means no release tags exist.
+		if errors.Is(err, ErrNoMatchingReference) {
+			return "", nil
+		}
+
+		return "", err
+	}
+
+	var best *version.Version
+
+	for _, r := range results {
+		name := strings.TrimPrefix(r.Ref, refsTags)
+		// Skip dereferenced tag objects (e.g. refs/tags/v1.0.0^{})
+		if strings.HasSuffix(name, "^{}") {
+			continue
+		}
+
+		v, err := version.NewVersion(name)
+		if err != nil {
+			continue
+		}
+
+		if best == nil || v.GreaterThan(best) {
+			best = v
+		}
+	}
+
+	if best == nil {
+		return "", nil
+	}
+
+	return best.Original(), nil
 }
 
 // Clone performs a git clone operation
