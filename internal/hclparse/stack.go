@@ -216,8 +216,6 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 		return nil
 	}
 
-	stackSourceDir = util.ResolvePath(stackSourceDir)
-
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)
 	if err != nil || result == nil {
 		return nil

@@ -605,14 +605,25 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 	}
 
 	// Validate no duplicate unit names after merge.
-	seen := make(map[string]bool, len(config.Units))
+	seenUnits := make(map[string]bool, len(config.Units))
 
 	for _, u := range config.Units {
-		if seen[u.Name] {
+		if seenUnits[u.Name] {
 			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
 		}
 
-		seen[u.Name] = true
+		seenUnits[u.Name] = true
+	}
+
+	// Validate no duplicate stack names after merge.
+	seenStacks := make(map[string]bool, len(config.Stacks))
+
+	for _, s := range config.Stacks {
+		if seenStacks[s.Name] {
+			return errors.Errorf("duplicate stack name %q after include merge", s.Name)
+		}
+
+		seenStacks[s.Name] = true
 	}
 
 	return nil

@@ -13,6 +13,13 @@ unit "app" {
   autoinclude {
     dependency "infra" {
       config_path = stack.infra.path
+
+      mock_outputs_allowed_terraform_commands = ["validate", "plan"]
+      mock_outputs = {
+        vpc = {
+          vpc_id = "mock-vpc-id"
+        }
+      }
     }
 
     inputs = {

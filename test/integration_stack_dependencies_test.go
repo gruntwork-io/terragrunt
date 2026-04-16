@@ -403,6 +403,8 @@ func TestStackDepsDocExample_EntireStack(t *testing.T) {
 	content := string(generated)
 	assert.Contains(t, content, `dependency "infra"`)
 	assert.Contains(t, content, "../infra")
+	assert.Contains(t, content, "mock_outputs_allowed_terraform_commands")
+	assert.Contains(t, content, "mock-vpc-id")
 	assert.Contains(t, content, "dependency.infra.outputs.vpc.vpc_id")
 
 	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
