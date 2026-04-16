@@ -4,6 +4,7 @@ package output
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -19,6 +20,21 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/zclconf/go-cty/cty"
 )
+
+// UnitOutputError is returned when reading terraform outputs for a stack unit fails.
+type UnitOutputError struct {
+	Err      error
+	UnitName string
+	UnitDir  string
+}
+
+func (e UnitOutputError) Error() string {
+	return fmt.Sprintf("failed to read outputs for unit %s in %s: %v", e.UnitName, e.UnitDir, e.Err)
+}
+
+func (e UnitOutputError) Unwrap() error {
+	return e.Err
+}
 
 // StackOutput collects and returns the OpenTofu/Terraform output values for all declared units in a stack hierarchy.
 //
@@ -109,7 +125,7 @@ func StackOutput(
 		parsedStackFiles[path] = stackFile
 
 		targetDir := filepath.Join(dir, config.StackDir)
-		excludedPaths := discoverExcludedPaths(ctx, l, opts, targetDir)
+		excludedPaths := discoverExcludedPaths(ctx, l, opts, dir)
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
@@ -279,7 +295,7 @@ func readUnitOutput(
 		return outputErr
 	})
 	if err != nil {
-		return nil, errors.New(err)
+		return nil, UnitOutputError{UnitName: unit.Name, UnitDir: unitDir, Err: err}
 	}
 
 	return output, nil
