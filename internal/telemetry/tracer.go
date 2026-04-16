@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -39,10 +41,11 @@ type Tracer struct {
 	parentTraceID    *trace.TraceID
 	parentSpanID     *trace.SpanID
 	parentTraceFlags *trace.TraceFlags
+	l                log.Logger
 }
 
 // NewTracer creates and configures the traces collection.
-func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer, opts *Options) (*Tracer, error) {
+func NewTracer(ctx context.Context, l log.Logger, appName, appVersion string, writer io.Writer, opts *Options) (*Tracer, error) {
 	spanExporter, err := NewTraceExporter(ctx, writer, opts)
 	if err != nil {
 		return nil, errors.New(err)
@@ -106,6 +109,7 @@ func NewTracer(ctx context.Context, appName, appVersion string, writer io.Writer
 		parentTraceID:    parentTraceID,
 		parentSpanID:     parentSpanID,
 		parentTraceFlags: parentTraceFlags,
+		l:                l,
 	}
 
 	return tracer, nil
@@ -194,6 +198,10 @@ func (tracer *Tracer) Trace(ctx context.Context, name string, attrs map[string]a
 	ctx, span := tracer.openSpan(ctx, name, attrs)
 
 	if span == nil {
+		if tracer.l != nil {
+			tracer.l.Debugf("openSpan returned nil span for %q (provider may have been shut down), bypassing tracing. Stack:\n%s", name, debug.Stack())
+		}
+
 		return fn(ctx)
 	}
 
