@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
@@ -277,6 +278,13 @@ func (p *GraphPhase) discoverDependencies(
 	depPaths, err := extractDependencyPaths(cfg, c)
 	if err != nil {
 		return err
+	}
+
+	if state.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		depPaths, err = stackDependencyPaths(vfs.NewOSFS(), depPaths, c)
+		if err != nil {
+			return err
+		}
 	}
 
 	if len(depPaths) == 0 {
@@ -654,6 +662,19 @@ func (p *GraphPhase) processUpstreamCandidate(
 		state.errMu.Unlock()
 
 		return nil
+	}
+
+	if state.graphTraversalState.opts.Experiments.Evaluate(experiment.StackDependencies) {
+		var stackErr error
+
+		deps, stackErr = stackDependencyPaths(vfs.NewOSFS(), deps, candidate)
+		if stackErr != nil {
+			state.errMu.Lock()
+			*state.errs = append(*state.errs, stackErr)
+			state.errMu.Unlock()
+
+			return nil
+		}
 	}
 
 	canonicalCandidate, created := state.graphTraversalState.threadSafeComponents.EnsureComponent(candidate)

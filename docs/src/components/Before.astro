@@ -1,0 +1,45 @@
+---
+/**
+ * Conditionally renders its children only when the latest Terragrunt release
+ * is older than the specified semver version (i.e., the version has NOT been
+ * released yet).
+ *
+ * In dev mode, the version is always treated as released so that Before content
+ * is hidden during local development (mirroring how Since shows new content).
+ *
+ * Usage in .mdx files:
+ *   <Before version="1.1.0">
+ *     Content shown only when the latest release is < 1.1.0
+ *   </Before>
+ *
+ * IMPORTANT: Do not use markdown headings (##, ###, etc.) inside <Before>.
+ * Starlight extracts headings at build time before the component renders,
+ * so hidden headings will still appear in the Table of Contents.
+ */
+import { getLatestRelease } from '@lib/github';
+
+interface Props {
+  version: string;
+}
+
+const { version } = Astro.props;
+
+const isDev = import.meta.env.DEV;
+
+let isReleased = true;
+
+if (!isDev) {
+  const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+  const latestTag = releaseData?.tag_name ?? 'v0.0.0';
+
+  // Strip leading 'v' for comparison
+  const latest = latestTag.replace(/^v/, '');
+  const target = version.replace(/^v/, '');
+
+  // Compare using locale-aware numeric comparison, matching the pattern
+  // used by ChangelogEntries.astro for semver ordering.
+  isReleased = latest.localeCompare(target, undefined, { numeric: true }) >= 0;
+}
+---
+
+{!isReleased && <slot />}

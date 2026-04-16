@@ -9,7 +9,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -244,8 +246,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPath = util.ResolvePath(depPath)
-		deduped[depPath] = struct{}{}
+		deduped[util.ResolvePath(depPath)] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -254,12 +255,12 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			dependency = util.ResolvePath(dependency)
-			deduped[dependency] = struct{}{}
+			deduped[util.ResolvePath(dependency)] = struct{}{}
 		}
 	}
 
 	depPaths := make([]string, 0, len(deduped))
+
 	for depPath := range deduped {
 		depPaths = append(depPaths, depPath)
 	}
@@ -269,4 +270,48 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	return depPaths, nil
+}
+
+// stackDependencyPaths returns additional dependency paths from autoinclude
+// files and expands stack directory paths into constituent unit paths.
+// Only called when the StackDependencies experiment is enabled.
+func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) ([]string, error) {
+	// Add dependencies declared in autoinclude files.
+	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dep := range autoIncludeDeps {
+		depPaths = append(depPaths, util.ResolvePath(dep))
+	}
+
+	// Expand stack dependency paths to individual unit paths.
+	expanded := make([]string, 0, len(depPaths))
+
+	for _, depPath := range depPaths {
+		unitPaths := intHclparse.UnitPathsFromStackDir(fs, depPath)
+		if len(unitPaths) > 0 {
+			expanded = append(expanded, unitPaths...)
+
+			continue
+		}
+
+		expanded = append(expanded, depPath)
+	}
+
+	// Deduplicate expanded paths.
+	seen := make(map[string]struct{}, len(expanded))
+	result := make([]string, 0, len(expanded))
+
+	for _, p := range expanded {
+		if _, exists := seen[p]; exists {
+			continue
+		}
+
+		seen[p] = struct{}{}
+		result = append(result, p)
+	}
+
+	return result, nil
 }

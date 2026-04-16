@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+COVERAGE_CHANGE_THRESHOLD="${COVERAGE_CHANGE_THRESHOLD:-3}"
+
 CURRENT="${1:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
 PREVIOUS="${2:?Usage: compare-coverage.sh <current-summary.json> <previous-summary.json>}"
 OUTPUT="${3:-comparison-report.json}"
@@ -20,7 +22,7 @@ fi
 
 CURR_TOTAL=$(jq -r '.total_pct' "$CURRENT")
 PREV_TOTAL=$(jq -r '.total_pct' "$PREVIOUS")
-TOTAL_DELTA=$(echo "$CURR_TOTAL - $PREV_TOTAL" | bc -l)
+TOTAL_DELTA=$(bc -l <<<"$CURR_TOTAL - $PREV_TOTAL")
 
 CURR_REF=$(jq -r '.ref // "head"' "$CURRENT")
 PREV_REF=$(jq -r '.ref // "base"' "$PREVIOUS")
@@ -45,13 +47,14 @@ PACKAGE_COMPARISON=$(jq -n \
 		}
 	)')
 
-TOP_DROPS=$(echo "$PACKAGE_COMPARISON" | jq '[map(select(.delta != null and .delta < 0)) | sort_by(.delta) | .[:10] | .[]]')
-TOP_GAINS=$(echo "$PACKAGE_COMPARISON" | jq '[map(select(.delta != null and .delta > 0)) | sort_by(-.delta) | .[:5] | .[]]')
+TOP_DROPS=$(jq '[map(select(.delta != null and .delta < 0)) | sort_by(.delta) | .[:10] | .[]]' <<<"$PACKAGE_COMPARISON")
+TOP_GAINS=$(jq '[map(select(.delta != null and .delta > 0)) | sort_by(-.delta) | .[:5] | .[]]' <<<"$PACKAGE_COMPARISON")
 
 jq -n \
 	--argjson curr_total "$CURR_TOTAL" \
 	--argjson prev_total "$PREV_TOTAL" \
 	--argjson total_delta "$TOTAL_DELTA" \
+	--argjson threshold "${COVERAGE_CHANGE_THRESHOLD}" \
 	--argjson top_drops "$TOP_DROPS" \
 	--argjson top_gains "$TOP_GAINS" \
 	'{
@@ -59,6 +62,8 @@ jq -n \
 		current_total: $curr_total,
 		previous_total: $prev_total,
 		total_delta: ($total_delta * 10 | round / 10),
+		coverage_threshold: $threshold,
+		significant_change: ((($total_delta * 10 | round / 10) | fabs) >= $threshold),
 		top_drops: $top_drops,
 		top_gains: $top_gains
 	}' >"$OUTPUT"
@@ -94,14 +99,14 @@ jq -n \
 	printf '<tr class="total"><td>TOTAL</td><td>%.1f%%</td><td>%.1f%%</td><td>%+.1f%%</td></tr>\n' "$PREV_TOTAL" "$CURR_TOTAL" "$TOTAL_DELTA"
 
 	# All packages sorted by name
-	echo "$PACKAGE_COMPARISON" | jq -r 'sort_by(.package) | .[] |
+	jq -r 'sort_by(.package) | .[] |
 		if .previous == null then
 			"<tr class=\"new\"><td>\(.package)</td><td>—</td><td>\(.current)%</td><td>new</td></tr>"
 		elif .current == null then
 			"<tr class=\"removed\"><td>\(.package)</td><td>\(.previous)%</td><td>—</td><td>removed</td></tr>"
 		else
 			"<tr><td>\(.package)</td><td>\(.previous)%</td><td>\(.current)%</td><td>\(.delta)%</td></tr>"
-		end'
+		end' <<<"$PACKAGE_COMPARISON"
 
 	cat <<-FOOTER
 	</table>
@@ -114,15 +119,15 @@ echo "=== Coverage Comparison ==="
 printf "Total: %.1f%% (was %.1f%%, delta: %+.1f%%)\n" "$CURR_TOTAL" "$PREV_TOTAL" "$TOTAL_DELTA"
 echo ""
 
-if [[ $(echo "$TOP_DROPS" | jq 'length') -gt 0 ]]; then
+if [[ $(jq 'length' <<<"$TOP_DROPS") -gt 0 ]]; then
 	echo "Top drops:"
-	echo "$TOP_DROPS" | jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (\(.delta)%)"'
+	jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (\(.delta)%)"' <<<"$TOP_DROPS"
 	echo ""
 fi
 
-if [[ $(echo "$TOP_GAINS" | jq 'length') -gt 0 ]]; then
+if [[ $(jq 'length' <<<"$TOP_GAINS") -gt 0 ]]; then
 	echo "Top gains:"
-	echo "$TOP_GAINS" | jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)"'
+	jq -r '.[] | "  \(.package): \(.previous)% → \(.current)% (+\(.delta)%)"' <<<"$TOP_GAINS"
 	echo ""
 fi
 

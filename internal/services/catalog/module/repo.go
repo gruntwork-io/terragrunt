@@ -287,7 +287,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 	client := getter.DefaultClient
 
 	if repo.allowCAS {
-		c, err := cas.New(cas.Options{})
+		c, err := cas.New()
 		if err != nil {
 			return err
 		}
