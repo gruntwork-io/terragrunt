@@ -18,18 +18,18 @@ func TestTypedErrors_Messages(t *testing.T) {
 		err      error
 		contains string
 	}{
-		{"UnexpectedBodyTypeError", hclparse.UnexpectedBodyTypeError{FilePath: "test.hcl"}, "test.hcl"},
-		{"DuplicateUnitNameError", hclparse.DuplicateUnitNameError{Name: "vpc"}, "vpc"},
-		{"DuplicateStackNameError", hclparse.DuplicateStackNameError{Name: "infra"}, "infra"},
-		{"IncludeValidationError", hclparse.IncludeValidationError{IncludeName: "shared", Reason: "has locals"}, "shared"},
-		{"FileReadError", hclparse.FileReadError{FilePath: "missing.hcl", Err: baseErr}, "missing.hcl"},
-		{"FileParseError", hclparse.FileParseError{FilePath: "bad.hcl", Detail: "syntax"}, "bad.hcl"},
-		{"FileDecodeError", hclparse.FileDecodeError{Name: "inc", Detail: "decode failed"}, "inc"},
-		{"FileWriteError", hclparse.FileWriteError{FilePath: "out.hcl", Err: baseErr}, "out.hcl"},
-		{"DirCreateError", hclparse.DirCreateError{DirPath: "/tmp/dir", Err: baseErr}, "/tmp/dir"},
-		{"LocalEvalError", hclparse.LocalEvalError{Name: "env", Detail: "unknown var"}, "env"},
-		{"LocalsCycleError", hclparse.LocalsCycleError{Names: []string{"a", "b"}}, "[a b]"},
-		{"LocalsMaxIterError", hclparse.LocalsMaxIterError{MaxIterations: 100, Remaining: 5}, "100"},
+		{name: "UnexpectedBodyTypeError", err: hclparse.UnexpectedBodyTypeError{FilePath: "test.hcl"}, contains: "test.hcl"},
+		{name: "DuplicateUnitNameError", err: hclparse.DuplicateUnitNameError{Name: "vpc"}, contains: "vpc"},
+		{name: "DuplicateStackNameError", err: hclparse.DuplicateStackNameError{Name: "infra"}, contains: "infra"},
+		{name: "IncludeValidationError", err: hclparse.IncludeValidationError{IncludeName: "shared", Reason: "has locals"}, contains: "shared"},
+		{name: "FileReadError", err: hclparse.FileReadError{FilePath: "missing.hcl", Err: baseErr}, contains: "missing.hcl"},
+		{name: "FileParseError", err: hclparse.FileParseError{FilePath: "bad.hcl", Detail: "syntax"}, contains: "bad.hcl"},
+		{name: "FileDecodeError", err: hclparse.FileDecodeError{Name: "inc", Detail: "decode failed"}, contains: "inc"},
+		{name: "FileWriteError", err: hclparse.FileWriteError{FilePath: "out.hcl", Err: baseErr}, contains: "out.hcl"},
+		{name: "DirCreateError", err: hclparse.DirCreateError{DirPath: "/tmp/dir", Err: baseErr}, contains: "/tmp/dir"},
+		{name: "LocalEvalError", err: hclparse.LocalEvalError{Name: "env", Detail: "unknown var"}, contains: "env"},
+		{name: "LocalsCycleError", err: hclparse.LocalsCycleError{Names: []string{"a", "b"}}, contains: "[a b]"},
+		{name: "LocalsMaxIterError", err: hclparse.LocalsMaxIterError{MaxIterations: 100, Remaining: 5}, contains: "100"},
 	}
 
 	for _, tt := range tests {
