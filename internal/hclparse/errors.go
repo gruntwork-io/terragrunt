@@ -22,6 +22,16 @@ func (e DuplicateUnitNameError) Error() string {
 	return fmt.Sprintf("duplicate unit name %q after include merge", e.Name)
 }
 
+// DuplicateStackNameError indicates that multiple stacks with the same name were
+// found after merging include blocks.
+type DuplicateStackNameError struct {
+	Name string
+}
+
+func (e DuplicateStackNameError) Error() string {
+	return fmt.Sprintf("duplicate stack name %q after include merge", e.Name)
+}
+
 // IncludeValidationError indicates that an included stack file violates
 // constraints (e.g. defines locals or nested includes).
 type IncludeValidationError struct {

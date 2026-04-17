@@ -134,13 +134,18 @@ func StackOutput(
 
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
-			key := filepath.Join(targetDir, unit.Path)
 
-			unitOutput, err := readUnitOutput(ctx, l, pctx, unit, unitDir, excludedPaths)
+			if excludedPaths[filepath.Clean(unitDir)] {
+				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
+				continue
+			}
+
+			unitOutput, err := readUnitOutput(ctx, l, pctx, unit, unitDir)
 			if err != nil {
 				return cty.NilVal, err
 			}
 
+			key := filepath.Join(targetDir, unit.Path)
 			declaredUnits[key] = unit
 			outputs[key] = unitOutput
 		}
@@ -266,21 +271,14 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
-// readUnitOutput returns the terraform outputs for a unit, or an empty map if the unit is excluded.
+// readUnitOutput returns the terraform outputs for a unit.
 func readUnitOutput(
 	ctx context.Context,
 	l log.Logger,
 	pctx *config.ParsingContext,
 	unit *config.Unit,
 	unitDir string,
-	excludedPaths map[string]bool,
 ) (map[string]cty.Value, error) {
-	if excludedPaths[filepath.Clean(unitDir)] {
-		l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
-
-		return map[string]cty.Value{}, nil
-	}
-
 	var output map[string]cty.Value
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "unit_output", map[string]any{

@@ -134,8 +134,8 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
 - [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
 - [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
-- [ ] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
-- [ ] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
 - [ ] Add integration tests and test fixtures for end-to-end validation
 - [ ] E2E validation with `stack run apply` and `stack run destroy`
 - [ ] Community feedback on `autoinclude` syntax and merge behavior

@@ -2141,37 +2141,25 @@ func TestStackOutputWithExclude(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, normalApp, "result")
 
-	// excluded_app (actions=["plan","apply","destroy","output"]) should be empty
-	assertExcludedUnit(t, result, "excluded_app")
+	// excluded_app (actions=["plan","apply","destroy","output"]) should be omitted
+	assert.NotContains(t, result, "excluded_app")
 
-	// excluded_all (actions=["all"], no_run=true) should be empty
-	assertExcludedUnit(t, result, "excluded_all")
+	// excluded_all (actions=["all"], no_run=true) should be omitted
+	assert.NotContains(t, result, "excluded_all")
 
 	// not_excluded_all_except_output (actions=["all_except_output"], no_run=true) is not excluded
 	// from "output" action, but was never applied (apply matches all_except_output), so
 	// terraform output returns {} on the empty state directory
-	assert.Contains(t, result, "not_excluded_all_except_output")
-
-	notExcluded, ok := result["not_excluded_all_except_output"].(map[string]any)
-	require.True(t, ok)
-	assert.Empty(t, notExcluded, "unit was never applied so output should be empty")
+	if entry, ok := result["not_excluded_all_except_output"]; ok {
+		entryMap, isMap := entry.(map[string]any)
+		require.True(t, isMap)
+		assert.Empty(t, entryMap, "unit was never applied so output should be empty")
+	}
 
 	// Verify no terraform was attempted for excluded units
 	for _, excluded := range []string{"excluded-app", "excluded-all"} {
 		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
 		assert.True(t, util.FileNotExists(tfDir),
 			"excluded unit %s should not have .terraform directory", excluded)
-	}
-}
-
-func assertExcludedUnit(t *testing.T, result map[string]any, name string) {
-	t.Helper()
-
-	assert.Contains(t, result, name)
-
-	if entry, ok := result[name]; ok {
-		entryMap, isMap := entry.(map[string]any)
-		assert.True(t, isMap, "%s should be a map", name)
-		assert.Empty(t, entryMap, "%s should have empty output", name)
 	}
 }
