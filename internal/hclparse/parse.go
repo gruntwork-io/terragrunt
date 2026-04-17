@@ -3,6 +3,7 @@
 package hclparse
 
 import (
+	"errors"
 	"path/filepath"
 	"slices"
 
@@ -283,7 +284,11 @@ func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) e
 		}
 	}
 
-	return validateNoDuplicateUnits(stackFile.Units)
+	if err := validateNoDuplicateUnits(stackFile.Units); err != nil {
+		return err
+	}
+
+	return validateNoDuplicateStacks(stackFile.Stacks)
 }
 
 // mergeOneInclude reads and merges a single included stack file.
@@ -323,18 +328,43 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 }
 
 // validateNoDuplicateUnits checks for duplicate unit names after include merge.
+// Collects all duplicates and returns a single joined error.
 func validateNoDuplicateUnits(units []*UnitBlockHCL) error {
-	seen := make(map[string]bool, len(units))
+	seen := make(map[string]struct{}, len(units))
+
+	var errs []error
 
 	for _, u := range units {
-		if seen[u.Name] {
-			return DuplicateUnitNameError{Name: u.Name}
+		if _, exists := seen[u.Name]; exists {
+			errs = append(errs, DuplicateUnitNameError{Name: u.Name})
+
+			continue
 		}
 
-		seen[u.Name] = true
+		seen[u.Name] = struct{}{}
 	}
 
-	return nil
+	return errors.Join(errs...)
+}
+
+// validateNoDuplicateStacks checks for duplicate stack names after include merge.
+// Collects all duplicates and returns a single joined error.
+func validateNoDuplicateStacks(stacks []*StackBlockHCL) error {
+	seen := make(map[string]struct{}, len(stacks))
+
+	var errs []error
+
+	for _, s := range stacks {
+		if _, exists := seen[s.Name]; exists {
+			errs = append(errs, DuplicateStackNameError{Name: s.Name})
+
+			continue
+		}
+
+		seen[s.Name] = struct{}{}
+	}
+
+	return errors.Join(errs...)
 }
 
 // buildRefsWithAbsPath creates ComponentRef values with paths resolved
@@ -386,15 +416,4 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 	}
 
 	return refs
-}
-
-// ResolveSymlinks resolves symlinks in a path for consistent path handling.
-// Returns the original path if resolution fails (e.g. path does not exist).
-func ResolveSymlinks(path string) string {
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return path
-	}
-
-	return resolved
 }
