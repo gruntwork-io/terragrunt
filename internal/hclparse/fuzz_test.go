@@ -148,8 +148,7 @@ unit "app" { source = "."; path = "app"
 			return
 		}
 
-		for key, resolved := range result.AutoIncludes {
-			_ = key
+		for _, resolved := range result.AutoIncludes {
 			_ = hclparse.GenerateAutoIncludeFile(fs, resolved, "/fuzz/.terragrunt-stack/out", srcBytes, resolved.EvalCtx)
 		}
 	})
@@ -238,6 +237,8 @@ func FuzzEvaluateLocals(f *testing.F) {
 // FuzzNestedStackPath tests stack.<name>.<nested_stack>.path resolution with
 // arbitrary stack and unit names. Creates a parent stack referencing a child
 // stack that contains a nested stack, and verifies the pipeline never panics.
+// Fuzz inputs are injected directly into HCL templates without escaping:
+// this is intentional to test that invalid HCL is handled gracefully.
 func FuzzNestedStackPath(f *testing.F) {
 	f.Add("infra", "deep", "vpc", "db")
 	f.Add("network", "storage", "subnet", "bucket")

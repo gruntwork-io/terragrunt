@@ -97,28 +97,29 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	refMap := make(map[string]cty.Value, len(refs))
 
 	for _, ref := range refs {
-		attrs := map[string]cty.Value{
-			"path": cty.StringVal(ref.Path),
-			"name": cty.StringVal(ref.Name),
-		}
-
-		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path).
-		// Skip children whose names collide with reserved attributes.
-		for _, child := range ref.ChildRefs {
-			if child.Name == "path" || child.Name == "name" {
-				continue
-			}
-
-			attrs[child.Name] = cty.ObjectVal(map[string]cty.Value{
-				"path": cty.StringVal(child.Path),
-				"name": cty.StringVal(child.Name),
-			})
-		}
-
-		refMap[ref.Name] = cty.ObjectVal(attrs)
+		refMap[ref.Name] = buildRefAttrs(ref)
 	}
 
 	return cty.ObjectVal(refMap)
+}
+
+// buildRefAttrs builds the cty.Value for a single ComponentRef, recursively
+// expanding ChildRefs so that stack.A.B.C.path works at any nesting depth.
+func buildRefAttrs(ref ComponentRef) cty.Value {
+	attrs := map[string]cty.Value{
+		"path": cty.StringVal(ref.Path),
+		"name": cty.StringVal(ref.Name),
+	}
+
+	for _, child := range ref.ChildRefs {
+		if child.Name == "path" || child.Name == "name" {
+			continue
+		}
+
+		attrs[child.Name] = buildRefAttrs(child)
+	}
+
+	return cty.ObjectVal(attrs)
 }
 
 // ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
