@@ -16,11 +16,11 @@ import (
 
 // Pill and metadata color constants.
 const (
-	// Module type pill (green-tinted).
-	modulePillBg  = "#2B3D2B"
-	modulePillFg  = "#A6E3A1"
-	modulePillBgS = "#3D5A3D"
-	modulePillFgS = "#C7F5C9"
+	// Module type pill (OpenTofu yellow).
+	modulePillBg  = "#3D3520"
+	modulePillFg  = "#FFDA18"
+	modulePillBgS = "#4D4328"
+	modulePillFgS = "#FFE44D"
 
 	// Stack type pill (blue-tinted).
 	stackPillBg  = "#2B2F3D"
@@ -34,12 +34,12 @@ const (
 	versionBgS = "#45475A"
 	versionFgS = "#CDD6F4"
 
-	// Source URL (muted).
-	sourceColor  = "#7F849C"
-	sourceColorS = "#9399B2"
+	// Source URL (neutral gray, matching the help/controls bar tone).
+	sourceColor  = "#4A4A4A"
+	sourceColorS = "#5A5A5A"
 
-	// Description (blue/link-like, prominent).
-	descForegroundColor = "#89B4FA"
+	// Description (muted blue-gray, readable but secondary to title).
+	descForegroundColor = "#8393A7"
 
 	metaMuted = "#6C7086"
 
@@ -283,6 +283,6 @@ const (
 	selectedTitleForegroundColorDark       = "#63C5DA"
 	selectedTitleBorderForegroundColorDark = "#63C5DA"
 
-	selectedDescForegroundColorDark       = "#89B4FA"
+	selectedDescForegroundColorDark       = "#59788E"
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )
