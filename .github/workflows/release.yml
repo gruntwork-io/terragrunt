@@ -1,12 +1,10 @@
 name: Release
 
 on:
-  release:
-    types: [created, edited]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to rebuild (must match an existing draft release, e.g., v1.0.2)'
+        description: 'Version to build (must match an existing draft release, e.g., v1.0.2)'
         required: true
         type: string
 
@@ -15,50 +13,28 @@ jobs:
   # targeting an explicit commit SHA.
   validate:
     name: Validate Release
-    # For release events, only run for draft releases.
-    # For workflow_dispatch, always run (we check draft status in a step).
-    if: github.event_name == 'workflow_dispatch' || github.event.release.draft == true
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       ref: ${{ steps.resolve.outputs.ref }}
-      skip: ${{ steps.check_changes.outputs.skip }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          # For release events on drafts, GITHUB_REF points to a tag that
-          # doesn't exist yet. Use the release target or fall back to the
-          # default branch for workflow_dispatch.
-          ref: ${{ github.event.release.target_commitish || github.sha }}
-
-      - name: Check if edit is meaningful
-        id: check_changes
-        if: github.event.action == 'edited'
-        env:
-          CHANGES_JSON: ${{ toJSON(github.event.changes) }}
-        run: .github/scripts/release/check-edit-meaningful.sh
 
       - name: Resolve version and ref
         id: resolve
-        if: steps.check_changes.outputs.skip != 'true'
         env:
-          EVENT_NAME: ${{ github.event_name }}
           INPUT_VERSION: ${{ inputs.version }}
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          RELEASE_TARGET: ${{ github.event.release.target_commitish }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/release/resolve-version-ref.sh
 
       - name: Validate semver
-        if: steps.check_changes.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: .github/scripts/release/validate-semver.sh "$VERSION"
 
       - name: Enforce commit SHA target
-        if: steps.check_changes.outputs.skip != 'true'
         env:
           REF: ${{ steps.resolve.outputs.ref }}
         run: .github/scripts/release/enforce-commit-sha.sh "$REF"
@@ -67,7 +43,6 @@ jobs:
   build-and-sign:
     name: Build and Sign All Binaries
     needs: validate
-    if: needs.validate.outputs.skip != 'true'
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.validate.outputs.version }}
@@ -83,7 +58,6 @@ jobs:
   upload-assets:
     name: Upload Release Assets
     needs: [validate, build-and-sign]
-    if: needs.validate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
