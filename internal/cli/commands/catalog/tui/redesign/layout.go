@@ -1,6 +1,7 @@
 package redesign
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -11,7 +12,6 @@ const (
 	maxVerWidth    = 22
 	metaGap        = 2
 	minSourceWidth = 8
-	halveDivisor   = 2
 )
 
 // catalogMetaColors holds per-column lipgloss styles for the catalog metadata row.
@@ -41,7 +41,7 @@ func abbreviateMiddle(s string, maxWidth int) string {
 	}
 
 	avail := maxWidth - ellW
-	leftW := avail / halveDivisor
+	leftW := avail / 2 //nolint:mnd
 	rightW := avail - leftW
 
 	return takeWidthPrefix(s, leftW) + ell + takeWidthSuffix(s, rightW)
@@ -93,9 +93,7 @@ func takeWidthSuffix(s string, maxW int) string {
 		w += rw
 	}
 
-	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
-		parts[i], parts[j] = parts[j], parts[i]
-	}
+	slices.Reverse(parts)
 
 	return string(parts)
 }
@@ -113,14 +111,22 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors)
 
 	usedWidth := 0
 
-	// Type pill.
-	if entry.ItemType != "" {
-		part := colors.typePill.Render(entry.ItemType)
-		parts = append(parts, part)
-		usedWidth += lipgloss.Width(part)
+	remaining := func() int {
+		return innerWidth - usedWidth - len(parts)*metaGap
 	}
 
-	// Version pill (inline, right after type).
+	// Type pill (skip if it won't fit).
+	if entry.ItemType != "" {
+		part := colors.typePill.Render(entry.ItemType)
+		partW := lipgloss.Width(part)
+
+		if partW <= remaining() {
+			parts = append(parts, part)
+			usedWidth += partW
+		}
+	}
+
+	// Version pill (truncate or skip if it won't fit).
 	if entry.Version != "" {
 		verDisplay := entry.Version
 		if lipgloss.Width(verDisplay) > maxVerWidth {
@@ -128,14 +134,17 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors)
 		}
 
 		part := colors.versionPill.Render(verDisplay)
-		parts = append(parts, part)
-		usedWidth += lipgloss.Width(part)
+		partW := lipgloss.Width(part)
+
+		if partW <= remaining() {
+			parts = append(parts, part)
+			usedWidth += partW
+		}
 	}
 
-	// Source URL (gets remaining width).
+	// Source URL (gets remaining width, skip if too narrow).
 	if entry.Source != "" {
-		// Gaps between all parts: if we add source, total gaps = len(parts).
-		srcMax := innerWidth - usedWidth - len(parts)*metaGap
+		srcMax := remaining()
 
 		if srcMax >= minSourceWidth {
 			srcDisplay := abbreviateMiddle(entry.Source, srcMax)

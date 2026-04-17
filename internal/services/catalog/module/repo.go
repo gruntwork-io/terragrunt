@@ -193,6 +193,37 @@ func (repo *Repo) ModuleURL(moduleDir string) string {
 	return ""
 }
 
+// SourceURL returns the original catalog URL before go-getter transformation.
+func (repo *Repo) SourceURL() string {
+	return repo.sourceURL
+}
+
+// ResolveLatestTag looks up the latest semver release tag from the remote.
+// The result is stored in LatestTag. If the lookup fails or the repo has no
+// semver tags, LatestTag is left empty.
+func (repo *Repo) ResolveLatestTag(ctx context.Context) {
+	remote := repo.remoteForTagLookup()
+	if remote == "" {
+		return
+	}
+
+	runner, err := gitpkg.NewGitRunner()
+	if err != nil {
+		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
+
+		return
+	}
+
+	tag, err := runner.LatestReleaseTag(ctx, remote)
+	if err != nil {
+		repo.Logger.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
+
+		return
+	}
+
+	repo.LatestTag = tag
+}
+
 type CloneOptions struct {
 	Context    context.Context
 	Logger     log.Logger
@@ -227,11 +258,6 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	}
 
 	return repo.performClone(ctx, l, &opts)
-}
-
-// SourceURL returns the original catalog URL before go-getter transformation.
-func (repo *Repo) SourceURL() string {
-	return repo.sourceURL
 }
 
 func (repo *Repo) resolveCloneURL() string {
@@ -422,32 +448,6 @@ func (repo *Repo) parseBranchName() error {
 	}
 
 	return errors.Errorf("could not get branch name for repo %q", repo.path)
-}
-
-// ResolveLatestTag looks up the latest semver release tag from the remote.
-// The result is stored in LatestTag. If the lookup fails or the repo has no
-// semver tags, LatestTag is left empty.
-func (repo *Repo) ResolveLatestTag(ctx context.Context) {
-	remote := repo.remoteForTagLookup()
-	if remote == "" {
-		return
-	}
-
-	runner, err := gitpkg.NewGitRunner()
-	if err != nil {
-		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
-
-		return
-	}
-
-	tag, err := runner.LatestReleaseTag(ctx, remote)
-	if err != nil {
-		repo.Logger.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
-
-		return
-	}
-
-	repo.LatestTag = tag
 }
 
 // remoteForTagLookup returns a URL suitable for git ls-remote.

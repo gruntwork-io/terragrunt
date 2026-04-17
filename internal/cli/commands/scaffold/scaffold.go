@@ -270,6 +270,52 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	return nil
 }
 
+// BuildSourceURL returns the original module URL with the ref query param
+// from the resolved URL appended, so the scaffolded source preserves the
+// user's original URL format while including the resolved version tag.
+func BuildSourceURL(originalURL, resolvedURL string) string {
+	refVal := ExtractQueryParam(resolvedURL, refParam)
+	if refVal == "" {
+		return originalURL
+	}
+
+	base, rawQuery := splitURLQuery(originalURL)
+
+	params, err := url.ParseQuery(rawQuery)
+	if err != nil || params.Has(refParam) {
+		return originalURL
+	}
+
+	params.Set(refParam, refVal)
+
+	return base + "?" + params.Encode()
+}
+
+// ExtractQueryParam extracts a query parameter value from a URL string.
+// It splits on the last "?" to find the query portion, avoiding issues with
+// go-getter prefixes (e.g. "git::") that confuse url.Parse.
+func ExtractQueryParam(rawURL, param string) string {
+	_, rawQuery := splitURLQuery(rawURL)
+
+	params, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return ""
+	}
+
+	return params.Get(param)
+}
+
+// splitURLQuery splits a raw URL at the last "?" into the base and query
+// string. Go-getter URLs may contain "::" prefixes that prevent full URL
+// parsing, but the query string is always after the final "?".
+func splitURLQuery(rawURL string) (string, string) {
+	if idx := strings.LastIndex(rawURL, "?"); idx >= 0 {
+		return rawURL[:idx], rawURL[idx+1:]
+	}
+
+	return rawURL, ""
+}
+
 // applyCatalogConfigToScaffold applies catalog configuration settings to scaffold options.
 // CLI flags take precedence over config file settings.
 func applyCatalogConfigToScaffold(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) {
@@ -625,47 +671,6 @@ func addRefToModuleURL(
 	}
 
 	return moduleURL, nil
-}
-
-// BuildSourceURL returns the original module URL with the ref query param
-// from the resolved URL appended, so the scaffolded source preserves the
-// user's original URL format while including the resolved version tag.
-func BuildSourceURL(originalURL, resolvedURL string) string {
-	// Extract ref= value from the resolved (go-getter) URL via string matching,
-	// since the getter prefix (e.g. "git::") confuses url.Parse.
-	refVal := ExtractQueryParam(resolvedURL, refParam)
-
-	// If the original already has a ref, or none was resolved, use it as-is.
-	if refVal == "" || strings.Contains(originalURL, refParam+"=") {
-		return originalURL
-	}
-
-	// Append ?ref= or &ref= depending on whether the original has query params.
-	if strings.Contains(originalURL, "?") {
-		return originalURL + "&" + refParam + "=" + refVal
-	}
-
-	return originalURL + "?" + refParam + "=" + refVal
-}
-
-// ExtractQueryParam extracts a query parameter value from a URL string
-// without relying on url.Parse (which doesn't handle getter prefixes well).
-func ExtractQueryParam(rawURL, param string) string {
-	qIdx := strings.LastIndex(rawURL, "?")
-	if qIdx < 0 {
-		return ""
-	}
-
-	query := rawURL[qIdx+1:]
-
-	for _, kv := range strings.Split(query, "&") {
-		k, v, _ := strings.Cut(kv, "=")
-		if k == param {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // parseURL parses module url to scheme, host and path
