@@ -408,10 +408,16 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 }
 
 // fetchComponentSource handles the three paths for fetching a component's source:
-//  1. cas:: protocol source: materialize CAS tree directly (must run before update_source_with_cas
+//  1. cas:: protocol source: materialize CAS tree directly (must run before the remote-CAS branch
 //     so nested components already rewritten to cas:: are not passed to git clone).
-//  2. update_source_with_cas: CAS-backed clone, rewrite, copy from temp
-//  3. Standard: local copy or remote getter
+//  2. Remote source with CAS enabled: CAS-backed clone, rewrite, copy from temp. Triggered
+//     automatically whenever the cas experiment is on and the source is not a local path, so
+//     catalog authors don't need consumers to opt in per-block.
+//  3. Standard: local copy or remote getter.
+//
+// The update_source_with_cas attribute on a consumer block is a no-op under path 2 — it remains
+// meaningful inside catalog files, where the CAS walk uses it to decide which nested sources to
+// rewrite to cas:: references.
 func fetchComponentSource(
 	ctx context.Context,
 	l log.Logger,
@@ -441,16 +447,7 @@ func fetchComponentSource(
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 
-	case cmp.updateSourceWithCAS:
-		if !opts.casEnabled {
-			return errors.Errorf(
-				"update_source_with_cas on %s %q requires the 'cas' experiment to be enabled (use --experiment cas) "+
-					"and --no-cas must not be set",
-				kindStr,
-				cmp.name,
-			)
-		}
-
+	case opts.casEnabled && !isLocal(l, cmp.sourceDir, source):
 		result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
 		if err != nil {
 			return errors.Errorf("CAS processing failed for %s %s: %w", kindStr, cmp.name, err)

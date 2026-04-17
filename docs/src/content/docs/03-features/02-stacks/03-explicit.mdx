@@ -410,14 +410,14 @@ When `update_source_with_cas = true` is set:
 4. Generated `.terragrunt-stack` files contain deterministic CAS references instead of remote URLs.
 5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
 
-Given the catalog files above, and a consumer stack like:
+Consumers do **not** need to set `update_source_with_cas` themselves. Whenever the `cas` experiment is enabled and the source is remote, Terragrunt automatically takes the CAS path, clones once, and walks the catalog. The attribute is only meaningful inside catalog files, where it tells Terragrunt which nested `source` attributes to rewrite.
+
+Given the catalog files above, and an ordinary consumer stack like:
 
 ```hcl
 # live/terragrunt.stack.hcl
 stack "service" {
   source = "git::git@github.com:acme/catalog.git//stacks/service?ref=v1.0.0"
-
-  update_source_with_cas = true
 
   path = "service"
 }
