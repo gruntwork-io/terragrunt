@@ -2124,10 +2124,12 @@ func TestStackOutputWithExclude(t *testing.T) {
 	// Apply the stack -- excluded units are skipped because "apply" is in their exclude actions
 	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
 
-	// Test JSON output to verify structure and exclusion behavior
+	// Test JSON output with the dependency-fetch-output-from-state experiment to exercise
+	// the original bug path from #5864 (S3 direct fetch). Even with local state, this ensures
+	// the exclude check happens before any attempt to fetch state.
 	stdoutJSON, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
-		"terragrunt stack output --format json --non-interactive --working-dir "+rootPath,
+		"terragrunt stack output --experiment dependency-fetch-output-from-state --format json --non-interactive --working-dir "+rootPath,
 	)
 	require.NoError(t, err)
 
@@ -2150,11 +2152,11 @@ func TestStackOutputWithExclude(t *testing.T) {
 	// not_excluded_all_except_output (actions=["all_except_output"], no_run=true) is not excluded
 	// from "output" action, but was never applied (apply matches all_except_output), so
 	// terraform output returns {} on the empty state directory
-	if entry, ok := result["not_excluded_all_except_output"]; ok {
-		entryMap, isMap := entry.(map[string]any)
-		require.True(t, isMap)
-		assert.Empty(t, entryMap, "unit was never applied so output should be empty")
-	}
+	require.Contains(t, result, "not_excluded_all_except_output")
+
+	notExcluded, ok := result["not_excluded_all_except_output"].(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, notExcluded, "unit was never applied so output should be empty")
 
 	// Verify no terraform was attempted for excluded units
 	for _, excluded := range []string{"excluded-app", "excluded-all"} {

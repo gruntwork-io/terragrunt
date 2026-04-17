@@ -272,39 +272,82 @@ func ListStackFiles(
 	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	discovery, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
+	foundFiles, _, err := listStackFilesAndExcludes(ctx, l, opts, dir, worktrees, false)
+
+	return foundFiles, err
+}
+
+// ListStackFilesWithExcludes searches for stack files and also returns the set
+// of unit paths that should be excluded from the current terraform command.
+// Both results come from a single discovery walk so callers that need exclude
+// information (like stack output) do not have to walk the filesystem twice.
+//
+// The excludedPaths map is keyed by cleaned absolute unit paths. Exclusion is
+// determined by discovery's IsActionListed + If logic (the same as find, list,
+// and discovery.applyExcludeModules), using opts.TerraformCommand as the action.
+//
+// On discovery failure, returns an error. Callers that want soft-fail behavior
+// should use ListStackFiles instead.
+func ListStackFilesWithExcludes(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	dir string,
+	worktrees *worktrees.Worktrees,
+) ([]string, map[string]bool, error) {
+	return listStackFilesAndExcludes(ctx, l, opts, dir, worktrees, true)
+}
+
+func listStackFilesAndExcludes(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	_ string,
+	worktrees *worktrees.Worktrees,
+	parseExclude bool,
+) ([]string, map[string]bool, error) {
+	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:  opts.WorkingDir,
 		Filters:     opts.Filters,
 		Experiments: opts.Experiments,
 	})
 	if err != nil {
-		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
+		return nil, nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
 	}
 
-	discoveredComponents, err := discovery.Discover(ctx, l, opts)
+	if parseExclude {
+		d = d.WithParseExclude().WithSuppressParseErrors()
+	}
+
+	discoveredComponents, err := d.Discover(ctx, l, opts)
 	if err != nil {
-		return nil, errors.Errorf("Failed to discover stack files: %w", err)
+		return nil, nil, errors.Errorf("Failed to discover stack files: %w", err)
 	}
 
 	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
 	if err != nil {
-		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+		return nil, nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
-	for _, c := range discoveredComponents {
-		if _, ok := c.(*component.Stack); !ok {
-			continue
-		}
+	excludedPaths := map[string]bool{}
 
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	for _, c := range discoveredComponents {
+		switch v := c.(type) {
+		case *component.Stack:
+			foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		case *component.Unit:
+			if parseExclude && v.Excluded() {
+				excludedPaths[filepath.Clean(v.Path())] = true
+			}
+		}
 	}
 
 	for _, c := range worktreeStacks {
 		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 	}
 
-	return foundFiles, nil
+	return foundFiles, excludedPaths, nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.

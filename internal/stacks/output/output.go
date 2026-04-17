@@ -8,9 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -90,7 +88,8 @@ func StackOutput(
 		}()
 	}
 
-	foundFiles, err := generate.ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
+	// Single discovery walk returns both stack files and excluded unit paths.
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, opts.WorkingDir, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
@@ -125,7 +124,6 @@ func StackOutput(
 		parsedStackFiles[path] = stackFile
 
 		targetDir := filepath.Join(dir, config.StackDir)
-		excludedPaths := discoverExcludedPaths(ctx, l, opts, dir)
 
 		for _, stack := range stackFile.Stacks {
 			declaredStacks[filepath.Join(targetDir, stack.Path)] = stack.Name
@@ -135,6 +133,7 @@ func StackOutput(
 		for _, unit := range stackFile.Units {
 			unitDir := config.GetUnitDir(dir, unit)
 
+			// Excluded units are fully omitted from the final output, matching stack run behavior.
 			if excludedPaths[filepath.Clean(unitDir)] {
 				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
 				continue
@@ -297,40 +296,6 @@ func readUnitOutput(
 	}
 
 	return output, nil
-}
-
-// discoverExcludedPaths uses discovery to find units excluded from the current
-// terraform command. Uses the same IsActionListed + If logic as find.go:153,
-// list.go:144, and discovery.go:602.
-func discoverExcludedPaths(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, dir string) map[string]bool {
-	d := discovery.NewDiscovery(dir).
-		WithParseExclude().
-		WithSuppressParseErrors().
-		WithDiscoveryContext(&component.DiscoveryContext{
-			WorkingDir: dir,
-		})
-
-	components, err := d.Discover(ctx, l, opts)
-	if err != nil {
-		l.Warnf("Failed to discover units for exclude check: %v", err)
-
-		return make(map[string]bool)
-	}
-
-	excluded := make(map[string]bool)
-
-	for _, c := range components {
-		unit, ok := c.(*component.Unit)
-		if !ok {
-			continue
-		}
-
-		if unit.Excluded() {
-			excluded[filepath.Clean(unit.Path())] = true
-		}
-	}
-
-	return excluded
 }
 
 // buildWorktreesIfNeeded creates worktrees if the filter-flag experiment is enabled and git filters exist.

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestExcludeConfig_ShouldPreventRun_Output(t *testing.T) {
+func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 	t.Parallel()
 
 	boolTrue := true
