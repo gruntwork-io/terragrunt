@@ -109,6 +109,132 @@ func FuzzPartialEval(f *testing.F) {
 	})
 }
 
+// FuzzGenerateAutoIncludeFile tests the full generate pipeline with arbitrary stack HCL.
+// Parses a stack file, resolves autoinclude, generates the output file.
+// Verifies that the pipeline never panics regardless of input.
+func FuzzGenerateAutoIncludeFile(f *testing.F) {
+	seeds := []string{
+		`unit "vpc" { source = "."; path = "vpc" }
+unit "app" { source = "."; path = "app"
+  autoinclude { dependency "vpc" { config_path = unit.vpc.path } inputs = { val = dependency.vpc.outputs.val } }
+}`,
+		`unit "a" { source = "."; path = "a" }
+unit "b" { source = "."; path = "b"
+  autoinclude { dependency "a" { config_path = unit.a.path; mock_outputs = { x = "y" } } }
+}`,
+		`locals { env = "prod" }
+unit "vpc" { source = "."; path = "vpc" }
+unit "app" { source = "."; path = "app"
+  autoinclude { dependency "vpc" { config_path = unit.vpc.path } env_name = local.env }
+}`,
+		`unit "x" { source = "."; path = "x"; autoinclude {} }`,
+		`unit "x" { source = "."; path = "x" }`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		srcBytes := []byte(input)
+		fs := vfs.NewMemMapFS()
+
+		result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+			Src:      srcBytes,
+			Filename: "fuzz.hcl",
+			StackDir: "/fuzz",
+		})
+		if err != nil || result == nil {
+			return
+		}
+
+		for key, resolved := range result.AutoIncludes {
+			_ = key
+			_ = hclparse.GenerateAutoIncludeFile(fs, resolved, "/fuzz/.terragrunt-stack/out", srcBytes, resolved.EvalCtx)
+		}
+	})
+}
+
+// FuzzAutoIncludeDependencyPaths tests dependency path extraction from arbitrary autoinclude files.
+// Verifies that AutoIncludeDependencyPaths never panics regardless of file content.
+func FuzzAutoIncludeDependencyPaths(f *testing.F) {
+	seeds := []string{
+		`dependency "vpc" { config_path = "../vpc" }`,
+		`dependency "db" { config_path = "/abs/path/db" }`,
+		`dependency "a" { config_path = "../a" }
+dependency "b" { config_path = "../b" }`,
+		`inputs = { val = dependency.vpc.outputs.val }`,
+		``,
+		`dependency "x" {}`,
+		`dependency "x" { config_path = 42 }`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		fs := vfs.NewMemMapFS()
+
+		dir := "/fuzz/unit"
+		_ = fs.MkdirAll(dir, 0755)
+		_ = vfs.WriteFile(fs, dir+"/terragrunt.autoinclude.hcl", []byte(input), 0644)
+
+		_, _ = hclparse.AutoIncludeDependencyPaths(fs, dir)
+	})
+}
+
+// FuzzBuildComponentRefMap tests component ref map building with arbitrary names and paths.
+// Verifies that BuildComponentRefMap never panics regardless of input.
+func FuzzBuildComponentRefMap(f *testing.F) {
+	f.Add("vpc", "/path/vpc", "", "")
+	f.Add("app", "/path/app", "child1", "/path/child1")
+	f.Add("", "", "", "")
+	f.Add("path", "/reserved", "name", "/also-reserved")
+
+	f.Fuzz(func(t *testing.T, name, path, childName, childPath string) {
+		ref := hclparse.ComponentRef{
+			Name: name,
+			Path: path,
+		}
+
+		if childName != "" {
+			ref.ChildRefs = []hclparse.ComponentRef{
+				{Name: childName, Path: childPath},
+			}
+		}
+
+		_ = hclparse.BuildComponentRefMap([]hclparse.ComponentRef{ref})
+	})
+}
+
+// FuzzEvaluateLocals tests locals evaluation with arbitrary HCL locals blocks.
+// Verifies that the iterative evaluator never panics regardless of input.
+func FuzzEvaluateLocals(f *testing.F) {
+	seeds := []string{
+		`locals { env = "prod" }; unit "x" { source = "."; path = "x" }`,
+		`locals { a = "1"; b = "2"; c = "3" }; unit "x" { source = "."; path = "x" }`,
+		`locals { a = local.b; b = local.a }; unit "x" { source = "."; path = "x" }`,
+		`locals { x = 42 }; unit "x" { source = "."; path = "x" }`,
+		`locals { flag = true }; unit "x" { source = "."; path = "x" }`,
+		`unit "x" { source = "."; path = "x" }`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		fs := vfs.NewMemMapFS()
+
+		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+			Src:      []byte(input),
+			Filename: "fuzz.hcl",
+			StackDir: "/fuzz",
+		})
+	})
+}
+
 // FuzzAutoIncludeResolve tests AutoIncludeHCL.Resolve with arbitrary HCL input.
 // Verifies that resolution never panics regardless of autoinclude body content.
 func FuzzAutoIncludeResolve(f *testing.F) {
