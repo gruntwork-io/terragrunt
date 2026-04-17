@@ -127,6 +127,18 @@ runtime error: invalid memory address or nil pointer dereference
 
 The root cause of the panic was fixed, and telemetry codepaths have been hardened against future panics.
 
+#### `shared_credentials_files` and other list/map backend config values were serialized incorrectly
+
+Setting `shared_credentials_files` (or any other list-valued key) in the `remote_state.config` block produced a broken `-backend-config` argument:
+
+```
+-backend-config=shared_credentials_files=[/a/creds /b/creds]
+```
+
+OpenTofu and Terraform both failed to parse this. The same problem affected map-valued keys. Lists and maps are now written as single-line HCL (`["/a/creds","/b/creds"]` and `{key="value"}`), and strings inside them are quoted so embedded quotes, newlines, and tabs survive the round trip.
+
+Thanks to @Rahul-Kumar-prog for contributing this fix!
+
 ### ⚙️ Process Updates
 
 ---
