@@ -28,6 +28,11 @@ func FuzzParseStackFile(f *testing.F) {
 		`unit "x" { path = "x" }`,
 		`unit "x" { source = "."; path = "x"; autoinclude {} }`,
 		`unit "x" { source = "."; path = "x"; autoinclude { inputs = { a = 1 } } }`,
+		// Locals evaluation seeds (cycles, multiple locals, types).
+		`locals { a = "1"; b = "2"; c = "3" }; unit "x" { source = "."; path = "x" }`,
+		`locals { a = local.b; b = local.a }; unit "x" { source = "."; path = "x" }`,
+		`locals { x = 42 }; unit "x" { source = "."; path = "x" }`,
+		`locals { flag = true }; unit "x" { source = "."; path = "x" }`,
 	}
 
 	for _, seed := range seeds {
@@ -214,33 +219,6 @@ func FuzzBuildComponentRefMap(f *testing.F) {
 	})
 }
 
-// FuzzEvaluateLocals tests locals evaluation with arbitrary HCL locals blocks.
-// Verifies that the iterative evaluator never panics regardless of input.
-func FuzzEvaluateLocals(f *testing.F) {
-	seeds := []string{
-		`locals { env = "prod" }; unit "x" { source = "."; path = "x" }`,
-		`locals { a = "1"; b = "2"; c = "3" }; unit "x" { source = "."; path = "x" }`,
-		`locals { a = local.b; b = local.a }; unit "x" { source = "."; path = "x" }`,
-		`locals { x = 42 }; unit "x" { source = "."; path = "x" }`,
-		`locals { flag = true }; unit "x" { source = "."; path = "x" }`,
-		`unit "x" { source = "."; path = "x" }`,
-	}
-
-	for _, seed := range seeds {
-		f.Add(seed)
-	}
-
-	f.Fuzz(func(t *testing.T, input string) {
-		fs := vfs.NewMemMapFS()
-
-		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
-			Src:      []byte(input),
-			Filename: "fuzz.hcl",
-			StackDir: "/fuzz",
-		})
-	})
-}
-
 // FuzzNestedStackPath tests stack.<name>.<nested_stack>.path resolution with
 // arbitrary stack and unit names. Creates a parent stack referencing a child
 // stack that contains a nested stack, and verifies the pipeline never panics.
@@ -288,34 +266,9 @@ unit "app" { source = "."; path = "app"
 			Filename: "fuzz.hcl",
 			StackDir: "/fuzz/live",
 		})
-	})
-}
 
-// FuzzDiscoverStackChildUnits tests child unit discovery with arbitrary nested stack structures.
-// Verifies that DiscoverStackChildUnits never panics regardless of stack file content.
-func FuzzDiscoverStackChildUnits(f *testing.F) {
-	seeds := []string{
-		`unit "vpc" { source = "."; path = "vpc" }`,
-		`unit "a" { source = "."; path = "a" }
-unit "b" { source = "."; path = "b" }`,
-		`stack "nested" { source = "../nested"; path = "nested" }`,
-		`unit "x" { source = "."; path = "x"; no_dot_terragrunt_stack = true }`,
-		``,
-		`unit "x" {}`,
-	}
-
-	for _, seed := range seeds {
-		f.Add(seed)
-	}
-
-	f.Fuzz(func(t *testing.T, input string) {
-		fs := vfs.NewMemMapFS()
-
-		dir := "/fuzz/stack"
-		_ = fs.MkdirAll(dir, 0755)
-		_ = vfs.WriteFile(fs, dir+"/terragrunt.stack.hcl", []byte(input), 0644)
-
-		_ = hclparse.DiscoverStackChildUnits(fs, dir, "/fuzz/gen")
+		// Also exercise DiscoverStackChildUnits directly on the middle stack.
+		_ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
 	})
 }
 
