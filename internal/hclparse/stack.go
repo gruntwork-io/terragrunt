@@ -222,7 +222,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(result.Units))
+	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
 
 	for _, u := range result.Units {
 		unitPath := filepath.Join(childTargetDir, u.Path)
@@ -235,6 +235,24 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			Name: u.Name,
 			Path: unitPath,
 		})
+	}
+
+	// Also discover nested stacks so stack.<name>.<nested_stack>.path works.
+	for _, s := range result.Stacks {
+		nestedGenPath := filepath.Join(childTargetDir, s.Path)
+
+		nestedSourceDir := s.Source
+		if !filepath.IsAbs(nestedSourceDir) {
+			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+		}
+
+		ref := ComponentRef{
+			Name:      s.Name,
+			Path:      nestedGenPath,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+		}
+
+		refs = append(refs, ref)
 	}
 
 	return refs
