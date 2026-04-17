@@ -183,24 +183,31 @@ dependency "b" { config_path = "../b" }`,
 	})
 }
 
-// FuzzBuildComponentRefMap tests component ref map building with arbitrary names and paths.
+// FuzzBuildComponentRefMap tests component ref map building with arbitrary names
+// and paths at multiple nesting levels (2 deep).
 // Verifies that BuildComponentRefMap never panics regardless of input.
 func FuzzBuildComponentRefMap(f *testing.F) {
-	f.Add("vpc", "/path/vpc", "", "")
-	f.Add("app", "/path/app", "child1", "/path/child1")
-	f.Add("", "", "", "")
-	f.Add("path", "/reserved", "name", "/also-reserved")
+	f.Add("vpc", "/path/vpc", "", "", "", "")
+	f.Add("infra", "/path/infra", "deep", "/path/deep", "db", "/path/db")
+	f.Add("", "", "", "", "", "")
+	f.Add("path", "/reserved", "name", "/also-reserved", "path", "/double-reserved")
 
-	f.Fuzz(func(t *testing.T, name, path, childName, childPath string) {
+	f.Fuzz(func(t *testing.T, name, path, childName, childPath, grandchildName, grandchildPath string) {
 		ref := hclparse.ComponentRef{
 			Name: name,
 			Path: path,
 		}
 
 		if childName != "" {
-			ref.ChildRefs = []hclparse.ComponentRef{
-				{Name: childName, Path: childPath},
+			child := hclparse.ComponentRef{Name: childName, Path: childPath}
+
+			if grandchildName != "" {
+				child.ChildRefs = []hclparse.ComponentRef{
+					{Name: grandchildName, Path: grandchildPath},
+				}
 			}
+
+			ref.ChildRefs = []hclparse.ComponentRef{child}
 		}
 
 		_ = hclparse.BuildComponentRefMap([]hclparse.ComponentRef{ref})

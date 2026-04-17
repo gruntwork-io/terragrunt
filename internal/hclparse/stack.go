@@ -105,6 +105,8 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 
 // buildRefAttrs builds the cty.Value for a single ComponentRef, recursively
 // expanding ChildRefs so that stack.A.B.C.path works at any nesting depth.
+// Recursion is bounded by maxDiscoverDepth in discoverStackChildUnitsWithDepth
+// which limits the depth of ChildRefs trees at construction time.
 func buildRefAttrs(ref ComponentRef) cty.Value {
 	attrs := map[string]cty.Value{
 		"path": cty.StringVal(ref.Path),
