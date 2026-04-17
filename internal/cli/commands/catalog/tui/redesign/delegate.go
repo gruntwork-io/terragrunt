@@ -119,7 +119,7 @@ func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value
 }
 
 // Render prints an item with title, description, and metadata row.
-func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:funlen,cyclop,gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:gocritic // value receiver required by list.ItemDelegate interface
 	entry, isEntry := item.(*ModuleEntry)
 	if !isEntry {
 		return
@@ -131,99 +131,95 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	s := &d.styles
 
-	title := entry.Title()
-	desc := entry.Description()
-
 	textwidth := m.Width() - s.NormalTitle.GetPaddingLeft() - s.NormalTitle.GetPaddingRight()
-	title = ansi.Truncate(title, textwidth, "…")
+	title := ansi.Truncate(entry.Title(), textwidth, "…")
+	desc := truncateFirstLine(entry.Description(), textwidth)
 
-	// Limit description to a single line
-	var lines []string
-
-	for i, line := range strings.Split(desc, "\n") {
-		if i >= 1 {
-			break
-		}
-
-		lines = append(lines, ansi.Truncate(line, textwidth, "…"))
-	}
-
-	desc = strings.Join(lines, "\n")
-
-	isSelected := index == m.Index()
+	selected := index == m.Index() && m.FilterState() != list.Filtering
 	emptyFilter := m.FilterState() == list.Filtering && m.FilterValue() == ""
 	isFiltered := m.FilterState() == list.Filtering || m.FilterState() == list.FilterApplied
 
 	var matchedRunes []int
-
 	if isFiltered {
 		matchedRunes = m.MatchesForItem(index)
 	}
 
-	// Determine padding for the metadata row alignment
-	var padL, padR int
+	padL, padR := metaPadding(s, selected, emptyFilter)
+	title, desc = styleTitleDesc(s, title, desc, selected, emptyFilter, isFiltered, matchedRunes)
 
-	switch {
-	case emptyFilter:
-		padL = s.DimmedTitle.GetPaddingLeft()
-		padR = s.DimmedTitle.GetPaddingRight()
-	case isSelected && m.FilterState() != list.Filtering:
-		padL = s.SelectedTitle.GetPaddingLeft()
-		padR = s.SelectedTitle.GetPaddingRight()
-		// Account for the border on the selected style
-		padL += s.SelectedTitle.GetBorderLeftSize()
-	default:
-		padL = s.NormalTitle.GetPaddingLeft()
-		padR = s.NormalTitle.GetPaddingRight()
+	metaInnerWidth := max(1, m.Width()-padL-padR)
+	colors := metaPalette(entry.ItemType, selected, emptyFilter)
+	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
+	metaLine := styleMetaLine(s, metaContent, selected, padL, padR)
+
+	fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
+}
+
+// truncateFirstLine returns only the first line of s, truncated to maxWidth.
+func truncateFirstLine(s string, maxWidth int) string {
+	if idx := strings.IndexByte(s, '\n'); idx >= 0 {
+		s = s[:idx]
 	}
 
-	// Style title and description based on state
-	switch {
-	case emptyFilter:
-		title = s.DimmedTitle.Render(title)
-		desc = s.DimmedDesc.Render(desc)
-	case isSelected && m.FilterState() != list.Filtering:
+	return ansi.Truncate(s, maxWidth, "…")
+}
+
+// metaPadding returns left/right padding for the metadata row based on
+// the current selection and filter state.
+func metaPadding(s *list.DefaultItemStyles, selected, emptyFilter bool) (int, int) {
+	if emptyFilter {
+		return s.DimmedTitle.GetPaddingLeft(), s.DimmedTitle.GetPaddingRight()
+	}
+
+	if selected {
+		padL := s.SelectedTitle.GetPaddingLeft() + s.SelectedTitle.GetBorderLeftSize()
+		return padL, s.SelectedTitle.GetPaddingRight()
+	}
+
+	return s.NormalTitle.GetPaddingLeft(), s.NormalTitle.GetPaddingRight()
+}
+
+// styleTitleDesc applies the appropriate lipgloss styles to the title and
+// description strings based on selection and filter state.
+func styleTitleDesc(
+	s *list.DefaultItemStyles,
+	title, desc string,
+	selected, emptyFilter, isFiltered bool,
+	matchedRunes []int,
+) (string, string) {
+	if emptyFilter {
+		return s.DimmedTitle.Render(title), s.DimmedDesc.Render(desc)
+	}
+
+	if selected {
 		if isFiltered {
 			unmatched := s.SelectedTitle.Inline(true)
 			matched := unmatched.Inherit(s.FilterMatch)
 			title = lipgloss.StyleRunes(title, matchedRunes, matched, unmatched)
 		}
 
-		title = s.SelectedTitle.Render(title)
-		desc = s.SelectedDesc.Render(desc)
-	default:
-		if isFiltered {
-			unmatched := s.NormalTitle.Inline(true)
-			matched := unmatched.Inherit(s.FilterMatch)
-			title = lipgloss.StyleRunes(title, matchedRunes, matched, unmatched)
-		}
-
-		title = s.NormalTitle.Render(title)
-		desc = s.NormalDesc.Render(desc)
+		return s.SelectedTitle.Render(title), s.SelectedDesc.Render(desc)
 	}
 
-	// Build metadata row
-	metaInnerWidth := m.Width() - padL - padR
-	if metaInnerWidth < 1 {
-		metaInnerWidth = 1
+	if isFiltered {
+		unmatched := s.NormalTitle.Inline(true)
+		matched := unmatched.Inherit(s.FilterMatch)
+		title = lipgloss.StyleRunes(title, matchedRunes, matched, unmatched)
 	}
 
-	selected := isSelected && m.FilterState() != list.Filtering
-	colors := metaPalette(entry.ItemType, selected, emptyFilter)
-	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
+	return s.NormalTitle.Render(title), s.NormalDesc.Render(desc)
+}
 
-	metaLine := lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(metaContent)
-
+// styleMetaLine wraps the metadata content in the appropriate style. Selected
+// items inherit from SelectedTitle so the left border aligns with the title.
+func styleMetaLine(s *list.DefaultItemStyles, content string, selected bool, padL, padR int) string {
 	if selected {
-		// Derive from SelectedTitle so the border type/color/padding match exactly,
-		// but clear the text foreground so pill colors show through.
-		metaLine = s.SelectedTitle.
+		return s.SelectedTitle.
 			Foreground(lipgloss.NoColor{}).
-			Render(metaContent)
+			Render(content)
 	}
 
-	// Order: title, description, metadata.
-	fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
+	return lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(content)
 }
 
 // metaPalette returns pill/text styles for the metadata row based on item type and selection state.
