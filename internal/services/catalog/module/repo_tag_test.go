@@ -38,7 +38,7 @@ func initBareRepoWithTags(t *testing.T, tags []string) string {
 		require.NoError(t, err, "git %v failed: %s", args, out)
 	}
 
-	runIn(bareDir, "init", "--bare")
+	runIn(bareDir, "init", "--bare", "--initial-branch=main")
 
 	workDir := t.TempDir()
 	runIn(workDir, "clone", bareDir, ".")

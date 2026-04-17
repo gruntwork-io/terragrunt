@@ -88,22 +88,15 @@ func (module *Module) URL() string {
 	return module.url
 }
 
-// TerraformSourcePath returns the module source URL using the original catalog URL
-// (before go-getter transformation), with the module subdirectory appended:
-// baseURL//moduleDir (e.g., github.com/org/repo//modules/foo)
+// TerraformSourcePath returns the module source URL in the format expected by go-getter:
+// baseURL//moduleDir?query (e.g., git::https://github.com/org/repo.git//modules/foo?ref=v1.0.0)
 func (module *Module) TerraformSourcePath() string {
-	// Prefer the original source URL so scaffolded units match the catalog config.
-	sourceURL := module.cloneURL
-	if module.Repo != nil && module.Repo.SourceURL() != "" {
-		sourceURL = module.Repo.SourceURL()
-	}
-
 	if module.moduleDir == "" {
-		return sourceURL
+		return module.cloneURL
 	}
 
 	// Split on ? to separate base URL from query string
-	base, query, _ := strings.Cut(sourceURL, "?")
+	base, query, _ := strings.Cut(module.cloneURL, "?")
 
 	result := base + "//" + module.moduleDir
 	if query != "" {
