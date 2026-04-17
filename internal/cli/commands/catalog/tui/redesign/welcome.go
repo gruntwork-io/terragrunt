@@ -1,4 +1,4 @@
-package tui
+package redesign
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -20,9 +21,10 @@ const welcomeDocsURL = "https://docs.terragrunt.com/features/catalog/"
 type StatusFunc func(msg string)
 
 // LoadFunc performs source discovery and module loading in the background.
-// It calls status with human-readable progress updates.
-// It returns a ready CatalogService, or nil if no sources were found.
-type LoadFunc func(ctx context.Context, status StatusFunc) (catalog.CatalogService, error)
+// It calls status with human-readable progress updates and sends each
+// discovered module on moduleCh as it is found. It returns a ready
+// CatalogService (for scaffolding), or nil if no sources were found.
+type LoadFunc func(ctx context.Context, status StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error)
 
 // OpenURLFunc opens a URL in the user's browser. Injected so tests can
 // substitute a no-op or a recording stub.
@@ -33,16 +35,27 @@ type welcomeState int
 const (
 	welcomeLoading welcomeState = iota
 	welcomeNoSources
+	welcomeDiscoveryError
 )
 
-// discoveryCompleteMsg is sent when background discovery finishes.
-type discoveryCompleteMsg struct {
-	svc catalog.CatalogService
-	err error
+// DiscoveryCompleteMsg is sent when background discovery finishes.
+type DiscoveryCompleteMsg struct {
+	Svc catalog.CatalogService
+	Err error
 }
 
-// statusUpdateMsg carries a progress update from the LoadFunc.
-type statusUpdateMsg string
+// moduleMsg carries a single newly-discovered module from the LoadFunc.
+type moduleMsg struct {
+	module *module.Module
+}
+
+// ModuleMsg creates a moduleMsg for testing.
+func ModuleMsg(mod *module.Module) tea.Msg {
+	return moduleMsg{module: mod}
+}
+
+// StatusUpdateMsg carries a progress update from the LoadFunc.
+type StatusUpdateMsg string
 
 const statusChannelSize = 10
 
@@ -67,17 +80,19 @@ var (
 // discovery runs in the background, then either transitions to the module
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
-	ctx        context.Context
-	logger     log.Logger
-	opts       *options.TerragruntOptions
-	loadFunc   LoadFunc
-	openURL    OpenURLFunc
-	statusCh   chan string
-	statusText string
-	spinner    spinner.Model
-	state      welcomeState
-	width      int
-	height     int
+	ctx              context.Context
+	logger           log.Logger
+	lastDiscoveryErr error
+	moduleCh         chan *module.Module
+	openURL          OpenURLFunc
+	statusCh         chan string
+	loadFunc         LoadFunc
+	opts             *options.TerragruntOptions
+	statusText       string
+	spinner          spinner.Model
+	state            welcomeState
+	width            int
+	height           int
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
@@ -93,6 +108,7 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		loadFunc:   loadFunc,
 		openURL:    browser.OpenURL,
 		statusCh:   make(chan string, statusChannelSize),
+		moduleCh:   make(chan *module.Module, statusChannelSize),
 		spinner:    s,
 		statusText: "Discovering modules from your infrastructure...",
 		state:      welcomeLoading,
@@ -108,25 +124,27 @@ func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel { //nolint:gocrit
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
 func (m WelcomeModel) Init() tea.Cmd { //nolint:gocritic
-	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus())
+	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus(), m.listenForModule())
 }
 
 func (m WelcomeModel) startDiscovery() tea.Cmd { //nolint:gocritic
 	ctx := m.ctx
 	loadFunc := m.loadFunc
-	ch := m.statusCh
+	statusCh := m.statusCh
+	moduleCh := m.moduleCh
 
 	return func() tea.Msg {
-		defer close(ch)
+		defer close(statusCh)
+		defer close(moduleCh)
 
 		svc, err := loadFunc(ctx, func(msg string) {
 			select {
-			case ch <- msg:
+			case statusCh <- msg:
 			default:
 			}
-		})
+		}, moduleCh)
 
-		return discoveryCompleteMsg{svc: svc, err: err}
+		return DiscoveryCompleteMsg{Svc: svc, Err: err}
 	}
 }
 
@@ -139,16 +157,31 @@ func (m WelcomeModel) listenForStatus() tea.Cmd { //nolint:gocritic
 			return nil
 		}
 
-		return statusUpdateMsg(status)
+		return StatusUpdateMsg(status)
+	}
+}
+
+func (m WelcomeModel) listenForModule() tea.Cmd { //nolint:gocritic
+	ch := m.moduleCh
+
+	return func() tea.Msg {
+		mod, ok := <-ch
+		if !ok {
+			return nil
+		}
+
+		return moduleMsg{module: mod}
 	}
 }
 
 // Update implements tea.Model.
 func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	switch msg := msg.(type) {
-	case discoveryCompleteMsg:
+	case DiscoveryCompleteMsg:
 		return m.handleDiscoveryComplete(msg)
-	case statusUpdateMsg:
+	case moduleMsg:
+		return m.handleModuleMsg(msg)
+	case StatusUpdateMsg:
 		m.statusText = string(msg)
 
 		return m, m.listenForStatus()
@@ -177,25 +210,48 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 	return m, nil
 }
 
-func (m WelcomeModel) handleDiscoveryComplete(msg discoveryCompleteMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
-	if msg.err != nil {
-		m.logger.Warnf("Discovery error: %v", msg.err)
+func (m WelcomeModel) handleModuleMsg(msg moduleMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
+	// First module: transition to the catalog list immediately
+	newModel := NewModelStreaming(m.logger, m.opts, msg.module, m.moduleCh)
+	width, height := m.width, m.height
+
+	initCmds := []tea.Cmd{newModel.Init()}
+	if width > 0 && height > 0 {
+		initCmds = append(initCmds, func() tea.Msg {
+			return tea.WindowSizeMsg{Width: width, Height: height}
+		})
 	}
 
-	if msg.svc != nil && len(msg.svc.Modules()) > 0 {
-		// Transition to the module list TUI
-		newModel := NewModel(m.logger, m.opts, msg.svc)
+	return newModel, tea.Batch(initCmds...)
+}
+
+func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
+	if msg.Err != nil {
+		m.logger.Warnf("Discovery error: %v", msg.Err)
+		m.lastDiscoveryErr = msg.Err
+		m.state = welcomeDiscoveryError
+
+		return m, nil
+	}
+
+	// Defensive: if we're still on the loading screen but the service has
+	// modules, transition to the catalog list. This shouldn't normally
+	// happen since moduleMsg transitions first.
+	if msg.Svc != nil && len(msg.Svc.Modules()) > 0 {
+		newModel := NewModel(m.logger, m.opts, msg.Svc)
 		width, height := m.width, m.height
 
-		return newModel, tea.Batch(
-			newModel.Init(),
-			// Forward current dimensions so the new model sizes itself
-			func() tea.Msg {
+		initCmds := []tea.Cmd{newModel.Init()}
+		if width > 0 && height > 0 {
+			initCmds = append(initCmds, func() tea.Msg {
 				return tea.WindowSizeMsg{Width: width, Height: height}
-			},
-		)
+			})
+		}
+
+		return newModel, tea.Batch(initCmds...)
 	}
 
+	// No modules were ever discovered — show the welcome screen.
 	m.state = welcomeNoSources
 
 	return m, nil
@@ -210,6 +266,8 @@ func (m WelcomeModel) View() tea.View { //nolint:gocritic
 		content = m.loadingView()
 	case welcomeNoSources:
 		content = m.noSourcesView()
+	case welcomeDiscoveryError:
+		content = m.discoveryErrorView()
 	}
 
 	if m.width > 0 && m.height > 0 {
@@ -252,6 +310,29 @@ func (m WelcomeModel) noSourcesView() string { //nolint:gocritic
 		"     The catalog will automatically discover referenced modules.",
 		"",
 		welcomeHintStyle.Render("h: open docs in browser  q/esc: exit"),
+	))
+
+	return lipgloss.JoinVertical(lipgloss.Center, title, body)
+}
+
+func (m WelcomeModel) discoveryErrorView() string { //nolint:gocritic
+	title := welcomeTitleStyle.Render(" Terragrunt Catalog ")
+
+	errMsg := "unknown error"
+	if m.lastDiscoveryErr != nil {
+		errMsg = m.lastDiscoveryErr.Error()
+	}
+
+	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
+		"",
+		"An error occurred while discovering catalog sources:",
+		"",
+		welcomeCodeStyle.Render("  "+errMsg),
+		"",
+		"Please check your network connection, authentication, and",
+		"catalog configuration, then try again.",
+		"",
+		welcomeHintStyle.Render("q/esc: exit"),
 	))
 
 	return lipgloss.JoinVertical(lipgloss.Center, title, body)

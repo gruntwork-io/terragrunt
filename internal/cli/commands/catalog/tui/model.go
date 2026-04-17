@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"sort"
+	"strings"
+
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -51,14 +54,14 @@ func (b button) String() string {
 type Model struct {
 	List                list.Model
 	logger              log.Logger
-	terragruntOptions   *options.TerragruntOptions
 	SVC                 catalog.CatalogService
+	terragruntOptions   *options.TerragruntOptions
 	selectedModule      *module.Module
-	delegateKeys        *delegateKeyMap
+	delegateKeys        *DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
-	currentPagerButtons []button
-	pagerKeys           pagerKeyMap
+	pagerKeys           PagerKeyMap
 	listKeys            list.KeyMap
+	currentPagerButtons []button
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
@@ -68,34 +71,33 @@ type Model struct {
 }
 
 func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
-	var (
-		modules      = svc.Modules()
-		items        = make([]list.Item, 0, len(modules))
-		listKeys     = newListKeyMap()
-		delegateKeys = newDelegateKeyMap()
-		pagerKeys    = newPagerKeyMap()
-	)
+	modules := svc.Modules()
+	items := make([]list.Item, 0, len(modules))
 
-	// Make the initial list of items
-	for _, module := range modules {
-		items = append(items, module)
+	for _, mod := range modules {
+		items = append(items, mod)
 	}
 
-	// Setup the list
-	delegate := newItemDelegate(delegateKeys)
-	list := list.New(items, delegate, 0, 0)
-	list.KeyMap = listKeys
-	list.SetFilteringEnabled(true)
-	list.Title = title
-	list.Styles.Title = lipgloss.NewStyle().
+	sort.Slice(items, func(i, j int) bool {
+		return strings.ToLower(items[i].(*module.Module).Title()) < strings.ToLower(items[j].(*module.Module).Title())
+	})
+
+	listKeys := NewListKeyMap()
+	delegateKeys := NewDelegateKeyMap()
+	pagerKeys := NewPagerKeyMap()
+
+	delegate := NewItemDelegate(delegateKeys)
+	lst := list.New(items, delegate, 0, 0)
+	lst.KeyMap = listKeys
+	lst.SetFilteringEnabled(true)
+	lst.Title = title
+	lst.Styles.Title = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(titleForegroundColor)).
 		Background(lipgloss.Color(titleBackgroundColor)).
 		Padding(0, 1)
 
-	// Setup the markdown viewer
 	vp := viewport.New(viewport.WithWidth(0), viewport.WithHeight(0))
 
-	// Setup the button bar
 	bs := make([]string, len(availableButtons))
 	for i, b := range availableButtons {
 		bs[i] = b.String()
@@ -104,7 +106,7 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 	bb := buttonbar.New(bs)
 
 	return Model{
-		List:              list,
+		List:              lst,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
@@ -118,7 +120,5 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 
 // Init implements bubbletea.Model.Init
 func (m Model) Init() tea.Cmd { //nolint:gocritic
-	return tea.Batch(
-		m.buttonBar.Init(),
-	)
+	return m.buttonBar.Init()
 }

@@ -1,4 +1,4 @@
-package tui
+package redesign
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 var (
 	AppStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
-	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252"))
+	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252F"))
 	infoHelp          = lipgloss.NewStyle().Padding(2, 0, 0, 2) //nolint:mnd
 )
 
@@ -37,6 +37,12 @@ func (m Model) View() tea.View { //nolint:gocritic
 }
 
 func (m Model) listView() string { //nolint:gocritic
+	if m.loading {
+		m.List.Title = title + " (loading...)"
+	} else {
+		m.List.Title = title
+	}
+
 	return m.List.View()
 }
 
