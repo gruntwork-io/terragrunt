@@ -100,95 +100,53 @@ func takeWidthSuffix(s string, maxW int) string {
 	return string(parts)
 }
 
-// buildMetaRow returns one lipgloss-rendered row: [type]  source  [version].
-// innerWidth is the available width for the metadata content (excluding title padding).
+// buildMetaRow returns one lipgloss-rendered row: [type] [version] source.
+// All parts are left-aligned. innerWidth is the available width (excluding padding).
 func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors) string {
 	if entry == nil {
 		return ""
 	}
 
 	gap := strings.Repeat(" ", metaGap)
-	gapW := metaGap
 
-	// Render type pill
-	var (
-		typePart string
-		typeW    int
-	)
+	var parts []string
 
+	usedWidth := 0
+
+	// Type pill.
 	if entry.ItemType != "" {
-		typePart = colors.typePill.Render(entry.ItemType)
-		typeW = lipgloss.Width(typePart)
+		part := colors.typePill.Render(entry.ItemType)
+		parts = append(parts, part)
+		usedWidth += lipgloss.Width(part)
 	}
 
-	// Render version pill
-	var (
-		verPart string
-		verW    int
-	)
-
+	// Version pill (inline, right after type).
 	if entry.Version != "" {
 		verDisplay := entry.Version
 		if lipgloss.Width(verDisplay) > maxVerWidth {
 			verDisplay = ansi.Truncate(verDisplay, maxVerWidth, "…")
 		}
 
-		verPart = colors.versionPill.Render(verDisplay)
-		verW = lipgloss.Width(verPart)
+		part := colors.versionPill.Render(verDisplay)
+		parts = append(parts, part)
+		usedWidth += lipgloss.Width(part)
 	}
 
-	// Calculate source column width
-	var srcPart string
-
+	// Source URL (gets remaining width).
 	if entry.Source != "" {
-		usedWidth := typeW + verW
-		gaps := 0
-
-		if typeW > 0 {
-			gaps++
-		}
-
-		if verW > 0 {
-			gaps++
-		}
-
-		usedWidth += gaps * gapW
-		srcMax := innerWidth - usedWidth
+		// Gaps between all parts: if we add source, total gaps = len(parts).
+		srcMax := innerWidth - usedWidth - len(parts)*metaGap
 
 		if srcMax >= minSourceWidth {
 			srcDisplay := abbreviateMiddle(entry.Source, srcMax)
-			srcPart = colors.source.Render(srcDisplay)
+			part := colors.source.Render(srcDisplay)
+			parts = append(parts, part)
 		}
 	}
 
-	// Assemble left side (type + source)
-	var leftParts []string
-
-	if typePart != "" {
-		leftParts = append(leftParts, typePart)
-	}
-
-	if srcPart != "" {
-		leftParts = append(leftParts, srcPart)
-	}
-
-	if len(leftParts) == 0 && verPart == "" {
+	if len(parts) == 0 {
 		return ""
 	}
 
-	left := strings.Join(leftParts, gap)
-
-	// Right-align version pill by filling remaining space
-	if verPart == "" {
-		return left
-	}
-
-	leftW := lipgloss.Width(left)
-
-	fill := innerWidth - leftW - verW
-	if fill < metaGap {
-		fill = metaGap
-	}
-
-	return left + strings.Repeat(" ", fill) + verPart
+	return strings.Join(parts, gap)
 }

@@ -16,17 +16,30 @@ import (
 
 // Pill and metadata color constants.
 const (
-	typePillBg  = "#45475A"
-	typePillFg  = "#CBA6F7"
-	versionBg   = "#313244"
-	versionFg   = "#A6E3A1"
-	sourceColor = "#89B4FA"
+	// Module type pill (green-tinted).
+	modulePillBg  = "#2B3D2B"
+	modulePillFg  = "#A6E3A1"
+	modulePillBgS = "#3D5A3D"
+	modulePillFgS = "#C7F5C9"
 
-	typePillBgSelected  = "#585B70"
-	typePillFgSelected  = "#E4C0FF"
-	versionBgSelected   = "#45475A"
-	versionFgSelected   = "#C7F5C9"
-	sourceColorSelected = "#B4DAFF"
+	// Stack type pill (blue-tinted).
+	stackPillBg  = "#2B2F3D"
+	stackPillFg  = "#89B4FA"
+	stackPillBgS = "#3D4460"
+	stackPillFgS = "#B4DAFF"
+
+	// Version pill (neutral).
+	versionBg  = "#313244"
+	versionFg  = "#BAC2DE"
+	versionBgS = "#45475A"
+	versionFgS = "#CDD6F4"
+
+	// Source URL (muted).
+	sourceColor  = "#7F849C"
+	sourceColorS = "#9399B2"
+
+	// Description (blue/link-like, prominent).
+	descForegroundColor = "#89B4FA"
 
 	metaMuted = "#6C7086"
 
@@ -50,6 +63,9 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 	styles.SelectedTitle = styles.SelectedTitle.
 		Foreground(lipgloss.Color(selectedTitleForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedTitleBorderForegroundColorDark))
+
+	styles.NormalDesc = styles.NormalDesc.
+		Foreground(lipgloss.Color(descForegroundColor))
 
 	styles.SelectedDesc = styles.SelectedTitle.
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
@@ -192,15 +208,28 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		metaInnerWidth = 1
 	}
 
-	colors := metaPalette(isSelected && m.FilterState() != list.Filtering, emptyFilter)
-	metaLine := lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(
-		buildMetaRow(entry, metaInnerWidth, &colors))
+	selected := isSelected && m.FilterState() != list.Filtering
+	colors := metaPalette(entry.ItemType, selected, emptyFilter)
+	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
 
+	var metaLine string
+
+	if selected {
+		// Derive from SelectedTitle so the border type/color/padding match exactly,
+		// but clear the text foreground so pill colors show through.
+		metaLine = s.SelectedTitle.
+			Foreground(lipgloss.NoColor{}).
+			Render(metaContent)
+	} else {
+		metaLine = lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(metaContent)
+	}
+
+	// Order: title, description, metadata.
 	fmt.Fprintf(w, "%s\n%s\n%s", title, desc, metaLine) //nolint:errcheck,gosec
 }
 
-// metaPalette returns pill/text styles for the metadata row based on selection state.
-func metaPalette(selected, dimmed bool) catalogMetaColors {
+// metaPalette returns pill/text styles for the metadata row based on item type and selection state.
+func metaPalette(itemType string, selected, dimmed bool) catalogMetaColors {
 	if dimmed {
 		muted := lipgloss.Color(metaMuted)
 
@@ -211,25 +240,34 @@ func metaPalette(selected, dimmed bool) catalogMetaColors {
 		}
 	}
 
+	// Pick type-pill colors based on item type (module=green, stack=blue).
+	pillBg, pillFg := modulePillBg, modulePillFg
+	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
+
+	if itemType == "stack" {
+		pillBg, pillFg = stackPillBg, stackPillFg
+		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
+	}
+
 	if selected {
 		return catalogMetaColors{
 			typePill: lipgloss.NewStyle().
-				Background(lipgloss.Color(typePillBgSelected)).
-				Foreground(lipgloss.Color(typePillFgSelected)).
+				Background(lipgloss.Color(pillBgSel)).
+				Foreground(lipgloss.Color(pillFgSel)).
 				Padding(0, 1),
 			source: lipgloss.NewStyle().
-				Foreground(lipgloss.Color(sourceColorSelected)),
+				Foreground(lipgloss.Color(sourceColorS)),
 			versionPill: lipgloss.NewStyle().
-				Background(lipgloss.Color(versionBgSelected)).
-				Foreground(lipgloss.Color(versionFgSelected)).
+				Background(lipgloss.Color(versionBgS)).
+				Foreground(lipgloss.Color(versionFgS)).
 				Padding(0, 1),
 		}
 	}
 
 	return catalogMetaColors{
 		typePill: lipgloss.NewStyle().
-			Background(lipgloss.Color(typePillBg)).
-			Foreground(lipgloss.Color(typePillFg)).
+			Background(lipgloss.Color(pillBg)).
+			Foreground(lipgloss.Color(pillFg)).
 			Padding(0, 1),
 		source: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(sourceColor)),
@@ -245,6 +283,6 @@ const (
 	selectedTitleForegroundColorDark       = "#63C5DA"
 	selectedTitleBorderForegroundColorDark = "#63C5DA"
 
-	selectedDescForegroundColorDark       = "#59788E"
+	selectedDescForegroundColorDark       = "#89B4FA"
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )
