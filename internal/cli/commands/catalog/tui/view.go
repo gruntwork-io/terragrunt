@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	appStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
+	AppStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
 	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252"))
 	infoHelp          = lipgloss.NewStyle().Padding(2, 0, 0, 2) //nolint:mnd
@@ -55,7 +55,7 @@ func (m Model) footerView() string { //nolint:gocritic
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
 	// button bar and key help
-	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View().Content, "\n", m.pagerKeys.help.View(m.pagerKeys)))
+	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View().Content, "\n", m.pagerKeys.HelpModel.View(m.pagerKeys)))
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)
 }

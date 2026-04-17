@@ -114,7 +114,7 @@ linters:
       # trying to get this merged in.
       - linters:
           - lll
-        path-except: '^(internal/awshelper/|internal/cas/)'
+        path-except: '^(internal/awshelper/|internal/cas/|internal/gcphelper/)'
     paths:
       - docs
       - _ci

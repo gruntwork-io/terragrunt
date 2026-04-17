@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testStackDir = "/test/stack"
+	testGenDir   = "/test/stack/.terragrunt-stack/app"
+)
+
 func TestParseStackFile_SimpleUnits(t *testing.T) {
 	t.Parallel()
 
@@ -26,7 +31,7 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 	assert.Equal(t, "vpc", result.Units[0].Name)
@@ -57,61 +62,17 @@ unit "db" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 	require.Len(t, result.Units, 2)
 
-	// vpc has no autoinclude
 	assert.NotContains(t, result.AutoIncludes, "vpc")
 
-	// db has autoinclude with resolved dependency
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "db")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	// Path should be absolute: /project/.terragrunt-stack/vpc
-	assert.Equal(t, filepath.Join("/project", ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath)
-}
-
-func TestParseStackFile_AutoIncludeWithMockOutputs(t *testing.T) {
-	t.Parallel()
-
-	src := `
-unit "vpc" {
-  source = "../catalog/units/vpc"
-  path   = "vpc"
-}
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
-
-      mock_outputs_allowed_terraform_commands = ["plan"]
-      mock_outputs = {
-        val = "fake-val"
-      }
-    }
-
-    inputs = {
-      val = dependency.vpc.outputs.val
-    }
-  }
-}
-`
-
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
-	require.NoError(t, err)
-
-	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
-	require.True(t, ok)
-	require.Len(t, resolved.Dependencies, 1)
-	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	assert.Equal(t, filepath.Join("/project", ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath)
-	// RawBody preserved for generation
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "vpc"), resolved.Dependencies[0].ConfigPath)
 	assert.NotNil(t, resolved.RawBody)
 }
 
@@ -145,7 +106,7 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
@@ -176,14 +137,37 @@ unit "app" {
 }
 `
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "networking", resolved.Dependencies[0].Name)
-	assert.Equal(t, filepath.Join("/project", ".terragrunt-stack", "networking"), resolved.Dependencies[0].ConfigPath)
+	assert.Equal(t, filepath.Join(testStackDir, ".terragrunt-stack", "networking"), resolved.Dependencies[0].ConfigPath)
+}
+
+func TestParseStackFile_NoAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.Units, 1)
+	assert.Empty(t, result.AutoIncludes)
+}
+
+func TestGenerateAutoIncludeFile_NilResolved(t *testing.T) {
+	t.Parallel()
+
+	err := hclparse.GenerateAutoIncludeFile(vfs.NewMemMapFS(), nil, testGenDir, nil, nil)
+	assert.NoError(t, err)
 }
 
 func TestGenerateAutoIncludeFile_FullFlow(t *testing.T) {
@@ -216,55 +200,29 @@ unit "app" {
 }
 `
 	srcBytes := []byte(src)
-
 	fs := vfs.NewMemMapFS()
 
-	// Parse with two-pass
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 
-	// Generate to a target dir that is a sibling of the resolved config_path
-	// so the relative path calculation produces a meaningful result.
-	// dep.ConfigPath = /project/.terragrunt-stack/vpc
-	// targetDir      = /project/.terragrunt-stack/app  => relative = ../vpc
-	targetDir := "/test/.terragrunt-stack/app"
+	appDir := testGenDir
 
-	err = hclparse.GenerateAutoIncludeFile(fs, resolved, targetDir, srcBytes, resolved.EvalCtx)
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
-	// Read generated file
-	generatedPath := filepath.Join(targetDir, hclparse.AutoIncludeFile)
-	generated, err := vfs.ReadFile(fs, generatedPath)
+	generated, err := vfs.ReadFile(fs, filepath.Join(appDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
 
 	content := string(generated)
-
-	// Should contain the header comment
 	assert.Contains(t, content, "Generated by Terragrunt")
-
-	// Should contain dependency block with config_path (now relative from targetDir)
 	assert.Contains(t, content, `dependency "vpc"`)
-	assert.Contains(t, content, "config_path")
-
-	// Should contain mock_outputs preserved from AST
+	assert.Contains(t, content, "../vpc")
 	assert.Contains(t, content, "mock_outputs_allowed_terraform_commands")
-	assert.Contains(t, content, `"plan"`)
-	assert.Contains(t, content, "mock_outputs")
 	assert.Contains(t, content, `"fake-val"`)
-
-	// Should contain inputs with dependency.vpc.outputs.val (NOT evaluated)
-	assert.Contains(t, content, "inputs")
 	assert.Contains(t, content, "dependency.vpc.outputs.val")
-}
-
-func TestGenerateAutoIncludeFile_NilResolved(t *testing.T) {
-	t.Parallel()
-
-	err := hclparse.GenerateAutoIncludeFile(vfs.NewMemMapFS(), nil, "/test", nil, nil)
-	assert.NoError(t, err)
 }
 
 func TestGenerateAutoIncludeFile_MultipleDeps(t *testing.T) {
@@ -302,103 +260,33 @@ unit "app" {
 }
 `
 	srcBytes := []byte(src)
-
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
-	err = hclparse.GenerateAutoIncludeFile(fs, resolved, "/test", srcBytes, resolved.EvalCtx)
+	appDir := testGenDir
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
-	generated, err := vfs.ReadFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile))
+	generated, err := vfs.ReadFile(fs, filepath.Join(appDir, hclparse.AutoIncludeFile))
 	require.NoError(t, err)
 
 	content := string(generated)
-
-	// Both dependencies present
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, `dependency "rds"`)
-
-	// Inputs preserved with dependency refs
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
 	assert.Contains(t, content, "dependency.rds.outputs.endpoint")
-}
-
-func TestParseStackFile_NoAutoInclude(t *testing.T) {
-	t.Parallel()
-
-	src := `
-unit "vpc" {
-  source = "../catalog/units/vpc"
-  path   = "vpc"
-}
-`
-
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: "/project"})
-	require.NoError(t, err)
-	require.Len(t, result.Units, 1)
-	assert.Empty(t, result.AutoIncludes)
-}
-
-func TestGenerateAutoIncludeFile_PreservesInputsExpression(t *testing.T) {
-	t.Parallel()
-
-	// Test that complex expressions in inputs are preserved verbatim
-	src := `
-unit "vpc" {
-  source = "../catalog/units/vpc"
-  path   = "vpc"
-}
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
-    }
-
-    inputs = {
-      combined = dependency.vpc.outputs.val
-    }
-  }
-}
-`
-	srcBytes := []byte(src)
-
-	fs := vfs.NewMemMapFS()
-
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
-	require.NoError(t, err)
-
-	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
-	require.NotNil(t, resolved)
-
-	err = hclparse.GenerateAutoIncludeFile(fs, resolved, "/test", srcBytes, resolved.EvalCtx)
-	require.NoError(t, err)
-
-	generated, err := vfs.ReadFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile))
-	require.NoError(t, err)
-
-	content := string(generated)
-
-	// The dependency.vpc.outputs.val expression must appear verbatim
-	assert.Contains(t, content, "dependency.vpc.outputs.val")
 }
 
 func TestGenerateAutoIncludeFile_RelativePath(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
-
-	// Use /test as the stack root so that both config_path (resolved by
-	// ParseStackFile) and targetDir (where we generate) share the same tree.
-	stackRoot := "/test"
 
 	src := `
 unit "vpc" {
@@ -423,15 +311,13 @@ unit "app" {
 `
 	srcBytes := []byte(src)
 
-	// ParseStackFile resolves dep.ConfigPath to stackRoot/.terragrunt-stack/vpc
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: stackRoot})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
-	// Generate into stackRoot/.terragrunt-stack/app (sibling of vpc)
-	appDir := filepath.Join(stackRoot, ".terragrunt-stack", "app")
+	appDir := filepath.Join(testStackDir, ".terragrunt-stack", "app")
 
 	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -440,23 +326,14 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
-
-	// config_path should be relative: ../vpc (from app/ to vpc/ which are siblings)
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, "../vpc")
-	// Should NOT contain the absolute stackRoot path
-	assert.NotContains(t, content, stackRoot)
+	assert.NotContains(t, content, testStackDir)
 }
 
-func TestParseStackFile_LocalsInAutoInclude(t *testing.T) {
+func TestGenerateAutoIncludeFile_LocalsEvaluated(t *testing.T) {
 	t.Parallel()
 
-	// Binary per-attribute eval: attributes that are pure local refs get evaluated.
-	// Attributes with dependency refs get copied verbatim.
-	// Note: `inputs = { env = local.env, vpc_id = dependency.vpc... }` is a SINGLE
-	// attribute whose expression mixes both — it will be copied verbatim because
-	// hasDeferredVarRefs returns true for the whole object.
-	// To get locals evaluated, use separate top-level attributes.
 	src := `
 locals {
   env = "production"
@@ -476,10 +353,8 @@ unit "app" {
       config_path = unit.vpc.path
     }
 
-    # Pure local ref — separate attribute — gets evaluated
     env_name = local.env
 
-    # Has dependency ref — copied verbatim
     inputs = {
       vpc_id = dependency.vpc.outputs.vpc_id
     }
@@ -487,16 +362,15 @@ unit "app" {
 }
 `
 	srcBytes := []byte(src)
-
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.NotNil(t, resolved)
 
-	appDir := "/test/.terragrunt-stack/app"
+	appDir := testGenDir
 
 	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -505,90 +379,14 @@ unit "app" {
 	require.NoError(t, err)
 
 	content := string(generated)
-
-	// env_name should be evaluated to "production"
 	assert.Contains(t, content, "production")
 	assert.NotContains(t, content, "local.env")
-
-	// inputs with dependency ref preserved verbatim
-	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
-}
-
-func TestParseStackFile_BinaryEvalPureLocalInputs(t *testing.T) {
-	t.Parallel()
-
-	// Pure-local inputs attribute (no dependency refs) gets fully evaluated.
-	// Mixed inputs attribute (has dependency refs) gets copied verbatim.
-	src := `
-locals {
-  region = "us-east-1"
-  name   = "myapp"
-}
-
-unit "vpc" {
-  source = "../catalog/units/vpc"
-  path   = "vpc"
-}
-
-unit "app" {
-  source = "../catalog/units/app"
-  path   = "app"
-
-  autoinclude {
-    dependency "vpc" {
-      config_path = unit.vpc.path
-    }
-
-    # Pure locals map — no dependency refs — gets fully evaluated
-    tags = {
-      region = local.region
-      name   = local.name
-    }
-
-    # Mixed map — has dependency ref — copied verbatim
-    inputs = {
-      vpc_id = dependency.vpc.outputs.vpc_id
-    }
-  }
-}
-`
-	srcBytes := []byte(src)
-
-	fs := vfs.NewMemMapFS()
-
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
-	require.NoError(t, err)
-
-	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
-	require.NotNil(t, resolved)
-
-	appDir := "/test/.terragrunt-stack/app"
-
-	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
-	require.NoError(t, err)
-
-	generated, err := vfs.ReadFile(fs, filepath.Join(appDir, hclparse.AutoIncludeFile))
-	require.NoError(t, err)
-
-	content := string(generated)
-
-	// Pure local refs should be evaluated to literals
-	assert.Contains(t, content, "us-east-1")
-	assert.Contains(t, content, "myapp")
-	assert.NotContains(t, content, "local.region")
-	assert.NotContains(t, content, "local.name")
-
-	// dependency ref preserved verbatim
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
 }
 
 func TestGenerateAutoIncludeFile_PartialEval(t *testing.T) {
 	t.Parallel()
 
-	// Mixed expressions: inputs object has both pure local refs and deferred
-	// dependency refs. The partial evaluator should resolve locals to literals
-	// while preserving dependency refs verbatim. A mixed template string tests
-	// per-part partial evaluation.
 	src := `
 locals {
   env    = "production"
@@ -614,32 +412,28 @@ unit "app" {
       }
     }
 
-    # Mixed object: env is pure local, vpc_id is deferred dependency
     inputs = {
       env    = local.env
       region = local.region
       vpc_id = dependency.vpc.outputs.vpc_id
     }
 
-    # Pure local attribute — fully evaluated
     env_label = local.env
 
-    # Mixed template — partial eval per interpolation part
     name_tag = "${local.env}-${dependency.vpc.outputs.vpc_id}-app"
   }
 }
 `
 	srcBytes := []byte(src)
-
 	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.NoError(t, err)
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 
-	appDir := "/test/.terragrunt-stack/app"
+	appDir := testGenDir
 
 	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -649,19 +443,12 @@ unit "app" {
 
 	content := string(generated)
 
-	// env_label: pure local ref -> evaluated to literal
 	assert.Contains(t, content, `"production"`)
 	assert.NotContains(t, content, "local.env")
-
-	// inputs object: env and region resolved, vpc_id deferred
 	assert.Contains(t, content, `"us-east-1"`)
 	assert.NotContains(t, content, "local.region")
 	assert.Contains(t, content, "dependency.vpc.outputs.vpc_id")
-
-	// name_tag: mixed template -> "production-${dependency.vpc.outputs.vpc_id}-app"
 	assert.Contains(t, content, "production-${dependency.vpc.outputs.vpc_id}-app")
-
-	// Dependency block preserved
 	assert.Contains(t, content, `dependency "vpc"`)
 	assert.Contains(t, content, "mock_outputs")
 }
@@ -669,10 +456,8 @@ unit "app" {
 func TestParseStackFile_StackChildUnitPath(t *testing.T) {
 	t.Parallel()
 
-	// Create a nested stack source on disk so DiscoverStackChildUnits can read it
 	tmpDir := t.TempDir()
 
-	// Create the nested stack source directory with a terragrunt.stack.hcl
 	nestedStackDir := filepath.Join(tmpDir, "catalog", "stacks", "networking")
 	require.NoError(t, os.MkdirAll(nestedStackDir, 0755))
 
@@ -693,7 +478,6 @@ unit "subnets" {
 		0644,
 	))
 
-	// Create the parent stack file that references the nested stack
 	parentStackDir := filepath.Join(tmpDir, "live")
 	require.NoError(t, os.MkdirAll(parentStackDir, 0755))
 
@@ -720,15 +504,231 @@ unit "app" {
 	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: []byte(parentSrc), Filename: parentStackFile, StackDir: parentStackDir})
 	require.NoError(t, err)
 
-	// app's autoinclude should resolve vpc dependency to the nested unit path
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 
-	// The path should point to networking/.terragrunt-stack/vpc
 	expectedPath := filepath.Join(parentStackDir, ".terragrunt-stack", "networking", ".terragrunt-stack", "vpc")
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+}
+
+func TestParseStackFile_LocalsCycle(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  a = local.b
+  b = local.a
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.Error(t, err)
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Len(t, cycleErr.Names, 2)
+}
+
+func TestParseStackFile_MultipleLocals(t *testing.T) {
+	t.Parallel()
+
+	src := `
+locals {
+  env    = "staging"
+  region = "eu-west-1"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.app.path
+    }
+
+    env_tag    = local.env
+    region_tag = local.region
+  }
+}
+`
+	srcBytes := []byte(src)
+	fs := vfs.NewMemMapFS()
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: srcBytes, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.NotNil(t, resolved)
+
+	appDir := testGenDir
+
+	err = hclparse.GenerateAutoIncludeFile(fs, resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+
+	generated, err := vfs.ReadFile(fs, filepath.Join(appDir, hclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, "staging")
+	assert.Contains(t, content, "eu-west-1")
+	assert.NotContains(t, content, "local.env")
+	assert.NotContains(t, content, "local.region")
+}
+
+func TestParseStackFile_StackAutoInclude(t *testing.T) {
+	t.Parallel()
+
+	src := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+
+stack "networking" {
+  source = "../stacks/networking"
+  path   = "networking"
+
+  autoinclude {
+    dependency "vpc" {
+      config_path = unit.vpc.path
+    }
+  }
+}
+`
+
+	result, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("stack", "networking")]
+	require.True(t, ok, "stack networking should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
+}
+
+func TestParseStackFile_DuplicateUnits(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+	includeSrc := `
+unit "vpc" {
+  source = "../catalog/units/vpc2"
+  path   = "vpc2"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate unit name")
+}
+
+func TestParseStackFile_DuplicateStacks(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+
+stack "infra" {
+  source = "../stacks/infra"
+  path   = "infra"
+}
+`
+	includeSrc := `
+stack "infra" {
+  source = "../stacks/infra2"
+  path   = "infra2"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includeSrc), 0644))
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate stack name")
+}
+
+func TestParseStackFile_IncludeWithLocals(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "bad" {
+  path = "bad.hcl"
+}
+`
+	includeSrc := `
+locals {
+  env = "prod"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "bad.hcl"), []byte(includeSrc), 0644))
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must not define locals")
+}
+
+func TestParseStackFile_IncludeWithNestedIncludes(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	mainSrc := `
+include "nested" {
+  path = "nested.hcl"
+}
+`
+	includeSrc := `
+include "deeper" {
+  path = "deeper.hcl"
+}
+
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "nested.hcl"), []byte(includeSrc), 0644))
+
+	_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(mainSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must not define nested includes")
 }
 
 // Benchmarks
@@ -750,9 +750,10 @@ unit "app" {
   path   = "app"
 }
 `)
+	fs := vfs.NewMemMapFS()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+		_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -802,9 +803,10 @@ unit "app" {
   }
 }
 `)
+	fs := vfs.NewMemMapFS()
 
 	for b.Loop() {
-		_, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+		_, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -835,17 +837,17 @@ unit "app" {
   }
 }
 `)
+	fs := vfs.NewMemMapFS()
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: "/project"})
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: src, Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	if err != nil {
 		require.NoError(b, err)
 	}
 
 	resolved := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
-	tmpDir := b.TempDir()
 
 	for b.Loop() {
-		err := hclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, tmpDir, src, resolved.EvalCtx)
+		err := hclparse.GenerateAutoIncludeFile(fs, resolved, testGenDir, src, resolved.EvalCtx)
 		if err != nil {
 			require.NoError(b, err)
 		}

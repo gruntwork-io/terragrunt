@@ -7,8 +7,8 @@ import (
 	"charm.land/bubbles/v2/viewport"
 )
 
-// newListKeyMap returns a set of keybindings for the list view.
-func newListKeyMap() list.KeyMap {
+// NewListKeyMap returns a set of keybindings for the list view.
+func NewListKeyMap() list.KeyMap {
 	return list.KeyMap{
 		// Browsing.
 		CursorUp: key.NewBinding(
@@ -73,51 +73,51 @@ func newListKeyMap() list.KeyMap {
 	}
 }
 
-type delegateKeyMap struct {
-	choose   key.Binding
-	scaffold key.Binding
+type DelegateKeyMap struct {
+	Choose   key.Binding
+	Scaffold key.Binding
 }
 
-// Additional short help entries. This satisfies the help.KeyMap interface and
+// ShortHelp returns additional short help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d delegateKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
+func (d DelegateKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
-		d.choose,
-		d.scaffold,
+		d.Choose,
+		d.Scaffold,
 	}
 }
 
-// Additional full help entries. This satisfies the help.KeyMap interface and
+// FullHelp returns additional full help entries. This satisfies the help.KeyMap interface and
 // is entirely optional.
-func (d delegateKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
+func (d DelegateKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	return [][]key.Binding{
 		{
-			d.choose,
-			d.scaffold,
+			d.Choose,
+			d.Scaffold,
 		},
 	}
 }
 
-// newDelegateKeyMap returns a set of keybindings.
-func newDelegateKeyMap() *delegateKeyMap {
-	return &delegateKeyMap{
-		choose: key.NewBinding(
+// NewDelegateKeyMap returns a set of keybindings.
+func NewDelegateKeyMap() *DelegateKeyMap {
+	return &DelegateKeyMap{
+		Choose: key.NewBinding(
 			key.WithKeys("enter", "ctrl-j"),
 			key.WithHelp("enter/ctrl-j", "choose"),
 		),
-		scaffold: key.NewBinding(
+		Scaffold: key.NewBinding(
 			key.WithKeys("S", "s"),
 			key.WithHelp("S", "Scaffold"),
 		),
 	}
 }
 
-// pagerKeyMap returns a set of keybindings for the pager. It satisfies to the
+// PagerKeyMap returns a set of keybindings for the pager. It satisfies to the
 // help.KeyMap interface, which is used to render the menu.
-type pagerKeyMap struct {
+type PagerKeyMap struct {
 	viewport.KeyMap
 
-	help help.Model
+	HelpModel help.Model
 
 	// Button navigation
 	Navigation key.Binding
@@ -143,7 +143,7 @@ type pagerKeyMap struct {
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
-func (keys pagerKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
+func (keys PagerKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
 		keys.Up,
 		keys.Down,
@@ -158,7 +158,7 @@ func (keys pagerKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
-func (keys pagerKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
+func (keys PagerKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	return [][]key.Binding{
 		{keys.Up, keys.Down, keys.PageDown, keys.PageUp},                   // first column
 		{keys.Navigation, keys.NavigationBack, keys.Choose, keys.Scaffold}, // second column
@@ -166,9 +166,9 @@ func (keys pagerKeyMap) FullHelp() [][]key.Binding { //nolint:gocritic
 	}
 }
 
-// newPagerKeyMap returns a set of keybindings for the pager view.
-func newPagerKeyMap() pagerKeyMap {
-	return pagerKeyMap{
+// NewPagerKeyMap returns a set of keybindings for the pager view.
+func NewPagerKeyMap() PagerKeyMap {
+	return PagerKeyMap{
 		KeyMap: viewport.KeyMap{
 			HalfPageUp: key.NewBinding(
 				key.WithDisabled(),
@@ -193,7 +193,7 @@ func newPagerKeyMap() pagerKeyMap {
 				key.WithHelp("h/←/pgup/alt+v", "page up"),
 			),
 		},
-		help: help.New(),
+		HelpModel: help.New(),
 		Navigation: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "navigation"),

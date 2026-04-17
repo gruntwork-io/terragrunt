@@ -3,11 +3,14 @@ package catalog
 import (
 	"context"
 	"fmt"
+	"runtime"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -25,49 +28,117 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		return runDefault(ctx, l, opts, repoURL)
 	}
 
-	return tui.RunRedesign(ctx, l, opts, func(ctx context.Context, status tui.StatusFunc) (catalog.CatalogService, error) {
-		status("Scanning terragrunt.hcl files for module sources...")
+	return redesign.RunRedesign(
+		ctx, l, opts,
+		func(
+			ctx context.Context, status redesign.StatusFunc, moduleCh chan<- *module.Module,
+		) (catalog.CatalogService, error) {
+			svc := catalog.NewCatalogService(opts)
 
-		// Create parsing context for source discovery and catalog config
-		ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+			onModule := func(mod *module.Module) {
+				select {
+				case moduleCh <- mod:
+				case <-ctx.Done():
+				}
+			}
 
-		// Discover source URLs from terraform.source in terragrunt.hcl files
-		discoveredURLs, err := DiscoverSourceURLs(ctx, l, pctx)
-		if err != nil {
-			l.Warnf("Failed to discover source URLs: %v", err)
-		}
+			urlCh := make(chan string, 10) //nolint:mnd
 
-		// Also read catalog config if it exists
-		catalogCfg, catalogErr := config.ReadCatalogConfig(ctx, l, pctx)
-		if catalogErr != nil {
-			l.Debugf("No catalog config found: %v", catalogErr)
-		}
+			g, gctx := errgroup.WithContext(ctx)
 
-		// Merge: catalog URLs first, then discovered URLs
-		var allURLs []string
-		if catalogCfg != nil {
-			allURLs = append(allURLs, catalogCfg.URLs...)
-		}
+			g.Go(func() error {
+				return discoverCatalogConfigURLs(gctx, l, opts, urlCh)
+			})
 
-		allURLs = append(allURLs, discoveredURLs...)
-		allURLs = util.RemoveDuplicates(allURLs)
+			g.Go(func() error {
+				return discoverSourceFileURLs(gctx, l, opts, urlCh)
+			})
 
-		if len(allURLs) == 0 {
-			return nil, nil
-		}
+			go func() {
+				_ = g.Wait()
 
-		status(fmt.Sprintf("Found %d source(s), cloning repositories...", len(allURLs)))
+				close(urlCh)
+			}()
 
-		// Load modules from all discovered repos
-		svc := catalog.NewCatalogService(opts)
-		svc.WithRepoURLs(allURLs)
+			status("Discovering catalog sources...")
 
-		if err := svc.Load(ctx, l); err != nil {
-			return svc, err
-		}
+			maxWorkers := max(1, min(opts.Parallelism, runtime.GOMAXPROCS(0)))
 
-		status(fmt.Sprintf("Found %d module(s), loading catalog...", len(svc.Modules())))
+			loaders, loadCtx := errgroup.WithContext(gctx)
+			loaders.SetLimit(maxWorkers)
 
-		return svc, nil
-	})
+			seen := make(map[string]struct{})
+
+			for repoURL := range urlCh {
+				if _, ok := seen[repoURL]; ok {
+					continue
+				}
+
+				seen[repoURL] = struct{}{}
+
+				loaders.Go(func() error {
+					if err := svc.LoadStreamingURL(loadCtx, l, repoURL, onModule); err != nil {
+						// Individual repo failures are non-critical — warn and
+						// continue so remaining repos can still load.
+						l.Warnf("Error loading %s: %v", repoURL, err)
+					}
+
+					return nil
+				})
+			}
+
+			if err := loaders.Wait(); err != nil {
+				return nil, fmt.Errorf("loading modules: %w", err)
+			}
+
+			if err := g.Wait(); err != nil {
+				return nil, fmt.Errorf("discovering sources: %w", err)
+			}
+
+			if len(svc.Modules()) == 0 {
+				return nil, nil
+			}
+
+			return svc, nil
+		})
+}
+
+// discoverCatalogConfigURLs reads catalog URLs from the root config and
+// sends each to urlCh.
+func discoverCatalogConfigURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+	_, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	catalogCfg, err := config.ReadCatalogConfig(ctx, l, pctx)
+	if err != nil {
+		l.Debugf("No catalog config found: %v", err)
+		return nil
+	}
+
+	if catalogCfg == nil {
+		return nil
+	}
+
+	for _, u := range catalogCfg.URLs {
+		urlCh <- u
+	}
+
+	return nil
+}
+
+// discoverSourceFileURLs walks terragrunt.hcl files, extracts
+// terraform.source URLs, and sends each repo URL to urlCh.
+func discoverSourceFileURLs(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, urlCh chan<- string) error {
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	urls, err := redesign.DiscoverSourceURLs(ctx, l, pctx)
+	if err != nil {
+		l.Warnf("Failed to discover source URLs: %v", err)
+		return nil
+	}
+
+	for _, u := range urls {
+		urlCh <- u
+	}
+
+	return nil
 }

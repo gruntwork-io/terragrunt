@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -102,7 +102,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	// When the stack-dependencies experiment is enabled, perform a two-pass
 	// parse to resolve autoinclude blocks and generate terragrunt.autoinclude.hcl files.
-	var autoIncludes map[string]*intHclparse.AutoIncludeResolved
+	var autoIncludes map[string]*inthclparse.AutoIncludeResolved
 
 	var stackSrcBytes []byte
 
@@ -115,7 +115,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			return errors.Errorf("failed to read stack file bytes %s: %w", stackFilePath, err)
 		}
 
-		parseResult, parseErr := intHclparse.ParseStackFile(vfs.NewOSFS(), &intHclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
+		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
 			// Log at debug for stacks that don't use autoinclude (expected failure
 			// when HCL functions are present in source/path). The production parser
@@ -154,7 +154,7 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
-	autoIncludes    map[string]*intHclparse.AutoIncludeResolved
+	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
 	sourceMap       map[string]string
 	rootWorkingDir  string
 	stackConfigPath string
@@ -327,14 +327,14 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		kindStr = "stack"
 	}
 
-	resolved, ok := opts.autoIncludes[intHclparse.AutoIncludeKey(kindStr, cmp.name)]
+	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kindStr, cmp.name)]
 	if !ok {
 		return nil
 	}
 
-	l.Infof("Generating %s for %s %s", intHclparse.AutoIncludeFile, kindStr, cmp.name)
+	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFile, kindStr, cmp.name)
 
-	if err := intHclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
+	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
 	}
 
@@ -605,14 +605,25 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 	}
 
 	// Validate no duplicate unit names after merge.
-	seen := make(map[string]bool, len(config.Units))
+	seen := make(map[string]struct{}, len(config.Units))
 
 	for _, u := range config.Units {
-		if seen[u.Name] {
-			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
+		if _, exists := seen[u.Name]; exists {
+			return inthclparse.DuplicateUnitNameError{Name: u.Name}
 		}
 
-		seen[u.Name] = true
+		seen[u.Name] = struct{}{}
+	}
+
+	// Validate no duplicate stack names after merge.
+	seen = make(map[string]struct{}, len(config.Stacks))
+
+	for _, s := range config.Stacks {
+		if _, exists := seen[s.Name]; exists {
+			return inthclparse.DuplicateStackNameError{Name: s.Name}
+		}
+
+		seen[s.Name] = struct{}{}
 	}
 
 	return nil
