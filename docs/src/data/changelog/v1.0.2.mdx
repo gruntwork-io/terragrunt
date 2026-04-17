@@ -12,10 +12,10 @@ The `stack-dependencies` experiment now supports cross-stack and nested-stack de
 
 **New features:**
 
-- **`stack.<name>.path`** references for depending on an entire stack — the DAG expands the stack into its constituent units at runtime
+- **`stack.<name>.path`** references for depending on an entire stack. The DAG expands the stack into its constituent units so that all units in the stack complete before the dependent unit runs
 - **`stack.<name>.<unit_name>.path`** references for depending on a specific unit within a nested stack (fine-grained cross-stack dependencies)
 - **`dependency` blocks targeting stack directories** — aggregated outputs from all units in the stack are accessible as `dependency.stack_name.outputs.unit_name.output_key`
-- **Partial evaluation of `local.*` in autoinclude** — expressions mixing `local.*` and `dependency.*` are now partially evaluated: locals resolve to literals while dependency references are preserved for runtime
+- **Partial evaluation of `local.*` in autoinclude** — expressions mixing `local.*` and `dependency.*` are partially evaluated during stack generation: locals resolve to literals while dependency references are preserved for evaluation when the unit is applied
 
 **Dependency on an entire stack:**
 
@@ -70,3 +70,18 @@ terragrunt run --all --experiment stack-dependencies -- plan
 ```
 
 To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).
+
+### 🐛 Bug Fixes
+
+---
+
+#### Panic in `get_repo_root()` when OpenTelemetry tracing is enabled with TRACEPARENT
+
+Running `terragrunt stack generate` (or any command that invoked shell commands like `git rev-parse`) with OpenTelemetry trace exporting enabled (`TG_TELEMETRY_TRACE_EXPORTER=http`) caused a nil pointer panic:
+
+```
+Call to function "get_repo_root" failed: panic in function implementation:
+runtime error: invalid memory address or nil pointer dereference
+```
+
+The root cause of the panic was fixed, and telemetry codepaths have been hardened against future panics.

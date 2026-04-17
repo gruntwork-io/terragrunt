@@ -2,7 +2,6 @@ package cas
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
 
@@ -56,8 +55,10 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 		}
 	}
 
+	fs := store.FS()
+
 	for dirPath := range dirsToCreate {
-		if err := os.MkdirAll(dirPath, DefaultDirPerms); err != nil {
+		if err := fs.MkdirAll(dirPath, DefaultDirPerms); err != nil {
 			return wrapError("mkdir_all", dirPath, err)
 		}
 	}

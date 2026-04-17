@@ -15,71 +15,101 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// Options configures the behavior of CAS
-type Options struct {
-	// StorePath specifies a custom path for the content store
-	// If empty, uses $HOME/.cache/terragrunt/cas/store
-	StorePath string
-}
+const defaultCloneDepth = 1
 
-// CloneOptions configures the behavior of a specific clone operation
+// Option configures the behavior of CAS.
+type Option func(*CAS)
+
+// CloneOptions configures the behavior of a specific clone operation.
 type CloneOptions struct {
-	// Dir specifies the target directory for the clone
-	// If empty, uses the repository name
+	// Dir specifies the target directory for the clone.
+	// If empty, uses the repository name.
 	Dir string
 
-	// Branch specifies which branch to clone
-	// If empty, uses HEAD
+	// Branch specifies which branch to clone.
+	// If empty, uses HEAD.
 	Branch string
 
-	// IncludedGitFiles specifies the files to preserve from the .git directory
-	// If empty, does not preserve any files
+	// IncludedGitFiles specifies the files to preserve from the .git directory.
+	// If empty, does not preserve any files.
 	IncludedGitFiles []string
+
+	// Depth limits the clone history to the given number of commits.
+	// If zero, defaults to 1 (shallow clone). Set to -1 for full history.
+	Depth int
 }
 
 // CAS clones a git repository using content-addressable storage.
 type CAS struct {
-	store *Store
-	git   *git.GitRunner
-	opts  Options
+	fs        vfs.FS
+	store     *Store
+	git       *git.GitRunner
+	storePath string
 }
 
-// New creates a new CAS instance with the given options
-//
-// TODO: Make these options optional
-func New(opts Options) (*CAS, error) {
-	if opts.StorePath == "" {
+// WithStorePath specifies a custom path for the content store.
+// If not set, defaults to $HOME/.cache/terragrunt/cas/store.
+func WithStorePath(path string) Option {
+	return func(c *CAS) {
+		c.storePath = path
+	}
+}
+
+// WithFS specifies the filesystem for file operations.
+// If not set, defaults to the real OS filesystem.
+func WithFS(fs vfs.FS) Option {
+	return func(c *CAS) {
+		c.fs = fs
+	}
+}
+
+// New creates a new CAS instance with the given options.
+func New(opts ...Option) (*CAS, error) {
+	c := &CAS{}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	if c.fs == nil {
+		c.fs = vfs.NewOSFS()
+	}
+
+	if c.storePath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, err
 		}
 
-		opts.StorePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
+		c.storePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
 	}
 
-	if err := os.MkdirAll(opts.StorePath, DefaultDirPerms); err != nil {
+	if err := c.fs.MkdirAll(c.storePath, DefaultDirPerms); err != nil {
 		return nil, fmt.Errorf("failed to create CAS store path: %w", err)
 	}
 
-	store := NewStore(opts.StorePath)
+	c.store = NewStore(c.storePath).WithFS(c.fs)
 
 	g, err := git.NewGitRunner()
 	if err != nil {
 		return nil, err
 	}
 
-	return &CAS{
-		store: store,
-		git:   g,
-		opts:  opts,
-	}, nil
+	c.git = g
+
+	return c, nil
+}
+
+// FS returns the configured filesystem.
+func (c *CAS) FS() vfs.FS {
+	return c.fs
 }
 
 // Clone performs the clone operation
@@ -87,14 +117,13 @@ func New(opts Options) (*CAS, error) {
 // TODO: Make options optional
 func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url string) error {
 	// Ensure the store path exists
-	if err := os.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
+	if err := c.fs.MkdirAll(c.store.Path(), DefaultDirPerms); err != nil {
 		return fmt.Errorf("failed to create store path: %w", err)
 	}
 
 	// Acquire global clone lock to ensure only one clone at a time
-	globalLock := flock.New(filepath.Join(c.store.Path(), "clone.lock"))
-
-	if err := globalLock.Lock(); err != nil {
+	globalLock, err := vfs.Lock(c.fs, filepath.Join(c.store.Path(), "clone.lock"))
+	if err != nil {
 		return fmt.Errorf("failed to acquire global clone lock: %w", err)
 	}
 
@@ -182,7 +211,16 @@ func (c *CAS) cloneAndStoreContent(
 	url,
 	hash string,
 ) error {
-	if err := c.git.Clone(ctx, url, true, 1, opts.Branch); err != nil {
+	depth := opts.Depth
+	if depth == 0 {
+		depth = defaultCloneDepth
+	}
+
+	if depth < 0 {
+		depth = 0
+	}
+
+	if err := c.git.Clone(ctx, url, true, depth, opts.Branch); err != nil {
 		return err
 	}
 
@@ -211,7 +249,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 	}
 
 	for _, file := range opts.IncludedGitFiles {
-		stat, err := os.Stat(filepath.Join(c.git.WorkDir, file))
+		stat, err := c.fs.Stat(filepath.Join(c.git.WorkDir, file))
 		if err != nil {
 			return err
 		}
@@ -222,7 +260,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 
 		workDirPath := filepath.Join(c.git.WorkDir, file)
 
-		includedHash, err := hashFile(workDirPath)
+		includedHash, err := hashFile(c.fs, workDirPath)
 		if err != nil {
 			return err
 		}
@@ -310,8 +348,8 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
 	// We want to make sure we remove the temporary file
 	// if we encounter an error
 	defer func() {
-		if _, osStatErr := os.Stat(tmpPath); osStatErr == nil {
-			err = errors.Join(err, os.Remove(tmpPath))
+		if _, statErr := c.fs.Stat(tmpPath); statErr == nil {
+			err = errors.Join(err, c.fs.Remove(tmpPath))
 		}
 	}()
 
@@ -331,24 +369,22 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
 		return err
 	}
 
-	if err = os.Rename(tmpPath, content.getPath(hash)); err != nil {
+	if err = c.fs.Rename(tmpPath, content.getPath(hash)); err != nil {
 		return err
 	}
 
-	if err = os.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
+	if err = c.fs.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func hashFile(path string) (string, error) {
-	file, err := os.Open(path)
+func hashFile(fs vfs.FS, path string) (string, error) {
+	file, err := fs.Open(path)
 	if err != nil {
 		return "", err
 	}
-
-	defer file.Close()
 
 	h := sha1.New()
 
@@ -356,5 +392,17 @@ func hashFile(path string) (string, error) {
 		return "", err
 	}
 
-	return hex.EncodeToString(h.Sum(nil)), nil
+	hash := hex.EncodeToString(h.Sum(nil))
+
+	if err := file.Close(); err != nil {
+		return hash, fmt.Errorf(
+			"hash of %s successfully computed as "+
+				"%s, but closing the file failed: %w",
+			path,
+			hash,
+			err,
+		)
+	}
+
+	return hash, nil
 }

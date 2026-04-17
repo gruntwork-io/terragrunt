@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,10 @@ func TestContent_Store(t *testing.T) {
 
 	t.Run("store new content", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -33,7 +36,7 @@ func TestContent_Store(t *testing.T) {
 		// Verify content was stored
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -41,7 +44,9 @@ func TestContent_Store(t *testing.T) {
 	t.Run("ensure existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -57,7 +62,7 @@ func TestContent_Store(t *testing.T) {
 		// Verify original content remains
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -65,7 +70,9 @@ func TestContent_Store(t *testing.T) {
 	t.Run("overwrite existing content", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -78,10 +85,10 @@ func TestContent_Store(t *testing.T) {
 		err = content.Store(l, testHash, differentData)
 		require.NoError(t, err)
 
-		// Verify original content remains
+		// Verify content was overwritten
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, differentData, storedData)
 	})
@@ -94,8 +101,11 @@ func TestContent_Link(t *testing.T) {
 
 	t.Run("create new link", func(t *testing.T) {
 		t.Parallel()
-		storeDir := helpers.TmpDirWOSymlinks(t)
-		store := cas.NewStore(storeDir)
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		require.NoError(t, memFs.MkdirAll("/target", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -106,29 +116,52 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then create a link to it
-		targetDir := helpers.TmpDirWOSymlinks(t)
-		targetPath := filepath.Join(targetDir, "test.txt")
+		targetPath := filepath.Join("/target", "test.txt")
 
 		err = content.Link(t.Context(), testHash, targetPath)
 		require.NoError(t, err)
 
 		// Verify link was created and contains correct content
-		linkedData, err := os.ReadFile(targetPath)
+		linkedData, err := vfs.ReadFile(memFs, targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, linkedData)
+	})
 
-		// Verify it's a hard link by checking inode numbers
-		partitionDir := filepath.Join(store.Path(), testHash[:2])
-		sourceInfo, err := os.Stat(filepath.Join(partitionDir, testHash))
+	t.Run("create hard link on real filesystem", func(t *testing.T) {
+		t.Parallel()
+
+		osFs := vfs.NewOSFS()
+		storeDir := t.TempDir()
+		targetDir := t.TempDir()
+		store := cas.NewStore(storeDir).WithFS(osFs)
+
+		content := cas.NewContent(store)
+		testHash := testHashValue
+		testData := []byte("test content")
+
+		err := content.Store(l, testHash, testData)
+		require.NoError(t, err)
+
+		targetPath := filepath.Join(targetDir, "test.txt")
+		err = content.Link(t.Context(), testHash, targetPath)
+		require.NoError(t, err)
+
+		// Verify hard link by comparing inodes
+		sourcePath := filepath.Join(storeDir, testHash[:2], testHash)
+		sourceInfo, err := os.Stat(sourcePath)
 		require.NoError(t, err)
 		targetInfo, err := os.Stat(targetPath)
 		require.NoError(t, err)
-		assert.Equal(t, sourceInfo.Sys(), targetInfo.Sys())
+		assert.True(t, os.SameFile(sourceInfo, targetInfo), "expected hard link (same inode)")
 	})
 
 	t.Run("link to existing file", func(t *testing.T) {
 		t.Parallel()
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		require.NoError(t, memFs.MkdirAll("/target", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
 
 		content := cas.NewContent(store)
 		testHash := testHashValue
@@ -139,9 +172,8 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create target file
-		targetDir := helpers.TmpDirWOSymlinks(t)
-		targetPath := filepath.Join(targetDir, "test.txt")
-		err = os.WriteFile(targetPath, []byte("existing content"), 0644)
+		targetPath := filepath.Join("/target", "test.txt")
+		err = vfs.WriteFile(memFs, targetPath, []byte("existing content"), 0644)
 		require.NoError(t, err)
 
 		// Try to create link
@@ -149,7 +181,7 @@ func TestContent_Link(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify original content remains
-		existingData, err := os.ReadFile(targetPath)
+		existingData, err := vfs.ReadFile(memFs, targetPath)
 		require.NoError(t, err)
 		assert.Equal(t, []byte("existing content"), existingData)
 	})
@@ -163,7 +195,10 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content already exists", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
+
 		content := cas.NewContent(store)
 		testHash := testHashValue
 		testData := []byte("test content")
@@ -179,7 +214,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		// Verify original content remains
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -187,7 +222,10 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("content doesn't exist", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
+
 		content := cas.NewContent(store)
 		testHash := "newcontent123456"
 		testData := []byte("new test content")
@@ -199,7 +237,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		// Verify content was stored
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, testData, storedData)
 	})
@@ -207,7 +245,10 @@ func TestContent_EnsureWithWait(t *testing.T) {
 	t.Run("concurrent writes - optimization", func(t *testing.T) {
 		t.Parallel()
 
-		store := cas.NewStore(helpers.TmpDirWOSymlinks(t))
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, memFs.MkdirAll("/store", 0755))
+		store := cas.NewStore("/store").WithFS(memFs)
+
 		content := cas.NewContent(store)
 		testHash := "concurrent123456"
 
@@ -244,7 +285,7 @@ func TestContent_EnsureWithWait(t *testing.T) {
 		// Verify only one content exists (from process 1)
 		partitionDir := filepath.Join(store.Path(), testHash[:2])
 		storedPath := filepath.Join(partitionDir, testHash)
-		storedData, err := os.ReadFile(storedPath)
+		storedData, err := vfs.ReadFile(memFs, storedPath)
 		require.NoError(t, err)
 		assert.Equal(t, []byte("process 1 data"), storedData)
 	})
