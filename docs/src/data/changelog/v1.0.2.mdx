@@ -75,6 +75,23 @@ To learn more, see the [experiment documentation](/reference/experiments/active#
 
 ---
 
+#### `stack output` now respects the `exclude` block
+
+`terragrunt stack output` previously ignored the `exclude` block on units, attempting to fetch outputs (including directly from S3 state when using `--dependency-fetch-output-from-state`) for units that should have been excluded.
+
+The fix uses Terragrunt discovery to identify excluded units before reading outputs. Excluded units are now omitted from the stack output entirely, consistent with how they are handled during `stack run`.
+
+To exclude a unit from `stack output`, add `"output"` to the `actions` list in the `exclude` block:
+
+```hcl
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy", "output"]
+}
+```
+
+Special action values `"all"` and `"all_except_output"` are also supported.
+
 #### Panic in `get_repo_root()` when OpenTelemetry tracing is enabled with TRACEPARENT
 
 Running `terragrunt stack generate` (or any command that invoked shell commands like `git rev-parse`) with OpenTelemetry trace exporting enabled (`TG_TELEMETRY_TRACE_EXPORTER=http`) caused a nil pointer panic:
