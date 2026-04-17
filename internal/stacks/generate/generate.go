@@ -261,10 +261,9 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFiles searches for stack files starting from opts.WorkingDir.
-//
-// We only want to use the discovery package when the filter flag experiment is enabled, as we need to filter discovery
-// results to ensure that we get the right files back for generation.
+// ListStackFiles searches for stack files starting from opts.WorkingDir via
+// the discovery package. Filters from opts.Filters are applied to restrict
+// results to matching stacks when set.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
@@ -280,6 +279,10 @@ func ListStackFiles(
 // of unit paths that should be excluded from the current terraform command.
 // Both results come from a single discovery walk so callers that need exclude
 // information (like stack output) do not have to walk the filesystem twice.
+//
+// Exported so that stack-level commands (output, and potentially future
+// commands that need to iterate stack files while respecting excludes) can
+// reuse a single discovery pass instead of running discovery twice.
 //
 // The excludedPaths set is keyed by cleaned absolute unit paths. Exclusion is
 // determined by discovery's IsActionListed + If logic (the same as find, list,
