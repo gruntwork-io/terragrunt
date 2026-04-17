@@ -63,9 +63,11 @@ headings.push({ depth: 2, slug: 'prior-releases', text: 'Prior Releases' });
 	headings={headings}
 	sidebar={sidebar}
 >
-	<p>This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
-	<hr />
-	<ChangelogEntries showUnreleased={showUnreleased} />
-	<h2 id="prior-releases">Prior Releases</h2>
-	<p>For all prior releases, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
+	<div data-pagefind-ignore>
+		<p>This page tracks notable changes to Terragrunt. For the full list of releases and their assets, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
+		<hr />
+		<ChangelogEntries showUnreleased={showUnreleased} />
+		<h2 id="prior-releases">Prior Releases</h2>
+		<p>For all prior releases, see the <a href="https://github.com/gruntwork-io/terragrunt/releases">GitHub Releases Page</a>.</p>
+	</div>
 </StarlightPage>
