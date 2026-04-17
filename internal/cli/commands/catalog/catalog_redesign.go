@@ -57,6 +57,8 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			maxWorkers := max(1, min(opts.Parallelism, runtime.GOMAXPROCS(0)))
 
+			// Derive from ctx (not gctx) so loaders survive discovery-group
+			// cancellation. gctx is cancelled automatically when g.Wait returns.
 			loaders, loadCtx := errgroup.WithContext(ctx)
 			loaders.SetLimit(maxWorkers)
 
@@ -99,7 +101,11 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 							entry = entry.WithVersion(mod.Repo.LatestTag)
 						}
 
-						moduleCh <- entry
+						select {
+						case moduleCh <- entry:
+						case <-loadCtx.Done():
+							return nil
+						}
 					}
 
 					return nil

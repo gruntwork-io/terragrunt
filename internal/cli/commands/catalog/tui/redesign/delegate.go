@@ -212,7 +212,7 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	colors := metaPalette(entry.ItemType, selected, emptyFilter)
 	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
 
-	var metaLine string
+	metaLine := lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(metaContent)
 
 	if selected {
 		// Derive from SelectedTitle so the border type/color/padding match exactly,
@@ -220,8 +220,6 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		metaLine = s.SelectedTitle.
 			Foreground(lipgloss.NoColor{}).
 			Render(metaContent)
-	} else {
-		metaLine = lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(metaContent)
 	}
 
 	// Order: title, description, metadata.
