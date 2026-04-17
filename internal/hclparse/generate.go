@@ -214,7 +214,9 @@ func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, ori
 // expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
 // partially resolved.
 //
-// Non-dependency blocks are always copied verbatim from source bytes.
+// Non-dependency blocks are copied through Copier:
+//   - evalCtx == nil: verbatim from source bytes
+//   - evalCtx != nil: attributes are partially evaluated
 func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
 	for _, attr := range SortedAttributes(body.Attributes) {
 		if evalCtx == nil {

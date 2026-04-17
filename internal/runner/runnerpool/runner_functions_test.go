@@ -168,11 +168,18 @@ func TestNewRunnerPoolStack_WithPreventDestroy(t *testing.T) {
 
 	// vpc should be excluded due to prevent_destroy
 	stack := runner.GetStack()
+
+	foundVPC := false
+
 	for _, u := range stack.Units {
 		if u.Path() == "/tmp/test/vpc" {
+			foundVPC = true
+
 			assert.True(t, u.Excluded(), "vpc should be excluded due to prevent_destroy")
 		}
 	}
+
+	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
 }
 
 func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
@@ -197,11 +204,18 @@ func TestNewRunnerPoolStack_FilterAllowDestroy(t *testing.T) {
 	require.NoError(t, err)
 
 	stack := runner.GetStack()
+
+	foundVPC := false
+
 	for _, u := range stack.Units {
 		if u.Path() == "/tmp/test/vpc" {
+			foundVPC = true
+
 			assert.True(t, u.Excluded(), "vpc should be excluded: destroy with git ref but no --filter-allow-destroy")
 		}
 	}
+
+	require.True(t, foundVPC, "expected /tmp/test/vpc unit in stack")
 }
 
 // buildTestRunner creates a Runner with simple unit components for testing.

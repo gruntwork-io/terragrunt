@@ -530,7 +530,10 @@ unit "vpc" {
 
 	_, err := hclparse.ParseStackFile(vfs.NewMemMapFS(), &hclparse.ParseStackFileInput{Src: []byte(src), Filename: "terragrunt.stack.hcl", StackDir: testStackDir})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "could not evaluate locals")
+
+	var cycleErr hclparse.LocalsCycleError
+	require.ErrorAs(t, err, &cycleErr)
+	assert.Len(t, cycleErr.Names, 2)
 }
 
 func TestParseStackFile_MultipleLocals(t *testing.T) {

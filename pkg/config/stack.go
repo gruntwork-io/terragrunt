@@ -605,25 +605,25 @@ func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCt
 	}
 
 	// Validate no duplicate unit names after merge.
-	seenUnits := make(map[string]bool, len(config.Units))
+	seen := make(map[string]struct{}, len(config.Units))
 
 	for _, u := range config.Units {
-		if seenUnits[u.Name] {
-			return errors.Errorf("duplicate unit name %q after include merge", u.Name)
+		if _, exists := seen[u.Name]; exists {
+			return inthclparse.DuplicateUnitNameError{Name: u.Name}
 		}
 
-		seenUnits[u.Name] = true
+		seen[u.Name] = struct{}{}
 	}
 
 	// Validate no duplicate stack names after merge.
-	seenStacks := make(map[string]bool, len(config.Stacks))
+	seen = make(map[string]struct{}, len(config.Stacks))
 
 	for _, s := range config.Stacks {
-		if seenStacks[s.Name] {
-			return errors.Errorf("duplicate stack name %q after include merge", s.Name)
+		if _, exists := seen[s.Name]; exists {
+			return inthclparse.DuplicateStackNameError{Name: s.Name}
 		}
 
-		seenStacks[s.Name] = true
+		seen[s.Name] = struct{}{}
 	}
 
 	return nil
