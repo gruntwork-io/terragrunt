@@ -134,7 +134,7 @@ func StackOutput(
 			unitDir := config.GetUnitDir(dir, unit)
 
 			// Excluded units are fully omitted from the final output, matching stack run behavior.
-			if excludedPaths[filepath.Clean(unitDir)] {
+			if _, excluded := excludedPaths[filepath.Clean(unitDir)]; excluded {
 				l.Debugf("Skipping output for excluded unit %s in %s", unit.Name, unitDir)
 				continue
 			}

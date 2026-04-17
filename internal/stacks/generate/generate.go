@@ -281,7 +281,7 @@ func ListStackFiles(
 // Both results come from a single discovery walk so callers that need exclude
 // information (like stack output) do not have to walk the filesystem twice.
 //
-// The excludedPaths map is keyed by cleaned absolute unit paths. Exclusion is
+// The excludedPaths set is keyed by cleaned absolute unit paths. Exclusion is
 // determined by discovery's IsActionListed + If logic (the same as find, list,
 // and discovery.applyExcludeModules), using opts.TerraformCommand as the action.
 //
@@ -292,7 +292,7 @@ func ListStackFilesWithExcludes(
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
-) ([]string, map[string]bool, error) {
+) ([]string, map[string]struct{}, error) {
 	return listStackFilesAndExcludes(ctx, l, opts, worktrees, true)
 }
 
@@ -302,7 +302,7 @@ func listStackFilesAndExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 	parseExclude bool,
-) ([]string, map[string]bool, error) {
+) ([]string, map[string]struct{}, error) {
 	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:  opts.WorkingDir,
 		Filters:     opts.Filters,
@@ -327,7 +327,7 @@ func listStackFilesAndExcludes(
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
-	excludedPaths := make(map[string]bool)
+	excludedPaths := make(map[string]struct{})
 
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {
@@ -335,7 +335,7 @@ func listStackFilesAndExcludes(
 			foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 		case *component.Unit:
 			if parseExclude && v.Excluded() {
-				excludedPaths[filepath.Clean(v.Path())] = true
+				excludedPaths[filepath.Clean(v.Path())] = struct{}{}
 			}
 		}
 	}
