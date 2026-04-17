@@ -270,7 +270,7 @@ func nestUnitOutputs(flat map[string]map[string]cty.Value) (map[string]any, erro
 	return nested, nil
 }
 
-// readUnitOutput returns the terraform outputs for a unit.
+// readUnitOutput returns the tofu/terraform outputs for a unit.
 func readUnitOutput(
 	ctx context.Context,
 	l log.Logger,

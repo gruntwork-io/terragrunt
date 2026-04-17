@@ -10,9 +10,6 @@ import (
 func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 	t.Parallel()
 
-	boolTrue := true
-	boolFalse := false
-
 	tests := []struct {
 		name    string
 		action  string
@@ -51,7 +48,7 @@ func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 			exclude: config.ExcludeConfig{
 				If:      true,
 				Actions: []string{"all"},
-				NoRun:   &boolTrue,
+				NoRun:   new(true),
 			},
 			action: "output",
 			want:   true,
@@ -61,7 +58,7 @@ func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 			exclude: config.ExcludeConfig{
 				If:      true,
 				Actions: []string{"all_except_output"},
-				NoRun:   &boolTrue,
+				NoRun:   new(true),
 			},
 			action: "output",
 			want:   false,
@@ -71,7 +68,7 @@ func TestExcludeConfig_ShouldPreventRun(t *testing.T) {
 			exclude: config.ExcludeConfig{
 				If:      true,
 				Actions: []string{"output"},
-				NoRun:   &boolFalse,
+				NoRun:   new(false),
 			},
 			action: "output",
 			want:   false,

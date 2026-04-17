@@ -270,19 +270,45 @@ func ListStackFiles(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	foundFiles, _, err := listStackFilesAndExcludes(ctx, l, opts, worktrees, false)
+	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
+	})
+	if err != nil {
+		return nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
+	}
 
-	return foundFiles, err
+	discoveredComponents, err := d.Discover(ctx, l, opts)
+	if err != nil {
+		return nil, errors.Errorf("Failed to discover stack files: %w", err)
+	}
+
+	worktreeStacks, err := worktreeStacksToGenerate(ctx, l, opts, worktrees)
+	if err != nil {
+		return nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
+	}
+
+	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
+	for _, c := range discoveredComponents {
+		if _, ok := c.(*component.Stack); !ok {
+			continue
+		}
+
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	}
+
+	for _, c := range worktreeStacks {
+		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+	}
+
+	return foundFiles, nil
 }
 
 // ListStackFilesWithExcludes searches for stack files and also returns the set
-// of unit paths that should be excluded from the current terraform command.
+// of unit paths that should be excluded from the current tofu/terraform command.
 // Both results come from a single discovery walk so callers that need exclude
 // information (like stack output) do not have to walk the filesystem twice.
-//
-// Exported so that stack-level commands (output, and potentially future
-// commands that need to iterate stack files while respecting excludes) can
-// reuse a single discovery pass instead of running discovery twice.
 //
 // The excludedPaths set is keyed by cleaned absolute unit paths. Exclusion is
 // determined by discovery's IsActionListed + If logic (the same as find, list,
@@ -296,16 +322,6 @@ func ListStackFilesWithExcludes(
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]struct{}, error) {
-	return listStackFilesAndExcludes(ctx, l, opts, worktrees, true)
-}
-
-func listStackFilesAndExcludes(
-	ctx context.Context,
-	l log.Logger,
-	opts *options.TerragruntOptions,
-	worktrees *worktrees.Worktrees,
-	parseExclude bool,
-) ([]string, map[string]struct{}, error) {
 	d, err := discovery.NewForStackGenerate(l, discovery.StackGenerateOptions{
 		WorkingDir:  opts.WorkingDir,
 		Filters:     opts.Filters,
@@ -315,9 +331,7 @@ func listStackFilesAndExcludes(
 		return nil, nil, errors.Errorf("Failed to create discovery for stack generate: %w", err)
 	}
 
-	if parseExclude {
-		d = d.WithParseExclude().WithSuppressParseErrors()
-	}
+	d = d.WithParseExclude().WithSuppressParseErrors()
 
 	discoveredComponents, err := d.Discover(ctx, l, opts)
 	if err != nil {
@@ -337,7 +351,7 @@ func listStackFilesAndExcludes(
 		case *component.Stack:
 			foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
 		case *component.Unit:
-			if parseExclude && v.Excluded() {
+			if v.Excluded() {
 				excludedPaths[filepath.Clean(v.Path())] = struct{}{}
 			}
 		}
