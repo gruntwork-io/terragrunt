@@ -50,7 +50,7 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	foundFiles, err := ListStackFiles(ctx, l, opts, opts.WorkingDir, wts)
+	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
 	}
@@ -129,7 +129,7 @@ func discoverAndAddNewNodes(
 	generatedFiles map[string]bool,
 	minLevel int,
 ) error {
-	newFiles, listErr := ListStackFiles(ctx, l, opts, opts.WorkingDir, worktrees)
+	newFiles, listErr := ListStackFiles(ctx, l, opts, worktrees)
 	if listErr != nil {
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
@@ -261,7 +261,7 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFiles searches for stack files in the specified directory.
+// ListStackFiles searches for stack files starting from opts.WorkingDir.
 //
 // We only want to use the discovery package when the filter flag experiment is enabled, as we need to filter discovery
 // results to ensure that we get the right files back for generation.
@@ -269,10 +269,9 @@ func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, error) {
-	foundFiles, _, err := listStackFilesAndExcludes(ctx, l, opts, dir, worktrees, false)
+	foundFiles, _, err := listStackFilesAndExcludes(ctx, l, opts, worktrees, false)
 
 	return foundFiles, err
 }
@@ -292,17 +291,15 @@ func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	dir string,
 	worktrees *worktrees.Worktrees,
 ) ([]string, map[string]bool, error) {
-	return listStackFilesAndExcludes(ctx, l, opts, dir, worktrees, true)
+	return listStackFilesAndExcludes(ctx, l, opts, worktrees, true)
 }
 
 func listStackFilesAndExcludes(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
-	_ string,
 	worktrees *worktrees.Worktrees,
 	parseExclude bool,
 ) ([]string, map[string]bool, error) {
@@ -330,7 +327,7 @@ func listStackFilesAndExcludes(
 	}
 
 	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
-	excludedPaths := map[string]bool{}
+	excludedPaths := make(map[string]bool)
 
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {

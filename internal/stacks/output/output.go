@@ -89,7 +89,7 @@ func StackOutput(
 	}
 
 	// Single discovery walk returns both stack files and excluded unit paths.
-	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, opts.WorkingDir, wts)
+	foundFiles, excludedPaths, err := generate.ListStackFilesWithExcludes(ctx, l, opts, wts)
 	if err != nil {
 		return cty.NilVal, errors.Errorf("Failed to list stack files in %s: %w", opts.WorkingDir, err)
 	}
