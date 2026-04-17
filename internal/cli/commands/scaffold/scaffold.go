@@ -178,7 +178,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	// parse module url
+	// Save the original URL before go-getter transformation so the scaffolded
+	// source attribute matches the catalog config format.
+	originalModuleURL := moduleURL
+
+	// parse module url (transforms for go-getter download)
 	moduleURL, err = parseModuleURL(ctx, l, opts, vars, moduleURL)
 	if err != nil {
 		return errors.New(err)
@@ -208,7 +212,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	vars["requiredVariables"] = requiredVariables
 	vars["optionalVariables"] = optionalVariables
 
-	vars["sourceUrl"] = moduleURL
+	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
+	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL)
 
 	// Only set these if the `vars` map doesn't already have them set
 	if _, found := vars[enableRootInclude]; !found {
@@ -620,6 +625,47 @@ func addRefToModuleURL(
 	}
 
 	return moduleURL, nil
+}
+
+// BuildSourceURL returns the original module URL with the ref query param
+// from the resolved URL appended, so the scaffolded source preserves the
+// user's original URL format while including the resolved version tag.
+func BuildSourceURL(originalURL, resolvedURL string) string {
+	// Extract ref= value from the resolved (go-getter) URL via string matching,
+	// since the getter prefix (e.g. "git::") confuses url.Parse.
+	refVal := ExtractQueryParam(resolvedURL, refParam)
+
+	// If the original already has a ref, or none was resolved, use it as-is.
+	if refVal == "" || strings.Contains(originalURL, refParam+"=") {
+		return originalURL
+	}
+
+	// Append ?ref= or &ref= depending on whether the original has query params.
+	if strings.Contains(originalURL, "?") {
+		return originalURL + "&" + refParam + "=" + refVal
+	}
+
+	return originalURL + "?" + refParam + "=" + refVal
+}
+
+// ExtractQueryParam extracts a query parameter value from a URL string
+// without relying on url.Parse (which doesn't handle getter prefixes well).
+func ExtractQueryParam(rawURL, param string) string {
+	qIdx := strings.LastIndex(rawURL, "?")
+	if qIdx < 0 {
+		return ""
+	}
+
+	query := rawURL[qIdx+1:]
+
+	for _, kv := range strings.Split(query, "&") {
+		k, v, _ := strings.Cut(kv, "=")
+		if k == param {
+			return v
+		}
+	}
+
+	return ""
 }
 
 // parseURL parses module url to scheme, host and path

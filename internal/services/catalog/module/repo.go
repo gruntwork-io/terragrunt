@@ -48,6 +48,7 @@ type Repo struct {
 	Logger log.Logger
 
 	cloneURL       string
+	sourceURL      string
 	path           string
 	rootWorkingDir string
 
@@ -74,6 +75,7 @@ func NewRepo(ctx context.Context, l log.Logger, opts RepoOpts) (*Repo, error) {
 	repo := &Repo{
 		Logger:           l,
 		cloneURL:         opts.CloneURL,
+		sourceURL:        opts.CloneURL,
 		path:             opts.Path,
 		walkWithSymlinks: opts.WalkWithSymlinks,
 		allowCAS:         opts.AllowCAS,
@@ -225,6 +227,11 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	}
 
 	return repo.performClone(ctx, l, &opts)
+}
+
+// SourceURL returns the original catalog URL before go-getter transformation.
+func (repo *Repo) SourceURL() string {
+	return repo.sourceURL
 }
 
 func (repo *Repo) resolveCloneURL() string {
