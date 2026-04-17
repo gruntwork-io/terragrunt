@@ -235,6 +235,82 @@ func FuzzEvaluateLocals(f *testing.F) {
 	})
 }
 
+// FuzzNestedStackPath tests stack.<name>.<nested_stack>.path resolution with
+// arbitrary stack and unit names. Creates a parent stack referencing a child
+// stack that contains a nested stack, and verifies the pipeline never panics.
+func FuzzNestedStackPath(f *testing.F) {
+	f.Add("infra", "deep", "vpc", "db")
+	f.Add("network", "storage", "subnet", "bucket")
+	f.Add("a", "b", "c", "d")
+	f.Add("", "", "", "")
+	f.Add("path", "name", "source", "autoinclude")
+
+	f.Fuzz(func(t *testing.T, stackName, nestedStackName, unitName, nestedUnitName string) {
+		// Skip empty names: HCL labels can't be empty
+		if stackName == "" || nestedStackName == "" || unitName == "" || nestedUnitName == "" {
+			return
+		}
+
+		fs := vfs.NewMemMapFS()
+
+		// Create the nested (deepest) stack file
+		nestedStackDir := "/fuzz/stacks/nested"
+		_ = fs.MkdirAll(nestedStackDir, 0755)
+
+		nestedContent := `unit "` + nestedUnitName + `" { source = "."; path = "` + nestedUnitName + `" }`
+		_ = vfs.WriteFile(fs, nestedStackDir+"/terragrunt.stack.hcl", []byte(nestedContent), 0644)
+
+		// Create the middle stack that contains a unit + nested stack
+		midStackDir := "/fuzz/stacks/mid"
+		_ = fs.MkdirAll(midStackDir, 0755)
+
+		midContent := `unit "` + unitName + `" { source = "."; path = "` + unitName + `" }
+stack "` + nestedStackName + `" { source = "../nested"; path = "` + nestedStackName + `" }`
+		_ = vfs.WriteFile(fs, midStackDir+"/terragrunt.stack.hcl", []byte(midContent), 0644)
+
+		// Create parent stack referencing the middle stack + an app unit
+		parentSrc := `stack "` + stackName + `" { source = "../stacks/mid"; path = "` + stackName + `" }
+unit "app" { source = "."; path = "app"
+  autoinclude {
+    dependency "dep" { config_path = stack.` + stackName + `.` + nestedStackName + `.path }
+  }
+}`
+		_, _ = hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+			Src:      []byte(parentSrc),
+			Filename: "fuzz.hcl",
+			StackDir: "/fuzz/live",
+		})
+	})
+}
+
+// FuzzDiscoverStackChildUnits tests child unit discovery with arbitrary nested stack structures.
+// Verifies that DiscoverStackChildUnits never panics regardless of stack file content.
+func FuzzDiscoverStackChildUnits(f *testing.F) {
+	seeds := []string{
+		`unit "vpc" { source = "."; path = "vpc" }`,
+		`unit "a" { source = "."; path = "a" }
+unit "b" { source = "."; path = "b" }`,
+		`stack "nested" { source = "../nested"; path = "nested" }`,
+		`unit "x" { source = "."; path = "x"; no_dot_terragrunt_stack = true }`,
+		``,
+		`unit "x" {}`,
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		fs := vfs.NewMemMapFS()
+
+		dir := "/fuzz/stack"
+		_ = fs.MkdirAll(dir, 0755)
+		_ = vfs.WriteFile(fs, dir+"/terragrunt.stack.hcl", []byte(input), 0644)
+
+		_ = hclparse.DiscoverStackChildUnits(fs, dir, "/fuzz/gen")
+	})
+}
+
 // FuzzAutoIncludeResolve tests AutoIncludeHCL.Resolve with arbitrary HCL input.
 // Verifies that resolution never panics regardless of autoinclude body content.
 func FuzzAutoIncludeResolve(f *testing.F) {
