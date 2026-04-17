@@ -1,0 +1,78 @@
+export const prerender = true;
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ReleaseEntries from '@components/ReleaseEntries.astro';
+import { getCollection } from 'astro:content';
+import { getLatestRelease } from '@lib/github';
+import {
+  compareVersionsDesc,
+  entriesForVersion,
+  groupByCategory,
+  isReleased,
+  uniqueVersions,
+} from '@lib/changelog';
+import { sidebar } from '../../../data/sidebar';
+
+export async function getStaticPaths() {
+  const showUnreleased = import.meta.env.DEV;
+  const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+  const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+  const entries = await getCollection('changelog');
+  const versions = uniqueVersions(entries).filter(
+    (version) => showUnreleased || isReleased(version, latestVersion),
+  );
+
+  return versions.map((version) => ({
+    params: { version },
+    props: { version },
+  }));
+}
+
+interface Props {
+  version: string;
+}
+
+const { version } = Astro.props;
+
+const showUnreleased = import.meta.env.DEV;
+const releaseData = await getLatestRelease('gruntwork-io', 'terragrunt');
+const latestVersion = (releaseData?.tag_name ?? 'v0.0.0').replace(/^v/, '');
+
+const allEntries = await getCollection('changelog');
+const entries = entriesForVersion(allEntries, version);
+const groups = groupByCategory(entries);
+
+const visibleVersions = uniqueVersions(allEntries)
+  .filter((v) => showUnreleased || isReleased(v, latestVersion))
+  .sort(compareVersionsDesc);
+
+const currentIndex = visibleVersions.indexOf(version);
+const newer = currentIndex > 0 ? visibleVersions[currentIndex - 1] : null;
+const older =
+  currentIndex >= 0 && currentIndex < visibleVersions.length - 1
+    ? visibleVersions[currentIndex + 1]
+    : null;
+
+const headings = groups.map((group) => ({
+  depth: 2,
+  slug: group.category.slug,
+  text: group.category.label,
+}));
+---
+
+<StarlightPage
+  frontmatter={{
+    title: version,
+    description: `Notable changes in Terragrunt ${version}.`,
+    pagination: true,
+    prev: older ? { label: older, link: `/process/changelog/${older}` } : false,
+    next: newer ? { label: newer, link: `/process/changelog/${newer}` } : false,
+  }}
+  headings={headings}
+  sidebar={sidebar}
+>
+  <div data-pagefind-ignore>
+    <ReleaseEntries version={version} entries={entries} />
+  </div>
+</StarlightPage>

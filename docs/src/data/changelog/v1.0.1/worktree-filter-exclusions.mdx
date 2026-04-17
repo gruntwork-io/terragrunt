@@ -1,0 +1,10 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### Filter exclusions now respected in worktree sub-discoveries
+
+Negated filters (e.g., `!./catalog/**` from `.terragrunt-filters` or `--filter`) are now propagated to worktree sub-discoveries used by git-based filtering (`--filter-affected`, `--filter '[ref...ref]'`).
+
+Previously, excluded source catalog units in worktrees were still discovered and parsed, causing errors when they referenced `values.*` or `dependency.*` variables without the stack generation context.

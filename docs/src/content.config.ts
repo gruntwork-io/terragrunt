@@ -2,6 +2,7 @@ import { defineCollection, z } from 'astro:content';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 import { glob, file } from 'astro/loaders';
+import { CHANGELOG_CATEGORY_SLUGS } from './lib/changelog';
 
 const commands = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/commands" }),
@@ -62,6 +63,8 @@ const changelog = defineCollection({
 	loader: glob({ pattern: "**/*.mdx", base: "src/data/changelog" }),
 	schema: z.object({
 		version: z.string(),
+		category: z.enum(CHANGELOG_CATEGORY_SLUGS),
+		order: z.number().optional(),
 	}),
 });
 

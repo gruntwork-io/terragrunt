@@ -9,77 +9,46 @@ tableOfContents:
 pagefind: false
 ---
 
-{/* Changelog entries are managed in docs/src/data/changelog/ as individual MDX files.
-Add new entries there, not here. Use the following format for each file:
+{/* Changelog entries are managed in docs/src/data/changelog/<version>/ as one MDX file per change.
+Add new entries there, not here.
+
+Directory layout:
+
+  docs/src/data/changelog/
+    v1.2.3/
+      my-new-feature.mdx
+      fix-some-bug.mdx
+
+Each file has frontmatter identifying the release it belongs to and the
+category it renders under, followed by a `#### <title>` heading and prose:
 
 ---
-version: "vX.Y.Z"
----
-
-### 🛠️ Breaking Changes
-
----
-
-#### Change title
-
-Description of breaking change.
-
-### ✨ New Features
-
+version: "v1.2.3"
+category: "new-features"     # see the slug list below
+order: 1                      # optional; sorts within a category (lower first)
 ---
 
 #### Feature title
 
-Description of new feature.
+Description of the change.
 
-### 🏎️ Performance Improvements
+Valid `category` slugs, in the order they render:
 
----
+  breaking-changes           🛠️ Breaking Changes
+  new-features               ✨ New Features
+  performance-improvements   🏎️ Performance Improvements
+  tips-added                 💡 Tips Added
+  bug-fixes                  🐛 Bug Fixes
+  documentation-updates      📖 Documentation Updates
+  experiments-added          🧪 Experiments Added
+  experiments-updated        🧪 Experiments Updated
+  process-updates            ⚙️ Process Updates
 
-#### Improvement title
-
-Description of performance improvement.
-
-### 💡 Tips Added
-
----
-
-#### Tip title
-
-Description of tip added.
-
-### 🐛 Bug Fixes
-
----
-
-#### Fix title
-
-Description of bug fix.
-
-### 📖 Documentation Updates
-
----
-
-#### Update title
-
-Description of docs change.
-
-### 🧪 Experiments Updated
-
----
-
-#### Experiment title
-
-Description of experiment change.
-
-### ⚙️ Process Updates
-
----
-
-#### Process change title
-
-Description of process change.
+The canonical list lives in `docs/src/lib/changelog.ts` — update it there if
+you need to add or rename a category.
 
 */}
 
-{/* This page is rendered by docs/src/pages/process/changelog.astro using data from docs/src/data/changelog/. */}
+{/* This page is rendered by docs/src/pages/process/changelog.astro (release
+index) and docs/src/pages/process/changelog/[version].astro (per-release
+pages), using data from docs/src/data/changelog/. */}

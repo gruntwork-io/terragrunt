@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Path manipulation removed from log messages
+
+Log messages no longer have paths updated automatically. This caused confusion for users when seeing OpenTofu/Terraform stdout and hook stdout emitted through logs, as paths were unconditionally updated to be relative to the unit path. This logic has been moved to logging call sites to ensure that external process stdout/stderr is not manipulated unexpectedly.
