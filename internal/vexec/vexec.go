@@ -29,8 +29,7 @@ var (
 	// ErrStderrAlreadySet is returned from CombinedOutput when Stderr has
 	// been set via SetStderr.
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
-	// ErrProcessNotStarted is returned from Signal when the underlying
-	// process has not been started yet.
+	// ErrProcessNotStarted is returned from Signal before Start.
 	ErrProcessNotStarted = errors.New("vexec: process not started")
 )
 
@@ -67,14 +66,12 @@ type Cmd interface {
 	ProcessState() *os.ProcessState
 
 	// SetCancel registers a function invoked once when the command's context
-	// fires, before Wait returns. Mirrors exec.Cmd.Cancel. If unset, the
-	// default behavior (process kill for the real backend; no-op for the
-	// in-memory backend) applies.
+	// is canceled, before Wait returns. Mirrors exec.Cmd.Cancel. If unset,
+	// the OS backend kills the process and the in-memory backend does nothing.
 	SetCancel(fn func() error)
 
-	// Signal sends sig to the running process. Returns ErrProcessNotStarted
-	// if the process has not started. The in-memory backend has no real
-	// process and always returns nil.
+	// Signal sends sig to the running process, or returns ErrProcessNotStarted
+	// if Start has not been called. The in-memory backend always returns nil.
 	Signal(sig os.Signal) error
 }
 
