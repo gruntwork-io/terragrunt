@@ -9,7 +9,11 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
@@ -640,6 +644,94 @@ func windowsSystemRoot() string {
 	}
 
 	return `C:\Windows`
+}
+
+// TestOSExec_SetCancelFiresOnContextCancel verifies the registered Cancel
+// function is invoked when the context is canceled while the process is
+// running, and Wait returns once the process exits. The test cancels
+// synchronously right after Start.
+func TestOSExec_SetCancelFiresOnContextCancel(t *testing.T) {
+	t.Parallel()
+	skipOnWindows(t)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var called atomic.Bool
+
+	cmd := vexec.NewOSExec().Command(ctx, "sleep", "30")
+	cmd.SetCancel(func() error {
+		called.Store(true)
+		return cmd.Signal(syscall.SIGINT)
+	})
+
+	require.NoError(t, cmd.Start())
+
+	cancel()
+
+	_ = cmd.Wait()
+
+	assert.True(t, called.Load(), "cancel fn must have been invoked")
+}
+
+// TestOSExec_SignalBeforeStartReturnsErrProcessNotStarted verifies Signal
+// returns the sentinel before Start has been called.
+func TestOSExec_SignalBeforeStartReturnsErrProcessNotStarted(t *testing.T) {
+	t.Parallel()
+	skipOnWindows(t)
+
+	cmd := vexec.NewOSExec().Command(t.Context(), "echo", "hi")
+
+	err := cmd.Signal(syscall.SIGTERM)
+	require.ErrorIs(t, err, vexec.ErrProcessNotStarted)
+}
+
+// TestMemExec_SetCancelFiresOnContextCancel verifies the registered Cancel
+// function is invoked when the context is canceled while the handler is
+// still running. The handler blocks on ctx.Done, so cancellation both
+// releases the handler and fires the cancel fn. synctest bubbles the
+// time.Sleep so the test does not burn real wall-clock.
+func TestMemExec_SetCancelFiresOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		e := vexec.NewMemExec(func(ctx context.Context, _ vexec.Invocation) vexec.Result {
+			<-ctx.Done()
+			return vexec.Result{}
+		})
+
+		var called atomic.Bool
+
+		cmd := e.Command(ctx, "blocker")
+		cmd.SetCancel(func() error {
+			called.Store(true)
+			return nil
+		})
+
+		go func() {
+			time.Sleep(25 * time.Millisecond)
+			cancel()
+		}()
+
+		require.NoError(t, cmd.Run())
+		assert.True(t, called.Load(), "cancel fn must have been invoked")
+	})
+}
+
+// TestMemExec_SignalIsNoop verifies the in-memory backend returns nil from
+// Signal and does nothing observable.
+func TestMemExec_SignalIsNoop(t *testing.T) {
+	t.Parallel()
+
+	e := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	cmd := e.Command(t.Context(), "whatever")
+	require.NoError(t, cmd.Signal(syscall.SIGTERM))
 }
 
 // skipOnWindows skips tests that depend on POSIX binaries (echo, bash, cat).
