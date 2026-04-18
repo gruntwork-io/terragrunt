@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -136,7 +137,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	// Clone the repo locally for tree operations
 	repoDir := b.TempDir()
 
-	g, err := git.NewGitRunner()
+	g, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(b, err)
 
 	g = g.WithWorkDir(repoDir)
@@ -146,7 +147,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	require.NoError(b, g.Clone(ctx, repoURL, false, 0, ""))
 
 	b.Run("ls-remote", func(b *testing.B) {
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(b, err)
 
 		b.ResetTimer()

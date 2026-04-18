@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -115,7 +116,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		}, repoURL))
 
 		// Get the commit hash for HEAD
-		g, err := git.NewGitRunner()
+		g, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		results, err := g.LsRemote(ctx, repoURL, "HEAD")

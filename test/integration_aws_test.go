@@ -28,6 +28,7 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -1351,7 +1352,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := util.ReadFileAsString(mainTFFile)
 	require.NoError(t, err)
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	branchName := gitRunner.WithWorkDir(modulePath).GetCurrentBranch(t.Context())
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
