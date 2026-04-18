@@ -260,4 +260,3 @@ func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolin
 		return scaffoldFinishedMsg{err}
 	})
 }
-

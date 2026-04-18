@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
@@ -49,9 +50,14 @@ func DiscoverComponents(repo *module.Repo, walkWithSymlinks bool) (Components, e
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
+	ignoreMatcher, err := ignore.Load(repoPath)
+	if err != nil {
+		return nil, err
+	}
+
 	var components Components
 
-	err := walkFunc(repoPath, func(dir string, d fs.DirEntry, walkErr error) error {
+	err = walkFunc(repoPath, func(dir string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -72,6 +78,10 @@ func DiscoverComponents(repo *module.Repo, walkWithSymlinks bool) (Components, e
 		relDir = filepath.ToSlash(relDir)
 		if relDir == "." {
 			relDir = ""
+		}
+
+		if ignoreMatcher.Match(relDir) {
+			return fs.SkipDir
 		}
 
 		kind, isComponent, err := classifyDir(dir)

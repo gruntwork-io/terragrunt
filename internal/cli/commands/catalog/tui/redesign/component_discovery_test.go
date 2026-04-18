@@ -130,6 +130,41 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 	assert.Empty(t, components[0].Dir, "root component should have an empty Dir")
 }
 
+// TestDiscoverComponents_HonorsIgnoreFile asserts that dirs matched by
+// .terragrunt-catalog-ignore are skipped, and that negation rules can
+// re-include siblings of an ignored pattern (but not descendants of an
+// already-skipped parent).
+func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# module")
+	writeFile(t, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# example, should be ignored")
+	writeFile(t, filepath.Join(repoDir, "test", "drop", "main.tf"), "# should be ignored")
+	writeFile(t, filepath.Join(repoDir, "test", "keep", "main.tf"), "# re-included via negation")
+
+	writeFile(t, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
+		"# skip examples and everything under it\nexamples\nexamples/**\ntest/**\n!test/keep\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.DiscoverComponents(repo, false)
+	require.NoError(t, err)
+
+	got := map[string]redesign.ComponentKind{}
+	for _, c := range components {
+		got[c.Dir] = c.Kind
+	}
+
+	want := map[string]redesign.ComponentKind{
+		"foo":       redesign.ComponentKindModule,
+		"test/keep": redesign.ComponentKindModule,
+	}
+
+	assert.Equal(t, want, got, "ignore file should exclude examples/** and test/** except test/keep")
+}
+
 // TestDiscoverComponents_EmptyRepo returns no components for an empty tree.
 func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 	t.Parallel()

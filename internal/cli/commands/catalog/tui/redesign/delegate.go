@@ -22,11 +22,11 @@ const (
 	modulePillBgS = "#4D4328"
 	modulePillFgS = "#FFE44D"
 
-	// Template type pill (green).
-	templatePillBg  = "#1F3527"
-	templatePillFg  = "#A6E3A1"
-	templatePillBgS = "#2A4834"
-	templatePillFgS = "#C9F0C6"
+	// Template type pill (mauve).
+	templatePillBg  = "#2A2040"
+	templatePillFg  = "#CBA6F7"
+	templatePillBgS = "#3A2D55"
+	templatePillFgS = "#DDC4FA"
 
 	// Version pill (neutral).
 	versionBg  = "#313244"

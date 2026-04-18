@@ -91,7 +91,6 @@ type WelcomeModel struct {
 	state            welcomeState
 	width            int
 	height           int
-	sawComponent     bool
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.

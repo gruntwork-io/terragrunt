@@ -30,6 +30,8 @@ func (k ComponentKind) String() string {
 	switch k {
 	case ComponentKindTemplate:
 		return "template"
+	case ComponentKindModule:
+		return "module"
 	default:
 		return "module"
 	}
@@ -48,8 +50,6 @@ type Component struct {
 	// catalog pipeline the redesign reuses (generic clone/git plumbing).
 	Repo *module.Repo
 
-	Kind ComponentKind
-
 	// Dir is the slash-relative path from the repo root. Empty string means
 	// the repo root itself is the component.
 	Dir string
@@ -57,6 +57,8 @@ type Component struct {
 	cloneURL string
 	repoPath string
 	url      string
+
+	Kind ComponentKind
 }
 
 // Components is a slice of *Component for ergonomic return types.

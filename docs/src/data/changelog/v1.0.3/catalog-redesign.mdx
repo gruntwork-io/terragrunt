@@ -1,0 +1,22 @@
+---
+version: "v1.0.3"
+category: "experiments-updated"
+---
+
+#### `catalog-redesign` — Templates and `.terragrunt-catalog-ignore`
+
+The `catalog-redesign` experiment picked up user-visible improvements to discovery and filtering.
+
+Discovery walks the entire repository instead of only a `modules/` directory, so modules and templates can live anywhere in the tree. Boilerplate templates (directories containing a `.boilerplate/` subdirectory or a top-level `boilerplate.yml`) are discovered as a distinct component kind alongside OpenTofu/Terraform modules and labeled as templates in the UI. When a directory qualifies as both, it is classified as a template.
+
+Catalog authors can commit a `.terragrunt-catalog-ignore` file at the repo root to keep directories such as `examples/` or `test/` out of discovery. The file uses `.gitignore`-style semantics: one pattern per line, `#` for comments, `!` for negation, and last match wins. Matching is anchored at the repo root; a lone `*` does not cross `/`, and `**` does.
+
+```plaintext
+# .terragrunt-catalog-ignore
+examples
+examples/**
+test/**
+!test/keep
+```
+
+To learn more, see [Excluding paths from discovery](/features/catalog/tui#excluding-paths-from-discovery).
