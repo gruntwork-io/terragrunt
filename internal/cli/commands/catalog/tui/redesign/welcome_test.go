@@ -75,7 +75,7 @@ func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 	listModel, isList := finalModel.(redesign.Model)
 	require.True(t, isList, "should transition to component list when components found")
 	assert.Equal(t, redesign.ListState, listModel.State)
-	assert.Len(t, listModel.List.Items(), len(components), "should have all streamed components in list")
+	assert.Len(t, listModel.List().Items(), len(components), "should have all streamed components in list")
 }
 
 // TestWelcomeLoadingScreen_ComponentListNavigation verifies the full flow:
@@ -243,9 +243,9 @@ func TestWelcomeStreamingComponents(t *testing.T) {
 	listModel, isList := finalModel.(redesign.Model)
 	require.True(t, isList, "should transition to component list")
 	assert.Equal(t, redesign.ListState, listModel.State)
-	assert.Len(t, listModel.List.Items(), len(components), "all streamed components should appear in list")
+	assert.Len(t, listModel.List().Items(), len(components), "all streamed components should appear in list")
 
-	items := listModel.List.Items()
+	items := listModel.List().Items()
 	for i := 1; i < len(items); i++ {
 		prev := strings.ToLower(items[i-1].(*redesign.ComponentEntry).Title())
 		curr := strings.ToLower(items[i].(*redesign.ComponentEntry).Title())

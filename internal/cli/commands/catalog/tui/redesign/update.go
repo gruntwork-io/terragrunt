@@ -16,6 +16,19 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// Tab key bindings for cycling between the All/Modules/Templates tabs.
+// These are only active outside the list's filter input mode.
+var (
+	tabNextKey = key.NewBinding(
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "next tab"),
+	)
+	tabPrevKey = key.NewBinding(
+		key.WithKeys("shift+tab"),
+		key.WithHelp("shift+tab", "prev tab"),
+	)
+)
+
 func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	var (
 		cmd  tea.Cmd
@@ -27,13 +40,21 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 		m.userNavigated = true
 
 		// Don't match any of the keys below if we're actively filtering.
-		if m.List.FilterState() == list.Filtering {
+		if m.lists[m.activeTab].FilterState() == list.Filtering {
 			break
 		}
 
 		switch {
+		case key.Matches(msg, tabNextKey):
+			m.activeTab = m.activeTab.next()
+
+			return m, nil
+		case key.Matches(msg, tabPrevKey):
+			m.activeTab = m.activeTab.prev()
+
+			return m, nil
 		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
-			if selectedEntry, ok := m.List.SelectedItem().(*ComponentEntry); ok {
+			if selectedEntry, ok := m.lists[m.activeTab].SelectedItem().(*ComponentEntry); ok {
 				selectedComponent := selectedEntry.Component
 
 				switch {
@@ -107,7 +128,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	}
 
 	// Handle keyboard and mouse events for the list
-	m.List, cmd = m.List.Update(msg)
+	m.lists[m.activeTab], cmd = m.lists[m.activeTab].Update(msg)
 
 	// Append any commands from button bar initialization
 	if len(cmds) > 0 {
@@ -196,7 +217,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 		return m, nil
 	case tea.WindowSizeMsg:
 		h, v := AppStyle.GetFrameSize()
-		m.List.SetSize(msg.Width-h, msg.Height-v)
+
+		// Reserve one line for the tab bar plus a blank spacer line.
+		const tabBarHeight = 2
+		for i := range int(numTabs) {
+			m.lists[i].SetSize(msg.Width-h, msg.Height-v-tabBarHeight)
+		}
+
 		m.width = msg.Width
 		m.height = msg.Height
 

@@ -24,8 +24,6 @@ type sessionState int
 type button int
 
 const (
-	title = "All"
-
 	titleForegroundColor = "#A8ACB1"
 	titleBackgroundColor = "#1D252F"
 )
@@ -53,7 +51,7 @@ func (b button) String() string {
 }
 
 type Model struct {
-	List                list.Model
+	lists               [numTabs]list.Model
 	logger              log.Logger
 	terragruntOptions   *options.TerragruntOptions
 	selectedComponent   *Component
@@ -66,11 +64,23 @@ type Model struct {
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
+	activeTab           tabKind
 	height              int
 	width               int
 	ready               bool
 	loading             bool
 	userNavigated       bool
+}
+
+// List returns the currently active list — the one filtered by the active
+// tab. Exposed for tests and view code that need to inspect items.
+func (m Model) List() list.Model { //nolint:gocritic
+	return m.lists[m.activeTab]
+}
+
+// ActiveTab returns which of the All/Modules/Templates tabs is focused.
+func (m Model) ActiveTab() tabKind { //nolint:gocritic
+	return m.activeTab
 }
 
 // NewModelStreaming creates a Model with a single initial entry and a channel
@@ -90,14 +100,29 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 	pagerKeys := tui.NewPagerKeyMap()
 
 	delegate := newCatalogDelegate(delegateKeys)
-	lst := list.New(items, delegate, 0, 0)
-	lst.KeyMap = listKeys
-	lst.SetFilteringEnabled(true)
-	lst.Title = title
-	lst.Styles.Title = lipgloss.NewStyle().
+
+	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(titleForegroundColor)).
 		Background(lipgloss.Color(titleBackgroundColor)).
 		Padding(0, 1)
+
+	var lists [numTabs]list.Model
+
+	for i := range int(numTabs) {
+		t := tabKind(i)
+
+		tabItems := filterItemsByTab(items, t)
+
+		lst := list.New(tabItems, delegate, 0, 0)
+		lst.KeyMap = listKeys
+		lst.SetFilteringEnabled(true)
+		// The visible tab strip is rendered in the view; a per-list Title
+		// is redundant, so clear it to keep the tab bar the only label.
+		lst.Title = ""
+		lst.SetShowTitle(false)
+		lst.Styles.Title = titleStyle
+		lists[i] = lst
+	}
 
 	vp := viewport.New(viewport.WithWidth(0), viewport.WithHeight(0))
 
@@ -109,7 +134,7 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 	bb := buttonbar.New(bs)
 
 	return Model{
-		List:              lst,
+		lists:             lists,
 		listKeys:          listKeys,
 		delegateKeys:      delegateKeys,
 		viewport:          vp,
@@ -121,15 +146,62 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 	}
 }
 
-// insertComponentSorted inserts a component into the list in alphabetical order,
-// skipping duplicates. If the user has started navigating, the cursor stays
-// on the currently selected item. Otherwise it stays at the top of the list.
+// filterItemsByTab returns the subset of items whose Kind belongs in tab t.
+// TabAll returns everything unchanged.
+func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
+	if t == TabAll {
+		return items
+	}
+
+	out := make([]list.Item, 0, len(items))
+
+	for _, it := range items {
+		entry, ok := it.(*ComponentEntry)
+		if !ok {
+			continue
+		}
+
+		if t.matches(entry.Kind()) {
+			out = append(out, entry)
+		}
+	}
+
+	return out
+}
+
+// insertComponentSorted inserts a component into every tab whose filter
+// accepts its kind (always TabAll, plus either TabModules or TabTemplates).
+// Duplicates are skipped per-list by source path, and each list preserves
+// its own cursor.
 func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
 	if entry == nil {
 		return nil
 	}
 
-	items := m.List.Items()
+	var cmds []tea.Cmd
+
+	for i := range int(numTabs) {
+		t := tabKind(i)
+		if !t.matches(entry.Kind()) {
+			continue
+		}
+
+		if cmd := m.insertIntoList(i, entry); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if len(cmds) == 0 {
+		return nil
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// insertIntoList places entry into lists[idx] at the correct sorted
+// position, skipping duplicates and preserving the per-list cursor.
+func (m *Model) insertIntoList(idx int, entry *ComponentEntry) tea.Cmd {
+	items := m.lists[idx].Items()
 	entryTitle := entry.Title()
 
 	// Binary search finds the insertion point by title for sort order.
@@ -147,19 +219,19 @@ func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
 		return nil
 	}
 
-	currentIdx := m.List.Index()
+	currentIdx := m.lists[idx].Index()
 
-	cmd := m.List.InsertItem(insertIdx, entry)
+	cmd := m.lists[idx].InsertItem(insertIdx, entry)
 
 	if m.userNavigated {
 		// Preserve cursor: if we inserted before or at the current
 		// selection, shift the cursor forward so it stays on the same item.
 		if insertIdx <= currentIdx {
-			m.List.Select(currentIdx + 1)
+			m.lists[idx].Select(currentIdx + 1)
 		}
 	} else {
 		// User hasn't navigated yet — keep cursor at the top.
-		m.List.Select(0)
+		m.lists[idx].Select(0)
 	}
 
 	return cmd

@@ -109,13 +109,16 @@ func TestComponentListView_LoadingTitle(t *testing.T) {
 	m = updated.(redesign.Model)
 
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "All (loading...)", "streaming model should show loading indicator")
+	assert.Contains(t, content, "All", "tab bar should show the All tab")
+	assert.Contains(t, content, "Modules", "tab bar should show the Modules tab")
+	assert.Contains(t, content, "Templates", "tab bar should show the Templates tab")
+	assert.Contains(t, content, "(loading...)", "streaming model should show loading indicator")
 
 	updated, _ = m.Update(redesign.DiscoveryCompleteMsg{Err: nil})
 	m = updated.(redesign.Model)
 
 	content = stripANSI(m.View().Content)
-	assert.Contains(t, content, "All", "should still have title")
+	assert.Contains(t, content, "All", "tab bar should still show the All tab")
 	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
 }
 
@@ -290,7 +293,7 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		if isList {
 			assert.Equal(t, redesign.ListState, listModel.State, "should be in list state")
 
-			items := listModel.List.Items()
+			items := listModel.List().Items()
 			assert.GreaterOrEqual(t, len(items), 1, "should have at least one component in the list")
 
 			for i := 1; i < len(items); i++ {

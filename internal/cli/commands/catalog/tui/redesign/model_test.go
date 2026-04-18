@@ -112,7 +112,7 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 	})
 
 	assert.Equal(t, redesign.ListState, finalModel.State)
-	items := finalModel.List.Items()
+	items := finalModel.List().Items()
 	assert.Len(t, items, len(components), "all components should be in the list")
 
 	for i := 1; i < len(items); i++ {
@@ -120,6 +120,89 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 		curr := strings.ToLower(items[i].(*redesign.ComponentEntry).Title())
 		assert.LessOrEqual(t, prev, curr, "components should be in alphabetical order: %q should come before %q", prev, curr)
 	}
+}
+
+// makeMixedComponents returns a module entry followed by a template entry
+// for tests that need both kinds.
+func makeMixedComponents(t *testing.T) []*redesign.ComponentEntry {
+	t.Helper()
+
+	return []*redesign.ComponentEntry{
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo",
+			"modules/aws-vpc",
+			"# AWS VPC",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindTemplate,
+			"github.com/gruntwork-io/test-repo",
+			"templates/service",
+			"# Service Template",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+	}
+}
+
+// TestModelTabsFilterByKind verifies that each tab shows only components
+// of its kind, while the All tab shows everything.
+func TestModelTabsFilterByKind(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Cycle: All -> Modules -> Templates -> All (and stop on Templates).
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+		time.Sleep(30 * time.Millisecond)
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "tab key should cycle to Templates")
+
+	templatesItems := finalModel.List().Items()
+	require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
+	assert.Equal(t, redesign.ComponentKindTemplate, templatesItems[0].(*redesign.ComponentEntry).Kind())
+}
+
+// TestModelTabShiftTabCycles verifies that shift+tab cycles tabs in
+// reverse order.
+func TestModelTabShiftTabCycles(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Starts on All. Shift+Tab wraps to Templates.
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "shift+tab from All should wrap to Templates")
 }
 
 // TestModelStreamingDeduplicates verifies that sending the same component
@@ -145,5 +228,5 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 	})
 
 	assert.Equal(t, redesign.ListState, finalModel.State)
-	assert.Len(t, finalModel.List.Items(), 1, "duplicate component should not appear twice")
+	assert.Len(t, finalModel.List().Items(), 1, "duplicate component should not appear twice")
 }

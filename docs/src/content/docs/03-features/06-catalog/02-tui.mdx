@@ -45,9 +45,16 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](/features/catalog/scaffold) to render a `terragrunt.hcl` for using the module: `S`.
 
+## Scaffolding Flags
+
+The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
+
+- `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
+- `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
+
 ## Excluding paths from discovery
 
-<Aside type="note">
+<Aside type="tip" title="Catalog Redesign Experiment">
 This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
 </Aside>
 
@@ -87,9 +94,11 @@ terragrunt catalog --ignore-file ./my-ignore-rules
 
 This is useful when you don't control the upstream repository, or when you want to temporarily scope discovery without editing files under version control. It can also be set via the `TG_IGNORE_FILE` environment variable. The path must exist; a missing file is an error.
 
-## Scaffolding Flags
+## Browse tabs
 
-The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
 
-- `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
-- `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+The list view is split into three tabs: `All`, `Modules`, and `Templates`. `All` is selected when the TUI launches. Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. The active tab filters the list down to components of that kind, and each tab keeps its own cursor position and search filter, so switching back preserves where you were.
