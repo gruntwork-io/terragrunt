@@ -1,5 +1,5 @@
 // Package redesign implements the redesigned catalog TUI experience with
-// streaming module discovery and a welcome loading screen.
+// streaming component discovery and a welcome loading screen.
 package redesign
 
 import (
@@ -13,8 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -57,12 +55,11 @@ func (b button) String() string {
 type Model struct {
 	List                list.Model
 	logger              log.Logger
-	SVC                 catalog.CatalogService
 	terragruntOptions   *options.TerragruntOptions
-	selectedModule      *module.Module
+	selectedComponent   *Component
 	delegateKeys        *tui.DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
-	moduleCh            chan *ModuleEntry
+	componentCh         chan *ComponentEntry
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
@@ -76,34 +73,18 @@ type Model struct {
 	userNavigated       bool
 }
 
-func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService) Model {
-	modules := svc.Modules()
-	items := make([]list.Item, 0, len(modules))
-
-	for _, mod := range modules {
-		source := ExtractRepoURL(mod.TerraformSourcePath())
-		items = append(items, NewModuleEntry(mod).WithSource(source))
-	}
-
-	sort.Slice(items, func(i, j int) bool {
-		return strings.ToLower(items[i].(*ModuleEntry).Title()) < strings.ToLower(items[j].(*ModuleEntry).Title())
-	})
-
-	return newModelWithItems(l, opts, svc, items, nil)
-}
-
 // NewModelStreaming creates a Model with a single initial entry and a channel
 // for receiving additional entries as they are discovered.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ModuleEntry, moduleCh chan *ModuleEntry) Model {
+func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ComponentEntry, componentCh chan *ComponentEntry) Model {
 	items := []list.Item{initial}
 
-	m := newModelWithItems(l, opts, nil, items, moduleCh)
+	m := newModelWithItems(l, opts, items, componentCh)
 	m.loading = true
 
 	return m
 }
 
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, items []list.Item, moduleCh chan *ModuleEntry) Model {
+func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
 	listKeys := tui.NewListKeyMap()
 	delegateKeys := tui.NewDelegateKeyMap()
 	pagerKeys := tui.NewPagerKeyMap()
@@ -135,35 +116,34 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalo
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
-		SVC:               svc,
 		logger:            l,
-		moduleCh:          moduleCh,
+		componentCh:       componentCh,
 	}
 }
 
-// insertModuleSorted inserts a module into the list in alphabetical order,
+// insertComponentSorted inserts a component into the list in alphabetical order,
 // skipping duplicates. If the user has started navigating, the cursor stays
 // on the currently selected item. Otherwise it stays at the top of the list.
-func (m *Model) insertModuleSorted(entry *ModuleEntry) tea.Cmd {
+func (m *Model) insertComponentSorted(entry *ComponentEntry) tea.Cmd {
 	if entry == nil {
 		return nil
 	}
 
 	items := m.List.Items()
-	modTitle := entry.Title()
+	entryTitle := entry.Title()
 
 	// Binary search finds the insertion point by title for sort order.
 	insertIdx := sort.Search(len(items), func(i int) bool {
-		if existing, ok := items[i].(*ModuleEntry); ok {
-			return strings.ToLower(existing.Title()) >= strings.ToLower(modTitle)
+		if existing, ok := items[i].(*ComponentEntry); ok {
+			return strings.ToLower(existing.Title()) >= strings.ToLower(entryTitle)
 		}
 
 		return false
 	})
 
-	// De-duplicate by source path, not title, so distinct modules that
+	// De-duplicate by source path, not title, so distinct components that
 	// share a display name are not collapsed.
-	if isDuplicate(items, entry.Module.TerraformSourcePath()) {
+	if isDuplicate(items, entry.Component.TerraformSourcePath()) {
 		return nil
 	}
 
@@ -187,12 +167,12 @@ func (m *Model) insertModuleSorted(entry *ModuleEntry) tea.Cmd {
 
 // isDuplicate reports whether any item in the list has the same source path
 // as sourcePath. This uses the stable TerraformSourcePath identity rather
-// than the display title, so distinct modules that share a title are not
+// than the display title, so distinct components that share a title are not
 // incorrectly collapsed.
 func isDuplicate(items []list.Item, sourcePath string) bool {
 	for _, item := range items {
-		if existing, ok := item.(*ModuleEntry); ok {
-			if existing.Module.TerraformSourcePath() == sourcePath {
+		if existing, ok := item.(*ComponentEntry); ok {
+			if existing.Component.TerraformSourcePath() == sourcePath {
 				return true
 			}
 		}
@@ -201,19 +181,19 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 	return false
 }
 
-func (m Model) listenForModule() tea.Cmd { //nolint:gocritic
-	ch := m.moduleCh
+func (m Model) listenForComponent() tea.Cmd { //nolint:gocritic
+	ch := m.componentCh
 	if ch == nil {
 		return nil
 	}
 
 	return func() tea.Msg {
-		mod, ok := <-ch
+		c, ok := <-ch
 		if !ok {
 			return nil
 		}
 
-		return moduleMsg{entry: mod}
+		return componentMsg{entry: c}
 	}
 }
 
@@ -221,8 +201,8 @@ func (m Model) listenForModule() tea.Cmd { //nolint:gocritic
 func (m Model) Init() tea.Cmd { //nolint:gocritic
 	cmds := []tea.Cmd{m.buttonBar.Init()}
 
-	if m.moduleCh != nil {
-		cmds = append(cmds, m.listenForModule())
+	if m.componentCh != nil {
+		cmds = append(cmds, m.listenForComponent())
 	}
 
 	return tea.Batch(cmds...)

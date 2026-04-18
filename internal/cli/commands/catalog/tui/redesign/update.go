@@ -12,10 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
-	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -36,15 +33,15 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 		switch {
 		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
-			if selectedEntry, ok := m.List.SelectedItem().(*ModuleEntry); ok {
-				selectedModule := selectedEntry.Module
+			if selectedEntry, ok := m.List.SelectedItem().(*ComponentEntry); ok {
+				selectedComponent := selectedEntry.Component
 
 				switch {
 				case key.Matches(msg, m.delegateKeys.Choose):
 					// prepare the viewport
 					var content string
 
-					if selectedModule.IsMarkDown() {
+					if selectedComponent.IsMarkDown() {
 						style := "dark"
 						if !lipgloss.HasDarkBackground(os.Stdin, os.Stdout) {
 							style = "light"
@@ -58,19 +55,19 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 							return m, rendererErrCmd(err)
 						}
 
-						md, err := renderer.Render(selectedModule.Content(false))
+						md, err := renderer.Render(selectedComponent.Content(false))
 						if err != nil {
 							return m, rendererErrCmd(err)
 						}
 
 						content = md
 					} else {
-						content = selectedModule.Content(true)
+						content = selectedComponent.Content(true)
 					}
 
 					m.viewport.SetContent(content)
 
-					// Dynamically create button bar based on module URL
+					// Dynamically create button bar based on component URL
 					var pagerButtons []button
 
 					buttonNames := []string{}
@@ -79,7 +76,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					pagerButtons = append(pagerButtons, scaffoldBtn)
 					buttonNames = append(buttonNames, scaffoldBtn.String())
 
-					if selectedModule.URL() != "" {
+					if selectedComponent.URL() != "" {
 						pagerButtons = append(pagerButtons, viewSourceBtn)
 						buttonNames = append(buttonNames, viewSourceBtn.String())
 					}
@@ -90,18 +87,14 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					cmds = append(cmds, m.buttonBar.Init())
 
 					// advance state
-					m.selectedModule = selectedModule
+					m.selectedComponent = selectedComponent
 					m.State = PagerState
 
 					return m, tea.Batch(cmds...)
 				case key.Matches(msg, m.delegateKeys.Scaffold):
-					if m.SVC == nil {
-						return m, nil
-					}
-
 					m.State = ScaffoldState
 
-					return m, scaffoldModuleCmd(m.logger, m, m.SVC, selectedModule)
+					return m, scaffoldComponentCmd(m.logger, m, selectedComponent)
 				}
 			} else {
 				break
@@ -149,17 +142,13 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 			switch currentAction {
 			case scaffoldBtn:
-				if m.SVC == nil {
-					return m, nil
-				}
-
 				m.State = ScaffoldState
 
-				return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
+				return m, scaffoldComponentCmd(m.logger, m, m.selectedComponent)
 			case viewSourceBtn:
-				if m.selectedModule.URL() != "" {
-					if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
-						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedModule.URL(), err))
+				if m.selectedComponent.URL() != "" {
+					if err := browser.OpenURL(m.selectedComponent.URL()); err != nil {
+						m.viewport.SetContent(fmt.Sprintf("could not open url in browser: %s. got error: %s", m.selectedComponent.URL(), err))
 					}
 				}
 			default:
@@ -167,13 +156,9 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
-			if m.SVC == nil {
-				return m, nil
-			}
-
 			m.State = ScaffoldState
 
-			return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
+			return m, scaffoldComponentCmd(m.logger, m, m.selectedComponent)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			// because we're on the second screen, we need to go back
@@ -197,12 +182,11 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	switch msg := msg.(type) {
-	case moduleMsg:
-		cmd := m.insertModuleSorted(msg.entry)
+	case componentMsg:
+		cmd := m.insertComponentSorted(msg.entry)
 
-		return m, tea.Batch(cmd, m.listenForModule())
+		return m, tea.Batch(cmd, m.listenForComponent())
 	case DiscoveryCompleteMsg:
-		m.SVC = msg.Svc
 		m.loading = false
 
 		if msg.Err != nil {
@@ -231,7 +215,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 	case scaffoldFinishedMsg:
 		if msg.err != nil {
-			return m, tea.Batch(tea.Printf("error scaffolding module: %s", msg.err.Error()), tea.Quit)
+			return m, tea.Batch(tea.Printf("error scaffolding component: %s", msg.err.Error()), tea.Quit)
 		}
 
 		return m, tea.Quit
@@ -268,9 +252,12 @@ func rendererErrCmd(err error) tea.Cmd {
 
 type scaffoldFinishedMsg struct{ err error }
 
-// Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd { //nolint:gocritic
-	return tea.Exec(command.NewScaffold(l, m.terragruntOptions, svc, module), func(err error) tea.Msg {
+// scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
+// via the redesign-owned scaffold command. It does not require the legacy
+// catalog.CatalogService.
+func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
 }
+

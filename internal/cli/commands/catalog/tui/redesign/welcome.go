@@ -9,7 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/pkg/browser"
 
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -19,11 +18,12 @@ const welcomeDocsURL = "https://docs.terragrunt.com/features/catalog/"
 // StatusFunc receives progress updates during discovery and loading.
 type StatusFunc func(msg string)
 
-// LoadFunc performs source discovery and module loading in the background.
+// LoadFunc performs source discovery and component loading in the background.
 // It calls status with human-readable progress updates and sends each
-// discovered module entry on moduleCh as it is found. It returns a ready
-// CatalogService (for scaffolding), or nil if no sources were found.
-type LoadFunc func(ctx context.Context, status StatusFunc, moduleCh chan<- *ModuleEntry) (catalog.CatalogService, error)
+// discovered component entry on componentCh as it is found. It returns an
+// error if discovery itself fails; absence of any components is signalled by
+// the channel closing without entries, not by an error.
+type LoadFunc func(ctx context.Context, status StatusFunc, componentCh chan<- *ComponentEntry) error
 
 // OpenURLFunc opens a URL in the user's browser. Injected so tests can
 // substitute a no-op or a recording stub.
@@ -39,18 +39,17 @@ const (
 
 // DiscoveryCompleteMsg is sent when background discovery finishes.
 type DiscoveryCompleteMsg struct {
-	Svc catalog.CatalogService
 	Err error
 }
 
-// moduleMsg carries a single newly-discovered module entry from the LoadFunc.
-type moduleMsg struct {
-	entry *ModuleEntry
+// componentMsg carries a single newly-discovered component entry from the LoadFunc.
+type componentMsg struct {
+	entry *ComponentEntry
 }
 
-// ModuleMsg creates a moduleMsg for testing.
-func ModuleMsg(entry *ModuleEntry) tea.Msg {
-	return moduleMsg{entry: entry}
+// ComponentMsg creates a componentMsg for testing.
+func ComponentMsg(entry *ComponentEntry) tea.Msg {
+	return componentMsg{entry: entry}
 }
 
 // StatusUpdateMsg carries a progress update from the LoadFunc.
@@ -76,7 +75,7 @@ var (
 )
 
 // WelcomeModel is a BubbleTea model that shows a loading screen while
-// discovery runs in the background, then either transitions to the module
+// discovery runs in the background, then either transitions to the component
 // list TUI or settles into a "no sources found" help screen.
 type WelcomeModel struct {
 	ctx              context.Context
@@ -86,12 +85,13 @@ type WelcomeModel struct {
 	loadFunc         LoadFunc
 	openURL          OpenURLFunc
 	statusCh         chan string
-	moduleCh         chan *ModuleEntry
+	componentCh      chan *ComponentEntry
 	statusText       string
 	spinner          spinner.Model
 	state            welcomeState
 	width            int
 	height           int
+	sawComponent     bool
 }
 
 // NewWelcomeModel creates a WelcomeModel that immediately begins discovery.
@@ -101,16 +101,16 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
 
 	return WelcomeModel{
-		ctx:        ctx,
-		logger:     l,
-		opts:       opts,
-		loadFunc:   loadFunc,
-		openURL:    browser.OpenURL,
-		statusCh:   make(chan string, statusChannelSize),
-		moduleCh:   make(chan *ModuleEntry, statusChannelSize),
-		spinner:    s,
-		statusText: "Discovering modules from your infrastructure...",
-		state:      welcomeLoading,
+		ctx:         ctx,
+		logger:      l,
+		opts:        opts,
+		loadFunc:    loadFunc,
+		openURL:     browser.OpenURL,
+		statusCh:    make(chan string, statusChannelSize),
+		componentCh: make(chan *ComponentEntry, statusChannelSize),
+		spinner:     s,
+		statusText:  "Discovering components from your infrastructure...",
+		state:       welcomeLoading,
 	}
 }
 
@@ -123,27 +123,27 @@ func (m WelcomeModel) WithOpenURL(fn OpenURLFunc) WelcomeModel { //nolint:gocrit
 
 // Init implements tea.Model. It starts the spinner and kicks off discovery.
 func (m WelcomeModel) Init() tea.Cmd { //nolint:gocritic
-	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus(), m.listenForModule())
+	return tea.Batch(m.spinner.Tick, m.startDiscovery(), m.listenForStatus(), m.listenForComponent())
 }
 
 func (m WelcomeModel) startDiscovery() tea.Cmd { //nolint:gocritic
 	ctx := m.ctx
 	loadFunc := m.loadFunc
 	statusCh := m.statusCh
-	moduleCh := m.moduleCh
+	componentCh := m.componentCh
 
 	return func() tea.Msg {
 		defer close(statusCh)
-		defer close(moduleCh)
+		defer close(componentCh)
 
-		svc, err := loadFunc(ctx, func(msg string) {
+		err := loadFunc(ctx, func(msg string) {
 			select {
 			case statusCh <- msg:
 			default:
 			}
-		}, moduleCh)
+		}, componentCh)
 
-		return DiscoveryCompleteMsg{Svc: svc, Err: err}
+		return DiscoveryCompleteMsg{Err: err}
 	}
 }
 
@@ -160,16 +160,16 @@ func (m WelcomeModel) listenForStatus() tea.Cmd { //nolint:gocritic
 	}
 }
 
-func (m WelcomeModel) listenForModule() tea.Cmd { //nolint:gocritic
-	ch := m.moduleCh
+func (m WelcomeModel) listenForComponent() tea.Cmd { //nolint:gocritic
+	ch := m.componentCh
 
 	return func() tea.Msg {
-		mod, ok := <-ch
+		c, ok := <-ch
 		if !ok {
 			return nil
 		}
 
-		return moduleMsg{entry: mod}
+		return componentMsg{entry: c}
 	}
 }
 
@@ -178,8 +178,8 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 	switch msg := msg.(type) {
 	case DiscoveryCompleteMsg:
 		return m.handleDiscoveryComplete(msg)
-	case moduleMsg:
-		return m.handleModuleMsg(msg)
+	case componentMsg:
+		return m.handleComponentMsg(msg)
 	case StatusUpdateMsg:
 		m.statusText = string(msg)
 
@@ -209,9 +209,9 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocrit
 	return m, nil
 }
 
-func (m WelcomeModel) handleModuleMsg(msg moduleMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
-	// First module: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.moduleCh)
+func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) { //nolint:gocritic
+	// First component: transition to the catalog list immediately
+	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.componentCh)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}
@@ -233,24 +233,7 @@ func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Mod
 		return m, nil
 	}
 
-	// Defensive: if we're still on the loading screen but the service has
-	// modules, transition to the catalog list. This shouldn't normally
-	// happen since moduleMsg transitions first.
-	if msg.Svc != nil && len(msg.Svc.Modules()) > 0 {
-		newModel := NewModel(m.logger, m.opts, msg.Svc)
-		width, height := m.width, m.height
-
-		initCmds := []tea.Cmd{newModel.Init()}
-		if width > 0 && height > 0 {
-			initCmds = append(initCmds, func() tea.Msg {
-				return tea.WindowSizeMsg{Width: width, Height: height}
-			})
-		}
-
-		return newModel, tea.Batch(initCmds...)
-	}
-
-	// No modules were ever discovered — show the welcome screen.
+	// No components were ever discovered — show the welcome screen.
 	m.state = welcomeNoSources
 
 	return m, nil
@@ -295,7 +278,7 @@ func (m WelcomeModel) noSourcesView() string { //nolint:gocritic
 
 	body := welcomeBodyStyle.Render(lipgloss.JoinVertical(lipgloss.Left,
 		"",
-		"No module sources were discovered in your infrastructure.",
+		"No catalog sources were discovered in your infrastructure.",
 		"",
 		"To get started, you can either:",
 		"",
@@ -306,7 +289,7 @@ func (m WelcomeModel) noSourcesView() string { //nolint:gocritic
 		welcomeCodeStyle.Render("     }"),
 		"",
 		"  2. Add terraform.source attributes to your unit configurations.",
-		"     The catalog will automatically discover referenced modules.",
+		"     The catalog will automatically discover referenced components.",
 		"",
 		welcomeHintStyle.Render("h: open docs in browser  q/esc: exit"),
 	))
@@ -339,7 +322,7 @@ func (m WelcomeModel) discoveryErrorView() string { //nolint:gocritic
 
 // RunRedesign launches the redesigned catalog experience. It shows a loading
 // screen immediately while discovery runs in the background, then transitions
-// to the module list if modules are found.
+// to the component list if components are found.
 func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, loadFunc LoadFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
