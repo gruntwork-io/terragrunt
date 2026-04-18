@@ -19,4 +19,6 @@ test/**
 !test/keep
 ```
 
+An `--ignore-file` flag (also available via `TG_IGNORE_FILE`) points at an additional ignore file that is layered on top of the repo's `.terragrunt-catalog-ignore`. The extra rules are appended under last-match-wins semantics, so the flag can either add new exclusions or re-include paths that the repo file excluded.
+
 To learn more, see [Excluding paths from discovery](/features/catalog/tui#excluding-paths-from-discovery).

@@ -140,6 +140,9 @@ type TerragruntOptions struct {
 	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
+	// Path to an additional ignore file layered on top of a repo's
+	// .terragrunt-catalog-ignore during catalog discovery.
+	CatalogIgnoreFile string
 	// Path to a file with a list of directories that need to be excluded when running *-all commands.
 	ExcludesFile string
 	// Path to folder of scaffold output

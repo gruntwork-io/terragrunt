@@ -81,6 +81,42 @@ func TestMatcher_InvalidPatternReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "line 1")
 }
 
+func TestLoadFile_MissingFileIsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := ignore.LoadFile(filepath.Join(t.TempDir(), "does-not-exist"))
+	require.Error(t, err)
+}
+
+func TestLoadFile_ReadsExistingFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "extra-ignore")
+	require.NoError(t, os.WriteFile(path, []byte("examples\n"), 0644))
+
+	m, err := ignore.LoadFile(path)
+	require.NoError(t, err)
+	assert.True(t, m.Match("examples"))
+}
+
+func TestMerge_AppendsRulesLastWins(t *testing.T) {
+	t.Parallel()
+
+	base, err := ignore.Parse(strings.NewReader("examples\nstash/**\n"))
+	require.NoError(t, err)
+
+	extra, err := ignore.Parse(strings.NewReader("integration/**\n!stash/keep\n"))
+	require.NoError(t, err)
+
+	base.Merge(extra)
+
+	assert.True(t, base.Match("examples"))
+	assert.True(t, base.Match("integration/vpc"))
+	assert.False(t, base.Match("stash/keep"), "extra negation should re-include stash/keep")
+	assert.True(t, base.Match("stash/drop"))
+}
+
 func TestLoad_ReadsFile(t *testing.T) {
 	t.Parallel()
 

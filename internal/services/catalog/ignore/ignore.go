@@ -34,8 +34,9 @@ type Matcher struct {
 }
 
 // Load reads <repoPath>/.terragrunt-catalog-ignore. A missing file is not an
-// error: an empty Matcher is returned.
-func Load(repoPath string) (m *Matcher, err error) {
+// error: an empty Matcher is returned. Callers pointing at an explicit,
+// caller-validated path should use LoadFile instead.
+func Load(repoPath string) (*Matcher, error) {
 	f, err := os.Open(filepath.Join(repoPath, FileName))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -45,6 +46,32 @@ func Load(repoPath string) (m *Matcher, err error) {
 		return nil, tgerrors.New(err)
 	}
 
+	return parseAndClose(f)
+}
+
+// LoadFile reads an ignore file at the given path. The caller is responsible
+// for validating that the path is non-empty and exists; this function simply
+// reads and parses.
+func LoadFile(path string) (*Matcher, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, tgerrors.New(err)
+	}
+
+	return parseAndClose(f)
+}
+
+// Merge appends other's rules onto m. The rules from other take precedence
+// under the "last match wins" rule.
+func (m *Matcher) Merge(other *Matcher) {
+	if m == nil || other == nil {
+		return
+	}
+
+	m.rules = append(m.rules, other.rules...)
+}
+
+func parseAndClose(f *os.File) (m *Matcher, err error) {
 	defer func() {
 		if cerr := f.Close(); cerr != nil && err == nil {
 			err = tgerrors.New(cerr)

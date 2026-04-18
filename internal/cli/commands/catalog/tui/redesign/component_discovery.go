@@ -24,7 +24,7 @@ const (
 	placeholderTFFile = "terraform-cloud-enterprise-private-module-registry-placeholder.tf"
 )
 
-// DiscoverComponents walks the already-cloned repo and classifies every
+// ComponentDiscovery walks an already-cloned repo and classifies every
 // directory as either a module, a template, or neither. Templates win over
 // modules when a directory qualifies as both. When a directory is classified
 // as a template, the walker returns fs.SkipDir so that boilerplate.yml files
@@ -33,26 +33,64 @@ const (
 // Unlike the legacy module.Repo.FindModules walker (which only scans the
 // `modules/` convention), this walks the entire repo — templates may live
 // anywhere, and the redesign treats module/template discovery uniformly.
-func DiscoverComponents(repo *module.Repo, walkWithSymlinks bool) (Components, error) {
+//
+// Construct one via NewComponentDiscovery, customize it with the With*
+// methods, then call Discover on a repo.
+type ComponentDiscovery struct {
+	extraIgnoreFile  string
+	walkWithSymlinks bool
+}
+
+// NewComponentDiscovery returns a ComponentDiscovery with default settings:
+// no symlink following, no extra ignore file.
+func NewComponentDiscovery() *ComponentDiscovery {
+	return &ComponentDiscovery{}
+}
+
+// WithWalkWithSymlinks enables symlink following during the walk.
+func (cd *ComponentDiscovery) WithWalkWithSymlinks() *ComponentDiscovery {
+	cd.walkWithSymlinks = true
+	return cd
+}
+
+// WithExtraIgnoreFile layers an additional ignore file on top of the repo's
+// .terragrunt-catalog-ignore. The extra rules are appended and take
+// precedence under the "last match wins" rule. An empty path is a no-op.
+func (cd *ComponentDiscovery) WithExtraIgnoreFile(i string) *ComponentDiscovery {
+	cd.extraIgnoreFile = i
+	return cd
+}
+
+// Discover runs component discovery against repo.
+func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 	if repo == nil {
-		return nil, errors.New("DiscoverComponents: nil repo")
+		return nil, errors.New("ComponentDiscovery.Discover: nil repo")
 	}
 
 	repoPath := repo.Path()
 	cloneURL := repo.CloneURL()
 
 	if repoPath == "" {
-		return nil, errors.New("DiscoverComponents: empty repo path")
+		return nil, errors.New("ComponentDiscovery.Discover: empty repo path")
 	}
 
 	walkFunc := filepath.WalkDir
-	if walkWithSymlinks {
+	if cd.walkWithSymlinks {
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
 	ignoreMatcher, err := ignore.Load(repoPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if cd.extraIgnoreFile != "" {
+		extraMatcher, err := ignore.LoadFile(cd.extraIgnoreFile)
+		if err != nil {
+			return nil, err
+		}
+
+		ignoreMatcher.Merge(extraMatcher)
 	}
 
 	var components Components

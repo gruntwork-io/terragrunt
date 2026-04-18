@@ -77,6 +77,16 @@ test/**
 
 With the file above, a repo containing `modules/vpc/main.tf`, `examples/vpc/main.tf`, `test/drop/main.tf`, and `test/keep/main.tf` surfaces only `modules/vpc` and `test/keep` in the catalog.
 
+### Layering an additional ignore file
+
+Pass `--ignore-file <path>` to load an additional ignore file on top of whatever `.terragrunt-catalog-ignore` is committed at the repo root. The extra rules are appended after the repo's rules, so last-match-wins semantics let the extra file either add new exclusions or re-include paths the repo file excluded via `!` negation.
+
+```bash
+terragrunt catalog --ignore-file ./my-ignore-rules
+```
+
+This is useful when you don't control the upstream repository, or when you want to temporarily scope discovery without editing files under version control. It can also be set via the `TG_IGNORE_FILE` environment variable. The path must exist; a missing file is an error.
+
 ## Scaffolding Flags
 
 The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:

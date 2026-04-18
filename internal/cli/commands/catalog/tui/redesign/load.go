@@ -59,7 +59,12 @@ func LoadURL(
 		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	components, err := DiscoverComponents(repo, walkWithSymlinks)
+	discovery := NewComponentDiscovery().WithExtraIgnoreFile(opts.CatalogIgnoreFile)
+	if walkWithSymlinks {
+		discovery = discovery.WithWalkWithSymlinks()
+	}
+
+	components, err := discovery.Discover(repo)
 	if err != nil {
 		return errors.Errorf("failed to discover components in repository %s: %w", repoURL, err)
 	}

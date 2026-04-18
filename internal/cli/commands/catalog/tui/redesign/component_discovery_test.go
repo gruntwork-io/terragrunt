@@ -82,7 +82,7 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 
 	repo := newFakeRepo(t, repoDir)
 
-	components, err := redesign.DiscoverComponents(repo, false)
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -122,7 +122,7 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 
 	repo := newFakeRepo(t, repoDir)
 
-	components, err := redesign.DiscoverComponents(repo, false)
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
 	require.NoError(t, err)
 
 	require.Len(t, components, 1, "only the root template should surface")
@@ -149,7 +149,7 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 
 	repo := newFakeRepo(t, repoDir)
 
-	components, err := redesign.DiscoverComponents(repo, false)
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -165,6 +165,44 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 	assert.Equal(t, want, got, "ignore file should exclude examples/** and test/** except test/keep")
 }
 
+// TestDiscoverComponents_ExtraIgnoreFile asserts that an extra ignore file
+// layered on top of .terragrunt-catalog-ignore extends the repo's rules and
+// can re-include a path the repo file excluded via negation.
+func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# kept")
+	writeFile(t, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# repo-ignored")
+	writeFile(t, filepath.Join(repoDir, "integration", "vpc", "main.tf"), "# extra-ignored")
+	writeFile(t, filepath.Join(repoDir, "stash", "keep", "main.tf"), "# re-included")
+
+	writeFile(t, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
+		"examples\nexamples/**\nstash/**\n")
+
+	extraDir := t.TempDir()
+	extraPath := filepath.Join(extraDir, "extra-ignore")
+	writeFile(t, extraPath, "integration/**\n!stash/keep\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().WithExtraIgnoreFile(extraPath).Discover(repo)
+	require.NoError(t, err)
+
+	got := map[string]redesign.ComponentKind{}
+	for _, c := range components {
+		got[c.Dir] = c.Kind
+	}
+
+	want := map[string]redesign.ComponentKind{
+		"foo":        redesign.ComponentKindModule,
+		"stash/keep": redesign.ComponentKindModule,
+	}
+
+	assert.Equal(t, want, got, "extra ignore file should extend repo rules and re-include via negation")
+}
+
 // TestDiscoverComponents_EmptyRepo returns no components for an empty tree.
 func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 	t.Parallel()
@@ -172,7 +210,7 @@ func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 	repoDir := helpers.TmpDirWOSymlinks(t)
 	repo := newFakeRepo(t, repoDir)
 
-	components, err := redesign.DiscoverComponents(repo, false)
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
 	require.NoError(t, err)
 	assert.Empty(t, components)
 }
