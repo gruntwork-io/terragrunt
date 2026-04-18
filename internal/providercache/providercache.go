@@ -389,7 +389,11 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	cfg.PluginCacheDir = ""
 
 	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
-	customHosts := pc.collectCustomHosts(&filteredRegistryNames)
+	customHosts := pc.collectCustomHosts(filteredRegistryNames)
+
+	for name := range customHosts {
+		filteredRegistryNames = append(filteredRegistryNames, name)
+	}
 
 	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, customHosts, cacheRequestID)
 	if err != nil {
@@ -415,12 +419,11 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 // in the registry list. For custom registries (e.g. Nexus, Artifactory), service URLs
 // are defined in the host block, so we skip .well-known/terraform.json discovery.
 // See: https://github.com/gruntwork-io/terragrunt/issues/5916
-func (pc *ProviderCache) collectCustomHosts(filteredRegistryNames *[]string) map[string]map[string]string {
+func (pc *ProviderCache) collectCustomHosts(filteredRegistryNames []string) map[string]map[string]string {
 	customHosts := make(map[string]map[string]string, len(pc.cliCfg.Hosts))
 
 	for _, host := range pc.cliCfg.Hosts {
-		if !slices.Contains(*filteredRegistryNames, host.Name) {
-			*filteredRegistryNames = append(*filteredRegistryNames, host.Name)
+		if !slices.Contains(filteredRegistryNames, host.Name) {
 			customHosts[host.Name] = host.Services
 		}
 	}
