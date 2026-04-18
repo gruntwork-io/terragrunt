@@ -59,6 +59,7 @@ const (
 	testFixtureStackOriginalTerragruntDir      = "fixtures/stacks/get-original-terragrunt-dir"
 	testFixtureStackVersionConstraints         = "fixtures/stacks/version-constraints"
 	testFixtureStackCoexistHclAndStack         = "fixtures/stacks/coexist-hcl-and-stack"
+	testFixtureStackExcludeOutput              = "fixtures/stacks/exclude-output"
 )
 
 func TestStacksGenerateBasicWithQueueIncludeDirFlag(t *testing.T) {
@@ -2111,4 +2112,56 @@ func TestStackVersionConstraints(t *testing.T) {
 
 	var invalidVersionError run.InvalidTerragruntVersion
 	assert.ErrorAs(t, err, &invalidVersionError)
+}
+
+func TestStackOutputWithExclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackExcludeOutput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackExcludeOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackExcludeOutput, "live")
+
+	// Apply the stack -- excluded units are skipped because "apply" is in their exclude actions
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --non-interactive --working-dir "+rootPath)
+
+	// Test JSON output with the dependency-fetch-output-from-state experiment to exercise
+	// the original bug path from #5864 (S3 direct fetch). Even with local state, this ensures
+	// the exclude check happens before any attempt to fetch state.
+	stdoutJSON, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack output --experiment dependency-fetch-output-from-state --format json --non-interactive --working-dir "+rootPath,
+	)
+	require.NoError(t, err)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdoutJSON), &result))
+
+	// normal_app should be present with output
+	assert.Contains(t, result, "normal_app")
+
+	normalApp, ok := result["normal_app"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, normalApp, "result")
+
+	// excluded_app (actions=["plan","apply","destroy","output"]) should be omitted
+	assert.NotContains(t, result, "excluded_app")
+
+	// excluded_all (actions=["all"], no_run=true) should be omitted
+	assert.NotContains(t, result, "excluded_all")
+
+	// not_excluded_all_except_output (actions=["all_except_output"], no_run=true) is not excluded
+	// from "output" action, but was never applied (apply matches all_except_output), so
+	// terraform output returns {} on the empty state directory
+	require.Contains(t, result, "not_excluded_all_except_output")
+
+	notExcluded, ok := result["not_excluded_all_except_output"].(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, notExcluded, "unit was never applied so output should be empty")
+
+	// Verify no terraform was attempted for excluded units
+	for _, excluded := range []string{"excluded-app", "excluded-all"} {
+		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
+		assert.True(t, util.FileNotExists(tfDir),
+			"excluded unit %s should not have .terraform directory", excluded)
+	}
 }

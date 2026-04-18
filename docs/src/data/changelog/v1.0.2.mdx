@@ -2,6 +2,30 @@
 version: "v1.0.2"
 ---
 
+### 🧪 Experiments Added
+
+---
+
+#### `catalog-redesign` — Reworked `terragrunt catalog` TUI
+
+A new `catalog-redesign` experiment reworks the design of the `terragrunt catalog` TUI.
+
+`terragrunt catalog` now launches the TUI right away and runs discovery in the background instead of waiting for discovery to complete before launching the TUI. As a consequence, `terragrunt catalog` users with large catalogs should see significant speed improvements as they launch the `terragrunt catalog` TUI.
+
+Modules now stream into the list view of the catalog as they are discovered, so you'll be able to select and use a module even if your entire catalog hasn't been discovered yet.
+
+If `catalog.urls` is not configured in `root.hcl`, `terragrunt catalog` no longer errors. A welcome screen explains how to populate the catalog and can open the catalog documentation on a keypress. In addition, `terraform.source` values from existing units are automatically included in the set of URLs used for discovery, so users with existing units get a populated catalog pointing to other modules that can be pulled from the same module source without any additional configuration.
+
+This experiment is subject to change, and core elements of the design are being iterated on rapidly.
+
+To try it out, run:
+
+```bash
+terragrunt catalog --experiment catalog-redesign
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#catalog-redesign).
+
 ### 🧪 Experiments Updated
 
 ---
@@ -75,6 +99,23 @@ To learn more, see the [experiment documentation](/reference/experiments/active#
 
 ---
 
+#### `stack output` now respects the `exclude` block
+
+`terragrunt stack output` previously ignored the `exclude` block on units, attempting to fetch outputs (including directly from S3 state when using `--dependency-fetch-output-from-state`) for units that should have been excluded.
+
+The fix uses Terragrunt discovery to identify excluded units before reading outputs. Excluded units are now omitted from the stack output entirely, consistent with how they are handled during `stack run`.
+
+To exclude a unit from `stack output`, add `"output"` to the `actions` list in the `exclude` block:
+
+```hcl
+exclude {
+  if      = true
+  actions = ["plan", "apply", "destroy", "output"]
+}
+```
+
+Special action values `"all"` and `"all_except_output"` are also supported.
+
 #### Panic in `get_repo_root()` when OpenTelemetry tracing is enabled with TRACEPARENT
 
 Running `terragrunt stack generate` (or any command that invoked shell commands like `git rev-parse`) with OpenTelemetry trace exporting enabled (`TG_TELEMETRY_TRACE_EXPORTER=http`) caused a nil pointer panic:
@@ -85,3 +126,33 @@ runtime error: invalid memory address or nil pointer dereference
 ```
 
 The root cause of the panic was fixed, and telemetry codepaths have been hardened against future panics.
+
+#### `shared_credentials_files` and other list/map backend config values were serialized incorrectly
+
+Setting `shared_credentials_files` (or any other list-valued key) in the `remote_state.config` block produced a broken `-backend-config` argument:
+
+```
+-backend-config=shared_credentials_files=[/a/creds /b/creds]
+```
+
+OpenTofu and Terraform both failed to parse this. The same problem affected map-valued keys. Lists and maps are now written as single-line HCL (`["/a/creds","/b/creds"]` and `{key="value"}`), and strings inside them are quoted so embedded quotes, newlines, and tabs survive the round trip.
+
+Thanks to @Rahul-Kumar-prog for contributing this fix!
+
+### ⚙️ Process Updates
+
+---
+
+#### Install script now supports tip and test builds
+
+The install script can now install [tip builds](/process/releases#tip-builds) and on-demand test builds. Three new flags are available:
+
+- `--tip` installs the latest tip build from `main`
+- `--test` installs an on-demand test build
+- `--commit <sha>` installs a build for a specific commit
+
+Downloads are verified against GPG/Cosign signatures and SHA256 checksums before installation.
+
+#### Tip build notifications on referenced issues
+
+When a tip build is produced on `main` for a merged PR, Terragrunt now posts a comment on any issues that PR references, linking to the build and including instructions for installing and testing it.

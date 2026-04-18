@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
@@ -133,7 +134,20 @@ func (remote *RemoteState) GetTFInitArgs() []string {
 	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
-		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
+		var serialized string
+
+		switch v := value.(type) {
+		case string:
+			serialized = v
+		case map[string]any:
+			serialized = hclhelper.WrapMapToSingleLineHcl(v)
+		case []any:
+			serialized = hclhelper.WrapListToSingleLineHcl(v)
+		default:
+			serialized = fmt.Sprintf("%v", value)
+		}
+
+		arg := fmt.Sprintf("-backend-config=%s=%s", key, serialized)
 		backendConfigArgs = append(backendConfigArgs, arg)
 	}
 
