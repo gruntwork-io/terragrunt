@@ -158,6 +158,14 @@ jobs:
             target: ./...
             setup_scripts:
               - .github/scripts/setup/experiment-mode.sh
+          - name: Exec
+            os: ubuntu
+            target: ./internal/vexec/...
+            tags: exec
+          - name: Exec Windows
+            os: windows
+            target: ./internal/vexec/...
+            tags: exec
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
