@@ -212,6 +212,10 @@ func (g *GitRunner) LatestReleaseTag(ctx context.Context, remote string) (string
 			continue
 		}
 
+		if v.Prerelease() != "" {
+			continue
+		}
+
 		if best == nil || v.GreaterThan(best) {
 			best = v
 		}
