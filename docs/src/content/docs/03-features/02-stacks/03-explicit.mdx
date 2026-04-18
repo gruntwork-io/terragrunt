@@ -359,7 +359,7 @@ Experimental integration between CAS and Stacks is coming soon. Follow the progr
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`. See the [CAS feature documentation](/features/caching/cas) for more details.
 </Aside>
 
-When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute to simplify source management and improve generation performance.
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute on nested blocks to replace remote Git URLs with relative paths.
 
 Without CAS, catalog authors need to plumb remote Git URLs through `values` expressions so that generated files reference the correct remote sources:
 
@@ -410,7 +410,7 @@ When `update_source_with_cas = true` is set:
 4. Generated `.terragrunt-stack` files contain deterministic CAS references instead of remote URLs.
 5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
 
-Consumers do **not** need to set `update_source_with_cas` themselves. Whenever the `cas` experiment is enabled and the source is remote, Terragrunt automatically takes the CAS path, clones once, and walks the catalog. The attribute is only meaningful inside catalog files, where it tells Terragrunt which nested `source` attributes to rewrite.
+Consumers do not set `update_source_with_cas` themselves. When the `cas` experiment is enabled and the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
 
 Given the catalog files above, and an ordinary consumer stack like:
 

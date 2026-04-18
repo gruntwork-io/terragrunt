@@ -95,7 +95,7 @@ During stack generation, Terragrunt rewrites these relative sources to `cas::` r
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
 <Aside type="caution">
-Using `update_source_with_cas` requires the `cas` experiment to be enabled. If the experiment is not enabled or `--no-cas` is set, Terragrunt will return an error.
+`update_source_with_cas` only takes effect when the `cas` experiment is enabled and `--no-cas` is not set. Otherwise the attribute is ignored and sources are fetched via the standard getter path.
 </Aside>
 
 </Since>

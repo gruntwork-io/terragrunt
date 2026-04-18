@@ -407,16 +407,17 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 	return generateAutoInclude(l, opts, cmp, dest)
 }
 
-// fetchComponentSource handles the three paths for fetching a component's source:
-//  1. cas:: protocol source: materialize CAS tree directly (must run before the remote-CAS branch
-//     so nested components already rewritten to cas:: are not passed to git clone).
-//  2. Remote source with CAS enabled: CAS-backed clone, rewrite, copy from temp. Triggered
-//     automatically whenever the cas experiment is on and the source is not a local path, so
-//     catalog authors don't need consumers to opt in per-block.
+// fetchComponentSource handles the paths for fetching a component's source:
+//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the remote-CAS
+//     branch so nested components already rewritten to cas:: are not passed to git clone.
+//  2. Remote source with CAS enabled: attempt a CAS-backed clone and copy from a temp dir. This
+//     fires automatically when the cas experiment is on and the source isn't local, so catalog
+//     authors don't need consumers to opt in per-block. On any CAS failure (for example, CAS
+//     can't handle a go-getter query param like depth=1), we fall through to the standard getter.
 //  3. Standard: local copy or remote getter.
 //
-// The update_source_with_cas attribute on a consumer block is a no-op under path 2 — it remains
-// meaningful inside catalog files, where the CAS walk uses it to decide which nested sources to
+// The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
+// matters inside catalog files, where the CAS walk uses it to decide which nested sources to
 // rewrite to cas:: references.
 func fetchComponentSource(
 	ctx context.Context,
@@ -425,8 +426,7 @@ func fetchComponentSource(
 	cmp *componentToGenerate,
 	kindStr, source, dest string,
 ) error {
-	switch {
-	case isCASProtocol(source):
+	if isCASProtocol(source) {
 		if !opts.casEnabled {
 			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
 		}
@@ -447,41 +447,60 @@ func fetchComponentSource(
 			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
 		}
 
-	case opts.casEnabled && !isLocal(l, cmp.sourceDir, source):
-		result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
-		if err != nil {
-			return errors.Errorf("CAS processing failed for %s %s: %w", kindStr, cmp.name, err)
+		return nil
+	}
+
+	if opts.casEnabled && !isLocal(l, cmp.sourceDir, source) {
+		casErr := fetchViaCAS(ctx, l, opts, kindStr, source, dest)
+		if casErr == nil {
+			return nil
 		}
 
-		defer result.Cleanup()
+		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
 
-		if err := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
-			return true
-		}); err != nil {
-			return errors.Errorf("Failed to copy CAS content for %s %s: %w", kindStr, cmp.name, err)
-		}
-
-	default:
-		if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
-			return errors.Errorf(
-				"Failed to fetch %s %s\n"+
-					"  Source:      %s\n"+
-					"  Destination: %s\n\n"+
-					"Troubleshooting:\n"+
-					"  1. Check if your source path is correct relative to the stack file location\n"+
-					"  2. Verify the units or stacks directory exists at the expected location\n"+
-					"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
-					"Original error: %w",
-				kindStr,
-				cmp.name,
-				source,
-				dest,
-				err,
-			)
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
 		}
 	}
 
+	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
+		return errors.Errorf(
+			"Failed to fetch %s %s\n"+
+				"  Source:      %s\n"+
+				"  Destination: %s\n\n"+
+				"Troubleshooting:\n"+
+				"  1. Check if your source path is correct relative to the stack file location\n"+
+				"  2. Verify the units or stacks directory exists at the expected location\n"+
+				"  3. Ensure you have proper permissions to read from source and write to destination\n\n"+
+				"Original error: %w",
+			kindStr,
+			cmp.name,
+			source,
+			dest,
+			err,
+		)
+	}
+
 	return nil
+}
+
+// fetchViaCAS performs the CAS-backed clone, rewrite, and copy for a remote stack component.
+func fetchViaCAS(
+	ctx context.Context,
+	l log.Logger,
+	opts *generateOpts,
+	kindStr, source, dest string,
+) error {
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
+	if err != nil {
+		return err
+	}
+
+	defer result.Cleanup()
+
+	return util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+		return true
+	})
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
