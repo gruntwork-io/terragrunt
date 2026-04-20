@@ -445,8 +445,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
 			expectedStdOutRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init -no-color -input=false: Initializing the backend...")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init -no-color -input=false: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary(t.Context())+" init -no-color -input=false: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary(t.Context())+" init -no-color -input=false: Initializing the backend...")),
 			},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
@@ -455,8 +455,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command(suffix=': ')%msg(path=relative)",
 			expectedStdOutRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init: Initializing the backend...")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary(t.Context())+" init: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary(t.Context())+" init: Initializing the backend...")),
 			},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
@@ -465,8 +465,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args %msg(path=relative)",
 			expectedStdOutRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init-args Initializing the backend...")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init-args Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary(t.Context())+" init-args Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary(t.Context())+" init-args Initializing the backend...")),
 			},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  -args Terragrunt Version:")),
@@ -475,8 +475,8 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command()-args % aaa %msg(path=relative) %%bbb % ccc",
 			expectedStdOutRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init-args % aaa Initializing the backend... %bbb % ccc")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init-args % aaa Initializing the backend... %bbb % ccc")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary(t.Context())+" init-args % aaa Initializing the backend... %bbb % ccc")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary(t.Context())+" init-args % aaa Initializing the backend... %bbb % ccc")),
 			},
 			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  -args % aaa Terragrunt Version:")),
@@ -596,7 +596,7 @@ func TestLogWithAbsPath(t *testing.T) {
 
 	for _, prefixName := range []string{"app", "dep"} {
 		prefixName = filepath.Join(rootPath, prefixName)
-		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
 	}
 }
@@ -658,7 +658,7 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary(t.Context())+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl")
 	}
 
@@ -676,12 +676,12 @@ func TestLogStdoutLevel(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --non-interactive -no-color --no-color --log-format=pretty  --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+	assert.Contains(t, stdout, "STDOUT "+wrappedBinary(t.Context())+": Changes to Outputs")
 
 	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --non-interactive -no-color --no-color --log-format=pretty  --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+	assert.Contains(t, stdout, "STDOUT "+wrappedBinary(t.Context())+": Changes to Outputs")
 }
 
 func TestLogFormatKeyValueOutput(t *testing.T) {
@@ -705,7 +705,7 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 				assert.Contains(
 					t,
 					stdout,
-					"level=stdout prefix="+prefixName+" tf-path="+wrappedBinary()+" msg=Initializing provider plugins...\n",
+					"level=stdout prefix="+prefixName+" tf-path="+wrappedBinary(t.Context())+" msg=Initializing provider plugins...\n",
 				)
 				assert.Contains(
 					t,
@@ -984,7 +984,7 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	}
 
 	registryName := "registry.opentofu.org"
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		registryName = "registry.terraform.io"
 	}
 
@@ -1299,23 +1299,23 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 	}{
 		{
 			command:  []string{"version"},
-			expected: wrappedBinary() + " version",
+			expected: wrappedBinary(t.Context()) + " version",
 		},
 		{
 			command:  []string{"--", "version"},
-			expected: wrappedBinary() + " version",
+			expected: wrappedBinary(t.Context()) + " version",
 		},
 		{
 			command:  []string{"--", "version", "foo"},
-			expected: wrappedBinary() + " version",
+			expected: wrappedBinary(t.Context()) + " version",
 		},
 		{
 			command:  []string{"--", "version", "foo", "bar", "baz"},
-			expected: wrappedBinary() + " version",
+			expected: wrappedBinary(t.Context()) + " version",
 		},
 		{
 			command:  []string{"--", "version", "foo", "bar", "baz", "foobar"},
-			expected: wrappedBinary() + " version",
+			expected: wrappedBinary(t.Context()) + " version",
 		},
 		{
 			command:  []string{"--", "graph"},
@@ -1353,19 +1353,19 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 	}{
 		{
 			command:  []string{"force-unlock"},
-			expected: wrappedBinary() + " force-unlock",
+			expected: wrappedBinary(t.Context()) + " force-unlock",
 		},
 		{
 			command:  []string{"force-unlock", "foo"},
-			expected: wrappedBinary() + " force-unlock foo",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo",
 		},
 		{
 			command:  []string{"force-unlock", "foo", "bar", "baz"},
-			expected: wrappedBinary() + " force-unlock foo bar baz",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo bar baz",
 		},
 		{
 			command:  []string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			expected: wrappedBinary() + " force-unlock foo bar baz foobar",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo bar baz foobar",
 		},
 	}
 
@@ -3783,7 +3783,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init was invoked
 	assert.Contains(t, stdout, "has been successfully initialized!")
-	assert.Contains(t, stderr, "Running command: "+wrappedBinary()+" init")
+	assert.Contains(t, stderr, "Running command: "+wrappedBinary(t.Context())+" init")
 
 	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(
 		t, "terragrunt plan --non-interactive --log-level debug --tf-forward-stdout --working-dir "+rootPath,
@@ -3792,7 +3792,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init wasn't invoked second time since cache directories are ignored
 	assert.NotContains(t, stdout, "has been successfully initialized!")
-	assert.NotContains(t, stderr, "Running command: "+wrappedBinary()+" init")
+	assert.NotContains(t, stderr, "Running command: "+wrappedBinary(t.Context())+" init")
 
 	// verify that after adding new file, init is executed
 	tfFile := filepath.Join(tmpEnvPath, testFixtureInitCache, "app", "project.tf")
@@ -3808,7 +3808,7 @@ func TestInitSkipCache(t *testing.T) {
 
 	// verify that init was invoked
 	assert.Contains(t, stdout, "has been successfully initialized!")
-	assert.Contains(t, stderr, "Running command: "+wrappedBinary()+" init")
+	assert.Contains(t, stderr, "Running command: "+wrappedBinary(t.Context())+" init")
 }
 
 func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
@@ -4478,7 +4478,7 @@ func TestTfPathOverridesConfigWithTofuTerraform(t *testing.T) {
 	t.Parallel()
 
 	// This test requires that both tofu and terraform are installed.
-	if !helpers.IsTerraformInstalled() || !helpers.IsOpenTofuInstalled() {
+	if !helpers.IsTerraformInstalled(t.Context()) || !helpers.IsOpenTofuInstalled(t.Context()) {
 		t.Skip("This test requires that both OpenTofu and Terraform are installed")
 
 		return

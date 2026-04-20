@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Remote state configuration parsing fixed
+
+Remote state configuration parsing (especially S3) is now more tolerant of common input formats, reducing decode-related failures from type mismatches in configuration values.
+
+Parsing behavior has also been made more consistent across related remote configuration blocks in Terragrunt, with regression tests added to prevent future breakages.

@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Authentication during queue construction fixed
+
+A bug in the logic for parsing configurations during discovery for use-cases like `--filter 'reading=*'` where configurations need to be parsed to determine whether or not they end up in the final run queue has been fixed. Configurations will now properly call any configured `--auth-provider-cmd` authenticator before parsing configurations, preventing errors for HCL functions like `sops_decrypt_file` that require authentication before parsing can proceed.

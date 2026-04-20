@@ -17,12 +17,20 @@ export const version = releaseData?.tag_name || 'v0.99.0';
 The quickest way to install Terragrunt on Linux or macOS:
 
 ```bash
-curl -sL https://docs.terragrunt.com/install | bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash
 ```
 
-:::tip[Script Options]
-Run `curl -sL https://docs.terragrunt.com/install | bash -s -- --help` to see all options, or [view the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs/public/install).
-:::
+<Aside type="tip" title="Script options and inspecting the script">
+  Run `curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --help` to see all options, or [read the script on GitHub](https://github.com/gruntwork-io/terragrunt/blob/main/docs/public/install).
+
+  Piping a remote script directly into `bash` means executing code you haven't read. If you'd rather review the script before running it, download it to your local filesystem, read through it, and then run it:
+
+  ```bash
+  curl -sSfL --proto '=https' --tlsv1.2 -o install.sh https://terragrunt.com/install
+  less install.sh
+  bash install.sh
+  ```
+</Aside>
 
 ## Download from releases page
 
@@ -182,6 +190,30 @@ Tip builds are served via the builds API at `https://builds.terragrunt.com` and 
 <Aside type="caution" title="No retention guarantee">
   Tip and test builds may be reclaimed at any time to reduce hosting costs. Do not rely on a specific build being available indefinitely. Use [official releases](https://github.com/gruntwork-io/terragrunt/releases) for production.
 </Aside>
+
+### Quick install for tip and test builds
+
+The same install script used for official releases supports tip and test builds via flags.
+
+To install the latest tip build:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --tip
+```
+
+To install a tip build at a specific commit:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --tip --commit <commit-sha>
+```
+
+To install a test build at a specific commit:
+
+```bash
+curl -sSfL --proto '=https' --tlsv1.2 https://terragrunt.com/install | bash -s -- --test --commit <commit-sha>
+```
+
+If you prefer to run the install steps manually, the tabs below show the equivalent commands:
 
 <Tabs>
   <TabItem label="Latest tip">

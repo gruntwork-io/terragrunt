@@ -167,13 +167,13 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules")
 
 	// Start with the last module alphabetically
-	moduleCh := make(chan *module.Module, len(modules))
-	m := redesign.NewModelStreaming(l, opts, modules[len(modules)-1], moduleCh)
+	moduleCh := make(chan *redesign.ModuleEntry, len(modules))
+	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[len(modules)-1]), moduleCh)
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		// Send the remaining modules in reverse order
 		for i := len(modules) - 2; i >= 0; i-- {
-			p.Send(redesign.ModuleMsg(modules[i]))
+			p.Send(redesign.ModuleMsg(redesign.NewModuleEntry(modules[i])))
 			time.Sleep(50 * time.Millisecond)
 		}
 
@@ -188,8 +188,8 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 
 	// Verify sorted order (case-insensitive, matching the sort in model.go)
 	for i := 1; i < len(items); i++ {
-		prev := strings.ToLower(items[i-1].(*module.Module).Title())
-		curr := strings.ToLower(items[i].(*module.Module).Title())
+		prev := strings.ToLower(items[i-1].(*redesign.ModuleEntry).Title())
+		curr := strings.ToLower(items[i].(*redesign.ModuleEntry).Title())
 		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order: %q should come before %q", prev, curr)
 	}
 }
@@ -207,12 +207,12 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 	modules := svc.Modules()
 	require.NotEmpty(t, modules)
 
-	moduleCh := make(chan *module.Module, len(modules))
-	m := redesign.NewModelStreaming(l, opts, modules[0], moduleCh)
+	moduleCh := make(chan *redesign.ModuleEntry, len(modules))
+	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[0]), moduleCh)
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		// Send the same module again — should be deduplicated
-		p.Send(redesign.ModuleMsg(modules[0]))
+		p.Send(redesign.ModuleMsg(redesign.NewModuleEntry(modules[0])))
 		time.Sleep(100 * time.Millisecond)
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})

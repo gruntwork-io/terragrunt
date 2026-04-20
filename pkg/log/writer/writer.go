@@ -24,7 +24,9 @@ func New(opts ...Option) *Writer {
 	writer := &Writer{
 		logger:       log.Default(),
 		defaultLevel: log.InfoLevel,
-		parseFunc:    func(str string) (msg string, time *time.Time, level *log.Level, err error) { return str, nil, nil, nil },
+		parseFunc: func(str string) (msg string, time *time.Time, level *log.Level, err error) {
+			return str, nil, nil, nil
+		},
 	}
 	writer.SetOption(opts...)
 

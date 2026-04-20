@@ -36,7 +36,9 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 		switch {
 		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
-			if selectedModule, ok := m.List.SelectedItem().(*module.Module); ok {
+			if selectedEntry, ok := m.List.SelectedItem().(*ModuleEntry); ok {
+				selectedModule := selectedEntry.Module
+
 				switch {
 				case key.Matches(msg, m.delegateKeys.Choose):
 					// prepare the viewport
@@ -196,7 +198,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	switch msg := msg.(type) {
 	case moduleMsg:
-		cmd := m.insertModuleSorted(msg.module)
+		cmd := m.insertModuleSorted(msg.entry)
 
 		return m, tea.Batch(cmd, m.listenForModule())
 	case DiscoveryCompleteMsg:

@@ -1,0 +1,16 @@
+---
+version: "v1.0.1"
+category: "experiments-added"
+---
+
+#### `slow-task-reporting` — Progress reporting for long-running operations
+
+A new `slow-task-reporting` experiment displays animated progress spinners for operations that take longer than 1 second, such as source downloads, Git worktree creation, and catalog repository cloning. In non-interactive environments (CI/CD, piped output), spinners are replaced with periodic INFO log lines every 30 seconds to prevent CI systems from killing jobs due to output inactivity.
+
+```bash
+$ terragrunt run --all --experiment slow-task-reporting -- plan
+INFO Downloading source from git::https://github.com/example/module.git...
+INFO Downloaded source from git::https://github.com/example/module.git (3.2s)
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#slow-task-reporting).

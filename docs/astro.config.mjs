@@ -14,6 +14,7 @@ import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
+import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -140,6 +141,8 @@ export default defineConfig({
             "/reference/experiments/completed#*",
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
+            "/process/changelog#*",
+            "/process/changelog/*#*",
 
             // Used as redirects to the Terragrunt Discord server
             "/community/invite",
@@ -169,6 +172,9 @@ export default defineConfig({
     }),
     sitemap(),
   ],
+  markdown: {
+    rehypePlugins: [rehypeChangelogAnchors],
+  },
   // Note that some redirects are handled in vercel.json instead.
   //
   // This is because Astro won't do dynamic redirects for external destinations.

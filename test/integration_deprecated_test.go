@@ -22,19 +22,19 @@ func TestDeprecatedDefaultCommand_TerraformSubcommandCliArgs(t *testing.T) {
 	}{
 		{
 			command:  []string{"force-unlock"},
-			expected: wrappedBinary() + " force-unlock",
+			expected: wrappedBinary(t.Context()) + " force-unlock",
 		},
 		{
 			command:  []string{"force-unlock", "foo"},
-			expected: wrappedBinary() + " force-unlock foo",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo",
 		},
 		{
 			command:  []string{"force-unlock", "foo", "bar", "baz"},
-			expected: wrappedBinary() + " force-unlock foo bar baz",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo bar baz",
 		},
 		{
 			command:  []string{"force-unlock", "foo", "bar", "baz", "foobar"},
-			expected: wrappedBinary() + " force-unlock foo bar baz foobar",
+			expected: wrappedBinary(t.Context()) + " force-unlock foo bar baz foobar",
 		},
 	}
 

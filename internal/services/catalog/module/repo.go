@@ -16,9 +16,11 @@ import (
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
+	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
 	"gopkg.in/ini.v1"
 )
 
@@ -43,14 +45,16 @@ var (
 )
 
 type Repo struct {
-	logger log.Logger
+	Logger log.Logger
 
 	cloneURL       string
+	sourceURL      string
 	path           string
 	rootWorkingDir string
 
 	RemoteURL  string
 	BranchName string
+	LatestTag  string
 
 	walkWithSymlinks bool
 	allowCAS         bool
@@ -69,8 +73,9 @@ type RepoOpts struct {
 
 func NewRepo(ctx context.Context, l log.Logger, opts RepoOpts) (*Repo, error) {
 	repo := &Repo{
-		logger:           l,
+		Logger:           l,
 		cloneURL:         opts.CloneURL,
+		sourceURL:        opts.CloneURL,
 		path:             opts.Path,
 		walkWithSymlinks: opts.WalkWithSymlinks,
 		allowCAS:         opts.AllowCAS,
@@ -188,6 +193,37 @@ func (repo *Repo) ModuleURL(moduleDir string) string {
 	return ""
 }
 
+// SourceURL returns the original catalog URL before go-getter transformation.
+func (repo *Repo) SourceURL() string {
+	return repo.sourceURL
+}
+
+// ResolveLatestTag looks up the latest semver release tag from the remote.
+// The result is stored in LatestTag. If the lookup fails or the repo has no
+// semver tags, LatestTag is left empty.
+func (repo *Repo) ResolveLatestTag(ctx context.Context) {
+	remote := repo.remoteForTagLookup()
+	if remote == "" {
+		return
+	}
+
+	runner, err := gitpkg.NewGitRunner()
+	if err != nil {
+		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
+
+		return
+	}
+
+	tag, err := runner.LatestReleaseTag(ctx, remote)
+	if err != nil {
+		repo.Logger.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
+
+		return
+	}
+
+	repo.LatestTag = tag
+}
+
 type CloneOptions struct {
 	Context    context.Context
 	Logger     log.Logger
@@ -208,7 +244,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 		SourceURL:  cloneURL,
 		TargetPath: repo.path,
 		Context:    ctx,
-		Logger:     repo.logger,
+		Logger:     repo.Logger,
 	}
 
 	if err := repo.prepareCloneDirectory(); err != nil {
@@ -216,7 +252,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger) error {
 	}
 
 	if repo.cloneCompleted() {
-		repo.logger.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
+		repo.Logger.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
 
 		return nil
 	}
@@ -235,7 +271,7 @@ func (repo *Repo) resolveCloneURL() string {
 func (repo *Repo) handleLocalDir(repoPath string) error {
 	if !filepath.IsAbs(repoPath) {
 		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
-		repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+		repo.Logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
 
 		return nil
@@ -256,7 +292,7 @@ func (repo *Repo) prepareCloneDirectory() error {
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone() {
-		repo.logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
+		repo.Logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
@@ -362,7 +398,7 @@ func (repo *Repo) parseRemoteURL() error {
 		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
-	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
+	repo.Logger.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
@@ -389,7 +425,7 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	repo.RemoteURL = inidata.Section(sectionName).Key("url").String()
-	repo.logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
+	repo.Logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
 
 	return nil
 }
@@ -412,4 +448,38 @@ func (repo *Repo) parseBranchName() error {
 	}
 
 	return errors.Errorf("could not get branch name for repo %q", repo.path)
+}
+
+// remoteForTagLookup returns a URL suitable for git ls-remote.
+// It prefers RemoteURL (parsed from .git/config) since that's what git
+// originally used to clone. Falls back to cloneURL with go-getter
+// prefixes, subdirectory paths, and query params stripped.
+func (repo *Repo) remoteForTagLookup() string {
+	if repo.RemoteURL != "" {
+		return repo.RemoteURL
+	}
+
+	u := repo.cloneURL
+	if u == "" {
+		return ""
+	}
+
+	// Strip forced getter prefix (e.g. "git::", "s3::")
+	if _, after, ok := strings.Cut(u, "::"); ok {
+		u = after
+	}
+
+	// Strip //subdir suffix that go-getter uses to select a subdirectory.
+	u, _ = getter.SourceDirSubdir(u)
+
+	// Parse the URL so we can cleanly remove query parameters (e.g. "?ref=HEAD").
+	parsed, err := urlhelper.Parse(u)
+	if err != nil {
+		return u
+	}
+
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return parsed.String()
 }

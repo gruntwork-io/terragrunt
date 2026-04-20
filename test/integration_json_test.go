@@ -101,7 +101,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 
 	expectedTerraformBinary := map[string]any{
 		"metadata": expectedMetadata,
-		"value":    wrappedBinary(),
+		"value":    wrappedBinary(t.Context()),
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary), "expected: %v, got: %v", expectedTerraformBinary, terraformBinary)
 

@@ -223,8 +223,8 @@ func TestRunnerPoolDestroyFailFast(t *testing.T) {
 	// Verify that unit-b failed
 	assert.Contains(t, stderr, "Failed to execute")
 	assert.Contains(t, stderr, "in ./unit-b")
-	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.NotContains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.NotContains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
 }
 
 func TestRunnerPoolDestroyDependencies(t *testing.T) {
@@ -241,9 +241,9 @@ func TestRunnerPoolDestroyDependencies(t *testing.T) {
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --all --non-interactive --fail-fast --working-dir "+testPath+"  -- destroy")
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed")
-	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary()+" msg=Destroy complete! Resources: 1 destroyed.")
+	assert.Contains(t, stdout, "unit-b tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-c tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed")
+	assert.Contains(t, stdout, "unit-a tf-path="+wrappedBinary(t.Context())+" msg=Destroy complete! Resources: 1 destroyed.")
 }
 
 func TestRunnerPoolRemoteSource(t *testing.T) {

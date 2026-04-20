@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### S3 bucket tagging moved to bucket creation
+
+S3 bucket tagging during backend bootstrapping has been moved to bucket creation. This prevents errors caused when SCPs restrict creation of buckets without appropriate tags.
