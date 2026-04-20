@@ -26,7 +26,7 @@ type sessionState int
 type button int
 
 const (
-	title = "List of Modules"
+	title = "All"
 
 	titleForegroundColor = "#A8ACB1"
 	titleBackgroundColor = "#1D252F"
@@ -62,7 +62,7 @@ type Model struct {
 	selectedModule      *module.Module
 	delegateKeys        *tui.DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
-	moduleCh            chan *module.Module
+	moduleCh            chan *ModuleEntry
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
@@ -81,19 +81,20 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 	items := make([]list.Item, 0, len(modules))
 
 	for _, mod := range modules {
-		items = append(items, mod)
+		source := ExtractRepoURL(mod.TerraformSourcePath())
+		items = append(items, NewModuleEntry(mod).WithSource(source))
 	}
 
 	sort.Slice(items, func(i, j int) bool {
-		return strings.ToLower(items[i].(*module.Module).Title()) < strings.ToLower(items[j].(*module.Module).Title())
+		return strings.ToLower(items[i].(*ModuleEntry).Title()) < strings.ToLower(items[j].(*ModuleEntry).Title())
 	})
 
 	return newModelWithItems(l, opts, svc, items, nil)
 }
 
-// NewModelStreaming creates a Model with a single initial module and a channel
-// for receiving additional modules as they are discovered.
-func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *module.Module, moduleCh chan *module.Module) Model {
+// NewModelStreaming creates a Model with a single initial entry and a channel
+// for receiving additional entries as they are discovered.
+func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *ModuleEntry, moduleCh chan *ModuleEntry) Model {
 	items := []list.Item{initial}
 
 	m := newModelWithItems(l, opts, nil, items, moduleCh)
@@ -102,12 +103,12 @@ func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *m
 	return m
 }
 
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, items []list.Item, moduleCh chan *module.Module) Model {
+func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalog.CatalogService, items []list.Item, moduleCh chan *ModuleEntry) Model {
 	listKeys := tui.NewListKeyMap()
 	delegateKeys := tui.NewDelegateKeyMap()
 	pagerKeys := tui.NewPagerKeyMap()
 
-	delegate := tui.NewItemDelegate(delegateKeys)
+	delegate := newCatalogDelegate(delegateKeys)
 	lst := list.New(items, delegate, 0, 0)
 	lst.KeyMap = listKeys
 	lst.SetFilteringEnabled(true)
@@ -143,17 +144,17 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, svc catalo
 // insertModuleSorted inserts a module into the list in alphabetical order,
 // skipping duplicates. If the user has started navigating, the cursor stays
 // on the currently selected item. Otherwise it stays at the top of the list.
-func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
-	if mod == nil {
+func (m *Model) insertModuleSorted(entry *ModuleEntry) tea.Cmd {
+	if entry == nil {
 		return nil
 	}
 
 	items := m.List.Items()
-	modTitle := mod.Title()
+	modTitle := entry.Title()
 
 	// Binary search finds the insertion point by title for sort order.
 	insertIdx := sort.Search(len(items), func(i int) bool {
-		if existing, ok := items[i].(*module.Module); ok {
+		if existing, ok := items[i].(*ModuleEntry); ok {
 			return strings.ToLower(existing.Title()) >= strings.ToLower(modTitle)
 		}
 
@@ -162,13 +163,13 @@ func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
 
 	// De-duplicate by source path, not title, so distinct modules that
 	// share a display name are not collapsed.
-	if isDuplicate(items, mod.TerraformSourcePath()) {
+	if isDuplicate(items, entry.Module.TerraformSourcePath()) {
 		return nil
 	}
 
 	currentIdx := m.List.Index()
 
-	cmd := m.List.InsertItem(insertIdx, mod)
+	cmd := m.List.InsertItem(insertIdx, entry)
 
 	if m.userNavigated {
 		// Preserve cursor: if we inserted before or at the current
@@ -190,8 +191,8 @@ func (m *Model) insertModuleSorted(mod *module.Module) tea.Cmd {
 // incorrectly collapsed.
 func isDuplicate(items []list.Item, sourcePath string) bool {
 	for _, item := range items {
-		if existing, ok := item.(*module.Module); ok {
-			if existing.TerraformSourcePath() == sourcePath {
+		if existing, ok := item.(*ModuleEntry); ok {
+			if existing.Module.TerraformSourcePath() == sourcePath {
 				return true
 			}
 		}
@@ -212,7 +213,7 @@ func (m Model) listenForModule() tea.Cmd { //nolint:gocritic
 			return nil
 		}
 
-		return moduleMsg{module: mod}
+		return moduleMsg{entry: mod}
 	}
 }
 

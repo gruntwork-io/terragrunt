@@ -31,16 +31,9 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	return redesign.RunRedesign(
 		ctx, l, opts,
 		func(
-			ctx context.Context, status redesign.StatusFunc, moduleCh chan<- *module.Module,
+			ctx context.Context, status redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry,
 		) (catalog.CatalogService, error) {
 			svc := catalog.NewCatalogService(opts)
-
-			onModule := func(mod *module.Module) {
-				select {
-				case moduleCh <- mod:
-				case <-ctx.Done():
-				}
-			}
 
 			urlCh := make(chan string, 10) //nolint:mnd
 
@@ -64,7 +57,9 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 			maxWorkers := max(1, min(opts.Parallelism, runtime.GOMAXPROCS(0)))
 
-			loaders, loadCtx := errgroup.WithContext(gctx)
+			// Derive from ctx (not gctx) so loaders survive discovery-group
+			// cancellation. gctx is cancelled automatically when g.Wait returns.
+			loaders, loadCtx := errgroup.WithContext(ctx)
 			loaders.SetLimit(maxWorkers)
 
 			seen := make(map[string]struct{})
@@ -77,10 +72,40 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
+					var collected []*module.Module
+
+					onModule := func(mod *module.Module) {
+						collected = append(collected, mod)
+					}
+
 					if err := svc.LoadStreamingURL(loadCtx, l, repoURL, onModule); err != nil {
-						// Individual repo failures are non-critical — warn and
-						// continue so remaining repos can still load.
-						l.Warnf("Error loading %s: %v", repoURL, err)
+						// Suppress errors from context cancellation (user quit the TUI).
+						if loadCtx.Err() == nil {
+							l.Warnf("Error loading %s: %v", repoURL, err)
+						}
+
+						return nil
+					}
+
+					// All modules from the same repo share a *Repo. Resolve the
+					// latest tag once using the cloned repo on disk.
+					if len(collected) > 0 {
+						collected[0].Repo.ResolveLatestTag(loadCtx)
+					}
+
+					for _, mod := range collected {
+						source := redesign.ExtractRepoURL(mod.TerraformSourcePath())
+						entry := redesign.NewModuleEntry(mod).WithSource(source)
+
+						if mod.Repo.LatestTag != "" {
+							entry = entry.WithVersion(mod.Repo.LatestTag)
+						}
+
+						select {
+						case moduleCh <- entry:
+						case <-loadCtx.Done():
+							return nil
+						}
 					}
 
 					return nil

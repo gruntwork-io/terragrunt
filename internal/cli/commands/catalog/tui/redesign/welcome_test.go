@@ -13,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,7 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -60,9 +59,9 @@ func TestWelcomeLoadingScreen_TransitionsToModuleList(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		for _, mod := range svc.Modules() {
-			moduleCh <- mod
+			moduleCh <- redesign.NewModuleEntry(mod)
 		}
 
 		return svc, nil
@@ -97,9 +96,9 @@ func TestWelcomeLoadingScreen_ModuleListNavigation(t *testing.T) {
 	l := logger.CreateLogger()
 	svc := createMockCatalogService(t, opts)
 
-	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		for _, mod := range svc.Modules() {
-			moduleCh <- mod
+			moduleCh <- redesign.NewModuleEntry(mod)
 		}
 
 		return svc, nil
@@ -138,7 +137,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+	slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		// Simulate slow discovery
 		select {
 		case <-time.After(5 * time.Second):
@@ -170,7 +169,7 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -209,7 +208,7 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *module.Module) (catalog.CatalogService, error) {
+	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		return nil, nil
 	}
 
@@ -245,10 +244,10 @@ func TestWelcomeStreamingModules(t *testing.T) {
 	modules := svc.Modules()
 	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules for streaming test")
 
-	streamingLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *module.Module) (catalog.CatalogService, error) {
+	streamingLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
 		// Stream modules one at a time with a small delay to simulate real discovery
 		for _, mod := range modules {
-			moduleCh <- mod
+			moduleCh <- redesign.NewModuleEntry(mod)
 
 			time.Sleep(20 * time.Millisecond)
 		}
@@ -274,8 +273,8 @@ func TestWelcomeStreamingModules(t *testing.T) {
 	// Verify alphabetical order (case-insensitive, matching the sort in model.go)
 	items := listModel.List.Items()
 	for i := 1; i < len(items); i++ {
-		prev := strings.ToLower(items[i-1].(*module.Module).Title())
-		curr := strings.ToLower(items[i].(*module.Module).Title())
+		prev := strings.ToLower(items[i-1].(*redesign.ModuleEntry).Title())
+		curr := strings.ToLower(items[i].(*redesign.ModuleEntry).Title())
 		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order")
 	}
 }
