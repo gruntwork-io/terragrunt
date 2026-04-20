@@ -220,7 +220,7 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
 
-	expectedHookOutput := fmt.Sprintf("TF_PATH=%s COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3", wrappedBinary())
+	expectedHookOutput := fmt.Sprintf("TF_PATH=%s COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3", wrappedBinary(t.Context()))
 	assert.Equal(t, 1, strings.Count(output, expectedHookOutput))
 
 	require.NoError(t, beforeException)
@@ -438,7 +438,7 @@ func TestTerragruntInfo(t *testing.T) {
 	require.NoError(t, errUnmarshal)
 
 	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
-	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
+	assert.Equal(t, wrappedBinary(t.Context()), dat.TerraformBinary)
 	assert.Empty(t, dat.IAMRole)
 }
 
