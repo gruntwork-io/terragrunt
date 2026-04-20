@@ -24,21 +24,17 @@ jobs:
             target: ./test
             setup_scripts:
               - .github/scripts/setup/terraform-switch-latest.sh
-          - name: SSH
+          - name: Independent Integration Tests
             os: ubuntu
             target: ./...
             setup_scripts:
               - .github/scripts/setup/ssh.sh
-            tags: ssh
-            run: "^TestSSH"
-            secrets: [GHA_DEPLOY_KEY]
-          - name: SOPS
-            os: ubuntu
-            target: ./...
-            setup_scripts:
               - .github/scripts/setup/sops.sh
-            tags: sops
-            run: "^TestSOPS"
+              - .github/scripts/setup/engine.sh
+              - .github/scripts/setup/generate-mocks.sh
+            tags: "ssh,sops,deprecated,mocks,engine"
+            run: "^(TestSSH|TestSOPS|TestDeprecated|TestMock|TestEngine)"
+            secrets: [GHA_DEPLOY_KEY]
           - name: Tflint
             os: ubuntu
             target: ./...
@@ -104,13 +100,6 @@ jobs:
                 GOOGLE_IDENTITY_EMAIL,
                 GOOGLE_PROJECT_ID,
               ]
-          - name: Engine
-            os: ubuntu
-            target: ./...
-            setup_scripts:
-              - .github/scripts/setup/engine.sh
-            tags: engine
-            run: "^TestEngine"
           - name: Windows
             os: windows
             target: ./...
@@ -131,18 +120,6 @@ jobs:
             setup_scripts:
               - .github/scripts/setup/provider-cache-server.sh
               - .github/scripts/setup/tofu-switch.sh
-          - name: Deprecated
-            os: ubuntu
-            target: ./...
-            tags: deprecated
-            run: "^TestDeprecated"
-          - name: Mock
-            os: ubuntu
-            target: ./...
-            tags: mocks
-            run: "^TestMock"
-            setup_scripts:
-              - .github/scripts/setup/generate-mocks.sh
           - name: Race
             os: ubuntu
             target: ./...
