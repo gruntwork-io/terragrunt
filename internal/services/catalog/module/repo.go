@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
@@ -207,7 +208,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context) {
 		return
 	}
 
-	runner, err := gitpkg.NewGitRunner()
+	runner, err := gitpkg.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
 
