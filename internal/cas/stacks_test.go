@@ -59,6 +59,67 @@ func TestSplitSourceDoubleSlash(t *testing.T) {
 	}
 }
 
+func TestResolveInRepoSource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := filepath.Join(string(filepath.Separator), "tmp", "repo")
+	dirPath := filepath.Join(repoRoot, "stacks", "app")
+
+	tests := []struct {
+		wantErr error
+		name    string
+		source  string
+		want    string
+	}{
+		{
+			name:   "sibling path within repo",
+			source: "../../units/service",
+			want:   filepath.Join(repoRoot, "units", "service"),
+		},
+		{
+			name:   "double-slash subdir within repo",
+			source: "../..//modules/ec2",
+			want:   filepath.Join(repoRoot, "modules", "ec2"),
+		},
+		{
+			name:   "nested path within dirPath",
+			source: "child",
+			want:   filepath.Join(dirPath, "child"),
+		},
+		{
+			name:    "absolute source rejected",
+			source:  filepath.Join(string(filepath.Separator), "etc", "passwd"),
+			wantErr: cas.ErrAbsoluteSource,
+		},
+		{
+			name:    "parent escape rejected",
+			source:  "../../../../etc",
+			wantErr: cas.ErrSourceEscapesRepo,
+		},
+		{
+			name:    "escape via double-slash subdir",
+			source:  "..//../../../etc",
+			wantErr: cas.ErrSourceEscapesRepo,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := cas.ResolveInRepoSource(repoRoot, dirPath, tt.source)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestDeterministicTreeHash(t *testing.T) {
 	t.Parallel()
 

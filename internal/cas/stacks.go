@@ -165,14 +165,9 @@ func (c *CAS) processStackFile(
 
 		l.Debugf("Processing CAS source rewrite for %s %q with source %q", block.BlockType, block.Name, block.Source)
 
-		// Resolve the relative source path
-		sourcePath, sourceSubdir := SplitSourceDoubleSlash(block.Source)
-		resolvedPath := filepath.Clean(filepath.Join(dirPath, sourcePath))
-
-		// Recursively process the resolved directory
-		targetDir := resolvedPath
-		if sourceSubdir != "" {
-			targetDir = filepath.Join(resolvedPath, sourceSubdir)
+		targetDir, err := ResolveInRepoSource(repoRoot, dirPath, block.Source)
+		if err != nil {
+			return fmt.Errorf("failed to resolve source for %s %q: %w", block.BlockType, block.Name, err)
 		}
 
 		if err := c.processDirectory(ctx, l, repoRoot, targetDir, refHash, hashAlg); err != nil {
@@ -225,13 +220,9 @@ func (c *CAS) processUnitFile(l log.Logger, repoRoot, dirPath, unitFile, refHash
 
 	l.Debugf("Processing CAS source rewrite for terraform source %q in %s", source, unitFile)
 
-	// Resolve the terraform module directory (same pattern as stack blocks).
-	sourcePath, sourceSubdir := SplitSourceDoubleSlash(source)
-	resolvedPath := filepath.Clean(filepath.Join(dirPath, sourcePath))
-
-	moduleDir := resolvedPath
-	if sourceSubdir != "" {
-		moduleDir = filepath.Join(resolvedPath, sourceSubdir)
+	moduleDir, err := ResolveInRepoSource(repoRoot, dirPath, source)
+	if err != nil {
+		return fmt.Errorf("failed to resolve terraform source %q: %w", source, err)
 	}
 
 	synthHash, err := c.buildSyntheticTree(l, moduleDir, refHash, repoRoot, hashAlg)
@@ -294,7 +285,7 @@ func (c *CAS) buildSyntheticTree(
 			return fmt.Errorf("failed to store blob %s: %w", path, err)
 		}
 
-		mode := fmt.Sprintf("%06o", info.Mode().Perm())
+		mode := gitTreeMode(info.Mode())
 		treeLine := fmt.Sprintf("%s blob %s\t%s\n", mode, fileHash, relPath)
 		treeData = append(treeData, []byte(treeLine)...)
 
@@ -321,6 +312,43 @@ func (c *CAS) buildSyntheticTree(
 	}
 
 	return treeHash, nil
+}
+
+// ResolveInRepoSource resolves an update_source_with_cas source string relative to
+// dirPath and returns the cleaned absolute path. Absolute sources and sources
+// whose resolved path escapes repoRoot via ".." segments are rejected so CAS
+// materialization stays scoped to the cloned repository.
+func ResolveInRepoSource(repoRoot, dirPath, source string) (string, error) {
+	sourcePath, sourceSubdir := SplitSourceDoubleSlash(source)
+	if filepath.IsAbs(sourcePath) {
+		return "", fmt.Errorf("%w: %q", ErrAbsoluteSource, source)
+	}
+
+	resolved := filepath.Clean(filepath.Join(dirPath, sourcePath))
+	if sourceSubdir != "" {
+		resolved = filepath.Join(resolved, sourceSubdir)
+	}
+
+	rel, err := filepath.Rel(filepath.Clean(repoRoot), resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%w: %q", ErrSourceEscapesRepo, source)
+	}
+
+	return resolved, nil
+}
+
+// gitTreeMode returns the git tree-entry mode string for a file with the given
+// filesystem mode. Directories are handled by the caller, so only the regular
+// file, executable, and symlink cases are covered here.
+func gitTreeMode(mode os.FileMode) string {
+	switch {
+	case mode&os.ModeSymlink != 0:
+		return "120000"
+	case mode&0o111 != 0:
+		return "100755"
+	default:
+		return "100644"
+	}
 }
 
 // DeterministicTreeHash generates a deterministic hash for a synthetic tree entry

@@ -246,6 +246,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 			terraformBody.SetAttributeValue("source", terraformAsCty.GetAttr("source"))
 		}
 
+		if cfg.Terraform.UpdateSourceWithCAS != nil {
+			terraformBody.SetAttributeValue("update_source_with_cas", terraformAsCty.GetAttr("update_source_with_cas"))
+		}
+
 		// Handle extra_arguments blocks
 		if len(cfg.Terraform.ExtraArgs) > 0 {
 			extraArgsAsCty := terraformAsCty.GetAttr("extra_arguments").AsValueMap()

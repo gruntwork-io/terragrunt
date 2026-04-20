@@ -34,6 +34,10 @@ const (
 	ErrCASRefEmptyHash Error = "CAS reference has empty hash"
 	// ErrTreeNotFound is returned when a tree hash is not found in any CAS store
 	ErrTreeNotFound Error = "tree not found in CAS store"
+	// ErrAbsoluteSource is returned when an update_source_with_cas source is an absolute path
+	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
+	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
+	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
 )
 
 // WrappedError provides additional context for errors

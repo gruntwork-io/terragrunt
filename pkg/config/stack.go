@@ -199,16 +199,15 @@ func generateUnits(ctx context.Context, l log.Logger, opts *generateOpts, pool *
 	for _, unit := range units {
 		pool.Submit(func() error {
 			item := componentToGenerate{
-				sourceDir:           opts.sourceDir,
-				targetDir:           opts.targetDir,
-				name:                unit.Name,
-				path:                unit.Path,
-				source:              unit.Source,
-				values:              unit.Values,
-				noStack:             unit.NoStack != nil && *unit.NoStack,
-				noValidation:        unit.NoValidation != nil && *unit.NoValidation,
-				updateSourceWithCAS: unit.UpdateSourceWithCAS != nil && *unit.UpdateSourceWithCAS,
-				kind:                unitKind,
+				sourceDir:    opts.sourceDir,
+				targetDir:    opts.targetDir,
+				name:         unit.Name,
+				path:         unit.Path,
+				source:       unit.Source,
+				values:       unit.Values,
+				noStack:      unit.NoStack != nil && *unit.NoStack,
+				noValidation: unit.NoValidation != nil && *unit.NoValidation,
+				kind:         unitKind,
 			}
 
 			l.Infof("Generating unit %s from %s", unit.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
@@ -233,16 +232,15 @@ func generateStacks(ctx context.Context, l log.Logger, opts *generateOpts, pool 
 	for _, stack := range stacks {
 		pool.Submit(func() error {
 			item := componentToGenerate{
-				sourceDir:           opts.sourceDir,
-				targetDir:           opts.targetDir,
-				name:                stack.Name,
-				path:                stack.Path,
-				source:              stack.Source,
-				noStack:             stack.NoStack != nil && *stack.NoStack,
-				noValidation:        stack.NoValidation != nil && *stack.NoValidation,
-				updateSourceWithCAS: stack.UpdateSourceWithCAS != nil && *stack.UpdateSourceWithCAS,
-				values:              stack.Values,
-				kind:                stackKind,
+				sourceDir:    opts.sourceDir,
+				targetDir:    opts.targetDir,
+				name:         stack.Name,
+				path:         stack.Path,
+				source:       stack.Source,
+				noStack:      stack.NoStack != nil && *stack.NoStack,
+				noValidation: stack.NoValidation != nil && *stack.NoValidation,
+				values:       stack.Values,
+				kind:         stackKind,
 			}
 
 			l.Infof("Generating stack %s from %s", stack.Name, util.RelPathForLog(opts.rootWorkingDir, opts.sourceFile, opts.logShowAbsPaths))
@@ -272,16 +270,15 @@ const (
 // It contains information about the source and target directories, the name and path of the item, the source URL or path,
 // and any associated values that need to be generated.
 type componentToGenerate struct {
-	values              *cty.Value
-	sourceDir           string
-	targetDir           string
-	name                string
-	path                string
-	source              string
-	noStack             bool
-	noValidation        bool
-	updateSourceWithCAS bool
-	kind                componentKind
+	values       *cty.Value
+	sourceDir    string
+	targetDir    string
+	name         string
+	path         string
+	source       string
+	noStack      bool
+	noValidation bool
+	kind         componentKind
 }
 
 // resolveDestPath builds and validates the destination path for a generated component.
