@@ -1,0 +1,15 @@
+---
+version: "v1.0.0"
+category: "new-features"
+---
+
+#### Improved error messages for undefined flags
+
+Detection has been added for scenarios when a user is using a flag that might be meant to be passed to OpenTofu/Terraform in the `run` command, and suggests using the `--` argument to pass it through.
+
+As an example:
+
+```bash
+$ terragrunt run providers lock -platform linux_amd64 -platform darwin_arm64
+14:52:19.496 ERROR  flag `-platform` is not a Terragrunt flag. If this is an OpenTofu/Terraform flag, use `--` to forward it (e.g., `terragrunt run -- <command> -platform`).
+```

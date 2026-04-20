@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Windows user input fixed
+
+A bug on Windows caused user input prompts (e.g. for confirming `apply`) to stop working after subprocess execution. Terragrunt now saves and restores console state around every subprocess execution and re-enables Virtual Terminal processing.

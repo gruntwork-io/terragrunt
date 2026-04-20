@@ -1,0 +1,10 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### Ambiguous unit/stack components now throw errors
+
+Previously, Terragrunt would silently engage in undefined behavior when both a `terragrunt.hcl` and `terragrunt.stack.hcl` file existed in the same directory.
+
+With this release, Terragrunt will start to throw warnings and prevent such usage. Users will have to ensure that only one of a unit (`terragrunt.hcl`) or stack configuration (`terragrunt.stack.hcl`) exist in a unit or stack directory, respectively.
