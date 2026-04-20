@@ -96,6 +96,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 // RunOutput stack output.
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
+	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
 	var outputs cty.Value
 

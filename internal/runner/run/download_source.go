@@ -321,9 +321,8 @@ func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*get
 		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
 
 		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &tf.RegistryGetter{
-			TofuImplementation: opts.TofuImplementation,
-		}
+		client.Getters["tfr"] = tf.NewRegistryGetter(l).
+			WithTofuImplementation(opts.TofuImplementation)
 
 		return nil
 	}

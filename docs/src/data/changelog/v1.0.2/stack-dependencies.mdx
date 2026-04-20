@@ -1,9 +1,6 @@
 ---
 version: "v1.0.2"
----
-
-### 🧪 Experiments Updated
-
+category: "experiments-updated"
 ---
 
 #### `stack-dependencies` — Cross-stack dependency support and autoinclude improvements
@@ -70,18 +67,3 @@ terragrunt run --all --experiment stack-dependencies -- plan
 ```
 
 To learn more, see the [experiment documentation](/reference/experiments/active#stack-dependencies).
-
-### 🐛 Bug Fixes
-
----
-
-#### Panic in `get_repo_root()` when OpenTelemetry tracing is enabled with TRACEPARENT
-
-Running `terragrunt stack generate` (or any command that invoked shell commands like `git rev-parse`) with OpenTelemetry trace exporting enabled (`TG_TELEMETRY_TRACE_EXPORTER=http`) caused a nil pointer panic:
-
-```
-Call to function "get_repo_root" failed: panic in function implementation:
-runtime error: invalid memory address or nil pointer dereference
-```
-
-The root cause of the panic was fixed, and telemetry codepaths have been hardened against future panics.

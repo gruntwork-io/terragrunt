@@ -99,7 +99,14 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules", Path: tempDir})
+	repo, err := module.NewRepo(
+		ctx,
+		logger.CreateLogger(),
+		module.RepoOpts{
+			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules",
+			Path:     tempDir,
+		},
+	)
 	require.NoError(t, err)
 
 	modules, err := repo.FindModules(ctx)
