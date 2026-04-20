@@ -91,7 +91,14 @@ func GenerateStacks(
 }
 
 // generateLevel handles the concurrent generation of all stack files at a given level.
-func generateLevel(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, level int, levelNodes []*StackNode, generatedFiles map[string]bool) error {
+func generateLevel(
+	ctx context.Context,
+	l log.Logger,
+	opts *options.TerragruntOptions,
+	level int,
+	levelNodes []*StackNode,
+	generatedFiles map[string]bool,
+) error {
 	l.Debugf("Generating stack level %d with %d files", level, len(levelNodes))
 
 	wp := worker.NewWorkerPool(opts.Parallelism)
