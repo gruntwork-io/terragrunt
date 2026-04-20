@@ -418,6 +418,7 @@ func TestPathOrAncestorMatchesAny(t *testing.T) {
 		{"wildcard no match", "dotcom/dev/output.txt", []string{"**/*.log"}, false},
 		{"multiple patterns first match", "node_modules/foo", []string{"**/dist", "**/node_modules"}, true},
 		{"multiple patterns second match", "build/dist/bundle.js", []string{"**/dist", "**/node_modules"}, true},
+		{"absolute root terminates", "/foo/bar", []string{"baz"}, false},
 	}
 
 	for _, tc := range testCases {
@@ -430,27 +431,24 @@ func TestPathOrAncestorMatchesAny(t *testing.T) {
 	}
 }
 
-func TestExcludeFromCopyLazy(t *testing.T) {
+func TestExcludeFromCopyNoPartialPrefixMatch(t *testing.T) {
 	t.Parallel()
 
-	// Verify that the lazy exclude matching produces the same results as the
-	// pre-expansion approach by reusing the same test structure.
-	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
+	// Verify that the lazy exclude matching does not false-positive on paths
+	// that share a common string prefix with an excluded path but are not
+	// actually under it (e.g. "module/region2" must NOT exclude
+	// "module/region2more").
+	excludeFromCopy := []string{"module/region2"}
 
 	testCases := []struct {
 		path         string
 		copyExpected bool
 	}{
-		{"/app/terragrunt.hcl", true},
-		{"/module/main.tf", true},
-		{"/module/region1/info.txt", true},
-		{"/module/region1/project2-1/app1/f2-dot-f2.txt", false},
-		{"/module/region3/project3-1/f1-2-levels.txt", true},
-		{"/module/region3/project3-1/app1/exclude-me-here/file.txt", false},
-		{"/module/region3/project3-2/f0/f0-3-levels.txt", true},
-		{"/module/region2/project2-1/app2/f2-dot-f2.txt", false},
-		{"/module/region2/project2-1/readme.txt", false},
-		{"/module/region2/project2-2/f2-dot-f0.txt", false},
+		{"/module/region2/file.txt", false},
+		{"/module/region2/sub/deep.txt", false},
+		{"/module/region2more/file.txt", true},
+		{"/module/region20/file.txt", true},
+		{"/module/region1/file.txt", true},
 	}
 
 	tempDir := helpers.TmpDirWOSymlinks(t)

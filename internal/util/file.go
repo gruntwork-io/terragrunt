@@ -310,7 +310,7 @@ func PathOrAncestorMatchesAny(relativePath string, patterns []string) bool {
 	ancestor := relativePath
 	for {
 		ancestor = path.Dir(ancestor)
-		if ancestor == "." || ancestor == "" {
+		if ancestor == "." || ancestor == "" || ancestor == "/" {
 			return false
 		}
 
@@ -384,6 +384,15 @@ func CopyFolderContents(
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
+	}
+
+	// Validate exclude patterns early so malformed globs (e.g. unbalanced
+	// brackets) surface as configuration errors rather than silently
+	// matching nothing during the walk.
+	for _, pattern := range excludeFromCopy {
+		if _, err := doublestar.Match(pattern, "."); err != nil {
+			return errors.Errorf("invalid exclude_from_copy pattern %q: %w", pattern, err)
+		}
 	}
 
 	// Exclude patterns are evaluated lazily during the copy walk using
