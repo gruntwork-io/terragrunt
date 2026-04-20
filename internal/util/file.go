@@ -10,11 +10,13 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
 
+	"github.com/bmatcuk/doublestar"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -283,6 +285,43 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 	return false
 }
 
+// PathOrAncestorMatchesAny reports whether relativePath or any of its ancestor
+// directories matches at least one of the given glob patterns. Both patterns
+// and relativePath must use forward slashes.
+//
+// This enables lazy exclude evaluation: instead of pre-expanding every exclude
+// glob into a flat path list (which requires walking the entire source tree
+// once per pattern), we evaluate patterns on-the-fly during the copy walk.
+func PathOrAncestorMatchesAny(relativePath string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+
+	// Check the full path itself.
+	for _, p := range patterns {
+		if matched, _ := doublestar.Match(p, relativePath); matched {
+			return true
+		}
+	}
+
+	// Walk up the directory tree checking each ancestor. This propagates
+	// directory-level matches to their descendants (e.g. pattern **/.terraform
+	// excludes everything under any .terraform directory).
+	ancestor := relativePath
+	for {
+		ancestor = path.Dir(ancestor)
+		if ancestor == "." || ancestor == "" {
+			return false
+		}
+
+		for _, p := range patterns {
+			if matched, _ := doublestar.Match(p, ancestor); matched {
+				return true
+			}
+		}
+	}
+}
+
 // Takes apbsolute glob path and returns an array of expanded relative paths
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
@@ -347,18 +386,18 @@ func CopyFolderContents(
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
 	}
 
-	excludeExpandedGlobs := []string{}
-
-	for _, excludeGlob := range excludeFromCopy {
-		globPath := filepath.Join(source, excludeGlob)
-
-		expandGlob, err := expandGlobPath(source, globPath)
-		if err != nil {
-			return errors.New(err)
-		}
-
-		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
-	}
+	// Exclude patterns are evaluated lazily during the copy walk using
+	// PathOrAncestorMatchesAny. This avoids the previous approach of
+	// pre-expanding every exclude glob via zglob.Glob, which walked the
+	// entire source tree once per pattern — including into heavy directories
+	// like .terragrunt-cache and .terraform — before filtering them out.
+	//
+	// For a monorepo where terraform/ is the package root, the old approach
+	// performed O(patterns × tree_size) stat calls upfront (e.g., 7 full
+	// walks of a 2 GB tree). The lazy approach checks each path and its
+	// ancestors against the patterns during the copy walk itself, turning
+	// that into O(files_copied × patterns × depth) glob match operations
+	// with no upfront I/O cost.
 
 	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
@@ -367,14 +406,14 @@ func CopyFolderContents(
 		}
 
 		relativePath = filepath.ToSlash(relativePath)
-		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
+		excluded := PathOrAncestorMatchesAny(relativePath, excludeFromCopy)
 
 		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
-		if listHasElementWithPrefix && !pathHasPrefix {
+		if listHasElementWithPrefix && !excluded {
 			return true
 		}
 
-		if pathHasPrefix {
+		if excluded {
 			return false
 		}
 
@@ -405,27 +444,44 @@ func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFil
 		}
 	}(manifest)
 
-	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
-	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
-	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(source + "/*")
+	// os.ReadDir returns DirEntry values whose Type() method gets the file
+	// type directly from the directory-listing syscall (getdents64 on Linux,
+	// getdirentries on macOS) without an extra lstat per entry.
+	//
+	// Historical note: the original implementation used os.ReadDir, was
+	// switched to filepath.Walk (which ignores symlinks), and then to
+	// filepath.Glob. Since Go 1.16, os.ReadDir returns lightweight DirEntry
+	// values that do NOT call lstat — the earlier concern no longer applies.
+	// Symlinks are handled explicitly below.
+	entries, err := os.ReadDir(source)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	for _, file := range files {
-		fileRelativePath, err := GetPathRelativeTo(file, source)
-		if err != nil {
-			return err
-		}
+	for _, entry := range entries {
+		file := filepath.Join(source, entry.Name())
 
 		if !filter(file) {
 			continue
 		}
 
-		dest := filepath.Join(destination, fileRelativePath)
+		dest := filepath.Join(destination, entry.Name())
 
-		if IsDir(file) {
+		// Determine if this entry is a directory. For symlinks, follow the
+		// link to check the target type — this matches the original behavior
+		// where filepath.Glob returned the path and IsDir (os.Stat) followed
+		// symlinks.
+		isDir := entry.IsDir()
+		if entry.Type()&os.ModeSymlink != 0 {
+			info, err := os.Stat(file)
+			if err != nil {
+				return errors.New(err)
+			}
+
+			isDir = info.IsDir()
+		}
+
+		if isDir {
 			info, err := os.Lstat(file)
 			if err != nil {
 				return errors.New(err)

@@ -396,6 +396,145 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	}
 }
 
+func TestPathOrAncestorMatchesAny(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		path     string
+		patterns []string
+		expected bool
+	}{
+		{"empty patterns", "foo/bar", nil, false},
+		{"exact match", "module/region2", []string{"module/region2"}, true},
+		{"no match", "module/region1", []string{"module/region2"}, false},
+		{"doublestar exact", ".terraform", []string{"**/.terraform"}, true},
+		{"doublestar nested", "dotcom/dev/myservice/.terraform", []string{"**/.terraform"}, true},
+		{"doublestar child propagation", "dotcom/dev/.terraform/providers/aws", []string{"**/.terraform"}, true},
+		{"doublestar no false positive", "dotcom/dev/.terraformrc", []string{"**/.terraform"}, false},
+		{"concrete child propagation", "module/region2/subdir/file.txt", []string{"module/region2"}, true},
+		{"concrete no partial match", "module/region2more", []string{"module/region2"}, false},
+		{"wildcard pattern", "dotcom/dev/output.log", []string{"**/*.log"}, true},
+		{"wildcard no match", "dotcom/dev/output.txt", []string{"**/*.log"}, false},
+		{"multiple patterns first match", "node_modules/foo", []string{"**/dist", "**/node_modules"}, true},
+		{"multiple patterns second match", "build/dist/bundle.js", []string{"**/dist", "**/node_modules"}, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.PathOrAncestorMatchesAny(tc.path, tc.patterns)
+			assert.Equal(t, tc.expected, actual, "For path %s and patterns %v", tc.path, tc.patterns)
+		})
+	}
+}
+
+func TestExcludeFromCopyLazy(t *testing.T) {
+	t.Parallel()
+
+	// Verify that the lazy exclude matching produces the same results as the
+	// pre-expansion approach by reusing the same test structure.
+	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
+
+	testCases := []struct {
+		path         string
+		copyExpected bool
+	}{
+		{"/app/terragrunt.hcl", true},
+		{"/module/main.tf", true},
+		{"/module/region1/info.txt", true},
+		{"/module/region1/project2-1/app1/f2-dot-f2.txt", false},
+		{"/module/region3/project3-1/f1-2-levels.txt", true},
+		{"/module/region3/project3-1/app1/exclude-me-here/file.txt", false},
+		{"/module/region3/project3-2/f0/f0-3-levels.txt", true},
+		{"/module/region2/project2-1/app2/f2-dot-f2.txt", false},
+		{"/module/region2/project2-1/readme.txt", false},
+		{"/module/region2/project2-2/f2-dot-f0.txt", false},
+	}
+
+	tempDir := helpers.TmpDirWOSymlinks(t)
+	source := filepath.Join(tempDir, "source")
+	destination := filepath.Join(tempDir, "destination")
+
+	fileContent := []byte("source file")
+
+	for _, tc := range testCases {
+		path := filepath.Join(source, tc.path)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
+	}
+
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
+
+	for i, tc := range testCases {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			_, err := os.Stat(filepath.Join(destination, tc.path))
+			assert.True(t,
+				tc.copyExpected && err == nil ||
+					!tc.copyExpected && errors.Is(err, os.ErrNotExist),
+				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tc.path, tc.copyExpected, err)
+		})
+	}
+}
+
+// BenchmarkCopyFolderWithDeepExcludes measures the performance of
+// CopyFolderContents when the source tree contains large excluded directories
+// (simulating .terragrunt-cache and .terraform). The lazy exclude matching
+// should be significantly faster than pre-expanding exclude globs.
+func BenchmarkCopyFolderWithDeepExcludes(b *testing.B) {
+	// Create a source tree:
+	// - 50 small module directories (2 files each)
+	// - 5 large .terragrunt-cache directories (100 files each)
+	// - 5 .terraform directories (50 files each)
+	tempDir := b.TempDir()
+	source := filepath.Join(tempDir, "source")
+	fileContent := []byte("module content")
+
+	for i := range 50 {
+		dir := filepath.Join(source, "modules", fmt.Sprintf("mod%d", i))
+		require.NoError(b, os.MkdirAll(dir, os.ModePerm))
+		require.NoError(b, os.WriteFile(filepath.Join(dir, "main.tf"), fileContent, 0o644))
+		require.NoError(b, os.WriteFile(filepath.Join(dir, "variables.tf"), fileContent, 0o644))
+	}
+
+	for i := range 5 {
+		cacheDir := filepath.Join(source, "modules", fmt.Sprintf("mod%d", i), ".terragrunt-cache", "hash1", "hash2")
+		require.NoError(b, os.MkdirAll(cacheDir, os.ModePerm))
+		for j := range 100 {
+			require.NoError(b, os.WriteFile(filepath.Join(cacheDir, fmt.Sprintf("file%d.tf", j)), fileContent, 0o644))
+		}
+	}
+
+	for i := range 5 {
+		tfDir := filepath.Join(source, "modules", fmt.Sprintf("mod%d", i), ".terraform", "providers")
+		require.NoError(b, os.MkdirAll(tfDir, os.ModePerm))
+		for j := range 50 {
+			require.NoError(b, os.WriteFile(filepath.Join(tfDir, fmt.Sprintf("provider%d", j)), fileContent, 0o644))
+		}
+	}
+
+	excludeFromCopy := []string{
+		"**/.terragrunt-cache",
+		"**/.terraform",
+		"**/*.log",
+		"**/.DS_Store",
+		"**/node_modules",
+	}
+
+	l := logger.CreateLogger()
+
+	b.ResetTimer()
+
+	for range b.N {
+		dest := filepath.Join(tempDir, fmt.Sprintf("dest-%d", b.N))
+		require.NoError(b, util.CopyFolderContents(l, source, dest, ".manifest", nil, excludeFromCopy))
+		os.RemoveAll(dest)
+	}
+}
+
 func TestEmptyDir(t *testing.T) {
 	t.Parallel()
 
