@@ -14,7 +14,7 @@ const (
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )
 
-func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
+func NewItemDelegate(keys *DelegateKeyMap) list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
 
 	d.Styles.SelectedTitle = d.Styles.SelectedTitle.
@@ -25,7 +25,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 		Foreground(lipgloss.Color(selectedDescForegroundColorDark)).
 		BorderForeground(lipgloss.Color(selectedDescBorderForegroundColorDark))
 
-	help := []key.Binding{keys.choose, keys.scaffold}
+	help := []key.Binding{keys.Choose, keys.Scaffold}
 
 	d.ShortHelpFunc = func() []key.Binding {
 		return help

@@ -27,7 +27,7 @@ Now that we've structured our project to segment environments into their own roo
 
 The process of converting an OpenTofu root module to a Terragrunt unit simply involves adding an empty `terragrunt.hcl` file to each root module (that's all the `find` command below does). This allows Terragrunt to recognize the contents of the directory as a Terragrunt unit, and orchestrate infrastructure updates within it.
 
-<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -type dir -exec touch {}/terragrunt.hcl \;`} />
+<Code title="live" lang="bash" frame="terminal" code={`find . -mindepth 1 -maxdepth 1 -type dir -exec touch {}/terragrunt.hcl \\;`} />
 
 Now, we can use Terragrunt to orchestrate runs across both of these units.
 

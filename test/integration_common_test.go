@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -395,23 +397,34 @@ func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, ke
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
-func wrappedBinary() string {
-	value, found := os.LookupEnv("TG_TF_PATH")
-	if !found {
-		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(context.Background(), helpers.TofuBinary, "-version") {
-			return helpers.TofuBinary
+// wrappedBinaryOnce memoizes the detected wrapped binary for the test process.
+var (
+	wrappedBinaryOnce   sync.Once
+	wrappedBinaryCached string
+)
+
+// wrappedBinary returns which binary will be wrapped by Terragrunt. Detection
+// runs at most once per test process; ctx is used only on the first call.
+func wrappedBinary(ctx context.Context) string {
+	wrappedBinaryOnce.Do(func() {
+		if value, found := os.LookupEnv("TG_TF_PATH"); found {
+			wrappedBinaryCached = filepath.Base(value)
+			return
 		}
 
-		return helpers.TerraformBinary
-	}
+		if util.IsCommandExecutable(vexec.NewOSExec(), ctx, helpers.TofuBinary, "-version") {
+			wrappedBinaryCached = helpers.TofuBinary
+			return
+		}
 
-	return filepath.Base(value)
+		wrappedBinaryCached = helpers.TerraformBinary
+	})
+
+	return wrappedBinaryCached
 }
 
-func isTerraform() bool {
-	return wrappedBinary() == helpers.TerraformBinary
+func isTerraform(ctx context.Context) bool {
+	return wrappedBinary(ctx) == helpers.TerraformBinary
 }
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {

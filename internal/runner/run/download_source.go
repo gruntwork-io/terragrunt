@@ -321,9 +321,8 @@ func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*get
 		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
 
 		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &tf.RegistryGetter{
-			TofuImplementation: opts.TofuImplementation,
-		}
+		client.Getters["tfr"] = tf.NewRegistryGetter(l).
+			WithTofuImplementation(opts.TofuImplementation)
 
 		return nil
 	}
@@ -381,7 +380,7 @@ func downloadSource(
 	if allowCAS && !isLocalSource {
 		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
-		c, err := cas.New(cas.Options{})
+		c, err := cas.New()
 		if err != nil {
 			l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		} else {

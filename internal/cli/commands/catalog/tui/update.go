@@ -33,10 +33,10 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 		}
 
 		switch {
-		case key.Matches(msg, m.delegateKeys.choose, m.delegateKeys.scaffold):
+		case key.Matches(msg, m.delegateKeys.Choose, m.delegateKeys.Scaffold):
 			if selectedModule, ok := m.List.SelectedItem().(*module.Module); ok {
 				switch {
-				case key.Matches(msg, m.delegateKeys.choose):
+				case key.Matches(msg, m.delegateKeys.Choose):
 					// prepare the viewport
 					var content string
 
@@ -88,8 +88,13 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					// advance state
 					m.selectedModule = selectedModule
 					m.State = PagerState
-				case key.Matches(msg, m.delegateKeys.scaffold):
+				case key.Matches(msg, m.delegateKeys.Scaffold):
+					if m.SVC == nil {
+						return m, nil
+					}
+
 					m.State = ScaffoldState
+
 					return m, scaffoldModuleCmd(m.logger, m, m.SVC, selectedModule)
 				}
 			} else {
@@ -138,7 +143,12 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 			switch currentAction {
 			case scaffoldBtn:
+				if m.SVC == nil {
+					return m, nil
+				}
+
 				m.State = ScaffoldState
+
 				return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 			case viewSourceBtn:
 				if m.selectedModule.URL() != "" {
@@ -151,7 +161,12 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
+			if m.SVC == nil {
+				return m, nil
+			}
+
 			m.State = ScaffoldState
+
 			return m, scaffoldModuleCmd(m.logger, m, m.SVC, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
@@ -177,7 +192,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		h, v := appStyle.GetFrameSize()
+		h, v := AppStyle.GetFrameSize()
 		m.List.SetSize(msg.Width-h, msg.Height-v)
 		m.width = msg.Width
 		m.height = msg.Height

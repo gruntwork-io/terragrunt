@@ -137,6 +137,12 @@ func TestPartialEval(t *testing.T) {
 			excludes: []string{"local.env"},
 		},
 		{
+			name:     "parentheses deferred inner",
+			hcl:      `val = (dependency.vpc.outputs.vpc_id)`,
+			evalCtx:  buildEvalCtx(),
+			contains: []string{"(dependency.vpc.outputs.vpc_id)"},
+		},
+		{
 			name:     "nil eval ctx",
 			hcl:      `val = local.env`,
 			evalCtx:  nil,

@@ -727,7 +727,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	}
 
 	registryName := "registry.opentofu.org"
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		registryName = "registry.terraform.io"
 	}
 
@@ -828,7 +828,7 @@ func TestTerragruntProviderCacheWithDependency(t *testing.T) {
 	)
 
 	registryName := "registry.opentofu.org"
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		registryName = "registry.terraform.io"
 	}
 
@@ -871,7 +871,7 @@ func TestParseTFLog(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
+		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary(t.Context())+`: TF_LOG: Go runtime version`)
 	}
 }
 
@@ -966,7 +966,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary(t.Context())) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	// Expected 2 version commands:
@@ -976,7 +976,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	expected := 2
 
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
-	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary(t.Context())+" -version")
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
@@ -993,7 +993,7 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	require.NoError(t, err)
 
 	// check that version command was invoked only once -version
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary(t.Context())) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	expected := 1

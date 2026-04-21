@@ -1446,21 +1446,19 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	return jsonBytes, nil
 }
 
-// shellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
+// shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         pctx.Writers,
-		EngineOptions:   pctx.EngineOptions,
-		WorkingDir:      pctx.WorkingDir,
-		Env:             pctx.Env,
-		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.EngineConfig,
-		Experiments:     pctx.Experiments,
-		Telemetry:       pctx.Telemetry,
-		RootWorkingDir:  pctx.RootWorkingDir,
-		Headless:        pctx.Headless,
-		ForwardTFStdout: pctx.ForwardTFStdout,
-	}
+	return shell.NewShellOptions().
+		WithWorkingDir(pctx.WorkingDir).
+		WithEnv(pctx.Env).
+		WithWriters(pctx.Writers).
+		WithTelemetry(pctx.Telemetry).
+		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
+		WithTFPath(pctx.TFPath).
+		WithRootWorkingDir(pctx.RootWorkingDir).
+		WithExperiments(pctx.Experiments).
+		WithHeadless(pctx.Headless).
+		WithForwardTFStdout(pctx.ForwardTFStdout)
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.

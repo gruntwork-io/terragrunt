@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
@@ -49,6 +50,44 @@ func TestUnitWriter_FlushCompleteLines(t *testing.T) {
 	err = writer.Flush()
 	require.NoError(t, err)
 	require.Contains(t, buf.String(), "partial")
+}
+
+func TestUnitWriter_Unwrap(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+
+	writer := runnerpool.NewUnitWriter(&buf)
+	assert.Equal(t, &buf, writer.Unwrap())
+}
+
+func TestUnitWriter_NilOutput(t *testing.T) {
+	t.Parallel()
+
+	writer := runnerpool.NewUnitWriter(nil)
+
+	n, err := writer.Write([]byte("data\n"))
+	require.NoError(t, err)
+	require.Equal(t, 5, n)
+
+	err = writer.Flush()
+	require.NoError(t, err)
+}
+
+func TestUnitWriter_NoNewline(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+
+	writer := runnerpool.NewUnitWriter(&buf)
+
+	_, err := writer.Write([]byte("no newline"))
+	require.NoError(t, err)
+	require.Empty(t, buf.String(), "partial line should not be flushed")
+
+	err = writer.Flush()
+	require.NoError(t, err)
+	require.Equal(t, "no newline", buf.String())
 }
 
 type failingWriter struct {

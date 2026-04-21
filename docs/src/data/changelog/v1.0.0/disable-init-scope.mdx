@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Handling of backend init when `disable_init=true`
+
+Fixes a bug where `disable_init = true` affected behavior beyond Terragrunt's bootstrap operations. `disable_init` now correctly limits its scope to Terragrunt bootstrap steps only.

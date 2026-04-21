@@ -27,7 +27,7 @@ The Gruntwork recommended best practice for creating reusable IaC is to create a
 To reorganize the resources that we've created so far into reusable modules, we'll create a directory called `catalog/modules` where we can store our modules for reusability. We'll create an OpenTofu module for each piece of high-level functionality that we are provisioning in our current environment (`s3`, `lambda`, `iam` and `ddb`).
 
 ```bash
-mkdir -p catalog/modules/{s3, lambda, iam, ddb}
+mkdir -p catalog/modules/{s3,lambda,iam,ddb}
 ```
 
 Now we can move over the files that were provisioning these independent resources into their own modules so we can establish APIs for them and start reusing some of this code. It's a pretty standard convention to name the core file used in a module `main.tf`. Good modules do one thing, and if you can't figure out what a module does by the name of the module, it's probably indicative that you're making an odd abstraction.

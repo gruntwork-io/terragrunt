@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -151,7 +152,7 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 // ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk
 // and performs a two-pass parse. Returns nil, nil if the file does not exist.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
-	stackDir = ResolveSymlinks(stackDir)
+	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
 
 	data, err := vfs.ReadFile(fs, stackFile)
@@ -174,7 +175,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 // absolute paths to each unit's generated directory under .terragrunt-stack/.
 // Returns nil if the file does not exist or cannot be parsed.
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
-	stackDir = ResolveSymlinks(stackDir)
+	stackDir = util.ResolvePath(stackDir)
 
 	result, err := ParseStackFileFromPath(fs, stackDir)
 	if err != nil || result == nil {
@@ -214,8 +215,6 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	if depth > maxDiscoverDepth {
 		return nil
 	}
-
-	stackSourceDir = ResolveSymlinks(stackSourceDir)
 
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)
 	if err != nil || result == nil {

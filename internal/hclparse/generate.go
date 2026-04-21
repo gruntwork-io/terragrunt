@@ -78,67 +78,6 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	return nil
 }
 
-// writeDependencyBlock writes a single dependency block with resolved config_path.
-// The config_path is converted to a path relative to targetDir. All other
-// attributes are copied from source bytes to preserve original expressions.
-func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
-	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
-	depBody := depBlock.Body()
-
-	// Convert config_path to relative from the target directory.
-	relPath, err := filepath.Rel(targetDir, dep.ConfigPath)
-	if err != nil {
-		relPath = dep.ConfigPath // fallback to absolute
-	}
-
-	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
-
-	// Copy all other attributes from source bytes (mock_outputs, etc.).
-	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
-		if attr.Name == attrConfigPath {
-			continue
-		}
-
-		exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
-	}
-
-	// Copy nested blocks within the dependency (if any).
-	for _, nested := range origBlock.Body.Blocks {
-		NewCopier().CopyBlock(depBody, nested, srcBytes)
-	}
-}
-
-// writeNonDependencyContent writes non-dependency attributes and blocks from
-// the autoinclude body. Each attribute expression is partially evaluated:
-// resolvable parts (locals, pure refs) become literals, while deferred parts
-// (dependency.*) keep their original source text. This enables mixed
-// expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
-// partially resolved.
-//
-// Non-dependency blocks are always copied verbatim from source bytes.
-func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
-	for _, attr := range SortedAttributes(body.Attributes) {
-		if evalCtx == nil {
-			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
-			outBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
-
-			continue
-		}
-
-		result := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
-		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
-	}
-
-	for _, block := range body.Blocks {
-		if block.Type == blockDependency {
-			continue
-		}
-
-		NewCopier().WithEvalCtx(evalCtx).CopyBlock(outBody, block, srcBytes)
-	}
-}
-
 // Copier copies HCL blocks from AST source to hclwrite output.
 // When an eval context is set, attributes are partially evaluated
 // (local.* resolved, dependency.* preserved). Without it, attributes
@@ -204,11 +143,6 @@ func RangeBytes(src []byte, r hcl.Range) []byte {
 	return src[start:end]
 }
 
-// quotedStringTokens creates hclwrite tokens for a quoted string literal.
-func quotedStringTokens(value string) hclwrite.Tokens {
-	return hclwrite.TokensForValue(cty.StringVal(value))
-}
-
 // RawTokens wraps raw bytes as a single hclwrite token. hclwrite.Format
 // will handle the final formatting of the output.
 func RawTokens(b []byte) hclwrite.Tokens {
@@ -240,4 +174,72 @@ func SortedAttributes(attrs hclsyntax.Attributes) []*hclsyntax.Attribute {
 	})
 
 	return sorted
+}
+
+// writeDependencyBlock writes a single dependency block with resolved config_path.
+// The config_path is converted to a path relative to targetDir. All other
+// attributes are copied from source bytes to preserve original expressions.
+func writeDependencyBlock(outBody *hclwrite.Body, dep AutoIncludeDependency, origBlock *hclsyntax.Block, srcBytes []byte, targetDir string) {
+	depBlock := outBody.AppendNewBlock(blockDependency, []string{dep.Name})
+	depBody := depBlock.Body()
+
+	// Convert config_path to relative from the target directory.
+	relPath, err := filepath.Rel(targetDir, dep.ConfigPath)
+	if err != nil {
+		relPath = dep.ConfigPath // fallback to absolute
+	}
+
+	depBody.SetAttributeRaw(attrConfigPath, quotedStringTokens(relPath))
+
+	// Copy all other attributes from source bytes (mock_outputs, etc.).
+	for _, attr := range SortedAttributes(origBlock.Body.Attributes) {
+		if attr.Name == attrConfigPath {
+			continue
+		}
+
+		exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
+		depBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
+	}
+
+	// Copy nested blocks within the dependency (if any).
+	for _, nested := range origBlock.Body.Blocks {
+		NewCopier().CopyBlock(depBody, nested, srcBytes)
+	}
+}
+
+// writeNonDependencyContent writes non-dependency attributes and blocks from
+// the autoinclude body. Each attribute expression is partially evaluated:
+// resolvable parts (locals, pure refs) become literals, while deferred parts
+// (dependency.*) keep their original source text. This enables mixed
+// expressions like "${local.env}-${dependency.vpc.outputs.vpc_id}" to be
+// partially resolved.
+//
+// Non-dependency blocks are copied through Copier:
+//   - evalCtx == nil: verbatim from source bytes
+//   - evalCtx != nil: attributes are partially evaluated
+func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, srcBytes []byte, evalCtx *hcl.EvalContext) {
+	for _, attr := range SortedAttributes(body.Attributes) {
+		if evalCtx == nil {
+			exprBytes := RangeBytes(srcBytes, attr.Expr.Range())
+			outBody.SetAttributeRaw(attr.Name, RawTokens(exprBytes))
+
+			continue
+		}
+
+		result := PartialEval(attr.Expr, &EvalArgs{SrcBytes: srcBytes, EvalCtx: evalCtx, Deferred: deferredRoots})
+		outBody.SetAttributeRaw(attr.Name, RawTokens(result))
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type == blockDependency {
+			continue
+		}
+
+		NewCopier().WithEvalCtx(evalCtx).CopyBlock(outBody, block, srcBytes)
+	}
+}
+
+// quotedStringTokens creates hclwrite tokens for a quoted string literal.
+func quotedStringTokens(value string) hclwrite.Tokens {
+	return hclwrite.TokensForValue(cty.StringVal(value))
 }

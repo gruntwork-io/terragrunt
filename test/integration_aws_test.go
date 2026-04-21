@@ -1277,7 +1277,7 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
-	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`} {
+	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`} {
 		assert.Regexp(t, logRegexp, reerr)
 	}
 }
@@ -1295,7 +1295,7 @@ func TestAwsDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+		`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -1495,7 +1495,7 @@ func TestAwsUpdatePolicy(t *testing.T) {
 func TestAwsAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
 		return
 	}
@@ -2091,7 +2091,7 @@ func TestErrorExplaining(t *testing.T) {
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("Not compatible with Terraform 1.5.x")
 		return
 	}

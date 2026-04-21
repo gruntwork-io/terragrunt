@@ -32,11 +32,10 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &ShellOptions{
-		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
-		WorkingDir: path,
-		Env:        env,
-	}
+	gitRunOpts := NewShellOptions().
+		WithWorkingDir(path).
+		WithEnv(env).
+		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
 
 	cmd, err := RunCommandWithOutput(ctx, l, gitRunOpts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -65,11 +64,10 @@ func GitRepoTags(ctx context.Context, l log.Logger, env map[string]string, worki
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	gitRunOpts := &ShellOptions{
-		Writers:    writer.Writers{Writer: &stdout, ErrWriter: &stderr},
-		WorkingDir: workingDir,
-		Env:        env,
-	}
+	gitRunOpts := NewShellOptions().
+		WithWorkingDir(workingDir).
+		WithEnv(env).
+		WithWriters(writer.Writers{Writer: &stdout, ErrWriter: &stderr})
 
 	output, err := RunCommandWithOutput(ctx, l, gitRunOpts, workingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {

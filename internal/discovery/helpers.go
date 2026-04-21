@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -277,7 +277,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 // Only called when the StackDependencies experiment is enabled.
 func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) ([]string, error) {
 	// Add dependencies declared in autoinclude files.
-	autoIncludeDeps, err := intHclparse.AutoIncludeDependencyPaths(fs, c.Path())
+	autoIncludeDeps, err := inthclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
-		unitPaths := intHclparse.UnitPathsFromStackDir(fs, depPath)
+		unitPaths := inthclparse.UnitPathsFromStackDir(fs, depPath)
 		if len(unitPaths) > 0 {
 			expanded = append(expanded, unitPaths...)
 
