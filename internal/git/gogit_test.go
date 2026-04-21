@@ -9,6 +9,7 @@ import (
 	gogit "github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestGitRunner_GoLsTreeRecursive(t *testing.T) {
 
 	ctx := t.Context()
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
@@ -51,7 +52,7 @@ func TestGitRunner_GoAdd(t *testing.T) {
 	t.Run("add single file", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -91,7 +92,7 @@ func TestGitRunner_GoAdd(t *testing.T) {
 	t.Run("add multiple files", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -138,7 +139,7 @@ func TestGitRunner_GoAdd(t *testing.T) {
 	t.Run("add without open repo fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
@@ -154,7 +155,7 @@ func TestGitRunner_GoAdd(t *testing.T) {
 	t.Run("add nonexistent file fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -186,7 +187,7 @@ func TestGitRunner_GoCommit(t *testing.T) {
 	t.Run("commit staged changes", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -237,7 +238,7 @@ func TestGitRunner_GoCommit(t *testing.T) {
 	t.Run("commit with options", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -290,7 +291,7 @@ func TestGitRunner_GoCommit(t *testing.T) {
 	t.Run("commit without open repo fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
@@ -306,7 +307,7 @@ func TestGitRunner_GoCommit(t *testing.T) {
 	t.Run("commit without staged changes fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)
@@ -340,7 +341,7 @@ func TestGitRunner_GoCommit(t *testing.T) {
 	t.Run("commit without options fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		workDir := helpers.TmpDirWOSymlinks(t)

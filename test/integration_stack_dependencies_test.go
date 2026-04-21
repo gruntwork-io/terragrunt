@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -281,7 +282,7 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	err = runner.WithWorkDir(gitPath).Init(t.Context())

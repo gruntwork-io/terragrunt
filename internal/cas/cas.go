@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -97,7 +98,7 @@ func New(opts ...Option) (*CAS, error) {
 
 	c.store = NewStore(c.storePath).WithFS(c.fs)
 
-	g, err := git.NewGitRunner()
+	g, err := git.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		return nil, err
 	}

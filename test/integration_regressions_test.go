@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -214,7 +215,7 @@ func TestDependencyEmptyConfigPath_ReportsError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDependencyEmptyConfigPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureDependencyEmptyConfigPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)

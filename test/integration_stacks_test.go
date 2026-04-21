@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -152,7 +153,7 @@ func TestNestedStacksGenerate(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -182,7 +183,7 @@ func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCoexistHclAndStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCoexistHclAndStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -208,7 +209,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -403,7 +404,7 @@ func TestStackCleanRecursively(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -717,7 +718,7 @@ func TestNestedStackOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -770,7 +771,7 @@ func TestNestedStacksApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -798,7 +799,7 @@ func TestStackValuesGeneration(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -824,7 +825,7 @@ func TestStackValuesApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -861,7 +862,7 @@ func TestStackValuesOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1166,7 +1167,7 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackAbsolutePath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1189,7 +1190,7 @@ func TestStacksGenerateIncorrectSource(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackIncorrectSource)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackIncorrectSource, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1213,7 +1214,7 @@ func TestStacksGenerateRelativePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRelativePathOutsideOfStack)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRelativePathOutsideOfStack, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1239,7 +1240,7 @@ func TestStacksGenerateNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1261,7 +1262,7 @@ func TestStacksApplyNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1283,7 +1284,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCycles)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCycles)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1363,7 +1364,7 @@ func TestStacksReadFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureReadStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1483,7 +1484,7 @@ func TestStackUnitValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnitPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationUnitPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1515,7 +1516,7 @@ func TestStackValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStackPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationStackPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1591,7 +1592,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackNestedOutputs)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1678,7 +1679,7 @@ func TestStackTerragruntDir(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackTerragruntDir)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1858,7 +1859,7 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 	liveDir := filepath.Join(rootPath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
