@@ -101,6 +101,17 @@ export default defineConfig({
             content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
           },
         },
+        {
+          tag: 'script',
+          attrs: {
+            async: true,
+            src: 'https://widget.kapa.ai/kapa-widget.bundle.js',
+            'data-website-id': '925274e5-086f-446e-9108-64761bc7c4b4',
+            'data-project-name': 'Terragrunt',
+            'data-project-color': '#7B5AFF',
+            'data-project-logo': 'https://docs.terragrunt.com/favicon.svg',
+          },
+        },
       ],
       components: {
         Header: "./src/components/Header.astro",
