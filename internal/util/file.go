@@ -522,15 +522,12 @@ func WriteFileWithSamePermissions(source string, destination string, contents io
 		return errors.New(err)
 	}
 
-	// If destination exists, remove it first to avoid permission issues
-	// This is especially important when CAS creates read-only files
-	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
-		}
+	// CAS may place read-only files at the destination, which would block a plain open.
+	if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.New(err)
 	}
 
-	file, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileInfo.Mode())
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
 	if err != nil {
 		return err
 	}

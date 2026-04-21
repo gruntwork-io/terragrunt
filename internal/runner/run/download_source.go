@@ -373,14 +373,25 @@ func downloadSource(
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
+
+	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
+		return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+			BlockType: "terraform",
+			Path:      opts.TerragruntConfigPath,
+		})
+	}
 
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
 	if allowCAS && !isLocalSource {
 		l.Debugf("CAS experiment enabled: attempting to use Content Addressable Storage for source: %s", canonicalSourceURL)
 
-		c, err := cas.New()
+		if err := cas.ValidateCASCloneDepth(opts.CASCloneDepth); err != nil {
+			return err
+		}
+
+		c, err := cas.New(cas.WithCloneDepth(opts.CASCloneDepth))
 		if err != nil {
 			l.Warnf("Failed to initialize CAS: %v. Falling back to standard getter.", err)
 		} else {
@@ -390,10 +401,13 @@ func downloadSource(
 			}
 
 			casGetter := cas.NewCASGetter(l, c, &cloneOpts)
+			casProtocol := cas.NewCASProtocolGetter(l, c)
 
-			// Use go-getter v2 Client to properly process the Request
+			// Use go-getter v2 Client to properly process the Request.
+			// CASProtocolGetter handles cas::sha1:<hash> sources (from CAS-rewritten stacks).
+			// CASGetter handles git:: and other remote sources via CAS.
 			client := getterv2.Client{
-				Getters: []getterv2.Getter{casGetter},
+				Getters: []getterv2.Getter{casProtocol, casGetter},
 			}
 
 			// Set Pwd to the working directory so go-getter v2 can resolve relative paths
@@ -457,4 +471,8 @@ type DownloadingTerraformSourceErr struct {
 
 func (err DownloadingTerraformSourceErr) Error() string {
 	return fmt.Sprintf("downloading source url %s\n%v", err.URL, err.ErrMsg)
+}
+
+func (err DownloadingTerraformSourceErr) Unwrap() error {
+	return err.ErrMsg
 }

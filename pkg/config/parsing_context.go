@@ -84,6 +84,7 @@ type ParsingContext struct {
 
 	MaxFoldersToCheck int
 	ParseDepth        int
+	CASCloneDepth     int
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -99,6 +100,7 @@ type ParsingContext struct {
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
+	NoCAS                            bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {

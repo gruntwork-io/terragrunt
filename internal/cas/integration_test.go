@@ -124,14 +124,14 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
 
-		// Verify the tree object is stored
-		store := cas.NewStore(storePath)
+		// Verify the tree object is stored in the trees namespace
+		treeStore := cas.NewStore(filepath.Join(storePath, "trees"))
 
 		require.NoError(t, err)
-		assert.False(t, store.NeedsWrite(commitHash), "Tree object should be stored")
+		assert.False(t, treeStore.NeedsWrite(commitHash), "Tree object should be stored")
 
 		// Verify we can read the tree content
-		content := cas.NewContent(store)
+		content := cas.NewContent(treeStore)
 		treeData, err := content.Read(commitHash)
 		require.NoError(t, err)
 

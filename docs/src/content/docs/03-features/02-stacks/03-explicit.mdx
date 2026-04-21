@@ -8,6 +8,8 @@ sidebar:
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
 import { Aside } from '@astrojs/starlight/components';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 For an alternate approach (that is more flexible, but not necessarily always the better solution), you can define explicit stacks using `terragrunt.stack.hcl` files. These are **blueprints** that programmatically generate units at runtime.
 
@@ -341,6 +343,139 @@ After running the stack, your directory structure will look like this:
 
 </FileTree>
 
+## CAS Integration
+
+<Before version="1.0.3">
+
+<Aside type="tip">
+Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
+</Aside>
+
+</Before>
+
+<Since version="1.0.3">
+
+<Aside type="tip">
+This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`. See the [CAS feature documentation](/features/caching/cas) for more details.
+</Aside>
+
+When authoring stacks in a catalog, you can use the `update_source_with_cas` attribute on nested blocks to replace remote Git URLs with relative paths.
+
+Without CAS, catalog authors need to plumb remote Git URLs through `values` expressions so that generated files reference the correct remote sources:
+
+```hcl
+# stacks/service/terragrunt.stack.hcl
+unit "service" {
+  source = "git::git@github.com:acme/catalog.git//units/service?ref=${values.version}"
+  path   = "service"
+  values = {
+    version = values.version
+  }
+}
+```
+
+This is error-prone and creates unnecessary diffs when the version changes. It also requires a network fetch for every nested source during generation.
+
+With `update_source_with_cas`, you can use relative paths instead:
+
+```hcl
+# stacks/service/terragrunt.stack.hcl
+unit "service" {
+  source = "../..//units/service"
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+```
+
+The `//` separator works the same as with any Terragrunt source. The part before `//` is the base path, and the part after `//` is the subdirectory.
+
+The attribute can also be used in `terragrunt.hcl` files within the `terraform` block:
+
+```hcl
+# units/service/terragrunt.hcl
+terraform {
+  source = "../..//modules/service"
+
+  update_source_with_cas = true
+}
+```
+
+When `update_source_with_cas = true` is set:
+
+1. Terragrunt clones the catalog repository once via CAS and stores the content.
+2. It follows relative source paths within the cloned repository.
+3. At each level, it rewrites the `source` attribute to a `cas::` reference (e.g., `cas::sha1:abc123...`) that points to stored CAS content.
+4. Generated `.terragrunt-stack` files contain deterministic CAS references instead of remote URLs.
+5. Subsequent generation waves resolve `cas::` references directly from the CAS store, with no network access required.
+
+Consumers do not set `update_source_with_cas` themselves. When the `cas` experiment is enabled and the source is remote, Terragrunt uses the CAS path automatically. The attribute only has effect inside catalog files, where it flags nested `source` attributes for rewriting.
+
+Given the catalog files above, and an ordinary consumer stack like:
+
+```hcl
+# live/terragrunt.stack.hcl
+stack "service" {
+  source = "git::git@github.com:acme/catalog.git//stacks/service?ref=v1.0.0"
+
+  path = "service"
+}
+```
+
+Running `terragrunt --experiment cas stack generate` produces:
+
+<FileTree>
+
+- live/
+  - terragrunt.stack.hcl
+  - .terragrunt-stack/
+    - service/
+      - terragrunt.stack.hcl (sources rewritten to cas:: references)
+      - .terragrunt-stack/
+        - service/
+          - terragrunt.hcl (terraform source rewritten to cas:: reference)
+
+</FileTree>
+
+The generated stack file at `.terragrunt-stack/service/terragrunt.stack.hcl` contains the rewritten source:
+
+```hcl
+# .terragrunt-stack/service/terragrunt.stack.hcl
+unit "service" {
+  source = "cas::sha1:a1b2c3d4..."
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+```
+
+And the generated unit file at `.terragrunt-stack/service/.terragrunt-stack/service/terragrunt.hcl` contains:
+
+```hcl
+# .terragrunt-stack/service/.terragrunt-stack/service/terragrunt.hcl
+terraform {
+  source = "cas::sha1:e5f6a7b8...//modules/service"
+
+  update_source_with_cas = true
+}
+```
+
+The first `cas::` reference points to a synthetic tree in the CAS that contains the exact files needed for the unit. The second points to the full repository tree, with `//modules/service` telling Terragrunt which subdirectory to use as the OpenTofu/Terraform module source.
+
+<Aside type="tip">
+The `cas::` reference format includes a hash algorithm prefix (`sha1:` or `sha256:`) to support both SHA-1 and SHA-256 Git repositories.
+</Aside>
+
+Requirements:
+
+- The `cas` experiment must be enabled (`--experiment cas`).
+- The `--no-cas` flag must not be set.
+- Sources using `update_source_with_cas` must be relative paths within the same repository.
+
+</Since>
+
 ## Known Limitations of Explicit Stacks
 
 There are currently some known limitations with explicit stacks that you should be aware of as you start to adopt them.
@@ -355,7 +490,13 @@ As such, if you currently have multiple stacks that need to depend on each other
 
 Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
+<Before version="1.0.3">
 The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
+</Before>
+
+<Since version="1.0.3">
+To mitigate this, enable the [`cas` experiment](/reference/experiments/active#cas) and use `update_source_with_cas = true` in your catalog's stack and unit files. This deduplicates repository clones and resolves content from the local CAS store instead of fetching from the network on every generation. See [CAS Integration](#cas-integration) for details.
+</Since>
 
 ### Includes are not supported in `terragrunt.stack.hcl` files
 

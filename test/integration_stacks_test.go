@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -1745,12 +1746,12 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 		content, readErr := os.ReadFile(valuesPath)
 		require.NoError(t, readErr)
 
-		idx := strings.Index(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
-		if idx == -1 {
+		before, _, ok := strings.Cut(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
+		if !ok {
 			continue
 		}
 
-		expected := valuesPath[:idx]
+		expected := before
 
 		isNoLocals := strings.Contains(valuesPath, "no-locals")
 		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
@@ -2164,5 +2165,190 @@ func TestStackOutputWithExclude(t *testing.T) {
 		tfDir := filepath.Join(rootPath, ".terragrunt-stack", excluded, ".terraform")
 		assert.True(t, util.FileNotExists(tfDir),
 			"excluded unit %s should not have .terraform directory", excluded)
+	}
+}
+
+// TestCASInStacks verifies that CAS works when integrated with stacks.
+func TestCASInStacks(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	bazModule := ``
+	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`), "commit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	liveStackPath := filepath.Join(tmp, "live", "terragrunt.stack.hcl")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(liveStackPath, []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	// Generated tree lives next to the stack file: <tmp>/live/.terragrunt-stack/...
+	stackDir := filepath.Join(tmp, "live", ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	unitDir := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar")
+	assert.DirExists(t, unitDir)
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(unitDir, "terragrunt.hcl")
+
+	require.FileExists(t, stackConfig)
+	require.FileExists(t, unitConfig)
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
+	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha1:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha1:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
+}
+
+// TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
+// errors when a unit or stack block declares update_source_with_cas = true while
+// --no-cas is set. The "experiment off" branch is covered by the unit tests in
+// internal/runner/run/download_source_test.go; integration-mode here always has the
+// cas experiment enabled via TG_EXPERIMENT_MODE, so --no-cas is the only way to
+// disable CAS for this scenario.
+func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	testCases := []struct {
+		name        string
+		stackConfig string
+		wantName    string
+	}{
+		{
+			name: "unit block",
+			stackConfig: `unit "bar" {
+  source = "../units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"bar"`,
+		},
+		{
+			name: "stack block",
+			stackConfig: `stack "nested" {
+  source = "../nested"
+  path   = "nested"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"nested"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp := helpers.TmpDirWOSymlinks(t)
+			liveDir := filepath.Join(tmp, "live")
+			require.NoError(t, os.MkdirAll(liveDir, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(tc.stackConfig), 0644))
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+			)
+			require.Error(t, err)
+
+			combined := stderr + err.Error()
+			assert.Contains(t, combined, "update_source_with_cas")
+			assert.Contains(t, combined, tc.wantName)
+		})
 	}
 }
