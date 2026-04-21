@@ -230,13 +230,16 @@ func (doc *ComponentDoc) parseFrontmatter(key docDataKey) string {
 		lines := strings.SplitSeq(match[1], "\n")
 
 		for line := range lines {
-			if parts := strings.Split(line, ":"); len(parts) > 1 {
-				key := strings.ToLower(strings.TrimSpace(parts[0]))
-				val := strings.TrimSpace(parts[1])
+			rawKey, rawVal, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
 
-				if key, ok := frontmatterKeys[key]; ok {
-					doc.frontmatterCache[key] = val
-				}
+			key := strings.ToLower(strings.TrimSpace(rawKey))
+			val := strings.TrimSpace(rawVal)
+
+			if key, ok := frontmatterKeys[key]; ok {
+				doc.frontmatterCache[key] = val
 			}
 		}
 	}

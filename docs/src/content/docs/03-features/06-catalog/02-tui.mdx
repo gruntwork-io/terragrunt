@@ -68,7 +68,7 @@ The file format borrows from `.gitignore`:
 - Trailing `/` is optional and ignored.
 - The last matching rule wins.
 
-As with `.gitignore`, a pattern that excludes a directory also excludes everything beneath it. A negation rule cannot re-include a descendant of an already-excluded parent.
+Matching evaluates every path against the rule list in order, so a later `!` pattern can re-include a path that an earlier rule excluded, including a descendant of a previously matched directory.
 
 ```plaintext
 # .terragrunt-catalog-ignore
