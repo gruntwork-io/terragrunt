@@ -3,8 +3,10 @@
 package test_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -471,4 +473,188 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)
 	assert.Equal(t, expectedPath, depPaths[0])
+}
+
+// findComponent is the JSON structure returned by terragrunt find --json.
+type findComponent struct {
+	Type         string   `json:"type"`
+	Path         string   `json:"path"`
+	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+// TestStackDepsFindJSON verifies that terragrunt find --json --dag --dependencies
+// correctly shows stack dependency relationships from autoinclude.
+func TestStackDepsFindJSON(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	// Find the unit-w-inputs component and verify its dependency
+	foundInputs := false
+
+	for _, c := range components {
+		if c.Type != "unit" {
+			continue
+		}
+
+		if strings.HasSuffix(c.Path, "unit-w-inputs") {
+			foundInputs = true
+
+			require.Len(t, c.Dependencies, 1)
+			assert.Contains(t, c.Dependencies[0], "unit-w-outputs")
+		}
+
+		if strings.HasSuffix(c.Path, "unit-w-outputs") {
+			assert.Empty(t, c.Dependencies)
+		}
+	}
+
+	require.True(t, foundInputs, "unit-w-inputs should be in find output")
+}
+
+// TestStackDepsFindDAG verifies that terragrunt find --dag lists units in
+// dependency order: unit-w-outputs before unit-w-inputs.
+func TestStackDepsFindDAG(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	outputsIdx := strings.Index(stdout, "unit-w-outputs")
+	inputsIdx := strings.Index(stdout, "unit-w-inputs")
+
+	require.NotEqual(t, -1, outputsIdx, "unit-w-outputs should be in output")
+	require.NotEqual(t, -1, inputsIdx, "unit-w-inputs should be in output")
+	assert.Less(t, outputsIdx, inputsIdx, "unit-w-outputs should appear before unit-w-inputs in DAG order")
+}
+
+// TestStackDepsListLong verifies that terragrunt list --long --dependencies --dag
+// shows dependency columns with stack dependency relationships.
+func TestStackDepsListLong(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt list --long --dependencies --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Dependencies")
+
+	for _, line := range strings.Split(stdout, "\n") {
+		if !strings.Contains(line, "unit-w-inputs") {
+			continue
+		}
+
+		assert.Contains(t, line, "unit-w-outputs",
+			"unit-w-inputs row should show unit-w-outputs as dependency")
+	}
+}
+
+// TestStackDepsListTree verifies that terragrunt list --tree --dag
+// shows a tree structure reflecting dependency relationships.
+func TestStackDepsListTree(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt list --tree --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "unit-w-outputs")
+	assert.Contains(t, stdout, "unit-w-inputs")
+
+	outputsIdx := strings.Index(stdout, "unit-w-outputs")
+	inputsIdx := strings.Index(stdout, "unit-w-inputs")
+
+	assert.Less(t, outputsIdx, inputsIdx)
+}
+
+// TestStackDepsFindChain verifies find --json --dag --dependencies with a
+// 3-level dependency chain: unit_a -> unit_b -> unit_c.
+func TestStackDepsFindChain(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsChain)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsChain)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsChain, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	depsByPath := make(map[string][]string)
+
+	for _, c := range components {
+		depsByPath[c.Path] = c.Dependencies
+	}
+
+	var unitAPath, unitBPath, unitCPath string
+
+	for path := range depsByPath {
+		switch {
+		case strings.HasSuffix(path, "unit-a"):
+			unitAPath = path
+		case strings.HasSuffix(path, "unit-b"):
+			unitBPath = path
+		case strings.HasSuffix(path, "unit-c"):
+			unitCPath = path
+		}
+	}
+
+	require.NotEmpty(t, unitAPath, "unit-a should be in output")
+	require.NotEmpty(t, unitBPath, "unit-b should be in output")
+	require.NotEmpty(t, unitCPath, "unit-c should be in output")
+
+	require.Len(t, depsByPath[unitAPath], 1)
+	assert.Equal(t, unitBPath, depsByPath[unitAPath][0])
+
+	require.Len(t, depsByPath[unitBPath], 1)
+	assert.Equal(t, unitCPath, depsByPath[unitBPath][0])
+
+	assert.Empty(t, depsByPath[unitCPath])
 }
