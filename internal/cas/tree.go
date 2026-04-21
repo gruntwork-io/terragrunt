@@ -9,9 +9,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// LinkTree writes the tree to a target directory
-func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) error {
-	content := NewContent(store)
+// LinkTree writes the tree to a target directory.
+// blobStore is used to resolve blob entries, treeStore is used to resolve subtree entries.
+func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tree, targetDir string) error {
+	blobContent := NewContent(blobStore)
+	treeContent := NewContent(treeStore)
 
 	dirsToCreate := make(map[string]struct{}, len(t.Entries()))
 
@@ -55,7 +57,7 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 		}
 	}
 
-	fs := store.FS()
+	fs := blobStore.FS()
 
 	for dirPath := range dirsToCreate {
 		if err := fs.MkdirAll(dirPath, DefaultDirPerms); err != nil {
@@ -76,12 +78,12 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 		g.Go(func() error {
 			switch work.itemType {
 			case "link":
-				err := content.Link(ctx, work.entry.Hash, work.path)
+				err := blobContent.Link(ctx, work.entry.Hash, work.path)
 				if err != nil {
 					return wrapError("link_blob", work.path, err)
 				}
 			case "subtree":
-				treeData, err := content.Read(work.entry.Hash)
+				treeData, err := treeContent.Read(work.entry.Hash)
 				if err != nil {
 					return wrapError("read_tree", work.entry.Hash, err)
 				}
@@ -91,7 +93,7 @@ func LinkTree(ctx context.Context, store *Store, t *git.Tree, targetDir string) 
 					return wrapError("parse_tree", work.entry.Hash, err)
 				}
 
-				err = LinkTree(ctx, store, subTree, work.path)
+				err = LinkTree(ctx, blobStore, treeStore, subTree, work.path)
 				if err != nil {
 					return wrapError("link_subtree", work.path, err)
 				}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -115,7 +116,7 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		}, repoURL))
 
 		// Get the commit hash for HEAD
-		g, err := git.NewGitRunner()
+		g, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		results, err := g.LsRemote(ctx, repoURL, "HEAD")
@@ -123,14 +124,14 @@ func TestIntegration_TreeStorage(t *testing.T) {
 		require.NotEmpty(t, results)
 		commitHash := results[0].Hash
 
-		// Verify the tree object is stored
-		store := cas.NewStore(storePath)
+		// Verify the tree object is stored in the trees namespace
+		treeStore := cas.NewStore(filepath.Join(storePath, "trees"))
 
 		require.NoError(t, err)
-		assert.False(t, store.NeedsWrite(commitHash), "Tree object should be stored")
+		assert.False(t, treeStore.NeedsWrite(commitHash), "Tree object should be stored")
 
 		// Verify we can read the tree content
-		content := cas.NewContent(store)
+		content := cas.NewContent(treeStore)
 		treeData, err := content.Read(commitHash)
 		require.NoError(t, err)
 

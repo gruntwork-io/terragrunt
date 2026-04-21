@@ -29,6 +29,7 @@ import (
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/storage/filesystem"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -41,13 +42,15 @@ const (
 type GitRunner struct {
 	goRepo    *git.Repository
 	goStorage *filesystem.Storage
+	exec      vexec.Exec
 	GitPath   string
 	WorkDir   string
 }
 
-// NewGitRunner creates a new GitRunner instance
-func NewGitRunner() (*GitRunner, error) {
-	gitPath, err := exec.LookPath("git")
+// NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
+// used to resolve the `git` binary on PATH.
+func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
+	gitPath, err := e.LookPath("git")
 	if err != nil {
 		return nil, &WrappedError{
 			Op:      "git",
@@ -58,13 +61,14 @@ func NewGitRunner() (*GitRunner, error) {
 
 	return &GitRunner{
 		GitPath: gitPath,
+		exec:    e,
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir}
+		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec()}
 	}
 
 	newRunner := *g
@@ -241,7 +245,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	}
 
 	if depth > 0 {
-		args = append(args, "--depth", "1", "--single-branch")
+		args = append(args, "--depth", strconv.Itoa(depth), "--single-branch")
 	}
 
 	if branch != "" {
@@ -690,6 +694,29 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// ObjectFormat returns the object format (hash algorithm) used by the repository in the
+// working directory. Returns "sha1" or "sha256". Requires a working directory with a
+// git repository (bare or non-bare).
+func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
+	}
+
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-object-format")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Older Git versions don't support --show-object-format; default to sha1.
+		return "sha1", nil //nolint:nilerr
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
