@@ -65,6 +65,7 @@ type Options struct {
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
 	CASCloneDepth                int
+	NoCAS                        bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool

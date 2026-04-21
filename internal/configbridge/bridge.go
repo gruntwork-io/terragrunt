@@ -161,5 +161,6 @@ func NewRunOptions(opts *options.TerragruntOptions) *run.Options {
 		DisableBucketUpdate:          opts.DisableBucketUpdate,
 		SourceUpdate:                 opts.SourceUpdate,
 		CASCloneDepth:                opts.CASCloneDepth,
+		NoCAS:                        opts.NoCAS,
 	}
 }

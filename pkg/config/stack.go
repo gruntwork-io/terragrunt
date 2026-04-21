@@ -133,6 +133,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
 
+	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
+		return err
+	}
+
 	var casInstance *cas.CAS
 
 	if casEnabled {
@@ -171,6 +175,38 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 	if err := generateStacks(ctx, l, &genOpts, pool, stackFile.Stacks); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
+// on any unit or stack when CAS is not available. The attribute is meaningless without CAS
+// and would otherwise silently fall through to the standard getter, producing confusing
+// "source not found" failures downstream.
+func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, casEnabled bool) error {
+	if casEnabled {
+		return nil
+	}
+
+	for _, unit := range stackFile.Units {
+		if unit.UpdateSourceWithCAS != nil && *unit.UpdateSourceWithCAS {
+			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+				BlockType: "unit",
+				Name:      unit.Name,
+				Path:      stackFilePath,
+			})
+		}
+	}
+
+	for _, stack := range stackFile.Stacks {
+		if stack.UpdateSourceWithCAS != nil && *stack.UpdateSourceWithCAS {
+			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+				BlockType: "stack",
+				Name:      stack.Name,
+				Path:      stackFilePath,
+			})
+		}
 	}
 
 	return nil

@@ -373,7 +373,14 @@ func downloadSource(
 		util.RelPathForLog(opts.RootWorkingDir, canonicalSourceURL, opts.Writers.LogShowAbsPaths),
 		util.RelPathForLog(opts.RootWorkingDir, src.DownloadDir, opts.Writers.LogShowAbsPaths))
 
-	allowCAS := opts.Experiments.Evaluate(experiment.CAS)
+	allowCAS := opts.Experiments.Evaluate(experiment.CAS) && !opts.NoCAS
+
+	if cfg.Terraform.UpdateSourceWithCAS && !allowCAS {
+		return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+			BlockType: "terraform",
+			Path:      opts.TerragruntConfigPath,
+		})
+	}
 
 	isLocalSource := tf.IsLocalSource(src.CanonicalSourceURL)
 
@@ -464,4 +471,8 @@ type DownloadingTerraformSourceErr struct {
 
 func (err DownloadingTerraformSourceErr) Error() string {
 	return fmt.Sprintf("downloading source url %s\n%v", err.URL, err.ErrMsg)
+}
+
+func (err DownloadingTerraformSourceErr) Unwrap() error {
+	return err.ErrMsg
 }

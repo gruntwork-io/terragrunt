@@ -75,3 +75,30 @@ func wrapError(op, path string, err error) error {
 		Err:  err,
 	}
 }
+
+// UpdateSourceWithCASRequiresCASError is returned when a block sets
+// update_source_with_cas = true but CAS is unavailable, either because the
+// experiment is not enabled or because --no-cas is set. The relative source
+// has no meaning without CAS, so Terragrunt rejects the configuration rather
+// than silently falling through to the standard getter.
+type UpdateSourceWithCASRequiresCASError struct {
+	// BlockType is the kind of block carrying the attribute: "unit", "stack", or "terraform".
+	BlockType string
+	// Name is the block label. Empty for "terraform" blocks, which are unlabeled.
+	Name string
+	// Path is the file containing the offending block.
+	Path string
+}
+
+func (e *UpdateSourceWithCASRequiresCASError) Error() string {
+	subject := e.BlockType
+	if e.Name != "" {
+		subject = fmt.Sprintf("%s %q", e.BlockType, e.Name)
+	}
+
+	return fmt.Sprintf(
+		"%s in %s sets update_source_with_cas = true, which requires "+
+			"the 'cas' experiment to be enabled and the --no-cas flag to be unset",
+		subject, e.Path,
+	)
+}

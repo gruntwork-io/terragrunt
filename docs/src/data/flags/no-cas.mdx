@@ -8,4 +8,4 @@ env:
 
 When enabled, Terragrunt skips all CAS operations even if the `cas` experiment is active. Use this to temporarily bypass CAS without removing the experiment flag.
 
-With `--no-cas` set, `update_source_with_cas` in `terragrunt.stack.hcl` or `terragrunt.hcl` files has no effect: sources are fetched via the standard getter path.
+Generation or runs error when `update_source_with_cas = true` is set on any `unit`, `stack`, or `terraform` block reachable from the current invocation, since relative sources rewritten by CAS cannot be resolved without it.

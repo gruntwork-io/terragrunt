@@ -345,7 +345,7 @@ After running the stack, your directory structure will look like this:
 
 ## CAS Integration
 
-<Before version="1.0.2">
+<Before version="1.0.3">
 
 <Aside type="tip">
 Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
@@ -353,7 +353,7 @@ Experimental integration between CAS and Stacks is coming soon. Follow the progr
 
 </Before>
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 
 <Aside type="tip">
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`. See the [CAS feature documentation](/features/caching/cas) for more details.
@@ -490,11 +490,11 @@ As such, if you currently have multiple stacks that need to depend on each other
 
 Every generation of a stack from a `terragrunt.stack.hcl` file can potentially result in network traffic to fetch the source for the stack and filesystem traffic to copy the generated units to the `.terragrunt-stack` directory. This can result in slow stack generation if you have very deeply nested stacks.
 
-<Before version="1.0.2">
+<Before version="1.0.3">
 The planned solution for this in the future is to allow for some deduplication in stack generation, but this is not currently implemented.
 </Before>
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 To mitigate this, enable the [`cas` experiment](/reference/experiments/active#cas) and use `update_source_with_cas = true` in your catalog's stack and unit files. This deduplicates repository clones and resolves content from the local CAS store instead of fetching from the network on every generation. See [CAS Integration](#cas-integration) for details.
 </Since>
 

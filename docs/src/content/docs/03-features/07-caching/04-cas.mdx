@@ -18,7 +18,7 @@ The CAS is used to speed up catalog cloning, OpenTofu/Terraform source cloning, 
 To use the CAS, you will need to enable the [cas](/reference/experiments/active#cas) experiment.
 
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 You can disable the CAS at any time using the `--no-cas` flag, even when the experiment is enabled. This flag is available on the [`run`](/reference/cli/commands/run), [`stack generate`](/reference/cli/commands/stack/generate), and [`stack run`](/reference/cli/commands/stack/run) commands.
 </Since>
 
@@ -50,7 +50,7 @@ terraform {
 
 ### Stack Usage
 
-<Before version="1.0.2">
+<Before version="1.0.3">
 
 <Aside type="tip">
 Experimental integration between CAS and Stacks is coming soon. Follow the progress in [#5558](https://github.com/gruntwork-io/terragrunt/issues/5558).
@@ -58,7 +58,7 @@ Experimental integration between CAS and Stacks is coming soon. Follow the progr
 
 </Before>
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 
 <Aside type="tip">
 This functionality is part of the [`cas` experiment](/reference/experiments/active#cas). Enable it with `--experiment cas`.
@@ -95,7 +95,7 @@ During stack generation, Terragrunt rewrites these relative sources to `cas::` r
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
 <Aside type="caution">
-`update_source_with_cas` only takes effect when the `cas` experiment is enabled and `--no-cas` is not set. Otherwise the attribute is ignored and sources are fetched via the standard getter path.
+Setting `update_source_with_cas = true` requires that the `cas` experiment is enabled and that `--no-cas` is not set. Terragrunt errors out otherwise, since the relative source must be updated to a synthetic tree stored in the CAS.
 </Aside>
 
 </Since>
@@ -119,7 +119,7 @@ Terragrunt's CAS uses a content-addressable storage model to deduplicate reposit
 ### Content Addressing
 
 
-<Before version="1.0.2">
+<Before version="1.0.3">
 CAS uses Git's native content addressing scheme where each object is uniquely identified by its SHA1 hash. This means:
 
 - **Identical content** across different repositories shares the same hash
@@ -127,7 +127,7 @@ CAS uses Git's native content addressing scheme where each object is uniquely id
 - **Storage is partitioned** by the first two characters of the hash (e.g., `ab/abc123...`)
 </Before>
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 CAS uses Git's native content addressing scheme where each object is uniquely identified by its hash. Terragrunt detects the hash algorithm used by the repository (`sha1` or `sha256`) via `git rev-parse --show-object-format`. This means:
 
 - **Identical content** across different repositories shares the same hash
@@ -138,7 +138,7 @@ CAS uses Git's native content addressing scheme where each object is uniquely id
 
 ### Storage Structure
 
-<Before version="1.0.2">
+<Before version="1.0.3">
 The CAS store is organized in a partitioned structure to optimize file system performance:
 
 <FileTree>
@@ -158,7 +158,7 @@ The CAS store is organized in a partitioned structure to optimize file system pe
 Each content object is stored at `{hash[:2]}/{hash}`, where the first two characters create a partition directory. This prevents having thousands of files in a single directory, which can degrade file system performance.
 </Before>
 
-<Since version="1.0.2">
+<Since version="1.0.3">
 The CAS store is organized into namespaced directories:
 
 <FileTree>

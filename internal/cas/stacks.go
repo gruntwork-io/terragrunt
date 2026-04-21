@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 )
@@ -107,7 +108,7 @@ func (c *CAS) ProcessStackComponent(ctx context.Context, l log.Logger, source, k
 
 // detectRepoHashAlgorithm queries the git object format of a cloned repository.
 func detectRepoHashAlgorithm(ctx context.Context, repoDir string) (HashAlgorithm, error) {
-	g, err := git.NewGitRunner()
+	g, err := git.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		return "", fmt.Errorf("failed to create git runner: %w", err)
 	}
