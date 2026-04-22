@@ -156,7 +156,7 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 // and performs a two-pass parse. Returns nil, nil if the file does not exist.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	if fs == nil {
-		panic("hclparse: fs must not be nil")
+		panic(panicFSNil)
 	}
 
 	if stackDir == "" {
@@ -187,7 +187,7 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 // Returns nil if the file does not exist or cannot be parsed.
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 	if fs == nil {
-		panic("hclparse: fs must not be nil")
+		panic(panicFSNil)
 	}
 
 	if stackDir == "" {
@@ -228,7 +228,7 @@ const maxDiscoverDepth = 1000
 // stack's units will be generated (.terragrunt-stack/stack_path/).
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
 	if fs == nil {
-		panic("hclparse: fs must not be nil")
+		panic(panicFSNil)
 	}
 
 	if stackSourceDir == "" {

@@ -36,7 +36,7 @@ const (
 // source text for expressions via byte ranges.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if fs == nil {
-		panic("hclparse: fs must not be nil")
+		panic(panicFSNil)
 	}
 
 	if targetDir == "" {

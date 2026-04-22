@@ -28,6 +28,9 @@ const (
 	varUnit       = "unit"
 	varStack      = "stack"
 	varDependency = blockDependency
+
+	// Panic messages for required arguments at public API boundaries.
+	panicFSNil = "hclparse: fs must not be nil"
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.
@@ -62,7 +65,7 @@ type ParseResult struct {
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	if fs == nil {
-		panic("hclparse: fs must not be nil")
+		panic(panicFSNil)
 	}
 
 	if input == nil {
