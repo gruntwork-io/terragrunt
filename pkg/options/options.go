@@ -403,6 +403,15 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
 
+	if opts.FeatureFlags != nil {
+		clonedFlags := xsync.NewMapOf[string, string]()
+		opts.FeatureFlags.Range(func(key, value string) bool {
+			clonedFlags.Store(key, value)
+			return true
+		})
+		newOpts.FeatureFlags = clonedFlags
+	}
+
 	return newOpts
 }
 
