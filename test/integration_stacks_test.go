@@ -1915,6 +1915,70 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
+// TestStackGenerationWritesEachTargetOnlyOnceWithRacing asserts that every
+// .terragrunt-stack/ target directory is generated exactly once per invocation
+// under --parallelism. Regression guard for the concurrent-write race fixed in
+// the v1.0.3 stack-generate-target-race changelog entry.
+//
+// Observability note: the assertion is layered on top of the debug log emitted
+// by pkg/config/stack.go's generateComponent (the "Generating: <name> (<src>)
+// to <dest>" line). If that log is ever refactored, the require.NotEmpty guard
+// below fires with "expected per-component 'Generating:' events in stderr" —
+// not silently pass — so the coupling is explicit.
+func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
+	t.Parallel()
+
+	// 10 iterations widens the race-detector window enough to catch a
+	// regression reliably without adding noticeable CI cost (~1.2s total at
+	// --parallelism=10 on the nested fixture).
+	const iterations = 10
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	setupNestedStackFixture(t, tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+
+	// Matches the per-component generation debug line emitted by
+	// pkg/config/stack.go:generateComponent for every unit and sub-stack emitted
+	// into .terragrunt-stack/ (see the `l.Debugf("Generating: %s (%s) to %s", ...)`
+	// call). The captured group is the target directory that must be unique.
+	generateRE := regexp.MustCompile(`msg=Generating: \S+ \(\S+\) to (\S+)`)
+
+	for i := range iterations {
+		require.NoError(t, os.RemoveAll(stackDir))
+
+		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir+" --log-level=debug --parallelism=10")
+		require.NoError(t, err, "iteration %d: stack generate failed", i)
+
+		writes := make(map[string]int)
+
+		for _, line := range strings.Split(stderr, "\n") {
+			m := generateRE.FindStringSubmatch(line)
+			if len(m) == 2 {
+				writes[m[1]]++
+			}
+		}
+
+		require.NotEmpty(t, writes, "iteration %d: expected per-component 'Generating:' events in stderr", i)
+
+		duplicates := make(map[string]int)
+
+		for target, count := range writes {
+			if count > 1 {
+				duplicates[target] = count
+			}
+		}
+
+		assert.Empty(t, duplicates,
+			"iteration %d: every stack generation target must be written exactly once; "+
+				"duplicates indicate the concurrent-write race (see stack-generate-target-race changelog) has regressed. "+
+				"Duplicated targets: %v",
+			i, duplicates)
+	}
+}
+
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	t.Parallel()
 

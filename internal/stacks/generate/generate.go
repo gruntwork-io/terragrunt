@@ -63,6 +63,11 @@ func GenerateStacks(
 		return nil
 	}
 
+	// generatedFiles dedups by canonical stack-file path so the same physical
+	// file is never submitted twice across level iterations. Canonicalization
+	// happens at the discovery boundary (ListStackFiles), so every entry in
+	// this map is a cleaned absolute path and string-aliased duplicates
+	// collapse to one key.
 	generatedFiles := make(map[string]bool)
 
 	stackTrees := BuildStackTopology(l, foundFiles, opts.WorkingDir)
@@ -91,6 +96,8 @@ func GenerateStacks(
 }
 
 // generateLevel handles the concurrent generation of all stack files at a given level.
+// generatedFiles is owned by the caller and mutated here only from the main
+// goroutine before wp.Submit, so it remains race-free without synchronization.
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
@@ -302,11 +309,21 @@ func ListStackFiles(
 			continue
 		}
 
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c, opts.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	for _, c := range worktreeStacks {
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c, opts.WorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, nil
@@ -356,7 +373,12 @@ func ListStackFilesWithExcludes(
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {
 		case *component.Stack:
-			foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+			canonical, err := canonicalStackFilePath(c, opts.WorkingDir)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			foundFiles = append(foundFiles, canonical)
 		case *component.Unit:
 			if v.Excluded() {
 				excludedPaths[filepath.Clean(v.Path())] = struct{}{}
@@ -365,7 +387,12 @@ func ListStackFilesWithExcludes(
 	}
 
 	for _, c := range worktreeStacks {
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c, opts.WorkingDir)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, excludedPaths, nil
@@ -604,4 +631,17 @@ func stackTypeFilter() filter.Filters {
 	attrExpr := filter.NewTypeExpression(component.StackKind)
 
 	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
+}
+
+// canonicalStackFilePath returns the cleaned absolute path to the stack file
+// inside the given component's directory, relative to workingDir. Collapses
+// string-aliased discovery results (relative vs. absolute forms) to a single
+// key so the dedup map in GenerateStacks catches duplicates.
+func canonicalStackFilePath(c component.Component, workingDir string) (string, error) {
+	canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+	if err != nil {
+		return "", errors.Errorf("Failed to canonicalize stack file path %s: %w", c.Path(), err)
+	}
+
+	return canonical, nil
 }
