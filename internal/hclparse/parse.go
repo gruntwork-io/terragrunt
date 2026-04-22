@@ -61,6 +61,18 @@ type ParseResult struct {
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+	if fs == nil {
+		panic("hclparse: fs must not be nil")
+	}
+
+	if input == nil {
+		panic("hclparse: input must not be nil")
+	}
+
+	if input.StackDir == "" {
+		panic("hclparse: input.StackDir must not be empty")
+	}
+
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
