@@ -520,28 +520,18 @@ unit "app" {
 func TestParseStackFile_NestedStackPath(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
+	fs := vfs.NewMemMapFS()
 
-	// Create the deepest stack (level 2): contains a unit
-	deepStackDir := filepath.Join(tmpDir, "catalog", "stacks", "deep")
-	require.NoError(t, os.MkdirAll(deepStackDir, 0755))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(deepStackDir, "terragrunt.stack.hcl"),
-		[]byte(`
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/deep", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/deep/terragrunt.stack.hcl", []byte(`
 unit "db" {
   source = "../../units/db"
   path   = "db"
 }
-`),
-		0644,
-	))
+`), 0644))
 
-	// Create the middle stack (level 1): contains a nested stack
-	midStackDir := filepath.Join(tmpDir, "catalog", "stacks", "infra")
-	require.NoError(t, os.MkdirAll(midStackDir, 0755))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(midStackDir, "terragrunt.stack.hcl"),
-		[]byte(`
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/infra", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/infra/terragrunt.stack.hcl", []byte(`
 unit "vpc" {
   source = "../../units/vpc"
   path   = "vpc"
@@ -551,13 +541,11 @@ stack "deep" {
   source = "../deep"
   path   = "deep"
 }
-`),
-		0644,
-	))
+`), 0644))
 
-	// Create the parent stack that references the middle stack
-	parentStackDir := filepath.Join(tmpDir, "live")
-	require.NoError(t, os.MkdirAll(parentStackDir, 0755))
+	parentStackDir := "/project/live"
+
+	require.NoError(t, fs.MkdirAll(parentStackDir, 0755))
 
 	parentSrc := `
 stack "infra" {
@@ -577,9 +565,9 @@ unit "app" {
 }
 `
 	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
-	require.NoError(t, os.WriteFile(parentStackFile, []byte(parentSrc), 0644))
+	require.NoError(t, vfs.WriteFile(fs, parentStackFile, []byte(parentSrc), 0644))
 
-	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
 		Src:      []byte(parentSrc),
 		Filename: parentStackFile,
 		StackDir: parentStackDir,

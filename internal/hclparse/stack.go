@@ -244,6 +244,10 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	for _, s := range result.Stacks {
 		nestedGenPath := filepath.Join(childTargetDir, s.Path)
 
+		if s.NoStack != nil && *s.NoStack {
+			nestedGenPath = filepath.Join(stackGenDir, s.Path)
+		}
+
 		nestedSourceDir := s.Source
 		if !filepath.IsAbs(nestedSourceDir) {
 			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
