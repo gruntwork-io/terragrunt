@@ -606,7 +606,9 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
-	if len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
+	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
+	// default. Skip the merge in that case and let the error surface at the return below.
+	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
 		includeCount := len(pctx.TrackInclude.CurrentList)
 		includePaths := make([]string, 0, includeCount)
 
@@ -629,10 +631,12 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			errs = errs.Append(err)
 		}
 
-		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-		config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
-
-		output = config
+		// handleInclude returns nil when a Merge/DeepMerge fails; keep the pre-include output so the
+		// appended error surfaces below instead of panicking on a nil ProcessedIncludes assignment.
+		if config != nil {
+			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
+			output = config
+		}
 	}
 
 	if errs.ErrorOrNil() != nil {
