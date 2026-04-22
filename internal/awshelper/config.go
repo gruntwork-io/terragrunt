@@ -131,7 +131,7 @@ func (b *AWSConfigBuilder) Build(ctx context.Context, l log.Logger) (aws.Config,
 		return aws.Config{}, errors.Errorf("Error loading AWS config: %w", err)
 	}
 
-	if createCredentialsFromEnv(b.env) != nil {
+	if createCredentialsFromEnv(b.env) != nil && !b.iamRoleOpts.AssumeRoleWithExistingCredentials {
 		return cfg, nil
 	}
 

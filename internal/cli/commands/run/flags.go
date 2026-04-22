@@ -77,11 +77,12 @@ const (
 	ConfigFlagName = shared.ConfigFlagName
 
 	// Auth and IAM flags - use shared package constants
-	InputsDebugFlagName                   = shared.InputsDebugFlagName
-	IAMAssumeRoleFlagName                 = shared.IAMAssumeRoleFlagName
-	IAMAssumeRoleDurationFlagName         = shared.IAMAssumeRoleDurationFlagName
-	IAMAssumeRoleSessionNameFlagName      = shared.IAMAssumeRoleSessionNameFlagName
-	IAMAssumeRoleWebIdentityTokenFlagName = shared.IAMAssumeRoleWebIdentityTokenFlagName
+	InputsDebugFlagName                          = shared.InputsDebugFlagName
+	IAMAssumeRoleFlagName                        = shared.IAMAssumeRoleFlagName
+	IAMAssumeRoleDurationFlagName                = shared.IAMAssumeRoleDurationFlagName
+	IAMAssumeRoleSessionNameFlagName             = shared.IAMAssumeRoleSessionNameFlagName
+	IAMAssumeRoleWebIdentityTokenFlagName        = shared.IAMAssumeRoleWebIdentityTokenFlagName
+	IAMAssumeRoleWithExistingCredentialsFlagName = shared.IAMAssumeRoleWithExistingCredentialsFlagName
 )
 
 // NewFlags creates and returns global flags.

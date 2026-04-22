@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -482,6 +483,52 @@ func TestParseIamWebIdentity(t *testing.T) {
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.Empty(t, terragruntConfig.IamRole)
 	assert.Equal(t, token, terragruntConfig.IamWebIdentityToken)
+}
+
+func TestParseIamAssumeRoleWithExistingCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := `iam_assume_role_with_existing_credentials = true`
+
+	l := createLogger()
+
+	ctx, pctx := newTestParsingContext(t, "test-time-mock")
+
+	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, config.DefaultTerragruntConfigPath, cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.True(t, terragruntConfig.IamAssumeRoleWithExistingCredentials)
+
+	// Verify it flows through GetIAMRoleOptions
+	roleOpts := terragruntConfig.GetIAMRoleOptions()
+	assert.True(t, roleOpts.AssumeRoleWithExistingCredentials)
+}
+
+func TestIamAssumeRoleWithExistingCredentialsMerge(t *testing.T) {
+	t.Parallel()
+
+	// HCL sets the flag; CLI does not override it
+	hclOpts := iam.RoleOptions{
+		RoleARN:                           "arn:aws:iam::123456789012:role/BackendRole",
+		AssumeRoleWithExistingCredentials: true,
+	}
+	cliOpts := iam.RoleOptions{} // CLI did not set the flag
+
+	merged := iam.MergeRoleOptions(hclOpts, cliOpts)
+	assert.True(t, merged.AssumeRoleWithExistingCredentials)
+	assert.Equal(t, "arn:aws:iam::123456789012:role/BackendRole", merged.RoleARN)
+
+	// CLI sets the flag; HCL does not — CLI takes precedence
+	hclOpts2 := iam.RoleOptions{RoleARN: "arn:aws:iam::123456789012:role/BackendRole"}
+	cliOpts2 := iam.RoleOptions{AssumeRoleWithExistingCredentials: true}
+
+	merged2 := iam.MergeRoleOptions(hclOpts2, cliOpts2)
+	assert.True(t, merged2.AssumeRoleWithExistingCredentials)
 }
 
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {

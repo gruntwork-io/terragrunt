@@ -912,11 +912,6 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	pctx.DownloadDir = downloadDir
 
-	// Clear IAM if changed from original
-	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
-		pctx.IAMRoleOptions = iam.RoleOptions{}
-	}
-
 	// Validate and use TerragruntVersionConstraints.TerraformBinary for dependency
 	partialTerragruntConfig, err := PartialParseConfigFile(
 		ctx,
