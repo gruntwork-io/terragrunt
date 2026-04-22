@@ -63,7 +63,16 @@ func GenerateStacks(
 		return nil
 	}
 
+	// generatedFiles dedups by canonical stack-file path so the same physical
+	// file is never submitted twice across level iterations.
 	generatedFiles := make(map[string]bool)
+	// generatedTargets dedups by resolved .terragrunt-stack/ target directory.
+	// Two distinct stack files can legitimately (or accidentally) declare units
+	// that emit into the same on-disk target; without this guard the worker
+	// pool would run both concurrently and race on file writes inside that
+	// directory, producing the "file exists" / "no such file" / "unexpected
+	// EOF" errors reported against large nested-stack topologies in CI.
+	generatedTargets := make(map[string]bool)
 
 	stackTrees := BuildStackTopology(l, foundFiles, opts.WorkingDir)
 
@@ -78,7 +87,7 @@ func GenerateStacks(
 			break
 		}
 
-		if err := generateLevel(ctx, l, opts, level, levelNodes, generatedFiles); err != nil {
+		if err := generateLevel(ctx, l, opts, level, levelNodes, generatedFiles, generatedTargets); err != nil {
 			return err
 		}
 
@@ -91,6 +100,9 @@ func GenerateStacks(
 }
 
 // generateLevel handles the concurrent generation of all stack files at a given level.
+// Both generatedFiles (source-file dedup) and generatedTargets (target-dir dedup)
+// are owned by the caller and mutated here only from the main goroutine before
+// wp.Submit, so they remain race-free without synchronization.
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
@@ -98,6 +110,7 @@ func generateLevel(
 	level int,
 	levelNodes []*StackNode,
 	generatedFiles map[string]bool,
+	generatedTargets map[string]bool,
 ) error {
 	l.Debugf("Generating stack level %d with %d files", level, len(levelNodes))
 
@@ -116,6 +129,22 @@ func generateLevel(
 		if !util.FileExists(node.FilePath) {
 			continue
 		}
+
+		// Resolve the .terragrunt-stack/ target that this source file will
+		// write into. If another source file at this level has already claimed
+		// the same target, skip to avoid concurrent writes to the same disk
+		// path from two worker goroutines — that race is the root cause of
+		// the nondeterministic file-creation / partial-write failures reported
+		// against nested-stack generation under parallelism in CI.
+		targetDir := filepath.Clean(filepath.Join(filepath.Dir(node.FilePath), config.StackDir))
+		if generatedTargets[targetDir] {
+			l.Warnf("Stack target %s is already claimed by a prior source on this level; "+
+				"skipping duplicate generation from %s", targetDir, node.FilePath)
+
+			continue
+		}
+
+		generatedTargets[targetDir] = true
 
 		wp.Submit(func() error {
 			_, pctx := configbridge.NewParsingContext(ctx, l, opts)
@@ -302,11 +331,21 @@ func ListStackFiles(
 			continue
 		}
 
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c.Path())
+		if err != nil {
+			return nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	for _, c := range worktreeStacks {
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c.Path())
+		if err != nil {
+			return nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, nil
@@ -356,7 +395,12 @@ func ListStackFilesWithExcludes(
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {
 		case *component.Stack:
-			foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+			canonical, err := canonicalStackFilePath(c.Path())
+			if err != nil {
+				return nil, nil, err
+			}
+
+			foundFiles = append(foundFiles, canonical)
 		case *component.Unit:
 			if v.Excluded() {
 				excludedPaths[filepath.Clean(v.Path())] = struct{}{}
@@ -365,10 +409,33 @@ func ListStackFilesWithExcludes(
 	}
 
 	for _, c := range worktreeStacks {
-		foundFiles = append(foundFiles, filepath.Join(c.Path(), config.DefaultStackFile))
+		canonical, err := canonicalStackFilePath(c.Path())
+		if err != nil {
+			return nil, nil, err
+		}
+
+		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, excludedPaths, nil
+}
+
+// canonicalStackFilePath resolves a stack directory to an absolute, cleaned
+// path to the stack file inside it. This is critical for generation dedup:
+// the discovery pipeline can surface the same physical stack file under
+// multiple string encodings (different relative-path bases, unclean `..`
+// segments, or repeated discovery passes across generation levels). Without
+// canonicalization, each encoding registers as a distinct key in the
+// generatedFiles map, so two worker pool goroutines both generate into the
+// same .terragrunt-stack/ target directory concurrently and race on file
+// creates, reads, and truncates (see stack-generate-target-race changelog).
+func canonicalStackFilePath(stackDir string) (string, error) {
+	abs, err := filepath.Abs(filepath.Join(stackDir, config.DefaultStackFile))
+	if err != nil {
+		return "", errors.Errorf("canonicalize stack file path %s: %w", stackDir, err)
+	}
+
+	return filepath.Clean(abs), nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
