@@ -11,13 +11,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -61,7 +61,9 @@ type CAS struct {
 }
 
 // WithStorePath specifies a custom path for the content store.
-// If not set, defaults to $HOME/.cache/terragrunt/cas/store.
+// If not set, defaults to <user cache dir>/terragrunt/cas/store,
+// where the user cache dir honors XDG_CACHE_HOME on Linux and the
+// platform equivalents on macOS and Windows (see os.UserCacheDir).
 func WithStorePath(path string) Option {
 	return func(c *CAS) {
 		c.storePath = path
@@ -99,12 +101,12 @@ func New(opts ...Option) (*CAS, error) {
 	}
 
 	if c.storePath == "" {
-		home, err := os.UserHomeDir()
+		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
 			return nil, err
 		}
 
-		c.storePath = filepath.Join(home, ".cache", "terragrunt", "cas", "store")
+		c.storePath = filepath.Join(cacheDir, "cas", "store")
 	}
 
 	if err := c.fs.MkdirAll(c.storePath, DefaultDirPerms); err != nil {
