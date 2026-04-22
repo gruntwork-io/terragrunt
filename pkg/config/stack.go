@@ -491,10 +491,6 @@ func fetchComponentSource(
 		}
 
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
-
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
-			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
-		}
 	}
 
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
@@ -534,9 +530,20 @@ func fetchViaCAS(
 
 	defer result.Cleanup()
 
-	return util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+	// A copy failure can leave partial content in dest, so reset it before
+	// falling through to the standard getter. ProcessStackComponent writes only
+	// to its own temp dir, so failures before this point never touch dest.
+	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
-	})
+	}); copyErr != nil {
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
+		}
+
+		return copyErr
+	}
+
+	return nil
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
