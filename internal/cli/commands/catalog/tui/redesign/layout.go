@@ -100,7 +100,7 @@ func takeWidthSuffix(s string, maxW int) string {
 
 // buildMetaRow returns one lipgloss-rendered row: [type] [version] source.
 // All parts are left-aligned. innerWidth is the available width (excluding padding).
-func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors) string {
+func buildMetaRow(entry *ComponentEntry, innerWidth int, colors *catalogMetaColors) string {
 	if entry == nil {
 		return ""
 	}
@@ -115,9 +115,10 @@ func buildMetaRow(entry *ModuleEntry, innerWidth int, colors *catalogMetaColors)
 		return innerWidth - usedWidth - len(parts)*metaGap
 	}
 
-	// Type pill (skip if it won't fit).
-	if entry.ItemType != "" {
-		part := colors.typePill.Render(entry.ItemType)
+	// Type pill.
+	kindLabel := entry.Kind().String()
+	if kindLabel != "" {
+		part := colors.typePill.Render(kindLabel)
 		partW := lipgloss.Width(part)
 
 		if partW <= remaining() {

@@ -22,11 +22,11 @@ const (
 	modulePillBgS = "#4D4328"
 	modulePillFgS = "#FFE44D"
 
-	// Stack type pill (blue-tinted).
-	stackPillBg  = "#2B2F3D"
-	stackPillFg  = "#89B4FA"
-	stackPillBgS = "#3D4460"
-	stackPillFgS = "#B4DAFF"
+	// Template type pill (mauve).
+	templatePillBg  = "#2A2040"
+	templatePillFg  = "#CBA6F7"
+	templatePillBgS = "#3A2D55"
+	templatePillFgS = "#DDC4FA"
 
 	// Version pill (neutral).
 	versionBg  = "#313244"
@@ -120,7 +120,7 @@ func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value
 
 // Render prints an item with title, description, and metadata row.
 func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:gocritic // value receiver required by list.ItemDelegate interface
-	entry, isEntry := item.(*ModuleEntry)
+	entry, isEntry := item.(*ComponentEntry)
 	if !isEntry {
 		return
 	}
@@ -148,7 +148,7 @@ func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	title, desc = styleTitleDesc(s, title, desc, selected, emptyFilter, isFiltered, matchedRunes)
 
 	metaInnerWidth := max(1, m.Width()-padL-padR)
-	colors := metaPalette(entry.ItemType, selected, emptyFilter)
+	colors := metaPalette(entry.Kind(), selected, emptyFilter)
 	metaContent := buildMetaRow(entry, metaInnerWidth, &colors)
 	metaLine := styleMetaLine(s, metaContent, selected, padL, padR)
 
@@ -222,8 +222,8 @@ func styleMetaLine(s *list.DefaultItemStyles, content string, selected bool, pad
 	return lipgloss.NewStyle().Padding(0, padR, 0, padL).Render(content)
 }
 
-// metaPalette returns pill/text styles for the metadata row based on item type and selection state.
-func metaPalette(itemType string, selected, dimmed bool) catalogMetaColors {
+// metaPalette returns pill/text styles for the metadata row based on component kind and selection state.
+func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 	if dimmed {
 		muted := lipgloss.Color(metaMuted)
 
@@ -234,13 +234,13 @@ func metaPalette(itemType string, selected, dimmed bool) catalogMetaColors {
 		}
 	}
 
-	// Pick type-pill colors based on item type (module=green, stack=blue).
+	// Pick type-pill colors based on component kind.
 	pillBg, pillFg := modulePillBg, modulePillFg
 	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
 
-	if itemType == "stack" {
-		pillBg, pillFg = stackPillBg, stackPillFg
-		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
+	if kind == ComponentKindTemplate {
+		pillBg, pillFg = templatePillBg, templatePillFg
+		pillBgSel, pillFgSel = templatePillBgS, templatePillFgS
 	}
 
 	if selected {

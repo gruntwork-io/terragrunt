@@ -2,10 +2,7 @@ package redesign_test
 
 import (
 	"bytes"
-	"context"
-	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,12 +11,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,91 +61,29 @@ func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p
 	}
 }
 
-// createMockCatalogService creates a mock catalog service with test modules for testing
-func createMockCatalogService(t *testing.T, opts *options.TerragruntOptions) catalog.CatalogService {
+// makeComponents builds a deterministic list of ComponentEntry values for
+// testing. Each entry has a distinct Dir so Title() returns the directory
+// basename and sort order is predictable.
+func makeComponents(t *testing.T) []*redesign.ComponentEntry {
 	t.Helper()
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
-		repoURL := repoOpts.CloneURL
-		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoURL, "github.com/gruntwork-io/", ""))
-
-		require.NoError(t, os.MkdirAll(dummyRepoDir, 0755), "MkdirAll %s", dummyRepoDir)
-
-		gitDir := filepath.Join(dummyRepoDir, ".git")
-		require.NoError(t, os.MkdirAll(gitDir, 0755), "MkdirAll %s", gitDir)
-		require.NoError(t, os.WriteFile(filepath.Join(gitDir, "config"), fmt.Appendf(nil, `[core]
-	repositoryformatversion = 0
-	filemode = true
-	bare = false
-	logallrefupdates = true
-[remote "origin"]
-	url = %s
-	fetch = +refs/heads/*:refs/remotes/origin/*
-[branch "main"]
-	remote = origin
-	merge = refs/heads/main
-`, repoURL), 0644), "WriteFile %s/config", gitDir)
-		require.NoError(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644), "WriteFile %s/HEAD", gitDir)
-
-		refsDir := filepath.Join(gitDir, "refs")
-		headsDir := filepath.Join(refsDir, "heads")
-		remotesDir := filepath.Join(refsDir, "remotes", "origin")
-
-		require.NoError(t, os.MkdirAll(headsDir, 0755), "MkdirAll %s", headsDir)
-		require.NoError(t, os.MkdirAll(remotesDir, 0755), "MkdirAll %s", remotesDir)
-
-		fakeCommitHash := "1234567890abcdef1234567890abcdef12345678"
-		require.NoError(t, os.WriteFile(filepath.Join(headsDir, "main"), []byte(fakeCommitHash+"\n"), 0644), "WriteFile %s/main", headsDir)
-		require.NoError(t, os.WriteFile(filepath.Join(remotesDir, "main"), []byte(fakeCommitHash+"\n"), 0644), "WriteFile %s/main", remotesDir)
-
-		switch repoURL {
-		case "github.com/gruntwork-io/test-repo-1":
-			readme1Path := filepath.Join(dummyRepoDir, "README.md")
-			require.NoError(t, os.WriteFile(readme1Path, []byte("# AWS VPC Module\nThis module creates a VPC in AWS with all the necessary components."), 0644), "WriteFile %s", readme1Path)
-
-			mainTF1 := filepath.Join(dummyRepoDir, "main.tf")
-			require.NoError(t, os.WriteFile(mainTF1, []byte("# VPC terraform configuration"), 0644), "WriteFile %s", mainTF1)
-		case "github.com/gruntwork-io/test-repo-2":
-			readme2Path := filepath.Join(dummyRepoDir, "README.md")
-			require.NoError(t, os.WriteFile(readme2Path, []byte("# AWS EKS Module\nThis module creates an EKS cluster in AWS."), 0644), "WriteFile %s", readme2Path)
-
-			mainTF2 := filepath.Join(dummyRepoDir, "main.tf")
-			require.NoError(t, os.WriteFile(mainTF2, []byte("# EKS terraform configuration"), 0644), "WriteFile %s", mainTF2)
-		default:
-			return nil, fmt.Errorf("unexpected repoURL in mock: %s", repoURL)
-		}
-
-		repoOpts.CloneURL = dummyRepoDir
-
-		return module.NewRepo(ctx, logger, repoOpts)
+	return []*redesign.ComponentEntry{
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo-1",
+			"modules/aws-vpc",
+			"# AWS VPC Module\nThis module creates a VPC in AWS.",
+		)).WithSource("github.com/gruntwork-io/test-repo-1"),
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo-2",
+			"modules/eks-cluster",
+			"# AWS EKS Module\nThis module creates an EKS cluster.",
+		)).WithSource("github.com/gruntwork-io/test-repo-2"),
 	}
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	rootFile := filepath.Join(tmpDir, "root.hcl")
-	err := os.WriteFile(rootFile, []byte(`catalog {
-	urls = [
-		"github.com/gruntwork-io/test-repo-1",
-		"github.com/gruntwork-io/test-repo-2",
-	]
-}`), 0600)
-	require.NoError(t, err)
-
-	unitDir := filepath.Join(tmpDir, "unit")
-	require.NoError(t, os.MkdirAll(unitDir, 0755), "MkdirAll %s", unitDir)
-	opts.TerragruntConfigPath = filepath.Join(unitDir, "terragrunt.hcl")
-	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
-
-	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo)
-
-	ctx := t.Context()
-	l := logger.CreateLogger()
-	err = svc.Load(ctx, l)
-	require.NoError(t, err)
-
-	return svc
 }
 
-// TestModelStreamingInsertsSorted verifies that modules sent via moduleMsg
+// TestModelStreamingInsertsSorted verifies that components sent via componentMsg
 // are inserted in alphabetical order in the list.
 func TestModelStreamingInsertsSorted(t *testing.T) {
 	t.Parallel()
@@ -162,18 +92,17 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	svc := createMockCatalogService(t, opts)
-	modules := svc.Modules()
-	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules")
+	components := makeComponents(t)
+	require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
-	// Start with the last module alphabetically
-	moduleCh := make(chan *redesign.ModuleEntry, len(modules))
-	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[len(modules)-1]), moduleCh)
+	// Start with the last component alphabetically
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[len(components)-1], componentCh)
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
-		// Send the remaining modules in reverse order
-		for i := len(modules) - 2; i >= 0; i-- {
-			p.Send(redesign.ModuleMsg(redesign.NewModuleEntry(modules[i])))
+		// Send the remaining components in reverse order
+		for i := len(components) - 2; i >= 0; i-- {
+			p.Send(redesign.ComponentMsg(components[i]))
 			time.Sleep(50 * time.Millisecond)
 		}
 
@@ -183,18 +112,100 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 	})
 
 	assert.Equal(t, redesign.ListState, finalModel.State)
-	items := finalModel.List.Items()
-	assert.Len(t, items, len(modules), "all modules should be in the list")
+	items := finalModel.List().Items()
+	assert.Len(t, items, len(components), "all components should be in the list")
 
-	// Verify sorted order (case-insensitive, matching the sort in model.go)
 	for i := 1; i < len(items); i++ {
-		prev := strings.ToLower(items[i-1].(*redesign.ModuleEntry).Title())
-		curr := strings.ToLower(items[i].(*redesign.ModuleEntry).Title())
-		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order: %q should come before %q", prev, curr)
+		prev := strings.ToLower(items[i-1].(*redesign.ComponentEntry).Title())
+		curr := strings.ToLower(items[i].(*redesign.ComponentEntry).Title())
+		assert.LessOrEqual(t, prev, curr, "components should be in alphabetical order: %q should come before %q", prev, curr)
 	}
 }
 
-// TestModelStreamingDeduplicates verifies that sending the same module
+// makeMixedComponents returns a module entry followed by a template entry
+// for tests that need both kinds.
+func makeMixedComponents(t *testing.T) []*redesign.ComponentEntry {
+	t.Helper()
+
+	return []*redesign.ComponentEntry{
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo",
+			"modules/aws-vpc",
+			"# AWS VPC",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindTemplate,
+			"github.com/gruntwork-io/test-repo",
+			"templates/service",
+			"# Service Template",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+	}
+}
+
+// TestModelTabsFilterByKind verifies that each tab shows only components
+// of its kind, while the All tab shows everything.
+func TestModelTabsFilterByKind(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Cycle: All -> Modules -> Templates -> All (and stop on Templates).
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+		time.Sleep(30 * time.Millisecond)
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "tab key should cycle to Templates")
+
+	templatesItems := finalModel.List().Items()
+	require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
+	assert.Equal(t, redesign.ComponentKindTemplate, templatesItems[0].(*redesign.ComponentEntry).Kind())
+}
+
+// TestModelTabShiftTabCycles verifies that shift+tab cycles tabs in
+// reverse order.
+func TestModelTabShiftTabCycles(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Starts on All. Shift+Tab wraps to Templates.
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "shift+tab from All should wrap to Templates")
+}
+
+// TestModelStreamingDeduplicates verifies that sending the same component
 // twice does not result in a duplicate entry in the list.
 func TestModelStreamingDeduplicates(t *testing.T) {
 	t.Parallel()
@@ -203,21 +214,19 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 	require.NoError(t, err)
 
 	l := logger.CreateLogger()
-	svc := createMockCatalogService(t, opts)
-	modules := svc.Modules()
-	require.NotEmpty(t, modules)
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
 
-	moduleCh := make(chan *redesign.ModuleEntry, len(modules))
-	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[0]), moduleCh)
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
-		// Send the same module again — should be deduplicated
-		p.Send(redesign.ModuleMsg(redesign.NewModuleEntry(modules[0])))
+		p.Send(redesign.ComponentMsg(components[0]))
 		time.Sleep(100 * time.Millisecond)
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
 
 	assert.Equal(t, redesign.ListState, finalModel.State)
-	assert.Len(t, finalModel.List.Items(), 1, "duplicate module should not appear twice")
+	assert.Len(t, finalModel.List().Items(), 1, "duplicate component should not appear twice")
 }

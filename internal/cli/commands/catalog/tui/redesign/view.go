@@ -37,13 +37,10 @@ func (m Model) View() tea.View { //nolint:gocritic
 }
 
 func (m Model) listView() string { //nolint:gocritic
-	if m.loading {
-		m.List.Title = title + " (loading...)"
-	} else {
-		m.List.Title = title
-	}
+	bar := renderTabBar(m.activeTab, m.loading)
+	active := m.lists[m.activeTab]
 
-	return m.List.View()
+	return lipgloss.JoinVertical(lipgloss.Left, bar, "", active.View())
 }
 
 func (m Model) pagerView() string { //nolint:gocritic

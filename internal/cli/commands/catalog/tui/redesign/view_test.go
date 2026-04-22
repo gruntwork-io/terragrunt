@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,7 @@ func TestWelcomeLoadingView_RendersSpinnerAndStatus(t *testing.T) {
 
 	assert.True(t, view.AltScreen, "welcome loading view should use alt screen")
 	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
-	assert.Contains(t, content, "Discovering modules from your infrastructure...", "should render default status text")
+	assert.Contains(t, content, "Discovering components from your infrastructure...", "should render default status text")
 }
 
 func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
@@ -49,16 +48,14 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, blockingLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
-	// Verify initial status
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "Discovering modules from your infrastructure...")
+	assert.Contains(t, content, "Discovering components from your infrastructure...")
 
-	// Send a status update
 	m = updateModel(m, redesign.StatusUpdateMsg("Loading terraform-aws-vpc...")).(redesign.WelcomeModel)
 
 	content = stripANSI(m.View().Content)
 	assert.Contains(t, content, "Loading terraform-aws-vpc...", "status text should update after StatusUpdateMsg")
-	assert.NotContains(t, content, "Discovering modules from your infrastructure...", "old status text should be replaced")
+	assert.NotContains(t, content, "Discovering components from your infrastructure...", "old status text should be replaced")
 }
 
 // --- Welcome No-Sources View ---
@@ -71,22 +68,21 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		return nil, nil
+	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+		return nil
 	}
 
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 	m = updateModel(m, windowSize).(redesign.WelcomeModel)
 
-	// Simulate discovery completing with no modules
-	m = updateModel(m, redesign.DiscoveryCompleteMsg{Svc: nil, Err: nil}).(redesign.WelcomeModel)
+	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: nil}).(redesign.WelcomeModel)
 
 	view := m.View()
 	content := stripANSI(view.Content)
 
 	assert.True(t, view.AltScreen, "no-sources view should use alt screen")
 	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
-	assert.Contains(t, content, "No module sources were discovered", "should explain no sources found")
+	assert.Contains(t, content, "No catalog sources were discovered", "should explain no sources found")
 	assert.Contains(t, content, "catalog {", "should show catalog block example")
 	assert.Contains(t, content, "urls =", "should show urls attribute in example")
 	assert.Contains(t, content, "terraform.source", "should mention terraform.source as alternative")
@@ -94,87 +90,107 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 	assert.Contains(t, content, "q/esc: exit", "should show quit key hint")
 }
 
-// --- Module List View ---
+// --- Component List View ---
 
-func TestModuleListView_LoadingTitle(t *testing.T) {
+func TestComponentListView_LoadingTitle(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	svc := createMockCatalogService(t, opts)
 	l := logger.CreateLogger()
-	modules := svc.Modules()
-	require.NotEmpty(t, modules)
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
 
-	moduleCh := make(chan *redesign.ModuleEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, redesign.NewModuleEntry(modules[0]), moduleCh)
+	componentCh := make(chan *redesign.ComponentEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
 
-	// Should show loading indicator
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "All (loading...)", "streaming model should show loading indicator")
+	assert.Contains(t, content, "All", "tab bar should show the All tab")
+	assert.Contains(t, content, "Modules", "tab bar should show the Modules tab")
+	assert.Contains(t, content, "Templates", "tab bar should show the Templates tab")
+	assert.Contains(t, content, "(loading...)", "streaming model should show loading indicator")
 
-	// Send discoveryComplete to clear loading state
-	updated, _ = m.Update(redesign.DiscoveryCompleteMsg{Svc: svc, Err: nil})
+	updated, _ = m.Update(redesign.DiscoveryCompleteMsg{Err: nil})
 	m = updated.(redesign.Model)
 
 	content = stripANSI(m.View().Content)
-	assert.Contains(t, content, "All", "should still have title")
+	assert.Contains(t, content, "All", "tab bar should still show the All tab")
 	assert.NotContains(t, content, "(loading...)", "loading indicator should be gone after discovery completes")
 }
 
-func TestModuleListView_MetadataRowRendered(t *testing.T) {
+func TestComponentListView_MetadataRowRendered(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	svc := createMockCatalogService(t, opts)
 	l := logger.CreateLogger()
-	modules := svc.Modules()
-	require.NotEmpty(t, modules)
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
 
-	entry := redesign.NewModuleEntry(modules[0]).
-		WithVersion("v1.10.2").
-		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+	entry := components[0].WithVersion("v1.10.2").WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
 
-	moduleCh := make(chan *redesign.ModuleEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, moduleCh)
+	componentCh := make(chan *redesign.ComponentEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
 
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "module", "metadata row should contain item type")
+	assert.Contains(t, content, "module", "metadata row should contain component kind label")
 	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
 	assert.Contains(t, content, "v1.10.2", "metadata row should contain version")
 }
 
-func TestModuleListView_NoVersionOmitsVersionPill(t *testing.T) {
+func TestComponentListView_TemplateKindRendered(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	svc := createMockCatalogService(t, opts)
 	l := logger.CreateLogger()
-	modules := svc.Modules()
-	require.NotEmpty(t, modules)
 
-	entry := redesign.NewModuleEntry(modules[0]).
-		WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+	template := redesign.NewComponentEntry(redesign.NewComponentForTest(
+		redesign.ComponentKindTemplate,
+		"github.com/gruntwork-io/templates-repo",
+		"templates/unit",
+		"# Unit Template\nA boilerplate template.",
+	)).WithSource("github.com/gruntwork-io/templates-repo")
 
-	moduleCh := make(chan *redesign.ModuleEntry, 10)
-	m := redesign.NewModelStreaming(l, opts, entry, moduleCh)
+	componentCh := make(chan *redesign.ComponentEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, template, componentCh)
 
 	updated, _ := m.Update(windowSize)
 	m = updated.(redesign.Model)
 
 	content := stripANSI(m.View().Content)
-	assert.Contains(t, content, "module", "metadata row should contain item type")
+	assert.Contains(t, content, "template", "template components should render with a 'template' kind pill")
+}
+
+func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
+
+	entry := components[0].WithSource("github.com/gruntwork-io/terragrunt-scale-catalog")
+
+	componentCh := make(chan *redesign.ComponentEntry, 10)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+
+	updated, _ := m.Update(windowSize)
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "module", "metadata row should contain component kind label")
 	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
 	assert.NotContains(t, content, "v1.10.2", "version pill should not appear when version is empty")
 }
@@ -189,38 +205,33 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		require.NoError(t, err)
 
 		l := logger.CreateLogger()
-		svc := createMockCatalogService(t, opts)
-		modules := svc.Modules()
-		require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules")
+		components := makeComponents(t)
+		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
-		streamingLoad := func(_ context.Context, status redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
+		streamingLoad := func(_ context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
 			status("Discovering catalog sources...")
 
-			for _, mod := range modules {
+			for _, c := range components {
 				time.Sleep(100 * time.Millisecond)
 
-				moduleCh <- redesign.NewModuleEntry(mod)
+				componentCh <- c
 			}
 
-			return svc, nil
+			return nil
 		}
 
 		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
 
-		// Set window size
 		m = updateModel(m, windowSize)
 
-		// Initially should be welcome model showing loading
 		_, isWelcome := m.(redesign.WelcomeModel)
 		assert.True(t, isWelcome, "should start as WelcomeModel")
 
 		content := stripANSI(m.View().Content)
 		assert.Contains(t, content, "Terragrunt Catalog", "should show title while loading")
 
-		// Execute Init() to start discovery and spinners
 		cmd := m.Init()
 
-		// Collect the first message from Init commands
 		msgCh := make(chan tea.Msg, 10)
 
 		go func() {
@@ -232,10 +243,8 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 			}
 		}()
 
-		// Advance fake time past the first module's Sleep(100ms)
 		time.Sleep(150 * time.Millisecond)
 
-		// Drain available messages and feed them to the model
 		draining := true
 		for draining {
 			select {
@@ -257,10 +266,8 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 			}
 		}
 
-		// Advance more time for remaining modules and discovery completion
 		time.Sleep(500 * time.Millisecond)
 
-		// Drain remaining messages
 		draining = true
 		for draining {
 			select {
@@ -282,20 +289,18 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 			}
 		}
 
-		// After streaming completes, should have transitioned to Model
 		listModel, isList := m.(redesign.Model)
 		if isList {
 			assert.Equal(t, redesign.ListState, listModel.State, "should be in list state")
 
-			items := listModel.List.Items()
-			assert.GreaterOrEqual(t, len(items), 1, "should have at least one module in the list")
+			items := listModel.List().Items()
+			assert.GreaterOrEqual(t, len(items), 1, "should have at least one component in the list")
 
-			// Verify alphabetical order if multiple items present
 			for i := 1; i < len(items); i++ {
-				prev := items[i-1].(*redesign.ModuleEntry).Title()
-				curr := items[i].(*redesign.ModuleEntry).Title()
+				prev := items[i-1].(*redesign.ComponentEntry).Title()
+				curr := items[i].(*redesign.ComponentEntry).Title()
 				assert.LessOrEqual(t, strings.ToLower(prev), strings.ToLower(curr),
-					"modules should be in alphabetical order: %q should come before %q", prev, curr)
+					"components should be in alphabetical order: %q should come before %q", prev, curr)
 			}
 		}
 	})
@@ -312,21 +317,19 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 
 		l := logger.CreateLogger()
 
-		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-			// Block for a long time (fake time) so we stay in loading state
+		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
 			select {
 			case <-time.After(10 * time.Second):
 			case <-ctx.Done():
 			}
 
-			return nil, nil
+			return nil
 		}
 
 		var m tea.Model = redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
 
 		m = updateModel(m, windowSize)
 
-		// Execute Init() to get the initial command batch (includes spinner.Tick)
 		cmd := m.Init()
 
 		msgCh := make(chan tea.Msg, 10)
@@ -340,10 +343,8 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 			}
 		}()
 
-		// The spinner.Dot FPS is 100ms. Advance fake time past that.
 		time.Sleep(150 * time.Millisecond)
 
-		// Drain and process messages — the spinner tick should have fired
 		draining := true
 		for draining {
 			select {
@@ -365,15 +366,12 @@ func TestWelcomeLoadingSpinner_Synctest(t *testing.T) {
 			}
 		}
 
-		// After processing a spinner tick, the view should still render
-		// the loading screen with spinner frame and status text
 		view := m.View()
 		content := stripANSI(view.Content)
 
 		assert.Contains(t, content, "Terragrunt Catalog", "should still show title")
-		assert.Contains(t, content, "Discovering modules from your infrastructure...", "should still show status")
+		assert.Contains(t, content, "Discovering components from your infrastructure...", "should still show status")
 
-		// Verify the view contains a spinner frame character (Dot spinner frames)
 		dotFrames := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 		hasSpinnerFrame := false
 
@@ -394,10 +392,10 @@ var windowSize = tea.WindowSizeMsg{Width: 120, Height: 40}
 
 // blockingLoad is a LoadFunc that blocks until the context is cancelled,
 // keeping the WelcomeModel in the loading state.
-func blockingLoad(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
+func blockingLoad(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
 	<-ctx.Done()
 
-	return nil, nil
+	return nil
 }
 
 // updateModel sends a message to a tea.Model and returns the updated model,
@@ -415,7 +413,6 @@ func stripANSI(s string) string {
 
 	for i := 0; i < len(s); i++ {
 		if s[i] == '\x1b' {
-			// Skip until we hit a letter (the terminator of the escape sequence).
 			for i < len(s) && !isLetter(s[i]) {
 				i++
 			}
