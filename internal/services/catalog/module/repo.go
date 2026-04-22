@@ -203,6 +203,19 @@ func (repo *Repo) SourceURL() string {
 	return repo.sourceURL
 }
 
+// Path returns the local filesystem path of the cloned (or local) repo. It
+// may differ from the path originally passed via RepoOpts because the
+// clone step can nest the working tree inside a repo-named subdirectory.
+func (repo *Repo) Path() string {
+	return repo.path
+}
+
+// CloneURL returns the resolved clone URL after go-getter normalization.
+// This may differ from the URL originally passed via RepoOpts.
+func (repo *Repo) CloneURL() string {
+	return repo.cloneURL
+}
+
 // ResolveLatestTag looks up the latest semver release tag from the remote.
 // The result is stored in LatestTag. If the lookup fails or the repo has no
 // semver tags, LatestTag is left empty.
