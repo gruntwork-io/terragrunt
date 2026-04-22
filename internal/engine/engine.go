@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/github"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -90,10 +90,13 @@ type engineInstance struct {
 	execOptions  *ExecutionOptions
 }
 
-// Run executes the given command with the experimental engine.
+// Run executes the given command with the experimental engine. The provided
+// vexec.Exec is used to spawn the engine plugin subprocess and must be
+// OS-backed.
 func Run(
 	ctx context.Context,
 	l log.Logger,
+	e vexec.Exec,
 	execOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
@@ -110,7 +113,7 @@ func Run(
 			return nil, errors.New(err)
 		}
 
-		terragruntEngine, client, createEngineErr := createEngine(ctx, l, execOptions)
+		terragruntEngine, client, createEngineErr := createEngine(ctx, l, e, execOptions)
 		if createEngineErr != nil {
 			return nil, errors.New(createEngineErr)
 		}
@@ -542,6 +545,7 @@ func logEngineMessage(l log.Logger, logLevel proto.LogLevel, content string) {
 func createEngine(
 	ctx context.Context,
 	l log.Logger,
+	e vexec.Exec,
 	execOptions *ExecutionOptions,
 ) (*proto.EngineClient, *plugin.Client, error) {
 	if execOptions.EngineConfig == nil {
@@ -597,23 +601,27 @@ func createEngine(
 	// We use without cancel here to ensure that the plugin isn't killed when the main context is cancelled,
 	// like it is in the RunCommandWithOutput function. This ensures that we don't cancel the shutdown
 	// when the command is cancelled.
-	cmd := exec.CommandContext(
-		context.WithoutCancel(ctx),
-		localEnginePath,
-	)
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
+	cmd := e.Command(context.WithoutCancel(ctx), localEnginePath)
+	cmd.SetEnv([]string{fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel)})
+	cmd.SetCancel(func() error {
+		sig := signal.SignalFromContext(ctx)
+		if sig == nil {
+			sig = os.Kill
 		}
 
-		if sig := signal.SignalFromContext(ctx); sig != nil {
-			return cmd.Process.Signal(sig)
+		if err := cmd.Signal(sig); err != nil && !errors.Is(err, vexec.ErrProcessNotStarted) {
+			return err
 		}
 
-		return cmd.Process.Signal(os.Kill)
+		return nil
+	})
+
+	// hashicorp/go-plugin's ClientConfig requires a concrete *exec.Cmd.
+	osCmder, ok := cmd.(vexec.OSCmder)
+	if !ok {
+		return nil, nil, errors.Errorf("engine plugin spawn: %w", vexec.ErrNotOSBacked)
 	}
-	// pass log level to engine
-	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
+
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
@@ -624,7 +632,7 @@ func createEngine(
 		Plugins: map[string]plugin.Plugin{
 			"plugin": &engine.TerragruntGRPCEngine{},
 		},
-		Cmd: cmd,
+		Cmd: osCmder.OSCmd(),
 		GRPCDialOptions: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		},
