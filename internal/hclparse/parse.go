@@ -28,9 +28,6 @@ const (
 	varUnit       = "unit"
 	varStack      = "stack"
 	varDependency = blockDependency
-
-	// Panic messages for required arguments at public API boundaries.
-	panicFSNil = "hclparse: fs must not be nil"
 )
 
 // ParseStackFileInput holds the input for ParseStackFile.
@@ -65,15 +62,15 @@ type ParseResult struct {
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	if fs == nil {
-		panic(panicFSNil)
+		panic("hclparse.ParseStackFile: fs is nil; a vfs.FS is required to read included stack files (e.g. pass vfs.NewOSFS() for disk or vfs.NewMemMapFS() for tests)")
 	}
 
 	if input == nil {
-		panic("hclparse: input must not be nil")
+		panic("hclparse.ParseStackFile: input is nil; caller must provide a *ParseStackFileInput with Src and StackDir set")
 	}
 
 	if input.StackDir == "" {
-		panic("hclparse: input.StackDir must not be empty")
+		panic("hclparse.ParseStackFile: input.StackDir is empty; StackDir is required to resolve relative include paths and compute generated unit directories")
 	}
 
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})

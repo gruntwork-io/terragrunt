@@ -2,6 +2,7 @@ package hclparse
 
 import (
 	"cmp"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -36,11 +37,11 @@ const (
 // source text for expressions via byte ranges.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if fs == nil {
-		panic(panicFSNil)
+		panic("hclparse.GenerateAutoIncludeFile: fs is nil; a vfs.FS is required to create targetDir and write the generated autoinclude file")
 	}
 
 	if targetDir == "" {
-		panic("hclparse: targetDir must not be empty")
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty; targetDir is the generated unit directory where %s will be written", AutoIncludeFile))
 	}
 
 	if resolved == nil {
