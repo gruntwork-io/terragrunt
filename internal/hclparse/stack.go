@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
 
@@ -156,11 +157,11 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 // and performs a two-pass parse. Returns nil, nil if the file does not exist.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	if fs == nil {
-		panic("hclparse.ParseStackFileFromPath: fs is nil; a vfs.FS is required to read terragrunt.stack.hcl from disk (pass vfs.NewOSFS() or vfs.NewMemMapFS())")
+		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil; a vfs.FS is required to read terragrunt.stack.hcl from disk (pass vfs.NewOSFS() or vfs.NewMemMapFS()) (stackDir=%q)", stackDir))
 	}
 
 	if stackDir == "" {
-		panic("hclparse.ParseStackFileFromPath: stackDir is empty; stackDir is required to locate terragrunt.stack.hcl and resolve include paths")
+		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: stackDir is empty (got %q); stackDir is required to locate terragrunt.stack.hcl and resolve include paths", stackDir))
 	}
 
 	stackDir = util.ResolvePath(stackDir)
@@ -187,11 +188,11 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 // Returns nil if the file does not exist or cannot be parsed.
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 	if fs == nil {
-		panic("hclparse.UnitPathsFromStackDir: fs is nil; a vfs.FS is required to read the stack file and enumerate its generated unit directories")
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil; a vfs.FS is required to read the stack file and enumerate its generated unit directories (stackDir=%q)", stackDir))
 	}
 
 	if stackDir == "" {
-		panic("hclparse.UnitPathsFromStackDir: stackDir is empty; stackDir is required to locate terragrunt.stack.hcl and compute unit paths under .terragrunt-stack/")
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: stackDir is empty (got %q); stackDir is required to locate terragrunt.stack.hcl and compute generated unit paths", stackDir))
 	}
 
 	stackDir = util.ResolvePath(stackDir)
@@ -228,15 +229,15 @@ const maxDiscoverDepth = 1000
 // stack's units will be generated (.terragrunt-stack/stack_path/).
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
 	if fs == nil {
-		panic("hclparse.DiscoverStackChildUnits: fs is nil; a vfs.FS is required to read the nested stack's terragrunt.stack.hcl")
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil; a vfs.FS is required to read the nested stack's terragrunt.stack.hcl (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
 	}
 
 	if stackSourceDir == "" {
-		panic("hclparse.DiscoverStackChildUnits: stackSourceDir is empty; this is the directory containing the nested stack's source terragrunt.stack.hcl")
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackSourceDir is empty (got %q); this is the directory containing the nested stack's source terragrunt.stack.hcl (stackGenDir=%q)", stackSourceDir, stackGenDir))
 	}
 
 	if stackGenDir == "" {
-		panic("hclparse.DiscoverStackChildUnits: stackGenDir is empty; this is the target directory where the nested stack's units will be generated (under .terragrunt-stack/)")
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (got %q); this is the target directory where the nested stack's units will be generated (stackSourceDir=%q)", stackGenDir, stackSourceDir))
 	}
 
 	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)

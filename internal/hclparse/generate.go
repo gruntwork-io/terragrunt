@@ -37,11 +37,11 @@ const (
 // source text for expressions via byte ranges.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if fs == nil {
-		panic("hclparse.GenerateAutoIncludeFile: fs is nil; a vfs.FS is required to create targetDir and write the generated autoinclude file")
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil; a vfs.FS is required to create targetDir and write the generated autoinclude file (targetDir=%q)", targetDir))
 	}
 
 	if targetDir == "" {
-		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty; targetDir is the generated unit directory where %s will be written", AutoIncludeFile))
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (got %q); targetDir is the generated unit directory where %s will be written", targetDir, AutoIncludeFile))
 	}
 
 	if resolved == nil {

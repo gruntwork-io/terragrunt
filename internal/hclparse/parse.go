@@ -4,6 +4,7 @@ package hclparse
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -62,7 +63,12 @@ type ParseResult struct {
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
 	if fs == nil {
-		panic("hclparse.ParseStackFile: fs is nil; a vfs.FS is required to read included stack files (e.g. pass vfs.NewOSFS() for disk or vfs.NewMemMapFS() for tests)")
+		filename := ""
+		if input != nil {
+			filename = input.Filename
+		}
+
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil; a vfs.FS is required to read included stack files (e.g. pass vfs.NewOSFS() for disk or vfs.NewMemMapFS() for tests) (filename=%q)", filename))
 	}
 
 	if input == nil {
@@ -70,7 +76,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	}
 
 	if input.StackDir == "" {
-		panic("hclparse.ParseStackFile: input.StackDir is empty; StackDir is required to resolve relative include paths and compute generated unit directories")
+		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (got %q); StackDir is required to resolve relative include paths and compute generated unit directories (filename=%q)", input.StackDir, input.Filename))
 	}
 
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
