@@ -34,7 +34,7 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return LinkTree(ctx, c.store, tree, targetDir)
+	return LinkTree(ctx, c.blobStore, c.treeStore, tree, targetDir)
 }
 
 // hashDirectory creates a synthetic hash and tree structure for a local directory
@@ -95,10 +95,12 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 // storeLocalContent stores all files from a local directory into the CAS
 func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeData []byte) error {
 	// First store the tree object itself
-	content := NewContent(c.store)
-	if err := content.Ensure(l, dirHash, treeData); err != nil {
+	treeContent := NewContent(c.treeStore)
+	if err := treeContent.Ensure(l, dirHash, treeData); err != nil {
 		return fmt.Errorf("failed to store tree data: %w", err)
 	}
+
+	blobContent := NewContent(c.blobStore)
 
 	// Walk the directory and store all files
 	return vfs.WalkDir(c.fs, sourceDir, func(path string, d fs.DirEntry, err error) error {
@@ -117,7 +119,7 @@ func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeDat
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
 		}
 
-		if err := content.EnsureCopy(l, fileHash, path); err != nil {
+		if err := blobContent.EnsureCopy(l, fileHash, path); err != nil {
 			return fmt.Errorf("failed to store file %s: %w", path, err)
 		}
 

@@ -1,0 +1,26 @@
+---
+version: "v1.0.3"
+category: "experiments-updated"
+---
+
+#### `cas` — Stack integration via `update_source_with_cas`
+
+The [`cas` experiment](/reference/experiments/active#cas) now integrates with stacks. Units and `terraform` blocks can set `update_source_with_cas = true` to use relative `source` paths in catalog repositories, removing the need to plumb remote Git URLs through `values` expressions.
+
+```hcl
+# stacks/my-stack/terragrunt.stack.hcl (in your catalog repository)
+
+unit "service" {
+  source = "../..//units/my-service"
+
+  update_source_with_cas = true
+
+  path = "service"
+}
+```
+
+During stack generation, Terragrunt rewrites these relative sources to `cas::` references that resolve against content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references, so regeneration does not produce spurious diffs.
+
+CAS also supports SHA-256 repositories now, detected automatically via `git rev-parse --show-object-format`. The on-disk store layout was reorganized into `blobs/` and `trees/` namespaces under `~/.cache/terragrunt/cas/store/`.
+
+To learn more, see the [CAS documentation](/features/caching/cas) and [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
