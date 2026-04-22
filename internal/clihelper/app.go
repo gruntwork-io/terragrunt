@@ -89,6 +89,10 @@ func NewApp() *App {
 	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
 	cliApp.HideHelp = true
 	cliApp.HideHelpCommand = true
+	// Suppress urfave/cli's package-global VersionFlag. Its Apply method writes
+	// to fields on the shared global, which races across concurrent App runs
+	// in the same process (see parallel *WithRacing tests).
+	cliApp.HideVersion = true
 
 	return &App{
 		App:          cliApp,
