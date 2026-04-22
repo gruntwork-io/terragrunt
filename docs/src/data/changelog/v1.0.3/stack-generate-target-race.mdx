@@ -5,8 +5,15 @@ category: "bug-fixes"
 
 #### Fixed concurrent write conflict in `terragrunt stack generate`
 
-On repositories with nested stack hierarchies, `terragrunt stack generate` could produce non-deterministic filesystem errors — for example, `file exists` or `no such file or directory` errors against files inside `.terragrunt-stack/` — when two worker goroutines emitted into the same target directory at once.
+On repositories with nested stack hierarchies, `terragrunt stack generate` could produce non-deterministic filesystem errors — for example, `file exists` or `no such file or directory` errors against files inside `.terragrunt-stack/` — when concurrent invocations emitted into the same target directory.
 
-The underlying cause was in the generation dedup map: it was keyed by the raw source stack-file path, but discovery can surface the same physical stack file under multiple string encodings across generation-level iterations (differing relative-vs-absolute forms of the same path, or repeated passes between levels). Two entries with different keys but the same on-disk target would both pass through to the worker pool and step on one another's writes.
+Two independent mechanisms caused cross-contamination:
 
-Stack-file paths are now canonicalized at the discovery boundary — each path is joined against the working directory and cleaned to an absolute form — so equivalent paths collapse to a single dedup key before the worker pool sees them. The two source entries that previously raced are now treated as one.
+1. **Intra-invocation.** The generation dedup map was keyed by the raw source stack-file path, but discovery can surface the same physical stack file under multiple string encodings across generation-level iterations (differing relative-vs-absolute forms of the same path, or repeated passes between levels). Two entries with different keys but the same on-disk target would both pass through to the worker pool and step on one another's writes.
+
+2. **Inter-invocation.** Multiple `terragrunt stack generate` processes (or multiple goroutines in a single process) running concurrently against the same working directory each wrote independently into the same shared `.terragrunt-stack/` subtree, racing on file creates and partial writes at the OS level.
+
+Two fixes address these independently:
+
+- Stack-file paths are now canonicalized at the discovery boundary — each path is joined against the working directory and cleaned to an absolute form — so equivalent paths collapse to a single dedup key before the worker pool sees them.
+- Each `terragrunt stack generate` invocation now acquires an exclusive flock on `.terragrunt-stack-generate.lock` in the working directory, serializing concurrent invocations (across processes or goroutines) that would otherwise race on filesystem writes. If another invocation already holds the lock, later invocations wait (retrying for up to five minutes) rather than fail.

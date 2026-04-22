@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -1913,6 +1915,88 @@ func TestStackGenerateWithFilter(t *testing.T) {
 
 	prodDir = filepath.Join(stackDir, "prod", ".terragrunt-stack")
 	require.DirExists(t, prodDir)
+}
+
+// TestStackGenerateConcurrentProcessesWithRacing asserts that multiple
+// concurrent OS-level `terragrunt stack generate` processes running against
+// the same working directory all complete successfully and leave the
+// .terragrunt-stack/ tree intact. Regression guard for the inter-process
+// filesystem race fixed by the stack-generate lockfile (see the v1.0.3
+// stack-generate-target-race changelog entry).
+//
+// Users running multiple `terragrunt stack generate` shell commands in
+// parallel inside the same stack (observed with the Pipelines driver)
+// previously saw non-deterministic "file exists" / "no such file" errors
+// because each process independently wrote into the same .terragrunt-stack/
+// subtree. The fix serializes invocations via a flock-based lockfile in
+// workingDir.
+//
+// The test deliberately spawns real subprocesses (not in-process goroutines)
+// so each invocation has its own urfave/cli global state — this isolates the
+// lockfile behavior from unrelated cross-goroutine state issues.
+func TestStackGenerateConcurrentProcessesWithRacing(t *testing.T) {
+	t.Parallel()
+
+	// Build the terragrunt binary into a per-test temp dir. `go test` runs
+	// with CWD set to the package directory (./test), so the module root is
+	// one level up.
+	binPath := filepath.Join(t.TempDir(), "terragrunt")
+
+	buildCmd := exec.CommandContext(t.Context(), "go", "build", "-o", binPath, ".")
+	buildCmd.Dir = ".."
+
+	buildOut, err := buildCmd.CombinedOutput()
+	require.NoError(t, err, "build terragrunt binary: %s", string(buildOut))
+
+	// A single batch of 4 concurrent subprocesses passes roughly 4 times out
+	// of 5 even on the unfixed code (the filesystem race is timing-dependent).
+	// Running 5 batches per test invocation makes the regression trigger
+	// reliably on pre-fix code and keeps CI cost bounded (~10s when the lock
+	// serializes; ~8s when it doesn't).
+	const (
+		concurrent = 4
+		iterations = 5
+	)
+
+	for iter := range iterations {
+		tmpDir := helpers.TmpDirWOSymlinks(t)
+		setupNestedStackFixture(t, tmpDir)
+
+		liveDir := filepath.Join(tmpDir, "live")
+
+		var (
+			wg   sync.WaitGroup
+			errs = make(chan error, concurrent)
+		)
+
+		wg.Add(concurrent)
+
+		for i := range concurrent {
+			go func(i int) {
+				defer wg.Done()
+
+				cmd := exec.CommandContext(t.Context(), binPath, "stack", "generate", "--working-dir", liveDir)
+
+				out, runErr := cmd.CombinedOutput()
+				if runErr != nil {
+					errs <- fmt.Errorf("iter %d invocation %d: %w\noutput:\n%s", iter, i, runErr, string(out))
+
+					return
+				}
+
+				errs <- nil
+			}(i)
+		}
+
+		wg.Wait()
+		close(errs)
+
+		for err := range errs {
+			require.NoError(t, err)
+		}
+
+		verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
+	}
 }
 
 // TestStackGenerationWritesEachTargetOnlyOnceWithRacing asserts that every
