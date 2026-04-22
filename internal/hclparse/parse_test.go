@@ -513,6 +513,90 @@ unit "app" {
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 }
 
+// TestParseStackFile_NestedStackPath verifies that stack.<name>.<nested_stack>.path
+// resolves correctly: a parent stack contains a child stack which itself contains
+// a nested stack. The reference stack.parent.child.path resolves to the nested
+// stack's generated directory.
+func TestParseStackFile_NestedStackPath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create the deepest stack (level 2): contains a unit
+	deepStackDir := filepath.Join(tmpDir, "catalog", "stacks", "deep")
+	require.NoError(t, os.MkdirAll(deepStackDir, 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(deepStackDir, "terragrunt.stack.hcl"),
+		[]byte(`
+unit "db" {
+  source = "../../units/db"
+  path   = "db"
+}
+`),
+		0644,
+	))
+
+	// Create the middle stack (level 1): contains a nested stack
+	midStackDir := filepath.Join(tmpDir, "catalog", "stacks", "infra")
+	require.NoError(t, os.MkdirAll(midStackDir, 0755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(midStackDir, "terragrunt.stack.hcl"),
+		[]byte(`
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+
+stack "deep" {
+  source = "../deep"
+  path   = "deep"
+}
+`),
+		0644,
+	))
+
+	// Create the parent stack that references the middle stack
+	parentStackDir := filepath.Join(tmpDir, "live")
+	require.NoError(t, os.MkdirAll(parentStackDir, 0755))
+
+	parentSrc := `
+stack "infra" {
+  source = "../catalog/stacks/infra"
+  path   = "infra"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "deep" {
+      config_path = stack.infra.deep.path
+    }
+  }
+}
+`
+	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
+	require.NoError(t, os.WriteFile(parentStackFile, []byte(parentSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(vfs.NewOSFS(), &hclparse.ParseStackFileInput{
+		Src:      []byte(parentSrc),
+		Filename: parentStackFile,
+		StackDir: parentStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "deep", resolved.Dependencies[0].Name)
+
+	// stack.infra.deep.path should resolve to:
+	// .terragrunt-stack/infra/.terragrunt-stack/deep
+	expectedPath := filepath.Join(parentStackDir, ".terragrunt-stack", "infra", ".terragrunt-stack", "deep")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+}
+
 func TestParseStackFile_LocalsCycle(t *testing.T) {
 	t.Parallel()
 

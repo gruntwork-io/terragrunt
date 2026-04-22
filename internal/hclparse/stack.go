@@ -97,28 +97,31 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	refMap := make(map[string]cty.Value, len(refs))
 
 	for _, ref := range refs {
-		attrs := map[string]cty.Value{
-			"path": cty.StringVal(ref.Path),
-			"name": cty.StringVal(ref.Name),
-		}
-
-		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path).
-		// Skip children whose names collide with reserved attributes.
-		for _, child := range ref.ChildRefs {
-			if child.Name == "path" || child.Name == "name" {
-				continue
-			}
-
-			attrs[child.Name] = cty.ObjectVal(map[string]cty.Value{
-				"path": cty.StringVal(child.Path),
-				"name": cty.StringVal(child.Name),
-			})
-		}
-
-		refMap[ref.Name] = cty.ObjectVal(attrs)
+		refMap[ref.Name] = buildRefAttrs(ref)
 	}
 
 	return cty.ObjectVal(refMap)
+}
+
+// buildRefAttrs builds the cty.Value for a single ComponentRef, recursively
+// expanding ChildRefs so that stack.A.B.C.path works at any nesting depth.
+// Recursion is bounded by maxDiscoverDepth in discoverStackChildUnitsWithDepth
+// which limits the depth of ChildRefs trees at construction time.
+func buildRefAttrs(ref ComponentRef) cty.Value {
+	attrs := map[string]cty.Value{
+		"path": cty.StringVal(ref.Path),
+		"name": cty.StringVal(ref.Name),
+	}
+
+	for _, child := range ref.ChildRefs {
+		if child.Name == "path" || child.Name == "name" {
+			continue
+		}
+
+		attrs[child.Name] = buildRefAttrs(child)
+	}
+
+	return cty.ObjectVal(attrs)
 }
 
 // ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
@@ -222,7 +225,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(result.Units))
+	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
 
 	for _, u := range result.Units {
 		unitPath := filepath.Join(childTargetDir, u.Path)
@@ -235,6 +238,24 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			Name: u.Name,
 			Path: unitPath,
 		})
+	}
+
+	// Also discover nested stacks so stack.<name>.<nested_stack>.path works.
+	for _, s := range result.Stacks {
+		nestedGenPath := filepath.Join(childTargetDir, s.Path)
+
+		nestedSourceDir := s.Source
+		if !filepath.IsAbs(nestedSourceDir) {
+			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+		}
+
+		ref := ComponentRef{
+			Name:      s.Name,
+			Path:      nestedGenPath,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+		}
+
+		refs = append(refs, ref)
 	}
 
 	return refs
