@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 // Sentinel errors returned by the in-memory backend for misuse of the Cmd
@@ -28,6 +29,8 @@ var (
 	// ErrStderrAlreadySet is returned from CombinedOutput when Stderr has
 	// been set via SetStderr.
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
+	// ErrProcessNotStarted is returned from Signal before Start.
+	ErrProcessNotStarted = errors.New("vexec: process not started")
 )
 
 // Exec is the process-execution interface used throughout the codebase.
@@ -61,6 +64,15 @@ type Cmd interface {
 	// finished. The in-memory backend always returns nil; callers that need
 	// exit codes should use ExitCode on the returned error instead.
 	ProcessState() *os.ProcessState
+
+	// SetCancel registers a function invoked once when the command's context
+	// is canceled, before Wait returns. Mirrors exec.Cmd.Cancel. If unset,
+	// the OS backend kills the process and the in-memory backend does nothing.
+	SetCancel(fn func() error)
+
+	// Signal sends sig to the running process, or returns ErrProcessNotStarted
+	// if Start has not been called. The in-memory backend always returns nil.
+	Signal(sig os.Signal) error
 }
 
 // ExitCoder is implemented by errors that carry a process exit code. The real
@@ -125,6 +137,16 @@ func (c *osCmd) SetStdout(w io.Writer) { c.cmd.Stdout = w }
 func (c *osCmd) SetStderr(w io.Writer) { c.cmd.Stderr = w }
 func (c *osCmd) SetEnv(env []string)   { c.cmd.Env = env }
 func (c *osCmd) SetDir(dir string)     { c.cmd.Dir = dir }
+
+func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
+
+func (c *osCmd) Signal(sig os.Signal) error {
+	if c.cmd.Process == nil {
+		return ErrProcessNotStarted
+	}
+
+	return c.cmd.Process.Signal(sig)
+}
 
 func (c *osCmd) Run() error                      { return c.cmd.Run() }
 func (c *osCmd) Start() error                    { return c.cmd.Start() }
@@ -217,18 +239,23 @@ func (e *memExec) LookPath(file string) (string, error) {
 
 // memCmd tracks a single in-memory invocation lifecycle.
 type memCmd struct {
-	ctx     context.Context
-	handler Handler
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
-	name    string
-	dir     string
-	args    []string
-	env     []string
-	result  Result
-	started bool
-	waited  bool
+	stdin      io.Reader
+	stdout     io.Writer
+	stderr     io.Writer
+	cancelErr  error
+	ctx        context.Context
+	handler    Handler
+	cancel     func() error
+	done       chan struct{}
+	name       string
+	dir        string
+	args       []string
+	env        []string
+	result     Result
+	cancelWG   sync.WaitGroup
+	cancelOnce sync.Once
+	started    bool
+	waited     bool
 }
 
 func (c *memCmd) SetStdin(r io.Reader)  { c.stdin = r }
@@ -238,6 +265,10 @@ func (c *memCmd) SetEnv(env []string)   { c.env = env }
 func (c *memCmd) SetDir(dir string)     { c.dir = dir }
 
 func (c *memCmd) ProcessState() *os.ProcessState { return nil }
+
+func (c *memCmd) SetCancel(fn func() error) { c.cancel = fn }
+
+func (c *memCmd) Signal(os.Signal) error { return nil }
 
 func (c *memCmd) Run() error {
 	if err := c.Start(); err != nil {
@@ -253,7 +284,23 @@ func (c *memCmd) Start() error {
 	}
 
 	c.started = true
+	c.done = make(chan struct{})
+
+	if c.cancel != nil {
+		c.cancelWG.Go(func() {
+			select {
+			case <-c.ctx.Done():
+				c.cancelOnce.Do(func() {
+					c.cancelErr = c.cancel()
+				})
+			case <-c.done:
+			}
+		})
+	}
+
 	c.result = c.handler(c.ctx, c.invocation())
+	close(c.done)
+	c.cancelWG.Wait()
 
 	return nil
 }
@@ -285,7 +332,7 @@ func (c *memCmd) Wait() error {
 		return &exitError{code: c.result.ExitCode}
 	}
 
-	return nil
+	return c.cancelErr
 }
 
 func (c *memCmd) Output() ([]byte, error) {
