@@ -331,18 +331,18 @@ func ListStackFiles(
 			continue
 		}
 
-		canonical, err := canonicalStackFilePath(c.Path())
+		canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
 		}
 
 		foundFiles = append(foundFiles, canonical)
 	}
 
 	for _, c := range worktreeStacks {
-		canonical, err := canonicalStackFilePath(c.Path())
+		canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
-			return nil, err
+			return nil, errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
 		}
 
 		foundFiles = append(foundFiles, canonical)
@@ -395,9 +395,9 @@ func ListStackFilesWithExcludes(
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {
 		case *component.Stack:
-			canonical, err := canonicalStackFilePath(c.Path())
+			canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
 			}
 
 			foundFiles = append(foundFiles, canonical)
@@ -409,33 +409,15 @@ func ListStackFilesWithExcludes(
 	}
 
 	for _, c := range worktreeStacks {
-		canonical, err := canonicalStackFilePath(c.Path())
+		canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
 		}
 
 		foundFiles = append(foundFiles, canonical)
 	}
 
 	return foundFiles, excludedPaths, nil
-}
-
-// canonicalStackFilePath resolves a stack directory to an absolute, cleaned
-// path to the stack file inside it. This is critical for generation dedup:
-// the discovery pipeline can surface the same physical stack file under
-// multiple string encodings (different relative-path bases, unclean `..`
-// segments, or repeated discovery passes across generation levels). Without
-// canonicalization, each encoding registers as a distinct key in the
-// generatedFiles map, so two worker pool goroutines both generate into the
-// same .terragrunt-stack/ target directory concurrently and race on file
-// creates, reads, and truncates (see stack-generate-target-race changelog).
-func canonicalStackFilePath(stackDir string) (string, error) {
-	abs, err := filepath.Abs(filepath.Join(stackDir, config.DefaultStackFile))
-	if err != nil {
-		return "", errors.Errorf("canonicalize stack file path %s: %w", stackDir, err)
-	}
-
-	return filepath.Clean(abs), nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.

@@ -1,0 +1,18 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### Fixed concurrent write race in `terragrunt stack generate` on nested-stack topologies
+
+Large nested stack trees (especially under `TG_PARALLELISM > 1` in CI runners) produced non-deterministic filesystem errors during generation, surfacing as any of:
+
+- `open .../.terragrunt-stack/<path>/terragrunt.stack.hcl: file exists`
+- `open .../.terragrunt-stack/<path>/<unit>: no such file or directory`
+- `unexpected EOF` while reading a just-generated file
+
+All three symptoms were caused by the same underlying race: the worker pool in `internal/stacks/generate` deduplicated queued work by the raw source stack-file path string, but the same physical stack file can be surfaced by discovery under multiple string encodings across generation-level iterations (different relative-path bases, unclean `..` segments, or repeated passes between levels). Two entries in the dedup map would both pass through to the worker pool and race on the shared `.terragrunt-stack/` target directory on disk — concurrent `os.MkdirAll`, `os.WriteFile`, and archive-extraction calls stepping on one another.
+
+The issue appeared exclusively under CI concurrency because the race window is narrow: fast local filesystems, lower parallelism (typical local dev runs with `--parallelism=1` or 2), and smaller topologies rarely trigger it. Production-scale nested stacks with 10-way parallelism and network-backed ephemeral disk on GitHub Actions reliably hit it.
+
+The fix canonicalizes every stack-file path returned by discovery (`filepath.Abs` + `filepath.Clean`) so string-aliased duplicates collapse to one key, and adds a second deduplication layer keyed by the resolved `.terragrunt-stack/` target directory so two distinct source files that would emit into the same target are no longer both submitted concurrently. The second source is skipped with a warning that names both paths, surfacing any genuine topology overlap in the user's stack definitions.
