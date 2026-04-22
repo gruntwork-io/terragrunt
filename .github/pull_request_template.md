@@ -11,7 +11,7 @@ Fixes #000.
 Read the [Gruntwork contribution guidelines](https://gruntwork.notion.site/Gruntwork-Coding-Methodology-02fdcd6e4b004e818553684760bf691e).
 
 - [ ] I authored this code entirely myself
-- [ ] I am submitting code based on open source software (e.g. MIT, MPL-2.0, Apache)]
+- [ ] I am submitting code based on open source software (e.g. MIT, MPL-2.0, Apache)
 - [ ] I am adding or upgrading a dependency or adapted code and confirm it has a compatible open source license
 - [ ] Update the docs.
 - [ ] Run the relevant tests successfully, including pre-commit checks.
