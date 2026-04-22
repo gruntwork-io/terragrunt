@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
+	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
@@ -101,6 +103,7 @@ const (
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
+	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
 )
 
@@ -199,6 +202,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, pctx, l, getWorkingDir),
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
+		FuncNameMarkGlobAsRead:                          wrapStringSliceToStringSliceAsFuncImpl(ctx, pctx, l, markGlobAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
@@ -1677,6 +1681,205 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 	})
 
 	return result, err
+}
+
+// markGlobAsRead expands the given glob pattern and marks each matched file as
+// read. Pattern syntax is the one implemented by github.com/gobwas/glob using
+// '/' as the path separator, so `**` matches any sequence of path segments and
+// `*` matches within a single segment. Returns the list of absolute file paths
+// that were marked.
+func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
+	attrs := map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["glob"] = args[0]
+	}
+
+	var result []string
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_mark_glob_as_read", attrs, func(childCtx context.Context) error {
+		if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			return errors.New(MarkGlobAsReadRequiresExperimentError{
+				ConfigPath: pctx.TerragruntConfigPath,
+				Pattern:    pattern,
+			})
+		}
+
+		if len(args) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)})
+		}
+
+		raw := args[0]
+
+		pattern := raw
+		if !filepath.IsAbs(pattern) {
+			pattern = filepath.Join(pctx.WorkingDir, pattern)
+		}
+
+		pattern = filepath.ToSlash(filepath.Clean(pattern))
+
+		matchers, err := compileGlobstarVariants(pattern)
+		if err != nil {
+			return errors.New(fmt.Errorf("could not compile glob %q: %w", raw, err))
+		}
+
+		root, hasMeta := splitGlobRoot(pattern)
+
+		if !hasMeta {
+			// Static path — match only if the file exists and is not a directory.
+			if info, statErr := os.Stat(root); statErr == nil && !info.IsDir() {
+				trackFileRead(pctx.FilesRead, root)
+				result = append(result, root)
+			}
+
+			return nil
+		}
+
+		walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				if d != nil && d.IsDir() {
+					return fs.SkipDir
+				}
+
+				return nil
+			}
+
+			if d.IsDir() {
+				return nil
+			}
+
+			slashPath := filepath.ToSlash(path)
+			matched := false
+
+			for _, m := range matchers {
+				if m.Match(slashPath) {
+					matched = true
+					break
+				}
+			}
+
+			if !matched {
+				return nil
+			}
+
+			trackFileRead(pctx.FilesRead, path)
+			result = append(result, path)
+
+			return nil
+		})
+		if walkErr != nil && !os.IsNotExist(walkErr) {
+			return errors.New(fmt.Errorf("could not expand glob %q: %w", raw, walkErr))
+		}
+
+		return nil
+	})
+
+	return result, err
+}
+
+// compileGlobstarVariants compiles the pattern and, for each `/**/` substring,
+// an additional variant where that `/**/` is collapsed to `/`. This reproduces
+// bash's globstar semantics (where `/**/` matches zero or more intermediate
+// directories) on top of github.com/gobwas/glob, which otherwise requires at
+// least one character between the flanking separators.
+func compileGlobstarVariants(pattern string) ([]glob.Glob, error) {
+	variants := globstarVariants(pattern)
+	matchers := make([]glob.Glob, 0, len(variants))
+
+	for _, v := range variants {
+		m, err := glob.Compile(v, '/')
+		if err != nil {
+			return nil, err
+		}
+
+		matchers = append(matchers, m)
+	}
+
+	return matchers, nil
+}
+
+// globstarVariants returns all pattern strings obtained by independently
+// choosing, for each `/**/` substring, whether to keep it or collapse it to `/`.
+// The original pattern is always included. A sentinel caps expansion at a
+// reasonable number of variants to avoid pathological inputs.
+func globstarVariants(pattern string) []string {
+	const maxGlobstars = 4
+
+	positions := make([]int, 0, maxGlobstars)
+	start := 0
+
+	for {
+		idx := strings.Index(pattern[start:], "/**/")
+		if idx < 0 {
+			break
+		}
+
+		positions = append(positions, start+idx)
+		start += idx + 1
+
+		if len(positions) >= maxGlobstars {
+			break
+		}
+	}
+
+	if len(positions) == 0 {
+		return []string{pattern}
+	}
+
+	variants := make([]string, 0, 1<<len(positions))
+
+	for mask := range 1 << len(positions) {
+		var b strings.Builder
+
+		last := 0
+		for i, pos := range positions {
+			b.WriteString(pattern[last:pos])
+
+			if mask&(1<<i) != 0 {
+				b.WriteByte('/')
+			} else {
+				b.WriteString("/**/")
+			}
+
+			last = pos + len("/**/")
+		}
+
+		b.WriteString(pattern[last:])
+		variants = append(variants, b.String())
+	}
+
+	return variants
+}
+
+// splitGlobRoot returns the longest leading directory of pattern that contains
+// no glob metacharacters, and reports whether any metacharacters were found.
+// pattern must use '/' as the separator (filepath.ToSlash has been applied).
+func splitGlobRoot(pattern string) (string, bool) {
+	metaIdx := strings.IndexAny(pattern, "*?[{")
+	if metaIdx < 0 {
+		return pattern, false
+	}
+
+	prefix := pattern[:metaIdx]
+
+	if i := strings.LastIndex(prefix, "/"); i >= 0 {
+		prefix = prefix[:i]
+	} else {
+		prefix = "."
+	}
+
+	if prefix == "" {
+		prefix = "/"
+	}
+
+	return filepath.FromSlash(prefix), true
 }
 
 // warnWhenFileNotMarkedAsRead warns when a file is not being marked as read, even though a user might expect it to be.

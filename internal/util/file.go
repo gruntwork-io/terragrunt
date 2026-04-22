@@ -18,6 +18,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
@@ -107,32 +108,46 @@ func CanonicalResolvedPath(path, basePath string) (string, error) {
 	return ResolvePath(canonical), nil
 }
 
-// Grep returns true if the given regex can be found in any of the files matched by the given glob.
-func Grep(regex *regexp.Regexp, glob string) (bool, error) {
-	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-	// So we use a third-party library.
-	matches, err := zglob.Glob(glob)
+// GrepFilesWithSuffix returns true if regex matches the contents of any file
+// under rootDir whose name ends with suffix. The walk stops as soon as a match
+// is found. A missing rootDir is not an error — the function returns false.
+func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix string) (bool, error) {
+	var found bool
+
+	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if errors.Is(walkErr, fs.ErrNotExist) {
+				return fs.SkipAll
+			}
+
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(d.Name(), suffix) {
+			return nil
+		}
+
+		contents, err := vfs.ReadFile(fsys, path)
+		if err != nil {
+			return err
+		}
+
+		if regex.Match(contents) {
+			found = true
+			return fs.SkipAll
+		}
+
+		return nil
+	})
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	for _, match := range matches {
-		if IsDir(match) {
-			continue
-		}
-
-		bytes, err := os.ReadFile(match)
-		if err != nil {
-			return false, errors.New(err)
-		}
-
-		if regex.Match(bytes) {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return found, nil
 }
 
 // FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
