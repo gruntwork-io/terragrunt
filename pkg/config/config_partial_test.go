@@ -143,6 +143,166 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// Regression test for https://github.com/gruntwork-io/terragrunt/issues/5949: various invalid
+// include / locals combinations must not panic out of PartialParseConfig.
+func TestPartialParseDoesNotPanicWithIncludeAndReadTerragruntConfigLocals(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]string{
+		"read-target-missing": `
+include "root" {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-path-empty-string": `
+include "root" {
+  path = ""
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-path-undefined-local": `
+include "root" {
+  path = local.undefined
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-points-to-missing-file": `
+include "root" {
+  path = find_in_parent_folders("does-not-exist.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-points-to-malformed-file": `
+include "root" {
+  path = find_in_parent_folders("malformed.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"multiple-includes-same-name": `
+include "root" {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+include "root" {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-parent-also-has-include": `
+include "root" {
+  path = find_in_parent_folders("nested-parent.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"bare-include-no-label": `
+include {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"include-expression-calling-missing-env": `
+include "root" {
+  path = find_in_parent_folders(get_env("TG_TEST_NONEXISTENT_ENV_VAR_FOR_5949"))
+}
+
+locals {
+  env_vars = read_terragrunt_config(find_in_parent_folders(get_env("TG_TEST_NONEXISTENT_ENV_VAR_FOR_5949")))
+}
+`,
+		"feature-default-undefined-local": `
+include "root" {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+feature "broken" {
+  default = local.never_set
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+		"feature-default-undefined-function": `
+include "root" {
+  path = find_in_parent_folders("parent.hcl")
+}
+
+feature "broken" {
+  default = not_a_real_function("x")
+}
+
+locals {
+  env_vars = read_terragrunt_config("this-file-does-not-exist.hcl")
+}
+`,
+	}
+
+	for name, childHCL := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "parent.hcl"), []byte(`
+locals {
+  shared = "value"
+}
+`), 0644))
+
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "malformed.hcl"), []byte(`
+locals {
+  broken = {{{
+`), 0644))
+
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "nested-parent.hcl"), []byte(`
+include "grandparent" {
+  path = find_in_parent_folders("parent.hcl")
+}
+`), 0644))
+
+			childDir := filepath.Join(tmpDir, "child")
+			require.NoError(t, os.MkdirAll(childDir, 0755))
+
+			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+			require.NoError(t, os.WriteFile(childPath, []byte(childHCL), 0644))
+
+			l := logger.CreateLogger()
+
+			ctx, pctx := newTestParsingContext(t, childPath)
+			pctx = pctx.WithDecodeList(config.TerragruntFlags)
+
+			require.NotPanics(t, func() {
+				_, _ = config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			})
+		})
+	}
+}
+
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
