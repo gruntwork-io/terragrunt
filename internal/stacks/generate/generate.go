@@ -3,7 +3,7 @@ package generate
 
 import (
 	"context"
-	"io/fs"
+	stderrors "errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -26,32 +25,28 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	// stackGenerateLockDir is the per-working-directory subdirectory that
-	// holds the stack-generate lockfile. Placed inside `.terragrunt-stack/`
-	// so it's already covered by user .gitignore rules and cleaned up by
-	// `terragrunt stack clean`.
-	stackGenerateLockDir = ".terragrunt-stack"
+// generateMutex serializes concurrent GenerateStacks calls within a single
+// process. The primary consumer (Gruntwork Pipelines, see
+// gruntwork-io/pipelines#566) now uses
+// `terragrunt stack generate --filters-file=...` to make a single invocation
+// handle all stacks, eliminating the cross-process race that motivated the
+// original fix. This mutex covers the remaining same-process case (tests,
+// library callers, future in-process orchestrators).
+//
+// Cross-process serialization is explicitly out of scope: callers that fork
+// multiple `terragrunt stack generate` subprocesses against the same working
+// directory must coordinate externally.
+var generateMutex sync.Mutex
 
-	// stackGenerateLockFile is the name of the flock-based lockfile inside
-	// stackGenerateLockDir while a `terragrunt stack generate` invocation
-	// is in progress. Serializes concurrent invocations against the same
-	// working directory. Per-target locking alone is insufficient because
-	// the discovery phase (ListStackFiles) walks the tree at a higher level
-	// than any per-target lock can cover, and can observe a partial tree
-	// that another process is mid-write on. Uses the same vfs.Lock primitive
-	// as the CAS content store (internal/cas/store.go).
-	stackGenerateLockFile = "generate.lock"
+// Typed sentinel errors so callers (and tests) can classify failures from
+// validateWorkingDir without substring-matching error strings.
+var (
+	// ErrWorkingDirNotFound is returned when --working-dir does not exist.
+	ErrWorkingDirNotFound = stderrors.New("working directory does not exist")
 
-	// stackGenerateLockPollInterval is how often acquireGenerateLock retries
-	// vfs.TryLock while waiting for a peer invocation to finish. Small enough
-	// that cancellation (ctx timeout / SIGINT) is observed promptly, large
-	// enough that contended waits don't waste CPU.
-	stackGenerateLockPollInterval = 100 * time.Millisecond
-
-	// stackGenerateLockDirPerm matches the permission used elsewhere for
-	// .terragrunt-stack/ subdirectories (e.g. pkg/config/stack.go:unitDirPerm).
-	stackGenerateLockDirPerm os.FileMode = 0o755
+	// ErrWorkingDirNotDirectory is returned when --working-dir exists but is
+	// a regular file or other non-directory entry.
+	ErrWorkingDirNotDirectory = stderrors.New("working directory is not a directory")
 )
 
 // StackNode represents a stack file in the file system.
@@ -82,26 +77,24 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	// Serialize concurrent invocations against the same working directory.
-	// Without this, multiple `terragrunt stack generate` processes (or
-	// goroutines in the same process) would race on .terragrunt-stack/
-	// filesystem state — both during writes (fetchComponentSource) and
-	// during discovery walks (ListStackFiles observing a peer's partial
-	// tree), producing "file exists" / "no such file" / partial reads.
-	// Canonicalization inside ListStackFiles collapses intra-process
-	// aliased paths but cannot guard against a second process writing
-	// into the same on-disk target tree — only a filesystem-level lock
-	// can. Uses the same vfs.Lock primitive as cas.Store.AcquireLock
-	// (internal/cas/store.go).
-	lockPath, unlocker, err := acquireGenerateLock(ctx, l, vfs.NewOSFS(), opts.WorkingDir)
-	if err != nil {
+	if err := validateWorkingDir(opts.WorkingDir); err != nil {
 		return err
 	}
 
+	// Serialize in-process concurrent GenerateStacks calls. See the
+	// generateMutex doc-comment for why cross-process serialization is out
+	// of scope.
+	waitStart := time.Now()
+
+	generateMutex.Lock()
+
+	l.Debugf("acquired stack-generate mutex after %s", time.Since(waitStart))
+
+	heldAt := time.Now()
+
 	defer func() {
-		if unlockErr := unlocker.Unlock(); unlockErr != nil {
-			l.Warnf("failed to release stack-generate lock %s: %v", lockPath, unlockErr)
-		}
+		generateMutex.Unlock()
+		l.Debugf("released stack-generate mutex after holding %s", time.Since(heldAt))
 	}()
 
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
@@ -125,7 +118,7 @@ func GenerateStacks(
 	//
 	// Concurrency invariant: this map is accessed ONLY from the main
 	// GenerateStacks goroutine. generateLevel and discoverAndAddNewNodes read
-	// and mutate it before dispatching / after joining the worker pool — never
+	// and mutate it before dispatching / after joining the worker pool, never
 	// from inside a pool goroutine. If a future refactor interleaves
 	// generation with discovery or moves map access onto pool goroutines, this
 	// map must be replaced with a synchronized type (sync.Map or a mutex).
@@ -708,7 +701,7 @@ func stackTypeFilter() filter.Filters {
 // inside the given component's directory, relative to workingDir. Collapses
 // string-aliased discovery results (relative vs. absolute forms of the same
 // path) to a single key so the dedup map in GenerateStacks catches
-// duplicates. Does NOT resolve symbolic links — if discovery surfaces the
+// duplicates. Does NOT resolve symbolic links: if discovery surfaces the
 // same physical file through two different symlinked paths, both forms pass
 // through. In practice discovery produces string-aliased paths (not symlink
 // aliases) in this codebase, so string cleaning is sufficient.
@@ -721,65 +714,22 @@ func canonicalStackFilePath(c component.Component, workingDir string) (string, e
 	return canonical, nil
 }
 
-// acquireGenerateLock opens and holds an exclusive lock on a lockfile inside
-// workingDir/.terragrunt-stack/ on the provided filesystem. Polls
-// vfs.TryLock at stackGenerateLockPollInterval so a cancelled context aborts
-// the wait (unlike a plain blocking flock). Returns the lock path so callers
-// can reference it in log messages. Mirrors cas.Store.AcquireLock in
-// internal/cas/store.go but adds cancellation support. When fsys is the OS
-// filesystem, flock auto-releases on process exit as a safety net.
-//
-// The fsys parameter is injected so unit tests can exercise this logic
-// against vfs.NewMemMapFS() without touching the real filesystem. Production
-// callers pass vfs.NewOSFS().
-func acquireGenerateLock(
-	ctx context.Context,
-	l log.Logger,
-	fsys vfs.FS,
-	workingDir string,
-) (string, vfs.Unlocker, error) {
-	lockDir := filepath.Join(workingDir, stackGenerateLockDir)
-	lockPath := filepath.Join(lockDir, stackGenerateLockFile)
-
-	// Validate workingDir before MkdirAll. Without this check, a typo in
-	// --working-dir would be silently created by MkdirAll (which creates
-	// all missing parents) and discovery would then report "No stack files
-	// found" as a successful no-op. We want typos to fail loudly. Routed
-	// through vfs.FS so the check benefits from the same abstraction as
-	// the lock primitive.
-	info, err := fsys.Stat(workingDir)
+// validateWorkingDir fails fast with a typed sentinel error if workingDir
+// does not exist or is not a directory, so a typo in --working-dir does not
+// silently produce a "No stack files found" no-op success downstream.
+func validateWorkingDir(workingDir string) error {
+	info, err := os.Stat(workingDir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return lockPath, nil, errors.Errorf("working directory %s does not exist", workingDir)
+		if errors.Is(err, os.ErrNotExist) {
+			return errors.Errorf("%w: %s", ErrWorkingDirNotFound, workingDir)
 		}
 
-		return lockPath, nil, errors.Errorf("stat working directory %s: %w", workingDir, err)
+		return errors.Errorf("stat working directory %s: %w", workingDir, err)
 	}
 
 	if !info.IsDir() {
-		return lockPath, nil, errors.Errorf("working directory %s is not a directory", workingDir)
+		return errors.Errorf("%w: %s", ErrWorkingDirNotDirectory, workingDir)
 	}
 
-	if err := fsys.MkdirAll(lockDir, stackGenerateLockDirPerm); err != nil {
-		return lockPath, nil, errors.Errorf("create stack-generate lock dir %s: %w", lockDir, err)
-	}
-
-	l.Debugf("acquiring stack-generate lock %s", lockPath)
-
-	for {
-		unlocker, acquired, err := vfs.TryLock(fsys, lockPath)
-		if err != nil {
-			return lockPath, nil, errors.Errorf("acquire stack-generate lock %s: %w", lockPath, err)
-		}
-
-		if acquired {
-			return lockPath, unlocker, nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return lockPath, nil, errors.Errorf("cancelled while waiting for stack-generate lock %s: %w", lockPath, ctx.Err())
-		case <-time.After(stackGenerateLockPollInterval):
-		}
-	}
+	return nil
 }

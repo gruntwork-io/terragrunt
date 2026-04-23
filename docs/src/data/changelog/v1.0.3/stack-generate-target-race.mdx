@@ -5,14 +5,6 @@ category: "bug-fixes"
 
 #### Fixed concurrent write conflict in `terragrunt stack generate`
 
-On repositories with nested stack hierarchies, concurrent `terragrunt stack generate` invocations could produce non-deterministic filesystem errors inside `.terragrunt-stack/`. Typical symptoms were `file exists`, `no such file or directory`, or `unexpected EOF` when two invocations emitted into the same target directory.
+On nested stack hierarchies, `terragrunt stack generate` could produce non-deterministic `file exists`, `no such file or directory`, or `unexpected EOF` errors under parallel use. Two bugs caused this: the dedup map treated string-aliased paths as distinct, and in-process concurrent calls raced on the shared output tree. Stack-file paths are now cleaned and absolutized at discovery, and in-process calls serialize on a mutex. As a result, `ListStackFiles` and `ListStackFilesWithExcludes` now return absolute paths.
 
-Two independent bugs caused the cross-contamination:
-
-1. **Within a single run:** the same stack file could be rediscovered under different path forms as generation progressed through nested levels, so deduplication missed it and both copies were dispatched to the worker pool — which then raced on writes to the same target.
-2. **Across runs:** two or more `terragrunt stack generate` processes (or goroutines in the same process) could write into the same `.terragrunt-stack/` tree at the same time, colliding on file creates and partial writes.
-
-Two fixes address these independently:
-
-- Within a run, stack-file paths are now cleaned and made absolute at the discovery boundary, so different path forms that point to the same file collapse to a single entry before generation. Symbolic links are not resolved. As a result, `ListStackFiles` and `ListStackFilesWithExcludes` now return absolute paths.
-- Across runs, Terragrunt now takes an exclusive lock on `.terragrunt-stack/generate.lock` inside the working directory. Concurrent runs serialize on the lock instead of racing on the shared tree, cancelling the invocation (SIGINT, pipeline timeout) aborts a wait rather than hanging, and the OS releases the lock if the holding process exits.
+**Breaking change:** `terragrunt stack generate` now fails fast when `--working-dir` does not exist or is not a directory. Create the directory before invoking the command.
