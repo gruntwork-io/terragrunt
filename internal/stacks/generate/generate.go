@@ -38,16 +38,16 @@ import (
 // directory must coordinate externally.
 var generateMutex sync.Mutex
 
-// Typed sentinel errors so callers (and tests) can classify failures from
-// validateWorkingDir without substring-matching error strings.
-var (
-	// ErrWorkingDirNotFound is returned when --working-dir does not exist.
-	ErrWorkingDirNotFound = stderrors.New("working directory does not exist")
+// ErrWorkingDirNotDirectory is returned when --working-dir exists but points
+// to a regular file or other non-directory entry. A missing directory is
+// created by ensureWorkingDir rather than surfacing an error, so only the
+// "not a directory" case needs a typed sentinel for callers/tests.
+var ErrWorkingDirNotDirectory = stderrors.New("working directory is not a directory")
 
-	// ErrWorkingDirNotDirectory is returned when --working-dir exists but is
-	// a regular file or other non-directory entry.
-	ErrWorkingDirNotDirectory = stderrors.New("working directory is not a directory")
-)
+// workingDirPerm is the permission used when ensureWorkingDir creates a
+// missing --working-dir. Matches the project convention for generated
+// directories.
+const workingDirPerm os.FileMode = 0o755
 
 // StackNode represents a stack file in the file system.
 // The parent is the node that generates the current node,
@@ -77,7 +77,7 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	if err := validateWorkingDir(opts.WorkingDir); err != nil {
+	if err := ensureWorkingDir(opts.WorkingDir); err != nil {
 		return err
 	}
 
@@ -714,14 +714,19 @@ func canonicalStackFilePath(c component.Component, workingDir string) (string, e
 	return canonical, nil
 }
 
-// validateWorkingDir fails fast with a typed sentinel error if workingDir
-// does not exist or is not a directory, so a typo in --working-dir does not
-// silently produce a "No stack files found" no-op success downstream.
-func validateWorkingDir(workingDir string) error {
+// ensureWorkingDir makes sure workingDir exists and is a directory. Missing
+// paths are created with MkdirAll (mkdir -p semantics), so fresh CI
+// environments do not need to pre-create the directory. A path that exists
+// but is a regular file is still rejected with ErrWorkingDirNotDirectory.
+func ensureWorkingDir(workingDir string) error {
 	info, err := os.Stat(workingDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return errors.Errorf("%w: %s", ErrWorkingDirNotFound, workingDir)
+			if mkErr := os.MkdirAll(workingDir, workingDirPerm); mkErr != nil {
+				return errors.Errorf("create working directory %s: %w", workingDir, mkErr)
+			}
+
+			return nil
 		}
 
 		return errors.Errorf("stat working directory %s: %w", workingDir, err)

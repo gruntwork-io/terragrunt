@@ -1,5 +1,5 @@
 // This is a white-box test file: it needs access to the unexported
-// validateWorkingDir helper and generateMutex, and to the exported sentinel
+// ensureWorkingDir helper and generateMutex, and to the exported sentinel
 // errors they return. The lock-path / vfs.FS tests from earlier revisions
 // were removed when the filesystem lock was replaced by an in-process
 // sync.Mutex (see the generateMutex doc-comment for rationale).
@@ -17,46 +17,43 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// TestValidateWorkingDirMissing asserts that a nonexistent --working-dir
-// fails with the typed ErrWorkingDirNotFound sentinel instead of being
-// silently created. Regression guard for a prior behavior where MkdirAll
-// on the lock-dir's parent would auto-create a missing working directory
-// and discovery would then report "No stack files found" as a successful
-// no-op, masking user typos.
-func TestValidateWorkingDirMissing(t *testing.T) {
+// TestEnsureWorkingDirCreatesMissing asserts that ensureWorkingDir creates
+// a missing --working-dir (mkdir -p semantics) instead of returning an
+// error. Lets fresh CI environments run `terragrunt stack generate` without
+// pre-creating the directory.
+func TestEnsureWorkingDirCreatesMissing(t *testing.T) {
 	t.Parallel()
 
-	missing := filepath.Join(t.TempDir(), "does-not-exist")
+	missing := filepath.Join(t.TempDir(), "nested", "does-not-exist")
 
-	err := validateWorkingDir(missing)
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrWorkingDirNotFound)
+	require.NoError(t, ensureWorkingDir(missing))
 
-	// And verify the missing dir was NOT created as a side effect.
-	_, statErr := os.Stat(missing)
-	require.True(t, os.IsNotExist(statErr), "working dir must not be auto-created on failure")
+	info, err := os.Stat(missing)
+	require.NoError(t, err)
+	require.True(t, info.IsDir())
 }
 
-// TestValidateWorkingDirIsFile asserts that passing a file (not a
-// directory) as working-dir is rejected with the typed sentinel
-// ErrWorkingDirNotDirectory.
-func TestValidateWorkingDirIsFile(t *testing.T) {
+// TestEnsureWorkingDirRejectsFile asserts that passing a regular file (not
+// a directory) as --working-dir is rejected with the typed sentinel
+// ErrWorkingDirNotDirectory. We create the missing case silently but a
+// misuse where workingDir names an existing file is still an error.
+func TestEnsureWorkingDirRejectsFile(t *testing.T) {
 	t.Parallel()
 
 	filePath := filepath.Join(t.TempDir(), "not-a-dir")
 	require.NoError(t, os.WriteFile(filePath, []byte("hello"), 0o600))
 
-	err := validateWorkingDir(filePath)
+	err := ensureWorkingDir(filePath)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrWorkingDirNotDirectory)
 }
 
-// TestValidateWorkingDirValid asserts that a real existing directory
-// passes validation cleanly.
-func TestValidateWorkingDirValid(t *testing.T) {
+// TestEnsureWorkingDirExisting asserts that ensureWorkingDir is a no-op on
+// a directory that already exists.
+func TestEnsureWorkingDirExisting(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, validateWorkingDir(t.TempDir()))
+	require.NoError(t, ensureWorkingDir(t.TempDir()))
 }
 
 // TestGenerateMutexSerializes asserts that the package-level generateMutex
