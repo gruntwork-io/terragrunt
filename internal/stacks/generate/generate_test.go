@@ -1,221 +1,165 @@
-// This is a white-box test file: it needs access to the unexported
-// ensureWorkingDir helper and StackGenerator, and to the exported sentinel
-// errors they return. The lock-path / vfs.FS tests from earlier revisions
-// were removed when the filesystem lock was replaced by an in-process
-// manager.
-//
-//nolint:testpackage // white-box testing of unexported helpers
-package generate
+package generate_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
-// TestEnsureWorkingDirCreatesMissing asserts that ensureWorkingDir creates
-// a missing --working-dir (mkdir -p semantics) instead of returning an
-// error. Lets fresh CI environments run `terragrunt stack generate` without
-// pre-creating the directory.
-func TestEnsureWorkingDirCreatesMissing(t *testing.T) {
+func TestStackGeneratorSerializesConcurrentSameWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	missing := filepath.Join(t.TempDir(), "nested", "does-not-exist")
-
-	require.NoError(t, ensureWorkingDir(missing))
-
-	info, err := os.Stat(missing)
-	require.NoError(t, err)
-	require.True(t, info.IsDir())
-
-	// workingDirPerm is 0o755: assert the owner bits so an accidental
-	// tightening to 0o700 (or widening) is caught here. umask may clip
-	// group/other bits on the host, so we assert only the owner triad.
-	require.Equal(t, os.FileMode(0o700), info.Mode().Perm()&0o700,
-		"missing working-dir should be created with 0o755 owner bits, got mode %v", info.Mode().Perm())
-}
-
-// TestEnsureWorkingDirRejectsFile asserts that passing a regular file (not
-// a directory) as --working-dir is rejected with the typed sentinel
-// ErrWorkingDirNotDirectory. We create the missing case silently but a
-// misuse where workingDir names an existing file is still an error.
-func TestEnsureWorkingDirRejectsFile(t *testing.T) {
-	t.Parallel()
-
-	filePath := filepath.Join(t.TempDir(), "not-a-dir")
-	require.NoError(t, os.WriteFile(filePath, []byte("hello"), 0o600))
-
-	err := ensureWorkingDir(filePath)
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrWorkingDirNotDirectory)
-}
-
-// TestEnsureWorkingDirExisting asserts that ensureWorkingDir is a no-op on
-// a directory that already exists.
-func TestEnsureWorkingDirExisting(t *testing.T) {
-	t.Parallel()
-
-	require.NoError(t, ensureWorkingDir(t.TempDir()))
-}
-
-// TestGenerateMutexSerializes asserts that the package-level
-// generateLockManager serializes two concurrent holders on the same key. A
-// second Lock() must block while the first holds, and unblock after the
-// first Unlock() is called.
-func TestGenerateMutexSerializes(t *testing.T) {
-	t.Parallel()
-
-	g := NewStackGenerator()
-	key := t.TempDir()
-	g.lockManager.Lock(key)
-
-	var once sync.Once
-
-	unlock := func() {
-		once.Do(func() { g.lockManager.Unlock(key) })
-	}
-
-	t.Cleanup(unlock)
-
-	locked := make(chan struct{})
-
-	go func() {
-		g.lockManager.Lock(key)
-		defer g.lockManager.Unlock(key)
-
-		close(locked)
-	}()
-
-	// Prove the second Lock() is blocked: 50ms is generous for goroutine
-	// scheduling, far short enough that the test is fast.
-	select {
-	case <-locked:
-		t.Fatal("second Lock() returned while the first was still holding")
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	unlock()
-
-	// Now the second Lock() must succeed promptly.
-	select {
-	case <-locked:
-	case <-time.After(2 * time.Second):
-		t.Fatal("second Lock() did not unblock after the first Unlock()")
-	}
-}
-
-// TestGenerateMutexConcurrent asserts that many goroutines contending on
-// the same key all eventually acquire+release without error and observe a
-// serialized critical section (no concurrent holders at any instant).
-func TestGenerateMutexConcurrent(t *testing.T) {
-	t.Parallel()
-
-	const numGoroutines = 16
+	const numCalls = 8
 
 	var (
-		active    int
-		maxActive int
+		active    atomic.Int32
+		maxActive atomic.Int32
 	)
 
-	g := NewStackGenerator()
-	key := t.TempDir()
+	g := generate.NewStackGenerator()
+	workingDir := createStackFixture(t)
+
+	g.RegisterOnGenerateHook(workingDir, func(string) {
+		currentActive := active.Add(1)
+		defer active.Add(-1)
+
+		for {
+			observedMax := maxActive.Load()
+			if currentActive <= observedMax || maxActive.CompareAndSwap(observedMax, currentActive) {
+				break
+			}
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	})
+	t.Cleanup(func() { g.UnregisterOnGenerateHook(workingDir) })
 
 	var eg errgroup.Group
 
-	for range numGoroutines {
+	for range numCalls {
 		eg.Go(func() error {
-			g.lockManager.Lock(key)
-			active++
-
-			if active > maxActive {
-				maxActive = active
-			}
-
-			// Short critical section.
-			time.Sleep(5 * time.Millisecond)
-
-			active--
-			g.lockManager.Unlock(key)
-
-			return nil
+			return g.GenerateStacks(
+				context.Background(),
+				logger.CreateLogger(),
+				terragruntOptions(workingDir),
+				nil,
+			)
 		})
 	}
 
 	require.NoError(t, eg.Wait())
-	require.Equal(t, 1, maxActive, "mutex must enforce exactly one holder at a time")
+	require.EqualValues(t, 1, maxActive.Load(), "same working directory must be serialized")
 }
 
-// TestDefaultGeneratorWiring asserts that the package-level GenerateStacks
-// function and hook registration properly use the defaultStackGenerator.
-// Regression guard for the singleton wiring.
-//
-// Cannot be parallel because it mutates the global defaultStackGenerator hooks.
-//
-//nolint:paralleltest // mutates package-level defaultStackGenerator
-func TestDefaultGeneratorWiring(t *testing.T) {
-	workingDir := t.TempDir()
-	absWorkingDir, err := canonicalIdentity(workingDir, "")
-	require.NoError(t, err)
-
-	var (
-		mu         sync.Mutex
-		dispatched []string
-	)
-
-	RegisterOnGenerateHook(absWorkingDir, func(filePath string) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		dispatched = append(dispatched, filePath)
-	})
-	t.Cleanup(func() { UnregisterOnGenerateHook(absWorkingDir) })
-
-	// We don't need a full generation, just proof that it goes through
-	// the hook on the default generator. GenerateStacks calls ListStackFiles
-	// which will return 0 files for an empty temp dir.
-	err = GenerateStacks(t.Context(), logger.CreateLogger(), &options.TerragruntOptions{
-		WorkingDir: workingDir,
-	}, nil)
-	require.NoError(t, err)
-
-	// If we ever have a fixture here, we could assert dispatched is not empty.
-	// For now, successfully completing the call with the hook registered
-	// and cleaned up is a good wiring test.
-	UnregisterOnGenerateHook(absWorkingDir)
-}
-
-// TestGenerateMutexIndependentKeys asserts that two different keys can
-// be held simultaneously without blocking.
-func TestGenerateMutexIndependentKeys(t *testing.T) {
+func TestStackGeneratorAllowsDifferentWorkingDirsConcurrently(t *testing.T) {
 	t.Parallel()
 
-	g := NewStackGenerator()
-	key1 := filepath.Join(t.TempDir(), "1")
-	key2 := filepath.Join(t.TempDir(), "2")
+	g := generate.NewStackGenerator()
+	workingDir1 := createStackFixture(t)
+	workingDir2 := createStackFixture(t)
 
-	g.lockManager.Lock(key1)
-	defer g.lockManager.Unlock(key1)
+	firstEntered := make(chan struct{})
+	secondEntered := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
 
-	locked2 := make(chan struct{})
+	g.RegisterOnGenerateHook(workingDir1, func(string) {
+		close(firstEntered)
+		<-releaseFirst
+	})
+	t.Cleanup(func() { g.UnregisterOnGenerateHook(workingDir1) })
+
+	g.RegisterOnGenerateHook(workingDir2, func(string) {
+		close(secondEntered)
+		<-releaseSecond
+	})
+	t.Cleanup(func() { g.UnregisterOnGenerateHook(workingDir2) })
+
+	errCh1 := make(chan error, 1)
 
 	go func() {
-		g.lockManager.Lock(key2)
-		defer g.lockManager.Unlock(key2)
-
-		close(locked2)
+		errCh1 <- g.GenerateStacks(context.Background(), logger.CreateLogger(), terragruntOptions(workingDir1), nil)
 	}()
 
-	// Second key must succeed promptly even while the first is held.
 	select {
-	case <-locked2:
+	case <-firstEntered:
 	case <-time.After(2 * time.Second):
-		t.Fatal("second key blocked behind unrelated first key")
+		t.Fatal("first working directory never reached generation hook")
+	}
+
+	errCh2 := make(chan error, 1)
+
+	go func() {
+		errCh2 <- g.GenerateStacks(context.Background(), logger.CreateLogger(), terragruntOptions(workingDir2), nil)
+	}()
+
+	select {
+	case <-secondEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("independent working directory blocked behind another key")
+	}
+
+	close(releaseFirst)
+	close(releaseSecond)
+
+	require.NoError(t, <-errCh1)
+	require.NoError(t, <-errCh2)
+}
+
+func TestPackageLevelGenerateStacksUsesDefaultGeneratorHook(t *testing.T) {
+	t.Parallel()
+
+	workingDir := createStackFixture(t)
+
+	var dispatched atomic.Int32
+
+	generate.RegisterOnGenerateHook(workingDir, func(string) {
+		dispatched.Add(1)
+	})
+	t.Cleanup(func() { generate.UnregisterOnGenerateHook(workingDir) })
+
+	require.NoError(t, generate.GenerateStacks(
+		context.Background(),
+		logger.CreateLogger(),
+		terragruntOptions(workingDir),
+		nil,
+	))
+	require.EqualValues(t, 1, dispatched.Load())
+}
+
+func createStackFixture(t *testing.T) string {
+	t.Helper()
+
+	workingDir := t.TempDir()
+	unitDir := filepath.Join(workingDir, "unit")
+
+	require.NoError(t, os.MkdirAll(unitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "terragrunt.hcl"), []byte(`terraform {
+  source = "."
+}
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(unitDir, "main.tf"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(workingDir, "terragrunt.stack.hcl"), []byte(`unit "app" {
+  source = "./unit"
+  path   = "app"
+}
+`), 0o644))
+
+	return workingDir
+}
+
+func terragruntOptions(workingDir string) *options.TerragruntOptions {
+	return &options.TerragruntOptions{
+		WorkingDir:  workingDir,
+		Parallelism: 1,
 	}
 }

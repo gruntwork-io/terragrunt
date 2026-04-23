@@ -3,7 +3,6 @@ package generate
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -62,6 +61,9 @@ func GenerateStacks(
 // RegisterOnGenerateHook registers a callback to be invoked when a stack file
 // is dispatched for generation in the given working directory.
 //
+// The hook key is normalized to the same canonical working-directory identity
+// used by GenerateStacks, so callers do not need to pre-canonicalize paths.
+//
 // The hook is keyed on workingDir against the process-wide
 // defaultStackGenerator, so:
 //   - Only one hook per workingDir: a second Register for the same key
@@ -75,14 +77,26 @@ func GenerateStacks(
 //     unique working directories (as all the existing regression tests
 //     do via t.TempDir()).
 func RegisterOnGenerateHook(workingDir string, fn func(string)) {
-	defaultStackGenerator.onGenerateDispatched.register(workingDir, fn)
+	defaultStackGenerator.RegisterOnGenerateHook(workingDir, fn)
 }
 
 // UnregisterOnGenerateHook removes a previously registered generation hook
 // for workingDir from the package-level defaultStackGenerator. No-op if
 // none is registered.
 func UnregisterOnGenerateHook(workingDir string) {
-	defaultStackGenerator.onGenerateDispatched.unregister(workingDir)
+	defaultStackGenerator.UnregisterOnGenerateHook(workingDir)
+}
+
+// RegisterOnGenerateHook registers a callback to be invoked when a stack file
+// is dispatched for generation in the given working directory.
+func (g *StackGenerator) RegisterOnGenerateHook(workingDir string, fn func(string)) {
+	g.onGenerateDispatched.register(g.canonicalHookKey(workingDir), fn)
+}
+
+// UnregisterOnGenerateHook removes a previously registered generation hook
+// for workingDir. No-op if none is registered.
+func (g *StackGenerator) UnregisterOnGenerateHook(workingDir string) {
+	g.onGenerateDispatched.unregister(g.canonicalHookKey(workingDir))
 }
 
 type hookManager struct {
@@ -103,10 +117,14 @@ func (m *hookManager) call(workingDir, filePath string) {
 	}
 }
 
-// workingDirPerm is the permission used when ensureWorkingDir creates a
-// missing --working-dir. Matches the project convention for generated
-// directories.
-const workingDirPerm os.FileMode = 0o755
+func (g *StackGenerator) canonicalHookKey(workingDir string) string {
+	canonicalWorkingDir, err := canonicalIdentity(workingDir, "")
+	if err != nil {
+		return workingDir
+	}
+
+	return canonicalWorkingDir
+}
 
 // StackNode represents a stack file in the file system.
 // The parent is the node that generates the current node,
@@ -140,13 +158,6 @@ func (g *StackGenerator) GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	// Called before taking the per-working-dir mutex because
-	// os.MkdirAll is safe to run concurrently and os.Stat is read-only, so
-	// we do not serialize callers on this fast path.
-	if err := ensureWorkingDir(opts.WorkingDir); err != nil {
-		return err
-	}
-
 	// Serialize in-process concurrent GenerateStacks calls by working
 	// directory identity.
 	absWorkingDir, err := canonicalIdentity(opts.WorkingDir, "")
@@ -790,29 +801,4 @@ func canonicalIdentity(path, basePath string) (string, error) {
 	}
 
 	return util.ResolvePath(canonical), nil
-}
-
-// ensureWorkingDir makes sure workingDir exists and is a directory. Missing
-// paths are created with MkdirAll (mkdir -p semantics), so fresh CI
-// environments do not need to pre-create the directory. A path that exists
-// but is a regular file is still rejected with ErrWorkingDirNotDirectory.
-func ensureWorkingDir(workingDir string) error {
-	info, err := os.Stat(workingDir)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			if mkErr := os.MkdirAll(workingDir, workingDirPerm); mkErr != nil {
-				return errors.Errorf("create working directory %s: %w", workingDir, mkErr)
-			}
-
-			return nil
-		}
-
-		return errors.Errorf("stat working directory %s: %w", workingDir, err)
-	}
-
-	if !info.IsDir() {
-		return NewWorkingDirNotDirectoryError(workingDir)
-	}
-
-	return nil
 }
