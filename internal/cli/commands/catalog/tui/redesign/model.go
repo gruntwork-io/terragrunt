@@ -61,6 +61,7 @@ type Model struct {
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
+	exitMessage         string
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
@@ -70,6 +71,14 @@ type Model struct {
 	ready               bool
 	loading             bool
 	userNavigated       bool
+}
+
+// ExitMessage returns the styled post-exit message the model set while
+// handling its final action (e.g., a successful copy that generated a
+// terragrunt.values.hcl file). The caller is responsible for printing it
+// after the tea.Program returns, once the alt screen has been torn down.
+func (m Model) ExitMessage() string { //nolint:gocritic
+	return m.exitMessage
 }
 
 // List returns the currently active list — the one filtered by the active

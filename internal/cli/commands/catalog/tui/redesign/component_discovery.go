@@ -35,8 +35,8 @@ const (
 // surfaced as separate components.
 //
 // Unlike the legacy module.Repo.FindModules walker (which only scans the
-// `modules/` convention), this walks the entire repo — templates may live
-// anywhere, and the redesign treats module/template discovery uniformly.
+// `modules/` convention), this walks the entire repo, since templates may
+// live anywhere and the redesign treats all component kinds uniformly.
 //
 // Construct one via NewComponentDiscovery, customize it with the With*
 // methods, then call Discover on a repo.

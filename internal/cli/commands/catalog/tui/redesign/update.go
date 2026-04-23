@@ -3,6 +3,8 @@ package redesign
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -13,7 +15,9 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Tab key bindings for cycling between the All/Modules/Templates tabs.
@@ -89,7 +93,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 					m.viewport.SetContent(content)
 
 					// Build the button bar. The primary button is always
-					// labeled "Scaffold" regardless of kind — units and
+					// labeled "Scaffold" regardless of kind; units and
 					// stacks dispatch to the copy action under the hood.
 					var pagerButtons []button
 
@@ -246,12 +250,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 			return m, tea.Batch(tea.Printf("error scaffolding component: %s", msg.err.Error()), tea.Quit)
 		}
 
+		// Same post-exit-message pattern as the copy flow: stash a styled
+		// callout and let RunRedesign print it after the alt screen is
+		// torn down, so it survives into the user's scrollback.
+		m.exitMessage = formatScaffoldMessage(m.terragruntOptions)
+
 		return m, tea.Quit
 
 	case copyFinishedMsg:
 		if msg.err != nil {
 			return m, tea.Batch(tea.Printf("error copying component: %s", msg.err.Error()), tea.Quit)
 		}
+
+		// Stash a styled post-exit message on the model so RunRedesign
+		// can emit it to stderr after the alt screen is torn down.
+		// tea.Printf lines emitted during alt-screen get discarded when
+		// the alt buffer is restored on exit.
+		m.exitMessage = formatCopyValuesMessage(msg.result)
 
 		return m, tea.Quit
 
@@ -287,7 +302,10 @@ func rendererErrCmd(err error) tea.Cmd {
 
 type scaffoldFinishedMsg struct{ err error }
 
-type copyFinishedMsg struct{ err error }
+type copyFinishedMsg struct {
+	err    error
+	result copyResult
+}
 
 // scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
 // via the redesign-owned scaffold command. It does not require the legacy
@@ -301,9 +319,158 @@ func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolin
 // copyComponentCmd returns a tea.Cmd that copies the given component's
 // directory tree into the user's working directory.
 func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
-	return tea.Exec(newCopyCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
-		return copyFinishedMsg{err}
+	cmd := NewCopyCmd(l, m.terragruntOptions, c)
+
+	return tea.Exec(cmd, func(err error) tea.Msg {
+		return copyFinishedMsg{err: err, result: cmd.Result()}
 	})
+}
+
+// Styling for the post-exit values-stub callout.
+const (
+	valuesBoxAccentGreen  = "#50FA7B"
+	valuesBoxAccentYellow = "#F1FA8C"
+	valuesBoxPathColor    = "#8BE9FD"
+	valuesBoxMutedColor   = "#A8ACB1"
+)
+
+var (
+	valuesBoxPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxPathColor))
+	valuesBoxMuteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxMutedColor))
+)
+
+// formatCopyValuesMessage returns a lipgloss-bordered callout summarizing
+// what happened with the values stub, or "" when there's nothing to say.
+// The caller prints this to stderr after the TUI has torn down its alt
+// screen, so the box lands in the user's scrollback.
+func formatCopyValuesMessage(r copyResult) string {
+	if r.references.IsEmpty() {
+		return ""
+	}
+
+	path := displayPath(r.workingDir, filepath.Join(r.workingDir, valuesFileName))
+
+	switch {
+	case r.valuesWritten:
+		heading := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(valuesBoxAccentGreen)).
+			Bold(true).
+			Render("terragrunt.values.hcl generated")
+
+		summary := fmt.Sprintf("%d required TODO %s, %d optional %s",
+			len(r.references.Required), pluralize("entry", "entries", len(r.references.Required)),
+			len(r.references.Optional), pluralize("default", "defaults", len(r.references.Optional)))
+
+		body := "Open the file and replace each \"TODO\" with a real value.\n" +
+			"Optional defaults are pre-populated; edit or delete lines as needed\n" +
+			"before running terragrunt."
+
+		return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
+
+	case r.valuesSkipped:
+		heading := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(valuesBoxAccentYellow)).
+			Bold(true).
+			Render("terragrunt.values.hcl left untouched")
+
+		summary := "Referenced values.* keys: " + strings.Join(r.references.allNames(), ", ")
+
+		body := "An existing file was found at the destination, so no stub was written.\n" +
+			"Make sure each referenced key above has a real value before running terragrunt."
+
+		return renderValuesBox(valuesBoxAccentYellow, heading, path, summary, body)
+	}
+
+	return ""
+}
+
+// renderValuesBox composes the four-section bordered callout used by both
+// the "written" and "skipped" exit messages.
+func renderValuesBox(accent, heading, path, summary, body string) string {
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		heading,
+		"",
+		valuesBoxPathStyle.Render(path),
+		"",
+		valuesBoxMuteStyle.Render(summary),
+		"",
+		body,
+	)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(accent)).
+		Padding(1, 2). //nolint:mnd
+		Render(content)
+}
+
+// formatScaffoldMessage returns the post-exit callout for a successful
+// scaffold run, pointing the user at the generated terragrunt.hcl and the
+// `# TODO: fill in value` markers the scaffold template leaves behind.
+func formatScaffoldMessage(opts *options.TerragruntOptions) string {
+	outputDir := opts.ScaffoldOutputFolder
+	if outputDir == "" {
+		outputDir = opts.WorkingDir
+	}
+
+	if outputDir == "" {
+		return ""
+	}
+
+	absPath := filepath.Join(outputDir, config.DefaultTerragruntConfigPath)
+	path := displayPath(outputDir, absPath)
+
+	heading := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(valuesBoxAccentGreen)).
+		Bold(true).
+		Render("terragrunt.hcl scaffolded")
+
+	summary := "Inputs are marked with `# TODO: fill in value` comments."
+
+	body := "Open the file and replace each TODO placeholder with a real value\n" +
+		"before running terragrunt."
+
+	return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
+}
+
+// pluralize returns singular when n == 1 and plural otherwise.
+func pluralize(singular, plural string, n int) string {
+	if n == 1 {
+		return singular
+	}
+
+	return plural
+}
+
+// displayPath returns abs rewritten relative to baseDir when that yields a
+// cleaner string. Falls back to abs when baseDir is empty, when Rel returns
+// an error, or when the relative form would escape baseDir (e.g., a long
+// ../../../ chain). baseDir should be the terragrunt working directory
+// (typically opts.WorkingDir), not the process's os.Getwd(), so that
+// --working-dir is honored.
+func displayPath(baseDir, abs string) string {
+	if baseDir == "" {
+		return abs
+	}
+
+	rel, err := filepath.Rel(baseDir, abs)
+	if err != nil {
+		return abs
+	}
+
+	// If the relative form escapes baseDir, the absolute path is easier to read.
+	// filepath.Rel emits an OS-appropriate separator after the leading `..`,
+	// so checking for the prefix is platform-agnostic.
+	parentPrefix := ".." + string(filepath.Separator)
+	if rel == ".." || strings.HasPrefix(rel, parentPrefix) {
+		return abs
+	}
+
+	// Prefix with `.` + the OS separator (`./` on POSIX, `.\` on Windows) so
+	// the string reads obviously as a relative path. filepath.Join/Clean both
+	// strip this prefix, so we compose it explicitly.
+	return "." + string(filepath.Separator) + rel
 }
 
 // primaryActionCmd dispatches to scaffold or copy based on the component's
