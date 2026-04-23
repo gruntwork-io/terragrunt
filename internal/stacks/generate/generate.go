@@ -333,11 +333,6 @@ func addNewNodesToGraph(
 // ListStackFiles searches for stack files starting from opts.WorkingDir via
 // the discovery package. Filters from opts.Filters are applied to restrict
 // results to matching stacks when set.
-//
-// Behavior change in v1.0.3: returned paths are cleaned absolute paths
-// (joined with opts.WorkingDir and passed through filepath.Clean), not the
-// relative or string-aliased forms that discovery may surface. Symbolic links
-// are NOT resolved; see canonicalStackFilePath.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
@@ -400,10 +395,6 @@ func ListStackFiles(
 //
 // On discovery failure, returns an error. Callers that want soft-fail behavior
 // should use ListStackFiles instead.
-//
-// Behavior change in v1.0.3: the returned []string of stack-file paths is now
-// cleaned and absolutized against opts.WorkingDir, matching ListStackFiles.
-// Symbolic links are NOT resolved.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
