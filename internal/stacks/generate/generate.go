@@ -22,9 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Generator runs stack generation. It owns the per-working-directory
-// key-lock used to serialise concurrent GenerateStacks calls in the same
-// process; callers hold one Generator per CLI invocation.
+// Generator owns the per-working-directory lock for in-process GenerateStacks calls.
 type Generator struct {
 	locks *util.KeyLocks
 }
@@ -137,11 +135,7 @@ func generateLevel(
 
 		generatedFiles[node.FilePath] = true
 
-		// Best-effort skip when a higher-level generation already removed the
-		// stack file. There is a TOCTOU window between this check and the
-		// open inside GenerateStackFile; if the file is removed in that
-		// window, GenerateStackFile surfaces ENOENT, which is still the
-		// authoritative source of truth.
+		// Best-effort skip; GenerateStackFile surfaces ENOENT if the file is removed in the TOCTOU window.
 		if !util.FileExists(node.FilePath) {
 			continue
 		}
@@ -301,15 +295,7 @@ func addNewNodesToGraph(
 	}
 }
 
-// ListStackFiles searches for stack files starting from opts.WorkingDir via
-// the discovery package. Filters from opts.Filters are applied to restrict
-// results to matching stacks when set. Returned paths are cleaned absolute
-// paths with symlinks resolved so string-aliased duplicates collapse to one
-// key before they reach GenerateStacks' dedup map.
-//
-// opts.WorkingDir must be absolute: it is used as the basePath for
-// util.CanonicalResolvedPath, which errors when a relative discovered path
-// is joined against a non-absolute base.
+// ListStackFiles returns canonical, symlink-resolved stack-file paths under the absolute opts.WorkingDir.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
@@ -363,20 +349,9 @@ func ListStackFiles(
 
 // ListStackFilesWithExcludes searches for stack files and also returns the set
 // of unit paths that should be excluded from the current tofu/terraform command.
-// Both results come from a single discovery walk so callers that need exclude
-// information (like stack output) do not have to walk the filesystem twice.
-//
-// The excludedPaths set is keyed by cleaned absolute symlink-resolved unit
-// paths, matching the canonicalisation used for the returned stack-file
-// list. Exclusion is
-// determined by discovery's IsActionListed + If logic (the same as find, list,
-// and discovery.applyExcludeModules), using opts.TerraformCommand as the action.
-//
-// Returned stack-file paths are cleaned absolute paths with symlinks resolved,
-// matching ListStackFiles.
-//
-// On discovery failure, returns an error. Callers that want soft-fail behavior
-// should use ListStackFiles instead.
+// Both results come from a single discovery walk. Stack-file paths and
+// excludedPaths keys are canonical symlink-resolved absolute paths; exclusion
+// follows discovery's IsActionListed + If logic using opts.TerraformCommand.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,

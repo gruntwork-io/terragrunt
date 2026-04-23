@@ -1916,18 +1916,7 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
-// TestStackGenerateDedupAtDiscoveryWithRacing runs two in-process
-// `terragrunt stack generate` invocations against the same working
-// directory and asserts that both complete without error and leave the
-// .terragrunt-stack/ tree intact. This is a regression guard for the
-// intra-invocation duplicate-dispatch fix (canonical-path dedup at the
-// discovery boundary), not a claim of cross-invocation serialization:
-// callers that truly need isolation between runs must coordinate
-// externally (for example, via `--filters-file` to collapse multiple
-// generate calls into one).
-//
-// The WithRacing suffix routes this test into CI's -race matrix; any
-// Go-level data race inside a single invocation would be flagged there.
+// TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.
 func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()
 

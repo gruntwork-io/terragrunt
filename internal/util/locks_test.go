@@ -28,10 +28,7 @@ func TestKeyLocksBasic(t *testing.T) {
 	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
 }
 
-// TestKeyLocksSharedKeySerializes asserts that concurrent holders of the
-// same key see a serialized critical section: 10 goroutines each increment
-// a shared counter twice inside the lock; with correct serialization the
-// final count must be exactly 20 (no lost updates).
+// TestKeyLocksSharedKeySerializes asserts concurrent holders of the same key serialise without lost updates.
 func TestKeyLocksSharedKeySerializes(t *testing.T) {
 	t.Parallel()
 
@@ -61,10 +58,7 @@ func TestKeyLocksSharedKeySerializes(t *testing.T) {
 	require.Equal(t, 20, counter, "serialized increments must total 20 (other totals indicate a lost update)")
 }
 
-// TestKeyLocksIndependentKeysDoNotBlock asserts that locking key "a" does
-// not block a concurrent locker of key "b". Without this, a buggy KeyLocks
-// that degenerated into a single global mutex would still pass every other
-// test in this file.
+// TestKeyLocksIndependentKeysDoNotBlock asserts that distinct keys do not block each other.
 func TestKeyLocksIndependentKeysDoNotBlock(t *testing.T) {
 	t.Parallel()
 
