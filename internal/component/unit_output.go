@@ -19,6 +19,7 @@ type writerUnwrapper interface {
 
 // unitOutputLocks provides locks for serializing flushes to the same parent writer.
 // The key is the parent writer's address (via fmt.Sprintf("%p", writer)).
+// Keys are never removed; this is acceptable because Terragrunt processes are short-lived.
 var unitOutputLocks sync.Map // map[string]*sync.Mutex
 
 func unitOutputLock(key string) *sync.Mutex {
