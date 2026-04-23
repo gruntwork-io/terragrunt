@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -16,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/internal/worker"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
@@ -24,23 +24,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	// stackGenerateLockFile is the name of the flock-based lockfile placed in
-	// the working directory while a `terragrunt stack generate` invocation is
-	// in progress. Its purpose is to serialize concurrent invocations against
-	// the same working directory — multiple Terragrunt processes (or
-	// goroutines in a single process) that would otherwise race on the shared
-	// .terragrunt-stack/ filesystem writes are forced to execute one at a
-	// time, eliminating the cross-contamination reported by users running
-	// parallel stack generates inside the same stack.
-	stackGenerateLockFile = ".terragrunt-stack-generate.lock"
-
-	// stackGenerateLockRetryDelay / stackGenerateLockMaxRetries match the
-	// provider-cache lockfile pattern in internal/tf/cache/services; 60 × 5s
-	// = 5 min upper bound on wait, generous for large nested topologies.
-	stackGenerateLockRetryDelay = 5 * time.Second
-	stackGenerateLockMaxRetries = 60
-)
+// stackGenerateLockFile is the name of the flock-based lockfile placed in the
+// working directory while a `terragrunt stack generate` invocation is in
+// progress. Serializes concurrent invocations against the same working
+// directory. Per-target locking alone is insufficient because the discovery
+// phase (ListStackFiles) walks the tree at a higher level than any per-target
+// lock can cover, and can observe a partial tree that another process is
+// mid-write on. Uses the same vfs.Lock primitive as the CAS content store.
+const stackGenerateLockFile = ".terragrunt-stack.lock"
 
 // StackNode represents a stack file in the file system.
 // The parent is the node that generates the current node,
@@ -73,19 +64,22 @@ func GenerateStacks(
 	// Serialize concurrent invocations against the same working directory.
 	// Without this, multiple `terragrunt stack generate` processes (or
 	// goroutines in the same process) would race on .terragrunt-stack/
-	// filesystem writes, producing "file exists" / "no such file" / partial
-	// writes. Canonicalization inside ListStackFiles collapses intra-process
-	// aliased paths, but cannot guard against a second Terragrunt process
-	// writing into the same on-disk target tree — only a filesystem-level
-	// lock can.
-	lockfile, err := acquireGenerateLock(ctx, l, opts.WorkingDir)
+	// filesystem state — both during writes (fetchComponentSource) and
+	// during discovery walks (ListStackFiles observing a peer's partial
+	// tree), producing "file exists" / "no such file" / partial reads.
+	// Canonicalization inside ListStackFiles collapses intra-process
+	// aliased paths but cannot guard against a second process writing
+	// into the same on-disk target tree — only a filesystem-level lock
+	// can. Uses the same vfs.Lock primitive as cas.Store.AcquireLock
+	// (internal/cas/store.go).
+	unlocker, err := acquireGenerateLock(l, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		if unlockErr := lockfile.Unlock(); unlockErr != nil {
-			l.Warnf("Failed to release stack-generate lock %s: %v", lockfile.Path(), unlockErr)
+		if unlockErr := unlocker.Unlock(); unlockErr != nil {
+			l.Warnf("Failed to release stack-generate lock: %v", unlockErr)
 		}
 	}()
 
@@ -685,36 +679,24 @@ func canonicalStackFilePath(c component.Component, workingDir string) (string, e
 	return canonical, nil
 }
 
-// acquireGenerateLock opens and holds an exclusive flock on the lockfile
-// inside workingDir. Blocks (with DoWithRetry backoff) while another
-// invocation holds the lock, then returns with the lock held. Callers must
-// call Unlock() on the returned Lockfile to release it.
-func acquireGenerateLock(ctx context.Context, l log.Logger, workingDir string) (*util.Lockfile, error) {
-	lockfilePath := filepath.Join(workingDir, stackGenerateLockFile)
+// acquireGenerateLock opens and holds an exclusive vfs.Lock on the lockfile
+// inside workingDir. Blocks until the lock is acquired, mirroring
+// cas.Store.AcquireLock in internal/cas/store.go. The returned vfs.Unlocker
+// must be Unlock()-ed by the caller (flock auto-releases on process exit as
+// a safety net).
+func acquireGenerateLock(l log.Logger, workingDir string) (vfs.Unlocker, error) {
+	lockPath := filepath.Join(workingDir, stackGenerateLockFile)
 
-	if err := os.MkdirAll(filepath.Dir(lockfilePath), os.ModePerm); err != nil {
-		return nil, errors.Errorf("create directory for stack-generate lockfile %s: %w", lockfilePath, err)
+	if err := os.MkdirAll(filepath.Dir(lockPath), os.ModePerm); err != nil {
+		return nil, errors.Errorf("create directory for stack-generate lockfile %s: %w", lockPath, err)
 	}
 
-	lockfile := util.NewLockfile(lockfilePath)
+	l.Debugf("Acquiring stack-generate lock %s", lockPath)
 
-	if err := util.DoWithRetry(
-		ctx,
-		"Acquiring stack-generate lock "+lockfilePath,
-		stackGenerateLockMaxRetries,
-		stackGenerateLockRetryDelay,
-		l,
-		log.DebugLevel,
-		func(ctx context.Context) error {
-			return lockfile.TryLock()
-		},
-	); err != nil {
-		return nil, errors.Errorf(
-			"unable to acquire stack-generate lockfile %s "+
-				"(another terragrunt process may be generating into the same working directory): %w",
-			lockfilePath, err,
-		)
+	unlocker, err := vfs.Lock(vfs.NewOSFS(), lockPath)
+	if err != nil {
+		return nil, errors.Errorf("acquire stack-generate lock %s: %w", lockPath, err)
 	}
 
-	return lockfile, nil
+	return unlocker, nil
 }
