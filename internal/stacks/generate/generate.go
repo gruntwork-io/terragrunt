@@ -56,7 +56,7 @@ func GenerateStacks(
 	// the early-termination branch in findParentStackFile to miss.
 	workingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, opts.WorkingDir)
 	if err != nil {
-		return errors.Errorf("canonicalize working dir %s: %w", opts.WorkingDir, err)
+		return &CanonicalizeWorkingDirError{Path: opts.WorkingDir, Err: err}
 	}
 
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
@@ -135,8 +135,11 @@ func generateLevel(
 
 		generatedFiles[node.FilePath] = true
 
-		// Before attempting to generate the stack file, we need to double-check that the file exists.
-		// Generation at a higher level might have resulted in this file being removed.
+		// Best-effort skip when a higher-level generation already removed the
+		// stack file. There is a TOCTOU window between this check and the
+		// open inside GenerateStackFile; if the file is removed in that
+		// window, GenerateStackFile surfaces ENOENT, which is still the
+		// authoritative source of truth.
 		if !util.FileExists(node.FilePath) {
 			continue
 		}
@@ -301,6 +304,10 @@ func addNewNodesToGraph(
 // results to matching stacks when set. Returned paths are cleaned absolute
 // paths with symlinks resolved so string-aliased duplicates collapse to one
 // key before they reach GenerateStacks' dedup map.
+//
+// opts.WorkingDir must be absolute: it is used as the basePath for
+// util.CanonicalResolvedPath, which errors when a relative discovered path
+// is joined against a non-absolute base.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,

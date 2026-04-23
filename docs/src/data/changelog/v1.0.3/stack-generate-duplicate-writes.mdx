@@ -3,6 +3,6 @@ version: "v1.0.3"
 category: "bug-fixes"
 ---
 
-#### Fixed duplicate-dispatch race in `terragrunt stack generate`
+#### Fix: `terragrunt stack generate` no longer writes the same stack file twice
 
 Fixed non-deterministic file errors during `terragrunt stack generate` on nested stack hierarchies. The discovery pass could surface the same physical stack file under multiple string spellings (relative vs absolute, or through a symlink alias), so the dedup map treated them as distinct and dispatched two writes into the same target. Stack-file paths are now cleaned, absolutized, and resolved through symlinks (best-effort) at the discovery boundary, so aliased forms collapse to a single dedup entry. Only duplicate dispatch within a single invocation is addressed: callers that run multiple `terragrunt stack generate` invocations against the same working directory must still serialize externally.
