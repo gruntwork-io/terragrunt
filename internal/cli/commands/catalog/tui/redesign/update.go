@@ -88,12 +88,13 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 					m.viewport.SetContent(content)
 
-					// Dynamically create button bar based on component URL
+					// Build the button bar. The primary button is always
+					// labeled "Scaffold" regardless of kind — units and
+					// stacks dispatch to the copy action under the hood.
 					var pagerButtons []button
 
 					buttonNames := []string{}
 
-					// Always add scaffold button
 					pagerButtons = append(pagerButtons, scaffoldBtn)
 					buttonNames = append(buttonNames, scaffoldBtn.String())
 
@@ -115,7 +116,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 				case key.Matches(msg, m.delegateKeys.Scaffold):
 					m.State = ScaffoldState
 
-					return m, scaffoldComponentCmd(m.logger, m, selectedComponent)
+					return m, primaryActionCmd(m.logger, m, selectedComponent)
 				}
 			} else {
 				break
@@ -165,7 +166,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 			case scaffoldBtn:
 				m.State = ScaffoldState
 
-				return m, scaffoldComponentCmd(m.logger, m, m.selectedComponent)
+				return m, primaryActionCmd(m.logger, m, m.selectedComponent)
 			case viewSourceBtn:
 				if m.selectedComponent.URL() != "" {
 					if err := browser.OpenURL(m.selectedComponent.URL()); err != nil {
@@ -179,7 +180,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 		case key.Matches(msg, m.pagerKeys.Scaffold):
 			m.State = ScaffoldState
 
-			return m, scaffoldComponentCmd(m.logger, m, m.selectedComponent)
+			return m, primaryActionCmd(m.logger, m, m.selectedComponent)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			// because we're on the second screen, we need to go back
@@ -247,6 +248,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 
 		return m, tea.Quit
 
+	case copyFinishedMsg:
+		if msg.err != nil {
+			return m, tea.Batch(tea.Printf("error copying component: %s", msg.err.Error()), tea.Quit)
+		}
+
+		return m, tea.Quit
+
 	case rendererErrMsg:
 		m.viewport.SetContent("there was an error rendering markdown: " + msg.err.Error())
 		// ensure we show the viewport
@@ -279,6 +287,8 @@ func rendererErrCmd(err error) tea.Cmd {
 
 type scaffoldFinishedMsg struct{ err error }
 
+type copyFinishedMsg struct{ err error }
+
 // scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
 // via the redesign-owned scaffold command. It does not require the legacy
 // catalog.CatalogService.
@@ -286,4 +296,22 @@ func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolin
 	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
+}
+
+// copyComponentCmd returns a tea.Cmd that copies the given component's
+// directory tree into the user's working directory.
+func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+	return tea.Exec(newCopyCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
+		return copyFinishedMsg{err}
+	})
+}
+
+// primaryActionCmd dispatches to scaffold or copy based on the component's
+// kind. Units and stacks copy; modules and templates scaffold.
+func primaryActionCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+	if c.Kind.IsCopyable() {
+		return copyComponentCmd(l, m, c)
+	}
+
+	return scaffoldComponentCmd(l, m, c)
 }

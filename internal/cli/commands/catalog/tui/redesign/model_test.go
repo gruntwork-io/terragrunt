@@ -161,9 +161,7 @@ func TestModelTabsFilterByKind(t *testing.T) {
 		p.Send(redesign.ComponentMsg(components[1]))
 		time.Sleep(100 * time.Millisecond)
 
-		// Cycle: All -> Modules -> Templates -> All (and stop on Templates).
-		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
-		time.Sleep(30 * time.Millisecond)
+		// Cycle: All -> Templates (first tab after All in the current order).
 		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
 		time.Sleep(30 * time.Millisecond)
 
@@ -195,14 +193,14 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 		p.Send(redesign.ComponentMsg(components[1]))
 		time.Sleep(100 * time.Millisecond)
 
-		// Starts on All. Shift+Tab wraps to Templates.
+		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
 		p.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 		time.Sleep(30 * time.Millisecond)
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
 
-	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "shift+tab from All should wrap to Templates")
+	assert.Equal(t, redesign.TabModules, finalModel.ActiveTab(), "shift+tab from All should wrap to the last tab")
 }
 
 // TestModelStreamingDeduplicates verifies that sending the same component

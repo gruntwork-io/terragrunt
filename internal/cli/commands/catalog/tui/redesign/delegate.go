@@ -28,6 +28,18 @@ const (
 	templatePillBgS = "#3A2D55"
 	templatePillFgS = "#DDC4FA"
 
+	// Unit type pill (blue, matching the `list` / `find` command color).
+	unitPillBg  = "#1B46DD"
+	unitPillFg  = "#FFFFFF"
+	unitPillBgS = "#2E5BEA"
+	unitPillFgS = "#FFFFFF"
+
+	// Stack type pill (green, matching the `list` / `find` command color).
+	stackPillBg  = "#2E8B57"
+	stackPillFg  = "#FFFFFF"
+	stackPillBgS = "#3CA068"
+	stackPillFgS = "#FFFFFF"
+
 	// Version pill (neutral).
 	versionBg  = "#313244"
 	versionFg  = "#BAC2DE"
@@ -238,9 +250,18 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 	pillBg, pillFg := modulePillBg, modulePillFg
 	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
 
-	if kind == ComponentKindTemplate {
+	switch kind {
+	case ComponentKindTemplate:
 		pillBg, pillFg = templatePillBg, templatePillFg
 		pillBgSel, pillFgSel = templatePillBgS, templatePillFgS
+	case ComponentKindUnit:
+		pillBg, pillFg = unitPillBg, unitPillFg
+		pillBgSel, pillFgSel = unitPillBgS, unitPillFgS
+	case ComponentKindStack:
+		pillBg, pillFg = stackPillBg, stackPillFg
+		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
+	case ComponentKindModule:
+		// Defaults already applied above.
 	}
 
 	if selected {
