@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
@@ -421,7 +422,9 @@ func CopyFolderContents(
 }
 
 // copyFolderContentsFast is the compile-once, single-walk path for
-// [CopyFolderContents]. See the `fast-copy` strict control.
+// [CopyFolderContents]. See the `fast-copy` strict control. The walk
+// itself runs via [fastwalk.Walk] so directory reads and filter checks
+// proceed in parallel.
 func copyFolderContentsFast(
 	l log.Logger,
 	source,
@@ -440,41 +443,127 @@ func copyFolderContentsFast(
 		return err
 	}
 
-	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
-		rel, err := GetPathRelativeTo(absolutePath, source)
+	const ownerReadWriteExecutePerms = 0o700
+	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+		return errors.New(err)
+	}
+
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
+		return errors.New(err)
+	}
+
+	if err := manifest.Create(); err != nil {
+		return errors.New(err)
+	}
+
+	defer func() {
+		if err := manifest.Close(); err != nil {
+			l.Warnf("Error closing manifest file: %v", err)
+		}
+	}()
+
+	// fastwalk runs walkFn concurrently across workers; the gob-encoded
+	// manifest is not safe for concurrent writes, so every AddFile is
+	// guarded by this mutex.
+	var manifestMu sync.Mutex
+
+	walkFn := func(absolutePath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if absolutePath == source {
+			return nil
+		}
+
+		rel, err := filepath.Rel(source, absolutePath)
 		if err != nil {
-			return false
+			return errors.New(err)
 		}
 
 		rel = filepath.ToSlash(rel)
+
+		isDir := d.IsDir()
 
 		// Preserve the cache-dir skip that expandGlobPath enforced at
 		// expansion time. Must run before include matching — otherwise a
 		// user include like "**" would pull .terragrunt-cache back in.
 		if strings.Contains(rel, TerragruntCacheDir) {
-			return false
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
 		}
 
 		if exclude != nil && exclude.Match(rel) {
-			return false
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
 		}
 
-		if include.matches(rel) {
-			return true
+		included := include.matches(rel)
+
+		if !included && TerragruntExcludes(filepath.FromSlash(rel)) {
+			// Mirror the legacy ancestor pass: a directory on the path
+			// toward a potential include match must still be descended
+			// into, even when TerragruntExcludes would reject it.
+			if isDir && include.isAncestor(rel) {
+				return nil
+			}
+
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
 		}
 
-		if !TerragruntExcludes(filepath.FromSlash(rel)) {
-			return true
+		dest := filepath.Join(destination, rel)
+
+		if isDir {
+			info, err := d.Info()
+			if err != nil {
+				return errors.New(err)
+			}
+
+			// MkdirAll may already have created `dest` with default perms
+			// from a sibling file-copy worker racing ahead. Chmod
+			// normalizes the directory to the source's mode.
+			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
+				return errors.New(err)
+			}
+
+			if err := os.Chmod(dest, info.Mode().Perm()); err != nil {
+				return errors.New(err)
+			}
+
+			return nil
 		}
 
-		// TerragruntExcludes rejects this path (dot-prefix or similar).
-		// Last chance to keep it: mirror the legacy ancestor pass via
-		// `listContainsElementWithPrefix` — a directory on the path
-		// toward a potential include match must be descended into. The
-		// stat only runs on the TerragruntExcludes-rejected tail, which
-		// is a small subset of the walk.
-		return IsDir(absolutePath) && include.isAncestor(rel)
-	})
+		parentDir := filepath.Dir(dest)
+		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+			return errors.New(err)
+		}
+
+		if err := CopyFile(absolutePath, dest); err != nil {
+			return err
+		}
+
+		manifestMu.Lock()
+		defer manifestMu.Unlock()
+
+		return manifest.AddFile(dest)
+	}
+
+	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
 }
 
 // includePatterns holds the compiled include matcher plus a cheap

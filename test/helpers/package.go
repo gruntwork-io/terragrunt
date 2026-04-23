@@ -113,7 +113,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			".terragrunt-test",
 			includeInCopy,
 			excludeFromCopy,
-			false,
+			true,
 		),
 	)
 

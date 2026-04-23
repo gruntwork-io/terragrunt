@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
@@ -144,6 +145,32 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	}
 
 	return locker.TryLock(name)
+}
+
+// WalkDirParallel walks the file tree rooted at root the same way
+// [WalkDir] does, but reads directories in parallel on filesystems where
+// that is safe. On a [NewOSFS] filesystem the walk is driven by
+// [fastwalk.Walk]; on any other FS (for example [NewMemMapFS]) it
+// transparently degrades to the sequential [WalkDir].
+//
+// Unlike [WalkDir], the parallel walk does not guarantee any ordering
+// across directories — fn may be called concurrently from multiple
+// goroutines. Callers that care about deterministic order, or that write
+// to shared state from fn, must use [WalkDir] or serialize access
+// themselves. [fs.SkipDir] and [fs.SkipAll] continue to work as with the
+// sequential walk.
+func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc) error {
+	if _, ok := fsys.(*osFS); !ok {
+		return WalkDir(fsys, root, fn)
+	}
+
+	err := fastwalk.Walk(nil, root, fn)
+
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
+	}
+
+	return err
 }
 
 // WalkDir walks the file tree rooted at root, calling fn for each file or
