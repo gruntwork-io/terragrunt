@@ -130,10 +130,10 @@ func (g *StackGenerator) GenerateStacks(
 	}
 
 	// Serialize in-process concurrent GenerateStacks calls by working
-	// directory.
-	absWorkingDir, err := util.CanonicalPath(opts.WorkingDir, "")
+	// directory identity.
+	absWorkingDir, err := canonicalIdentity(opts.WorkingDir, "")
 	if err != nil {
-		return errors.Errorf("canonicalize working directory %s: %w", opts.WorkingDir, err)
+		return errors.Errorf("resolve working directory identity %s: %w", opts.WorkingDir, err)
 	}
 
 	waitStart := time.Now()
@@ -749,9 +749,15 @@ func stackTypeFilter() filter.Filters {
 // absolute forms of the same path) to a single key so the dedup map in
 // GenerateStacks catches duplicates.
 func canonicalStackFilePath(c component.Component, workingDir string) (string, error) {
-	canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+	return canonicalIdentity(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
+}
+
+// canonicalIdentity returns the cleaned absolute path with symlinks resolved.
+// Used for consistent identity across locking and deduplication.
+func canonicalIdentity(path, basePath string) (string, error) {
+	canonical, err := util.CanonicalPath(path, basePath)
 	if err != nil {
-		return "", errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
+		return "", err
 	}
 
 	return util.ResolvePath(canonical), nil
