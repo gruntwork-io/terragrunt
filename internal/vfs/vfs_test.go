@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -1136,4 +1137,106 @@ func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
 	require.NoError(t, w.Close())
 
 	return buf.Bytes()
+}
+
+func TestWalkDirParallel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("degrades to sequential WalkDir on MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(memFs, "/root/a.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/b.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/c.txt", []byte("c"), 0644))
+
+		var names []string
+
+		err := vfs.WalkDirParallel(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			names = append(names, d.Name())
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		// Non-OS FS keeps the deterministic lexical ordering from WalkDir.
+		assert.Equal(t, []string{"root", "a.txt", "b.txt", "c.txt"}, names)
+	})
+
+	t.Run("walks every entry on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "dir"), 0o755))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "a.txt"), []byte("a"), 0o644))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0o644))
+
+		var mu sync.Mutex
+
+		seen := map[string]struct{}{}
+
+		err := vfs.WalkDirParallel(osFs, root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			seen[path] = struct{}{}
+			mu.Unlock()
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		// Parallel walk gives no ordering guarantee, but it must visit every
+		// entry exactly once.
+		assert.Equal(t, map[string]struct{}{
+			root:                                     {},
+			filepath.Join(root, "a.txt"):             {},
+			filepath.Join(root, "dir"):               {},
+			filepath.Join(root, "dir", "nested.txt"): {},
+		}, seen)
+	})
+
+	t.Run("SkipDir prunes a subtree on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "keep"), 0o755))
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "skip"), 0o755))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "keep", "a.txt"), []byte("a"), 0o644))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "skip", "b.txt"), []byte("b"), 0o644))
+
+		var mu sync.Mutex
+
+		seen := map[string]struct{}{}
+
+		err := vfs.WalkDirParallel(osFs, root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if d.IsDir() && d.Name() == "skip" {
+				return filepath.SkipDir
+			}
+
+			mu.Lock()
+			seen[path] = struct{}{}
+			mu.Unlock()
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
+		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
+	})
 }
