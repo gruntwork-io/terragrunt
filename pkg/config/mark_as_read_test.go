@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -29,7 +30,9 @@ func TestMarkGlobAsRead(t *testing.T) {
 	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
 
 	// Drive the HCL function via a locals block so we exercise the registered cty wrapper.
-	hcl := `locals { matched = mark_glob_as_read("**/*.tf") }`
+	// Brace alternation covers files at the current depth AND deeper, since gobwas's
+	// "**" does not collapse the surrounding separators.
+	hcl := `locals { matched = mark_glob_as_read("{*.tf,**/*.tf}") }`
 
 	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
 	require.NoError(t, err)
@@ -41,6 +44,41 @@ func TestMarkGlobAsRead(t *testing.T) {
 	assert.Contains(t, read, filepath.Join(dir, "b.tf"))
 	assert.Contains(t, read, filepath.Join(dir, "nested", "c.tf"))
 	assert.NotContains(t, read, filepath.Join(dir, "README.md"))
+}
+
+// TestMarkGlobAsReadEscapesMetacharacter verifies that a backslash-escaped
+// metacharacter in the pattern is treated as a literal, not a wildcard. Windows
+// cannot create files whose names contain '*', so the test is skipped there.
+func TestMarkGlobAsReadEscapesMetacharacter(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("'*' is not a valid character in Windows filenames")
+	}
+
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "a*b.tf"), "")
+	writeFile(t, filepath.Join(dir, "acb.tf"), "")
+
+	l := logger.CreateLogger()
+	configPath := filepath.Join(dir, config.DefaultTerragruntConfigPath)
+	ctx, pctx := newTestParsingContext(t, configPath)
+	pctx.WorkingDir = dir
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.MarkManyAsRead))
+
+	// The HCL string literal '"a\\*b.tf"' decodes to 'a\*b.tf', which the glob
+	// engine reads as a literal 'a*b.tf'.
+	hcl := `locals { matched = mark_glob_as_read("a\\*b.tf") }`
+
+	out, err := config.ParseConfigString(ctx, pctx, l, configPath, hcl, nil)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+
+	require.NotNil(t, pctx.FilesRead)
+	read := *pctx.FilesRead
+	assert.Contains(t, read, filepath.Join(dir, "a*b.tf"))
+	assert.NotContains(t, read, filepath.Join(dir, "acb.tf"))
 }
 
 func TestMarkGlobAsReadRequiresExperiment(t *testing.T) {

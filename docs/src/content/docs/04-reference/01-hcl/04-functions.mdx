@@ -1049,19 +1049,29 @@ block is not evaluated until *after* the queue has been populated with units to 
 `mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments) experiment. Calling it without the experiment enabled returns an error.
 </Aside>
 
-`mark_glob_as_read(pattern)` expands the given glob and marks every matching file as read. The glob supports `**` for recursive matches (powered by [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt's filter expressions). The function returns the list of absolute paths that matched, so it can be composed with other expressions.
+`mark_glob_as_read(pattern)` expands the given glob and marks every matching file as read. It returns the list of absolute paths that matched, so it can be composed with other expressions.
+
+Pattern syntax follows [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt. `/` is the path separator, `*` matches within a single segment, `**` matches any sequence of characters including separators, `?` matches any single non-separator character, `[abc]` matches a character class, and `{a,b}` matches any of the listed alternatives. A backslash escapes the following metacharacter.
 
 Relative patterns are resolved against the current working directory, the same way `mark_as_read` resolves a relative file path.
 
 <Aside type="caution">
-Glob patterns must use forward slashes (`/`) as the path separator, even on Windows. The underlying matcher treats `\` as a literal character, not a path separator, so a backslash-separated pattern will not match any files.
+Glob patterns must use forward slashes (`/`) as the path separator, even on Windows. The matcher treats `\` as an escape character, not a path separator, so a backslash-separated pattern will not match any files.
+</Aside>
+
+<Aside type="caution">
+`**` does not collapse the separators around it. `config/**/*.yaml` matches files at least one directory below `config/`, but not files directly inside `config/`. Use brace alternation to match at any depth:
+
+```hcl
+mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
+```
 </Aside>
 
 ```hcl
 # terragrunt.hcl
 
 locals {
-  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/**/*.yaml")
+  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
 }
 
 inputs = {
@@ -1069,7 +1079,7 @@ inputs = {
 }
 ```
 
-This is the natural way to mark many files as read in one call. A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through reading-based filter expressions and the [`queue-include-units-reading`](/reference/cli/commands/run#queue-include-units-reading) flag.
+A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through reading-based filter expressions and the [`queue-include-units-reading`](/reference/cli/commands/run#queue-include-units-reading) flag.
 
 If the pattern matches nothing, the function returns an empty list without error.
 

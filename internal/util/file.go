@@ -18,9 +18,9 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
 )
 
@@ -312,7 +312,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.New(err)

@@ -18,12 +18,14 @@ terraform {
 
 records every `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` file found under `../../modules/service` (recursively) as read for the unit. Non-source files such as `README.md` are skipped. Reading-based filter expressions (see [Filter Attributes](/features/filter/attributes)) will then match any unit that points at a local module when that module's files change, so `--queue-include-units-reading` cascades module edits to consumers.
 
-The same experiment also enables a new HCL function, `mark_glob_as_read(pattern)`, which expands a glob (supporting `**`) and marks every matching file as read. It returns the list of absolute paths that matched, so it composes with other expressions:
+The same experiment also enables a new HCL function, `mark_glob_as_read(pattern)`, which expands a glob using the same [`gobwas/glob`](https://github.com/gobwas/glob) syntax as filter expressions and marks every matching file as read. It returns the list of absolute paths that matched, so it composes with other expressions:
 
 ```hcl
 locals {
-  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/**/*.yaml")
+  configs = mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
 }
 ```
+
+`**` does not collapse the separators around it, so match-at-any-depth is written as `{*.yaml,**/*.yaml}`. See the [HCL reference](/reference/hcl/functions/#mark_glob_as_read) for full pattern syntax.
 
 This is useful when a unit reads a collection of files indirectly (for example, via `run_cmd` or `templatefile`) and you want changes to any of them to trigger the unit through reading-based filters. Calling `mark_glob_as_read` without the experiment enabled returns an error.
