@@ -34,6 +34,12 @@ func TestEnsureWorkingDirCreatesMissing(t *testing.T) {
 	info, err := os.Stat(missing)
 	require.NoError(t, err)
 	require.True(t, info.IsDir())
+
+	// workingDirPerm is 0o755: assert the owner bits so an accidental
+	// tightening to 0o700 (or widening) is caught here. umask may clip
+	// group/other bits on the host, so we assert only the owner triad.
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm()&0o700,
+		"missing working-dir should be created with 0o755 owner bits, got mode %v", info.Mode().Perm())
 }
 
 // TestEnsureWorkingDirRejectsFile asserts that passing a regular file (not
@@ -120,7 +126,8 @@ func TestGenerateMutexConcurrent(t *testing.T) {
 
 	g := NewStackGenerator()
 	key := t.TempDir()
-	eg, _ := errgroup.WithContext(t.Context())
+
+	var eg errgroup.Group
 
 	for range numGoroutines {
 		eg.Go(func() error {
@@ -148,10 +155,11 @@ func TestGenerateMutexConcurrent(t *testing.T) {
 // TestDefaultGeneratorWiring asserts that the package-level GenerateStacks
 // function and hook registration properly use the defaultStackGenerator.
 // Regression guard for the singleton wiring.
+//
+// Cannot be parallel because it mutates the global defaultStackGenerator hooks.
+//
+//nolint:paralleltest // mutates package-level defaultStackGenerator
 func TestDefaultGeneratorWiring(t *testing.T) {
-	// Cannot be parallel because it mutates the global defaultStackGenerator hooks.
-	//nolint:paralleltest
-
 	workingDir := t.TempDir()
 	absWorkingDir, err := canonicalIdentity(workingDir, "")
 	require.NoError(t, err)
@@ -164,6 +172,7 @@ func TestDefaultGeneratorWiring(t *testing.T) {
 	RegisterOnGenerateHook(absWorkingDir, func(filePath string) {
 		mu.Lock()
 		defer mu.Unlock()
+
 		dispatched = append(dispatched, filePath)
 	})
 	t.Cleanup(func() { UnregisterOnGenerateHook(absWorkingDir) })

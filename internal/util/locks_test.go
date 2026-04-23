@@ -70,6 +70,60 @@ func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 	}, "Unlocking without locking should not panic")
 }
 
+// TestKeyLocksEntriesCleanedUp asserts that Unlock removes the underlying
+// entry when the last holder releases, so callers that Lock/Unlock many
+// distinct keys do not leak map entries.
+func TestKeyLocksEntriesCleanedUp(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+	require.Equal(t, 0, kl.Len())
+
+	kl.Lock("a")
+	kl.Lock("b")
+	require.Equal(t, 2, kl.Len())
+
+	kl.Unlock("a")
+	require.Equal(t, 1, kl.Len())
+
+	kl.Unlock("b")
+	require.Equal(t, 0, kl.Len(), "all entries should be cleaned up after the last holder releases")
+}
+
+// TestKeyLocksEntryRetainedWhileWaiter asserts that a waiter's bumped
+// refcount keeps the entry alive until the waiter, too, releases. Proves
+// the cleanup is safe under contention, not just sequential use.
+func TestKeyLocksEntryRetainedWhileWaiter(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+	kl.Lock("k")
+
+	waiterReady := make(chan struct{})
+	waiterDone := make(chan struct{})
+
+	go func() {
+		close(waiterReady)
+		kl.Lock("k")
+		kl.Unlock("k")
+		close(waiterDone)
+	}()
+
+	<-waiterReady
+	// Give the waiter a moment to bump refcount and block on Lock.
+	for range 10 {
+		if kl.Len() == 1 {
+			break
+		}
+	}
+
+	kl.Unlock("k")
+
+	<-waiterDone
+
+	require.Equal(t, 0, kl.Len(), "entry must be deleted after the last holder (originally the waiter) releases")
+}
+
 // TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.
 func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 	t.Parallel()

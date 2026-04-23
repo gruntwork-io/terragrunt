@@ -125,6 +125,9 @@ func (g *StackGenerator) GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
+	// Called before taking the per-working-dir mutex because
+	// os.MkdirAll is safe to run concurrently and os.Stat is read-only, so
+	// we do not serialize callers on this fast path.
 	if err := ensureWorkingDir(opts.WorkingDir); err != nil {
 		return err
 	}
@@ -139,15 +142,18 @@ func (g *StackGenerator) GenerateStacks(
 	waitStart := time.Now()
 
 	g.lockManager.Lock(absWorkingDir)
-
-	l.Debugf("acquired stack-generate mutex for %s after %s", absWorkingDir, time.Since(waitStart))
+	defer g.lockManager.Unlock(absWorkingDir)
 
 	heldAt := time.Now()
 
+	// Two defers: this one runs BEFORE the Unlock above (LIFO order), so the
+	// "released" trace cannot interleave with another goroutine's "acquired"
+	// log for the same key.
 	defer func() {
-		g.lockManager.Unlock(absWorkingDir)
 		l.Debugf("released stack-generate mutex for %s after holding %s", absWorkingDir, time.Since(heldAt))
 	}()
+
+	l.Debugf("acquired stack-generate mutex for %s after %s", absWorkingDir, time.Since(waitStart))
 
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
 	if err != nil {
@@ -754,6 +760,14 @@ func canonicalStackFilePath(c component.Component, workingDir string) (string, e
 
 // canonicalIdentity returns the cleaned absolute path with symlinks resolved.
 // Used for consistent identity across locking and deduplication.
+//
+// Best-effort on the symlink-resolution step: util.ResolvePath silently
+// falls back to the cleaned path on filepath.EvalSymlinks errors (ENOENT
+// for paths not yet created, ELOOP for symlink loops, EACCES on
+// inaccessible intermediates). The common case is "path not yet created"
+// where the fallback is correct; for ELOOP / EACCES the fallback may lead
+// to two different strings keying the same physical directory, weakening
+// the dedup and per-key lock guarantees for that edge case.
 func canonicalIdentity(path, basePath string) (string, error) {
 	canonical, err := util.CanonicalPath(path, basePath)
 	if err != nil {

@@ -1943,21 +1943,30 @@ func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
 	absLiveDir, err := util.CanonicalPath(liveDir, "")
 	require.NoError(t, err)
 
+	// Per-iteration state lives in a single closure captured by the hook.
+	// mu protects writes while the generation worker pool calls the hook
+	// concurrently.
+	var (
+		mu     sync.Mutex
+		writes map[string]int
+	)
+
+	generate.RegisterOnGenerateHook(absLiveDir, func(filePath string) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		writes[filePath]++
+	})
+	// Single Cleanup for the single Register. Per-iteration reset happens
+	// by re-initializing `writes` below, not by re-registering.
+	t.Cleanup(func() { generate.UnregisterOnGenerateHook(absLiveDir) })
+
 	for i := range iterations {
 		require.NoError(t, os.RemoveAll(stackDir))
 
-		var (
-			mu     sync.Mutex
-			writes = make(map[string]int)
-		)
-
-		generate.RegisterOnGenerateHook(absLiveDir, func(filePath string) {
-			mu.Lock()
-			defer mu.Unlock()
-
-			writes[filePath]++
-		})
-		t.Cleanup(func() { generate.UnregisterOnGenerateHook(absLiveDir) })
+		mu.Lock()
+		writes = make(map[string]int)
+		mu.Unlock()
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 			"terragrunt stack generate --working-dir "+liveDir+" --parallelism=10")
@@ -1978,8 +1987,6 @@ func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
 				"duplicates indicate the concurrent-write race (see stack-generate-target-race changelog) has regressed. "+
 				"Duplicated targets: %v",
 			i, duplicates)
-
-		generate.UnregisterOnGenerateHook(absLiveDir)
 	}
 }
 

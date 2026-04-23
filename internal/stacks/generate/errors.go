@@ -20,6 +20,10 @@ func (err WorkingDirNotDirectoryError) Error() string {
 	return "working directory is not a directory: " + err.path
 }
 
+// Is reports a match for ANY WorkingDirNotDirectoryError value. Paths are
+// not compared: this mirrors the typical sentinel pattern so callers can
+// write errors.Is(err, ErrWorkingDirNotDirectory). Callers that need to
+// inspect the path should cast to *WorkingDirNotDirectoryError directly.
 func (err WorkingDirNotDirectoryError) Is(target error) bool {
 	_, ok := target.(*WorkingDirNotDirectoryError)
 	return ok
