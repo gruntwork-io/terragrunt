@@ -96,15 +96,15 @@ func DownloadTerraformSource(
 		// Always include the .tflint.hcl file, if it exists
 		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
-		err = util.CopyFolderContents(
-			l,
-			opts.WorkingDir,
-			terraformSource.WorkingDir,
-			ModuleManifestName,
-			includeInCopy,
-			cfg.Terraform.ExcludeFromCopy,
-			isFastCopyEnabled(opts.StrictControls),
-		)
+		copyOpts := []util.CopyOption{
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...),
+		}
+		if isFastCopyEnabled(opts.StrictControls) {
+			copyOpts = append(copyOpts, util.WithFastCopy())
+		}
+
+		err = util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
 		if err != nil {
 			return nil, err
 		}

@@ -282,7 +282,15 @@ func runCopyFolderContentsCase(t *testing.T, includeInCopy, excludeFromCopy []st
 		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy, fastCopy))
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(includeInCopy...),
+		util.WithExcludeFromCopy(excludeFromCopy...),
+	}
+	if fastCopy {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
+
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", copyOpts...))
 
 	for i, tc := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -812,16 +820,18 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 	)
 
 	source, include := buildCopyBenchTree(b, topDirs, chainDepth, filesPerLevel)
-	exclude := []string{"**/f00.tf"}
 	l := logger.CreateLogger()
 
-	b.ResetTimer()
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(include...),
+		util.WithExcludeFromCopy("**/f00.tf"),
+	}
+	if fastCopy {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
 
-	for i := range b.N {
-		dest := filepath.Join(b.TempDir(), strconv.Itoa(i))
-		if err := util.CopyFolderContents(l, source, dest, ".terragrunt-test", include, exclude, fastCopy); err != nil {
-			b.Fatalf("CopyFolderContents: %v", err)
-		}
+	for b.Loop() {
+		require.NoError(b, util.CopyFolderContents(l, source, b.TempDir(), ".terragrunt-test", copyOpts...))
 	}
 }
 
