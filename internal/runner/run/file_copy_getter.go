@@ -5,10 +5,17 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter"
 )
+
+// isFastCopyEnabled reports whether the `fast-copy` strict control is enabled.
+func isFastCopyEnabled(strictControls strict.Controls) bool {
+	return len(strictControls.FilterByNames(controls.FastCopy).FilterByEnabled()) > 0
+}
 
 // SourceManifestName is the manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
 const SourceManifestName = ".terragrunt-source-manifest"
@@ -24,6 +31,11 @@ type FileCopyGetter struct {
 	// Terragrunt, which will skip hidden folders.
 	IncludeInCopy   []string
 	ExcludeFromCopy []string
+
+	// FastCopy opts the underlying [util.CopyFolderContents] call into the
+	// compile-once, single-walk implementation. Set via the `fast-copy`
+	// strict control at construction time.
+	FastCopy bool
 }
 
 // Get replaces the original FileGetter
@@ -42,7 +54,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return errors.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy, g.ExcludeFromCopy)
+	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy, g.ExcludeFromCopy, g.FastCopy)
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

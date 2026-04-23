@@ -1,0 +1,14 @@
+---
+name: fast-copy
+status: active
+---
+
+Use a compile-once, single-walk implementation for `include_in_copy` and `exclude_from_copy` expansion when Terragrunt copies a module's source folder. Faster on large module sources because the walk no longer pre-expands every pattern in a separate pass per nested directory.
+
+### `fast-copy` - Reason
+
+`include_in_copy` and `exclude_from_copy` patterns have historically been expanded with [zglob](https://pkg.go.dev/github.com/mattn/go-zglob), once per pattern, with directory matches recursively re-expanded. On large source trees the pre-expansion can dominate the cost of the copy itself.
+
+Enabling `fast-copy` switches pattern matching to [gobwas/glob](https://pkg.go.dev/github.com/gobwas/glob), compiles each pattern once, and evaluates matches inline during the existing copy walk.
+
+The semantics differ from zglob in one place worth knowing: gobwas does not collapse `**` when one of its neighbors is a wildcard. For example, `a/**/*.tf` matches `a/sub/main.tf` but not `a/main.tf`. Patterns that depended on zero-depth `**` collapsing should use brace alternation, for example `{*.tf,**/*.tf}`, to cover both depths.

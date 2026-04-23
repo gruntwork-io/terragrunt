@@ -103,6 +103,7 @@ func DownloadTerraformSource(
 			ModuleManifestName,
 			includeInCopy,
 			cfg.Terraform.ExcludeFromCopy,
+			isFastCopyEnabled(opts.StrictControls),
 		)
 		if err != nil {
 			return nil, err
@@ -316,6 +317,7 @@ func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*get
 			Logger:          l,
 			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
 			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
+			FastCopy:        isFastCopyEnabled(opts.StrictControls),
 		}
 		client.Getters["http"] = &getter.HttpGetter{Netrc: true}
 		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
