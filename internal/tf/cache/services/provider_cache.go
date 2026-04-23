@@ -316,7 +316,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if cache.DownloadURL == "" {
-		return errors.Errorf("not found provider download url")
+		return errors.Errorf("unable to find download URL for provider %s (this may be caused by a rate limit or network issue when querying the registry)", cache.Provider)
 	}
 
 	downloadURLIsLocalFile, err := cache.isLocalFile(fs, cache.DownloadURL)
