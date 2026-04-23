@@ -761,14 +761,14 @@ func TestRelPathForLog(t *testing.T) {
 	}
 }
 
-// buildCopyBenchTree lays out a synthetic module source with `topDirs`
-// top-level directories. Each top-level dir gets a deeply nested chain
-// (`chainDepth` levels) with `filesPerLevel` files at every level, so a
-// bare-directory include pattern like the top-level name triggers the
-// legacy expandGlobPath recursion once per nested directory.
+// buildCopyBenchTree lays out a synthetic module source: topDirs
+// top-level directories, each a chain chainDepth levels deep with
+// filesPerLevel files at every level. A bare-directory include pattern
+// like the top-level name triggers the legacy expandGlobPath recursion
+// once per nested directory.
 //
-// Returns the tree root and the list of top-level directory names, which
-// become the include-in-copy patterns fed to the benchmark.
+// Returns the tree root and the top-level directory names, which the
+// benchmark uses as include patterns.
 func buildCopyBenchTree(b *testing.B, topDirs, chainDepth, filesPerLevel int) (string, []string) {
 	b.Helper()
 
@@ -783,15 +783,11 @@ func buildCopyBenchTree(b *testing.B, topDirs, chainDepth, filesPerLevel int) (s
 		current := filepath.Join(root, name)
 
 		for depth := range chainDepth {
-			if err := os.MkdirAll(current, 0o755); err != nil {
-				b.Fatalf("mkdir: %v", err)
-			}
+			require.NoError(b, os.MkdirAll(current, 0o755))
 
 			for f := range filesPerLevel {
 				p := filepath.Join(current, fmt.Sprintf("f%02d.tf", f))
-				if err := os.WriteFile(p, content, 0o644); err != nil {
-					b.Fatalf("write: %v", err)
-				}
+				require.NoError(b, os.WriteFile(p, content, 0o644))
 			}
 
 			current = filepath.Join(current, fmt.Sprintf("level%02d", depth))
@@ -799,13 +795,8 @@ func buildCopyBenchTree(b *testing.B, topDirs, chainDepth, filesPerLevel int) (s
 	}
 
 	cache := filepath.Join(root, util.TerragruntCacheDir, "should-be-skipped")
-	if err := os.MkdirAll(cache, 0o755); err != nil {
-		b.Fatalf("mkdir cache: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(cache, "skip.tf"), content, 0o644); err != nil {
-		b.Fatalf("write cache file: %v", err)
-	}
+	require.NoError(b, os.MkdirAll(cache, 0o755))
+	require.NoError(b, os.WriteFile(filepath.Join(cache, "skip.tf"), content, 0o644))
 
 	return root, names
 }

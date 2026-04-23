@@ -112,7 +112,7 @@ func CanonicalResolvedPath(path, basePath string) (string, error) {
 
 // GrepFilesWithSuffix returns true if regex matches the contents of any file
 // under rootDir whose name ends with suffix. The walk stops as soon as a match
-// is found. A missing rootDir is not an error — the function returns false.
+// is found. A missing rootDir is not an error; the function returns false.
 func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix string) (bool, error) {
 	var found bool
 
@@ -449,10 +449,10 @@ func CopyFolderContents(l log.Logger, source, destination, manifestFile string, 
 	})
 }
 
-// copyFolderContentsFast is the compile-once, single-walk path for
-// [CopyFolderContents]. See the `fast-copy` strict control. The walk
-// itself runs via [fastwalk.Walk] so directory reads and filter checks
-// proceed in parallel.
+// copyFolderContentsFast is the [CopyFolderContents] path used when the
+// `fast-copy` strict control is enabled. Include and exclude patterns
+// are compiled once and the source tree is walked once through
+// [vfs.WalkDirParallel].
 func copyFolderContentsFast(
 	l log.Logger,
 	source,
@@ -491,9 +491,8 @@ func copyFolderContentsFast(
 		}
 	}()
 
-	// fastwalk runs walkFn concurrently across workers; the gob-encoded
-	// manifest is not safe for concurrent writes, so every AddFile is
-	// guarded by this mutex.
+	// The walk is parallel. The gob-encoded manifest is not safe for
+	// concurrent writes, so AddFile is guarded.
 	var manifestMu sync.Mutex
 
 	walkFn := func(absolutePath string, d fs.DirEntry, walkErr error) error {
@@ -514,9 +513,8 @@ func copyFolderContentsFast(
 
 		isDir := d.IsDir()
 
-		// Preserve the cache-dir skip that expandGlobPath enforced at
-		// expansion time. Must run before include matching — otherwise a
-		// user include like "**" would pull .terragrunt-cache back in.
+		// Skip .terragrunt-cache before include matching. A user
+		// include like "**" would otherwise pull it back in.
 		if strings.Contains(rel, TerragruntCacheDir) {
 			if isDir {
 				return fs.SkipDir
@@ -536,9 +534,9 @@ func copyFolderContentsFast(
 		included := include.matches(rel)
 
 		if !included && TerragruntExcludes(filepath.FromSlash(rel)) {
-			// Mirror the legacy ancestor pass: a directory on the path
-			// toward a potential include match must still be descended
-			// into, even when TerragruntExcludes would reject it.
+			// A directory on the way to a potential include match must
+			// still be descended into even when TerragruntExcludes
+			// would reject it.
 			if isDir && include.isAncestor(rel) {
 				return nil
 			}
@@ -558,9 +556,9 @@ func copyFolderContentsFast(
 				return errors.New(err)
 			}
 
-			// MkdirAll may already have created `dest` with default perms
-			// from a sibling file-copy worker racing ahead. Chmod
-			// normalizes the directory to the source's mode.
+			// A sibling file-copy worker may have created `dest`
+			// already with default perms. Chmod forces the source's
+			// mode.
 			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
 				return errors.New(err)
 			}
@@ -594,24 +592,22 @@ func copyFolderContentsFast(
 	return nil
 }
 
-// includePatterns holds the compiled include matcher plus a cheap
-// "is rel an ancestor of any potential match" predicate. Ancestor
-// acceptance is what makes the walk descend through dot-prefixed parents
-// like `_module/.region3` to reach an include hidden underneath.
+// includePatterns holds the compiled include matcher and an ancestor
+// predicate. The predicate lets the walk descend through dot-prefixed
+// parents like `_module/.region3` to reach an include below.
 type includePatterns struct {
-	// match is a single combined matcher built by OR-ing every user
-	// pattern as `{<p>,<p>/**}` inside one brace alternation. One
-	// `Match` call per entry replaces N per-pattern checks.
+	// match is a single matcher that OR-s every user pattern as
+	// `{<p>,<p>/**}` so one Match call per entry covers all of them.
 	match glob.Matcher
 
-	// ancestor is a combined matcher over the strict path prefixes of
-	// each pattern that does not contain `**`. A rel matching this is a
-	// directory on the way to a potential include match.
+	// ancestor matches the path prefixes of every pattern that does
+	// not contain `**`. A rel that matches is a directory on the way
+	// to a potential include match.
 	ancestor glob.Matcher
 
-	// descendAny is true if any pattern contains a `**` segment — in that
-	// case any directory could be on the path to a match, so accept all
-	// non-excluded paths as ancestors regardless of `ancestor`.
+	// descendAny is true when any pattern contains a `**` segment. In
+	// that case every directory is a possible ancestor, so `ancestor`
+	// is not consulted.
 	descendAny bool
 }
 
@@ -631,11 +627,10 @@ func (p includePatterns) isAncestor(rel string) bool {
 	return p.ancestor != nil && p.ancestor.Match(rel)
 }
 
-// compileIncludePatterns compiles user `include_in_copy` patterns into one
-// combined matcher that covers each pattern and all its descendants — so a
-// match behaves like the recursive expansion in [expandGlobPath] — plus an
-// ancestor matcher that flags directories on the path toward a potential
-// match.
+// compileIncludePatterns compiles user `include_in_copy` patterns into
+// one combined matcher that covers each pattern and all its descendants,
+// reproducing the recursive expansion in [expandGlobPath], plus an
+// ancestor matcher for directories on the path toward a potential match.
 func compileIncludePatterns(patterns []string) (includePatterns, error) {
 	out := includePatterns{}
 

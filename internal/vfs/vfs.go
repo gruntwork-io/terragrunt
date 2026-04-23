@@ -147,18 +147,15 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	return locker.TryLock(name)
 }
 
-// WalkDirParallel walks the file tree rooted at root the same way
-// [WalkDir] does, but reads directories in parallel on filesystems where
-// that is safe. On a [NewOSFS] filesystem the walk is driven by
-// [fastwalk.Walk]; on any other FS (for example [NewMemMapFS]) it
-// transparently degrades to the sequential [WalkDir].
+// WalkDirParallel walks the file tree rooted at root like [WalkDir]
+// does. On a [NewOSFS] filesystem it reads directories in parallel via
+// [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
+// back to the sequential [WalkDir].
 //
-// Unlike [WalkDir], the parallel walk does not guarantee any ordering
-// across directories — fn may be called concurrently from multiple
-// goroutines. Callers that care about deterministic order, or that write
-// to shared state from fn, must use [WalkDir] or serialize access
-// themselves. [fs.SkipDir] and [fs.SkipAll] continue to work as with the
-// sequential walk.
+// The parallel walk calls fn concurrently from multiple goroutines and
+// gives no ordering guarantee across directories. Callers that depend
+// on deterministic order, or that write to shared state from fn, must
+// use [WalkDir] or serialize access themselves.
 func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc) error {
 	if _, ok := fsys.(*osFS); !ok {
 		return WalkDir(fsys, root, fn)
