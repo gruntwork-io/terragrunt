@@ -2,12 +2,16 @@
 // acquireGenerateLock, stackGenerateLockDir, and stackGenerateLockFile
 // symbols to verify the locking implementation deterministically.
 //
+// Tests use vfs.NewMemMapFS() (in-memory filesystem) rather than the real
+// filesystem, so they exercise the same code path as production without
+// touching disk. The vfs abstraction makes this a straight swap — locks,
+// Stat, MkdirAll all work against the in-memory backing.
+//
 //nolint:testpackage // white-box testing of unexported lock helpers
 package generate
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -18,18 +22,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newTestFS returns an in-memory filesystem with workingDir pre-created as
+// a directory. Used by tests that want to start from a valid workingDir and
+// exercise only the locking logic.
+func newTestFS(t *testing.T, workingDir string) vfs.FS {
+	t.Helper()
+
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
+
+	return fsys
+}
+
 // TestAcquireGenerateLockSerializes is the deterministic correctness guard
 // for the stack-generate lockfile. It proves the lock does what it claims
 // without relying on timing-based filesystem races.
 func TestAcquireGenerateLockSerializes(t *testing.T) {
 	t.Parallel()
 
-	workingDir := t.TempDir()
+	const workingDir = "/wd"
+
+	fsys := newTestFS(t, workingDir)
 	l := log.New()
 	ctx := t.Context()
 
 	// First acquire — should succeed immediately.
-	lockPath1, unlocker1, err := acquireGenerateLock(ctx, l, workingDir)
+	lockPath1, unlocker1, err := acquireGenerateLock(ctx, l, fsys, workingDir)
 	require.NoError(t, err)
 	require.NotNil(t, unlocker1)
 	require.Equal(t, filepath.Join(workingDir, stackGenerateLockDir, stackGenerateLockFile), lockPath1)
@@ -37,7 +55,7 @@ func TestAcquireGenerateLockSerializes(t *testing.T) {
 	// Second acquire — must NOT succeed while the first holds the lock.
 	// Use vfs.TryLock directly (same primitive acquireGenerateLock polls)
 	// to verify without blocking.
-	_, acquired, err := vfs.TryLock(vfs.NewOSFS(), lockPath1)
+	_, acquired, err := vfs.TryLock(fsys, lockPath1)
 	require.NoError(t, err)
 	require.False(t, acquired, "lock must be held exclusively while first caller has it")
 
@@ -45,7 +63,7 @@ func TestAcquireGenerateLockSerializes(t *testing.T) {
 	require.NoError(t, unlocker1.Unlock())
 
 	// Third acquire — should succeed now that the first is released.
-	lockPath2, unlocker2, err := acquireGenerateLock(ctx, l, workingDir)
+	lockPath2, unlocker2, err := acquireGenerateLock(ctx, l, fsys, workingDir)
 	require.NoError(t, err)
 	require.NotNil(t, unlocker2)
 	require.Equal(t, lockPath1, lockPath2)
@@ -58,12 +76,13 @@ func TestAcquireGenerateLockSerializes(t *testing.T) {
 func TestAcquireGenerateLockContextCancel(t *testing.T) {
 	t.Parallel()
 
-	workingDir := t.TempDir()
+	const workingDir = "/wd"
+
+	fsys := newTestFS(t, workingDir)
 	l := log.New()
 
 	// Goroutine A holds the lock.
-	heldCtx := context.Background()
-	_, heldUnlocker, err := acquireGenerateLock(heldCtx, l, workingDir)
+	_, heldUnlocker, err := acquireGenerateLock(context.Background(), l, fsys, workingDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = heldUnlocker.Unlock() })
 
@@ -73,7 +92,7 @@ func TestAcquireGenerateLockContextCancel(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		_, _, err := acquireGenerateLock(waitCtx, l, workingDir)
+		_, _, err := acquireGenerateLock(waitCtx, l, fsys, workingDir)
 		done <- err
 	}()
 
@@ -93,41 +112,51 @@ func TestAcquireGenerateLockContextCancel(t *testing.T) {
 // TestAcquireGenerateLockCreatesDir asserts that the helper creates the
 // .terragrunt-stack/ subdirectory if it doesn't exist yet. The lockfile
 // lives inside this dir so it's covered by the user's existing .gitignore
-// and `terragrunt stack clean` — placing the lock there is load-bearing
-// for the H2 fix from the code review.
+// and `terragrunt stack clean`.
+//
+// Only the directory is asserted — whether the lockfile itself exists as a
+// filesystem artifact is backend-specific (flock on OS creates an empty
+// file; the in-memory MemMapFS tracks locks in a mutex map without a file).
+// We care about directory creation here; the lock primitive has its own
+// serialization guarantees tested in TestAcquireGenerateLockSerializes.
 func TestAcquireGenerateLockCreatesDir(t *testing.T) {
 	t.Parallel()
 
-	workingDir := t.TempDir()
+	const workingDir = "/wd"
+
+	fsys := newTestFS(t, workingDir)
 	l := log.New()
 
-	lockPath, unlocker, err := acquireGenerateLock(t.Context(), l, workingDir)
+	_, unlocker, err := acquireGenerateLock(t.Context(), l, fsys, workingDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = unlocker.Unlock() })
 
-	require.DirExists(t, filepath.Join(workingDir, stackGenerateLockDir))
-	require.FileExists(t, lockPath)
+	stackDirInfo, err := fsys.Stat(filepath.Join(workingDir, stackGenerateLockDir))
+	require.NoError(t, err)
+	require.True(t, stackDirInfo.IsDir())
 }
 
 // TestAcquireGenerateLockMissingWorkingDir asserts that a nonexistent
 // --working-dir fails loudly instead of being silently created. Regression
-// guard for a prior behavior where os.MkdirAll on the lock-dir's parent
-// would auto-create a missing working directory and discovery would then
-// report "No stack files found" as a successful no-op — masking user typos.
+// guard for a prior behavior where MkdirAll on the lock-dir's parent would
+// auto-create a missing working directory and discovery would then report
+// "No stack files found" as a successful no-op — masking user typos.
 func TestAcquireGenerateLockMissingWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	missing := filepath.Join(tmpDir, "does-not-exist")
+	// Empty in-memory filesystem, so /wd does not exist.
+	fsys := vfs.NewMemMapFS()
 	l := log.New()
 
-	_, _, err := acquireGenerateLock(t.Context(), l, missing)
+	const missing = "/wd-does-not-exist"
+
+	_, _, err := acquireGenerateLock(t.Context(), l, fsys, missing)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not exist")
 
 	// And verify the missing dir was NOT created as a side effect.
-	_, statErr := os.Stat(missing)
-	require.True(t, os.IsNotExist(statErr), "working dir must not be auto-created on failure")
+	_, statErr := fsys.Stat(missing)
+	require.Error(t, statErr, "working dir must not be auto-created on failure")
 }
 
 // TestAcquireGenerateLockWorkingDirIsFile asserts that passing a file (not a
@@ -135,26 +164,32 @@ func TestAcquireGenerateLockMissingWorkingDir(t *testing.T) {
 func TestAcquireGenerateLockWorkingDirIsFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "not-a-dir")
-	require.NoError(t, os.WriteFile(filePath, []byte("hello"), 0o600))
+	const filePath = "/not-a-dir"
+
+	fsys := vfs.NewMemMapFS()
+
+	// Create a regular file (not a dir) at the path.
+	f, err := fsys.Create(filePath)
+	require.NoError(t, err)
+	_, err = f.Write([]byte("hello"))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
 
 	l := log.New()
 
-	_, _, err := acquireGenerateLock(t.Context(), l, filePath)
+	_, _, err = acquireGenerateLock(t.Context(), l, fsys, filePath)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not a directory")
 }
 
 // TestAcquireGenerateLockConcurrent asserts that many goroutines racing on
-// the same lock all eventually acquire+release without error. With the
-// working-dir lock in place, the total runtime should be near
-// numGoroutines * 0 (lock acquisition is cheap when no one else holds it
-// long enough to contend), but we mainly care that correctness holds.
+// the same lock all eventually acquire+release without error.
 func TestAcquireGenerateLockConcurrent(t *testing.T) {
 	t.Parallel()
 
-	workingDir := t.TempDir()
+	const workingDir = "/wd"
+
+	fsys := newTestFS(t, workingDir)
 	l := log.New()
 
 	const numGoroutines = 8
@@ -168,7 +203,7 @@ func TestAcquireGenerateLockConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			_, unlocker, err := acquireGenerateLock(t.Context(), l, workingDir)
+			_, unlocker, err := acquireGenerateLock(t.Context(), l, fsys, workingDir)
 			if err != nil {
 				errs <- err
 

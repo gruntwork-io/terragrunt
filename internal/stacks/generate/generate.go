@@ -3,6 +3,7 @@ package generate
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -92,7 +93,7 @@ func GenerateStacks(
 	// into the same on-disk target tree — only a filesystem-level lock
 	// can. Uses the same vfs.Lock primitive as cas.Store.AcquireLock
 	// (internal/cas/store.go).
-	lockPath, unlocker, err := acquireGenerateLock(ctx, l, opts.WorkingDir)
+	lockPath, unlocker, err := acquireGenerateLock(ctx, l, vfs.NewOSFS(), opts.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -720,24 +721,35 @@ func canonicalStackFilePath(c component.Component, workingDir string) (string, e
 	return canonical, nil
 }
 
-// acquireGenerateLock opens and holds an exclusive vfs.Lock on the lockfile
-// inside workingDir/.terragrunt-stack/. Polls vfs.TryLock at
-// stackGenerateLockPollInterval so a cancelled context aborts the wait
-// (unlike a plain blocking flock). Returns the lock path so callers can
-// reference it in log messages. Mirrors cas.Store.AcquireLock in
-// internal/cas/store.go but adds cancellation support. flock auto-releases
-// on process exit as a safety net.
-func acquireGenerateLock(ctx context.Context, l log.Logger, workingDir string) (string, vfs.Unlocker, error) {
+// acquireGenerateLock opens and holds an exclusive lock on a lockfile inside
+// workingDir/.terragrunt-stack/ on the provided filesystem. Polls
+// vfs.TryLock at stackGenerateLockPollInterval so a cancelled context aborts
+// the wait (unlike a plain blocking flock). Returns the lock path so callers
+// can reference it in log messages. Mirrors cas.Store.AcquireLock in
+// internal/cas/store.go but adds cancellation support. When fsys is the OS
+// filesystem, flock auto-releases on process exit as a safety net.
+//
+// The fsys parameter is injected so unit tests can exercise this logic
+// against vfs.NewMemMapFS() without touching the real filesystem. Production
+// callers pass vfs.NewOSFS().
+func acquireGenerateLock(
+	ctx context.Context,
+	l log.Logger,
+	fsys vfs.FS,
+	workingDir string,
+) (string, vfs.Unlocker, error) {
 	lockDir := filepath.Join(workingDir, stackGenerateLockDir)
 	lockPath := filepath.Join(lockDir, stackGenerateLockFile)
 
 	// Validate workingDir before MkdirAll. Without this check, a typo in
-	// --working-dir would be silently created by os.MkdirAll (which creates
+	// --working-dir would be silently created by MkdirAll (which creates
 	// all missing parents) and discovery would then report "No stack files
-	// found" as a successful no-op. We want typos to fail loudly.
-	info, err := os.Stat(workingDir)
+	// found" as a successful no-op. We want typos to fail loudly. Routed
+	// through vfs.FS so the check benefits from the same abstraction as
+	// the lock primitive.
+	info, err := fsys.Stat(workingDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return lockPath, nil, errors.Errorf("working directory %s does not exist", workingDir)
 		}
 
@@ -748,16 +760,14 @@ func acquireGenerateLock(ctx context.Context, l log.Logger, workingDir string) (
 		return lockPath, nil, errors.Errorf("working directory %s is not a directory", workingDir)
 	}
 
-	if err := os.MkdirAll(lockDir, stackGenerateLockDirPerm); err != nil {
+	if err := fsys.MkdirAll(lockDir, stackGenerateLockDirPerm); err != nil {
 		return lockPath, nil, errors.Errorf("create stack-generate lock dir %s: %w", lockDir, err)
 	}
 
 	l.Debugf("acquiring stack-generate lock %s", lockPath)
 
-	fs := vfs.NewOSFS()
-
 	for {
-		unlocker, acquired, err := vfs.TryLock(fs, lockPath)
+		unlocker, acquired, err := vfs.TryLock(fsys, lockPath)
 		if err != nil {
 			return lockPath, nil, errors.Errorf("acquire stack-generate lock %s: %w", lockPath, err)
 		}
