@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -24,14 +25,33 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// stackGenerateLockFile is the name of the flock-based lockfile placed in the
-// working directory while a `terragrunt stack generate` invocation is in
-// progress. Serializes concurrent invocations against the same working
-// directory. Per-target locking alone is insufficient because the discovery
-// phase (ListStackFiles) walks the tree at a higher level than any per-target
-// lock can cover, and can observe a partial tree that another process is
-// mid-write on. Uses the same vfs.Lock primitive as the CAS content store.
-const stackGenerateLockFile = ".terragrunt-stack.lock"
+const (
+	// stackGenerateLockDir is the per-working-directory subdirectory that
+	// holds the stack-generate lockfile. Placed inside `.terragrunt-stack/`
+	// so it's already covered by user .gitignore rules and cleaned up by
+	// `terragrunt stack clean`.
+	stackGenerateLockDir = ".terragrunt-stack"
+
+	// stackGenerateLockFile is the name of the flock-based lockfile inside
+	// stackGenerateLockDir while a `terragrunt stack generate` invocation
+	// is in progress. Serializes concurrent invocations against the same
+	// working directory. Per-target locking alone is insufficient because
+	// the discovery phase (ListStackFiles) walks the tree at a higher level
+	// than any per-target lock can cover, and can observe a partial tree
+	// that another process is mid-write on. Uses the same vfs.Lock primitive
+	// as the CAS content store (internal/cas/store.go).
+	stackGenerateLockFile = "generate.lock"
+
+	// stackGenerateLockPollInterval is how often acquireGenerateLock retries
+	// vfs.TryLock while waiting for a peer invocation to finish. Small enough
+	// that cancellation (ctx timeout / SIGINT) is observed promptly, large
+	// enough that contended waits don't waste CPU.
+	stackGenerateLockPollInterval = 100 * time.Millisecond
+
+	// stackGenerateLockDirPerm matches the permission used elsewhere for
+	// .terragrunt-stack/ subdirectories (e.g. pkg/config/stack.go:unitDirPerm).
+	stackGenerateLockDirPerm os.FileMode = 0o755
+)
 
 // StackNode represents a stack file in the file system.
 // The parent is the node that generates the current node,
@@ -72,14 +92,14 @@ func GenerateStacks(
 	// into the same on-disk target tree — only a filesystem-level lock
 	// can. Uses the same vfs.Lock primitive as cas.Store.AcquireLock
 	// (internal/cas/store.go).
-	unlocker, err := acquireGenerateLock(l, opts.WorkingDir)
+	lockPath, unlocker, err := acquireGenerateLock(ctx, l, opts.WorkingDir)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
 		if unlockErr := unlocker.Unlock(); unlockErr != nil {
-			l.Warnf("Failed to release stack-generate lock: %v", unlockErr)
+			l.Warnf("failed to release stack-generate lock %s: %v", lockPath, unlockErr)
 		}
 	}()
 
@@ -101,6 +121,13 @@ func GenerateStacks(
 	// happens at the discovery boundary (ListStackFiles), so every entry in
 	// this map is a cleaned absolute path and string-aliased duplicates
 	// collapse to one key.
+	//
+	// Concurrency invariant: this map is accessed ONLY from the main
+	// GenerateStacks goroutine. generateLevel and discoverAndAddNewNodes read
+	// and mutate it before dispatching / after joining the worker pool — never
+	// from inside a pool goroutine. If a future refactor interleaves
+	// generation with discovery or moves map access onto pool goroutines, this
+	// map must be replaced with a synchronized type (sync.Map or a mutex).
 	generatedFiles := make(map[string]bool)
 
 	stackTrees := BuildStackTopology(l, foundFiles, opts.WorkingDir)
@@ -128,9 +155,10 @@ func GenerateStacks(
 	return nil
 }
 
-// generateLevel handles the concurrent generation of all stack files at a given level.
-// generatedFiles is owned by the caller and mutated here only from the main
-// goroutine before wp.Submit, so it remains race-free without synchronization.
+// generateLevel handles the concurrent generation of all stack files at a
+// given level. See the "Concurrency invariant" note on generatedFiles in
+// GenerateStacks: the map is mutated here from the main goroutine only,
+// before any wp.Submit call.
 func generateLevel(
 	ctx context.Context,
 	l log.Logger,
@@ -311,6 +339,11 @@ func addNewNodesToGraph(
 // ListStackFiles searches for stack files starting from opts.WorkingDir via
 // the discovery package. Filters from opts.Filters are applied to restrict
 // results to matching stacks when set.
+//
+// Behavior change in v1.0.3: returned paths are cleaned absolute paths
+// (joined with opts.WorkingDir and passed through filepath.Clean), not the
+// relative or string-aliased forms that discovery may surface. Symbolic links
+// are NOT resolved; see canonicalStackFilePath.
 func ListStackFiles(
 	ctx context.Context,
 	l log.Logger,
@@ -373,6 +406,10 @@ func ListStackFiles(
 //
 // On discovery failure, returns an error. Callers that want soft-fail behavior
 // should use ListStackFiles instead.
+//
+// Behavior change in v1.0.3: the returned []string of stack-file paths is now
+// cleaned and absolutized against opts.WorkingDir, matching ListStackFiles.
+// Symbolic links are NOT resolved.
 func ListStackFilesWithExcludes(
 	ctx context.Context,
 	l log.Logger,
@@ -668,35 +705,54 @@ func stackTypeFilter() filter.Filters {
 
 // canonicalStackFilePath returns the cleaned absolute path to the stack file
 // inside the given component's directory, relative to workingDir. Collapses
-// string-aliased discovery results (relative vs. absolute forms) to a single
-// key so the dedup map in GenerateStacks catches duplicates.
+// string-aliased discovery results (relative vs. absolute forms of the same
+// path) to a single key so the dedup map in GenerateStacks catches
+// duplicates. Does NOT resolve symbolic links — if discovery surfaces the
+// same physical file through two different symlinked paths, both forms pass
+// through. In practice discovery produces string-aliased paths (not symlink
+// aliases) in this codebase, so string cleaning is sufficient.
 func canonicalStackFilePath(c component.Component, workingDir string) (string, error) {
 	canonical, err := util.CanonicalPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
 	if err != nil {
-		return "", errors.Errorf("Failed to canonicalize stack file path %s: %w", c.Path(), err)
+		return "", errors.Errorf("canonicalize stack file path %s: %w", c.Path(), err)
 	}
 
 	return canonical, nil
 }
 
 // acquireGenerateLock opens and holds an exclusive vfs.Lock on the lockfile
-// inside workingDir. Blocks until the lock is acquired, mirroring
-// cas.Store.AcquireLock in internal/cas/store.go. The returned vfs.Unlocker
-// must be Unlock()-ed by the caller (flock auto-releases on process exit as
-// a safety net).
-func acquireGenerateLock(l log.Logger, workingDir string) (vfs.Unlocker, error) {
-	lockPath := filepath.Join(workingDir, stackGenerateLockFile)
+// inside workingDir/.terragrunt-stack/. Polls vfs.TryLock at
+// stackGenerateLockPollInterval so a cancelled context aborts the wait
+// (unlike a plain blocking flock). Returns the lock path so callers can
+// reference it in log messages. Mirrors cas.Store.AcquireLock in
+// internal/cas/store.go but adds cancellation support. flock auto-releases
+// on process exit as a safety net.
+func acquireGenerateLock(ctx context.Context, l log.Logger, workingDir string) (string, vfs.Unlocker, error) {
+	lockDir := filepath.Join(workingDir, stackGenerateLockDir)
+	lockPath := filepath.Join(lockDir, stackGenerateLockFile)
 
-	if err := os.MkdirAll(filepath.Dir(lockPath), os.ModePerm); err != nil {
-		return nil, errors.Errorf("create directory for stack-generate lockfile %s: %w", lockPath, err)
+	if err := os.MkdirAll(lockDir, stackGenerateLockDirPerm); err != nil {
+		return lockPath, nil, errors.Errorf("create stack-generate lock dir %s: %w", lockDir, err)
 	}
 
-	l.Debugf("Acquiring stack-generate lock %s", lockPath)
+	l.Debugf("acquiring stack-generate lock %s", lockPath)
 
-	unlocker, err := vfs.Lock(vfs.NewOSFS(), lockPath)
-	if err != nil {
-		return nil, errors.Errorf("acquire stack-generate lock %s: %w", lockPath, err)
+	fs := vfs.NewOSFS()
+
+	for {
+		unlocker, acquired, err := vfs.TryLock(fs, lockPath)
+		if err != nil {
+			return lockPath, nil, errors.Errorf("acquire stack-generate lock %s: %w", lockPath, err)
+		}
+
+		if acquired {
+			return lockPath, unlocker, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return lockPath, nil, errors.Errorf("cancelled while waiting for stack-generate lock %s: %w", lockPath, ctx.Err())
+		case <-time.After(stackGenerateLockPollInterval):
+		}
 	}
-
-	return unlocker, nil
 }

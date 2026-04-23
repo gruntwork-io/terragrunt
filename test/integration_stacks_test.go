@@ -2,12 +2,15 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -1917,6 +1920,76 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
+// stackGenerateBinary caches the `terragrunt` binary built for subprocess
+// tests. Building is expensive (seconds, more under -race), so all tests that
+// need the binary share one build via sync.Once.
+var (
+	stackGenerateBinaryOnce sync.Once
+	stackGenerateBinaryPath string
+	stackGenerateBinaryErr  error
+)
+
+// buildStackGenerateBinary returns a path to a freshly-built `terragrunt`
+// binary usable by subprocess tests. The binary is NOT race-instrumented even
+// under `go test -race` — that's an intrinsic limitation of spawning a child
+// process. Subprocess tests still catch the OS-level filesystem race this
+// suite targets, which manifests as visible errors rather than -race warnings.
+func buildStackGenerateBinary(t *testing.T) string {
+	t.Helper()
+
+	stackGenerateBinaryOnce.Do(func() {
+		// Resolve the module root from this source file's location, not from
+		// CWD — `go test` runs with CWD at the package dir, but we need the
+		// repo root so `go build .` picks up main.go.
+		_, thisFile, _, ok := runtime.Caller(0)
+		if !ok {
+			stackGenerateBinaryErr = errors.New("runtime.Caller(0) failed")
+
+			return
+		}
+
+		// test/integration_stacks_test.go → repo root is two dirs up.
+		moduleRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), ".."))
+
+		binName := "terragrunt"
+		if runtime.GOOS == "windows" {
+			binName += ".exe"
+		}
+
+		// Use os.MkdirTemp (not t.TempDir) because the binary outlives the
+		// first test — later tests reuse the cached path. t.TempDir() would
+		// clean up after the first test returns and break subsequent callers.
+		//nolint:usetesting // cached across tests; see comment above
+		tmpDir, err := os.MkdirTemp("", "terragrunt-stack-generate-bin-*")
+		if err != nil {
+			stackGenerateBinaryErr = fmt.Errorf("make temp dir: %w", err)
+
+			return
+		}
+
+		binPath := filepath.Join(tmpDir, binName)
+
+		// Use context.Background because the build is cached across tests
+		// via sync.Once; tying it to a single test's context would cancel
+		// the shared build if that test was interrupted.
+		buildCmd := exec.CommandContext(context.Background(), "go", "build", "-o", binPath, ".")
+		buildCmd.Dir = moduleRoot
+
+		out, err := buildCmd.CombinedOutput()
+		if err != nil {
+			stackGenerateBinaryErr = fmt.Errorf("build terragrunt binary: %w\noutput:\n%s", err, string(out))
+
+			return
+		}
+
+		stackGenerateBinaryPath = binPath
+	})
+
+	require.NoError(t, stackGenerateBinaryErr)
+
+	return stackGenerateBinaryPath
+}
+
 // TestStackGenerateConcurrentProcessesWithRacing asserts that multiple
 // concurrent OS-level `terragrunt stack generate` processes running against
 // the same working directory all complete successfully and leave the
@@ -1928,34 +2001,26 @@ func TestStackGenerateWithFilter(t *testing.T) {
 // parallel inside the same stack (observed with the Pipelines driver)
 // previously saw non-deterministic "file exists" / "no such file" errors
 // because each process independently wrote into the same .terragrunt-stack/
-// subtree. The fix serializes invocations via a flock-based lockfile in
-// workingDir.
+// subtree. The fix serializes invocations via a flock-based lockfile inside
+// .terragrunt-stack/.
 //
 // The test deliberately spawns real subprocesses (not in-process goroutines)
-// so each invocation has its own urfave/cli global state — this isolates the
-// lockfile behavior from unrelated cross-goroutine state issues.
+// so each invocation operates on its own OS process state. Pair this with
+// the deterministic lock unit test in generate_test.go — this test detects
+// partial-write symptoms in the generated tree, the unit test proves the
+// lock itself serializes.
 func TestStackGenerateConcurrentProcessesWithRacing(t *testing.T) {
 	t.Parallel()
 
-	// Build the terragrunt binary into a per-test temp dir. `go test` runs
-	// with CWD set to the package directory (./test), so the module root is
-	// one level up.
-	binPath := filepath.Join(t.TempDir(), "terragrunt")
+	binPath := buildStackGenerateBinary(t)
 
-	buildCmd := exec.CommandContext(t.Context(), "go", "build", "-o", binPath, ".")
-	buildCmd.Dir = ".."
-
-	buildOut, err := buildCmd.CombinedOutput()
-	require.NoError(t, err, "build terragrunt binary: %s", string(buildOut))
-
-	// A single batch of 4 concurrent subprocesses passes roughly 4 times out
-	// of 5 even on the unfixed code (the filesystem race is timing-dependent).
-	// Running 5 batches per test invocation makes the regression trigger
-	// reliably on pre-fix code and keeps CI cost bounded (~10s when the lock
-	// serializes; ~8s when it doesn't).
+	// 4 concurrent × 15 iterations yields a high-probability regression
+	// detector (≈97% at an 80% per-batch pass rate on the unfixed code).
+	// The deterministic lock test in generate_test.go is the primary
+	// correctness guard; this test adds a realistic end-to-end check.
 	const (
 		concurrent = 4
-		iterations = 5
+		iterations = 15
 	)
 
 	for iter := range iterations {
