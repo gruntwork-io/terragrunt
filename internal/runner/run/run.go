@@ -244,6 +244,26 @@ func runTerragruntWithConfig(
 		return err
 	}
 
+	// If TG_CPU_PROFILE_DIR is set, compute per-module TOFU_CPU_PROFILE path
+	// preserving directory hierarchy relative to root working dir.
+	if profileDir := opts.Env[tf.EnvNameTGCPUProfileDir]; profileDir != "" {
+		if _, set := opts.Env[tf.EnvNameTofuCPUProfile]; !set {
+			relPath, err := filepath.Rel(opts.RootWorkingDir, opts.OriginalTerragruntConfigPath)
+			if err != nil {
+				relPath = filepath.Base(opts.WorkingDir)
+			}
+
+			tofuProfileDir := filepath.Join(profileDir, filepath.Dir(relPath))
+
+			const profileDirMode = 0755
+			if err := os.MkdirAll(tofuProfileDir, profileDirMode); err != nil {
+				return fmt.Errorf("could not create tofu profile directory: %w", err)
+			}
+
+			opts.Env[tf.EnvNameTofuCPUProfile] = filepath.Join(tofuProfileDir, "tofu_cpu.prof")
+		}
+	}
+
 	if opts.TerraformCliArgs.First() == tf.CommandNameInit {
 		if err := prepareInitCommandRunCfg(ctx, l, opts, cfg); err != nil {
 			return err
