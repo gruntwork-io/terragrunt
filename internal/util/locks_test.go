@@ -3,6 +3,7 @@ package util_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,33 @@ func TestKeyLocksSharedKeySerializes(t *testing.T) {
 
 	wg.Wait()
 
-	require.Equal(t, 20, counter, "serialized increments must see exactly 20, any other value means a lost update")
+	require.Equal(t, 20, counter, "serialized increments must total 20 (other totals indicate a lost update)")
+}
+
+// TestKeyLocksIndependentKeysDoNotBlock asserts that locking key "a" does
+// not block a concurrent locker of key "b". Without this, a buggy KeyLocks
+// that degenerated into a single global mutex would still pass every other
+// test in this file.
+func TestKeyLocksIndependentKeysDoNotBlock(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+	kl.Lock("a")
+	defer kl.Unlock("a")
+
+	done := make(chan struct{})
+
+	go func() {
+		kl.Lock("b")
+		kl.Unlock("b")
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal(`locking independent key "b" was blocked by holder of "a"`)
+	}
 }
 
 // TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.

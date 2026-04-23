@@ -105,8 +105,12 @@ func CanonicalPath(path string, basePath string) (string, error) {
 //
 // Composition of CanonicalPath (clean + absolutize via basePath) and
 // ResolvePath (filepath.EvalSymlinks, with a silent best-effort fallback to
-// the cleaned path when EvalSymlinks fails: ENOENT on paths not yet
-// created, ELOOP on symlink loops, EACCES on inaccessible intermediates).
+// the cleaned path on any EvalSymlinks error, e.g. ENOENT, ELOOP, EACCES).
+//
+// Dedup via this helper is only as reliable as filepath.EvalSymlinks: if
+// symlink resolution succeeds for one caller and fails for another on the
+// same location (differing permissions, concurrent filesystem mutation),
+// the returned keys may still differ.
 func CanonicalResolvedPath(path, basePath string) (string, error) {
 	canonical, err := CanonicalPath(path, basePath)
 	if err != nil {

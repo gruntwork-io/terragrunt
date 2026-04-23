@@ -61,7 +61,6 @@ func newTestOptions(t *testing.T, workingDir string) *options.TerragruntOptions 
 
 	opts.WorkingDir = workingDir
 	opts.Parallelism = 4
-	opts.StackAction = "generate"
 
 	return opts
 }

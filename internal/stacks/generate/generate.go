@@ -50,6 +50,15 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
+	// Canonicalise the working directory so topology lookups compare against
+	// the same cleaned/symlink-resolved form that foundFiles entries use.
+	// Without this, macOS symlink prefixes like /var -> /private/var cause
+	// the early-termination branch in findParentStackFile to miss.
+	workingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, opts.WorkingDir)
+	if err != nil {
+		return errors.Errorf("canonicalize working dir %s: %w", opts.WorkingDir, err)
+	}
+
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
@@ -77,7 +86,7 @@ func GenerateStacks(
 	// map must be replaced with a synchronized type (sync.Map or a mutex).
 	generatedFiles := make(map[string]bool)
 
-	stackTrees := BuildStackTopology(l, foundFiles, opts.WorkingDir)
+	stackTrees := BuildStackTopology(l, foundFiles, workingDir)
 
 	const maxLevel = 1024
 	for level := range maxLevel {
@@ -94,7 +103,7 @@ func GenerateStacks(
 			return err
 		}
 
-		if err := discoverAndAddNewNodes(ctx, l, opts, wts, stackTrees, generatedFiles, level+1); err != nil {
+		if err := discoverAndAddNewNodes(ctx, l, opts, wts, workingDir, stackTrees, generatedFiles, level+1); err != nil {
 			return err
 		}
 	}
@@ -141,12 +150,16 @@ func generateLevel(
 	return wp.Wait()
 }
 
-// discoverAndAddNewNodes discovers new stack files and adds them to the dependency graph.
+// discoverAndAddNewNodes discovers new stack files and adds them to the
+// dependency graph. workingDir must already be canonicalised (cleaned,
+// absolute, symlink-resolved) so topology lookups key consistently against
+// the canonicalised foundFiles.
 func discoverAndAddNewNodes(
 	ctx context.Context,
 	l log.Logger,
 	opts *options.TerragruntOptions,
 	worktrees *worktrees.Worktrees,
+	workingDir string,
 	dependencyGraph map[string]*StackNode,
 	generatedFiles map[string]bool,
 	minLevel int,
@@ -156,7 +169,7 @@ func discoverAndAddNewNodes(
 		return errors.Errorf("Failed to list stack files after level %d: %w", minLevel-1, listErr)
 	}
 
-	addNewNodesToGraph(l, dependencyGraph, newFiles, generatedFiles, opts.WorkingDir)
+	addNewNodesToGraph(l, dependencyGraph, newFiles, generatedFiles, workingDir)
 
 	return nil
 }
@@ -344,7 +357,9 @@ func ListStackFiles(
 // Both results come from a single discovery walk so callers that need exclude
 // information (like stack output) do not have to walk the filesystem twice.
 //
-// The excludedPaths set is keyed by cleaned absolute unit paths. Exclusion is
+// The excludedPaths set is keyed by cleaned absolute symlink-resolved unit
+// paths, matching the canonicalisation used for the returned stack-file
+// list. Exclusion is
 // determined by discovery's IsActionListed + If logic (the same as find, list,
 // and discovery.applyExcludeModules), using opts.TerraformCommand as the action.
 //
@@ -394,7 +409,12 @@ func ListStackFilesWithExcludes(
 			foundFiles = append(foundFiles, canonical)
 		case *component.Unit:
 			if v.Excluded() {
-				excludedPaths[filepath.Clean(v.Path())] = struct{}{}
+				canonical, err := util.CanonicalResolvedPath(v.Path(), opts.WorkingDir)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				excludedPaths[canonical] = struct{}{}
 			}
 		}
 	}
