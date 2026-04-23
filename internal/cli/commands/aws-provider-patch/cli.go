@@ -47,7 +47,7 @@ const (
 	OverrideAttrFlagName = "override-attr"
 )
 
-func NewFlags(l log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
+func NewFlags(_ log.Logger, opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	terragruntPrefixControl := flags.StrictControlsByCommand(opts.StrictControls, CommandName)
