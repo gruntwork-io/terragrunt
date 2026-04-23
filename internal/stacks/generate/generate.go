@@ -61,11 +61,26 @@ func GenerateStacks(
 
 // RegisterOnGenerateHook registers a callback to be invoked when a stack file
 // is dispatched for generation in the given working directory.
+//
+// The hook is keyed on workingDir against the process-wide
+// defaultStackGenerator, so:
+//   - Only one hook per workingDir: a second Register for the same key
+//     replaces the first (last-write-wins).
+//   - Tests that share a workingDir key must coordinate: two parallel
+//     tests using the same key would race on the hook slot.
+//   - For isolation across tests / library callers, allocate a dedicated
+//     *StackGenerator via NewStackGenerator instead of using this
+//     package-level helper. This helper is intentionally kept for the
+//     simple integration-test case where isolation is handled by using
+//     unique working directories (as all the existing regression tests
+//     do via t.TempDir()).
 func RegisterOnGenerateHook(workingDir string, fn func(string)) {
 	defaultStackGenerator.onGenerateDispatched.register(workingDir, fn)
 }
 
-// UnregisterOnGenerateHook removes a previously registered generation hook.
+// UnregisterOnGenerateHook removes a previously registered generation hook
+// for workingDir from the package-level defaultStackGenerator. No-op if
+// none is registered.
 func UnregisterOnGenerateHook(workingDir string) {
 	defaultStackGenerator.onGenerateDispatched.unregister(workingDir)
 }

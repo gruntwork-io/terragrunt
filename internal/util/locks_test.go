@@ -27,8 +27,11 @@ func TestKeyLocksBasic(t *testing.T) {
 	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
 }
 
-// TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
-func TestKeyLocksConcurrentAccess(t *testing.T) {
+// TestKeyLocksSharedKeySerializes asserts that concurrent holders of the
+// same key are serialized one-at-a-time, not that distinct keys run in
+// parallel. Multi-key parallelism is covered by
+// TestGenerateMutexIndependentKeys in internal/stacks/generate.
+func TestKeyLocksSharedKeySerializes(t *testing.T) {
 	t.Parallel()
 
 	kl := util.NewKeyLocks()
@@ -55,7 +58,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	for i := range 10 {
-		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
+		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each goroutine should be completed")
 	}
 }
 
@@ -99,26 +102,18 @@ func TestKeyLocksEntryRetainedWhileWaiter(t *testing.T) {
 	kl := util.NewKeyLocks()
 	kl.Lock("k")
 
-	waiterReady := make(chan struct{})
 	waiterDone := make(chan struct{})
 
 	go func() {
-		close(waiterReady)
 		kl.Lock("k")
 		kl.Unlock("k")
 		close(waiterDone)
 	}()
 
-	<-waiterReady
-	// Give the waiter a moment to bump refcount and block on Lock.
-	for range 10 {
-		if kl.Len() == 1 {
-			break
-		}
-	}
-
+	// Main goroutine releases; waiter then acquires+releases in sequence.
+	// After both are done, the entry must be cleaned up (refcount went
+	// main=1 -> both=2 -> waiter=1 -> 0).
 	kl.Unlock("k")
-
 	<-waiterDone
 
 	require.Equal(t, 0, kl.Len(), "entry must be deleted after the last holder (originally the waiter) releases")
