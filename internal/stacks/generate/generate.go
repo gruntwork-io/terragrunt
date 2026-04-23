@@ -72,18 +72,7 @@ func GenerateStacks(
 		return nil
 	}
 
-	// generatedFiles dedups by canonical stack-file path so the same physical
-	// file is never submitted twice across level iterations. Canonicalization
-	// happens at the discovery boundary (ListStackFiles), so every entry in
-	// this map is a cleaned absolute path and string-aliased duplicates
-	// collapse to one key.
-	//
-	// Concurrency invariant: this map is accessed ONLY from the main
-	// GenerateStacks goroutine. generateLevel and discoverAndAddNewNodes read
-	// and mutate it before dispatching / after joining the worker pool, never
-	// from inside a pool goroutine. If a future refactor interleaves
-	// generation with discovery or moves map access onto pool goroutines, this
-	// map must be replaced with a synchronized type (sync.Map or a mutex).
+	// Dedup keyed by canonical stack-file path; accessed only from the main goroutine.
 	generatedFiles := make(map[string]bool)
 
 	stackTrees := BuildStackTopology(l, foundFiles, workingDir)
