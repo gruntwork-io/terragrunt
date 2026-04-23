@@ -345,37 +345,65 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	return includeExpandedGlobs, nil
 }
 
+// CopyOption configures a [CopyFolderContents] call.
+type CopyOption func(*copyConfig)
+
+type copyConfig struct {
+	includeInCopy   []string
+	excludeFromCopy []string
+	fastCopy        bool
+}
+
+// WithIncludeInCopy adds glob patterns that must be copied even when
+// [TerragruntExcludes] would skip them (for example hidden files).
+func WithIncludeInCopy(patterns ...string) CopyOption {
+	return func(c *copyConfig) {
+		c.includeInCopy = append(c.includeInCopy, patterns...)
+	}
+}
+
+// WithExcludeFromCopy adds glob patterns whose matches must be skipped
+// during the copy.
+func WithExcludeFromCopy(patterns ...string) CopyOption {
+	return func(c *copyConfig) {
+		c.excludeFromCopy = append(c.excludeFromCopy, patterns...)
+	}
+}
+
+// WithFastCopy enables the fast-copy path: patterns compile once through
+// [glob.Compile] and the source tree is walked once via
+// [vfs.WalkDirParallel]. See the `fast-copy` strict control for the
+// semantic implications.
+func WithFastCopy() CopyOption {
+	return func(c *copyConfig) {
+		c.fastCopy = true
+	}
+}
+
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 //
-// When fastCopy is true, `include_in_copy` and `exclude_from_copy` patterns
-// are compiled once via [glob.Compile] (gobwas semantics) and evaluated
-// inside the copy walk, skipping the recursive pre-expansion that the
-// default path runs for each pattern. Callers should gate fastCopy behind
-// the `fast-copy` strict control so the zglob→gobwas semantic change is
-// opt-in.
-func CopyFolderContents(
-	l log.Logger,
-	source,
-	destination,
-	manifestFile string,
-	includeInCopy []string,
-	excludeFromCopy []string,
-	fastCopy bool,
-) error {
+// Optional behavior is configured through [CopyOption] values such as
+// [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
+func CopyFolderContents(l log.Logger, source, destination, manifestFile string, opts ...CopyOption) error {
+	var cfg copyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	// We use filepath.ToSlash because we end up using globs here, and those expect forward slashes.
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
 
-	if fastCopy {
-		return copyFolderContentsFast(l, source, destination, manifestFile, includeInCopy, excludeFromCopy)
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
 	}
 
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
 
-	for _, includeGlob := range includeInCopy {
+	for _, includeGlob := range cfg.includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
@@ -388,7 +416,7 @@ func CopyFolderContents(
 
 	excludeExpandedGlobs := []string{}
 
-	for _, excludeGlob := range excludeFromCopy {
+	for _, excludeGlob := range cfg.excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)

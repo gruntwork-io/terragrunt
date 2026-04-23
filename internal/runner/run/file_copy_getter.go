@@ -54,7 +54,15 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return errors.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy, g.ExcludeFromCopy, g.FastCopy)
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(g.IncludeInCopy...),
+		util.WithExcludeFromCopy(g.ExcludeFromCopy...),
+	}
+	if g.FastCopy {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
+
+	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, copyOpts...)
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

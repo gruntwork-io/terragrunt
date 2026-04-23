@@ -111,9 +111,9 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			environmentPath,
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
-			includeInCopy,
-			excludeFromCopy,
-			true,
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(excludeFromCopy...),
+			util.WithFastCopy(),
 		),
 	)
 
