@@ -1,8 +1,8 @@
 // This is a white-box test file: it needs access to the unexported
-// ensureWorkingDir helper and generateMutex, and to the exported sentinel
+// ensureWorkingDir helper and StackGenerator, and to the exported sentinel
 // errors they return. The lock-path / vfs.FS tests from earlier revisions
 // were removed when the filesystem lock was replaced by an in-process
-// sync.Mutex (see the generateMutex doc-comment for rationale).
+// manager.
 //
 //nolint:testpackage // white-box testing of unexported helpers
 package generate
@@ -10,6 +10,7 @@ package generate
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,23 +57,30 @@ func TestEnsureWorkingDirExisting(t *testing.T) {
 	require.NoError(t, ensureWorkingDir(t.TempDir()))
 }
 
-// TestGenerateMutexSerializes asserts that the package-level generateMutex
-// serializes two concurrent holders. A second Lock() must block while the
-// first holds, and unblock after Unlock().
-//
-// Cannot use t.Parallel because it acquires the package-level mutex; a
-// concurrent test that also runs GenerateStacks (or grabs the mutex for
-// any other reason) would deadlock with this test.
-//
-//nolint:paralleltest // acquires package-level generateMutex
+// TestGenerateMutexSerializes asserts that the package-level
+// generateLockManager serializes two concurrent holders on the same key. A
+// second Lock() must block while the first holds, and unblock after the
+// first Unlock() is called.
 func TestGenerateMutexSerializes(t *testing.T) {
-	generateMutex.Lock()
+	t.Parallel()
+
+	g := NewStackGenerator()
+	key := t.TempDir()
+	g.lockManager.Lock(key)
+
+	var once sync.Once
+
+	unlock := func() {
+		once.Do(func() { g.lockManager.Unlock(key) })
+	}
+
+	t.Cleanup(unlock)
 
 	locked := make(chan struct{})
 
 	go func() {
-		generateMutex.Lock()
-		defer generateMutex.Unlock()
+		g.lockManager.Lock(key)
+		defer g.lockManager.Unlock(key)
 
 		close(locked)
 	}()
@@ -85,7 +93,7 @@ func TestGenerateMutexSerializes(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	generateMutex.Unlock()
+	unlock()
 
 	// Now the second Lock() must succeed promptly.
 	select {
@@ -96,11 +104,11 @@ func TestGenerateMutexSerializes(t *testing.T) {
 }
 
 // TestGenerateMutexConcurrent asserts that many goroutines contending on
-// the mutex all eventually acquire+release without error and observe a
+// the same key all eventually acquire+release without error and observe a
 // serialized critical section (no concurrent holders at any instant).
-//
-//nolint:paralleltest // acquires package-level generateMutex
 func TestGenerateMutexConcurrent(t *testing.T) {
+	t.Parallel()
+
 	const numGoroutines = 16
 
 	var (
@@ -108,11 +116,13 @@ func TestGenerateMutexConcurrent(t *testing.T) {
 		maxActive int
 	)
 
-	g, _ := errgroup.WithContext(t.Context())
+	g := NewStackGenerator()
+	key := t.TempDir()
+	eg, _ := errgroup.WithContext(t.Context())
 
 	for range numGoroutines {
-		g.Go(func() error {
-			generateMutex.Lock()
+		eg.Go(func() error {
+			g.lockManager.Lock(key)
 			active++
 
 			if active > maxActive {
@@ -123,12 +133,41 @@ func TestGenerateMutexConcurrent(t *testing.T) {
 			time.Sleep(5 * time.Millisecond)
 
 			active--
-			generateMutex.Unlock()
+			g.lockManager.Unlock(key)
 
 			return nil
 		})
 	}
 
-	require.NoError(t, g.Wait())
+	require.NoError(t, eg.Wait())
 	require.Equal(t, 1, maxActive, "mutex must enforce exactly one holder at a time")
+}
+
+// TestGenerateMutexIndependentKeys asserts that two different keys can
+// be held simultaneously without blocking.
+func TestGenerateMutexIndependentKeys(t *testing.T) {
+	t.Parallel()
+
+	g := NewStackGenerator()
+	key1 := filepath.Join(t.TempDir(), "1")
+	key2 := filepath.Join(t.TempDir(), "2")
+
+	g.lockManager.Lock(key1)
+	defer g.lockManager.Unlock(key1)
+
+	locked2 := make(chan struct{})
+
+	go func() {
+		g.lockManager.Lock(key2)
+		defer g.lockManager.Unlock(key2)
+
+		close(locked2)
+	}()
+
+	// Second key must succeed promptly even while the first is held.
+	select {
+	case <-locked2:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second key blocked behind unrelated first key")
+	}
 }

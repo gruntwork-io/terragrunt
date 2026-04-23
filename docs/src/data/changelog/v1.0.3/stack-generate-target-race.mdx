@@ -5,4 +5,4 @@ category: "bug-fixes"
 
 #### Fixed concurrent write conflict in `terragrunt stack generate`
 
-On nested stack hierarchies, `terragrunt stack generate` could produce non-deterministic `file exists`, `no such file or directory`, or `unexpected EOF` errors under parallel use. Two bugs caused this: the dedup map treated string-aliased paths as distinct, and in-process concurrent calls raced on the shared output tree. Stack-file paths are now cleaned and absolutized at discovery, and in-process calls serialize on a mutex.
+Fixed non-deterministic file errors during `terragrunt stack generate` on nested stack hierarchies. These failures resulted from incorrect deduplication of symlinked paths and concurrent in-process calls racing on the shared output tree.

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -1920,18 +1921,10 @@ func TestStackGenerateWithFilter(t *testing.T) {
 // invocation under --parallelism. Regression guard for the concurrent-write
 // race fixed in the v1.0.3 stack-generate-target-race changelog entry.
 //
-// Why log-scraping, not filesystem inspection: this test specifically guards
-// against intra-process duplicate DISPATCH from the dedup map (the bug was
-// that canonically-equivalent source paths hashed to two different map keys
-// and both reached the worker pool). Post-generation the on-disk tree is
-// visually identical whether dispatch happened once or twice, so walking
-// .terragrunt-stack/ cannot detect this class of regression. The log line
-// is the cheapest structural signal that preserves the "exactly once"
-// property. If pkg/config/stack.go:generateComponent ever refactors the
-// line, the require.NotEmpty guard below fires loudly (not silently pass).
-//
-// TODO: swap to a test-only counter exposed from internal/stacks/generate
-// when a broader test-hook pattern is introduced in the package.
+// Uses the structured dispatch hook from internal/stacks/generate to verify
+// that every stack file is dispatched exactly once. This is more robust
+// than log scraping and validates the "exactly once" property directly
+// at the generation boundary.
 func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
 	t.Parallel()
 
@@ -1946,29 +1939,31 @@ func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
 	liveDir := filepath.Join(tmpDir, "live")
 	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
 
-	// Matches the per-component generation debug line emitted by
-	// pkg/config/stack.go:generateComponent for every unit and sub-stack emitted
-	// into .terragrunt-stack/ (see the `l.Debugf("Generating: %s (%s) to %s", ...)`
-	// call). The captured group is the target directory that must be unique.
-	generateRE := regexp.MustCompile(`msg=Generating: \S+ \(\S+\) to (\S+)`)
+	// Use the canonical path for the hook key.
+	absLiveDir, err := util.CanonicalPath(liveDir, "")
+	require.NoError(t, err)
 
 	for i := range iterations {
 		require.NoError(t, os.RemoveAll(stackDir))
 
-		_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
-			"terragrunt stack generate --working-dir "+liveDir+" --log-level=debug --parallelism=10")
+		var (
+			mu     sync.Mutex
+			writes = make(map[string]int)
+		)
+
+		generate.RegisterOnGenerateHook(absLiveDir, func(filePath string) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			writes[filePath]++
+		})
+		t.Cleanup(func() { generate.UnregisterOnGenerateHook(absLiveDir) })
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir+" --parallelism=10")
 		require.NoError(t, err, "iteration %d: stack generate failed", i)
 
-		writes := make(map[string]int)
-
-		for _, line := range strings.Split(stderr, "\n") {
-			m := generateRE.FindStringSubmatch(line)
-			if len(m) == 2 {
-				writes[m[1]]++
-			}
-		}
-
-		require.NotEmpty(t, writes, "iteration %d: expected per-component 'Generating:' events in stderr", i)
+		require.NotEmpty(t, writes, "iteration %d: expected generation events via hook", i)
 
 		duplicates := make(map[string]int)
 
@@ -1983,6 +1978,8 @@ func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
 				"duplicates indicate the concurrent-write race (see stack-generate-target-race changelog) has regressed. "+
 				"Duplicated targets: %v",
 			i, duplicates)
+
+		generate.UnregisterOnGenerateHook(absLiveDir)
 	}
 }
 
