@@ -80,10 +80,8 @@ const (
 	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
 	DisableDependentModules = "disable-dependent-modules"
 
-	// FastCopy opts into a compile-once, single-walk implementation of
-	// `include_in_copy` / `exclude_from_copy` expansion in
-	// `util.CopyFolderContents`. Faster on large module sources, but
-	// switches pattern matching from zglob to gobwas semantics.
+	// FastCopy is the control that switches `include_in_copy` and
+	// `exclude_from_copy` pattern matching from zglob to gobwas.
 	FastCopy = "fast-copy"
 )
 
@@ -298,7 +296,7 @@ func New() strict.Controls {
 		},
 		&Control{
 			Name:        FastCopy,
-			Description: "Switches `include_in_copy` / `exclude_from_copy` expansion in `util.CopyFolderContents` to a compile-once, single-walk implementation. Pattern matching moves from zglob to gobwas semantics, so `**` no longer collapses when adjacent to a wildcard (for example `a/**/*.tf` will not match `a/foo.tf`). Use brace alternation such as `{*.tf,**/*.tf}` to cover both depths.",
+			Description: "Switches `include_in_copy` and `exclude_from_copy` pattern matching from zglob to gobwas. `**` no longer collapses when adjacent to a wildcard, so `a/**/*.tf` will not match `a/foo.tf`. Use brace alternation like `{*.tf,**/*.tf}` to cover both depths.",
 			Category:    stageCategory,
 		},
 	}

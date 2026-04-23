@@ -32,9 +32,9 @@ type FileCopyGetter struct {
 	IncludeInCopy   []string
 	ExcludeFromCopy []string
 
-	// FastCopy opts the underlying [util.CopyFolderContents] call into the
-	// compile-once, single-walk implementation. Set via the `fast-copy`
-	// strict control at construction time.
+	// FastCopy routes the [util.CopyFolderContents] call through the
+	// fast-copy path. Set at construction time from the `fast-copy`
+	// strict control.
 	FastCopy bool
 }
 
