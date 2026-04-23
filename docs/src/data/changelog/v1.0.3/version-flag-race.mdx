@@ -1,0 +1,10 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### Fixed data race in `--version` flag parsing under concurrent CLI invocations
+
+When multiple Terragrunt CLI invocations ran concurrently in the same process, urfave/cli/v2's package-level `VersionFlag` singleton was mutated concurrently by each invocation's flag-parsing path, producing a `WARNING: DATA RACE` on shared flag state.
+
+Terragrunt now sets `cli.App.HideVersion = true` at construction, which prevents urfave from auto-appending its shared `VersionFlag` into each App's flag set. The `--version` / `-v` flag is unchanged from the user's perspective — it is handled by Terragrunt's own flag registered in `internal/cli/flags/global.NewHelpVersionFlags`.

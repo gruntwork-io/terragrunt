@@ -72,6 +72,43 @@ func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
 	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
 }
 
+func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
+	t.Parallel()
+
+	// 3 levels: infra -> deep -> db (stack.infra.deep.db.path)
+	refs := []hclparse.ComponentRef{
+		{
+			Name: "infra",
+			Path: "/gen/infra",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: "/gen/infra/.terragrunt-stack/vpc"},
+				{
+					Name: "deep",
+					Path: "/gen/infra/.terragrunt-stack/deep",
+					ChildRefs: []hclparse.ComponentRef{
+						{Name: "db", Path: "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db"},
+					},
+				},
+			},
+		},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	// Level 1: infra
+	infraVal := result.GetAttr("infra")
+	assert.Equal(t, "/gen/infra", infraVal.GetAttr("path").AsString())
+
+	// Level 2: infra.deep
+	deepVal := infraVal.GetAttr("deep")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep", deepVal.GetAttr("path").AsString())
+
+	// Level 3: infra.deep.db
+	dbVal := deepVal.GetAttr("db")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
+	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
+}
+
 func TestExtractUnitRefs(t *testing.T) {
 	t.Parallel()
 

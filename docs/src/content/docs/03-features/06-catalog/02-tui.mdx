@@ -6,6 +6,8 @@ sidebar:
   order: 2
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 Launch the user interface for searching and managing your module catalog.
 
 ```bash
@@ -49,3 +51,54 @@ The following `catalog` flags control behavior of the underlying `scaffold` comm
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
 - `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.
+
+## Excluding paths from discovery
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+Catalog authors can keep directories out of discovery by committing a `.terragrunt-catalog-ignore` file at the root of the repository. Typical uses are skipping `examples/`, `test/`, or integration fixtures that aren't intended to be scaffolded as modules or templates.
+
+The file format borrows from `.gitignore`:
+
+- One pattern per line. Blank lines and lines starting with `#` are ignored.
+- Patterns are matched against repo-relative, forward-slash paths (e.g. `examples/vpc`). A lone `*` does not cross `/`; use `**` to match across path separators.
+- A leading `!` negates a previous rule, re-including a sibling that an earlier pattern excluded.
+- Trailing `/` is optional and ignored.
+- The last matching rule wins.
+
+Matching evaluates every path against the rule list in order, so a later `!` pattern can re-include a path that an earlier rule excluded, including a descendant of a previously matched directory.
+
+```plaintext
+# .terragrunt-catalog-ignore
+
+# Keep examples out of the catalog.
+examples
+examples/**
+
+# Skip everything under test/ except test/keep.
+test/**
+!test/keep
+```
+
+With the file above, a repo containing `modules/vpc/main.tf`, `examples/vpc/main.tf`, `test/drop/main.tf`, and `test/keep/main.tf` surfaces only `modules/vpc` and `test/keep` in the catalog.
+
+### Layering an additional ignore file
+
+Pass `--ignore-file <path>` to load an additional ignore file on top of whatever `.terragrunt-catalog-ignore` is committed at the repo root. The extra rules are appended after the repo's rules, so last-match-wins semantics let the extra file either add new exclusions or re-include paths the repo file excluded via `!` negation.
+
+```bash
+terragrunt catalog --ignore-file ./my-ignore-rules
+```
+
+This is useful when you don't control the upstream repository, or when you want to temporarily scope discovery without editing files under version control. It can also be set via the `TG_IGNORE_FILE` environment variable. The path must exist; a missing file is an error.
+
+## Browse tabs
+
+
+<Aside type="tip" title="Catalog Redesign Experiment">
+This section describes behavior that is only available when the [`catalog-redesign`](/reference/experiments/active#catalog-redesign) experiment is enabled.
+</Aside>
+
+The list view is split into three tabs: `All`, `Modules`, and `Templates`. `All` is selected when the TUI launches. Press `tab` to move to the next tab and `shift+tab` to move to the previous; cycling wraps at either end. The active tab filters the list down to components of that kind, and each tab keeps its own cursor position and search filter, so switching back preserves where you were.
