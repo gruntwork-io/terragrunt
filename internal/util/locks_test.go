@@ -3,6 +3,7 @@ package util_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/stretchr/testify/require"
@@ -27,35 +28,56 @@ func TestKeyLocksBasic(t *testing.T) {
 	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
 }
 
-// TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
-func TestKeyLocksConcurrentAccess(t *testing.T) {
+// TestKeyLocksSharedKeySerializes asserts concurrent holders of the same key serialise without lost updates.
+func TestKeyLocksSharedKeySerializes(t *testing.T) {
 	t.Parallel()
 
 	kl := util.NewKeyLocks()
 
 	var (
-		counters [10]int
-		wg       sync.WaitGroup
+		counter int
+		wg      sync.WaitGroup
 	)
 
-	for i := range 10 {
+	for range 10 {
 		wg.Add(1)
 
-		go func(key string, idx int) {
+		go func() {
 			defer wg.Done()
 
-			kl.Lock(key)
-			defer kl.Unlock(key)
+			kl.Lock("test-key")
+			defer kl.Unlock("test-key")
 
-			counters[idx]++
-			counters[idx]++
-		}("test-key", i)
+			counter++
+			counter++
+		}()
 	}
 
 	wg.Wait()
 
-	for i := range 10 {
-		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
+	require.Equal(t, 20, counter, "serialized increments must total 20 (other totals indicate a lost update)")
+}
+
+// TestKeyLocksIndependentKeysDoNotBlock asserts that distinct keys do not block each other.
+func TestKeyLocksIndependentKeysDoNotBlock(t *testing.T) {
+	t.Parallel()
+
+	kl := util.NewKeyLocks()
+	kl.Lock("a")
+	defer kl.Unlock("a")
+
+	done := make(chan struct{})
+
+	go func() {
+		kl.Lock("b")
+		kl.Unlock("b")
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal(`locking independent key "b" was blocked by holder of "a"`)
 	}
 }
 
