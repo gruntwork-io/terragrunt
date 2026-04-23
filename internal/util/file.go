@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -345,6 +346,13 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
+//
+// When fastCopy is true, `include_in_copy` and `exclude_from_copy` patterns
+// are compiled once via [glob.Compile] (gobwas semantics) and evaluated
+// inside the copy walk, skipping the recursive pre-expansion that the
+// default path runs for each pattern. Callers should gate fastCopy behind
+// the `fast-copy` strict control so the zglob→gobwas semantic change is
+// opt-in.
 func CopyFolderContents(
 	l log.Logger,
 	source,
@@ -352,10 +360,15 @@ func CopyFolderContents(
 	manifestFile string,
 	includeInCopy []string,
 	excludeFromCopy []string,
+	fastCopy bool,
 ) error {
 	// We use filepath.ToSlash because we end up using globs here, and those expect forward slashes.
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
+
+	if fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, includeInCopy, excludeFromCopy)
+	}
 
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
@@ -405,6 +418,182 @@ func CopyFolderContents(
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
 	})
+}
+
+// copyFolderContentsFast is the compile-once, single-walk path for
+// [CopyFolderContents]. See the `fast-copy` strict control.
+func copyFolderContentsFast(
+	l log.Logger,
+	source,
+	destination,
+	manifestFile string,
+	includeInCopy []string,
+	excludeFromCopy []string,
+) error {
+	include, err := compileIncludePatterns(includeInCopy)
+	if err != nil {
+		return err
+	}
+
+	exclude, err := compileExcludePattern(excludeFromCopy)
+	if err != nil {
+		return err
+	}
+
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
+		rel, err := GetPathRelativeTo(absolutePath, source)
+		if err != nil {
+			return false
+		}
+
+		rel = filepath.ToSlash(rel)
+
+		// Preserve the cache-dir skip that expandGlobPath enforced at
+		// expansion time. Must run before include matching — otherwise a
+		// user include like "**" would pull .terragrunt-cache back in.
+		if strings.Contains(rel, TerragruntCacheDir) {
+			return false
+		}
+
+		if exclude != nil && exclude.Match(rel) {
+			return false
+		}
+
+		if include.matches(rel) {
+			return true
+		}
+
+		if !TerragruntExcludes(filepath.FromSlash(rel)) {
+			return true
+		}
+
+		// TerragruntExcludes rejects this path (dot-prefix or similar).
+		// Last chance to keep it: mirror the legacy ancestor pass via
+		// `listContainsElementWithPrefix` — a directory on the path
+		// toward a potential include match must be descended into. The
+		// stat only runs on the TerragruntExcludes-rejected tail, which
+		// is a small subset of the walk.
+		return IsDir(absolutePath) && include.isAncestor(rel)
+	})
+}
+
+// includePatterns holds the compiled include matcher plus a cheap
+// "is rel an ancestor of any potential match" predicate. Ancestor
+// acceptance is what makes the walk descend through dot-prefixed parents
+// like `_module/.region3` to reach an include hidden underneath.
+type includePatterns struct {
+	// match is a single combined matcher built by OR-ing every user
+	// pattern as `{<p>,<p>/**}` inside one brace alternation. One
+	// `Match` call per entry replaces N per-pattern checks.
+	match glob.Matcher
+
+	// ancestor is a combined matcher over the strict path prefixes of
+	// each pattern that does not contain `**`. A rel matching this is a
+	// directory on the way to a potential include match.
+	ancestor glob.Matcher
+
+	// descendAny is true if any pattern contains a `**` segment — in that
+	// case any directory could be on the path to a match, so accept all
+	// non-excluded paths as ancestors regardless of `ancestor`.
+	descendAny bool
+}
+
+func (p includePatterns) matches(rel string) bool {
+	return p.match != nil && p.match.Match(rel)
+}
+
+func (p includePatterns) isAncestor(rel string) bool {
+	if rel == "" || rel == "." {
+		return true
+	}
+
+	if p.descendAny {
+		return true
+	}
+
+	return p.ancestor != nil && p.ancestor.Match(rel)
+}
+
+// compileIncludePatterns compiles user `include_in_copy` patterns into one
+// combined matcher that covers each pattern and all its descendants — so a
+// match behaves like the recursive expansion in [expandGlobPath] — plus an
+// ancestor matcher that flags directories on the path toward a potential
+// match.
+func compileIncludePatterns(patterns []string) (includePatterns, error) {
+	out := includePatterns{}
+
+	if len(patterns) == 0 {
+		return out, nil
+	}
+
+	// Each pattern contributes two alternatives: itself and itself/**.
+	const altsPerPattern = 2
+
+	matchParts := make([]string, 0, altsPerPattern*len(patterns))
+
+	var ancestorParts []string
+
+	for _, p := range patterns {
+		normalized := filepath.ToSlash(p)
+
+		matchParts = append(matchParts, normalized, normalized+"/**")
+
+		segments := strings.Split(normalized, "/")
+
+		if slices.Contains(segments, "**") {
+			out.descendAny = true
+			continue
+		}
+
+		for i := 1; i < len(segments); i++ {
+			ancestorParts = append(ancestorParts, strings.Join(segments[:i], "/"))
+		}
+	}
+
+	match, err := glob.Compile("{" + strings.Join(matchParts, ",") + "}")
+	if err != nil {
+		return includePatterns{}, errors.New(err)
+	}
+
+	out.match = match
+
+	if len(ancestorParts) > 0 {
+		ancestor, err := glob.Compile("{" + strings.Join(ancestorParts, ",") + "}")
+		if err != nil {
+			return includePatterns{}, errors.New(err)
+		}
+
+		out.ancestor = ancestor
+	}
+
+	return out, nil
+}
+
+// compileExcludePattern compiles user `exclude_from_copy` patterns into one
+// combined matcher. Each pattern is wrapped as `{<p>,<p>/**}` so excluding a
+// directory excludes everything under it. Returns nil when patterns is
+// empty.
+func compileExcludePattern(patterns []string) (glob.Matcher, error) {
+	if len(patterns) == 0 {
+		return nil, nil
+	}
+
+	// Each pattern contributes two alternatives: itself and itself/**.
+	const altsPerPattern = 2
+
+	parts := make([]string, 0, altsPerPattern*len(patterns))
+
+	for _, p := range patterns {
+		normalized := filepath.ToSlash(p)
+		parts = append(parts, normalized, normalized+"/**")
+	}
+
+	matcher, err := glob.Compile("{" + strings.Join(parts, ",") + "}")
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return matcher, nil
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.

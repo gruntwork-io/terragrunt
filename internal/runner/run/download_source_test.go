@@ -568,6 +568,7 @@ func copyFolder(t *testing.T, src string, dest string) {
 		".terragrunt-test",
 		nil,
 		nil,
+		false,
 	)
 	require.NoError(t, err)
 }

@@ -258,25 +258,17 @@ func TestHasPathPrefix(t *testing.T) {
 	}
 }
 
-func TestIncludeInCopy(t *testing.T) {
-	t.Parallel()
+// copyCase is one expected include/exclude outcome for a relative path.
+type copyCase struct {
+	path         string
+	copyExpected bool
+}
 
-	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
-
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
-		{"/app/terragrunt.hcl", true},
-		{"/_module/main.tf", true},
-		{"/_module/.region1/info.txt", false},
-		{"/_module/.region3/project3-1/f1-2-levels.txt", false},
-		{"/_module/.region3/project3-1/app1/.include-me-too/file.txt", true},
-		{"/_module/.region3/project3-2/.f0/f0-3-levels.txt", false},
-		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
-		{"/_module/.region2/.project2-1/readme.txt", true},
-		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
-	}
+// runCopyFolderContentsCase materializes the given test cases as files under
+// a temp source dir, runs [util.CopyFolderContents] with the given include /
+// exclude patterns, and asserts the destination matches `copyExpected`.
+func runCopyFolderContentsCase(t *testing.T, includeInCopy, excludeFromCopy []string, fastCopy bool, cases []copyCase) {
+	t.Helper()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	source := filepath.Join(tempDir, "source")
@@ -284,15 +276,15 @@ func TestIncludeInCopy(t *testing.T) {
 
 	fileContent := []byte("source file")
 
-	for _, tc := range testCases {
+	for _, tc := range cases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
 		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, nil))
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy, fastCopy))
 
-	for i, tc := range testCases {
+	for i, tc := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
@@ -305,15 +297,40 @@ func TestIncludeInCopy(t *testing.T) {
 	}
 }
 
+func TestIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
+	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
+
+	cases := []copyCase{
+		{"/app/terragrunt.hcl", true},
+		{"/_module/main.tf", true},
+		{"/_module/.region1/info.txt", false},
+		{"/_module/.region3/project3-1/f1-2-levels.txt", false},
+		{"/_module/.region3/project3-1/app1/.include-me-too/file.txt", true},
+		{"/_module/.region3/project3-2/.f0/f0-3-levels.txt", false},
+		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
+		{"/_module/.region2/.project2-1/readme.txt", true},
+		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
+	}
+
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+			runCopyFolderContentsCase(t, includeInCopy, nil, mode.fastCopy, cases)
+		})
+	}
+}
+
 func TestExcludeFromCopy(t *testing.T) {
 	t.Parallel()
 
 	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
 
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
+	cases := []copyCase{
 		{"/app/terragrunt.hcl", true},
 		{"/module/main.tf", true},
 		{"/module/region1/info.txt", true},
@@ -326,29 +343,13 @@ func TestExcludeFromCopy(t *testing.T) {
 		{"/module/region2/project2-2/f2-dot-f0.txt", false},
 	}
 
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	source := filepath.Join(tempDir, "source")
-	destination := filepath.Join(tempDir, "destination")
-
-	fileContent := []byte("source file")
-
-	for _, tc := range testCases {
-		path := filepath.Join(source, tc.path)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
-	}
-
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
-
-			_, err := os.Stat(filepath.Join(destination, tc.path))
-			assert.True(t,
-				tc.copyExpected && err == nil ||
-					!tc.copyExpected && errors.Is(err, os.ErrNotExist),
-				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tc.path, tc.copyExpected, err)
+			runCopyFolderContentsCase(t, nil, excludeFromCopy, mode.fastCopy, cases)
 		})
 	}
 }
@@ -359,39 +360,20 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	includeInCopy := []string{"_module/.region2", "_module/.region3"}
 	excludeFromCopy := []string{"**/.project2-2", "_module/.region3"}
 
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
+	cases := []copyCase{
 		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
 		{"/_module/.region2/.project2-1/readme.txt", true},
 		{"/_module/.region2/.project2-2/f2-dot-f0.txt", false},
 		{"/_module/.region3/.project2-1/readme.txt", false},
 	}
 
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	source := filepath.Join(tempDir, "source")
-	destination := filepath.Join(tempDir, "destination")
-
-	fileContent := []byte("source file")
-
-	for _, tc := range testCases {
-		path := filepath.Join(source, tc.path)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
-	}
-
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
-
-			_, err := os.Stat(filepath.Join(destination, tc.path))
-			assert.True(t,
-				tc.copyExpected && err == nil ||
-					!tc.copyExpected && errors.Is(err, os.ErrNotExist),
-				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tc.path, tc.copyExpected, err)
+			runCopyFolderContentsCase(t, includeInCopy, excludeFromCopy, mode.fastCopy, cases)
 		})
 	}
 }
@@ -770,3 +752,78 @@ func TestRelPathForLog(t *testing.T) {
 		})
 	}
 }
+
+// buildCopyBenchTree lays out a synthetic module source with `topDirs`
+// top-level directories. Each top-level dir gets a deeply nested chain
+// (`chainDepth` levels) with `filesPerLevel` files at every level, so a
+// bare-directory include pattern like the top-level name triggers the
+// legacy expandGlobPath recursion once per nested directory.
+//
+// Returns the tree root and the list of top-level directory names, which
+// become the include-in-copy patterns fed to the benchmark.
+func buildCopyBenchTree(b *testing.B, topDirs, chainDepth, filesPerLevel int) (string, []string) {
+	b.Helper()
+
+	root := b.TempDir()
+	content := []byte("x")
+	names := make([]string, 0, topDirs)
+
+	for i := range topDirs {
+		name := fmt.Sprintf("mod%03d", i)
+		names = append(names, name)
+
+		current := filepath.Join(root, name)
+
+		for depth := range chainDepth {
+			if err := os.MkdirAll(current, 0o755); err != nil {
+				b.Fatalf("mkdir: %v", err)
+			}
+
+			for f := range filesPerLevel {
+				p := filepath.Join(current, fmt.Sprintf("f%02d.tf", f))
+				if err := os.WriteFile(p, content, 0o644); err != nil {
+					b.Fatalf("write: %v", err)
+				}
+			}
+
+			current = filepath.Join(current, fmt.Sprintf("level%02d", depth))
+		}
+	}
+
+	cache := filepath.Join(root, util.TerragruntCacheDir, "should-be-skipped")
+	if err := os.MkdirAll(cache, 0o755); err != nil {
+		b.Fatalf("mkdir cache: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(cache, "skip.tf"), content, 0o644); err != nil {
+		b.Fatalf("write cache file: %v", err)
+	}
+
+	return root, names
+}
+
+func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
+	b.Helper()
+
+	const (
+		topDirs       = 20
+		chainDepth    = 8
+		filesPerLevel = 5
+	)
+
+	source, include := buildCopyBenchTree(b, topDirs, chainDepth, filesPerLevel)
+	exclude := []string{"**/f00.tf"}
+	l := logger.CreateLogger()
+
+	b.ResetTimer()
+
+	for i := range b.N {
+		dest := filepath.Join(b.TempDir(), strconv.Itoa(i))
+		if err := util.CopyFolderContents(l, source, dest, ".terragrunt-test", include, exclude, fastCopy); err != nil {
+			b.Fatalf("CopyFolderContents: %v", err)
+		}
+	}
+}
+
+func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
+func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
