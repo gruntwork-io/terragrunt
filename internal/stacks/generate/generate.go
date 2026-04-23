@@ -379,40 +379,69 @@ func ListStackFilesWithExcludes(
 		return nil, nil, errors.Errorf("Failed to get worktree stacks to generate: %w", err)
 	}
 
-	foundFiles := make([]string, 0, len(discoveredComponents)+len(worktreeStacks))
+	foundFiles, excludedPaths, err := collectStackAndExcludedPaths(discoveredComponents, opts.WorkingDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	foundFiles, err = appendWorktreeStackPaths(foundFiles, worktreeStacks, opts.WorkingDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return foundFiles, excludedPaths, nil
+}
+
+// collectStackAndExcludedPaths splits discovered components into canonical stack-file paths and excluded unit paths.
+func collectStackAndExcludedPaths(
+	components component.Components,
+	workingDir string,
+) ([]string, map[string]struct{}, error) {
+	foundFiles := make([]string, 0, len(components))
 	excludedPaths := make(map[string]struct{})
 
-	for _, c := range discoveredComponents {
+	for _, c := range components {
 		switch v := c.(type) {
 		case *component.Stack:
-			canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+			canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
 			if err != nil {
 				return nil, nil, err
 			}
 
 			foundFiles = append(foundFiles, canonical)
 		case *component.Unit:
-			if v.Excluded() {
-				canonical, err := util.CanonicalResolvedPath(v.Path(), opts.WorkingDir)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				excludedPaths[canonical] = struct{}{}
+			if !v.Excluded() {
+				continue
 			}
+
+			canonical, err := util.CanonicalResolvedPath(v.Path(), workingDir)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			excludedPaths[canonical] = struct{}{}
 		}
 	}
 
+	return foundFiles, excludedPaths, nil
+}
+
+// appendWorktreeStackPaths appends canonical stack-file paths for worktree stacks to foundFiles.
+func appendWorktreeStackPaths(
+	foundFiles []string,
+	worktreeStacks component.Components,
+	workingDir string,
+) ([]string, error) {
 	for _, c := range worktreeStacks {
-		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), workingDir)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		foundFiles = append(foundFiles, canonical)
 	}
 
-	return foundFiles, excludedPaths, nil
+	return foundFiles, nil
 }
 
 // worktreeStacksToGenerate returns a slice of stacks that need to be generated from the worktree stacks.
