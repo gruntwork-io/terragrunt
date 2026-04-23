@@ -731,6 +731,23 @@ func acquireGenerateLock(ctx context.Context, l log.Logger, workingDir string) (
 	lockDir := filepath.Join(workingDir, stackGenerateLockDir)
 	lockPath := filepath.Join(lockDir, stackGenerateLockFile)
 
+	// Validate workingDir before MkdirAll. Without this check, a typo in
+	// --working-dir would be silently created by os.MkdirAll (which creates
+	// all missing parents) and discovery would then report "No stack files
+	// found" as a successful no-op. We want typos to fail loudly.
+	info, err := os.Stat(workingDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return lockPath, nil, errors.Errorf("working directory %s does not exist", workingDir)
+		}
+
+		return lockPath, nil, errors.Errorf("stat working directory %s: %w", workingDir, err)
+	}
+
+	if !info.IsDir() {
+		return lockPath, nil, errors.Errorf("working directory %s is not a directory", workingDir)
+	}
+
 	if err := os.MkdirAll(lockDir, stackGenerateLockDirPerm); err != nil {
 		return lockPath, nil, errors.Errorf("create stack-generate lock dir %s: %w", lockDir, err)
 	}

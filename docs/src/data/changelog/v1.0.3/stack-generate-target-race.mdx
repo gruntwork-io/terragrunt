@@ -7,13 +7,12 @@ category: "bug-fixes"
 
 On repositories with nested stack hierarchies, concurrent `terragrunt stack generate` invocations could produce non-deterministic filesystem errors inside `.terragrunt-stack/`. Typical symptoms were `file exists`, `no such file or directory`, or `unexpected EOF` when two invocations emitted into the same target directory.
 
-Two independent mechanisms caused cross-contamination:
+Two independent bugs caused the cross-contamination:
 
-1. **Intra-invocation.** The generation dedup map was keyed by the raw source stack-file path, but discovery can surface the same physical stack file under multiple string encodings across generation-level iterations (differing relative-vs-absolute forms of the same path, or repeated passes between levels). Two entries with different keys but the same on-disk target would both pass through to the worker pool and step on one another's writes.
-
-2. **Inter-invocation.** Multiple `terragrunt stack generate` processes (or multiple goroutines in a single process) running concurrently against the same working directory each wrote independently into the same shared `.terragrunt-stack/` subtree, racing on file creates and partial writes at the OS level.
+1. **Within a single run:** the same stack file could be rediscovered under different path forms as generation progressed through nested levels, so deduplication missed it and both copies were dispatched to the worker pool — which then raced on writes to the same target.
+2. **Across runs:** two or more `terragrunt stack generate` processes (or goroutines in the same process) could write into the same `.terragrunt-stack/` tree at the same time, colliding on file creates and partial writes.
 
 Two fixes address these independently:
 
-- Stack-file paths are now cleaned and absolutized at the discovery boundary (each path is joined against the working directory and passed through `filepath.Clean`), so string-aliased forms of the same path collapse to a single dedup key before the worker pool sees them. Symbolic links are not resolved. This also changes `ListStackFiles` and `ListStackFilesWithExcludes` to return absolute paths.
-- Each `terragrunt stack generate` invocation now acquires an exclusive filesystem lock (`vfs.Lock`, the same primitive used by the CAS content store) on `.terragrunt-stack/generate.lock` inside the working directory. Concurrent invocations against the same working directory (Terragrunt processes or in-process goroutines) serialize on that lock rather than racing on the shared `.terragrunt-stack/` tree. The lock covers both the discovery phase (so a peer's partial tree is never observed mid-walk) and the generation phase (so two writers never collide on the same target). Waits are cancellable: cancelling the invocation's context (for example, via SIGINT or a pipeline timeout) aborts the wait instead of blocking indefinitely. The lock is released automatically when the holding process exits.
+- Within a run, stack-file paths are now cleaned and made absolute at the discovery boundary, so different path forms that point to the same file collapse to a single entry before generation. Symbolic links are not resolved. As a result, `ListStackFiles` and `ListStackFilesWithExcludes` now return absolute paths.
+- Across runs, Terragrunt now takes an exclusive lock on `.terragrunt-stack/generate.lock` inside the working directory. Concurrent runs serialize on the lock instead of racing on the shared tree, cancelling the invocation (SIGINT, pipeline timeout) aborts a wait rather than hanging, and the OS releases the lock if the holding process exits.

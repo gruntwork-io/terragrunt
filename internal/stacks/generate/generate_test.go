@@ -7,6 +7,7 @@ package generate
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -106,6 +107,43 @@ func TestAcquireGenerateLockCreatesDir(t *testing.T) {
 
 	require.DirExists(t, filepath.Join(workingDir, stackGenerateLockDir))
 	require.FileExists(t, lockPath)
+}
+
+// TestAcquireGenerateLockMissingWorkingDir asserts that a nonexistent
+// --working-dir fails loudly instead of being silently created. Regression
+// guard for a prior behavior where os.MkdirAll on the lock-dir's parent
+// would auto-create a missing working directory and discovery would then
+// report "No stack files found" as a successful no-op — masking user typos.
+func TestAcquireGenerateLockMissingWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	missing := filepath.Join(tmpDir, "does-not-exist")
+	l := log.New()
+
+	_, _, err := acquireGenerateLock(t.Context(), l, missing)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not exist")
+
+	// And verify the missing dir was NOT created as a side effect.
+	_, statErr := os.Stat(missing)
+	require.True(t, os.IsNotExist(statErr), "working dir must not be auto-created on failure")
+}
+
+// TestAcquireGenerateLockWorkingDirIsFile asserts that passing a file (not a
+// directory) as working-dir is rejected with a clear error.
+func TestAcquireGenerateLockWorkingDirIsFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "not-a-dir")
+	require.NoError(t, os.WriteFile(filePath, []byte("hello"), 0o600))
+
+	l := log.New()
+
+	_, _, err := acquireGenerateLock(t.Context(), l, filePath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not a directory")
 }
 
 // TestAcquireGenerateLockConcurrent asserts that many goroutines racing on
