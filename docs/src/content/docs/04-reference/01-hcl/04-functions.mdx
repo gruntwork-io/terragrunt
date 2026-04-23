@@ -8,6 +8,8 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
+import Before from '@components/Before.astro';
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
@@ -1045,6 +1047,16 @@ block is not evaluated until *after* the queue has been populated with units to 
 
 ## mark_glob_as_read
 
+<Before version="1.0.3">
+
+<Aside type="tip">
+Coming soon!
+</Aside>
+
+</Before>
+
+<Since version="1.0.3">
+
 <Aside type="caution">
 `mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments) experiment. Calling it without the experiment enabled returns an error.
 </Aside>
@@ -1060,7 +1072,7 @@ Glob patterns must use forward slashes (`/`) as the path separator, even on Wind
 </Aside>
 
 <Aside type="caution">
-`**` does not collapse the separators around it. `config/**/*.yaml` matches files at least one directory below `config/`, but not files directly inside `config/`. Use brace alternation to match at any depth:
+`**` only collapses the separators around it when the adjacent segments are literals. `config/**/*.yaml` matches files at least one directory below `config/`, but not files directly inside `config/`, because the trailing segment `*.yaml` is a wildcard. Use brace alternation to match at any depth:
 
 ```hcl
 mark_glob_as_read("${get_terragrunt_dir()}/config/{*.yaml,**/*.yaml}")
@@ -1079,9 +1091,11 @@ inputs = {
 }
 ```
 
-A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through reading-based filter expressions and the [`queue-include-units-reading`](/reference/cli/commands/run#queue-include-units-reading) flag.
+A typical use case is a unit that consumes a directory of configuration files indirectly (for example, through `run_cmd`, `templatefile`, or a shared helper module) and wants changes to any of them to trigger the unit through [reading-based filter expressions](/features/filter/attributes#reading-based-expressions) such as `--filter 'reading=./config/**'`.
 
 If the pattern matches nothing, the function returns an empty list without error.
+
+</Since>
 
 ## constraint_check
 

@@ -42,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -1686,10 +1687,10 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 // markGlobAsRead expands the given glob pattern and marks each matched file as
 // read. Pattern syntax follows the internal/glob package: '/' is the
 // separator, `**` matches any sequence of characters, `*` matches within a
-// single segment, and '\' escapes the next metacharacter. Note that `**`
-// does not collapse the surrounding separators, so "a/**/b" will not match
-// "a/b"; use "{a/b,a/**/b}" for zero-or-more semantics. Returns the list of
-// absolute file paths that were marked.
+// single segment, and '\' escapes the next metacharacter. `**` only
+// collapses the flanking separators when the adjacent segments are literals,
+// so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
+// both depths. Returns the list of absolute file paths that were marked.
 func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
 	attrs := map[string]any{
 		"config_path": pctx.TerragruntConfigPath,
@@ -1731,7 +1732,7 @@ func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 			pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
 		}
 
-		matches, err := glob.Expand(pattern, glob.WithFilesOnly())
+		matches, err := glob.Expand(vfs.NewOSFS(), pattern, glob.WithFilesOnly())
 		if err != nil {
 			return errors.New(fmt.Errorf("could not expand glob %q: %w", raw, err))
 		}

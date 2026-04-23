@@ -8,6 +8,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import Since from '@components/Since.astro';
 
 Match units and stacks by their configuration attributes.
 
@@ -104,9 +105,13 @@ Due to how Terragrunt parses configurations during `run --all`, functions will o
 Reading a file directly in the `inputs` attribute will not mark the file as read, as the `inputs` attribute is not parsed until after the queue has already been populated to support rendering of dependency outputs, which are only available after dependencies have been run.
 </Aside>
 
+<Since version="1.0.3">
+
 To mark many files at once, use [`mark_glob_as_read`](/reference/hcl/functions/#mark_glob_as_read), which accepts a glob (with `**` support) and marks every matching file.
 
 If a unit's `terraform` block points at a local module source, enable the [`mark-many-as-read`](/reference/experiments) experiment to have Terragrunt automatically mark that module's `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` files as read. Reading-based filters will then cascade local module changes to every unit that consumes the module. The same experiment also enables the [`mark_glob_as_read`](/reference/hcl/functions/#mark_glob_as_read) HCL function.
+
+</Since>
 
 ## Source-Based Expressions
 

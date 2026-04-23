@@ -10,10 +10,12 @@
 // '[...]' matches a character class, and '{a,b}' matches any of the listed
 // alternatives. A backslash escapes the following metacharacter.
 //
-// "**" does not collapse the separators that flank it. A pattern such as
-// "a/**/b" requires at least one intermediate segment and will not match
-// "a/b". Use brace alternation — for example "{a/b,a/**/b}" — when you want
-// zero-or-more behavior.
+// "**" collapses the flanking separators only when the adjacent segments are
+// literals. With literals on both sides, "a/**/b" matches "a/b" as well as
+// "a/x/b". If either neighbor is a wildcard (for example "a/**/*.tf" or
+// "*/**/b.tf"), "**" does not collapse and a zero-depth match fails. Use
+// brace alternation — for example "{*.tf,**/*.tf}" — to cover both depths
+// when the trailing segment contains a wildcard.
 //
 // # When to use what
 //
@@ -38,13 +40,14 @@
 package glob
 
 import (
-	"io/fs"
-	"os"
+	"errors"
+	iofs "io/fs"
 	"path"
 	"path/filepath"
 	"strings"
 
 	gobwas "github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/mattn/go-zglob"
 )
 
@@ -75,11 +78,13 @@ func WithFilesOnly() ExpandOption {
 	}
 }
 
-// Expand returns the absolute paths that match pattern on the local
-// filesystem. The pattern uses '/' as the separator on all platforms and '\'
-// as the escape character. A pattern that matches nothing returns an empty
-// slice and a nil error.
-func Expand(pattern string, opts ...ExpandOption) ([]string, error) {
+// Expand returns the absolute paths that match pattern on fs. The pattern
+// uses '/' as the separator on all platforms and '\' as the escape character.
+// A pattern that matches nothing returns an empty slice and a nil error.
+//
+// Most callers pass [vfs.NewOSFS] for fs; tests can pass an in-memory
+// filesystem from [vfs.NewMemMapFS].
+func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 	var o expandOptions
 	for _, opt := range opts {
 		opt(&o)
@@ -90,9 +95,9 @@ func Expand(pattern string, opts ...ExpandOption) ([]string, error) {
 	root, hasMeta := splitRoot(pattern)
 
 	if !hasMeta {
-		info, err := os.Stat(root)
+		info, err := fs.Stat(root)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, iofs.ErrNotExist) {
 				return nil, nil
 			}
 
@@ -113,10 +118,10 @@ func Expand(pattern string, opts ...ExpandOption) ([]string, error) {
 
 	var matches []string
 
-	walkErr := filepath.WalkDir(root, func(entry string, d fs.DirEntry, walkErr error) error {
+	walkErr := vfs.WalkDir(fs, root, func(entry string, d iofs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			if d != nil && d.IsDir() {
-				return fs.SkipDir
+				return iofs.SkipDir
 			}
 
 			return nil
@@ -134,7 +139,7 @@ func Expand(pattern string, opts ...ExpandOption) ([]string, error) {
 
 		return nil
 	})
-	if walkErr != nil && !os.IsNotExist(walkErr) {
+	if walkErr != nil && !errors.Is(walkErr, iofs.ErrNotExist) {
 		return nil, walkErr
 	}
 
