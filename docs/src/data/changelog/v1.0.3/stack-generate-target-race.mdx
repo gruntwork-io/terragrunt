@@ -3,8 +3,6 @@ version: "v1.0.3"
 category: "bug-fixes"
 ---
 
-#### Fixed in-process concurrent write conflict in `terragrunt stack generate`
+#### Fixed concurrent write conflict in `terragrunt stack generate`
 
-Fixed non-deterministic file errors during `terragrunt stack generate` on nested stack hierarchies. Two bugs caused the failures: the dedup map treated string-aliased paths as distinct, and concurrent in-process calls raced on the shared output tree. Stack-file paths are now cleaned and made absolute at discovery (with symlinks resolved best-effort), and in-process calls serialize on a per-working-directory mutex. `ListStackFiles` and `ListStackFilesWithExcludes` now return absolute paths.
-
-Serialization is scoped to a single process. Multiple `terragrunt stack generate` subprocesses against the same `--working-dir` must coordinate externally, or use `--filters-file` to collapse them into one invocation.
+Fixed non-deterministic file errors during `terragrunt stack generate` on nested stack hierarchies. The dedup map treated string-aliased paths to the same physical file as distinct, so the same file could be dispatched twice and the duplicate writes raced. Stack-file paths are now cleaned, made absolute at discovery, and resolved through symlinks (best-effort), so aliased forms collapse to a single dedup entry.

@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
@@ -22,13 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"golang.org/x/sync/errgroup"
 )
-
-// generateLocks serializes concurrent GenerateStacks calls within the same
-// process, keyed by canonical working directory. Cross-process
-// serialization is out of scope: callers that fork multiple
-// `terragrunt stack generate` subprocesses against the same working
-// directory must coordinate externally.
-var generateLocks = util.NewKeyLocks()
 
 // StackNode represents a stack file in the file system.
 // The parent is the node that generates the current node,
@@ -58,26 +50,6 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	absWorkingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, "")
-	if err != nil {
-		return errors.Errorf("resolve working directory identity %s: %w", opts.WorkingDir, err)
-	}
-
-	waitStart := time.Now()
-
-	generateLocks.Lock(absWorkingDir)
-	defer generateLocks.Unlock(absWorkingDir)
-
-	heldAt := time.Now()
-	// Inner defer runs before the Unlock above (LIFO), so the "released"
-	// trace never interleaves with another goroutine's "acquired" log for
-	// the same key.
-	defer func() {
-		l.Debugf("released stack-generate mutex for %s after holding %s", absWorkingDir, time.Since(heldAt))
-	}()
-
-	l.Debugf("acquired stack-generate mutex for %s after %s", absWorkingDir, time.Since(waitStart))
-
 	foundFiles, err := ListStackFiles(ctx, l, opts, wts)
 	if err != nil {
 		return errors.Errorf("Failed to list stack files in %s %w", opts.WorkingDir, err)
