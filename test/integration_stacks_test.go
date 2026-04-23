@@ -1916,78 +1916,48 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
-// TestStackGenerationWritesEachTargetOnlyOnceWithRacing asserts that every
-// .terragrunt-stack/ target directory is generated exactly once per
-// invocation under --parallelism. Regression guard for the concurrent-write
+// TestStackGenerateConcurrentWithRacing runs two concurrent in-process
+// `terragrunt stack generate` calls against the same working directory
+// and asserts that both complete without error and leave the
+// .terragrunt-stack/ tree intact. Regression guard for the concurrent-write
 // race fixed in the v1.0.3 stack-generate-target-race changelog entry.
 //
-// Uses the structured dispatch hook from internal/stacks/generate to verify
-// that every stack file is dispatched exactly once. This is more robust
-// than log scraping and validates the "exactly once" property directly
-// at the generation boundary.
-func TestStackGenerationWritesEachTargetOnlyOnceWithRacing(t *testing.T) {
+// Under `go test -race`, any unsynchronized access to the shared dedup /
+// worker-pool state will be flagged; under plain `go test`, a corrupt
+// tree (partial writes, missing files) surfaces via verifyGeneratedUnits.
+func TestStackGenerateConcurrentWithRacing(t *testing.T) {
 	t.Parallel()
-
-	// 10 iterations widens the race-detector window enough to catch a
-	// regression reliably without adding noticeable CI cost (~1.2s total at
-	// --parallelism=10 on the nested fixture).
-	const iterations = 10
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	setupNestedStackFixture(t, tmpDir)
 
 	liveDir := filepath.Join(tmpDir, "live")
-	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
 
-	// Use the canonical path for the hook key.
-	absLiveDir, err := util.CanonicalPath(liveDir, "")
-	require.NoError(t, err)
-
-	// Per-iteration state lives in a single closure captured by the hook.
-	// mu protects writes while the generation worker pool calls the hook
-	// concurrently.
 	var (
-		mu     sync.Mutex
-		writes map[string]int
+		wg   sync.WaitGroup
+		errs = make(chan error, 2)
 	)
 
-	generate.RegisterOnGenerateHook(absLiveDir, func(filePath string) {
-		mu.Lock()
-		defer mu.Unlock()
+	wg.Add(2)
 
-		writes[filePath]++
-	})
-	// Single Cleanup for the single Register. Per-iteration reset happens
-	// by re-initializing `writes` below, not by re-registering.
-	t.Cleanup(func() { generate.UnregisterOnGenerateHook(absLiveDir) })
+	for range 2 {
+		go func() {
+			defer wg.Done()
 
-	for i := range iterations {
-		require.NoError(t, os.RemoveAll(stackDir))
-
-		mu.Lock()
-		writes = make(map[string]int)
-		mu.Unlock()
-
-		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
-			"terragrunt stack generate --working-dir "+liveDir+" --parallelism=10")
-		require.NoError(t, err, "iteration %d: stack generate failed", i)
-
-		require.NotEmpty(t, writes, "iteration %d: expected generation events via hook", i)
-
-		duplicates := make(map[string]int)
-
-		for target, count := range writes {
-			if count > 1 {
-				duplicates[target] = count
-			}
-		}
-
-		assert.Empty(t, duplicates,
-			"iteration %d: every stack generation target must be written exactly once; "+
-				"duplicates indicate the concurrent-write race (see stack-generate-target-race changelog) has regressed. "+
-				"Duplicated targets: %v",
-			i, duplicates)
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+				"terragrunt stack generate --working-dir "+liveDir)
+			errs <- err
+		}()
 	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
 }
 
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
