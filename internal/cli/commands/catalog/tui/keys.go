@@ -147,6 +147,8 @@ func (keys PagerKeyMap) ShortHelp() []key.Binding { //nolint:gocritic
 	return []key.Binding{
 		keys.Up,
 		keys.Down,
+		keys.PageUp,
+		keys.PageDown,
 		keys.Navigation,
 		keys.NavigationBack,
 		keys.Choose,

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
 // boilerplateDirName and boilerplateConfigName are the two markers that
@@ -25,10 +26,13 @@ const (
 )
 
 // ComponentDiscovery walks an already-cloned repo and classifies every
-// directory as either a module, a template, or neither. Templates win over
-// modules when a directory qualifies as both. When a directory is classified
-// as a template, the walker returns fs.SkipDir so that boilerplate.yml files
-// inside the .boilerplate subtree are not double-counted.
+// directory as a stack, unit, template, module, or nothing. Precedence runs
+// stack > unit > template > module: a terragrunt.stack.hcl wins over a
+// terragrunt.hcl, which wins over a .boilerplate/, which wins over .tf files.
+// When a directory classifies as a stack, unit, or template, the walker
+// returns fs.SkipDir so nested artifacts (a stack's generated units, a unit's
+// nested .tf files, or boilerplate.yml inside a .boilerplate subtree) aren't
+// surfaced as separate components.
 //
 // Unlike the legacy module.Repo.FindModules walker (which only scans the
 // `modules/` convention), this walks the entire repo — templates may live
@@ -138,10 +142,13 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 
 		components = append(components, c)
 
-		// Templates: skip descent so we don't re-enter the .boilerplate
-		// subtree and classify its inner boilerplate.yml as a second
-		// component.
-		if kind == ComponentKindTemplate {
+		// Skip descent for kinds that own their whole subtree:
+		// - Templates: avoid re-entering .boilerplate and double-counting
+		//   the inner boilerplate.yml.
+		// - Units/Stacks: the terragrunt config represents the whole
+		//   directory, so nested .tf files or generated .terragrunt-stack
+		//   output shouldn't surface as separate components.
+		if kind == ComponentKindTemplate || kind == ComponentKindUnit || kind == ComponentKindStack {
 			return fs.SkipDir
 		}
 
@@ -155,40 +162,56 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 }
 
 // classifyDir inspects a single directory and returns its ComponentKind.
-// Template classification wins over module classification.
+// Precedence: stack > unit > template > module. A terragrunt.stack.hcl wins
+// over a terragrunt.hcl, a .boilerplate/, and plain .tf files.
 func classifyDir(dir string) (ComponentKind, bool, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0, false, errors.New(err)
 	}
 
-	var hasTF bool
+	var (
+		hasTF       bool
+		hasTemplate bool
+		hasUnit     bool
+		hasStack    bool
+	)
 
 	for _, entry := range entries {
 		name := entry.Name()
 
 		if entry.IsDir() {
 			if name == boilerplateDirName {
-				return ComponentKindTemplate, true, nil
+				hasTemplate = true
 			}
 
 			continue
 		}
 
-		if name == boilerplateConfigName {
-			return ComponentKindTemplate, true, nil
-		}
-
-		if name == placeholderTFFile {
-			continue
-		}
-
-		if util.IsTFFile(name) {
-			hasTF = true
+		switch name {
+		case config.DefaultStackFile:
+			hasStack = true
+		case config.DefaultTerragruntConfigPath:
+			hasUnit = true
+		case boilerplateConfigName:
+			hasTemplate = true
+		case placeholderTFFile:
+			// Ignore: legacy Terraform Cloud/Enterprise placeholder.
+		default:
+			if util.IsTFFile(name) {
+				hasTF = true
+			}
 		}
 	}
 
-	if hasTF {
+	switch {
+	case hasStack:
+		return ComponentKindStack, true, nil
+	case hasUnit:
+		return ComponentKindUnit, true, nil
+	case hasTemplate:
+		return ComponentKindTemplate, true, nil
+	case hasTF:
 		return ComponentKindModule, true, nil
 	}
 
