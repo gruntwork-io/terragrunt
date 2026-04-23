@@ -97,6 +97,22 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
+// CanonicalResolvedPath returns the cleaned, absolute, symlink-resolved
+// form of path — suitable as a stable identity key for a filesystem
+// location across locking, deduplication, and cache lookup.
+//
+// Composition of CanonicalPath (clean + absolutize) and ResolvePath
+// (EvalSymlinks, with silent best-effort fallback to the cleaned path on
+// EvalSymlinks errors such as ENOENT, ELOOP, or EACCES).
+func CanonicalResolvedPath(path, basePath string) (string, error) {
+	canonical, err := CanonicalPath(path, basePath)
+	if err != nil {
+		return "", err
+	}
+
+	return ResolvePath(canonical), nil
+}
+
 // Grep returns true if the given regex can be found in any of the files matched by the given glob.
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,

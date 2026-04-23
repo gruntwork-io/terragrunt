@@ -58,7 +58,7 @@ func GenerateStacks(
 	opts *options.TerragruntOptions,
 	wts *worktrees.Worktrees,
 ) error {
-	absWorkingDir, err := canonicalIdentity(opts.WorkingDir, "")
+	absWorkingDir, err := util.CanonicalResolvedPath(opts.WorkingDir, "")
 	if err != nil {
 		return errors.Errorf("resolve working directory identity %s: %w", opts.WorkingDir, err)
 	}
@@ -347,7 +347,7 @@ func ListStackFiles(
 			continue
 		}
 
-		canonical, err := canonicalIdentity(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
 			return nil, err
 		}
@@ -356,7 +356,7 @@ func ListStackFiles(
 	}
 
 	for _, c := range worktreeStacks {
-		canonical, err := canonicalIdentity(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +414,7 @@ func ListStackFilesWithExcludes(
 	for _, c := range discoveredComponents {
 		switch v := c.(type) {
 		case *component.Stack:
-			canonical, err := canonicalIdentity(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+			canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -428,7 +428,7 @@ func ListStackFilesWithExcludes(
 	}
 
 	for _, c := range worktreeStacks {
-		canonical, err := canonicalIdentity(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
+		canonical, err := util.CanonicalResolvedPath(filepath.Join(c.Path(), config.DefaultStackFile), opts.WorkingDir)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -672,21 +672,4 @@ func stackTypeFilter() filter.Filters {
 	attrExpr := filter.NewTypeExpression(component.StackKind)
 
 	return filter.Filters{filter.NewFilter(attrExpr, attrExpr.String())}
-}
-
-// canonicalIdentity returns the cleaned absolute path with symlinks resolved.
-// Used for consistent identity across locking and deduplication.
-//
-// Best-effort on the symlink-resolution step: util.ResolvePath silently
-// falls back to the cleaned path on filepath.EvalSymlinks errors (ENOENT
-// for paths not yet created, ELOOP for symlink loops, EACCES on
-// inaccessible intermediates). The common case is "path not yet created"
-// where the fallback is correct.
-func canonicalIdentity(path, basePath string) (string, error) {
-	canonical, err := util.CanonicalPath(path, basePath)
-	if err != nil {
-		return "", err
-	}
-
-	return util.ResolvePath(canonical), nil
 }
