@@ -3,6 +3,8 @@ package redesign
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -328,7 +330,17 @@ func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	model := NewWelcomeModel(ctx, l, opts, loadFunc)
 
-	if _, err := tea.NewProgram(model, tea.WithContext(ctx)).Run(); err != nil {
+	finalModel, err := tea.NewProgram(model, tea.WithContext(ctx)).Run()
+
+	// Print any post-exit message (e.g. the values-stub callout) AFTER the
+	// tea program has restored the main terminal buffer. Messages queued via
+	// tea.Printf during the session get discarded when the alt screen is
+	// torn down, so we stash them on the model and emit here instead.
+	if listModel, ok := finalModel.(Model); ok && listModel.ExitMessage() != "" {
+		fmt.Fprintln(os.Stderr, listModel.ExitMessage())
+	}
+
+	if err != nil {
 		if cause := context.Cause(ctx); errors.Is(cause, context.Canceled) {
 			return nil
 		}

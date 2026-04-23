@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,14 +59,14 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	// foo/ is a plain module (has main.tf, no boilerplate).
 	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
 
-	// bar/ has a .boilerplate/ subdir — template at bar/.
+	// bar/ has a .boilerplate/ subdir. Template at bar/.
 	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"), "variables: []\n")
 	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "README.md"), "# bar template boilerplate dir")
 
-	// baz/ has a top-level boilerplate.yml — template at baz/.
+	// baz/ has a top-level boilerplate.yml. Template at baz/.
 	writeFile(t, filepath.Join(repoDir, "baz", "boilerplate.yml"), "variables: []\n")
 
-	// qux/ has both main.tf AND a .boilerplate/ — template wins.
+	// qux/ has both main.tf AND a .boilerplate/. Template wins.
 	writeFile(t, filepath.Join(repoDir, "qux", "main.tf"), "# mixed")
 	writeFile(t, filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"), "variables: []\n")
 
@@ -128,11 +129,11 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.stack.hcl"), "# stack")
 	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.hcl"), "# also present")
 
-	// A nested .tf file under a unit must NOT surface as a second module —
-	// the unit's subtree is SkipDir'd.
+	// A nested .tf file under a unit must NOT surface as a second module.
+	// The unit's subtree is SkipDir'd.
 	writeFile(t, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
 
-	// A nested unit under a stack must NOT surface — the stack's subtree is
+	// A nested unit under a stack must NOT surface. The stack's subtree is
 	// SkipDir'd.
 	writeFile(t, filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"), "# should not surface")
 
