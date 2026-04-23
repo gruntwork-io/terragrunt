@@ -18,6 +18,7 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/util/copy"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
@@ -504,14 +505,13 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
-	file, err := os.Open(source)
-	if err != nil {
-		return errors.New(err)
+	if FileExists(destination) {
+		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
+		}
 	}
 
-	err = WriteFileWithSamePermissions(source, destination, file)
-
-	return errors.New(errors.Join(err, file.Close()))
+	return errors.New(copy.Copy(source, destination))
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
