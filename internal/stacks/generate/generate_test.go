@@ -1,18 +1,18 @@
 // Black-box tests for the generate package. Uses only the exported API
-// (generate.GenerateStacks) and real stack fixtures, not the package's
-// unexported internals.
+// (generate.GenerateStacks) and a minimal stack fixture written into a
+// t.TempDir, not the package's unexported internals.
 package generate_test
 
 import (
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 // setupSimpleStackFixture writes a minimal two-unit stack fixture into
@@ -61,6 +61,7 @@ func newTestOptions(t *testing.T, workingDir string) *options.TerragruntOptions 
 
 	opts.WorkingDir = workingDir
 	opts.Parallelism = 4
+	opts.StackAction = "generate"
 
 	return opts
 }
@@ -88,13 +89,17 @@ func TestGenerateStacksProducesExpectedUnits(t *testing.T) {
 	}
 }
 
-// TestGenerateStacksConcurrentWithRacing asserts that two concurrent
-// invocations of generate.GenerateStacks against the same working
-// directory both complete successfully without racing on the shared
-// .terragrunt-stack/ output tree. Under `-race` any shared-state race
-// inside the package would be flagged by the race detector; the WithRacing
-// suffix ensures this test is picked up by the CI race matrix.
-func TestGenerateStacksConcurrentWithRacing(t *testing.T) {
+// TestGenerateStacksDedupAtDiscoveryWithRacing verifies the canonicalization
+// fix: two in-process GenerateStacks invocations against the same working
+// directory complete cleanly without the race detector firing and leave a
+// complete output tree. The guarantee is intra-invocation dedup at the
+// discovery boundary, not inter-invocation serialization, so this test
+// asserts what the code actually delivers. Callers that truly need
+// cross-invocation isolation must coordinate externally.
+//
+// The WithRacing suffix routes this test into the CI -race matrix; any
+// Go-level data race within a single invocation would be flagged there.
+func TestGenerateStacksDedupAtDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()
 
 	workingDir := setupSimpleStackFixture(t, t.TempDir())
@@ -105,39 +110,27 @@ func TestGenerateStacksConcurrentWithRacing(t *testing.T) {
 		newTestOptions(t, workingDir),
 	}
 
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-
-	errs := make(chan error, 2)
+	var eg errgroup.Group
 
 	for i := range 2 {
-		go func() {
-			defer wg.Done()
-
-			errs <- generate.GenerateStacks(t.Context(), logger.CreateLogger(), opts[i], nil)
-		}()
+		eg.Go(func() error {
+			return generate.GenerateStacks(t.Context(), logger.CreateLogger(), opts[i], nil)
+		})
 	}
 
-	wg.Wait()
-	close(errs)
+	require.NoError(t, eg.Wait())
 
-	for err := range errs {
-		require.NoError(t, err)
-	}
-
-	// Both goroutines targeted the same output tree; assert the final
-	// state is complete (every unit present) rather than the partial/
-	// corrupt state a race would have produced.
 	for _, unit := range []string{"u1", "u2"} {
 		require.DirExists(t, filepath.Join(workingDir, ".terragrunt-stack", unit))
 	}
 }
 
-// TestGenerateStacksNoStackFile asserts that calling GenerateStacks on a
-// working directory with no terragrunt.stack.hcl returns without error
-// (the command is a no-op).
-func TestGenerateStacksNoStackFile(t *testing.T) {
+// TestGenerateStacksEmptyWorkingDirReturnsNoError asserts that
+// GenerateStacks against an empty working dir (no terragrunt.stack.hcl)
+// returns nil without error. The CLI surface-level "No stack files found"
+// warning is exercised via the integration tests, which drive the real CLI
+// entry point. This unit test covers only the no-error contract.
+func TestGenerateStacksEmptyWorkingDirReturnsNoError(t *testing.T) {
 	t.Parallel()
 
 	workingDir := t.TempDir()

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1916,16 +1916,19 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
-// TestStackGenerateConcurrentWithRacing runs two concurrent in-process
-// `terragrunt stack generate` calls against the same working directory
-// and asserts that both complete without error and leave the
-// .terragrunt-stack/ tree intact. Regression guard for the concurrent-write
-// race fixed in the v1.0.3 stack-generate-target-race changelog entry.
+// TestStackGenerateDedupAtDiscoveryWithRacing runs two in-process
+// `terragrunt stack generate` invocations against the same working
+// directory and asserts that both complete without error and leave the
+// .terragrunt-stack/ tree intact. This is a regression guard for the
+// intra-invocation duplicate-dispatch fix (canonical-path dedup at the
+// discovery boundary), not a claim of cross-invocation serialization:
+// callers that truly need isolation between runs must coordinate
+// externally (for example, via `--filters-file` to collapse multiple
+// generate calls into one).
 //
-// Under `go test -race`, any unsynchronized access to the shared dedup /
-// worker-pool state will be flagged; under plain `go test`, a corrupt
-// tree (partial writes, missing files) surfaces via verifyGeneratedUnits.
-func TestStackGenerateConcurrentWithRacing(t *testing.T) {
+// The WithRacing suffix routes this test into CI's -race matrix; any
+// Go-level data race inside a single invocation would be flagged there.
+func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -1933,29 +1936,18 @@ func TestStackGenerateConcurrentWithRacing(t *testing.T) {
 
 	liveDir := filepath.Join(tmpDir, "live")
 
-	var (
-		wg   sync.WaitGroup
-		errs = make(chan error, 2)
-	)
-
-	wg.Add(2)
+	var eg errgroup.Group
 
 	for range 2 {
-		go func() {
-			defer wg.Done()
-
+		eg.Go(func() error {
 			_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 				"terragrunt stack generate --working-dir "+liveDir)
-			errs <- err
-		}()
+
+			return err
+		})
 	}
 
-	wg.Wait()
-	close(errs)
-
-	for err := range errs {
-		require.NoError(t, err)
-	}
+	require.NoError(t, eg.Wait())
 
 	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
 }

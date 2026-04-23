@@ -97,13 +97,16 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
-// CanonicalResolvedPath returns the cleaned, absolute, symlink-resolved
-// form of path — suitable as a stable identity key for a filesystem
-// location across locking, deduplication, and cache lookup.
+// CanonicalResolvedPath returns the cleaned, absolute, symlink-resolved form
+// of path. Use this when two strings that name the same filesystem location
+// via different spellings (relative vs absolute, or through a symlink alias)
+// must collapse to a single identity key, for example for deduplication or
+// cache lookup.
 //
-// Composition of CanonicalPath (clean + absolutize) and ResolvePath
-// (EvalSymlinks, with silent best-effort fallback to the cleaned path on
-// EvalSymlinks errors such as ENOENT, ELOOP, or EACCES).
+// Composition of CanonicalPath (clean + absolutize via basePath) and
+// ResolvePath (filepath.EvalSymlinks, with a silent best-effort fallback to
+// the cleaned path when EvalSymlinks fails: ENOENT on paths not yet
+// created, ELOOP on symlink loops, EACCES on inaccessible intermediates).
 func CanonicalResolvedPath(path, basePath string) (string, error) {
 	canonical, err := CanonicalPath(path, basePath)
 	if err != nil {
