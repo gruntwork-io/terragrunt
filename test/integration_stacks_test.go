@@ -1915,6 +1915,24 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	require.DirExists(t, prodDir)
 }
 
+// TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.
+func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	setupNestedStackFixture(t, tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+
+	for range 2 {
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
+	}
+
+	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
+}
+
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
 	t.Parallel()
 

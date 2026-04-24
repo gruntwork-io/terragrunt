@@ -44,7 +44,8 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		return cached, nil
 	}
 
-	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
+	l.Debugf("Assuming IAM role %s with a session duration of %d seconds.",
+		iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
 
 	resp, err := awshelper.AssumeIamRole(ctx, iamRoleOpts, "", provider.env)
 	if err != nil {
@@ -61,7 +62,8 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		},
 	}
 
-	credentialsCache.Put(ctx, iamRoleOpts.RoleARN, creds, time.Now().Add(time.Duration(iamRoleOpts.AssumeRoleDuration)*time.Second))
+	cacheDuration := time.Duration(iamRoleOpts.AssumeRoleDuration) * time.Second
+	credentialsCache.Put(ctx, iamRoleOpts.RoleARN, creds, time.Now().Add(cacheDuration))
 
 	return creds, nil
 }

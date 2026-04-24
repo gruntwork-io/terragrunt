@@ -296,9 +296,8 @@ include "grandparent" {
 			ctx, pctx := newTestParsingContext(t, childPath)
 			pctx = pctx.WithDecodeList(config.TerragruntFlags)
 
-			require.NotPanics(t, func() {
-				_, _ = config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
-			})
+			_, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			require.Error(t, err, "expected malformed fixture to surface an error rather than silently succeed")
 		})
 	}
 }
