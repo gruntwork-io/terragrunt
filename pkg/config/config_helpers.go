@@ -106,6 +106,7 @@ const (
 	FuncNameMarkAsRead                              = "mark_as_read"
 	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
+	FuncNameDeepMerge                               = "deep_merge"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -205,6 +206,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
 		FuncNameMarkGlobAsRead:                          wrapStringSliceToStringSliceAsFuncImpl(ctx, pctx, l, markGlobAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
+		FuncNameDeepMerge:                               deepMergeMapValuesAsFuncImpl(),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
