@@ -696,43 +696,43 @@ func TestStackDepsFindTree(t *testing.T) {
 		depsByPath[c.Path] = c.Dependencies
 	}
 
-	var pathA, pathB, pathC, pathD, pathE string
+	var aPath, bPath, cPath, dPath, ePath string
 
 	for path := range depsByPath {
 		switch {
 		case strings.HasSuffix(path, "unit-a"):
-			pathA = path
+			aPath = path
 		case strings.HasSuffix(path, "unit-b"):
-			pathB = path
+			bPath = path
 		case strings.HasSuffix(path, "unit-c"):
-			pathC = path
+			cPath = path
 		case strings.HasSuffix(path, "unit-d"):
-			pathD = path
+			dPath = path
 		case strings.HasSuffix(path, "unit-e"):
-			pathE = path
+			ePath = path
 		}
 	}
 
-	require.NotEmpty(t, pathA, "unit-a should be in output")
-	require.NotEmpty(t, pathB, "unit-b should be in output")
-	require.NotEmpty(t, pathC, "unit-c should be in output")
-	require.NotEmpty(t, pathD, "unit-d should be in output")
-	require.NotEmpty(t, pathE, "unit-e should be in output")
+	require.NotEmpty(t, aPath, "unit-a should be in output")
+	require.NotEmpty(t, bPath, "unit-b should be in output")
+	require.NotEmpty(t, cPath, "unit-c should be in output")
+	require.NotEmpty(t, dPath, "unit-d should be in output")
+	require.NotEmpty(t, ePath, "unit-e should be in output")
 
 	// A depends on B and C
-	require.Len(t, depsByPath[pathA], 2)
-	assert.Contains(t, depsByPath[pathA], pathB)
-	assert.Contains(t, depsByPath[pathA], pathC)
+	require.Len(t, depsByPath[aPath], 2)
+	assert.Contains(t, depsByPath[aPath], bPath)
+	assert.Contains(t, depsByPath[aPath], cPath)
 
 	// B depends on D and E
-	require.Len(t, depsByPath[pathB], 2)
-	assert.Contains(t, depsByPath[pathB], pathD)
-	assert.Contains(t, depsByPath[pathB], pathE)
+	require.Len(t, depsByPath[bPath], 2)
+	assert.Contains(t, depsByPath[bPath], dPath)
+	assert.Contains(t, depsByPath[bPath], ePath)
 
 	// C, D, E are leaves
-	assert.Empty(t, depsByPath[pathC])
-	assert.Empty(t, depsByPath[pathD])
-	assert.Empty(t, depsByPath[pathE])
+	assert.Empty(t, depsByPath[cPath])
+	assert.Empty(t, depsByPath[dPath])
+	assert.Empty(t, depsByPath[ePath])
 }
 
 // TestStackDepsFindTreeDAGOrder verifies that find --dag with a multi-level
