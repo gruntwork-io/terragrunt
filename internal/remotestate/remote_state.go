@@ -44,6 +44,7 @@ func New(config *Config) *RemoteState {
 			backend: backend.NewCommonBackend(""),
 		}
 	}
+
 	remote := &RemoteState{
 		Config:  config,
 		backend: backend.NewCommonBackend(config.BackendName),
