@@ -513,6 +513,20 @@ func copyFolderContentsFast(
 
 		isDir := d.IsDir()
 
+		// fastwalk reports the link itself (type = symlink) before
+		// descending into a followed directory symlink, so `d.IsDir()`
+		// is false on the initial visit. Stat the target so the rest of
+		// the walkFn treats a directory symlink as a directory and
+		// matches the legacy copy semantics.
+		if !isDir && d.Type()&fs.ModeSymlink != 0 {
+			targetInfo, err := os.Stat(absolutePath)
+			if err != nil {
+				return errors.New(err)
+			}
+
+			isDir = targetInfo.IsDir()
+		}
+
 		// Skip .terragrunt-cache before include matching. A user
 		// include like "**" would otherwise pull it back in.
 		if strings.Contains(rel, TerragruntCacheDir) {
@@ -585,7 +599,7 @@ func copyFolderContentsFast(
 		return manifest.AddFile(dest)
 	}
 
-	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn); err != nil {
+	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn, vfs.WithFollowSymlinks()); err != nil {
 		return errors.New(err)
 	}
 
