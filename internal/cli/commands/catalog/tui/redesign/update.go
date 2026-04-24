@@ -33,7 +33,7 @@ var (
 	)
 )
 
-func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -143,7 +143,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	return m, cmd
 }
 
-func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -206,7 +206,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 }
 
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case componentMsg:
 		cmd := m.insertComponentSorted(msg.entry)
@@ -310,7 +310,7 @@ type copyFinishedMsg struct {
 // scaffoldComponentCmd returns a tea.Cmd that scaffolds the given component
 // via the redesign-owned scaffold command. It does not require the legacy
 // catalog.CatalogService.
-func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	return tea.Exec(newScaffoldCmd(l, m.terragruntOptions, c), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
@@ -318,7 +318,7 @@ func scaffoldComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolin
 
 // copyComponentCmd returns a tea.Cmd that copies the given component's
 // directory tree into the user's working directory.
-func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	cmd := NewCopyCmd(l, m.terragruntOptions, c)
 
 	return tea.Exec(cmd, func(err error) tea.Msg {
@@ -401,7 +401,7 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(accent)).
-		Padding(1, 2). //nolint:mnd
+		Padding(bodyPaddingVertical, bodyPaddingHorizontal).
 		Render(content)
 }
 
@@ -475,7 +475,7 @@ func displayPath(baseDir, abs string) string {
 
 // primaryActionCmd dispatches to scaffold or copy based on the component's
 // kind. Units and stacks copy; modules and templates scaffold.
-func primaryActionCmd(l log.Logger, m Model, c *Component) tea.Cmd { //nolint:gocritic
+func primaryActionCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 	if c.Kind.IsCopyable() {
 		return copyComponentCmd(l, m, c)
 	}

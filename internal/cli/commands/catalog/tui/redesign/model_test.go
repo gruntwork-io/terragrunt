@@ -19,7 +19,7 @@ import (
 
 // runModel starts a tea.Program with the given model, sends messages via
 // the interact callback, and returns the final model once the program exits.
-func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p *tea.Program)) redesign.Model { //nolint:gocritic
+func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p *tea.Program)) redesign.Model {
 	t.Helper()
 
 	var out bytes.Buffer

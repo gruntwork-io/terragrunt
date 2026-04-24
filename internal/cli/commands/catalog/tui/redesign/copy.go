@@ -24,9 +24,9 @@ type CopyCmd struct {
 
 // copyResult records what the copy step did beyond the raw file copy, so the
 // TUI can surface an appropriate exit message to the user.
-type copyResult struct { //nolint:govet // field order favors readability over GC-scan bytes
-	references    ValuesReferences
+type copyResult struct {
 	workingDir    string
+	references    ValuesReferences
 	valuesWritten bool
 	valuesSkipped bool
 }

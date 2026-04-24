@@ -1063,12 +1063,12 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
 // to access anything outside the base directory.
-func SanitizePath(baseDir string, file string) (string, error) {
+func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 	if baseDir == "" || file == "" {
 		return "", errors.New("baseDir and file must be provided")
 	}
 
-	file, err := url.QueryUnescape(file)
+	file, err = url.QueryUnescape(file)
 	if err != nil {
 		return "", err
 	}
@@ -1082,7 +1082,12 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer root.Close() //nolint:errcheck
+
+	defer func() {
+		if cerr := root.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	fileInfo, err := root.Stat(file)
 	if err != nil {
