@@ -1,7 +1,6 @@
 package redesign
 
 import (
-	"io/fs"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -118,7 +117,7 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 // returns a populated ComponentDoc. Returns a zero-value *ComponentDoc
 // (non-nil) when no README is present.
 func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
-	files, err := readDirEntries(fsys, dir)
+	files, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -154,35 +153,6 @@ func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
 	}
 
 	return NewComponentDoc(string(contentByte), fileExt), nil
-}
-
-// readDirEntries opens dir on fsys and returns its entries. It prefers the
-// fs.ReadDirFile fast path when the backing file supports it.
-func readDirEntries(fsys vfs.FS, dir string) ([]fs.DirEntry, error) {
-	f, err := fsys.Open(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		_ = f.Close()
-	}()
-
-	if rdf, ok := f.(fs.ReadDirFile); ok {
-		return rdf.ReadDir(-1)
-	}
-
-	infos, err := f.Readdir(-1)
-	if err != nil {
-		return nil, err
-	}
-
-	entries := make([]fs.DirEntry, len(infos))
-	for i, info := range infos {
-		entries[i] = vfs.FileInfoDirEntry{FileInfo: info}
-	}
-
-	return entries, nil
 }
 
 // Title returns the doc title from frontmatter or the first H1.

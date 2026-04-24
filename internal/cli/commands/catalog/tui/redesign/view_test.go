@@ -2,6 +2,7 @@ package redesign_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -88,6 +89,38 @@ func TestWelcomeNoSourcesView_RendersHelpText(t *testing.T) {
 	assert.Contains(t, content, "terraform.source", "should mention terraform.source as alternative")
 	assert.Contains(t, content, "h: open docs in browser", "should show docs key hint")
 	assert.Contains(t, content, "q/esc: exit", "should show quit key hint")
+}
+
+// --- Welcome Discovery-Error View ---
+
+// TestWelcomeDiscoveryErrorView_RendersErrorAndHint verifies that when
+// discovery finishes with an error, the welcome model switches to the
+// discovery-error view and surfaces the underlying error message.
+func TestWelcomeDiscoveryErrorView_RendersErrorAndHint(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	erroringLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+		return errors.New("network unreachable")
+	}
+
+	m := redesign.NewWelcomeModel(t.Context(), l, opts, erroringLoad)
+	m = updateModel(m, windowSize).(redesign.WelcomeModel)
+
+	m = updateModel(m, redesign.DiscoveryCompleteMsg{Err: errors.New("network unreachable")}).(redesign.WelcomeModel)
+
+	view := m.View()
+	content := stripANSI(view.Content)
+
+	assert.True(t, view.AltScreen, "discovery-error view should use alt screen")
+	assert.Contains(t, content, "Terragrunt Catalog", "should render title")
+	assert.Contains(t, content, "An error occurred while discovering catalog sources")
+	assert.Contains(t, content, "network unreachable", "should render the underlying error message")
+	assert.Contains(t, content, "q/esc: exit", "should render the quit hint")
 }
 
 // --- Component List View ---
@@ -193,6 +226,43 @@ func TestComponentListView_NoVersionOmitsVersionPill(t *testing.T) {
 	assert.Contains(t, content, "module", "metadata row should contain component kind label")
 	assert.Contains(t, content, "github.com/gruntwork-io/terragrunt-scale-catalog", "metadata row should contain source")
 	assert.NotContains(t, content, "v1.10.2", "version pill should not appear when version is empty")
+}
+
+// TestComponentListView_LongSourceAbbreviatesWithEllipsis feeds the metadata
+// row a long source string at a narrow terminal width. The rendered metadata
+// must contain the middle-ellipsis character and preserve both the prefix
+// and suffix of the source, which drives takeWidthPrefix and takeWidthSuffix
+// through abbreviateMiddle.
+func TestComponentListView_LongSourceAbbreviatesWithEllipsis(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+
+	const longSource = "github.com/gruntwork-io/terragrunt-scale-catalog-extra-long-path-that-must-be-abbreviated/subdir"
+
+	entry := redesign.NewComponentEntry(redesign.NewComponentForTest(
+		redesign.ComponentKindModule,
+		longSource,
+		"modules/vpc",
+		"# VPC",
+	)).WithSource(longSource)
+
+	componentCh := make(chan *redesign.ComponentEntry, 1)
+	m := redesign.NewModelStreaming(l, opts, entry, componentCh)
+
+	// Narrow terminal forces the source column to shrink below the raw width,
+	// which forces abbreviateMiddle to truncate.
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	m = updated.(redesign.Model)
+
+	content := stripANSI(m.View().Content)
+	assert.Contains(t, content, "…",
+		"abbreviateMiddle should emit the ellipsis when the source is too wide")
+	assert.Contains(t, content, "github.com",
+		"prefix of the source should survive abbreviation (takeWidthPrefix)")
 }
 
 // --- synctest: Streaming Flow ---
