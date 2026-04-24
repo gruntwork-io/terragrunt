@@ -142,3 +142,82 @@ func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
+
+func TestCopyCmd_RejectsNilComponent(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	err := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil).Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil component")
+}
+
+func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = ""
+
+	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty working directory")
+}
+
+func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	// Remove the source directory after discovery so the copy walk fails.
+	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, "vpc")))
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run()
+	require.Error(t, err)
+}
+
+func TestCopyCmd_SkipsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+	writeFile(t, filepath.Join(repoDir, "vpc", "real.txt"), "hello\n")
+
+	// Add a symlink inside the component; copyDir should skip it silently.
+	require.NoError(t, os.Symlink("real.txt", filepath.Join(repoDir, "vpc", "link.txt")))
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	workingDir := t.TempDir()
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = workingDir
+
+	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run())
+
+	assert.FileExists(t, filepath.Join(workingDir, "real.txt"))
+	assert.NoFileExists(t, filepath.Join(workingDir, "link.txt"))
+}
