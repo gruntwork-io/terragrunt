@@ -37,11 +37,11 @@ const (
 // source text for expressions via byte ranges.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if fs == nil {
-		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil; a vfs.FS is required to create targetDir and write the generated autoinclude file (targetDir=%q)", targetDir))
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)", targetDir, resolvedSourceFile(resolved)))
 	}
 
 	if targetDir == "" {
-		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (got %q); targetDir is the generated unit directory where %s will be written", targetDir, AutoIncludeFile))
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (sourceFile=%q)", resolvedSourceFile(resolved)))
 	}
 
 	if resolved == nil {
@@ -251,4 +251,15 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// resolvedSourceFile extracts the originating HCL filename from a resolved
+// autoinclude, used to enrich panic messages with file context. Returns ""
+// when resolved or its body is nil.
+func resolvedSourceFile(resolved *AutoIncludeResolved) string {
+	if resolved == nil || resolved.RawBody == nil {
+		return ""
+	}
+
+	return resolved.RawBody.MissingItemRange().Filename
 }

@@ -68,15 +68,15 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 			filename = input.Filename
 		}
 
-		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil; a vfs.FS is required to read included stack files (e.g. pass vfs.NewOSFS() for disk or vfs.NewMemMapFS() for tests) (filename=%q)", filename))
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil (filename=%q)", filename))
 	}
 
 	if input == nil {
-		panic("hclparse.ParseStackFile: input is nil; caller must provide a *ParseStackFileInput with Src and StackDir set")
+		panic("hclparse.ParseStackFile: input is nil")
 	}
 
 	if input.StackDir == "" {
-		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (got %q); StackDir is required to resolve relative include paths and compute generated unit directories (filename=%q)", input.StackDir, input.Filename))
+		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (filename=%q)", input.Filename))
 	}
 
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})

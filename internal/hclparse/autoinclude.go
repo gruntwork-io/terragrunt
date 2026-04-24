@@ -182,11 +182,11 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 // Returns (nil, nil) if the file does not exist or has no dependencies.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
-		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil; a vfs.FS is required to read the generated %s file and extract dependency paths for DAG construction (unitDir=%q)", AutoIncludeFile, unitDir))
+		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
 	}
 
 	if unitDir == "" {
-		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: unitDir is empty (got %q); unitDir must be the generated unit directory containing %s", unitDir, AutoIncludeFile))
+		panic("hclparse.AutoIncludeDependencyPaths: unitDir is empty")
 	}
 
 	unitDir = util.ResolvePath(unitDir)
