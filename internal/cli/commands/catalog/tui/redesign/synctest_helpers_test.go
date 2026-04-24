@@ -151,7 +151,12 @@ func driveModel(t *testing.T, m tea.Model, width, height int, interact []tea.Msg
 	}
 
 	if iter == settleMaxIterations-1 {
-		t.Fatalf("driveModel: bubble did not settle within %d iterations; a cmd is likely re-arming itself instantly and preventing the fake clock from advancing", settleMaxIterations)
+		t.Fatalf(
+			"driveModel: bubble did not settle within %d iterations; "+
+				"a cmd is likely re-arming itself instantly and "+
+				"preventing the fake clock from advancing",
+			settleMaxIterations,
+		)
 	}
 
 	return m
