@@ -27,7 +27,7 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	return redesign.RunRedesign(
-		ctx, l, opts,
+		ctx, l, opts, opts.Writers.ErrWriter,
 		func(
 			ctx context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry,
 		) error {

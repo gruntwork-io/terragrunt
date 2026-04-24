@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -323,8 +323,9 @@ func (m WelcomeModel) discoveryErrorView() string { //nolint:gocritic
 
 // RunRedesign launches the redesigned catalog experience. It shows a loading
 // screen immediately while discovery runs in the background, then transitions
-// to the component list if components are found.
-func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, loadFunc LoadFunc) error {
+// to the component list if components are found. Post-exit messages are
+// written to errWriter after the tea program restores the main terminal.
+func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, errWriter io.Writer, loadFunc LoadFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -337,7 +338,7 @@ func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	// tea.Printf during the session get discarded when the alt screen is
 	// torn down, so we stash them on the model and emit here instead.
 	if listModel, ok := finalModel.(Model); ok && listModel.ExitMessage() != "" {
-		fmt.Fprintln(os.Stderr, listModel.ExitMessage())
+		fmt.Fprintln(errWriter, listModel.ExitMessage())
 	}
 
 	if err != nil {
