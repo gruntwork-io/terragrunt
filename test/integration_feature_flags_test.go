@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,6 +17,7 @@ const (
 	testSimpleFlag     = "fixtures/feature-flags/simple-flag"
 	testIncludeFlag    = "fixtures/feature-flags/include-flag"
 	testRunAllFlag     = "fixtures/feature-flags/run-all"
+	testRunAllIsolated = "fixtures/feature-flags/run-all-isolated-defaults"
 	testErrorEmptyFlag = "fixtures/feature-flags/error-empty-flag"
 )
 
@@ -106,6 +108,46 @@ func TestFeatureFlagRunAll(t *testing.T) {
 	validateOutputs(t, app2)
 }
 
+func TestFeatureFlagRunAllIsolatesPerUnitDefaults(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testRunAllIsolated)
+	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllIsolated)
+	rootPath := filepath.Join(tmpEnvPath, testRunAllIsolated)
+	livePath := filepath.Join(rootPath, "live", "bare")
+	targetPath := filepath.Join(livePath, "target-service")
+	peerPath := filepath.Join(livePath, "peer-service")
+	tfPath := filepath.Join(rootPath, "fake-tf.sh")
+
+	require.NoError(t, os.Chmod(tfPath, 0o755))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --non-interactive --no-color --inputs-debug --tf-path "+tfPath+" --working-dir "+targetPath,
+	)
+	require.NoError(t, err)
+
+	targetDirect := readDebugInputs(t, targetPath)
+	assert.EqualValues(t, true, targetDirect["effective_toggle"])
+	assert.EqualValues(t, true, targetDirect["raw_toggle"])
+
+	require.NoError(t, os.Remove(filepath.Join(targetPath, helpers.TerragruntDebugFile)))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --all --non-interactive --no-color --parallelism 1 --inputs-debug --tf-path "+tfPath+" --working-dir "+livePath+" -- plan",
+	)
+	require.NoError(t, err)
+
+	targetRunAll := readDebugInputs(t, targetPath)
+	peerRunAll := readDebugInputs(t, peerPath)
+
+	assert.EqualValues(t, true, targetRunAll["effective_toggle"])
+	assert.EqualValues(t, true, targetRunAll["raw_toggle"])
+	assert.EqualValues(t, false, peerRunAll["effective_toggle"])
+	assert.EqualValues(t, false, peerRunAll["raw_toggle"])
+}
+
 func TestFailOnEmptyFeatureFlag(t *testing.T) {
 	t.Parallel()
 
@@ -152,4 +194,16 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) 
 	for key, expected := range expected {
 		assert.EqualValues(t, expected, outputs[key].Value) //nolint:testifylint
 	}
+}
+
+func readDebugInputs(t *testing.T, rootPath string) map[string]any {
+	t.Helper()
+
+	bytes, err := os.ReadFile(filepath.Join(rootPath, helpers.TerragruntDebugFile))
+	require.NoError(t, err)
+
+	outputs := map[string]any{}
+	require.NoError(t, json.Unmarshal(bytes, &outputs))
+
+	return outputs
 }
