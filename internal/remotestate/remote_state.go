@@ -33,8 +33,18 @@ type RemoteState struct {
 	backend backend.Backend
 }
 
-// New creates a new `RemoteState` instance.
+// New creates a new `RemoteState` instance. config may be nil when the
+// caller (config.convertToTerragruntConfig) doesn't parse a remote_state
+// block, e.g. a root.hcl that only declares locals — callers used to hit
+// a nil pointer dereference at config.BackendName here and crash.
 func New(config *Config) *RemoteState {
+	if config == nil {
+		return &RemoteState{
+			Config:  &Config{},
+			backend: backend.NewCommonBackend(""),
+		}
+	}
+
 	remote := &RemoteState{
 		Config:  config,
 		backend: backend.NewCommonBackend(config.BackendName),
