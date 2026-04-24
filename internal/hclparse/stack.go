@@ -185,8 +185,10 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 // UnitPathsFromStackDir parses the stack file in stackDir and returns
 // absolute paths to each unit's generated directory under .terragrunt-stack/.
-// Returns nil if the file does not exist or cannot be parsed.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
+// Returns (nil, nil) when the stack file does not exist; returns (nil, err)
+// on parse errors so callers can distinguish "not a stack dir" from "malformed
+// stack file" instead of silently treating the latter as a plain unit.
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
 	}
@@ -198,8 +200,12 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 	stackDir = util.ResolvePath(stackDir)
 
 	result, err := ParseStackFileFromPath(fs, stackDir)
-	if err != nil || result == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+
+	if result == nil {
+		return nil, nil
 	}
 
 	paths := make([]string, 0, len(result.Units))
@@ -213,7 +219,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 		paths = append(paths, unitPath)
 	}
 
-	return paths
+	return paths, nil
 }
 
 // maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits

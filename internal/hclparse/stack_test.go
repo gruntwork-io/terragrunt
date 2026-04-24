@@ -273,7 +273,8 @@ unit "db" {
 }
 `), 0644))
 
-	paths := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
@@ -285,7 +286,9 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/test"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
@@ -293,7 +296,9 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/nonexistent"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestParseStackFileFromPath(t *testing.T) {
@@ -371,7 +376,8 @@ unit "vpc" {
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
 	// UnitPathsFromStackDir via symlink should return paths based on resolved real dir
-	paths := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// Path should be based on the REAL directory, not the symlink
 	assert.Contains(t, paths[0], "real-stack")

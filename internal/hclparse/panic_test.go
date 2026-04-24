@@ -64,14 +64,14 @@ func TestParseStackFileFromPath_EmptyStackDir_Panics(t *testing.T) {
 func TestUnitPathsFromStackDir_NilFS_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: fs is nil", func() {
-		hclparse.UnitPathsFromStackDir(nil, "/x")
+		_, _ = hclparse.UnitPathsFromStackDir(nil, "/x")
 	})
 }
 
 func TestUnitPathsFromStackDir_EmptyStackDir_Panics(t *testing.T) {
 	t.Parallel()
 	assertPanicsContaining(t, "hclparse.UnitPathsFromStackDir: stackDir is empty", func() {
-		hclparse.UnitPathsFromStackDir(vfs.NewMemMapFS(), "")
+		_, _ = hclparse.UnitPathsFromStackDir(vfs.NewMemMapFS(), "")
 	})
 }
 

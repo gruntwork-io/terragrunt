@@ -588,7 +588,11 @@ unit "app" {
 // TestParseStackFile_TopLevelStackNoDotTerragruntStack verifies that a top-level
 // stack block with no_dot_terragrunt_stack = true resolves stack.<name>.path to
 // <stackDir>/<s.Path> (not <stackDir>/.terragrunt-stack/<s.Path>), matching the
-// behavior of resolveDestPath in pkg/config/stack.go.
+// behavior of resolveDestPath in pkg/config/stack.go. Also asserts the
+// second-order behavior: when the recursion into the stack's children runs from
+// the repositioned path, a child unit that also sets no_dot_terragrunt_stack
+// materializes under the stack's own directory with no .terragrunt-stack/
+// wrapping at any level.
 func TestParseStackFile_TopLevelStackNoDotTerragruntStack(t *testing.T) {
 	t.Parallel()
 
@@ -597,8 +601,9 @@ func TestParseStackFile_TopLevelStackNoDotTerragruntStack(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/networking", 0755))
 	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/networking/terragrunt.stack.hcl", []byte(`
 unit "vpc" {
-  source = "../../units/vpc"
-  path   = "vpc"
+  source                  = "../../units/vpc"
+  path                    = "vpc"
+  no_dot_terragrunt_stack = true
 }
 `), 0644))
 
@@ -621,6 +626,10 @@ unit "app" {
     dependency "net" {
       config_path = stack.networking.path
     }
+
+    dependency "vpc" {
+      config_path = stack.networking.vpc.path
+    }
   }
 }
 `
@@ -636,11 +645,19 @@ unit "app" {
 
 	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
-	require.Len(t, resolved.Dependencies, 1)
+	require.Len(t, resolved.Dependencies, 2)
 
-	// Must resolve directly under parentStackDir, bypassing .terragrunt-stack/.
-	expectedPath := filepath.Join(parentStackDir, "networking")
-	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+	depPathsByName := make(map[string]string, len(resolved.Dependencies))
+	for _, dep := range resolved.Dependencies {
+		depPathsByName[dep.Name] = dep.ConfigPath
+	}
+
+	// stack.networking.path resolves under parentStackDir, bypassing .terragrunt-stack/.
+	assert.Equal(t, filepath.Join(parentStackDir, "networking"), depPathsByName["net"])
+
+	// stack.networking.vpc.path: the child unit also sets no_dot_terragrunt_stack,
+	// so recursion into the repositioned stack dir places vpc directly under it.
+	assert.Equal(t, filepath.Join(parentStackDir, "networking", "vpc"), depPathsByName["vpc"])
 }
 
 func TestParseStackFile_LocalsCycle(t *testing.T) {
