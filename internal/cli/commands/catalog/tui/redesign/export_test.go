@@ -7,7 +7,13 @@ import (
 // NewCopyFinishedMsgForTest constructs the private copyFinishedMsg so
 // external tests can drive Model.Update through the copy-exit code path
 // without spinning up a real bubbletea runtime.
-func NewCopyFinishedMsgForTest(err error, workingDir string, required []string, optional []string, valuesWritten, valuesSkipped bool) tea.Msg {
+func NewCopyFinishedMsgForTest(
+	err error,
+	workingDir string,
+	required []string,
+	optional []string,
+	valuesWritten, valuesSkipped bool,
+) tea.Msg {
 	opt := make([]OptionalValue, 0, len(optional))
 	for _, name := range optional {
 		opt = append(opt, OptionalValue{Name: name})

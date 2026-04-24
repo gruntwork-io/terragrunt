@@ -108,7 +108,11 @@ func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 		l := logger.CreateLogger()
 		components := makeComponents(t)
 
-		withComponentsLoad := func(_ context.Context, _ redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
+		withComponentsLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
 			for _, c := range components {
 				componentCh <- c
 			}
@@ -141,7 +145,11 @@ func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
 		l := logger.CreateLogger()
 		components := makeComponents(t)
 
-		withComponentsLoad := func(_ context.Context, _ redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
+		withComponentsLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
 			for _, c := range components {
 				componentCh <- c
 			}

@@ -56,7 +56,9 @@ func TestWelcomeLoadingView_StatusTextUpdates(t *testing.T) {
 
 	content = stripANSI(m.View().Content)
 	assert.Contains(t, content, "Loading terraform-aws-vpc...", "status text should update after StatusUpdateMsg")
-	assert.NotContains(t, content, "Discovering components from your infrastructure...", "old status text should be replaced")
+	assert.NotContains(t, content,
+		"Discovering components from your infrastructure...",
+		"old status text should be replaced")
 }
 
 // --- Welcome No-Sources View ---
@@ -278,7 +280,11 @@ func TestWelcomeStreamingFlow_Synctest(t *testing.T) {
 		components := makeComponents(t)
 		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
 
-		streamingLoad := func(_ context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
+		streamingLoad := func(
+			_ context.Context,
+			status redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
 			status("Discovering catalog sources...")
 
 			for _, c := range components {
