@@ -74,7 +74,7 @@ func NewProviderHandlers(cliCfg *cliconfig.Config, logger log.Logger, registryNa
 func (handlers ProviderHandlers) SetDiscoveryURLCache(registryName string, urls *RegistryURLs) {
 	for _, handler := range handlers {
 		if direct, ok := handler.(*DirectProviderHandler); ok {
-			direct.CommonProviderHandler.SetRegistryURLCache(registryName, urls)
+			direct.CommonProviderHandler.SetDiscoveryURLCache(registryName, urls)
 		}
 	}
 }

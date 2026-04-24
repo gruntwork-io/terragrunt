@@ -389,13 +389,14 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	cfg.PluginCacheDir = ""
 
 	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
-	customHosts := pc.collectCustomHosts(filteredRegistryNames)
 
-	for name := range customHosts {
-		filteredRegistryNames = append(filteredRegistryNames, name)
+	for _, host := range pc.cliCfg.Hosts {
+		if !slices.Contains(filteredRegistryNames, host.Name) {
+			filteredRegistryNames = append(filteredRegistryNames, host.Name)
+		}
 	}
 
-	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, customHosts, cacheRequestID)
+	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, cacheRequestID)
 	if err != nil {
 		return err
 	}
@@ -415,29 +416,12 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	return pc.saveCLIConfig(cfg, filename)
 }
 
-// collectCustomHosts collects custom host blocks from user config that are not already
-// in the registry list. For custom registries (e.g. Nexus, Artifactory), service URLs
-// are defined in the host block, so we skip .well-known/terraform.json discovery.
-// See: https://github.com/gruntwork-io/terragrunt/issues/5916
-func (pc *ProviderCache) collectCustomHosts(filteredRegistryNames []string) map[string]map[string]string {
-	customHosts := make(map[string]map[string]string, len(pc.cliCfg.Hosts))
-
-	for _, host := range pc.cliCfg.Hosts {
-		if !slices.Contains(filteredRegistryNames, host.Name) {
-			customHosts[host.Name] = host.Services
-		}
-	}
-
-	return customHosts
-}
-
 // configureRegistryHosts sets up host redirects for each registry, routing provider
 // requests through the cache server. Returns the list of provider installation includes.
 func (pc *ProviderCache) configureRegistryHosts(
 	ctx context.Context,
 	cfg *cliconfig.Config,
 	registryNames []string,
-	customHosts map[string]map[string]string,
 	cacheRequestID string,
 ) ([]string, error) {
 	includes := make([]string, 0, len(registryNames))
@@ -445,7 +429,7 @@ func (pc *ProviderCache) configureRegistryHosts(
 	for _, registryName := range registryNames {
 		includes = append(includes, registryName+"/*/*")
 
-		modulesURL, err := pc.resolveModulesURL(ctx, registryName, customHosts)
+		modulesURL, err := pc.resolveModulesURL(ctx, registryName)
 		if err != nil {
 			return nil, err
 		}
@@ -465,10 +449,12 @@ func (pc *ProviderCache) configureRegistryHosts(
 }
 
 // resolveModulesURL returns the modules URL for a registry. For custom hosts, it uses
-// the service URL from the host block. For standard registries, it performs discovery.
-func (pc *ProviderCache) resolveModulesURL(ctx context.Context, registryName string, customHosts map[string]map[string]string) (string, error) {
-	if services, ok := customHosts[registryName]; ok {
-		return services[serviceModulesV1], nil
+// the service URL from the host block directly. For standard registries, it performs discovery.
+func (pc *ProviderCache) resolveModulesURL(ctx context.Context, registryName string) (string, error) {
+	for _, host := range pc.cliCfg.Hosts {
+		if host.Name == registryName {
+			return host.Services[serviceModulesV1], nil
+		}
 	}
 
 	apiURLs, err := pc.DiscoveryURL(ctx, registryName)
