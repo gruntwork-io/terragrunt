@@ -26,13 +26,13 @@ const (
 )
 
 // ComponentDiscovery walks an already-cloned repo and classifies every
-// directory as a stack, unit, template, module, or nothing. Precedence runs
-// stack > unit > template > module: a terragrunt.stack.hcl wins over a
-// terragrunt.hcl, which wins over a .boilerplate/, which wins over .tf files.
-// When a directory classifies as a stack, unit, or template, the walker
-// returns fs.SkipDir so nested artifacts (a stack's generated units, a unit's
-// nested .tf files, or boilerplate.yml inside a .boilerplate subtree) aren't
-// surfaced as separate components.
+// directory as a template, stack, unit, module, or nothing. Precedence runs
+// template > stack > unit > module: a .boilerplate/ wins over a
+// terragrunt.stack.hcl, which wins over a terragrunt.hcl, which wins over
+// .tf files. When a directory classifies as a template, stack, or unit, the
+// walker returns fs.SkipDir so nested artifacts (boilerplate.yml inside a
+// .boilerplate subtree, a stack's generated units, or a unit's nested .tf
+// files) aren't surfaced as separate components.
 //
 // Unlike the legacy module.Repo.FindModules walker (which only scans the
 // `modules/` convention), this walks the entire repo, since templates may
@@ -162,8 +162,8 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 }
 
 // classifyDir inspects a single directory and returns its ComponentKind.
-// Precedence: stack > unit > template > module. A terragrunt.stack.hcl wins
-// over a terragrunt.hcl, a .boilerplate/, and plain .tf files.
+// Precedence: template > stack > unit > module. A .boilerplate/ wins over a
+// terragrunt.stack.hcl, a terragrunt.hcl, and plain .tf files.
 func classifyDir(dir string) (ComponentKind, bool, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -205,12 +205,12 @@ func classifyDir(dir string) (ComponentKind, bool, error) {
 	}
 
 	switch {
+	case hasTemplate:
+		return ComponentKindTemplate, true, nil
 	case hasStack:
 		return ComponentKindStack, true, nil
 	case hasUnit:
 		return ComponentKindUnit, true, nil
-	case hasTemplate:
-		return ComponentKindTemplate, true, nil
 	case hasTF:
 		return ComponentKindModule, true, nil
 	}

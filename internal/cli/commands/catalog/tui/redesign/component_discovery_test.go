@@ -108,7 +108,7 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 }
 
 // TestDiscoverComponents_UnitsAndStacks asserts units and stacks are
-// classified correctly, that stack > unit > template > module precedence
+// classified correctly, that template > stack > unit > module precedence
 // holds, and that a stack/unit's subtree is not walked into.
 func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	t.Parallel()
@@ -129,6 +129,16 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.stack.hcl"), "# stack")
 	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.hcl"), "# also present")
 
+	// templated-stack/ has a .boilerplate/ alongside a terragrunt.stack.hcl →
+	// template wins.
+	writeFile(t, filepath.Join(repoDir, "templated-stack", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFile(t, filepath.Join(repoDir, "templated-stack", "terragrunt.stack.hcl"), "# stack")
+
+	// templated-unit/ has a .boilerplate/ alongside a terragrunt.hcl →
+	// template wins.
+	writeFile(t, filepath.Join(repoDir, "templated-unit", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFile(t, filepath.Join(repoDir, "templated-unit", "terragrunt.hcl"), "# unit")
+
 	// A nested .tf file under a unit must NOT surface as a second module.
 	// The unit's subtree is SkipDir'd.
 	writeFile(t, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
@@ -148,10 +158,12 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	}
 
 	want := map[string]redesign.ComponentKind{
-		"unit-a":      redesign.ComponentKindUnit,
-		"stack-a":     redesign.ComponentKindStack,
-		"mixed-unit":  redesign.ComponentKindUnit,
-		"mixed-stack": redesign.ComponentKindStack,
+		"unit-a":          redesign.ComponentKindUnit,
+		"stack-a":         redesign.ComponentKindStack,
+		"mixed-unit":      redesign.ComponentKindUnit,
+		"mixed-stack":     redesign.ComponentKindStack,
+		"templated-stack": redesign.ComponentKindTemplate,
+		"templated-unit":  redesign.ComponentKindTemplate,
 	}
 
 	assert.Equal(t, want, got)

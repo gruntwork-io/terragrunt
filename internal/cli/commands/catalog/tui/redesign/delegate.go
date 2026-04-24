@@ -98,22 +98,22 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 }
 
 // Height returns the delegate's preferred height (title + desc + meta + spacing).
-func (d catalogDelegate) Height() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Height() int {
 	return delegateHeight
 }
 
 // Spacing returns the gap between items.
-func (d catalogDelegate) Spacing() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Spacing() int {
 	return 1
 }
 
 // Update is a no-op; input is handled by the model.
-func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 	return nil
 }
 
 // ShortHelp returns the delegate's short help bindings.
-func (d catalogDelegate) ShortHelp() []key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) ShortHelp() []key.Binding {
 	if d.shortHelp != nil {
 		return d.shortHelp()
 	}
@@ -122,7 +122,7 @@ func (d catalogDelegate) ShortHelp() []key.Binding { //nolint:gocritic // value 
 }
 
 // FullHelp returns the delegate's full help bindings.
-func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) FullHelp() [][]key.Binding {
 	if d.fullHelp != nil {
 		return d.fullHelp()
 	}
@@ -131,7 +131,7 @@ func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value
 }
 
 // Render prints an item with title, description, and metadata row.
-func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	entry, isEntry := item.(*ComponentEntry)
 	if !isEntry {
 		return

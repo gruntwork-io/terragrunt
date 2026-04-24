@@ -213,7 +213,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 	vars["optionalVariables"] = optionalVariables
 
 	// Build sourceUrl from the original URL with the ref that parseModuleURL resolved.
-	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL)
+	vars["sourceUrl"] = BuildSourceURL(originalModuleURL, moduleURL, vars)
 
 	// Only set these if the `vars` map doesn't already have them set
 	if _, found := vars[enableRootInclude]; !found {
@@ -273,7 +273,15 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 // BuildSourceURL returns the original module URL with the ref query param
 // from the resolved URL appended, so the scaffolded source preserves the
 // user's original URL format while including the resolved version tag.
-func BuildSourceURL(originalURL, resolvedURL string) string {
+//
+// When vars sets SourceUrlType to git-ssh, the resolved URL is returned
+// instead so that the scaffolded source carries the Git/SSH rewrite that
+// rewriteModuleURL applied.
+func BuildSourceURL(originalURL, resolvedURL string, vars map[string]any) string {
+	if value, found := vars[sourceURLTypeVar]; found && fmt.Sprintf("%s", value) == sourceURLTypeGit {
+		return resolvedURL
+	}
+
 	refVal := ExtractQueryParam(resolvedURL, refParam)
 	if refVal == "" {
 		return originalURL

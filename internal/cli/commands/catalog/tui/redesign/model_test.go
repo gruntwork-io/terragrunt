@@ -3,6 +3,7 @@ package redesign_test
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +21,7 @@ import (
 
 // runModel starts a tea.Program with the given model, sends messages via
 // the interact callback, and returns the final model once the program exits.
-func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p *tea.Program)) redesign.Model { //nolint:gocritic
+func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p *tea.Program)) redesign.Model {
 	t.Helper()
 
 	var out bytes.Buffer
@@ -201,6 +203,54 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 	})
 
 	assert.Equal(t, redesign.TabModules, finalModel.ActiveTab(), "shift+tab from All should wrap to the last tab")
+}
+
+// TestModelCopyActionMaterializesUnit drives the Model through a real
+// scaffold-key press on a unit component and asserts that the copy action
+// runs end-to-end: the unit's files land in the working directory and a
+// terragrunt.values.hcl stub is generated from the referenced values.*.
+func TestModelCopyActionMaterializesUnit(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	unitBody := `locals { region = values.region }` + "\n"
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
+
+	workingDir := t.TempDir()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	opts.WorkingDir = workingDir
+
+	entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+	componentCh := make(chan *redesign.ComponentEntry)
+	m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		// 's' is the scaffold key. For units and stacks, this dispatches to
+		// the copy action via primaryActionCmd.
+		p.Send(tea.KeyPressMsg{Code: 's', Text: "s"})
+	})
+
+	assert.FileExists(t, filepath.Join(workingDir, "terragrunt.hcl"))
+	assert.FileExists(t, filepath.Join(workingDir, "terragrunt.values.hcl"))
+
+	raw, err := os.ReadFile(filepath.Join(workingDir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "region")
+
+	assert.Contains(t, finalModel.ExitMessage(), "terragrunt.values.hcl generated",
+		"the model should stash a post-exit callout after a successful copy")
 }
 
 // TestModelStreamingDeduplicates verifies that sending the same component
