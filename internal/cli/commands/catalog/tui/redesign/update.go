@@ -217,9 +217,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case tea.BackgroundColorMsg:
-		// Bubbletea delivers this on startup and on terminal background
-		// changes. Cache it so the README render path doesn't have to
-		// issue a blocking OSC 11 round-trip per click.
 		dark := msg.IsDark()
 		if dark != m.hasDarkBG {
 			m.mdRenderer = nil

@@ -4,17 +4,12 @@ import (
 	"charm.land/glamour/v2"
 )
 
-// markdownRenderer returns a glamour renderer matching the current Model
-// width and dark/light setting. It rebuilds only when the width or the
-// background preference changes; otherwise the cached renderer is reused.
+// markdownRenderer returns a renderer matching the current width and
+// dark/light setting, reusing a cached one when both still match.
 //
-// Building a glamour.TermRenderer compiles a goldmark pipeline and loads the
-// chroma theme registry. Doing that per click is the dominant source of
-// latency when opening a component's README; caching keeps subsequent opens
-// in the same terminal single-frame.
-//
-// The returned renderer is also stored back on m, so callers that receive a
-// Model by value must propagate the returned Model up to their caller.
+// The cache lives on the Model, which is passed by value, so callers must
+// propagate the returned Model upward; otherwise the cache write is lost on
+// the next copy.
 func (m Model) markdownRenderer() (Model, *glamour.TermRenderer, error) {
 	if m.mdRenderer != nil && m.mdRendererWidth == m.width && m.mdRendererDark == m.hasDarkBG {
 		return m, m.mdRenderer, nil
