@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -1925,18 +1924,11 @@ func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
 
 	liveDir := filepath.Join(tmpDir, "live")
 
-	var eg errgroup.Group
-
 	for range 2 {
-		eg.Go(func() error {
-			_, _, err := helpers.RunTerragruntCommandWithOutput(t,
-				"terragrunt stack generate --working-dir "+liveDir)
-
-			return err
-		})
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
 	}
-
-	require.NoError(t, eg.Wait())
 
 	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
 }
