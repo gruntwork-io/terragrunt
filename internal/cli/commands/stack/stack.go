@@ -72,11 +72,13 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}()
 	}
 
+	gen := generate.NewGenerator()
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts, wts)
+		return gen.GenerateStacks(ctx, l, opts, wts)
 	})
 }
 

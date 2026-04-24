@@ -97,6 +97,16 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
+// CanonicalResolvedPath returns the cleaned absolute path with symlinks resolved best-effort.
+func CanonicalResolvedPath(path, basePath string) (string, error) {
+	canonical, err := CanonicalPath(path, basePath)
+	if err != nil {
+		return "", err
+	}
+
+	return ResolvePath(canonical), nil
+}
+
 // Grep returns true if the given regex can be found in any of the files matched by the given glob.
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
