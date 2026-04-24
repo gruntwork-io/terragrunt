@@ -96,14 +96,15 @@ func DownloadTerraformSource(
 		// Always include the .tflint.hcl file, if it exists
 		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
-		err = util.CopyFolderContents(
-			l,
-			opts.WorkingDir,
-			terraformSource.WorkingDir,
-			ModuleManifestName,
-			includeInCopy,
-			cfg.Terraform.ExcludeFromCopy,
-		)
+		copyOpts := []util.CopyOption{
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(cfg.Terraform.ExcludeFromCopy...),
+		}
+		if isFastCopyEnabled(opts.StrictControls) {
+			copyOpts = append(copyOpts, util.WithFastCopy())
+		}
+
+		err = util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -316,6 +317,7 @@ func UpdateGetters(l log.Logger, opts *Options, cfg *runcfg.RunConfig) func(*get
 			Logger:          l,
 			IncludeInCopy:   cfg.Terraform.IncludeInCopy,
 			ExcludeFromCopy: cfg.Terraform.ExcludeFromCopy,
+			FastCopy:        isFastCopyEnabled(opts.StrictControls),
 		}
 		client.Getters["http"] = &getter.HttpGetter{Netrc: true}
 		client.Getters["https"] = &getter.HttpGetter{Netrc: true}
