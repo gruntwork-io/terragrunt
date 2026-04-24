@@ -254,12 +254,19 @@ func quotedStringTokens(value string) hclwrite.Tokens {
 }
 
 // resolvedSourceFile extracts the originating HCL filename from a resolved
-// autoinclude, used to enrich panic messages with file context. Returns ""
-// when resolved or its body is nil.
+// autoinclude, used to enrich panic messages with file context. Reads the
+// SrcRange struct field on the known concrete body type so no interface
+// method is invoked — this keeps the helper panic-safe even when called
+// from inside a panic formatter.
 func resolvedSourceFile(resolved *AutoIncludeResolved) string {
-	if resolved == nil || resolved.RawBody == nil {
+	if resolved == nil {
 		return ""
 	}
 
-	return resolved.RawBody.MissingItemRange().Filename
+	body, ok := resolved.RawBody.(*hclsyntax.Body)
+	if !ok || body == nil {
+		return ""
+	}
+
+	return body.SrcRange.Filename
 }
