@@ -188,7 +188,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		return errors.New(err)
 	}
 
-	l.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
+	l.Debugf("Scaffolding a new Terragrunt module %s to %s", moduleURL, outputDir)
 
 	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
 		return errors.New(err)
@@ -236,7 +236,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 		)
 	}
 
-	l.Infof("Running boilerplate generation to %s", outputDir)
+	l.Debugf("Running boilerplate generation to %s", outputDir)
 	boilerplateOpts := NewBoilerplateOptions(boilerplateDir, outputDir, vars, opts)
 
 	emptyDep := &variables.Dependency{}
@@ -259,13 +259,13 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, mod
 
 	allFiles = slices.Compact(slices.Sorted(slices.Values(allFiles)))
 
-	l.Infof("Running fmt on generated code %s", outputDir)
+	l.Debugf("Running fmt on generated code %s", outputDir)
 
 	if err := format.RunForFiles(ctx, l, opts, outputDir, allFiles); err != nil {
 		return errors.New(err)
 	}
 
-	l.Info("Scaffolding completed")
+	l.Debug("Scaffolding completed")
 
 	return nil
 }
@@ -410,7 +410,7 @@ func downloadTemplate(
 		return "", errors.New(err)
 	}
 
-	l.Infof("Downloading template from %s into %s", baseURL.String(), templateDir)
+	l.Debugf("Downloading template from %s into %s", baseURL.String(), templateDir)
 	// Downloading baseURL to support boilerplate dependencies and partials. Go-getter discards all but specified folder if one is provided.
 	if _, err := getter.GetAny(ctx, templateDir, baseURL.String()); err != nil {
 		return "", errors.New(err)

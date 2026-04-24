@@ -28,6 +28,18 @@ const (
 	templatePillBgS = "#3A2D55"
 	templatePillFgS = "#DDC4FA"
 
+	// Unit type pill (blue, matching the `list` / `find` command color).
+	unitPillBg  = "#1B46DD"
+	unitPillFg  = "#FFFFFF"
+	unitPillBgS = "#2E5BEA"
+	unitPillFgS = "#FFFFFF"
+
+	// Stack type pill (green, matching the `list` / `find` command color).
+	stackPillBg  = "#2E8B57"
+	stackPillFg  = "#FFFFFF"
+	stackPillBgS = "#3CA068"
+	stackPillFgS = "#FFFFFF"
+
 	// Version pill (neutral).
 	versionBg  = "#313244"
 	versionFg  = "#BAC2DE"
@@ -86,22 +98,22 @@ func newCatalogDelegate(keys *tui.DelegateKeyMap) catalogDelegate {
 }
 
 // Height returns the delegate's preferred height (title + desc + meta + spacing).
-func (d catalogDelegate) Height() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Height() int {
 	return delegateHeight
 }
 
 // Spacing returns the gap between items.
-func (d catalogDelegate) Spacing() int { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Spacing() int {
 	return 1
 }
 
 // Update is a no-op; input is handled by the model.
-func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 	return nil
 }
 
 // ShortHelp returns the delegate's short help bindings.
-func (d catalogDelegate) ShortHelp() []key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) ShortHelp() []key.Binding {
 	if d.shortHelp != nil {
 		return d.shortHelp()
 	}
@@ -110,7 +122,7 @@ func (d catalogDelegate) ShortHelp() []key.Binding { //nolint:gocritic // value 
 }
 
 // FullHelp returns the delegate's full help bindings.
-func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) FullHelp() [][]key.Binding {
 	if d.fullHelp != nil {
 		return d.fullHelp()
 	}
@@ -119,7 +131,7 @@ func (d catalogDelegate) FullHelp() [][]key.Binding { //nolint:gocritic // value
 }
 
 // Render prints an item with title, description, and metadata row.
-func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) { //nolint:gocritic // value receiver required by list.ItemDelegate interface
+func (d catalogDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	entry, isEntry := item.(*ComponentEntry)
 	if !isEntry {
 		return
@@ -238,9 +250,18 @@ func metaPalette(kind ComponentKind, selected, dimmed bool) catalogMetaColors {
 	pillBg, pillFg := modulePillBg, modulePillFg
 	pillBgSel, pillFgSel := modulePillBgS, modulePillFgS
 
-	if kind == ComponentKindTemplate {
+	switch kind {
+	case ComponentKindTemplate:
 		pillBg, pillFg = templatePillBg, templatePillFg
 		pillBgSel, pillFgSel = templatePillBgS, templatePillFgS
+	case ComponentKindUnit:
+		pillBg, pillFg = unitPillBg, unitPillFg
+		pillBgSel, pillFgSel = unitPillBgS, unitPillFgS
+	case ComponentKindStack:
+		pillBg, pillFg = stackPillBg, stackPillFg
+		pillBgSel, pillFgSel = stackPillBgS, stackPillFgS
+	case ComponentKindModule:
+		// Defaults already applied above.
 	}
 
 	if selected {

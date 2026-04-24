@@ -30,7 +30,7 @@ func TestScaffoldModule(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleURL))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 }
 
@@ -42,7 +42,7 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleShort))
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	// check that find_in_parent_folders is generated in terragrunt.hcl
 	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=EnableRootInclude=false", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	// check that find_in_parent_folders is NOT generated in  terragrunt.hcl
 	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
 	require.NoError(t, err)
@@ -71,8 +71,11 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4", tmpEnvPath, testScaffoldModuleShort))
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
+
+	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
 }
 
 func TestScaffoldErrorNoModuleUrl(t *testing.T) {
@@ -95,7 +98,7 @@ func TestScaffoldLocalTofuModule(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, fmt.Sprintf("%s//%s", workingDir, testScaffoldLocalTofuModulePath)))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 
 	// Verify variables from .tofu files were parsed and included in generated config
@@ -118,7 +121,7 @@ func TestScaffoldLocalModule(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, fmt.Sprintf("%s//%s", workingDir, testScaffoldLocalModulePath)))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 }
 
@@ -137,7 +140,7 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffold3rdPartyModulePath))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 
 	// validate the generated files
@@ -153,7 +156,7 @@ func TestScaffoldOutputFolderFlag(t *testing.T) {
 	outputFolder := tmpEnvPath + "/foo/bar"
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --non-interactive --working-dir %s scaffold %s --output-folder %s", tmpEnvPath, testScaffoldModuleURL, outputFolder))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, outputFolder+"/terragrunt.hcl")
 }
 
@@ -170,7 +173,7 @@ func TestScaffoldWithRootHCL(t *testing.T) {
 		testScaffoldModuleURL,
 	))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	assert.FileExists(t, filepath.Join(testPath, "unit", "terragrunt.hcl"))
 
@@ -196,7 +199,7 @@ func TestScaffoldNoDependencyPrompt(t *testing.T) {
 	assert.NotContains(t, stderr, "This boilerplate template has a dependency!")
 	assert.FileExists(t, outputFolder+"/base/test.hcl")
 	assert.FileExists(t, outputFolder+"/leaf/terragrunt.hcl")
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 }
 
 func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
@@ -218,7 +221,7 @@ func TestScaffoldWithShellCommandsEnabled(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -247,7 +250,7 @@ func TestScaffoldWithShellCommandsDisabled(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -275,7 +278,7 @@ func TestScaffoldWithHooksEnabled(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -301,7 +304,7 @@ func TestScaffoldWithHooksDisabled(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -327,7 +330,7 @@ func TestScaffoldWithBothFlagsDisabled(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 	require.NoError(t, err)
@@ -363,7 +366,7 @@ baz="qux"
 		),
 	)
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, filepath.Join(tmpEnvPath, "terragrunt.hcl"))
 
 	// Verify the pre-existing file was not modified by scaffold's formatting step.
@@ -403,7 +406,7 @@ func TestScaffoldCatalogConfigIntegration(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 
 	content, err := util.ReadFileAsString(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)

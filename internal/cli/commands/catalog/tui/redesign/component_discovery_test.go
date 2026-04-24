@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -58,14 +59,14 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	// foo/ is a plain module (has main.tf, no boilerplate).
 	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
 
-	// bar/ has a .boilerplate/ subdir — template at bar/.
+	// bar/ has a .boilerplate/ subdir. Template at bar/.
 	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"), "variables: []\n")
 	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "README.md"), "# bar template boilerplate dir")
 
-	// baz/ has a top-level boilerplate.yml — template at baz/.
+	// baz/ has a top-level boilerplate.yml. Template at baz/.
 	writeFile(t, filepath.Join(repoDir, "baz", "boilerplate.yml"), "variables: []\n")
 
-	// qux/ has both main.tf AND a .boilerplate/ — template wins.
+	// qux/ has both main.tf AND a .boilerplate/. Template wins.
 	writeFile(t, filepath.Join(repoDir, "qux", "main.tf"), "# mixed")
 	writeFile(t, filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"), "variables: []\n")
 
@@ -104,6 +105,56 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	for dir := range got {
 		assert.NotContains(t, dir, ".boilerplate", "no component should be derived from a .boilerplate subtree: %s", dir)
 	}
+}
+
+// TestDiscoverComponents_UnitsAndStacks asserts units and stacks are
+// classified correctly, that stack > unit > template > module precedence
+// holds, and that a stack/unit's subtree is not walked into.
+func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	// unit-a/ is a plain unit.
+	writeFile(t, filepath.Join(repoDir, "unit-a", "terragrunt.hcl"), "# unit a")
+
+	// stack-a/ is a plain stack.
+	writeFile(t, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack a")
+
+	// mixed-unit/ has both terragrunt.hcl and main.tf → unit wins over module.
+	writeFile(t, filepath.Join(repoDir, "mixed-unit", "terragrunt.hcl"), "# mixed unit")
+	writeFile(t, filepath.Join(repoDir, "mixed-unit", "main.tf"), "# ignored")
+
+	// mixed-stack/ has both terragrunt.stack.hcl and terragrunt.hcl → stack wins.
+	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.stack.hcl"), "# stack")
+	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.hcl"), "# also present")
+
+	// A nested .tf file under a unit must NOT surface as a second module.
+	// The unit's subtree is SkipDir'd.
+	writeFile(t, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
+
+	// A nested unit under a stack must NOT surface. The stack's subtree is
+	// SkipDir'd.
+	writeFile(t, filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"), "# should not surface")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+
+	got := map[string]redesign.ComponentKind{}
+	for _, c := range components {
+		got[c.Dir] = c.Kind
+	}
+
+	want := map[string]redesign.ComponentKind{
+		"unit-a":      redesign.ComponentKindUnit,
+		"stack-a":     redesign.ComponentKindStack,
+		"mixed-unit":  redesign.ComponentKindUnit,
+		"mixed-stack": redesign.ComponentKindStack,
+	}
+
+	assert.Equal(t, want, got)
 }
 
 // TestDiscoverComponents_RepoRootAsComponent asserts the repo root itself

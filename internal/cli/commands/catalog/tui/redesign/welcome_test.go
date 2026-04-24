@@ -18,6 +18,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// unrelatedModel is a tea.Model that is not a redesign.Model, used to verify
+// EmitExitMessage is a no-op for unrelated model types.
+type unrelatedModel struct{}
+
+func (unrelatedModel) Init() tea.Cmd                           { return nil }
+func (m unrelatedModel) Update(_ tea.Msg) (tea.Model, tea.Cmd) { return m, nil }
+func (unrelatedModel) View() tea.View                          { return tea.NewView("") }
+
+func TestEmitExitMessage_WritesMessageToErrWriter(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	m := redesign.NewModelWithExitMessageForTest("values stub written to foo")
+
+	redesign.EmitExitMessage(m, &buf, logger.CreateLogger())
+
+	assert.Equal(t, "values stub written to foo\n", buf.String())
+}
+
+func TestEmitExitMessage_NoMessageWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	redesign.EmitExitMessage(redesign.NewModelWithExitMessageForTest(""), &buf, logger.CreateLogger())
+
+	assert.Empty(t, buf.String())
+}
+
+func TestEmitExitMessage_UnrelatedModelIsNoop(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	redesign.EmitExitMessage(unrelatedModel{}, &buf, logger.CreateLogger())
+
+	assert.Empty(t, buf.String())
+}
+
+// TestEmitExitMessage_WriteFailureIsLogged verifies that a writer error is
+// logged rather than propagated or causing a panic.
+func TestEmitExitMessage_WriteFailureIsLogged(t *testing.T) {
+	t.Parallel()
+
+	m := redesign.NewModelWithExitMessageForTest("anything")
+
+	assert.NotPanics(t, func() {
+		redesign.EmitExitMessage(m, failingWriter{}, logger.CreateLogger())
+	})
+}
+
 // TestWelcomeLoadingScreen_NoSources verifies that when discovery finds no
 // component sources, the welcome model stays on the no-sources help screen.
 func TestWelcomeLoadingScreen_NoSources(t *testing.T) {

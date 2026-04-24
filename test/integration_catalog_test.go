@@ -159,7 +159,7 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
+	assert.Contains(t, stderr, "terragrunt.hcl was updated")
 	assert.FileExists(t, filepath.Join(targetPath, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(targetPath, "custom-template.txt"))
 

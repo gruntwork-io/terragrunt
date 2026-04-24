@@ -19,7 +19,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -118,7 +118,7 @@ func updateList(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 	return m, cmd
 }
 
-func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
+func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -189,7 +189,7 @@ func updatePager(msg tea.Msg, m Model) (tea.Model, tea.Cmd) { //nolint:gocritic
 }
 
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := AppStyle.GetFrameSize()
@@ -250,7 +250,7 @@ func rendererErrCmd(err error) tea.Cmd {
 type scaffoldFinishedMsg struct{ err error }
 
 // Return a tea.Cmd that will scaffold the given module.
-func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd { //nolint:gocritic
+func scaffoldModuleCmd(l log.Logger, m Model, svc catalog.CatalogService, module *module.Module) tea.Cmd {
 	return tea.Exec(command.NewScaffold(l, m.terragruntOptions, svc, module), func(err error) tea.Msg {
 		return scaffoldFinishedMsg{err}
 	})
