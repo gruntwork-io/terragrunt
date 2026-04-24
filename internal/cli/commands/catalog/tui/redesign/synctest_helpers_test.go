@@ -13,6 +13,12 @@ import (
 // loadFunc sleeps) so synctest can drain the bubble.
 const settleTimeout = 10 * time.Second
 
+// settleMaxIterations is a defensive cap on the drain loop in driveModel. The
+// fake-clock deadline already bounds the loop in practice, but this guards
+// against pathological cases where each iteration fails to advance the clock
+// (e.g. a misbehaving cmd that re-arms itself instantly).
+const settleMaxIterations = 10_000
+
 // driveModel runs a synctest-friendly mini bubbletea loop against m. It is a
 // drop-in stand-in for tea.NewProgram when tests want fake time instead of
 // real wall-clock waits.
@@ -126,8 +132,9 @@ func driveModel(t *testing.T, m tea.Model, width, height int, interact []tea.Msg
 	// without dispatching to Update so cmd goroutines can send their
 	// final message and exit.
 	deadline := time.Now().Add(settleTimeout)
+	iter := 0
 
-	for {
+	for iter = range settleMaxIterations {
 		synctest.Wait()
 
 		select {
@@ -141,6 +148,10 @@ func driveModel(t *testing.T, m tea.Model, width, height int, interact []tea.Msg
 		}
 
 		time.Sleep(50 * time.Millisecond)
+	}
+
+	if iter == settleMaxIterations-1 {
+		t.Fatalf("driveModel: bubble did not settle within %d iterations; a cmd is likely re-arming itself instantly and preventing the fake clock from advancing", settleMaxIterations)
 	}
 
 	return m
