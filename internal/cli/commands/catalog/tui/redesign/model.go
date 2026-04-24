@@ -105,9 +105,8 @@ func (m Model) ExitMessage() string {
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		m.buttonBar.Init(),
-		// Ask the terminal for its background color so the README renderer
-		// picks dark vs light without a synchronous OSC 11 round-trip on
-		// the hot path. The reply arrives as tea.BackgroundColorMsg.
+		// Reply arrives as tea.BackgroundColorMsg; cached so the README
+		// renderer doesn't have to issue an OSC 11 round-trip per click.
 		tea.RequestBackgroundColor,
 	}
 
@@ -303,9 +302,8 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 		terragruntOptions: opts,
 		logger:            l,
 		componentCh:       componentCh,
-		// Default to dark: matches lipgloss.HasDarkBackground's fallback.
-		// Bubbletea delivers a tea.BackgroundColorMsg at startup that
-		// corrects this when the terminal actually reports light.
+		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
+		// first tea.BackgroundColorMsg.
 		hasDarkBG: true,
 	}
 }
