@@ -2370,3 +2370,119 @@ func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
 		})
 	}
 }
+
+// TestCASInStacksLocalSource verifies that CAS processing works end-to-end
+// when the top-level stack source is a local filesystem path rather than a
+// remote git URL. The catalog-like tree lives on disk, the live stack points
+// at it directly, and update_source_with_cas on nested blocks must be
+// rewritten to cas::sha256 references that materialize correctly at run time.
+func TestCASInStacksLocalSource(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	// Keep the catalog on a sibling path outside the live working directory so
+	// terragrunt stack generate doesn't discover the catalog's stack file as a
+	// top-level entry and recurse into it alongside the live stack.
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(catalog, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("modules/baz/main.tf", ``)
+
+	writeFile("units/bar/terragrunt.hcl", `terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("stacks/foo/terragrunt.stack.hcl", `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`)
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, catalog)
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar", "terragrunt.hcl")
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// Local sources are content-addressed with SHA-256.
+	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+
+	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
+
+	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha256:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha256:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
+}
