@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -11,17 +12,15 @@ import (
 
 // assertPanicsContaining asserts the given call panics with a message
 // containing the expected substring. Uses Contains so the descriptive
-// panic texts remain flexible to small wording edits.
+// panic texts remain flexible to small wording edits. fmt.Sprint handles
+// string, error, fmt.Stringer, and arbitrary panic values uniformly.
 func assertPanicsContaining(t *testing.T, want string, fn func()) {
 	t.Helper()
 
 	defer func() {
 		r := recover()
 		require.NotNil(t, r, "expected panic containing %q, got no panic", want)
-
-		msg, ok := r.(string)
-		require.True(t, ok, "panic value is not a string: %v", r)
-		assert.Contains(t, msg, want)
+		assert.Contains(t, fmt.Sprint(r), want)
 	}()
 
 	fn()

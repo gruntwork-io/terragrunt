@@ -38,7 +38,8 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoInclude)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoInclude, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -154,7 +155,8 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackRef)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackRef)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsStackRef, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -274,6 +276,10 @@ func TestStackDepsE2EChain(t *testing.T) {
 	assert.Equal(t, "unit-b received: from-c", string(contentB))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+
+	// Destroy must remove the marker files produced by apply.
+	assert.NoFileExists(t, markerA[0])
+	assert.NoFileExists(t, markerB[0])
 }
 
 // TestStackDepsE2ECrossStack tests stack generation with cross-stack dependencies:
@@ -327,7 +333,8 @@ func TestStackDepsDocExample_UnitInStack(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsUnitInStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsUnitInStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsUnitInStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -373,7 +380,8 @@ func TestStackDepsDocExample_EntireStack(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsEntireStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsEntireStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsEntireStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -428,7 +436,8 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -507,6 +516,7 @@ func TestStackDepsFindJSON(t *testing.T) {
 
 	// Find the unit-w-inputs component and verify its dependency
 	foundInputs := false
+	foundOutputs := false
 
 	for _, c := range components {
 		if c.Type != "unit" {
@@ -521,11 +531,14 @@ func TestStackDepsFindJSON(t *testing.T) {
 		}
 
 		if strings.HasSuffix(c.Path, "unit-w-outputs") {
+			foundOutputs = true
+
 			assert.Empty(t, c.Dependencies)
 		}
 	}
 
 	require.True(t, foundInputs, "unit-w-inputs should be in find output")
+	require.True(t, foundOutputs, "unit-w-outputs should be in find output")
 }
 
 // TestStackDepsFindDAG verifies that terragrunt find --dag lists units in
@@ -807,4 +820,8 @@ func TestStackDepsE2ETree(t *testing.T) {
 	assert.Equal(t, "unit-a(from-b(from-d,from-e),from-c)", string(contentA))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+
+	// Destroy must remove the marker files produced by apply.
+	assert.NoFileExists(t, markerA[0])
+	assert.NoFileExists(t, markerB[0])
 }

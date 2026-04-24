@@ -416,6 +416,10 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 	for _, s := range stacks {
 		stackGenPath := filepath.Join(stackTargetDir, s.Path)
 
+		if s.NoStack != nil && *s.NoStack {
+			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
+		}
+
 		ref := ComponentRef{
 			Name: s.Name,
 			Path: stackGenPath,

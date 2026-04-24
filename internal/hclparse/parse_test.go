@@ -585,6 +585,64 @@ unit "app" {
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 }
 
+// TestParseStackFile_TopLevelStackNoDotTerragruntStack verifies that a top-level
+// stack block with no_dot_terragrunt_stack = true resolves stack.<name>.path to
+// <stackDir>/<s.Path> (not <stackDir>/.terragrunt-stack/<s.Path>), matching the
+// behavior of resolveDestPath in pkg/config/stack.go.
+func TestParseStackFile_TopLevelStackNoDotTerragruntStack(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/networking", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/networking/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+`), 0644))
+
+	parentStackDir := "/project/live"
+
+	require.NoError(t, fs.MkdirAll(parentStackDir, 0755))
+
+	parentSrc := `
+stack "networking" {
+  source                  = "../catalog/stacks/networking"
+  path                    = "networking"
+  no_dot_terragrunt_stack = true
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "net" {
+      config_path = stack.networking.path
+    }
+  }
+}
+`
+	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
+	require.NoError(t, vfs.WriteFile(fs, parentStackFile, []byte(parentSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(parentSrc),
+		Filename: parentStackFile,
+		StackDir: parentStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+
+	// Must resolve directly under parentStackDir, bypassing .terragrunt-stack/.
+	expectedPath := filepath.Join(parentStackDir, "networking")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+}
+
 func TestParseStackFile_LocalsCycle(t *testing.T) {
 	t.Parallel()
 

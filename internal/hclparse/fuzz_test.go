@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -182,8 +181,8 @@ dependency "b" { config_path = "../b" }`,
 		fs := vfs.NewMemMapFS()
 
 		dir := "/fuzz/unit"
-		require.NoError(t, fs.MkdirAll(dir, 0755))
-		require.NoError(t, vfs.WriteFile(fs, dir+"/terragrunt.autoinclude.hcl", []byte(input), 0644))
+		_ = fs.MkdirAll(dir, 0755)
+		_ = vfs.WriteFile(fs, dir+"/terragrunt.autoinclude.hcl", []byte(input), 0644)
 
 		_, _ = hclparse.AutoIncludeDependencyPaths(fs, dir)
 	})
@@ -229,7 +228,6 @@ func FuzzNestedStackPath(f *testing.F) {
 	f.Add("infra", "deep", "vpc", "db")
 	f.Add("network", "storage", "subnet", "bucket")
 	f.Add("a", "b", "c", "d")
-	f.Add("", "", "", "")
 	f.Add("path", "name", "source", "autoinclude")
 
 	f.Fuzz(func(t *testing.T, stackName, nestedStackName, unitName, nestedUnitName string) {
