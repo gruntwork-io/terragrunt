@@ -4,6 +4,7 @@ package hclparse
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -61,6 +62,23 @@ type ParseResult struct {
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+	if fs == nil {
+		filename := ""
+		if input != nil {
+			filename = input.Filename
+		}
+
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil (filename=%q)", filename))
+	}
+
+	if input == nil {
+		panic("hclparse.ParseStackFile: input is nil")
+	}
+
+	if input.StackDir == "" {
+		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (filename=%q)", input.Filename))
+	}
+
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
@@ -397,6 +415,10 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 
 	for _, s := range stacks {
 		stackGenPath := filepath.Join(stackTargetDir, s.Path)
+
+		if s.NoStack != nil && *s.NoStack {
+			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
+		}
 
 		ref := ComponentRef{
 			Name: s.Name,

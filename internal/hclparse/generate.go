@@ -2,6 +2,7 @@ package hclparse
 
 import (
 	"cmp"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -35,6 +36,14 @@ const (
 // srcBytes is the original terragrunt.stack.hcl file content, used to extract
 // source text for expressions via byte ranges.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)", targetDir, resolvedSourceFile(resolved)))
+	}
+
+	if targetDir == "" {
+		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: targetDir is empty (sourceFile=%q)", resolvedSourceFile(resolved)))
+	}
+
 	if resolved == nil {
 		return nil
 	}
@@ -242,4 +251,22 @@ func writeNonDependencyContent(outBody *hclwrite.Body, body *hclsyntax.Body, src
 // quotedStringTokens creates hclwrite tokens for a quoted string literal.
 func quotedStringTokens(value string) hclwrite.Tokens {
 	return hclwrite.TokensForValue(cty.StringVal(value))
+}
+
+// resolvedSourceFile extracts the originating HCL filename from a resolved
+// autoinclude, used to enrich panic messages with file context. Reads the
+// SrcRange struct field on the known concrete body type so no interface
+// method is invoked — this keeps the helper panic-safe even when called
+// from inside a panic formatter.
+func resolvedSourceFile(resolved *AutoIncludeResolved) string {
+	if resolved == nil {
+		return ""
+	}
+
+	body, ok := resolved.RawBody.(*hclsyntax.Body)
+	if !ok || body == nil {
+		return ""
+	}
+
+	return body.SrcRange.Filename
 }
