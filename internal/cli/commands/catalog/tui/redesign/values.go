@@ -2,7 +2,8 @@ package redesign
 
 import (
 	"bytes"
-	"os"
+	stderrors "errors"
+	"io/fs"
 	"path/filepath"
 	"sort"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -83,10 +85,10 @@ func (r ValuesReferences) allNames() []string {
 // wholly known, it's recorded as the default.
 //
 // If path does not exist, returns (zero ValuesReferences, nil).
-func CollectValuesReferences(path string) (ValuesReferences, error) {
-	raw, err := os.ReadFile(path)
+func CollectValuesReferences(fsys vfs.FS, path string) (ValuesReferences, error) {
+	raw, err := vfs.ReadFile(fsys, path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, fs.ErrNotExist) {
 			return ValuesReferences{}, nil
 		}
 
@@ -234,17 +236,20 @@ func (c *valuesCollector) result() ValuesReferences {
 // terragrunt.values.hcl already exists in dir it is left untouched.
 //
 // Returns written=true only when a new file was created.
-func WriteValuesStub(dir string, refs ValuesReferences) (bool, error) {
+func WriteValuesStub(fsys vfs.FS, dir string, refs ValuesReferences) (bool, error) {
 	if refs.IsEmpty() {
 		return false, nil
 	}
 
 	filePath := filepath.Join(dir, valuesFileName)
 
-	if _, err := os.Stat(filePath); err == nil {
-		return false, nil
-	} else if !os.IsNotExist(err) {
+	exists, err := vfs.FileExists(fsys, filePath)
+	if err != nil {
 		return false, errors.New(err)
+	}
+
+	if exists {
+		return false, nil
 	}
 
 	var buf bytes.Buffer
@@ -281,7 +286,7 @@ func WriteValuesStub(dir string, refs ValuesReferences) (bool, error) {
 		buf.Write(optional.Bytes())
 	}
 
-	if err := os.WriteFile(filePath, buf.Bytes(), valuesStubPerm); err != nil {
+	if err := vfs.WriteFile(fsys, filePath, buf.Bytes(), valuesStubPerm); err != nil {
 		return false, errors.New(err)
 	}
 

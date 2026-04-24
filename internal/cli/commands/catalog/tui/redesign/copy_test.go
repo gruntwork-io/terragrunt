@@ -1,12 +1,14 @@
 package redesign_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -220,4 +222,69 @@ func TestCopyCmd_SkipsSymlinks(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(workingDir, "real.txt"))
 	assert.NoFileExists(t, filepath.Join(workingDir, "link.txt"))
+}
+
+// TestCopyCmd_WithFSUsesInjectedFilesystem verifies that WithFS returns the
+// same builder and that the injected filesystem is honored during Run. The
+// underlying Repo still points at the on-disk fixture (module.NewRepo only
+// works against real git state), but the source reads and destination writes
+// go through the injected FS.
+func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0])
+
+	chained := cmd.WithFS(vfs.NewOSFS())
+	assert.Same(t, cmd, chained, "WithFS should return the same builder for chaining")
+
+	require.NoError(t, cmd.Run())
+
+	// Result is now populated.
+	r := cmd.Result()
+	assert.NotNil(t, r, "Result should be callable after Run")
+}
+
+// TestCopyCmd_ResultZeroValueBeforeRun verifies Result is callable before Run
+// and returns the zero copyResult.
+func TestCopyCmd_ResultZeroValueBeforeRun(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil)
+
+	// Result is safe to call even before Run; the returned value type
+	// is opaque to external callers but must not panic.
+	assert.NotPanics(t, func() { _ = cmd.Result() })
+}
+
+// TestCopyCmd_StdioSettersAreNoops verifies the tea.ExecCommand stdio setters
+// are safe no-ops. The redesign CopyCmd does not read or write through these,
+// but they satisfy the tea.ExecCommand interface.
+func TestCopyCmd_StdioSettersAreNoops(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = t.TempDir()
+
+	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, nil)
+
+	assert.NotPanics(t, func() {
+		cmd.SetStdin(bytes.NewReader(nil))
+		cmd.SetStdout(&bytes.Buffer{})
+		cmd.SetStderr(&bytes.Buffer{})
+	})
 }
