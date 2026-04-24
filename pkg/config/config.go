@@ -1989,7 +1989,12 @@ func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource str
 		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
 	}
 
-	_ = filepath.WalkDir(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+	walkFunc := filepath.WalkDir
+	if pctx.Experiments.Evaluate(experiment.Symlinks) {
+		walkFunc = util.WalkDirWithSymlinks
+	}
+
+	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip unreadable entries rather than aborting the whole walk.
 			if d != nil && d.IsDir() {

@@ -1061,6 +1061,10 @@ Coming soon!
 `mark_glob_as_read` requires the [`mark-many-as-read`](/reference/experiments) experiment. Calling it without the experiment enabled returns an error.
 </Aside>
 
+<Aside type="caution">
+`mark_glob_as_read` writes to the same read tracker as [`mark_as_read`](#mark_as_read), so the same evaluation-order caveat applies: during a `run --all`, the queue is populated before `inputs` is evaluated, so a call placed in `inputs` (or any other later-evaluated block) will not influence queue construction. Call `mark_glob_as_read` from `locals` to ensure matched files are considered when the queue is built.
+</Aside>
+
 `mark_glob_as_read(pattern)` expands the given glob and marks every matching file as read. It returns the list of absolute paths that matched, so it can be composed with other expressions.
 
 Pattern syntax follows [`gobwas/glob`](https://github.com/gobwas/glob), the same matcher used elsewhere in Terragrunt. `/` is the path separator, `*` matches within a single segment, `**` matches any sequence of characters including separators, `?` matches any single non-separator character, `[abc]` matches a character class, and `{a,b}` matches any of the listed alternatives. A backslash escapes the following metacharacter.

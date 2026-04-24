@@ -16,13 +16,12 @@ func TestGrepFilesWithSuffix(t *testing.T) {
 	backendRegex := regexp.MustCompile(`(?m)"backend":[[:space:]]*{[[:space:]]*"s3"`)
 
 	tests := []struct {
-		files     map[string]string
-		regex     *regexp.Regexp
-		name      string
-		root      string
-		suffix    string
-		want      bool
-		expectErr bool
+		files  map[string]string
+		regex  *regexp.Regexp
+		name   string
+		root   string
+		suffix string
+		want   bool
 	}{
 		{
 			name: "matches file at root",
@@ -119,23 +118,19 @@ func TestGrepFilesWithSuffix(t *testing.T) {
 			}
 
 			got, err := util.GrepFilesWithSuffix(fsys, tc.regex, tc.root, tc.suffix)
-			if tc.expectErr {
-				require.Error(t, err)
-				return
-			}
-
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-func TestGrepFilesWithSuffix_StopsEarly(t *testing.T) {
+func TestGrepFilesWithSuffix_SurvivesUnmatchedSiblings(t *testing.T) {
 	t.Parallel()
 
-	// Writing a sentinel after the expected match; if the walk kept going, we'd still
-	// return true. The key property we can check here is that the function doesn't
-	// crash or error out when there are many files past the first match.
+	// Exercises the case where a matching file sits alongside many non-matching
+	// siblings. Proving that the walk actually short-circuits would require a
+	// counting FS wrapper; this test only asserts that the function still
+	// returns the match without being derailed by the surrounding files.
 	fsys := vfs.NewMemMapFS()
 
 	regex := regexp.MustCompile(`needle`)
