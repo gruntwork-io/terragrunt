@@ -1,12 +1,14 @@
 package redesign
 
 import (
+	stderrors "errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -19,6 +21,7 @@ type CopyCmd struct {
 	component *Component
 	opts      *options.TerragruntOptions
 	logger    log.Logger
+	fsys      vfs.FS
 	result    copyResult
 }
 
@@ -35,7 +38,19 @@ func NewCopyCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component
 	return &CopyCmd{component: c, opts: opts, logger: logger}
 }
 
+// WithFS overrides the filesystem used for source reads and destination writes.
+// When unset, Run uses vfs.NewOSFS().
+func (c *CopyCmd) WithFS(fsys vfs.FS) *CopyCmd {
+	c.fsys = fsys
+	return c
+}
+
 func (c *CopyCmd) Run() error {
+	fsys := c.fsys
+	if fsys == nil {
+		fsys = vfs.NewOSFS()
+	}
+
 	src, dst, err := c.resolvePaths()
 	if err != nil {
 		return err
@@ -43,7 +58,7 @@ func (c *CopyCmd) Run() error {
 
 	c.logger.Debugf("Copying component %q to %q", src, dst)
 
-	if err := copyDir(src, dst); err != nil {
+	if err := copyDir(fsys, src, dst); err != nil {
 		return err
 	}
 
@@ -54,7 +69,7 @@ func (c *CopyCmd) Run() error {
 		return nil
 	}
 
-	refs, err := CollectValuesReferences(filepath.Join(src, configName))
+	refs, err := CollectValuesReferences(fsys, filepath.Join(src, configName))
 	if err != nil {
 		return err
 	}
@@ -65,7 +80,7 @@ func (c *CopyCmd) Run() error {
 
 	c.result.references = refs
 
-	written, err := WriteValuesStub(dst, refs)
+	written, err := WriteValuesStub(fsys, dst, refs)
 	if err != nil {
 		return err
 	}
@@ -120,10 +135,10 @@ func skipDuringCopy(name string) bool {
 	return name == ".terragrunt-cache" || name == ".terragrunt-stack"
 }
 
-// copyDir recursively copies src to dst, preserving file modes and skipping
-// regenerated artifact directories.
-func copyDir(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+// copyDir recursively copies src to dst on fsys, preserving file modes and
+// skipping regenerated artifact directories.
+func copyDir(fsys vfs.FS, src, dst string) error {
+	return vfs.WalkDir(fsys, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -145,7 +160,7 @@ func copyDir(src, dst string) error {
 				return errors.New(err)
 			}
 
-			return os.MkdirAll(target, info.Mode().Perm())
+			return fsys.MkdirAll(target, info.Mode().Perm())
 		}
 
 		// Skip symlinks and irregular files; copy only regular files.
@@ -153,12 +168,12 @@ func copyDir(src, dst string) error {
 			return nil
 		}
 
-		return copyFile(path, target)
+		return copyFile(fsys, path, target)
 	})
 }
 
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+func copyFile(fsys vfs.FS, src, dst string) error {
+	in, err := fsys.Open(src)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -176,9 +191,9 @@ func copyFile(src, dst string) error {
 
 	// O_EXCL ensures we refuse to overwrite existing files in the working
 	// directory, so copying a unit or stack can't silently clobber user edits.
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	out, err := fsys.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
 	if err != nil {
-		if os.IsExist(err) {
+		if stderrors.Is(err, fs.ErrExist) {
 			return errors.Errorf("destination %q already exists; refusing to overwrite", dst)
 		}
 
