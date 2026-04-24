@@ -15,7 +15,9 @@ import (
 	"github.com/pkg/browser"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/components/buttonbar"
+	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Tab key bindings for cycling between the All/Modules/Templates tabs.
@@ -248,6 +250,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic
 			return m, tea.Batch(tea.Printf("error scaffolding component: %s", msg.err.Error()), tea.Quit)
 		}
 
+		// Same post-exit-message pattern as the copy flow: stash a styled
+		// callout and let RunRedesign print it after the alt screen is
+		// torn down, so it survives into the user's scrollback.
+		m.exitMessage = formatScaffoldMessage(m.terragruntOptions)
+
 		return m, tea.Quit
 
 	case copyFinishedMsg:
@@ -396,6 +403,35 @@ func renderValuesBox(accent, heading, path, summary, body string) string {
 		BorderForeground(lipgloss.Color(accent)).
 		Padding(1, 2). //nolint:mnd
 		Render(content)
+}
+
+// formatScaffoldMessage returns the post-exit callout for a successful
+// scaffold run, pointing the user at the generated terragrunt.hcl and the
+// `# TODO: fill in value` markers the scaffold template leaves behind.
+func formatScaffoldMessage(opts *options.TerragruntOptions) string {
+	outputDir := opts.ScaffoldOutputFolder
+	if outputDir == "" {
+		outputDir = opts.WorkingDir
+	}
+
+	if outputDir == "" {
+		return ""
+	}
+
+	absPath := filepath.Join(outputDir, config.DefaultTerragruntConfigPath)
+	path := displayPath(outputDir, absPath)
+
+	heading := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(valuesBoxAccentGreen)).
+		Bold(true).
+		Render("terragrunt.hcl scaffolded")
+
+	summary := "Inputs are marked with `# TODO: fill in value` comments."
+
+	body := "Open the file and replace each TODO placeholder with a real value\n" +
+		"before running terragrunt."
+
+	return renderValuesBox(valuesBoxAccentGreen, heading, path, summary, body)
 }
 
 // pluralize returns singular when n == 1 and plural otherwise.
