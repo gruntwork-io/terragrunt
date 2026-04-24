@@ -324,3 +324,46 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 		})
 	}
 }
+
+// TestComponentDiscovery_WithWalkWithSymlinksIsChainable verifies the
+// opt-in symlink-follow builder returns the same pointer for chaining, and
+// that a discovery run with the flag enabled still classifies a plain
+// module correctly.
+func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "vpc", "main.tf"), "# module\n")
+
+	repo := newFakeRepo(t, repoDir)
+
+	cd := redesign.NewComponentDiscovery()
+	chained := cd.WithWalkWithSymlinks()
+	assert.Same(t, cd, chained, "WithWalkWithSymlinks should return the same builder for chaining")
+
+	components, err := cd.Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	assert.Equal(t, redesign.ComponentKindModule, components[0].Kind)
+}
+
+// TestComponentFilterValueReturnsTitle exercises Component.FilterValue and
+// ComponentEntry.FilterValue (which delegates), asserting both return the
+// component's display title for the list's fuzzy-match filter.
+func TestComponentFilterValueReturnsTitle(t *testing.T) {
+	t.Parallel()
+
+	c := redesign.NewComponentForTest(
+		redesign.ComponentKindModule,
+		"github.com/gruntwork-io/repo",
+		"modules/vpc",
+		"",
+	)
+
+	assert.Equal(t, c.Title(), c.FilterValue(),
+		"Component.FilterValue should equal Title for list filtering")
+
+	entry := redesign.NewComponentEntry(c)
+	assert.Equal(t, c.Title(), entry.FilterValue(),
+		"ComponentEntry.FilterValue should delegate to the inner Component")
+}

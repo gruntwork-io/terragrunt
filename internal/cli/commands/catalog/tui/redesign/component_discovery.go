@@ -183,7 +183,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 // Precedence: stack > unit > template > module. A terragrunt.stack.hcl wins
 // over a terragrunt.hcl, a .boilerplate/, and plain .tf files.
 func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
-	entries, err := readDirEntries(fsys, dir)
+	entries, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
 		return 0, false, errors.New(err)
 	}
