@@ -1,12 +1,13 @@
 package redesign
 
 import (
-	"os"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // Note: this file is a redesign-owned fork of internal/services/catalog/module/doc.go.
@@ -113,16 +114,16 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 	return doc
 }
 
-// FindComponentDoc reads the first README-like file in dir and returns a
-// populated ComponentDoc. Returns a zero-value *ComponentDoc (non-nil) when
-// no README is present.
-func FindComponentDoc(dir string) (*ComponentDoc, error) {
-	var filePath, fileExt string
-
-	files, err := os.ReadDir(dir)
+// FindComponentDoc reads the first README-like file in dir from fsys and
+// returns a populated ComponentDoc. Returns a zero-value *ComponentDoc
+// (non-nil) when no README is present.
+func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
+	files, err := readDirEntries(fsys, dir)
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
+	var filePath, fileExt string
 
 	for _, file := range files {
 		if file.IsDir() {
@@ -147,12 +148,41 @@ func FindComponentDoc(dir string) (*ComponentDoc, error) {
 		return &ComponentDoc{}, nil
 	}
 
-	contentByte, err := os.ReadFile(filePath)
+	contentByte, err := vfs.ReadFile(fsys, filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	return NewComponentDoc(string(contentByte), fileExt), nil
+}
+
+// readDirEntries opens dir on fsys and returns its entries. It prefers the
+// fs.ReadDirFile fast path when the backing file supports it.
+func readDirEntries(fsys vfs.FS, dir string) ([]fs.DirEntry, error) {
+	f, err := fsys.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = f.Close()
+	}()
+
+	if rdf, ok := f.(fs.ReadDirFile); ok {
+		return rdf.ReadDir(-1)
+	}
+
+	infos, err := f.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]fs.DirEntry, len(infos))
+	for i, info := range infos {
+		entries[i] = vfs.FileInfoDirEntry{FileInfo: info}
+	}
+
+	return entries, nil
 }
 
 // Title returns the doc title from frontmatter or the first H1.

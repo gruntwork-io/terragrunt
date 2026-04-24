@@ -8,11 +8,30 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestDiscoverComponents_WithCustomFS proves discovery runs against an
+// injected vfs.FS — passing vfs.NewOSFS() explicitly produces the same
+// result as the zero-arg constructor's internal default.
+func TestDiscoverComponents_WithCustomFS(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# module")
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().WithFS(vfs.NewOSFS()).Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	assert.Equal(t, "foo", components[0].Dir)
+	assert.Equal(t, redesign.ComponentKindModule, components[0].Kind)
+}
 
 // newFakeRepo creates a bare-minimum cloned repo on disk that module.NewRepo
 // can successfully consume (requires .git/config and .git/HEAD). The returned

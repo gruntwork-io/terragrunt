@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -43,7 +44,7 @@ inputs = {
 `
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(path)
+	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app", "env", "region"}, refs.Required)
 	assert.Empty(t, refs.Optional)
@@ -74,7 +75,7 @@ locals {
 `
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(path)
+	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app", "region"}, refs.Required)
 	assert.Equal(t, []string{"aud", "aws_partition", "deploy_branch", "tags"}, optionalNames(refs))
@@ -92,7 +93,7 @@ locals {
 }
 `), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(path)
+	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -116,7 +117,7 @@ unit "app" {
 `
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(path)
+	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -124,7 +125,7 @@ unit "app" {
 func TestCollectValuesReferences_MissingFile(t *testing.T) {
 	t.Parallel()
 
-	refs, err := redesign.CollectValuesReferences(filepath.Join(t.TempDir(), "nope.hcl"))
+	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), filepath.Join(t.TempDir(), "nope.hcl"))
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -142,7 +143,7 @@ func TestWriteValuesStub_HappyPath(t *testing.T) {
 		},
 	}
 
-	written, err := redesign.WriteValuesStub(dir, refs)
+	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, refs)
 	require.NoError(t, err)
 	assert.True(t, written)
 
@@ -185,7 +186,7 @@ func TestWriteValuesStub_EmptyIsNoOp(t *testing.T) {
 
 	dir := t.TempDir()
 
-	written, err := redesign.WriteValuesStub(dir, redesign.ValuesReferences{})
+	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, redesign.ValuesReferences{})
 	require.NoError(t, err)
 	assert.False(t, written)
 
@@ -204,7 +205,7 @@ func TestWriteValuesStub_SkipsWhenExists(t *testing.T) {
 
 	refs := redesign.ValuesReferences{Required: []string{"foo", "bar"}}
 
-	written, err := redesign.WriteValuesStub(dir, refs)
+	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, refs)
 	require.NoError(t, err)
 	assert.False(t, written)
 

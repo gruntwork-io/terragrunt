@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ import (
 func TestMatcher_MissingFileIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	m, err := ignore.Load(t.TempDir())
+	m, err := ignore.Load(vfs.NewOSFS(), t.TempDir())
 	require.NoError(t, err)
 	require.NotNil(t, m)
 	assert.True(t, m.Empty())
@@ -84,7 +85,7 @@ func TestMatcher_InvalidPatternReturnsError(t *testing.T) {
 func TestLoadFile_MissingFileIsError(t *testing.T) {
 	t.Parallel()
 
-	_, err := ignore.LoadFile(filepath.Join(t.TempDir(), "does-not-exist"))
+	_, err := ignore.LoadFile(vfs.NewOSFS(), filepath.Join(t.TempDir(), "does-not-exist"))
 	require.Error(t, err)
 }
 
@@ -95,7 +96,7 @@ func TestLoadFile_ReadsExistingFile(t *testing.T) {
 	path := filepath.Join(dir, "extra-ignore")
 	require.NoError(t, os.WriteFile(path, []byte("examples\n"), 0644))
 
-	m, err := ignore.LoadFile(path)
+	m, err := ignore.LoadFile(vfs.NewOSFS(), path)
 	require.NoError(t, err)
 	assert.True(t, m.Match("examples"))
 }
@@ -123,7 +124,7 @@ func TestLoad_ReadsFile(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ignore.FileName), []byte("examples\n"), 0644))
 
-	m, err := ignore.Load(dir)
+	m, err := ignore.Load(vfs.NewOSFS(), dir)
 	require.NoError(t, err)
 	assert.False(t, m.Empty())
 	assert.True(t, m.Match("examples"))

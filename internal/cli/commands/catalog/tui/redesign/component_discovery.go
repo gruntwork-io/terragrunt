@@ -2,7 +2,6 @@ package redesign
 
 import (
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/ignore"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 )
 
@@ -41,12 +41,13 @@ const (
 // Construct one via NewComponentDiscovery, customize it with the With*
 // methods, then call Discover on a repo.
 type ComponentDiscovery struct {
+	fsys             vfs.FS
 	extraIgnoreFile  string
 	walkWithSymlinks bool
 }
 
 // NewComponentDiscovery returns a ComponentDiscovery with default settings:
-// no symlink following, no extra ignore file.
+// no symlink following, no extra ignore file, the real OS filesystem.
 func NewComponentDiscovery() *ComponentDiscovery {
 	return &ComponentDiscovery{}
 }
@@ -65,6 +66,13 @@ func (cd *ComponentDiscovery) WithExtraIgnoreFile(i string) *ComponentDiscovery 
 	return cd
 }
 
+// WithFS sets the filesystem used for the discovery walk and per-component
+// README reads. When unset, Discover uses vfs.NewOSFS().
+func (cd *ComponentDiscovery) WithFS(fsys vfs.FS) *ComponentDiscovery {
+	cd.fsys = fsys
+	return cd
+}
+
 // Discover runs component discovery against repo.
 func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 	if repo == nil {
@@ -78,18 +86,28 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 		return nil, errors.New("ComponentDiscovery.Discover: empty repo path")
 	}
 
-	walkFunc := filepath.WalkDir
+	fsys := cd.fsys
+	if fsys == nil {
+		fsys = vfs.NewOSFS()
+	}
+
+	// util.WalkDirWithSymlinks is OS-only; when symlink following is on, we
+	// continue using it and leave vfs integration as a future cleanup.
+	walkFunc := func(root string, fn fs.WalkDirFunc) error {
+		return vfs.WalkDir(fsys, root, fn)
+	}
+
 	if cd.walkWithSymlinks {
 		walkFunc = util.WalkDirWithSymlinks
 	}
 
-	ignoreMatcher, err := ignore.Load(repoPath)
+	ignoreMatcher, err := ignore.Load(fsys, repoPath)
 	if err != nil {
 		return nil, err
 	}
 
 	if cd.extraIgnoreFile != "" {
-		extraMatcher, err := ignore.LoadFile(cd.extraIgnoreFile)
+		extraMatcher, err := ignore.LoadFile(fsys, cd.extraIgnoreFile)
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +144,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 			return fs.SkipDir
 		}
 
-		kind, isComponent, err := classifyDir(dir)
+		kind, isComponent, err := classifyDir(fsys, dir)
 		if err != nil {
 			return err
 		}
@@ -135,7 +153,7 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 			return nil
 		}
 
-		c, err := newComponent(repo, repoPath, cloneURL, relDir, kind)
+		c, err := newComponent(fsys, repo, repoPath, cloneURL, relDir, kind)
 		if err != nil {
 			return err
 		}
@@ -164,8 +182,8 @@ func (cd *ComponentDiscovery) Discover(repo *module.Repo) (Components, error) {
 // classifyDir inspects a single directory and returns its ComponentKind.
 // Precedence: template > stack > unit > module. A .boilerplate/ wins over a
 // terragrunt.stack.hcl, a terragrunt.hcl, and plain .tf files.
-func classifyDir(dir string) (ComponentKind, bool, error) {
-	entries, err := os.ReadDir(dir)
+func classifyDir(fsys vfs.FS, dir string) (ComponentKind, bool, error) {
+	entries, err := readDirEntries(fsys, dir)
 	if err != nil {
 		return 0, false, errors.New(err)
 	}
@@ -229,8 +247,8 @@ func isSkippableDir(name string) bool {
 // newComponent constructs a *Component for a directory that has been
 // classified. It populates the doc and URL fields the same way the legacy
 // module.NewModule does, but into the redesign-owned Component type.
-func newComponent(repo *module.Repo, repoPath, cloneURL, relDir string, kind ComponentKind) (*Component, error) {
-	doc, err := FindComponentDoc(filepath.Join(repoPath, relDir))
+func newComponent(fsys vfs.FS, repo *module.Repo, repoPath, cloneURL, relDir string, kind ComponentKind) (*Component, error) {
+	doc, err := FindComponentDoc(fsys, filepath.Join(repoPath, relDir))
 	if err != nil {
 		return nil, err
 	}
