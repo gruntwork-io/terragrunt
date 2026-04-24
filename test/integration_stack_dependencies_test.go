@@ -225,11 +225,9 @@ func TestStackDepsE2EBasic(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
-	inputFiles, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs", ".terragrunt-cache", "*", "*", "input.txt"))
-	require.NoError(t, err)
-	require.Len(t, inputFiles, 1)
+	inputPath := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs"), "input.txt")
 
-	inputContent, err := os.ReadFile(inputFiles[0])
+	inputContent, err := os.ReadFile(inputPath)
 	require.NoError(t, err)
 	assert.Equal(t, "Received: Hello!", string(inputContent))
 
@@ -258,28 +256,24 @@ func TestStackDepsE2EChain(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// Verify unit-a received chained output: from-b(from-c)
-	markerA, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-a", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerA, 1)
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
 
-	contentA, err := os.ReadFile(markerA[0])
+	contentA, err := os.ReadFile(markerA)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-a received: from-b(from-c)", string(contentA))
 
 	// Verify unit-b received: from-c
-	markerB, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-b", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerB, 1)
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
 
-	contentB, err := os.ReadFile(markerB[0])
+	contentB, err := os.ReadFile(markerB)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-b received: from-c", string(contentB))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 
 	// Destroy must remove the marker files produced by apply.
-	assert.NoFileExists(t, markerA[0])
-	assert.NoFileExists(t, markerB[0])
+	assert.NoFileExists(t, markerA)
+	assert.NoFileExists(t, markerB)
 }
 
 // TestStackDepsE2ECrossStack tests stack generation with cross-stack dependencies:
@@ -523,14 +517,14 @@ func TestStackDepsFindJSON(t *testing.T) {
 			continue
 		}
 
-		if strings.HasSuffix(c.Path, "unit-w-inputs") {
+		if filepath.Base(c.Path) == "unit-w-inputs" {
 			foundInputs = true
 
 			require.Len(t, c.Dependencies, 1)
 			assert.Contains(t, c.Dependencies[0], "unit-w-outputs")
 		}
 
-		if strings.HasSuffix(c.Path, "unit-w-outputs") {
+		if filepath.Base(c.Path) == "unit-w-outputs" {
 			foundOutputs = true
 
 			assert.Empty(t, c.Dependencies)
@@ -652,11 +646,11 @@ func TestStackDepsFindChain(t *testing.T) {
 
 	for path := range depsByPath {
 		switch {
-		case strings.HasSuffix(path, "unit-a"):
+		case filepath.Base(path) == "unit-a":
 			unitAPath = path
-		case strings.HasSuffix(path, "unit-b"):
+		case filepath.Base(path) == "unit-b":
 			unitBPath = path
-		case strings.HasSuffix(path, "unit-c"):
+		case filepath.Base(path) == "unit-c":
 			unitCPath = path
 		}
 	}
@@ -713,15 +707,15 @@ func TestStackDepsFindTree(t *testing.T) {
 
 	for path := range depsByPath {
 		switch {
-		case strings.HasSuffix(path, "unit-a"):
+		case filepath.Base(path) == "unit-a":
 			aPath = path
-		case strings.HasSuffix(path, "unit-b"):
+		case filepath.Base(path) == "unit-b":
 			bPath = path
-		case strings.HasSuffix(path, "unit-c"):
+		case filepath.Base(path) == "unit-c":
 			cPath = path
-		case strings.HasSuffix(path, "unit-d"):
+		case filepath.Base(path) == "unit-d":
 			dPath = path
-		case strings.HasSuffix(path, "unit-e"):
+		case filepath.Base(path) == "unit-e":
 			ePath = path
 		}
 	}
@@ -802,26 +796,22 @@ func TestStackDepsE2ETree(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// Verify unit-b received outputs from D and E
-	markerB, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-b", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerB, 1)
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
 
-	contentB, err := os.ReadFile(markerB[0])
+	contentB, err := os.ReadFile(markerB)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-b(from-d,from-e)", string(contentB))
 
 	// Verify unit-a received outputs from B and C
-	markerA, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-a", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerA, 1)
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
 
-	contentA, err := os.ReadFile(markerA[0])
+	contentA, err := os.ReadFile(markerA)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-a(from-b(from-d,from-e),from-c)", string(contentA))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
 
 	// Destroy must remove the marker files produced by apply.
-	assert.NoFileExists(t, markerA[0])
-	assert.NoFileExists(t, markerB[0])
+	assert.NoFileExists(t, markerA)
+	assert.NoFileExists(t, markerB)
 }

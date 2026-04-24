@@ -236,6 +236,12 @@ func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
 // extractDependencyConfigPath returns the resolved absolute config_path for a
 // dependency block, or ("", false) if the block is not a valid dependency or
 // config_path cannot be evaluated to a string.
+//
+// The nil eval context passed to Expr.Value is intentional: GenerateAutoIncludeFile
+// always writes config_path as a literal quoted string via writeDependencyBlock
+// (see generate.go), so no variable resolution is required. If that contract is
+// ever relaxed to emit interpolations, callers must pass a real eval context
+// here or the dependency will be silently dropped from the DAG.
 func extractDependencyConfigPath(block *hclsyntax.Block, unitDir string) (string, bool) {
 	if block.Type != blockDependency || len(block.Labels) == 0 {
 		return "", false
