@@ -54,6 +54,11 @@ func (handler *CommonProviderHandler) CanHandleProvider(provider *models.Provide
 	}
 }
 
+// SetRegistryURLCache pre-populates the discovery cache for a given registry.
+func (handler *CommonProviderHandler) SetRegistryURLCache(registryName string, urls *RegistryURLs) {
+	handler.registryURLCache.Store(registryName, urls)
+}
+
 // DiscoveryURL implements ProviderHandler.DiscoveryURL.
 func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
 	if urls, ok := handler.registryURLCache.Load(registryName); ok {
