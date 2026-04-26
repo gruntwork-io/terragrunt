@@ -1,0 +1,33 @@
+---
+name: mark-many-as-read
+status: active
+since: "1.0.3"
+---
+
+Mark many files as read in one step, so reading-based filter expressions cascade changes from shared files to the units that consume them.
+
+### `mark-many-as-read` - What it does
+
+Enabling the experiment activates two behaviors:
+
+1. When a unit's `terraform` block points at a local module source, Terragrunt walks that directory and records every `*.tf`, `*.tf.json`, `*.hcl`, `*.tofu`, and `*.tofu.json` file as read for the unit. Non-source files such as `README.md` are skipped. Remote sources (Git, registry, S3, etc.) are not walked.
+2. The `mark_glob_as_read(pattern)` HCL function becomes available. It expands a glob using [`gobwas/glob`](https://github.com/gobwas/glob) syntax and marks every matching file as read, returning the list of absolute paths that matched. Without the experiment enabled, calling the function returns an error. See the [HCL reference](/reference/hcl/functions/#mark_glob_as_read) for pattern syntax and examples.
+
+Both behaviors feed the same reading tracker that powers the [`reading=` filter attribute](/features/filter/attributes#reading-based-expressions), so a change to a local module file or a globbed configuration file is picked up by `--filter 'reading=<path>'` and matches every unit that reads it.
+
+```bash
+terragrunt run --all --experiment mark-many-as-read -- plan
+```
+
+### `mark-many-as-read` - How to provide feedback
+
+Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page.
+
+### `mark-many-as-read` - Criteria for stabilization
+
+To transition the `mark-many-as-read` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm local module walking handles nested modules sensibly across macOS, Linux, and Windows.
+- [ ] Confirm glob semantics match user expectations for common patterns, especially `**` with a wildcard trailing segment.
+- [ ] Positive feedback from users relying on reading-based filters in production pipelines.
+- [ ] Integration tests covering the interaction between module walking, `mark_glob_as_read`, and `--filter 'reading=...'`.
