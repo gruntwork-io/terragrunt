@@ -390,12 +390,6 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 
 	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
 
-	for _, host := range pc.cliCfg.Hosts {
-		if !slices.Contains(filteredRegistryNames, host.Name) {
-			filteredRegistryNames = append(filteredRegistryNames, host.Name)
-		}
-	}
-
 	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, cacheRequestID)
 	if err != nil {
 		return err
