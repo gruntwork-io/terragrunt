@@ -313,3 +313,14 @@ type MaxParseDepthError struct {
 func (err MaxParseDepthError) Error() string {
 	return fmt.Sprintf("maximum parse depth of %d exceeded (current depth: %d). This usually indicates circular includes or extremely deep config nesting.", err.Max, err.Depth)
 }
+
+// MarkGlobAsReadRequiresExperimentError is returned when the mark_glob_as_read
+// HCL function is called without the mark-many-as-read experiment enabled.
+type MarkGlobAsReadRequiresExperimentError struct {
+	ConfigPath string
+	Pattern    string
+}
+
+func (err MarkGlobAsReadRequiresExperimentError) Error() string {
+	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
+}

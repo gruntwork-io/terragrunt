@@ -707,7 +707,9 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 		dstPath := filepath.Join(tempDir, "dst")
 
 		// Create symlink pointing outside destination with ..
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd")
+		zipData := createZipArchiveWithSymlink(
+			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd",
+		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
@@ -1059,7 +1061,9 @@ func createZipArchiveWithMode(t *testing.T, name string, content []byte, mode os
 }
 
 // createZipArchiveWithSymlink creates a zip archive with a regular file and a symlink to it.
-func createZipArchiveWithSymlink(t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string) []byte {
+func createZipArchiveWithSymlink(
+	t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string,
+) []byte {
 	t.Helper()
 
 	var buf bytes.Buffer

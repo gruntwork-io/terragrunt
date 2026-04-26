@@ -13,15 +13,14 @@ import (
 	"strings"
 
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
-
-	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 )
 
 // FileName is the fixed name looked up at the repo root.
 const FileName = ".terragrunt-catalog-ignore"
 
 type rule struct {
-	glob   glob.Glob
+	glob   glob.Matcher
 	raw    string
 	negate bool
 }
@@ -107,7 +106,7 @@ func Parse(r io.Reader) (*Matcher, error) {
 			continue
 		}
 
-		g, err := glob.Compile(line, '/')
+		g, err := glob.Compile(line)
 		if err != nil {
 			return nil, tgerrors.Errorf("%s line %d: invalid pattern %q: %w", FileName, lineNo, line, err)
 		}

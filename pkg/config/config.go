@@ -1771,6 +1771,10 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
 		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
+
+		if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && terragruntConfig.Terraform.Source != nil {
+			markLocalModuleSourceAsRead(pctx, configPath, *terragruntConfig.Terraform.Source)
+		}
 	}
 
 	if err := validateDependencies(pctx, terragruntConfigFromFile.Dependencies); err != nil {
@@ -1956,6 +1960,75 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	return terragruntConfig, errs.ErrorOrNil()
+}
+
+// moduleSourceReadExtensions lists file extensions within a local terraform module
+// whose changes should propagate to consuming units via reading-based filters.
+var moduleSourceReadExtensions = map[string]struct{}{
+	".tf":        {},
+	".tf.json":   {},
+	".hcl":       {},
+	".tofu":      {},
+	".tofu.json": {},
+}
+
+// markLocalModuleSourceAsRead walks the local terraform module pointed to by
+// rawSource and marks its configuration files as read in pctx.FilesRead. It is a
+// best-effort annotation: non-local sources are skipped and walk errors are
+// swallowed, since a genuinely broken source will surface during download.
+func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource string) {
+	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
+
+	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, filepath.Dir(configPath))
+	if err != nil || !tf.IsLocalSource(sourceURL) {
+		return
+	}
+
+	moduleDir := filepath.Clean(sourceURL.Path)
+	if subdir != "" {
+		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
+	}
+
+	walkFunc := filepath.WalkDir
+	if pctx.Experiments.Evaluate(experiment.Symlinks) {
+		walkFunc = util.WalkDirWithSymlinks
+	}
+
+	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// Skip unreadable entries rather than aborting the whole walk.
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if d.IsDir() {
+			return util.SkipDirIfIgnorable(d.Name())
+		}
+
+		ext := moduleSourceFileExtension(d.Name())
+		if _, ok := moduleSourceReadExtensions[ext]; !ok {
+			return nil
+		}
+
+		trackFileRead(pctx.FilesRead, path)
+
+		return nil
+	})
+}
+
+// moduleSourceFileExtension returns the extension used for matching module source
+// files, honoring compound extensions like ".tf.json" and ".tofu.json".
+func moduleSourceFileExtension(name string) string {
+	for _, compound := range []string{".tf.json", ".tofu.json"} {
+		if strings.HasSuffix(name, compound) {
+			return compound
+		}
+	}
+
+	return filepath.Ext(name)
 }
 
 // Iterate over dependencies paths and check if directories exists, return error with all missing dependencies

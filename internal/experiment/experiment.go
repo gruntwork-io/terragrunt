@@ -51,6 +51,11 @@ const (
 	StackDependencies = "stack-dependencies"
 	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
 	CatalogRedesign = "catalog-redesign"
+	// MarkManyAsRead enables behaviors that mark many files as read in one
+	// step: automatic marking of files inside a local terraform module source
+	// (so reading-based filter expressions detect changes to the module) and
+	// the mark_glob_as_read HCL function.
+	MarkManyAsRead = "mark-many-as-read"
 )
 
 const (
@@ -114,6 +119,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: CatalogRedesign,
+		},
+		{
+			Name: MarkManyAsRead,
 		},
 	}
 }

@@ -136,7 +136,9 @@ type AWSRole struct {
 
 func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd string) map[string]string {
 	if role.RoleARN == "" {
-		l.Warnf("The command %s completed successfully, but AWS role assumption contains empty required value: roleARN, nothing is being done.", authProviderCmd)
+		l.Warnf("The command %s completed successfully, but AWS role assumption"+
+			" contains empty required value: roleARN, nothing is being done.", authProviderCmd)
+
 		return nil
 	}
 
@@ -169,7 +171,10 @@ func (role *AWSRole) Envs(ctx context.Context, l log.Logger, authProviderCmd str
 	}
 
 	if creds == nil {
-		l.Warnf("The command %s completed successfully, but failed to assume role %s, nothing is being done.", authProviderCmd, role.RoleARN)
+		l.Warnf("The command %s completed successfully,"+
+			" but failed to assume role %s, nothing is being done.",
+			authProviderCmd, role.RoleARN)
+
 		return nil
 	}
 
@@ -195,7 +200,10 @@ func (creds *AWSCredentials) Envs(_ context.Context, l log.Logger, authProviderC
 	}
 
 	if len(emptyFields) > 0 {
-		l.Warnf("The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.", authProviderCmd, strings.Join(emptyFields, ", "))
+		l.Warnf("The command %s completed successfully, but AWS credentials"+
+			" contains empty required values: %s, nothing is being done.",
+			authProviderCmd, strings.Join(emptyFields, ", "))
+
 		return nil
 	}
 

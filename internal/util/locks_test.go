@@ -3,6 +3,7 @@ package util_test
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -62,23 +63,25 @@ func TestKeyLocksSharedKeySerializes(t *testing.T) {
 func TestKeyLocksIndependentKeysDoNotBlock(t *testing.T) {
 	t.Parallel()
 
-	kl := util.NewKeyLocks()
-	kl.Lock("a")
-	defer kl.Unlock("a")
+	synctest.Test(t, func(t *testing.T) {
+		kl := util.NewKeyLocks()
+		kl.Lock("a")
+		defer kl.Unlock("a")
 
-	done := make(chan struct{})
+		done := make(chan struct{})
 
-	go func() {
-		kl.Lock("b")
-		kl.Unlock("b")
-		close(done)
-	}()
+		go func() {
+			kl.Lock("b")
+			kl.Unlock("b")
+			close(done)
+		}()
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal(`locking independent key "b" was blocked by holder of "a"`)
-	}
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal(`locking independent key "b" was blocked by holder of "a"`)
+		}
+	})
 }
 
 // TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.
