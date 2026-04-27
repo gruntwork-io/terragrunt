@@ -133,3 +133,14 @@ type LocalsMaxIterError struct {
 func (e LocalsMaxIterError) Error() string {
 	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
+
+// MalformedDependencyError indicates a dependency block in an autoinclude file is malformed.
+type MalformedDependencyError struct {
+	FilePath string
+	Name     string
+	Reason   string
+}
+
+func (e MalformedDependencyError) Error() string {
+	return fmt.Sprintf("malformed dependency %q in %s: %s", e.Name, e.FilePath, e.Reason)
+}

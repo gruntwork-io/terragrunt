@@ -204,15 +204,17 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns
-// absolute paths to each unit's generated directory under .terragrunt-stack/.
-// Returns nil if the file does not exist or cannot be parsed.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
+// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory.
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 	stackDir = util.ResolvePath(stackDir)
 
 	result, err := ParseStackFileFromPath(fs, stackDir)
-	if err != nil || result == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+
+	if result == nil {
+		return nil, nil
 	}
 
 	paths := make([]string, 0, len(result.Units))
@@ -226,32 +228,30 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 		paths = append(paths, unitPath)
 	}
 
-	return paths
+	return paths, nil
 }
 
 // maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits
 // to prevent infinite loops from circular stack references.
 const maxDiscoverDepth = 1000
 
-// DiscoverStackChildUnits parses a stack's source directory to find the
-// terragrunt.stack.hcl within it and extracts unit paths. This enables
-// stack.stack_name.unit_name.path references in autoinclude blocks.
-//
-// stackSourceDir is the directory where the stack's source files live
-// (or will be generated). stackGenDir is the absolute path where this
-// stack's units will be generated (.terragrunt-stack/stack_path/).
-func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+// DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution.
+func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) ([]ComponentRef, error) {
 	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
 }
 
-func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
+func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) ([]ComponentRef, error) {
 	if depth > maxDiscoverDepth {
-		return nil
+		return nil, nil
 	}
 
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)
-	if err != nil || result == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+
+	if result == nil {
+		return nil, nil
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
@@ -270,7 +270,6 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 		})
 	}
 
-	// Also discover nested stacks so stack.<name>.<nested_stack>.path works.
 	for _, s := range result.Stacks {
 		nestedGenPath := filepath.Join(childTargetDir, s.Path)
 
@@ -279,14 +278,17 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 		}
 
-		ref := ComponentRef{
-			Name:      s.Name,
-			Path:      nestedGenPath,
-			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+		childRefs, childErr := discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
+		if childErr != nil {
+			return nil, childErr
 		}
 
-		refs = append(refs, ref)
+		refs = append(refs, ComponentRef{
+			Name:      s.Name,
+			Path:      nestedGenPath,
+			ChildRefs: childRefs,
+		})
 	}
 
-	return refs
+	return refs, nil
 }

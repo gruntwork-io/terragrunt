@@ -183,8 +183,8 @@ unit "db" {
 }
 `), 0644))
 
-	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-
+	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
+	require.NoError(t, err)
 	require.Len(t, refs, 2)
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "vpc"), refs[0].Path)
@@ -210,13 +210,11 @@ unit "db" {
 }
 `), 0644))
 
-	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-
+	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
+	require.NoError(t, err)
 	require.Len(t, refs, 2)
-	// vpc has no_dot_terragrunt_stack=true, goes directly under stackGenDir
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", "vpc"), refs[0].Path)
-	// db is normal, goes under .terragrunt-stack/
 	assert.Equal(t, "db", refs[1].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
 }
@@ -226,7 +224,8 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	refs := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
+	refs, err := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
+	require.NoError(t, err)
 	assert.Nil(t, refs)
 }
 
@@ -273,7 +272,8 @@ unit "db" {
 }
 `), 0644))
 
-	paths := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
@@ -285,7 +285,9 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/test"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
@@ -293,7 +295,21 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/nonexistent"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
+}
+
+func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestParseStackFileFromPath(t *testing.T) {
@@ -370,8 +386,8 @@ unit "vpc" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	// UnitPathsFromStackDir via symlink should return paths based on resolved real dir
-	paths := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// Path should be based on the REAL directory, not the symlink
 	assert.Contains(t, paths[0], "real-stack")
@@ -397,10 +413,22 @@ unit "db" {
 	symlinkSrcDir := filepath.Join(tmpDir, "symlinked-source")
 	require.NoError(t, os.Symlink(realSrcDir, symlinkSrcDir))
 
-	// DiscoverStackChildUnits via symlink should work
-	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
+	refs, err := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
+	require.NoError(t, err)
 	require.Len(t, refs, 1)
 	assert.Equal(t, "db", refs[0].Name)
+}
+
+func TestDiscoverStackChildUnits_MalformedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`unit "x" { source = "."`), 0644))
+
+	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen")
+	require.Error(t, err)
+	assert.Nil(t, refs)
 }
 
 func TestParseStackFile_WithInclude(t *testing.T) {

@@ -85,7 +85,11 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
+
+	stackRefs, err := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
+	if err != nil {
+		return nil, err
+	}
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
@@ -388,32 +392,29 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 	return refs
 }
 
-// buildStackRefsWithAbsPath creates ComponentRef values for stack blocks.
-// It also attempts to parse each stack's source to discover child units,
-// enabling stack.stack_name.unit_name.path references.
-// depth is threaded to prevent unbounded recursion in circular stacks.
-func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) []ComponentRef {
+// buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units.
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) ([]ComponentRef, error) {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
 		stackGenPath := filepath.Join(stackTargetDir, s.Path)
 
-		ref := ComponentRef{
-			Name: s.Name,
-			Path: stackGenPath,
-		}
-
-		// Resolve the source to find nested units within this stack.
-		// The source may be relative to the stack file's directory.
 		sourceDir := s.Source
 		if !filepath.IsAbs(sourceDir) {
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		ref.ChildRefs = discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, depth+1)
+		childRefs, err := discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, depth+1)
+		if err != nil {
+			return nil, err
+		}
 
-		refs = append(refs, ref)
+		refs = append(refs, ComponentRef{
+			Name:      s.Name,
+			Path:      stackGenPath,
+			ChildRefs: childRefs,
+		})
 	}
 
-	return refs
+	return refs, nil
 }

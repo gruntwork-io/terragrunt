@@ -202,21 +202,31 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 		return nil, UnexpectedBodyTypeError{FilePath: autoIncludePath}
 	}
 
-	var paths []string
+	paths := make([]string, 0, len(body.Blocks))
 
 	for _, block := range body.Blocks {
 		if block.Type != blockDependency || len(block.Labels) == 0 {
 			continue
 		}
 
+		name := block.Labels[0]
+
 		configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 		if !exists {
-			continue
+			return nil, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "missing config_path attribute"}
 		}
 
 		val, valDiags := configPathAttr.Expr.Value(nil)
-		if valDiags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
-			continue
+		if valDiags.HasErrors() {
+			return nil, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error()}
+		}
+
+		if !val.IsKnown() || val.IsNull() {
+			return nil, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is null or unknown"}
+		}
+
+		if val.Type() != cty.String {
+			return nil, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a string literal"}
 		}
 
 		depPath := val.AsString()

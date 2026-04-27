@@ -25,6 +25,7 @@ const (
 	testFixtureStackDepsUnitInStack = "fixtures/stacks/stack-deps-unit-in-stack"
 	testFixtureStackDepsEntireStack = "fixtures/stacks/stack-deps-entire-stack"
 	testFixtureStackDepsNestedStack = "fixtures/stacks/stack-deps-nested-stack"
+	testFixtureStackDepsIssue5980   = "fixtures/stacks/stack-deps-issue-5980"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -187,7 +188,8 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), nestedContent, 0644))
 
-	unitPaths := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
 
 	expectedVPC := filepath.Join(stackDir, ".terragrunt-stack", "vpc")
@@ -472,4 +474,55 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)
 	assert.Equal(t, expectedPath, depPaths[0])
+}
+
+// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails is a regression test for
+// https://github.com/gruntwork-io/terragrunt/issues/5980. The stack file uses
+// find_in_parent_folders() in `source` (which the simplified two-pass autoinclude
+// parser cannot decode) AND declares an autoinclude block. Prior behavior silently
+// skipped autoinclude generation at debug level; the fix makes it a hard error so
+// the user immediately knows their autoinclude config will not be honored.
+func TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsIssue5980)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsIssue5980)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsIssue5980, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	require.Error(t, err, "stack generate must fail loudly when an autoinclude block is declared but the two-pass parser cannot process the stack file")
+
+	combined := err.Error() + stderr
+	assert.Contains(t, combined, "autoinclude", "error must mention the autoinclude failure so the user can locate the issue: err=%q stderr=%q", err.Error(), stderr)
+}
+
+// TestStackDepsIssue5980_NoAutoIncludeStillWorks verifies the companion case: stack
+// files that hit two-pass-parser limitations but do NOT declare an autoinclude block
+// continue to generate successfully. Together with the failure test above this pins
+// the contract: silent skip is allowed only when the user has nothing to lose.
+func TestStackDepsIssue5980_NoAutoIncludeStillWorks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	stackDir := filepath.Join(tmpDir, "live")
+	require.NoError(t, os.MkdirAll(stackDir, 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "catalog", "units", "vpc"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "catalog", "units", "vpc", "terragrunt.hcl"), []byte("inputs = {}\n"), 0644))
+
+	stackHCL := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = format("%s", "vpc")
+}
+`
+	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(stackHCL), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
+	require.NoError(t, err, "stack generate must succeed when no autoinclude block is declared, even if the two-pass parser cannot process source/path expressions")
+
+	require.DirExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc"))
+	require.NoFileExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc", "terragrunt.autoinclude.hcl"))
 }

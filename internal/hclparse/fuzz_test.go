@@ -267,8 +267,7 @@ unit "app" { source = "."; path = "app"
 			StackDir: "/fuzz/live",
 		})
 
-		// Also exercise DiscoverStackChildUnits directly on the middle stack.
-		_ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
+		_, _ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
 	})
 }
 
