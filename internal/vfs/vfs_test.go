@@ -693,7 +693,9 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 		t.Parallel()
 
 		if runtime.GOOS == "windows" {
-			t.Skip("Unix-style absolute path /etc/passwd is treated as relative on Windows, so the escape detection differs by platform")
+			// Unix-style absolute path /etc/passwd is treated as relative on
+			// Windows, so the escape detection differs by platform.
+			t.Skip("absolute-path escape detection is Unix-only")
 		}
 
 		fs := vfs.NewOSFS()
