@@ -1,15 +1,17 @@
 package config_test
 
 import (
-	"runtime"
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/stretchr/testify/require"
 )
 
-// FuzzHCLStringHelpers: startswith / endswith / strcontains must never panic on any args shape.
+// FuzzHCLStringHelpers: wrong arity must return WrongNumberOfParamsError; otherwise the result must agree with the Go stdlib equivalent.
 func FuzzHCLStringHelpers(f *testing.F) {
 	seeds := []string{
 		"",
@@ -32,28 +34,53 @@ func FuzzHCLStringHelpers(f *testing.F) {
 
 		ctx, pctx := newTestParsingContext(t, "")
 
-		_, _ = config.StartsWith(ctx, pctx, args)
-		_, _ = config.EndsWith(ctx, pctx, args)
-		_, _ = config.StrContains(ctx, pctx, args)
+		swOut, swErr := config.StartsWith(ctx, pctx, args)
+		ewOut, ewErr := config.EndsWith(ctx, pctx, args)
+		scOut, scErr := config.StrContains(ctx, pctx, args)
+
+		if len(args) != 2 {
+			require.Error(t, swErr, "startswith with %d args must error", len(args))
+			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, swErr),
+				"startswith expected WrongNumberOfParamsError, got %T: %v", swErr, swErr)
+			require.Error(t, ewErr, "endswith with %d args must error", len(args))
+			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, ewErr),
+				"endswith expected WrongNumberOfParamsError, got %T: %v", ewErr, ewErr)
+			require.Error(t, scErr, "strcontains with %d args must error", len(args))
+			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, scErr),
+				"strcontains expected WrongNumberOfParamsError, got %T: %v", scErr, scErr)
+
+			return
+		}
+
+		require.NoError(t, swErr, "startswith(%q,%q) must not error", args[0], args[1])
+		require.Equal(t, strings.HasPrefix(args[0], args[1]), swOut,
+			"startswith(%q,%q) must agree with strings.HasPrefix", args[0], args[1])
+
+		require.NoError(t, ewErr, "endswith(%q,%q) must not error", args[0], args[1])
+		require.Equal(t, strings.HasSuffix(args[0], args[1]), ewOut,
+			"endswith(%q,%q) must agree with strings.HasSuffix", args[0], args[1])
+
+		require.NoError(t, scErr, "strcontains(%q,%q) must not error", args[0], args[1])
+		require.Equal(t, strings.Contains(args[0], args[1]), scOut,
+			"strcontains(%q,%q) must agree with strings.Contains", args[0], args[1])
 	})
 }
 
-// FuzzHCLRunCommandOptions: run_cmd must never panic on any mix of recognized option flags.
-// Fuzz input is filtered to known --terragrunt-* flags so the fuzzer cannot launch arbitrary host commands.
-func FuzzHCLRunCommandOptions(f *testing.F) {
-	if runtime.GOOS == "windows" {
-		f.Skip("run_cmd happy-path requires bash; skip on Windows")
-	}
-
+// FuzzRunCmdOptionsParsing: exercises run_cmd's option-stripping logic without ever reaching shell-out.
+// Args are filtered to known --terragrunt-* flags and NO command is appended, so RunCommand always returns
+// EmptyStringNotAllowedError or ConflictingRunCmdCacheOptionsError before shell.RunCommandWithOutput is called.
+func FuzzRunCmdOptionsParsing(f *testing.F) {
 	seeds := []string{
+		"",
 		"--terragrunt-quiet",
 		"--terragrunt-no-cache",
 		"--terragrunt-global-cache",
 		"--terragrunt-quiet\x00--terragrunt-no-cache",
 		"--terragrunt-quiet\x00--terragrunt-quiet",
 		"--terragrunt-no-cache\x00--terragrunt-global-cache",
+		"--terragrunt-global-cache\x00--terragrunt-no-cache",
+		"--terragrunt-quiet\x00--terragrunt-no-cache\x00--terragrunt-global-cache",
 		"--unknown-flag",
-		"",
 	}
 	for _, s := range seeds {
 		f.Add(s)
@@ -62,19 +89,42 @@ func FuzzHCLRunCommandOptions(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw string) {
 		parts := strings.Split(raw, "\x00")
 
-		args := make([]string, 0, len(parts)+2)
+		var hasNoCache, hasGlobalCache bool
+
+		args := make([]string, 0, len(parts))
 		for _, part := range parts {
 			switch part {
-			case "--terragrunt-quiet", "--terragrunt-no-cache", "--terragrunt-global-cache":
+			case "--terragrunt-quiet":
 				args = append(args, part)
+			case "--terragrunt-no-cache":
+				args = append(args, part)
+				hasNoCache = true
+			case "--terragrunt-global-cache":
+				args = append(args, part)
+				hasGlobalCache = true
 			}
 		}
 
-		args = append(args, "/bin/echo", "hi")
+		baseCtx, pctx := newTestParsingContext(t, "")
+
+		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Second)
+		defer cancel()
 
 		l := logger.CreateLogger()
-		ctx, pctx := newTestParsingContext(t, "")
 
-		_, _ = config.RunCommand(ctx, pctx, l, args)
+		out, err := config.RunCommand(ctx, pctx, l, args)
+
+		require.Empty(t, out, "options-only call must not produce output")
+		require.Error(t, err, "options-only call must error")
+
+		if hasNoCache && hasGlobalCache {
+			require.True(t, assertErrorType(t, config.ConflictingRunCmdCacheOptionsError{}, err),
+				"expected ConflictingRunCmdCacheOptionsError, got %T: %v", err, err)
+
+			return
+		}
+
+		require.True(t, assertErrorType(t, config.EmptyStringNotAllowedError(""), err),
+			"expected EmptyStringNotAllowedError, got %T: %v", err, err)
 	})
 }
