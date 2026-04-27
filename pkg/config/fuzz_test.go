@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -71,9 +70,9 @@ func FuzzHCLStringHelpers(f *testing.F) {
 }
 
 // FuzzHCLRunCommand fuzzes config.RunCommand with arbitrary argv. Subprocess execution
-// is intercepted by an in-memory vexec backend installed via shell.WithExec, so no real
-// host commands ever run — even mutator-supplied paths like "/bin/sh\x00-c\x00rm -rf /"
-// are captured by the mock instead of reaching the operating system.
+// is intercepted by an in-memory vexec backend installed via pctx.Exec, so no real host
+// commands ever run — even mutator-supplied paths like "/bin/sh\x00-c\x00rm -rf /" are
+// captured by the mock instead of reaching the operating system.
 //
 // Asserts:
 //   - On the conflict path (--terragrunt-no-cache + --terragrunt-global-cache):
@@ -128,11 +127,10 @@ func FuzzHCLRunCommand(f *testing.F) {
 		baseCtx, pctx := newTestParsingContext(t, "")
 		pctx.Writers.Writer = io.Discard
 		pctx.Writers.ErrWriter = io.Discard
+		pctx.Exec = memExec
 
 		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Second)
 		defer cancel()
-
-		ctx = shell.WithExec(ctx, memExec)
 
 		l := logger.CreateLogger()
 		out, err := config.RunCommand(ctx, pctx, l, argsForCall)

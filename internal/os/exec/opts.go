@@ -3,11 +3,9 @@ package exec
 import (
 	"time"
 
-	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
-
-const envVarsListFormat = "%s=%s"
 
 // Option is type for passing options to the Cmd.
 type Option func(*Cmd)
@@ -29,7 +27,7 @@ func WithUsePTY(state bool) Option {
 // WithEnv sets envs to the Cmd.
 func WithEnv(env map[string]string) Option {
 	return func(cmd *Cmd) {
-		cmd.Env = collections.KeyValueStringSliceWithFormat(env, envVarsListFormat)
+		cmd.Env = util.EnvSliceFromMap(env)
 	}
 }
 

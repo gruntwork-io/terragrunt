@@ -22,29 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
-type execContextKey struct{}
-
-// WithExec returns ctx with the given vexec.Exec installed for use by RunCommandWithOutput.
-// When set, the executor replaces the default os/exec backend; intended for tests that need to intercept subprocess execution.
-func WithExec(ctx context.Context, e vexec.Exec) context.Context {
-	return context.WithValue(ctx, execContextKey{}, e)
-}
-
-func execFromContext(ctx context.Context) vexec.Exec {
-	e, _ := ctx.Value(execContextKey{}).(vexec.Exec)
-	return e
-}
-
-func envSliceFromMap(env map[string]string) []string {
-	out := make([]string, 0, len(env))
-
-	for k, v := range env {
-		out = append(out, k+"="+v)
-	}
-
-	return out
-}
-
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
 //
 // The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
@@ -61,6 +38,10 @@ type ShellOptions struct {
 	EngineConfig  *engine.EngineConfig
 	Telemetry     *telemetry.Options
 	Env           map[string]string
+	// Exec, when non-nil, replaces the default os/exec backend used by
+	// RunCommandWithOutput. Intended for tests that need to intercept
+	// subprocess execution; production code leaves this nil.
+	Exec vexec.Exec
 
 	RootWorkingDir  string
 	WorkingDir      string
@@ -176,6 +157,14 @@ func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
 	return o
 }
 
+// WithExec installs a vexec.Exec backend that replaces the default os/exec
+// path used by RunCommandWithOutput. Pass nil to clear it. Intended for tests.
+func (o *ShellOptions) WithExec(e vexec.Exec) *ShellOptions {
+	o.Exec = e
+
+	return o
+}
+
 // NoEngine returns true if the user explicitly disabled the engine via --no-engine.
 // Returns false when EngineOptions is nil (default: don't disable), letting the
 // other guards (EngineConfig != nil, experiment enabled) decide whether to run.
@@ -272,24 +261,15 @@ func RunCommandWithOutput(
 			}
 		}
 
-		if injected := execFromContext(ctx); injected != nil {
-			injectedCmd := injected.Command(ctx, command, args...)
+		if runOpts.Exec != nil {
+			injectedCmd := runOpts.Exec.Command(ctx, command, args...)
 			injectedCmd.SetDir(commandDir)
-			injectedCmd.SetEnv(envSliceFromMap(runOpts.Env))
+			injectedCmd.SetEnv(util.EnvSliceFromMap(runOpts.Env))
 			injectedCmd.SetStdout(cmdStdout)
 			injectedCmd.SetStderr(cmdStderr)
 
 			if err := injectedCmd.Run(); err != nil {
-				return errors.New(util.ProcessExecutionError{
-					Err:             err,
-					Args:            args,
-					Command:         command,
-					Output:          output,
-					WorkingDir:      commandDir,
-					RootWorkingDir:  runOpts.RootWorkingDir,
-					LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-					DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
-				})
+				return runOpts.procExecError(err, command, commandDir, args, &output)
 			}
 
 			return nil
@@ -311,39 +291,37 @@ func RunCommandWithOutput(
 		defer savedConsole.Restore()
 
 		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
-			err = util.ProcessExecutionError{
-				Err:             err,
-				Args:            args,
-				Command:         command,
-				WorkingDir:      cmd.Dir,
-				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
-			}
-
-			return errors.New(err)
+			return runOpts.procExecError(err, command, cmd.Dir, args, nil)
 		}
 
 		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx)
 		defer cancelShutdown()
 
 		if err := cmd.Wait(); err != nil {
-			err = util.ProcessExecutionError{
-				Err:             err,
-				Args:            args,
-				Command:         command,
-				Output:          output,
-				WorkingDir:      cmd.Dir,
-				RootWorkingDir:  runOpts.RootWorkingDir,
-				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
-				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
-			}
-
-			return errors.New(err)
+			return runOpts.procExecError(err, command, cmd.Dir, args, &output)
 		}
 
 		return nil
 	})
 
 	return &output, err
+}
+
+// procExecError builds a ProcessExecutionError using the standard fields from ShellOptions.
+// Pass nil for output when the failure occurred before any output was captured.
+func (o *ShellOptions) procExecError(err error, command, dir string, args []string, output *util.CmdOutput) error {
+	pe := util.ProcessExecutionError{
+		Err:             err,
+		Args:            args,
+		Command:         command,
+		WorkingDir:      dir,
+		RootWorkingDir:  o.RootWorkingDir,
+		LogShowAbsPaths: o.Writers.LogShowAbsPaths,
+		DisableSummary:  o.Writers.LogDisableErrorSummary,
+	}
+	if output != nil {
+		pe.Output = *output
+	}
+
+	return errors.New(pe)
 }

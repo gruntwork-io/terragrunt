@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -51,6 +52,11 @@ type ParsingContext struct {
 	Values              *cty.Value
 	Features            *cty.Value
 	Locals              *cty.Value
+
+	// Exec, when non-nil, replaces the default os/exec backend used by run_cmd
+	// and other shell-outs that read shell.ShellOptions from this context.
+	// Intended for tests; production code leaves this nil.
+	Exec vexec.Exec
 
 	Env                 map[string]string
 	SourceMap           map[string]string

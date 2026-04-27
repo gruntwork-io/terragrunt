@@ -1459,7 +1459,8 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		WithRootWorkingDir(pctx.RootWorkingDir).
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).
-		WithForwardTFStdout(pctx.ForwardTFStdout)
+		WithForwardTFStdout(pctx.ForwardTFStdout).
+		WithExec(pctx.Exec)
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.
