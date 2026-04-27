@@ -507,10 +507,12 @@ func renderDot(opts *Options, components dag.ListedComponents) error {
 			style = "[color=red]"
 		}
 
-		fmt.Fprintf(&buf, "\t\"%s\" %s;\n", component.Path, style)
+		componentPath := filepath.ToSlash(component.Path)
+
+		fmt.Fprintf(&buf, "\t\"%s\" %s;\n", componentPath, style)
 
 		for _, dep := range component.Dependencies {
-			fmt.Fprintf(&buf, "\t\"%s\" -> \"%s\";\n", component.Path, dep.Path)
+			fmt.Fprintf(&buf, "\t\"%s\" -> \"%s\";\n", componentPath, filepath.ToSlash(dep.Path))
 		}
 	}
 
