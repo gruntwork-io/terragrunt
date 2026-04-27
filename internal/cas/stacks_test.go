@@ -3,6 +3,7 @@ package cas_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -12,6 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// absSourceForOS returns a path that filepath.IsAbs reports as absolute on the
+// current OS. On Windows that requires a drive letter; on Unix a leading slash
+// is enough.
+func absSourceForOS() string {
+	if runtime.GOOS == "windows" {
+		return `C:\etc\passwd`
+	}
+
+	return "/etc/passwd"
+}
 
 func TestSplitSourceDoubleSlash(t *testing.T) {
 	t.Parallel()
@@ -87,8 +99,10 @@ func TestResolveInRepoSource(t *testing.T) {
 			want:   filepath.Join(dirPath, "child"),
 		},
 		{
-			name:    "absolute source rejected",
-			source:  filepath.Join(string(filepath.Separator), "etc", "passwd"),
+			name: "absolute source rejected",
+			// Use a fully-qualified absolute path that filepath.IsAbs accepts on
+			// every OS, including Windows where leading slash alone is relative.
+			source:  absSourceForOS(),
 			wantErr: cas.ErrAbsoluteSource,
 		},
 		{

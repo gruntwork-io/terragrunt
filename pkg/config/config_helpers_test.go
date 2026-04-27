@@ -710,6 +710,12 @@ func toStringSlice(t *testing.T, value any) []string {
 func TestGetTerragruntDirAbsPath(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		// "/foo/bar/terragrunt.hcl" is not an absolute path on Windows (no drive letter),
+		// so the absolute-path branch this test exercises is Unix-only.
+		t.Skip("absolute Unix-style paths are relative on Windows")
+	}
+
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", filepath.VolumeName(workingDir)+"/foo/bar")
