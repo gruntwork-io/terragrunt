@@ -92,6 +92,132 @@ export function categorySlugSort(a: string, b: string): number {
   return ai - bi;
 }
 
+export interface ConventionalType {
+  key: string;
+  label: string;
+}
+
+export const CONVENTIONAL_TYPES: readonly ConventionalType[] = [
+  { key: "breaking", label: "🛠️ Breaking Changes" },
+  { key: "feat", label: "✨ Features" },
+  { key: "fix", label: "🐛 Bug Fixes" },
+  { key: "perf", label: "🏎️ Performance" },
+  { key: "refactor", label: "♻️ Refactors" },
+  { key: "revert", label: "⏪ Reverts" },
+  { key: "docs", label: "📖 Documentation" },
+  { key: "test", label: "✅ Tests" },
+  { key: "build", label: "📦 Build" },
+  { key: "ci", label: "🤖 CI" },
+  { key: "chore", label: "🧹 Chores" },
+  { key: "style", label: "🎨 Style" },
+  { key: "other", label: "📝 Other Changes" },
+] as const;
+
+const CONVENTIONAL_TYPE_KEYS = new Set(CONVENTIONAL_TYPES.map((t) => t.key));
+
+const CONVENTIONAL_TYPE_ALIASES: Record<string, string> = {
+  bug: "fix",
+  doc: "docs",
+};
+
+export interface PullRequestItem {
+  title: string;
+  author: string;
+  prUrl: string;
+  prNumber: number | null;
+  type: string;
+}
+
+export interface PullRequestGroup {
+  type: ConventionalType;
+  items: PullRequestItem[];
+}
+
+const PULL_REQUEST_LINE = /^\*\s+(.+?)\s+by\s+@([\w-]+)\s+in\s+(\S+?)\/?$/;
+const PR_NUMBER = /\/pull\/(\d+)/;
+const CONVENTIONAL_PREFIX = /^([a-z]+)(\([^)]*\))?(!)?:\s*(.*)$/i;
+// Matches the heading GitHub auto-generates in release bodies; the literal
+// text "What's Changed" is GitHub's convention and must stay verbatim.
+const SECTION_HEADING = /^##\s+What's Changed\s*$/i;
+const ANY_H2 = /^##\s+/;
+const FULL_CHANGELOG = /^\*\*Full Changelog\*\*/i;
+const BREAKING_CHANGE = /BREAKING CHANGE:/i;
+
+function classifyTitle(title: string): string {
+  if (BREAKING_CHANGE.test(title)) return "breaking";
+  const match = CONVENTIONAL_PREFIX.exec(title);
+  if (match === null) return "other";
+  const lower = match[1].toLowerCase();
+  const bang = match[3];
+  if (bang === "!") return "breaking";
+  const type = CONVENTIONAL_TYPE_ALIASES[lower] ?? lower;
+  return CONVENTIONAL_TYPE_KEYS.has(type) ? type : "other";
+}
+
+function parsePullRequestLine(line: string): PullRequestItem | null {
+  const match = PULL_REQUEST_LINE.exec(line.trim());
+  if (match === null) return null;
+  const [, title, author, prUrl] = match;
+  const prMatch = PR_NUMBER.exec(prUrl);
+  return {
+    title,
+    author,
+    prUrl,
+    prNumber: prMatch ? Number(prMatch[1]) : null,
+    type: classifyTitle(title),
+  };
+}
+
+function extractPullRequestItems(body: string): PullRequestItem[] {
+  const items: PullRequestItem[] = [];
+  let inSection = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (SECTION_HEADING.test(line)) {
+      inSection = true;
+      continue;
+    }
+    if (!inSection) continue;
+    if (ANY_H2.test(line) || FULL_CHANGELOG.test(line)) break;
+    const item = parsePullRequestLine(line);
+    if (item) items.push(item);
+  }
+  return items;
+}
+
+function groupItemsByType(items: PullRequestItem[]): PullRequestGroup[] {
+  const buckets = new Map<string, PullRequestItem[]>();
+  for (const item of items) {
+    const bucket = buckets.get(item.type) ?? [];
+    bucket.push(item);
+    buckets.set(item.type, bucket);
+  }
+  const groups: PullRequestGroup[] = [];
+  for (const type of CONVENTIONAL_TYPES) {
+    const bucket = buckets.get(type.key);
+    if (bucket) groups.push({ type, items: bucket });
+  }
+  return groups;
+}
+
+export function parsePullRequests(body: string | null | undefined): PullRequestGroup[] {
+  if (!body) return [];
+  const items = extractPullRequestItems(body);
+  if (items.length === 0) return [];
+  return groupItemsByType(items);
+}
+
+export function pullRequestsToMarkdown(groups: PullRequestGroup[]): string {
+  if (groups.length === 0) return "";
+  const sections = groups.map((group) => {
+    const lines = group.items.map((item) => {
+      const prRef = item.prNumber === null ? ` in ${item.prUrl}` : ` in [#${item.prNumber}](${item.prUrl})`;
+      return `- ${item.title} by [@${item.author}](https://github.com/${item.author})${prRef}`;
+    });
+    return `### ${group.type.label}\n\n${lines.join("\n")}`;
+  });
+  return `## Pull Requests\n\n${sections.join("\n\n")}`;
+}
+
 export function prepareForGitHub(body: string, siteUrl: string): string {
   let result = body;
 
