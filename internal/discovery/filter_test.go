@@ -532,8 +532,9 @@ locals {
 
 	ctx := t.Context()
 
-	// Test with absolute path filter
-	filterQueries := []string{"reading=" + sharedFile}
+	// Test with absolute path filter. Use forward slashes; on Windows the test
+	// temp dir contains backslashes, which the filter lexer treats as glob escapes.
+	filterQueries := []string{"reading=" + filepath.ToSlash(sharedFile)}
 	filters, err := filter.ParseFilterQueries(l, filterQueries)
 	require.NoError(t, err)
 
@@ -726,8 +727,10 @@ unit "test" {
 			wantStacks:    []string{},
 		},
 		{
-			name:          "absolute path filter",
-			filterQueries: []string{stackDir},
+			name: "absolute path filter",
+			// Filter queries use forward slashes; on Windows the test temp dir uses
+			// backslashes, which the filter lexer would treat as glob escapes.
+			filterQueries: []string{filepath.ToSlash(stackDir)},
 			wantUnits:     []string{},
 			wantStacks:    []string{stackDir},
 		},

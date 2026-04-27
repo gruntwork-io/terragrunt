@@ -108,7 +108,7 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 			return nil, nil
 		}
 
-		return []string{root}, nil
+		return []string{filepath.ToSlash(root)}, nil
 	}
 
 	matcher, err := Compile(pattern)
@@ -131,11 +131,12 @@ func Expand(fs vfs.FS, pattern string, opts ...ExpandOption) ([]string, error) {
 			return nil
 		}
 
-		if !matcher.Match(filepath.ToSlash(entry)) {
+		slashEntry := filepath.ToSlash(entry)
+		if !matcher.Match(slashEntry) {
 			return nil
 		}
 
-		matches = append(matches, entry)
+		matches = append(matches, slashEntry)
 
 		return nil
 	})

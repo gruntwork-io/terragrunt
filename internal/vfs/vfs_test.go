@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -348,6 +349,10 @@ func TestUnzip(t *testing.T) {
 	t.Run("permissions preserved with umask 0", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows always reports file mode 0666 regardless of the archived permission bits")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -367,6 +372,10 @@ func TestUnzip(t *testing.T) {
 
 	t.Run("permissions with umask applied", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows always reports file mode 0666 regardless of the archived permission bits")
+		}
 
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
@@ -683,6 +692,10 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 	t.Run("rejects symlink escaping destination with absolute path", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix-style absolute path /etc/passwd is treated as relative on Windows, so the escape detection differs by platform")
+		}
+
 		fs := vfs.NewOSFS()
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "archive.zip")
@@ -772,12 +785,12 @@ func TestWalkDir(t *testing.T) {
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, "/root", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 
-			paths = append(paths, path)
+			paths = append(paths, filepath.ToSlash(p))
 
 			return nil
 		})
@@ -817,7 +830,7 @@ func TestWalkDir(t *testing.T) {
 
 		var paths []string
 
-		err := vfs.WalkDir(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+		err := vfs.WalkDir(memFs, "/root", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -826,7 +839,7 @@ func TestWalkDir(t *testing.T) {
 				return filepath.SkipDir
 			}
 
-			paths = append(paths, path)
+			paths = append(paths, filepath.ToSlash(p))
 
 			return nil
 		})

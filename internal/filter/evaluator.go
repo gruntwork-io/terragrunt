@@ -131,9 +131,11 @@ func evaluateAttributeFilter(filter *AttributeExpression, components []component
 		}
 	case AttributeReading:
 		g := filter.Glob()
+		// Glob patterns use '/'; reading paths may use OS-native separators on Windows.
+		matchSlash := func(s string) bool { return g.Match(filepath.ToSlash(s)) }
 
 		for _, c := range components {
-			if slices.ContainsFunc(c.Reading(), g.Match) {
+			if slices.ContainsFunc(c.Reading(), matchSlash) {
 				result = append(result, c)
 
 				continue

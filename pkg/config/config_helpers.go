@@ -814,6 +814,9 @@ func PathRelativeToInclude(ctx context.Context, pctx *ParsingContext, l log.Logg
 		var innerErr error
 
 		result, innerErr = util.GetPathRelativeTo(currentPath, includePath)
+		// HCL configs concatenate this with forward-slash literals, so always
+		// emit forward slashes regardless of host OS.
+		result = filepath.ToSlash(result)
 
 		return innerErr
 	})
@@ -855,6 +858,9 @@ func PathRelativeFromInclude(ctx context.Context, pctx *ParsingContext, l log.Lo
 		}
 
 		result, innerErr = util.GetPathRelativeTo(includePath, currentPath)
+		// HCL configs concatenate this with forward-slash literals, so always
+		// emit forward slashes regardless of host OS.
+		result = filepath.ToSlash(result)
 
 		return innerErr
 	})

@@ -2,6 +2,7 @@ package discovery_test
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -556,6 +557,7 @@ func createTestComponent(path, workingDir string) component.Component {
 }
 
 // Helper function to get the relative path of a component.
+// Returns a forward-slash path so assertions are stable across OSes.
 func getRelativePath(c component.Component) string {
 	dc := c.DiscoveryContext()
 	if dc == nil {
@@ -567,5 +569,5 @@ func getRelativePath(c component.Component) string {
 		return "/"
 	}
 
-	return filepath.Clean(rel)
+	return path.Clean(filepath.ToSlash(rel))
 }

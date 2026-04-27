@@ -3,6 +3,7 @@ package hclparse_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -267,6 +268,13 @@ dependency "vpc" {
 
 func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		// On Windows a path starting with '/' is treated as relative (no drive
+		// letter), so the absolute-path code branch this test exercises is
+		// effectively Unix-only.
+		t.Skip("'/absolute/...' is not absolute on Windows")
+	}
 
 	fs := vfs.NewMemMapFS()
 

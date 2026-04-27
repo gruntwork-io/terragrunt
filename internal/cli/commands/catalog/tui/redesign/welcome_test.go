@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -259,6 +260,12 @@ func TestWelcomeStreamingComponents(t *testing.T) {
 // so it works with both WelcomeModel and Model.
 func runTeaModel(t *testing.T, m tea.Model, width, height int, interact func(p *tea.Program)) tea.Model {
 	t.Helper()
+
+	// TODO(windows): bubbletea ignores the input pipe on Windows and hangs on
+	// ReadConsole in headless CI. Re-enable when that is fixed upstream.
+	if runtime.GOOS == "windows" {
+		t.Skip("bubbletea hangs reading the console on Windows CI")
+	}
 
 	var out bytes.Buffer
 

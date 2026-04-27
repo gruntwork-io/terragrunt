@@ -105,7 +105,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeToInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		assert.Equal(t, tc.expectedPath, filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -170,7 +170,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.PathRelativeFromInclude(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		assert.Equal(t, tc.expectedPath, filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 
@@ -729,7 +729,7 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 	actualPath, err := config.GetTerragruntDir(ctx, pctx, l)
 
 	require.NoError(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, expectedPath, actualPath)
+	assert.Equal(t, filepath.ToSlash(expectedPath), filepath.ToSlash(actualPath))
 }
 
 // newTestParsingContext creates a ParsingContext with sensible test defaults.
@@ -829,7 +829,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		pctx = pctx.WithTrackInclude(trackInclude)
 		actualPath, actualErr := config.GetParentTerragruntDir(ctx, pctx, l, tc.params)
 		require.NoError(t, actualErr, "For include %v and configPath %v, unexpected error: %v", tc.include, tc.configPath, actualErr)
-		assert.Equal(t, tc.expectedPath, actualPath, "For include %v and configPath %v", tc.include, tc.configPath)
+		assert.Equal(t, filepath.ToSlash(tc.expectedPath), filepath.ToSlash(actualPath), "For include %v and configPath %v", tc.include, tc.configPath)
 	}
 }
 

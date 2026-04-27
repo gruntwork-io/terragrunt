@@ -1253,8 +1253,9 @@ dependency "db" {
 	require.NotNil(t, appComponent.Config().Terraform.Source, "terraform source should be parsed")
 
 	// The key test: verify that get_original_terragrunt_dir() returned the correct directory
-	// It should resolve to the app unit's directory, not the initial opts value (tmpDir)
-	expectedSource := filepath.Join(appDir, "module")
-	assert.Equal(t, expectedSource, *appComponent.Config().Terraform.Source,
+	// It should resolve to the app unit's directory, not the initial opts value (tmpDir).
+	// Compare in slash-normalized form because the HCL source uses '/' joins regardless of OS.
+	expectedSource := filepath.ToSlash(filepath.Join(appDir, "module"))
+	assert.Equal(t, expectedSource, filepath.ToSlash(*appComponent.Config().Terraform.Source),
 		"terraform source should use the correct unit directory from get_original_terragrunt_dir()")
 }

@@ -42,7 +42,7 @@ func TestGetPathRelativeTo(t *testing.T) {
 
 			actual, err := util.GetPathRelativeTo(tc.path, tc.basePath)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
+			assert.Equal(t, tc.expected, filepath.ToSlash(actual), "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
 }
@@ -75,7 +75,7 @@ func TestCanonicalPath(t *testing.T) {
 
 			actual, err := util.CanonicalPath(tc.path, tc.basePath)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
+			assert.Equal(t, filepath.FromSlash(tc.expected), actual, "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
 }
@@ -670,7 +670,7 @@ func Test_sanitizePath(t *testing.T) {
 
 			require.NoError(t, err)
 
-			assert.Equalf(t, tt.want, got, "sanitizePath(%v, %v)", tt.baseDir, tt.file)
+			assert.Equalf(t, tt.want, filepath.ToSlash(got), "sanitizePath(%v, %v)", tt.baseDir, tt.file)
 		})
 	}
 }

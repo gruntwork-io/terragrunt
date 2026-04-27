@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,12 @@ import (
 // terminal size so tests are deterministic.
 func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea.Program)) tui.Model { //nolint:gocritic
 	t.Helper()
+
+	// TODO(windows): bubbletea ignores the input pipe on Windows and hangs on
+	// ReadConsole in headless CI. Re-enable when that is fixed upstream.
+	if runtime.GOOS == "windows" {
+		t.Skip("bubbletea hangs reading the console on Windows CI")
+	}
 
 	var out bytes.Buffer
 

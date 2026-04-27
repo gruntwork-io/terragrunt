@@ -294,9 +294,10 @@ func TestLegacyExpandCollapsesGlobstar(t *testing.T) {
 
 	slices.Sort(got)
 
+	slashRoot := filepath.ToSlash(root)
 	want := []string{
-		filepath.Join(root, "root.tf"),
-		filepath.Join(root, "sub", "nested.tf"),
+		slashRoot + "/root.tf",
+		slashRoot + "/sub/nested.tf",
 	}
 	slices.Sort(want)
 
