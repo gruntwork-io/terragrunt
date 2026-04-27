@@ -10,50 +10,50 @@ set -euo pipefail
 #   GITHUB_OUTPUT: Path to GitHub output file
 
 function main {
-  # Validate required environment variables
-  : "${VERSION:?ERROR: VERSION is a required environment variable}"
-  : "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
-  : "${GITHUB_OUTPUT:?ERROR: GITHUB_OUTPUT is a required environment variable}"
+	# Validate required environment variables
+	: "${VERSION:?ERROR: VERSION is a required environment variable}"
+	: "${GH_TOKEN:?ERROR: GH_TOKEN is a required environment variable}"
+	: "${GITHUB_OUTPUT:?ERROR: GITHUB_OUTPUT is a required environment variable}"
 
-  printf 'Checking if release exists for tag: %s\n' "$VERSION"
+	printf 'Checking if release exists for tag: %s\n' "$VERSION"
 
-  # Check if release exists using gh CLI (only care about exit code)
-  if ! gh release view "$VERSION" > /dev/null 2>&1; then
-    {
-      printf 'exists=false\n'
-      printf 'is_draft=false\n'
-      printf 'release_id=\n'
-    } >>"$GITHUB_OUTPUT"
-    printf 'Release not found for tag %s\n' "$VERSION"
-    return 0
-  fi
+	# Check if release exists using gh CLI (only care about exit code)
+	if ! gh release view "$VERSION" >/dev/null 2>&1; then
+		{
+			printf 'exists=false\n'
+			printf 'is_draft=false\n'
+			printf 'release_id=\n'
+		} >>"$GITHUB_OUTPUT"
+		printf 'Release not found for tag %s\n' "$VERSION"
+		return 0
+	fi
 
-  # Get release details
-  local release_json
-  release_json=$(gh release view "$VERSION" --json 'id,uploadUrl,isDraft')
+	# Get release details
+	local release_json
+	release_json=$(gh release view "$VERSION" --json 'id,uploadUrl,isDraft')
 
-  local release_id
-  local upload_url
-  local is_draft
+	local release_id
+	local upload_url
+	local is_draft
 
-  release_id=$(jq -r '.id' <<< "$release_json")
-  upload_url=$(jq -r '.uploadUrl' <<< "$release_json")
-  is_draft=$(jq -r '.isDraft' <<< "$release_json")
+	release_id=$(jq -r '.id' <<<"$release_json")
+	upload_url=$(jq -r '.uploadUrl' <<<"$release_json")
+	is_draft=$(jq -r '.isDraft' <<<"$release_json")
 
-  # Write to GitHub output
-  {
-    printf 'exists=true\n'
-    printf 'release_id=%s\n' "$release_id"
-    printf 'upload_url=%s\n' "$upload_url"
-    printf 'is_draft=%s\n' "$is_draft"
-  } >>"$GITHUB_OUTPUT"
+	# Write to GitHub output
+	{
+		printf 'exists=true\n'
+		printf 'release_id=%s\n' "$release_id"
+		printf 'upload_url=%s\n' "$upload_url"
+		printf 'is_draft=%s\n' "$is_draft"
+	} >>"$GITHUB_OUTPUT"
 
-  echo "Found existing release:"
-  printf '  Release ID: %s\n' "$release_id"
-  printf '  Draft: %s\n' "$is_draft"
-  printf '  Upload URL: %s\n' "${upload_url%\{*}"
+	echo "Found existing release:"
+	printf '  Release ID: %s\n' "$release_id"
+	printf '  Draft: %s\n' "$is_draft"
+	printf '  Upload URL: %s\n' "${upload_url%\{*}"
 
-  return 0
+	return 0
 }
 
 main "$@"

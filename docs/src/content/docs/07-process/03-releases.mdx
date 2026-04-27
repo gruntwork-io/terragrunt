@@ -22,6 +22,10 @@ Terragrunt uses [GitHub's immutable releases](https://docs.github.com/en/code-se
 
 To support immutability, releases are built as **drafts** first. All artifacts are uploaded and verified before the release is published. Once published, the git tag is created and the release is locked.
 
+<Aside type="note" title="Not yet enabled">
+  Immutable releases are not yet turned on for the `gruntwork-io/terragrunt` repository. The release workflow has been updated to support them, and maintainers want to run a few releases through the new workflow before enabling the setting on GitHub.
+</Aside>
+
 ## When to Cut a New Release
 
 While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a new feature is added or a bug is fixed. Maintainers will exercise their best judgment to determine when a new release is necessary, and bias towards cutting a new release as frequently as possible when in doubt.
