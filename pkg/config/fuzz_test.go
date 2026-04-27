@@ -28,10 +28,7 @@ func FuzzHCLStringHelpers(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		var args []string
-		if raw != "" {
-			args = strings.Split(raw, "\x00")
-		}
+		args := strings.Split(raw, "\x00")
 
 		ctx, pctx := newTestParsingContext(t, "")
 
@@ -64,10 +61,7 @@ func FuzzHCLRunCommandOptions(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		var args []string
-		if raw != "" {
-			args = strings.Split(raw, "\x00")
-		}
+		args := strings.Split(raw, "\x00")
 
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, "")
