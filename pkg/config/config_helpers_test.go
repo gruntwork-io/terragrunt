@@ -1493,10 +1493,6 @@ func TestStrContainsArityRegression(t *testing.T) {
 func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows because it doesn't support bash")
-	}
-
 	testCases := []struct {
 		name   string
 		params []string

@@ -38,7 +38,8 @@ func FuzzHCLStringHelpers(f *testing.F) {
 	})
 }
 
-// FuzzHCLRunCommandOptions: run_cmd must never panic on any mix of option flags and commands.
+// FuzzHCLRunCommandOptions: run_cmd must never panic on any mix of recognized option flags.
+// Fuzz input is filtered to known --terragrunt-* flags so the fuzzer cannot launch arbitrary host commands.
 func FuzzHCLRunCommandOptions(f *testing.F) {
 	if runtime.GOOS == "windows" {
 		f.Skip("run_cmd happy-path requires bash; skip on Windows")
@@ -50,8 +51,6 @@ func FuzzHCLRunCommandOptions(f *testing.F) {
 		"--terragrunt-global-cache",
 		"--terragrunt-quiet\x00--terragrunt-no-cache",
 		"--terragrunt-quiet\x00--terragrunt-quiet",
-		"--terragrunt-quiet\x00/bin/echo\x00hi",
-		"/bin/echo\x00hi",
 		"--terragrunt-no-cache\x00--terragrunt-global-cache",
 		"--unknown-flag",
 		"",
@@ -61,7 +60,17 @@ func FuzzHCLRunCommandOptions(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		args := strings.Split(raw, "\x00")
+		parts := strings.Split(raw, "\x00")
+
+		args := make([]string, 0, len(parts)+2)
+		for _, part := range parts {
+			switch part {
+			case "--terragrunt-quiet", "--terragrunt-no-cache", "--terragrunt-global-cache":
+				args = append(args, part)
+			}
+		}
+
+		args = append(args, "/bin/echo", "hi")
 
 		l := logger.CreateLogger()
 		ctx, pctx := newTestParsingContext(t, "")
