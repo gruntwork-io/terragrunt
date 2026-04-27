@@ -33,16 +33,12 @@ const SignalForwardingDelay = time.Second * 15
 
 // ShellOptions contains the configuration needed to run shell commands.
 type ShellOptions struct {
-	Writers       writer.Writers
-	EngineOptions *engine.EngineOptions
-	EngineConfig  *engine.EngineConfig
-	Telemetry     *telemetry.Options
-	Env           map[string]string
-	// Exec, when non-nil, replaces the default os/exec backend used by
-	// RunCommandWithOutput. Intended for tests that need to intercept
-	// subprocess execution; production code leaves this nil.
-	Exec vexec.Exec
-
+	Writers         writer.Writers
+	EngineOptions   *engine.EngineOptions
+	EngineConfig    *engine.EngineConfig
+	Telemetry       *telemetry.Options
+	Env             map[string]string
+	Exec            vexec.Exec
 	RootWorkingDir  string
 	WorkingDir      string
 	TFPath          string
