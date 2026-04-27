@@ -103,11 +103,16 @@ func TestAutoIncludeDependencyPaths_NilFS_Panics(t *testing.T) {
 	})
 }
 
-func TestAutoIncludeDependencyPaths_EmptyUnitDir_Panics(t *testing.T) {
+func TestAutoIncludeDependencyPaths_EmptyUnitDir_ReturnsError(t *testing.T) {
 	t.Parallel()
-	assertPanicsContaining(t, "hclparse.AutoIncludeDependencyPaths: unitDir is empty", func() {
-		_, _ = hclparse.AutoIncludeDependencyPaths(vfs.NewMemMapFS(), "")
-	})
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewMemMapFS(), "")
+	require.Nil(t, paths)
+
+	var emptyErr hclparse.EmptyArgError
+	require.ErrorAs(t, err, &emptyErr)
+	assert.Equal(t, "AutoIncludeDependencyPaths", emptyErr.Func)
+	assert.Equal(t, "unitDir", emptyErr.Arg)
 }
 
 func TestGenerateAutoIncludeFile_NilFS_Panics(t *testing.T) {

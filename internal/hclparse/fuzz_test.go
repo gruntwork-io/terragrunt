@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -372,10 +373,11 @@ func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
 	})
 }
 
-// FuzzAutoIncludeDependencyPaths_ArgPanics fuzzes unitDir plus arbitrary file
+// FuzzAutoIncludeDependencyPaths_ArgErrors fuzzes unitDir plus arbitrary file
 // contents written to the in-memory FS, exercising both the argument-validation
-// panic and the HCL parsing path.
-func FuzzAutoIncludeDependencyPaths_ArgPanics(f *testing.F) {
+// error and the HCL parsing path. Empty unitDir must return EmptyArgError;
+// non-empty unitDir must not panic regardless of file content.
+func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
 	f.Add("/unit", `dependency "vpc" { config_path = "../vpc" }`)
 	f.Add("", `dependency "x" {}`)
 	f.Add("/unit", ``)
@@ -392,17 +394,19 @@ func FuzzAutoIncludeDependencyPaths_ArgPanics(f *testing.F) {
 		}
 
 		defer func() {
-			r := recover()
-
-			switch {
-			case unitDir == "" && r == nil:
-				t.Errorf("expected panic for empty unitDir, got none")
-			case unitDir != "" && r != nil:
+			if r := recover(); r != nil {
 				t.Errorf("unexpected panic for unitDir=%q: %v", unitDir, r)
 			}
 		}()
 
-		_, _ = hclparse.AutoIncludeDependencyPaths(fs, unitDir)
+		_, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
+
+		if unitDir == "" {
+			var emptyErr hclparse.EmptyArgError
+			if !errors.As(err, &emptyErr) {
+				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
+			}
+		}
 	})
 }
 

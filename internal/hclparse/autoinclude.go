@@ -180,13 +180,15 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 // AutoIncludeDependencyPaths reads the terragrunt.autoinclude.hcl file in
 // unitDir and returns resolved dependency config_path values.
 // Returns (nil, nil) if the file does not exist or has no dependencies.
+// Panics when fs is nil (programmer error). Returns EmptyArgError when unitDir
+// is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
 	}
 
 	if unitDir == "" {
-		panic("hclparse.AutoIncludeDependencyPaths: unitDir is empty")
+		return nil, EmptyArgError{Func: "AutoIncludeDependencyPaths", Arg: "unitDir"}
 	}
 
 	unitDir = util.ResolvePath(unitDir)
@@ -197,7 +199,7 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 		return nil, err
 	}
 
-	var paths []string
+	paths := make([]string, 0, len(body.Blocks))
 
 	for _, block := range body.Blocks {
 		if depPath, ok := extractDependencyConfigPath(block, unitDir); ok {
