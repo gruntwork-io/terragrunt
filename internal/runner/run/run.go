@@ -112,7 +112,7 @@ func Run(
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err = terragruntOptionsClone.RunWithErrorHandling(ctx, l, r, func() error {
-		return ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, terragruntOptionsClone, cfg, nil, r)
+		return ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, terragruntOptionsClone, nil, r)
 	}); err != nil {
 		return err
 	}
@@ -348,7 +348,7 @@ func RunActionWithHooks(
 ) error {
 	var allErrors *errors.MultiError
 
-	beforeHookErrors := ProcessHooks(ctx, l, cfg.Terraform.BeforeHooks, opts, cfg, allErrors, r)
+	beforeHookErrors := ProcessHooks(ctx, l, cfg.Terraform.BeforeHooks, opts, allErrors, r)
 	allErrors = allErrors.Append(beforeHookErrors)
 
 	var actionErrors error
@@ -359,7 +359,7 @@ func RunActionWithHooks(
 		l.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
-	postHookErrors := ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, opts, cfg, allErrors, r)
+	postHookErrors := ProcessHooks(ctx, l, cfg.Terraform.AfterHooks, opts, allErrors, r)
 	errorHookErrors := processErrorHooks(ctx, l, cfg.Terraform.ErrorHooks, opts, allErrors)
 	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
@@ -713,10 +713,7 @@ func runTerraformInitRunCfg(
 
 // checkProtectedModuleRunCfg checks if module is protected using runcfg types.
 func checkProtectedModuleRunCfg(opts *Options, cfg *runcfg.RunConfig) error {
-	var destroyFlag = false
-	if opts.TerraformCliArgs.First() == tf.CommandNameDestroy {
-		destroyFlag = true
-	}
+	destroyFlag := opts.TerraformCliArgs.First() == tf.CommandNameDestroy
 
 	if opts.TerraformCliArgs.Contains("-" + tf.CommandNameDestroy) {
 		destroyFlag = true
@@ -757,7 +754,7 @@ func setTerragruntNullValuesRunCfg(opts *Options, cfg *runcfg.RunConfig) (string
 
 	varFile := filepath.Join(opts.WorkingDir, NullTFVarsFile)
 
-	const ownerReadWritePermissions = 0600
+	const ownerReadWritePermissions = 0o600
 
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
 		return "", errors.New(err)

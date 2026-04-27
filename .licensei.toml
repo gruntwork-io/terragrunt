@@ -8,7 +8,6 @@ approved = [
 ]
 
 ignored = [
-  "github.com/terraform-linters/tflint-plugin-sdk",
   "github.com/owenrumney/go-sarif",
   "github.com/davecgh/go-spew"
 ]

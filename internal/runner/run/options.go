@@ -25,7 +25,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
-	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -221,18 +220,6 @@ func (o *Options) remoteStateOpts() *remotestate.Options {
 	}
 }
 
-// tflintRunOptions builds a *tflint.TFLintOptions from this Options.
-func (o *Options) tflintRunOptions() *tflint.TFLintOptions {
-	return &tflint.TFLintOptions{
-		ShellOptions:         o.shellRunOptions(),
-		Writers:              o.Writers,
-		WorkingDir:           o.WorkingDir,
-		RootWorkingDir:       o.RootWorkingDir,
-		TerragruntConfigPath: o.TerragruntConfigPath,
-		MaxFoldersToCheck:    o.MaxFoldersToCheck,
-	}
-}
-
 // RunWithErrorHandling runs the given operation and handles errors according to the configuration.
 func (o *Options) RunWithErrorHandling(
 	ctx context.Context,
@@ -351,7 +338,7 @@ func (o *Options) handleIgnoreSignals(l log.Logger, signals map[string]any) erro
 		return err
 	}
 
-	const ownerPerms = 0644
+	const ownerPerms = 0o644
 
 	l.Warnf("Writing error signals to %s", signalsFile)
 
