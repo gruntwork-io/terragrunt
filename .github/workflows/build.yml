@@ -129,7 +129,7 @@ jobs:
 
   sign_windows:
     name: Sign Windows Binaries
-    if: ${{ needs.detect_release.outputs.is_release == 'true' }}
+    #if: ${{ needs.detect_release.outputs.is_release == 'true' }}
     needs: [detect_release, build]
     uses: ./.github/workflows/sign-windows.yml
     secrets: inherit
