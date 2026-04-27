@@ -98,7 +98,7 @@ jobs:
     name: Sign Windows Binaries
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: windows-latest
+    runs-on: windows-2025
 
     env:
       SM_HOST: https://clientauth.one.digicert.com
