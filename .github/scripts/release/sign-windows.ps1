@@ -253,12 +253,8 @@ function Patch-Binaries {
 function Save-Credentials {
     Write-Host "Saving credentials to Windows Credential Manager..."
 
-    # Length only; never log secret values. Assert-EnvVar already guarantees non-empty.
     Write-Host "SM_API_KEY length: $($env:SM_API_KEY.Length), SM_CLIENT_CERT_PASSWORD length: $($env:SM_CLIENT_CERT_PASSWORD.Length)"
 
-    # Stop parsing token bypasses PowerShell argv processing so secrets containing
-    # spaces, quotes, $, backticks, or a leading dash are passed verbatim. Without it,
-    # mangled argv surfaces as CredWriteW RPC_X_BAD_STUB_DATA ("The stub received bad data").
     & smctl.exe credentials save --% "%SM_API_KEY%" "%SM_CLIENT_CERT_PASSWORD%"
 
     if ($LASTEXITCODE -ne 0) {
@@ -350,11 +346,6 @@ function Main {
 
     # Patch all Windows binaries with resources (icon, manifest, version info)
     Patch-Binaries -Platforms $windowsPlatforms
-
-    # Skip Save-Credentials: smctl + Windows Credential Manager returns RPC_X_BAD_STUB_DATA
-    # on Windows runners. smctl reads SM_HOST, SM_API_KEY, SM_CLIENT_CERT_FILE,
-    # SM_CLIENT_CERT_PASSWORD directly from the process env, which the workflow already sets.
-    # Save-Credentials
 
     # Run healthcheck
     Invoke-Healthcheck
