@@ -351,8 +351,10 @@ function Main {
     # Patch all Windows binaries with resources (icon, manifest, version info)
     Patch-Binaries -Platforms $windowsPlatforms
 
-    # Save credentials
-    Save-Credentials
+    # Skip Save-Credentials: smctl + Windows Credential Manager returns RPC_X_BAD_STUB_DATA
+    # on Windows runners. smctl reads SM_HOST, SM_API_KEY, SM_CLIENT_CERT_FILE,
+    # SM_CLIENT_CERT_PASSWORD directly from the process env, which the workflow already sets.
+    # Save-Credentials
 
     # Run healthcheck
     Invoke-Healthcheck
