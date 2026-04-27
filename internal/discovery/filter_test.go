@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -23,7 +24,7 @@ func TestDiscovery_GraphExpressionFilters(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -114,7 +115,7 @@ func TestDiscovery_GraphExpressionFilters_ComplexGraph(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1024,7 +1025,7 @@ func TestDiscovery_DependentDiscovery_Standalone(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1094,7 +1095,7 @@ func TestDiscovery_DependentDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1160,7 +1161,7 @@ func TestDiscovery_DependencyDiscovery_ExcludeTarget(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1230,7 +1231,7 @@ func TestDiscovery_DependentDiscovery_Bidirectional(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1301,7 +1302,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1380,7 +1381,7 @@ func TestDiscovery_DependentDiscovery_OutsideWorkingDir_MultipleLevels(t *testin
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// Initialize git repository at the root
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1469,7 +1470,7 @@ func TestDiscovery_DependentDiscovery_DirectDependentOnly(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
 	// To speed up this test, make the temporary directory a git repository.
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1583,7 +1584,7 @@ func TestDiscovery_NegatedGraphFilters(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)

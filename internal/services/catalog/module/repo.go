@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	gitpkg "github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter/v2"
 	urlhelper "github.com/hashicorp/go-getter/v2/helper/url"
@@ -56,6 +57,8 @@ type Repo struct {
 	BranchName string
 	LatestTag  string
 
+	casCloneDepth int
+
 	walkWithSymlinks bool
 	allowCAS         bool
 	slowReporting    bool
@@ -66,6 +69,7 @@ type RepoOpts struct {
 	CloneURL         string
 	Path             string
 	RootWorkingDir   string
+	CASCloneDepth    int
 	WalkWithSymlinks bool
 	AllowCAS         bool
 	SlowReporting    bool
@@ -79,6 +83,7 @@ func NewRepo(ctx context.Context, l log.Logger, opts RepoOpts) (*Repo, error) {
 		path:             opts.Path,
 		walkWithSymlinks: opts.WalkWithSymlinks,
 		allowCAS:         opts.AllowCAS,
+		casCloneDepth:    opts.CASCloneDepth,
 		slowReporting:    opts.SlowReporting,
 		rootWorkingDir:   opts.RootWorkingDir,
 	}
@@ -198,6 +203,19 @@ func (repo *Repo) SourceURL() string {
 	return repo.sourceURL
 }
 
+// Path returns the local filesystem path of the cloned (or local) repo. It
+// may differ from the path originally passed via RepoOpts because the
+// clone step can nest the working tree inside a repo-named subdirectory.
+func (repo *Repo) Path() string {
+	return repo.path
+}
+
+// CloneURL returns the resolved clone URL after go-getter normalization.
+// This may differ from the URL originally passed via RepoOpts.
+func (repo *Repo) CloneURL() string {
+	return repo.cloneURL
+}
+
 // ResolveLatestTag looks up the latest semver release tag from the remote.
 // The result is stored in LatestTag. If the lookup fails or the repo has no
 // semver tags, LatestTag is left empty.
@@ -207,7 +225,7 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context) {
 		return
 	}
 
-	runner, err := gitpkg.NewGitRunner()
+	runner, err := gitpkg.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
 
@@ -323,7 +341,16 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, opts *CloneOpt
 	client := getter.DefaultClient
 
 	if repo.allowCAS {
-		c, err := cas.New()
+		cloneDepth := repo.casCloneDepth
+		if cloneDepth == 0 {
+			cloneDepth = cas.DefaultCASCloneDepth
+		}
+
+		if err := cas.ValidateCASCloneDepth(cloneDepth); err != nil {
+			return err
+		}
+
+		c, err := cas.New(cas.WithCloneDepth(cloneDepth))
 		if err != nil {
 			return err
 		}

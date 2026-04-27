@@ -10,6 +10,12 @@ Redesigned `terragrunt catalog` TUI with improved discovery, interactive compone
 
 Replaces the existing `terragrunt catalog` experience with a redesigned TUI that removes the need for manual configuration. The new catalog provides multiple views for browsing and discovering modules, an interactive infrastructure estate view for deciding where to place components, and the ability to wire new components together with the rest of your infrastructure.
 
+Discovery walks the entire repository instead of only a `modules/` directory, so modules and templates can live anywhere. Boilerplate templates are discovered as a distinct component kind alongside OpenTofu/Terraform modules and labeled as templates in the UI. Catalog authors can commit a `.terragrunt-catalog-ignore` file at the repo root to exclude directories such as `examples/` or `test/` from discovery. See [Excluding paths from discovery](/features/catalog/tui#excluding-paths-from-discovery) for the supported pattern syntax.
+
+The list view is split into `All`, `Modules`, and `Templates` tabs with `All` selected by default. Press `tab` and `shift+tab` to cycle between them; each tab keeps its own cursor and search filter.
+
+Each list entry shows a metadata row with a component-type pill (module, template), the source URL it was discovered from, and a version pill when a release tag is available, so it is clear which repository or path a component came from.
+
 ### `catalog-redesign` - How to provide feedback
 
 TODO: Add a link to the relevant GitHub discussion or issue.

@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -366,7 +367,7 @@ func NewWorktrees(
 		outerErr  error
 	)
 
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}

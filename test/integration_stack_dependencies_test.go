@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,7 @@ const (
 	testFixtureStackDepsCrossStack  = "fixtures/stacks/stack-deps-cross-stack"
 	testFixtureStackDepsUnitInStack = "fixtures/stacks/stack-deps-unit-in-stack"
 	testFixtureStackDepsEntireStack = "fixtures/stacks/stack-deps-entire-stack"
+	testFixtureStackDepsNestedStack = "fixtures/stacks/stack-deps-nested-stack"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -281,7 +283,7 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsCrossStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackDepsCrossStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	err = runner.WithWorkDir(gitPath).Init(t.Context())
@@ -407,6 +409,65 @@ func TestStackDepsDocExample_EntireStack(t *testing.T) {
 	assert.Contains(t, content, "mock-vpc-id")
 	assert.Contains(t, content, "dependency.infra.outputs.vpc.vpc_id")
 
+	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
+	require.NoError(t, depErr)
+	require.Len(t, depPaths, 1)
+	assert.Equal(t, expectedPath, depPaths[0])
+}
+
+// TestStackDepsDocExample_NestedStackPath tests the docs example:
+// "stack.<name>.<nested_stack_name>.path" resolution.
+// A parent stack contains an "infra" stack which itself contains a "deep" nested stack.
+// The reference stack.infra.deep.path resolves to the nested stack's generated directory.
+func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedStack)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedStack)
+	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedStack, "live")
+	liveDir, _ = filepath.EvalSymlinks(liveDir)
+
+	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
+
+	srcBytes, err := os.ReadFile(stackFile)
+	require.NoError(t, err)
+
+	result, err := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{
+		Src:      srcBytes,
+		Filename: stackFile,
+		StackDir: liveDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Stacks, 1)
+	require.Len(t, result.Units, 1)
+
+	// Verify autoinclude resolved stack.infra.deep.path
+	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok, "app should have autoinclude")
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "deep", resolved.Dependencies[0].Name)
+
+	// Path should point to nested stack: .terragrunt-stack/infra/.terragrunt-stack/deep
+	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "infra", ".terragrunt-stack", "deep")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+
+	// Generate autoinclude and verify content
+	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+
+	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(appDir, inthclparse.AutoIncludeFile))
+
+	generated, err := os.ReadFile(filepath.Join(appDir, inthclparse.AutoIncludeFile))
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "deep"`)
+	assert.Contains(t, content, "mock_outputs")
+	assert.Contains(t, content, `"mock-db"`)
+	assert.Contains(t, content, "dependency.deep.outputs.val")
+
+	// Verify DAG sees the dependency
 	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)

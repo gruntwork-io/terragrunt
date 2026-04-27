@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -466,7 +467,7 @@ unit "unit_to_be_untouched" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1314,7 +1315,7 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1461,7 +1462,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1622,7 +1623,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1777,7 +1778,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1930,7 +1931,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -2053,7 +2054,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -2166,7 +2167,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -2317,13 +2318,13 @@ unit "myapp" {
 		fromOpts := opts.Clone()
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -2609,6 +2610,6 @@ unit "myapp" {
 
 	// GenerateStacks internally calls discoverStacks with reading filters.
 	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 }

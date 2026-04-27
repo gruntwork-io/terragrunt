@@ -1,0 +1,14 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### Fixed crash when a `root.hcl` declares no `remote_state` block
+
+A `root.hcl` that only declared `locals` (or otherwise omitted a `remote_state` block) could trigger a nil pointer dereference inside Terragrunt's remote-state initialization. Downstream tools that embed the Terragrunt config parser, such as [`terragrunt-ls`](https://github.com/gruntwork-io/terragrunt-ls), crashed on every such file.
+
+A missing `remote_state` block now initializes an empty remote-state value instead of panicking, so parsing proceeds normally when no backend is configured.
+
+Reported in [terragrunt-ls#134](https://github.com/gruntwork-io/terragrunt-ls/issues/134).
+
+Thanks to [@SAY-5](https://github.com/SAY-5) for contributing this fix!

@@ -18,8 +18,9 @@ import (
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
 )
 
@@ -97,32 +98,56 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
-// Grep returns true if the given regex can be found in any of the files matched by the given glob.
-func Grep(regex *regexp.Regexp, glob string) (bool, error) {
-	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-	// So we use a third-party library.
-	matches, err := zglob.Glob(glob)
+// CanonicalResolvedPath returns the cleaned absolute path with symlinks resolved best-effort.
+func CanonicalResolvedPath(path, basePath string) (string, error) {
+	canonical, err := CanonicalPath(path, basePath)
+	if err != nil {
+		return "", err
+	}
+
+	return ResolvePath(canonical), nil
+}
+
+// GrepFilesWithSuffix returns true if regex matches the contents of any file
+// under rootDir whose name ends with suffix. The walk stops as soon as a match
+// is found. A missing rootDir is not an error — the function returns false.
+func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix string) (bool, error) {
+	var found bool
+
+	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if errors.Is(walkErr, fs.ErrNotExist) {
+				return fs.SkipAll
+			}
+
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(d.Name(), suffix) {
+			return nil
+		}
+
+		contents, err := vfs.ReadFile(fsys, path)
+		if err != nil {
+			return err
+		}
+
+		if regex.Match(contents) {
+			found = true
+			return fs.SkipAll
+		}
+
+		return nil
+	})
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	for _, match := range matches {
-		if IsDir(match) {
-			continue
-		}
-
-		bytes, err := os.ReadFile(match)
-		if err != nil {
-			return false, errors.New(err)
-		}
-
-		if regex.Match(bytes) {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return found, nil
 }
 
 // FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
@@ -287,7 +312,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.New(err)
@@ -522,15 +547,12 @@ func WriteFileWithSamePermissions(source string, destination string, contents io
 		return errors.New(err)
 	}
 
-	// If destination exists, remove it first to avoid permission issues
-	// This is especially important when CAS creates read-only files
-	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
-		}
+	// CAS may place read-only files at the destination, which would block a plain open.
+	if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.New(err)
 	}
 
-	file, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileInfo.Mode())
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
 	if err != nil {
 		return err
 	}

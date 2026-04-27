@@ -20,7 +20,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,6 +28,7 @@ import (
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/storage/filesystem"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -41,13 +41,15 @@ const (
 type GitRunner struct {
 	goRepo    *git.Repository
 	goStorage *filesystem.Storage
+	exec      vexec.Exec
 	GitPath   string
 	WorkDir   string
 }
 
-// NewGitRunner creates a new GitRunner instance
-func NewGitRunner() (*GitRunner, error) {
-	gitPath, err := exec.LookPath("git")
+// NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
+// used to resolve the `git` binary on PATH.
+func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
+	gitPath, err := e.LookPath("git")
 	if err != nil {
 		return nil, &WrappedError{
 			Op:      "git",
@@ -58,13 +60,14 @@ func NewGitRunner() (*GitRunner, error) {
 
 	return &GitRunner{
 		GitPath: gitPath,
+		exec:    e,
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir}
+		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec()}
 	}
 
 	newRunner := *g
@@ -109,8 +112,8 @@ func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return "", &WrappedError{
@@ -142,8 +145,8 @@ func (g *GitRunner) LsRemote(ctx context.Context, repo, ref string) ([]LsRemoteR
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return nil, &WrappedError{
@@ -241,7 +244,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 	}
 
 	if depth > 0 {
-		args = append(args, "--depth", "1", "--single-branch")
+		args = append(args, "--depth", strconv.Itoa(depth), "--single-branch")
 	}
 
 	if branch != "" {
@@ -254,7 +257,7 @@ func (g *GitRunner) Clone(ctx context.Context, repo string, bare bool, depth int
 
 	var stderr bytes.Buffer
 
-	cmd.Stderr = &stderr
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -318,8 +321,8 @@ func (g *GitRunner) LsTreeRecursive(ctx context.Context, ref string) (*Tree, err
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return nil, &WrappedError{
@@ -348,8 +351,8 @@ func (g *GitRunner) CatFile(ctx context.Context, hash string, out io.Writer) err
 
 	cmd := g.prepareCommand(ctx, "cat-file", "-p", hash)
 
-	cmd.Stdout = out
-	cmd.Stderr = &stderr
+	cmd.SetStdout(out)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -373,8 +376,8 @@ func (g *GitRunner) CreateDetachedWorktree(ctx context.Context, dir, ref string)
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -397,8 +400,8 @@ func (g *GitRunner) RemoveWorktree(ctx context.Context, path string) error {
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -421,8 +424,8 @@ func (g *GitRunner) Diff(ctx context.Context, fromRef, toRef string) (*Diffs, er
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return nil, &WrappedError{
@@ -445,7 +448,7 @@ func (g *GitRunner) Init(ctx context.Context) error {
 
 	var stderr bytes.Buffer
 
-	cmd.Stderr = &stderr
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -465,7 +468,7 @@ func (g *GitRunner) HasUncommittedChanges(ctx context.Context) bool {
 
 	var stdout bytes.Buffer
 
-	cmd.Stdout = &stdout
+	cmd.SetStdout(&stdout)
 
 	// If git command fails (e.g., not in a git repo), return false
 	if err := cmd.Run(); err != nil {
@@ -486,8 +489,8 @@ func (g *GitRunner) Config(ctx context.Context, name string) (string, error) {
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return "", &WrappedError{
@@ -516,7 +519,7 @@ func (g *GitRunner) GetCurrentBranch(ctx context.Context) string {
 
 	var stdout bytes.Buffer
 
-	cmd.Stdout = &stdout
+	cmd.SetStdout(&stdout)
 
 	if err := cmd.Run(); err != nil {
 		return ""
@@ -535,7 +538,7 @@ func (g *GitRunner) GetHeadCommit(ctx context.Context) string {
 
 	var stdout bytes.Buffer
 
-	cmd.Stdout = &stdout
+	cmd.SetStdout(&stdout)
 
 	if err := cmd.Run(); err != nil {
 		return ""
@@ -565,7 +568,8 @@ func (g *GitRunner) GetDefaultBranch(ctx context.Context, l log.Logger) string {
 		return branch
 	}
 
-	l.Debugf("Failed to determine default branch of remote repository, attempting to get default branch of local repository")
+	l.Debugf("Failed to determine default branch of remote repository," +
+		" attempting to get default branch of local repository")
 
 	if b, err := g.Config(ctx, "init.defaultBranch"); err == nil && b != "" {
 		return b
@@ -588,8 +592,8 @@ func (g *GitRunner) GetDefaultBranchLocal(ctx context.Context) (string, error) {
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return "", &WrappedError{
@@ -629,8 +633,8 @@ func (g *GitRunner) GetDefaultBranchRemote(ctx context.Context) (string, error) 
 
 	var stdout, stderr bytes.Buffer
 
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return "", &WrappedError{
@@ -679,7 +683,7 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 
 	var stderr bytes.Buffer
 
-	cmd.Stderr = &stderr
+	cmd.SetStderr(&stderr)
 
 	if err := cmd.Run(); err != nil {
 		return &WrappedError{
@@ -692,22 +696,46 @@ func (g *GitRunner) SetRemoteHeadAuto(ctx context.Context) error {
 	return nil
 }
 
-func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, g.GitPath, append([]string{name}, args...)...)
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
-		}
-
-		if sig := signal.SignalFromContext(ctx); sig != nil {
-			return cmd.Process.Signal(sig)
-		}
-
-		return cmd.Process.Signal(os.Kill)
+// ObjectFormat returns the object format (hash algorithm) used by the repository in the
+// working directory. Returns "sha1" or "sha256". Requires a working directory with a
+// git repository (bare or non-bare).
+func (g *GitRunner) ObjectFormat(ctx context.Context) (string, error) {
+	if err := g.RequiresWorkDir(); err != nil {
+		return "", err
 	}
 
+	cmd := g.prepareCommand(ctx, "rev-parse", "--show-object-format")
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.SetStdout(&stdout)
+	cmd.SetStderr(&stderr)
+
+	if err := cmd.Run(); err != nil {
+		// Older Git versions don't support --show-object-format; default to sha1.
+		return "sha1", nil //nolint:nilerr
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+func (g *GitRunner) prepareCommand(ctx context.Context, name string, args ...string) vexec.Cmd {
+	cmd := g.exec.Command(ctx, g.GitPath, append([]string{name}, args...)...)
+	cmd.SetCancel(func() error {
+		sig := signal.SignalFromContext(ctx)
+		if sig == nil {
+			sig = os.Kill
+		}
+
+		if err := cmd.Signal(sig); err != nil && !errors.Is(err, vexec.ErrProcessNotStarted) {
+			return err
+		}
+
+		return nil
+	})
+
 	if g.WorkDir != "" {
-		cmd.Dir = g.WorkDir
+		cmd.SetDir(g.WorkDir)
 	}
 
 	return cmd

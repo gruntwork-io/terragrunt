@@ -162,11 +162,16 @@ func (runner *UnitRunner) Run(
 		jsonOptions.JSONLogFormat = false
 		jsonOptions.Writers.Writer = &stdout
 		jsonOptions.TerraformCommand = tf.CommandNameShow
-		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", runner.Unit.PlanFile(opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand))
+		planFile := runner.Unit.PlanFile(
+			opts.RootWorkingDir, opts.OutputFolder, opts.JSONOutputFolder, opts.TerraformCommand,
+		)
+		jsonOptions.TerraformCliArgs = iacargs.New(tf.CommandNameShow, "-json", planFile)
 
 		// Use an ad-hoc report to avoid polluting the main report
 		adhocReport := report.NewReport()
-		if err := run.Run(ctx, jsonLogger, configbridge.NewRunOptions(jsonOptions), adhocReport, cfg, credsGetter); err != nil {
+
+		runOpts := configbridge.NewRunOptions(jsonOptions)
+		if err := run.Run(ctx, jsonLogger, runOpts, adhocReport, cfg, credsGetter); err != nil {
 			return err
 		}
 

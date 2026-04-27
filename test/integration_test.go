@@ -3741,13 +3741,25 @@ func TestHclFmtDiff(t *testing.T) {
 		helpers.RunTerragruntCommand(t, "terragrunt hcl fmt --diff --working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	output := stdout.String()
-
 	expectedDiff, err := os.ReadFile(filepath.Join(rootPath, "expected.diff"))
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, stdout, "output")
-	assert.Contains(t, output, string(expectedDiff))
+
+	// Drop the header lines that reference the temp-dir-qualified file path so
+	// the hunk body can be compared exactly against the fixture.
+	var hunk strings.Builder
+
+	for _, line := range strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n") {
+		if strings.HasPrefix(line, "diff old/") || strings.HasPrefix(line, "--- old/") || strings.HasPrefix(line, "+++ new/") {
+			continue
+		}
+
+		hunk.WriteString(line)
+		hunk.WriteByte('\n')
+	}
+
+	assert.Equal(t, strings.TrimRight(string(expectedDiff), "\n")+"\n", hunk.String())
 }
 
 func TestHclFmtStdin(t *testing.T) {
