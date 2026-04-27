@@ -8,8 +8,38 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 )
+
+const blockAutoinclude = "autoinclude"
+
+// HasAutoIncludeBlock reports whether any unit or stack block in src declares an autoinclude block.
+func HasAutoIncludeBlock(src []byte, filename string) bool {
+	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return false
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range body.Blocks {
+		if block.Type != "unit" && block.Type != "stack" {
+			continue
+		}
+
+		for _, inner := range block.Body.Blocks {
+			if inner.Type == blockAutoinclude {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 // StackFileHCL represents the first-phase parse of a terragrunt.stack.hcl file.
 // The autoinclude body inside each unit/stack block is captured as hcl.Body

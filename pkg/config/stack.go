@@ -120,10 +120,12 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Log at debug for stacks that don't use autoinclude (expected failure
-			// when HCL functions are present in source/path). The production parser
-			// handles these correctly.
-			l.Debugf("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
+			// Hard error when an autoinclude block is declared: silent skip would mask the bug for the user.
+			if inthclparse.HasAutoIncludeBlock(stackSrcBytes, stackFilePath) {
+				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
+			}
+
+			l.Debugf("Autoinclude parse skipped for %s (no autoinclude block declared): %v", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {

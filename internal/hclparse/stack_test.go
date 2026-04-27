@@ -437,3 +437,76 @@ unit "vpc" {
 	assert.Contains(t, names, "vpc")
 	assert.Contains(t, names, "monitoring")
 }
+
+func TestHasAutoIncludeBlock(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		src  string
+		want bool
+	}{
+		{
+			name: "unit with autoinclude",
+			src: `
+unit "app" {
+  source = "../app"
+  path   = "app"
+  autoinclude {
+    dependency "vpc" { config_path = unit.vpc.path }
+  }
+}`,
+			want: true,
+		},
+		{
+			name: "stack with autoinclude",
+			src: `
+stack "infra" {
+  source = "../infra"
+  path   = "infra"
+  autoinclude {
+    dependency "vpc" { config_path = unit.vpc.path }
+  }
+}`,
+			want: true,
+		},
+		{
+			name: "no autoinclude",
+			src: `
+unit "vpc" {
+  source = "../vpc"
+  path   = "vpc"
+}`,
+			want: false,
+		},
+		{
+			name: "empty",
+			src:  ``,
+			want: false,
+		},
+		{
+			name: "syntax error",
+			src:  `unit "x" { broken`,
+			want: false,
+		},
+		{
+			name: "autoinclude detected even when source uses HCL functions the two-pass parser cannot decode",
+			src: `
+unit "app" {
+  source = find_in_parent_folders("source.txt")
+  path   = "app"
+  autoinclude {
+    dependency "vpc" { config_path = unit.vpc.path }
+  }
+}`,
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, hclparse.HasAutoIncludeBlock([]byte(tc.src), "test.hcl"))
+		})
+	}
+}
