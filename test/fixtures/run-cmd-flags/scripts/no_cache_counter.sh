@@ -7,9 +7,9 @@ counter_file="${script_dir}/no_cache_counter.txt"
 
 count=0
 if [[ -f "${counter_file}" ]]; then
-  if ! read -r count <"${counter_file}"; then
-    count=0
-  fi
+	if ! read -r count <"${counter_file}"; then
+		count=0
+	fi
 fi
 
 count=$((count + 1))

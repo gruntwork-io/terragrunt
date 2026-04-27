@@ -1,21 +1,23 @@
-name: Test Release Scripts
+name: Test Shell Scripts
 
 on:
   pull_request:
     paths:
-      - '.github/scripts/release/**'
+      - '**.sh'
+      - '**.bats'
       - '.github/workflows/test-release-scripts.yml'
       - 'mise.toml'
   push:
     branches: [main]
     paths:
-      - '.github/scripts/release/**'
+      - '**.sh'
+      - '**.bats'
       - '.github/workflows/test-release-scripts.yml'
       - 'mise.toml'
 
 jobs:
   test:
-    name: Lint and test release scripts
+    name: Lint and test shell scripts
     runs-on: ubuntu-slim
     steps:
       - name: Checkout code
@@ -31,21 +33,21 @@ jobs:
 
       - name: shellcheck
         run: |
-          mise x shellcheck -- shellcheck \
-            .github/scripts/release/check-release-exists.sh \
-            .github/scripts/release/enforce-commit-sha.sh \
-            .github/scripts/release/resolve-version-ref.sh \
-            .github/scripts/release/validate-semver.sh \
-            .github/scripts/release/tests/helpers/gh-stub.sh
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shellcheck -- shellcheck -x -P SCRIPTDIR
 
       - name: shfmt
         run: |
-          mise x shfmt -- shfmt -d \
-            .github/scripts/release/check-release-exists.sh \
-            .github/scripts/release/enforce-commit-sha.sh \
-            .github/scripts/release/resolve-version-ref.sh \
-            .github/scripts/release/validate-semver.sh \
-            .github/scripts/release/tests/helpers/gh-stub.sh
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shfmt -- shfmt -d
 
       - name: bats
         run: mise x bats -- bats --print-output-on-failure .github/scripts/release/tests/
