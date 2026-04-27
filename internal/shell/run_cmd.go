@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -20,6 +21,29 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
+
+type execContextKey struct{}
+
+// WithExec returns ctx with the given vexec.Exec installed for use by RunCommandWithOutput.
+// When set, the executor replaces the default os/exec backend; intended for tests that need to intercept subprocess execution.
+func WithExec(ctx context.Context, e vexec.Exec) context.Context {
+	return context.WithValue(ctx, execContextKey{}, e)
+}
+
+func execFromContext(ctx context.Context) vexec.Exec {
+	e, _ := ctx.Value(execContextKey{}).(vexec.Exec)
+	return e
+}
+
+func envSliceFromMap(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+
+	for k, v := range env {
+		out = append(out, k+"="+v)
+	}
+
+	return out
+}
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
 //
@@ -246,6 +270,29 @@ func RunCommandWithOutput(
 
 				return err
 			}
+		}
+
+		if injected := execFromContext(ctx); injected != nil {
+			injectedCmd := injected.Command(ctx, command, args...)
+			injectedCmd.SetDir(commandDir)
+			injectedCmd.SetEnv(envSliceFromMap(runOpts.Env))
+			injectedCmd.SetStdout(cmdStdout)
+			injectedCmd.SetStderr(cmdStderr)
+
+			if err := injectedCmd.Run(); err != nil {
+				return errors.New(util.ProcessExecutionError{
+					Err:             err,
+					Args:            args,
+					Command:         command,
+					Output:          output,
+					WorkingDir:      commandDir,
+					RootWorkingDir:  runOpts.RootWorkingDir,
+					LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+					DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
+				})
+			}
+
+			return nil
 		}
 
 		cmd := exec.Command(ctx, command, args...)
