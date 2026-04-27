@@ -53,9 +53,6 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	// Exec, when non-nil, replaces the default os/exec backend used by run_cmd
-	// and other shell-outs that read shell.ShellOptions from this context.
-	// Intended for tests; production code leaves this nil.
 	Exec vexec.Exec
 
 	Env                 map[string]string

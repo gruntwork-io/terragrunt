@@ -33,12 +33,13 @@ const SignalForwardingDelay = time.Second * 15
 
 // ShellOptions contains the configuration needed to run shell commands.
 type ShellOptions struct {
-	Writers         writer.Writers
-	EngineOptions   *engine.EngineOptions
-	EngineConfig    *engine.EngineConfig
-	Telemetry       *telemetry.Options
-	Env             map[string]string
-	Exec            vexec.Exec
+	Writers       writer.Writers
+	EngineOptions *engine.EngineOptions
+	EngineConfig  *engine.EngineConfig
+	Telemetry     *telemetry.Options
+	Env           map[string]string
+	Exec          vexec.Exec
+
 	RootWorkingDir  string
 	WorkingDir      string
 	TFPath          string
@@ -153,8 +154,7 @@ func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
 	return o
 }
 
-// WithExec installs a vexec.Exec backend that replaces the default os/exec
-// path used by RunCommandWithOutput. Pass nil to clear it. Intended for tests.
+// WithExec sets the vexec.Exec used by RunCommandWithOutput.
 func (o *ShellOptions) WithExec(e vexec.Exec) *ShellOptions {
 	o.Exec = e
 
@@ -258,6 +258,10 @@ func RunCommandWithOutput(
 		}
 
 		if runOpts.Exec != nil {
+			if needsPTY {
+				return errors.New("shell: vexec backend does not support PTY mode")
+			}
+
 			injectedCmd := runOpts.Exec.Command(ctx, command, args...)
 			injectedCmd.SetDir(commandDir)
 			injectedCmd.SetEnv(util.EnvSliceFromMap(runOpts.Env))
@@ -305,6 +309,7 @@ func RunCommandWithOutput(
 
 // procExecError builds a ProcessExecutionError using the standard fields from ShellOptions.
 // Pass nil for output when the failure occurred before any output was captured.
+// Caller guarantees a non-nil ShellOptions; the receiver is dereferenced unconditionally.
 func (o *ShellOptions) procExecError(err error, command, dir string, args []string, output *util.CmdOutput) error {
 	pe := util.ProcessExecutionError{
 		Err:             err,
