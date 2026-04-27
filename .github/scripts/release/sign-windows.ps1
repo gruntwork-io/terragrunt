@@ -253,10 +253,16 @@ function Patch-Binaries {
 function Save-Credentials {
     Write-Host "Saving credentials to Windows Credential Manager..."
 
-    & smctl.exe credentials save $env:SM_API_KEY $env:SM_CLIENT_CERT_PASSWORD
+    # Length only; never log secret values. Assert-EnvVar already guarantees non-empty.
+    Write-Host "SM_API_KEY length: $($env:SM_API_KEY.Length), SM_CLIENT_CERT_PASSWORD length: $($env:SM_CLIENT_CERT_PASSWORD.Length)"
+
+    # Stop parsing token bypasses PowerShell argv processing so secrets containing
+    # spaces, quotes, $, backticks, or a leading dash are passed verbatim. Without it,
+    # mangled argv surfaces as CredWriteW RPC_X_BAD_STUB_DATA ("The stub received bad data").
+    & smctl.exe credentials save --% "%SM_API_KEY%" "%SM_CLIENT_CERT_PASSWORD%"
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to save credentials"
+        Write-Error "Failed to save credentials (exit code: $LASTEXITCODE)"
         exit 1
     }
 
