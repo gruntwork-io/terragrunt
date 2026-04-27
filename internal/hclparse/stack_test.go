@@ -331,6 +331,23 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+// TestParseStackFileFromPath_StackDirIsFile asserts that when stackDir
+// resolves to a regular file (e.g. discovery passes a non-default-named
+// terragrunt config like "another-name.hcl"), we treat it the same as a
+// missing stack file rather than surfacing the ENOTDIR open error. Uses
+// OSFS because in-memory FS implementations may not propagate ENOTDIR.
+func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "another-name.hcl")
+	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
+
+	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
 	t.Parallel()
 
