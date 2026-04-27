@@ -2,18 +2,34 @@ package shell_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
+
+func TestShellOptionsWithExecRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	memExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+
+	opts := shell.NewShellOptions().WithExec(memExec)
+	assert.Same(t, memExec, opts.Exec, "WithExec must store the executor")
+
+	opts.WithExec(nil)
+	assert.Nil(t, opts.Exec, "WithExec(nil) must clear the executor")
+}
 
 func TestRunShellCommand(t *testing.T) {
 	t.Parallel()

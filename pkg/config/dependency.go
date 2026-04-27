@@ -41,7 +41,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -1450,11 +1449,6 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 // shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	exec := pctx.Exec
-	if exec == nil {
-		exec = vexec.NewOSExec()
-	}
-
 	return shell.NewShellOptions().
 		WithWorkingDir(pctx.WorkingDir).
 		WithEnv(pctx.Env).
@@ -1466,7 +1460,7 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).
 		WithForwardTFStdout(pctx.ForwardTFStdout).
-		WithExec(exec)
+		WithExec(pctx.Exec)
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.

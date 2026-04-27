@@ -43,14 +43,11 @@ func FuzzHCLStringHelpers(f *testing.F) {
 
 		if len(args) != 2 {
 			require.Error(t, swErr, "startswith with %d args must error", len(args))
-			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, swErr),
-				"startswith expected WrongNumberOfParamsError, got %T: %v", swErr, swErr)
+			requireErrorAs[config.WrongNumberOfParamsError](t, swErr)
 			require.Error(t, ewErr, "endswith with %d args must error", len(args))
-			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, ewErr),
-				"endswith expected WrongNumberOfParamsError, got %T: %v", ewErr, ewErr)
+			requireErrorAs[config.WrongNumberOfParamsError](t, ewErr)
 			require.Error(t, scErr, "strcontains with %d args must error", len(args))
-			require.True(t, assertErrorType(t, config.WrongNumberOfParamsError{}, scErr),
-				"strcontains expected WrongNumberOfParamsError, got %T: %v", scErr, scErr)
+			requireErrorAs[config.WrongNumberOfParamsError](t, scErr)
 
 			return
 		}
@@ -101,6 +98,9 @@ func FuzzHCLRunCommand(f *testing.F) {
 		"--unknown-flag\x00args",
 		"\x00",
 		"\x00\x00",
+		"--terragrunt-quiet\x00\x00/bin/echo\x00hi", // empty arg between flags and command
+		"/bin/echo\x00--terragrunt-quiet",           // trailing flag (not stripped — only leading flags are)
+		" \x00--terragrunt-quiet\x00cmd",            // whitespace as command
 	}
 	for _, s := range seeds {
 		f.Add(s)
@@ -140,15 +140,13 @@ func FuzzHCLRunCommand(f *testing.F) {
 		switch {
 		case conflict:
 			require.Error(t, err, "expected ConflictingRunCmdCacheOptionsError for %q", raw)
-			require.True(t, assertErrorType(t, config.ConflictingRunCmdCacheOptionsError{}, err),
-				"expected ConflictingRunCmdCacheOptionsError, got %T: %v", err, err)
+			requireErrorAs[config.ConflictingRunCmdCacheOptionsError](t, err)
 			require.Empty(t, out)
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the conflict path (got %d calls)", calls.Load())
 		case len(stripped) == 0:
 			require.Error(t, err, "expected EmptyStringNotAllowedError for %q", raw)
-			require.True(t, assertErrorType(t, config.EmptyStringNotAllowedError(""), err),
-				"expected EmptyStringNotAllowedError, got %T: %v", err, err)
+			requireErrorAs[config.EmptyStringNotAllowedError](t, err)
 			require.Empty(t, out)
 			require.Equal(t, int32(0), calls.Load(),
 				"exec must not run on the empty-args path (got %d calls)", calls.Load())

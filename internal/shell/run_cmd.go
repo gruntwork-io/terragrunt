@@ -154,7 +154,8 @@ func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
 	return o
 }
 
-// WithExec sets the vexec.Exec used by RunCommandWithOutput.
+// WithExec installs a vexec.Exec backend that replaces the default os/exec
+// path used by RunCommandWithOutput. Pass nil to clear it. Intended for tests.
 func (o *ShellOptions) WithExec(e vexec.Exec) *ShellOptions {
 	o.Exec = e
 
