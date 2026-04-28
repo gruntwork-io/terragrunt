@@ -1,0 +1,14 @@
+---
+version: "v1.0.4"
+category: "performance-improvements"
+---
+
+#### `fast-copy` strict control
+
+With the new [`fast-copy`](/reference/strict-controls/active#fast-copy) strict control enabled, Terragrunt compiles each `include_in_copy` and `exclude_from_copy` pattern once and evaluates it inline during a single copy walk. This avoids re-walking subdirectories for every pattern, which should result in noticable speed improvements for large source modules.
+
+```bash
+terragrunt run plan --strict-control fast-copy
+```
+
+The new matcher does not collapse `**` to zero path segments when a neighbor is a wildcard, so `a/**/*.tf` matches `a/sub/main.tf` but not `a/main.tf`. Patterns that relied on the old collapsing behavior should use brace alternation like `{*.tf,**/*.tf}` to cover both depths.
