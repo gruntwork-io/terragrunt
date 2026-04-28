@@ -1,0 +1,30 @@
+---
+version: "v1.0.4"
+category: "new-features"
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+#### Full `.terraform.lock.hcl` files from the provider cache server
+
+When the [provider cache server](/features/caching/provider-cache-server) is used against the OpenTofu provider registry, Terragrunt now writes `.terraform.lock.hcl` files containing `h1:` hashes for every platform the registry supports. A single `terragrunt init` produces a lock file that works on every platform, removing the need to run `tofu providers lock -platform=...` separately for each target architecture.
+
+```hcl
+provider "registry.opentofu.org/hashicorp/null" {
+  version     = "3.2.2"
+  constraints = "3.2.2"
+  hashes = [
+    "h1:+1mRmfyz6oA00IhrrSkHK3h/Mdh032x2p0F6OMdMo5s=",
+    "h1:FjLTqvaaYo+vHN8pHZB1cOwEGiNzOj+I9kQyHmr9/7o=",
+    # ... one entry per supported platform ...
+    "zh:00e5877d19fb1c1d8c4b3536334a46a5c86f57146fd115c7b7b4b5d2bf2de86d",
+    # ... one entry per supported platform ...
+  ]
+}
+```
+
+The hashes come from the registry's per-platform download response. When the registry does not supply them (for example, a third-party registry that has not adopted the field), Terragrunt falls back to its previous behavior of writing an `h1:` hash for the current platform plus `zh:` hashes for every platform listed in the shasums document.
+
+<Aside type="tip" title="Thanks to the OpenTofu team">
+  This feature builds on work done by the OpenTofu team to expose per-platform hashes directly from the OpenTofu provider registry. Starting with [OpenTofu 1.12](https://opentofu.org/), `tofu init` populates `.terraform.lock.hcl` with hashes for every supported platform out of the box, with no Terragrunt or `tofu providers lock` invocation required. Users on older OpenTofu versions still get the same lock files when running through Terragrunt's provider cache server, but upgrading to 1.12 is the easiest way to get the same behavior everywhere.
+</Aside>
