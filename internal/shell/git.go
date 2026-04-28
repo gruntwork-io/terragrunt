@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -42,7 +43,10 @@ func GitTopLevelDir(ctx context.Context, l log.Logger, env map[string]string, pa
 		return "", err
 	}
 
-	cmdOutput := strings.TrimSpace(cmd.Stdout.String())
+	// Git on Windows always emits forward slashes from `rev-parse --show-toplevel`,
+	// so normalize to OS-native separators to stay consistent with the other path
+	// HCL functions (get_terragrunt_dir, find_in_parent_folders, etc.).
+	cmdOutput := filepath.FromSlash(strings.TrimSpace(cmd.Stdout.String()))
 
 	if stderrString := strings.TrimSpace(stderr.String()); stderrString != "" {
 		l.Warnf("git rev-parse --show-toplevel resulted in stderr output: \n%v\n", stderrString)

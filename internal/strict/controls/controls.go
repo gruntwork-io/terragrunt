@@ -79,6 +79,10 @@ const (
 
 	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
 	DisableDependentModules = "disable-dependent-modules"
+
+	// FastCopy is the control that switches `include_in_copy` and
+	// `exclude_from_copy` pattern matching from zglob to gobwas.
+	FastCopy = "fast-copy"
 )
 
 //nolint:lll
@@ -289,6 +293,11 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`."),
 			Warning:     "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
+		},
+		&Control{
+			Name:        FastCopy,
+			Description: "Switches `include_in_copy` and `exclude_from_copy` pattern matching from zglob to gobwas. `**` no longer collapses when adjacent to a wildcard, so `a/**/*.tf` will not match `a/foo.tf`. Use brace alternation like `{*.tf,**/*.tf}` to cover both depths.",
+			Category:    stageCategory,
 		},
 	}
 

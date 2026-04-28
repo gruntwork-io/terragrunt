@@ -395,7 +395,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 	}
 
 	for i := range 20 {
-		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 
 		err = os.Rename(
