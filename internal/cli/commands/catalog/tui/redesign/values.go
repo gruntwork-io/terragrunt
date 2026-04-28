@@ -251,6 +251,9 @@ func WriteValuesStub(dir string, refs ValuesReferences) (bool, error) {
 
 	buf.WriteString(valuesStubHeader)
 
+	// Sort defensively so callers passing a hand-constructed
+	// ValuesReferences get deterministic output without needing to know that
+	// CollectValuesReferences happens to pre-sort.
 	if len(refs.Required) > 0 {
 		buf.WriteString(requiredSectionHeader)
 

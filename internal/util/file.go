@@ -1104,14 +1104,18 @@ func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 		}
 	}()
 
-	fileInfo, err := root.Stat(file)
-	if err != nil {
+	if _, err := root.Stat(file); err != nil {
 		return "", err
 	}
 
-	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
+	// Preserve nested directories from the validated input. Using
+	// fileInfo.Name() would flatten "a/b/c.txt" to "<baseDir>/c.txt".
+	// root.Stat already rejects paths that escape baseDir, so we only need
+	// to clean the input and join it back onto baseDir.
+	cleanedRelative := filepath.Clean(file)
+	cleanedRelative = strings.TrimLeft(cleanedRelative, string(os.PathSeparator))
 
-	return fullPath, nil
+	return filepath.Join(baseDir, cleanedRelative), nil
 }
 
 // RelPathForLog returns a relative path suitable for logging.

@@ -28,17 +28,22 @@ const (
 	templatePillBgS = "#3A2D55"
 	templatePillFgS = "#DDC4FA"
 
+	// Shared white foreground for the unit and stack pills, whose darker
+	// backgrounds always read against pure white in both selected and
+	// unselected states.
+	pillFgWhite = "#FFFFFF"
+
 	// Unit type pill (blue, matching the `list` / `find` command color).
 	unitPillBg  = "#1B46DD"
-	unitPillFg  = "#FFFFFF"
+	unitPillFg  = pillFgWhite
 	unitPillBgS = "#2E5BEA"
-	unitPillFgS = "#FFFFFF"
+	unitPillFgS = pillFgWhite
 
 	// Stack type pill (green, matching the `list` / `find` command color).
 	stackPillBg  = "#2E8B57"
-	stackPillFg  = "#FFFFFF"
+	stackPillFg  = pillFgWhite
 	stackPillBgS = "#3CA068"
-	stackPillFgS = "#FFFFFF"
+	stackPillFgS = pillFgWhite
 
 	// Version pill (neutral).
 	versionBg  = "#313244"

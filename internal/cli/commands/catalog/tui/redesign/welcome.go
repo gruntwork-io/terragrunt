@@ -147,11 +147,12 @@ func RunRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	EmitExitMessage(finalModel, errWriter, l)
 
 	if err != nil {
-		if cause := context.Cause(ctx); errors.Is(cause, context.Canceled) {
+		cause := context.Cause(ctx)
+		if errors.Is(cause, context.Canceled) {
 			return nil
 		}
 
-		if cause := context.Cause(ctx); cause != nil {
+		if cause != nil {
 			return cause
 		}
 

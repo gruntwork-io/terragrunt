@@ -247,7 +247,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case scaffoldFinishedMsg:
 		if msg.err != nil {
-			return m, tea.Batch(tea.Printf("error scaffolding component: %s", msg.err.Error()), tea.Quit)
+			// tea.Printf during alt-screen gets discarded on teardown, so
+			// stash the failure on the model and let RunRedesign emit it
+			// to the user's scrollback after exit.
+			m.exitMessage = formatActionFailure("scaffolding component", msg.err)
+
+			return m, tea.Quit
 		}
 
 		// Same post-exit-message pattern as the copy flow: stash a styled
@@ -259,7 +264,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case copyFinishedMsg:
 		if msg.err != nil {
-			return m, tea.Batch(tea.Printf("error copying component: %s", msg.err.Error()), tea.Quit)
+			m.exitMessage = formatActionFailure("copying component", msg.err)
+
+			return m, tea.Quit
 		}
 
 		// Stash a styled post-exit message on the model so RunRedesign
@@ -330,9 +337,32 @@ func copyComponentCmd(l log.Logger, m Model, c *Component) tea.Cmd {
 const (
 	valuesBoxAccentGreen  = "#50FA7B"
 	valuesBoxAccentYellow = "#F1FA8C"
+	valuesBoxAccentRed    = "#FF5555"
 	valuesBoxPathColor    = "#8BE9FD"
 	valuesBoxMutedColor   = "#A8ACB1"
 )
+
+// formatActionFailure renders a bordered callout describing a failed
+// scaffold or copy action. action is a verb phrase ("scaffolding component",
+// "copying component"). The message is stashed on the model so RunRedesign
+// can print it after the alt screen is restored — tea.Printf lines emitted
+// during alt-screen are discarded on exit.
+func formatActionFailure(action string, err error) string {
+	heading := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(valuesBoxAccentRed)).
+		Bold(true).
+		Render("error " + action)
+
+	body := err.Error()
+
+	content := lipgloss.JoinVertical(lipgloss.Left, heading, "", body)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(valuesBoxAccentRed)).
+		Padding(bodyPaddingVertical, bodyPaddingHorizontal).
+		Render(content)
+}
 
 var (
 	valuesBoxPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(valuesBoxPathColor))
