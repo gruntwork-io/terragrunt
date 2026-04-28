@@ -47,7 +47,7 @@ func TestGrepFilesWithSuffix(t *testing.T) {
 		{
 			name: "no match when suffix differs",
 			files: map[string]string{
-				// .tf, not .tf.json — must be skipped.
+				// .tf, not .tf.json, must be skipped.
 				"/mod/backend.tf": `terraform { backend "s3" {} }`,
 			},
 			root:   "/mod",

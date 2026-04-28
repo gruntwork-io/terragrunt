@@ -48,41 +48,6 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:title',
-            content: 'Terragrunt',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:type',
-            content: 'website',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:url',
-            content: 'https://docs.terragrunt.com',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
             name: 'twitter:card',
             content: 'summary_large_image',
           },
@@ -90,15 +55,15 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:title',
-            content: 'Terragrunt',
+            property: 'og:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-og-image-1200x630.png',
           },
         },
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+            name: 'twitter:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-twitter-image.png',
           },
         },
         {
