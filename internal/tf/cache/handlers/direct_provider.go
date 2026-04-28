@@ -87,10 +87,13 @@ func ResolveProviderURL(providersV1, registryName string, pathParts ...string) *
 		// Absolute URL from host block — append path parts directly
 		base := strings.TrimRight(providersV1, "/")
 		raw := base
+
 		if subPath != "" {
 			raw = base + "/" + subPath
 		}
+
 		u, _ := url.Parse(raw) //nolint:errcheck // base is a validated URL from discovery
+
 		return u
 	}
 

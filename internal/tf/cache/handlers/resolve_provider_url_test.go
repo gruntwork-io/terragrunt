@@ -1,8 +1,9 @@
-package handlers
+package handlers_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/handlers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,8 +15,8 @@ func TestResolveProviderURL(t *testing.T) {
 		name         string
 		providersV1  string
 		registryName string
-		pathParts    []string
 		expected     string
+		pathParts    []string
 	}{
 		{
 			name:         "relative path builds https URL with registry host",
@@ -72,7 +73,7 @@ func TestResolveProviderURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := ResolveProviderURL(tt.providersV1, tt.registryName, tt.pathParts...)
+			result := handlers.ResolveProviderURL(tt.providersV1, tt.registryName, tt.pathParts...)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expected, result.String())
 		})

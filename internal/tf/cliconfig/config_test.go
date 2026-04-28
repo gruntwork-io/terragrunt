@@ -64,7 +64,7 @@ func TestAddHost(t *testing.T) {
 
 		cfg := cliconfig.NewConfig()
 		cfg.AddHost("registry.terraform.io", map[string]string{"providers.v1": "http://localhost/tf/"})
-		cfg.AddHost("registry.opentofu.org", map[string]string{"providers.v1": "http://localhost/ot/"})
+		cfg.AddHost("registry.opentofu.org", map[string]string{"providers.v1": "http://localhost/opentofu/"})
 
 		require.Len(t, cfg.Hosts, 2)
 	})
