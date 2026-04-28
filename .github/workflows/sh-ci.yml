@@ -1,19 +1,12 @@
-name: Test Shell Scripts
+name: Shell CI
 
 on:
-  pull_request:
-    paths:
-      - '**.sh'
-      - '**.bats'
-      - '.github/workflows/test-release-scripts.yml'
-      - 'mise.toml'
   push:
-    branches: [main]
     paths:
-      - '**.sh'
-      - '**.bats'
-      - '.github/workflows/test-release-scripts.yml'
-      - 'mise.toml'
+      - "**.sh"
+      - "**.bats"
+      - ".github/workflows/sh-ci.yml"
+      - "mise.toml"
 
 jobs:
   test:
