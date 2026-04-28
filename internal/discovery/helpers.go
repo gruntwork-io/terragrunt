@@ -292,7 +292,7 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	for _, depPath := range depPaths {
 		unitPaths, err := inthclparse.UnitPathsFromStackDir(fs, depPath)
 		if err != nil {
-			return nil, errors.Errorf("failed to expand stack dependency path %s: %w", depPath, err)
+			return nil, NewStackDependencyExpansionError(depPath, err)
 		}
 
 		if len(unitPaths) > 0 {
