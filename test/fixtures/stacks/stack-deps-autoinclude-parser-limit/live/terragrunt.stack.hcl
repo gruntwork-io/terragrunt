@@ -1,7 +1,4 @@
-// Regression fixture for issue #5980: stack file uses an HCL function in path that
-// only the production parser has registered (the simplified two-pass autoinclude
-// parser uses nil eval context). With an autoinclude block declared, this must fail
-// loudly during stack generate instead of silently skipping autoinclude generation.
+// Stack file uses format() in path: production parser handles it, simplified two-pass parser cannot. With autoinclude declared, generation must fail loudly.
 
 unit "vpc" {
   source = "../catalog/units/vpc"

@@ -120,8 +120,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Hard error when an autoinclude block is declared anywhere reachable (root or any include block): silent skip would mask the bug for the user.
-			if inthclparse.HasAutoIncludeBlock(vfs.NewOSFS(), stackSourceDir, stackSrcBytes, stackFilePath) {
+			// Use the production-parsed, include-merged stackFile to detect autoinclude. This handles include paths that use HCL functions/locals/values, which a raw-HCL nil-eval re-scan cannot resolve.
+			if hasAutoIncludeInProductionConfig(stackFile) {
 				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 			}
 
@@ -960,4 +960,41 @@ func GetUnitDir(dir string, unit *Unit) string {
 	}
 
 	return filepath.Join(dir, StackDir, unit.Path)
+}
+
+// hasAutoIncludeInProductionConfig reports whether any unit or stack in the include-merged production-parsed stack config declares an autoinclude block.
+func hasAutoIncludeInProductionConfig(stackFile *StackConfig) bool {
+	if stackFile == nil {
+		return false
+	}
+
+	for _, u := range stackFile.Units {
+		if u != nil && hasAutoIncludeInBody(u.Remain) {
+			return true
+		}
+	}
+
+	for _, s := range stackFile.Stacks {
+		if s != nil && hasAutoIncludeInBody(s.Remain) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block.
+func hasAutoIncludeInBody(body hcl.Body) bool {
+	syntaxBody, ok := body.(*hclsyntax.Body)
+	if !ok {
+		return false
+	}
+
+	for _, block := range syntaxBody.Blocks {
+		if block.Type == "autoinclude" {
+			return true
+		}
+	}
+
+	return false
 }

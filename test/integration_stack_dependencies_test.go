@@ -17,16 +17,17 @@ import (
 )
 
 const (
-	testFixtureStackDepsAutoInclude      = "fixtures/stacks/stack-dependencies-autoinclude"
-	testFixtureStackDepsStackRef         = "fixtures/stacks/stack-dependencies-stack-ref"
-	testFixtureStackDepsBasic            = "fixtures/stacks/stack-deps-basic"
-	testFixtureStackDepsChain            = "fixtures/stacks/stack-deps-chain"
-	testFixtureStackDepsCrossStack       = "fixtures/stacks/stack-deps-cross-stack"
-	testFixtureStackDepsUnitInStack      = "fixtures/stacks/stack-deps-unit-in-stack"
-	testFixtureStackDepsEntireStack      = "fixtures/stacks/stack-deps-entire-stack"
-	testFixtureStackDepsNestedStack      = "fixtures/stacks/stack-deps-nested-stack"
-	testFixtureStackDepsIssue5980        = "fixtures/stacks/stack-deps-issue-5980"
-	testFixtureStackDepsIssue5980Include = "fixtures/stacks/stack-deps-issue-5980-include"
+	testFixtureStackDepsAutoInclude          = "fixtures/stacks/stack-dependencies-autoinclude"
+	testFixtureStackDepsStackRef             = "fixtures/stacks/stack-dependencies-stack-ref"
+	testFixtureStackDepsBasic                = "fixtures/stacks/stack-deps-basic"
+	testFixtureStackDepsChain                = "fixtures/stacks/stack-deps-chain"
+	testFixtureStackDepsCrossStack           = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsUnitInStack          = "fixtures/stacks/stack-deps-unit-in-stack"
+	testFixtureStackDepsEntireStack          = "fixtures/stacks/stack-deps-entire-stack"
+	testFixtureStackDepsNestedStack          = "fixtures/stacks/stack-deps-nested-stack"
+	testFixtureStackDepsAutoIncParserLimit   = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
+	testFixtureStackDepsAutoIncViaInclude    = "fixtures/stacks/stack-deps-autoinclude-via-include"
+	testFixtureStackDepsAutoIncViaDynInclude = "fixtures/stacks/stack-deps-autoinclude-via-dyn-include"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -477,28 +478,25 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	assert.Equal(t, expectedPath, depPaths[0])
 }
 
-// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5980. The fixture uses format() in `path` (which the simplified two-pass autoinclude parser cannot decode but the production parser handles) AND declares an autoinclude block. Prior behavior silently skipped autoinclude generation at debug level; the fix makes it a hard error so the user immediately knows their autoinclude config will not be honored.
-func TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails(t *testing.T) {
+// Stack file declares autoinclude AND uses format() in path which the simplified parser cannot decode. Hard error required.
+func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDepsIssue5980)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsIssue5980)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsIssue5980, "live")
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncParserLimit)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncParserLimit)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncParserLimit, "live")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must fail loudly when an autoinclude block is declared but the two-pass parser cannot process the stack file")
+	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared and the two-pass parser cannot decode the stack file")
 
 	combined := err.Error() + stderr
-	assert.Contains(t, combined, "autoinclude", "error must mention the autoinclude failure so the user can locate the issue: err=%q stderr=%q", err.Error(), stderr)
+	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
 }
 
-// TestStackDepsIssue5980_NoAutoIncludeStillWorks verifies the companion case: stack
-// files that hit two-pass-parser limitations but do NOT declare an autoinclude block
-// continue to generate successfully. Together with the failure test above this pins
-// the contract: silent skip is allowed only when the user has nothing to lose.
-func TestStackDepsIssue5980_NoAutoIncludeStillWorks(t *testing.T) {
+// Companion contract: parser-incompatible HCL without an autoinclude block still generates successfully (silent skip is allowed only when the user has nothing to lose).
+func TestStackDepsParserLimitOKWithoutAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -517,25 +515,42 @@ unit "vpc" {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
-	require.NoError(t, err, "stack generate must succeed when no autoinclude block is declared, even if the two-pass parser cannot process source/path expressions")
+	require.NoError(t, err, "stack generate must succeed without autoinclude even if the two-pass parser cannot decode source/path expressions")
 
 	require.DirExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc"))
 	require.NoFileExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc", "terragrunt.autoinclude.hcl"))
 }
 
-// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeInIncludedFile is the include-aware regression: the root stack file has only an `include` block; the autoinclude declaration plus the parser-incompatible HCL function live in the included file. The hard-error path must still fire so the user is not silently dropped.
-func TestStackDepsIssue5980_FailsLoudWhenAutoIncludeInIncludedFile(t *testing.T) {
+// Root has only an `include` block (literal path); autoinclude lives in the included file along with parser-incompatible HCL.
+func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureStackDepsIssue5980Include)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsIssue5980Include)
-	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsIssue5980Include, "live")
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncViaInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaInclude, "live")
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file the two-pass parser cannot process")
+	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file")
 
 	combined := err.Error() + stderr
-	assert.Contains(t, combined, "autoinclude", "error must mention the autoinclude failure so the user can locate the issue: err=%q stderr=%q", err.Error(), stderr)
+	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
+}
+
+// Root's include.path is an HCL expression (format()) the simplified parser cannot decode; production parser still resolves it and the included file declares autoinclude.
+func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncViaDynInclude)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaDynInclude)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaDynInclude, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	require.Error(t, err, "stack generate must fail loudly when autoinclude is reachable via an expression-based include path")
+
+	combined := err.Error() + stderr
+	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
 }
