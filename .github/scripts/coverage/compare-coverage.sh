@@ -71,28 +71,28 @@ jq -n \
 # Generate HTML report
 {
 	cat <<-HEADER
-	<!DOCTYPE html>
-	<html><head>
-	<meta charset="utf-8">
-	<title>Coverage Comparison</title>
-	<style>
-	body { font-family: monospace; margin: 2em; }
-	table { border-collapse: collapse; width: 100%; }
-	th, td { border: 1px solid #ccc; padding: 6px 12px; text-align: right; }
-	th { background: #f5f5f5; }
-	td:first-child, th:first-child { text-align: left; }
-	tr.total { font-weight: bold; border-top: 2px solid #333; }
-	tr.new td, tr.removed td { font-style: italic; }
-	</style>
-	</head><body>
-	<h2>Coverage Comparison</h2>
-	<table>
-	<tr><td>Base</td><td>${PREV_REF} (${PREV_COMMIT:0:12})</td><td>${PREV_TS}</td></tr>
-	<tr><td>Head</td><td>${CURR_REF} (${CURR_COMMIT:0:12})</td><td>${CURR_TS}</td></tr>
-	</table>
-	<br>
-	<table>
-	<tr><th>Package</th><th>Base %</th><th>Head %</th><th>Delta</th></tr>
+		<!DOCTYPE html>
+		<html><head>
+		<meta charset="utf-8">
+		<title>Coverage Comparison</title>
+		<style>
+		body { font-family: monospace; margin: 2em; }
+		table { border-collapse: collapse; width: 100%; }
+		th, td { border: 1px solid #ccc; padding: 6px 12px; text-align: right; }
+		th { background: #f5f5f5; }
+		td:first-child, th:first-child { text-align: left; }
+		tr.total { font-weight: bold; border-top: 2px solid #333; }
+		tr.new td, tr.removed td { font-style: italic; }
+		</style>
+		</head><body>
+		<h2>Coverage Comparison</h2>
+		<table>
+		<tr><td>Base</td><td>${PREV_REF} (${PREV_COMMIT:0:12})</td><td>${PREV_TS}</td></tr>
+		<tr><td>Head</td><td>${CURR_REF} (${CURR_COMMIT:0:12})</td><td>${CURR_TS}</td></tr>
+		</table>
+		<br>
+		<table>
+		<tr><th>Package</th><th>Base %</th><th>Head %</th><th>Delta</th></tr>
 	HEADER
 
 	# Total row
@@ -109,8 +109,8 @@ jq -n \
 		end' <<<"$PACKAGE_COMPARISON"
 
 	cat <<-FOOTER
-	</table>
-	</body></html>
+		</table>
+		</body></html>
 	FOOTER
 } >"$HTML_OUTPUT"
 
