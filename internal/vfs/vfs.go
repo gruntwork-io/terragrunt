@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
@@ -144,6 +145,60 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	}
 
 	return locker.TryLock(name)
+}
+
+// WalkDirParallelOption configures a [WalkDirParallel] call.
+type WalkDirParallelOption func(*walkDirParallelConfig)
+
+type walkDirParallelConfig struct {
+	followSymlinks bool
+}
+
+// WithFollowSymlinks makes [WalkDirParallel] descend into directories
+// reached through symbolic links. The DirEntry passed to fn for a
+// followed symlink reports the target's type, so `d.IsDir()` is true
+// for a symlink that resolves to a directory. Infinite loops are
+// guarded by fastwalk's ancestor-cycle detection.
+//
+// Without this option, symlinked directories are visited as single
+// entries with `d.IsDir() == false`, matching stdlib [fs.WalkDir].
+func WithFollowSymlinks() WalkDirParallelOption {
+	return func(c *walkDirParallelConfig) {
+		c.followSymlinks = true
+	}
+}
+
+// WalkDirParallel walks the file tree rooted at root like [WalkDir]
+// does. On a [NewOSFS] filesystem it reads directories in parallel via
+// [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
+// back to the sequential [WalkDir].
+//
+// The parallel walk calls fn concurrently from multiple goroutines and
+// gives no ordering guarantee across directories. Callers that depend
+// on deterministic order, or that write to shared state from fn, must
+// use [WalkDir] or serialize access themselves.
+func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
+	if _, ok := fsys.(*osFS); !ok {
+		return WalkDir(fsys, root, fn)
+	}
+
+	var cfg walkDirParallelConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var fwCfg *fastwalk.Config
+	if cfg.followSymlinks {
+		fwCfg = &fastwalk.Config{Follow: true}
+	}
+
+	err := fastwalk.Walk(fwCfg, root, fn)
+
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
+	}
+
+	return err
 }
 
 // WalkDir walks the file tree rooted at root, calling fn for each file or

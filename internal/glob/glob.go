@@ -14,8 +14,8 @@
 // literals. With literals on both sides, "a/**/b" matches "a/b" as well as
 // "a/x/b". If either neighbor is a wildcard (for example "a/**/*.tf" or
 // "*/**/b.tf"), "**" does not collapse and a zero-depth match fails. Use
-// brace alternation — for example "{*.tf,**/*.tf}" — to cover both depths
-// when the trailing segment contains a wildcard.
+// brace alternation like "{*.tf,**/*.tf}" to cover both depths when the
+// trailing segment contains a wildcard.
 //
 // # When to use what
 //

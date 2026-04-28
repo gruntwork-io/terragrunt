@@ -566,8 +566,6 @@ func copyFolder(t *testing.T, src string, dest string) {
 		filepath.FromSlash(src),
 		filepath.FromSlash(dest),
 		".terragrunt-test",
-		nil,
-		nil,
 	)
 	require.NoError(t, err)
 }
