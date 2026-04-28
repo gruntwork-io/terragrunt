@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v6"
@@ -39,11 +40,14 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	goRepo    *git.Repository
-	goStorage *filesystem.Storage
-	exec      vexec.Exec
-	GitPath   string
-	WorkDir   string
+	goRepo       *git.Repository
+	goStorage    *filesystem.Storage
+	exec         vexec.Exec
+	repoRootOnce *sync.Once
+	repoRootErr  error
+	GitPath      string
+	WorkDir      string
+	repoRoot     string
 }
 
 // NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
@@ -59,19 +63,24 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath: gitPath,
-		exec:    e,
+		GitPath:      gitPath,
+		exec:         e,
+		repoRootOnce: &sync.Once{},
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec()}
+		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootOnce: &sync.Once{}}
 	}
 
 	newRunner := *g
 	newRunner.WorkDir = workDir
+	// A different WorkDir may resolve to a different root, so reset the memo.
+	newRunner.repoRootOnce = &sync.Once{}
+	newRunner.repoRoot = ""
+	newRunner.repoRootErr = nil
 
 	return &newRunner
 }
@@ -102,12 +111,24 @@ func (g *GitRunner) RequiresGoRepo() error {
 	return nil
 }
 
-// GetRepoRoot returns the root directory of the git repository.
+// GetRepoRoot returns the root directory of the git repository, memoized
+// per-runner. WithWorkDir clears the memo so a derived runner resolves its
+// own root.
 func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
 	}
 
+	g.repoRootOnce.Do(func() {
+		g.repoRoot, g.repoRootErr = g.runRepoRoot(ctx)
+	})
+
+	return g.repoRoot, g.repoRootErr
+}
+
+// runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
+// GetRepoRoot for the memoized entry point.
+func (g *GitRunner) runRepoRoot(ctx context.Context) (string, error) {
 	cmd := g.prepareCommand(ctx, "rev-parse", "--show-toplevel")
 
 	var stdout, stderr bytes.Buffer
