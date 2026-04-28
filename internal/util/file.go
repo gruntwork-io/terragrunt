@@ -529,7 +529,7 @@ func copyFolderContentsFast(
 
 		// Skip .terragrunt-cache before include matching. A user
 		// include like "**" would otherwise pull it back in.
-		if strings.Contains(rel, TerragruntCacheDir) {
+		if slices.Contains(strings.Split(rel, "/"), TerragruntCacheDir) {
 			if isDir {
 				return fs.SkipDir
 			}
