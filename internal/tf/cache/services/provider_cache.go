@@ -130,6 +130,33 @@ func (cache *ProviderCache) PackageDir() string {
 	return cache.packageDir
 }
 
+// RegistryHashes returns the per-platform hashes supplied by the upstream registry.
+// Returns nil when the registry response did not include the
+// `packages` field, in which case lockfile generation falls back to local h1
+// computation plus the shasums document.
+func (cache *ProviderCache) RegistryHashes() map[string][]getproviders.Hash {
+	if cache.ResponseBody == nil || len(cache.Packages) == 0 {
+		return nil
+	}
+
+	out := make(map[string][]getproviders.Hash, len(cache.Packages))
+
+	for platform, pkg := range cache.Packages {
+		if pkg == nil {
+			continue
+		}
+
+		hashes := make([]getproviders.Hash, 0, len(pkg.Hashes))
+		for _, h := range pkg.Hashes {
+			hashes = append(hashes, getproviders.Hash(h))
+		}
+
+		out[platform] = hashes
+	}
+
+	return out
+}
+
 func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getproviders.PackageAuthenticationResult, error) {
 	var (
 		checksum           [sha256.Size]byte

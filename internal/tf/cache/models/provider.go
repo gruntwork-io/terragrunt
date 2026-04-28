@@ -101,19 +101,26 @@ func (platform Platform) String() string {
 	return fmt.Sprintf("%s/%s", platform.OS, platform.Arch)
 }
 
-// ResponseBody represents the details of the Terraform provider received from a registry.
+// PlatformPackage carries the per-platform hash and size data exposed by the
+// OpenTofu provider registry. Consumers can populate `.terraform.lock.hcl`
+// with hashes for every supported platform from a single response, without
+// downloading each provider archive.
+type PlatformPackage struct {
+	Hashes      []string `json:"hashes"`
+	PackageSize int64    `json:"package_size,omitempty"`
+}
+
+// ResponseBody represents the details of the OpenTofu/Terraform provider received from a registry.
 type ResponseBody struct {
+	Packages map[string]*PlatformPackage `json:"packages,omitempty"`
 	Platform
-
-	Protocols []string `json:"protocols,omitempty"`
-	Filename  string   `json:"filename"`
-
-	DownloadURL            string `json:"download_url"`
-	SHA256SumsURL          string `json:"shasums_url,omitempty"`
-	SHA256SumsSignatureURL string `json:"shasums_signature_url,omitempty"`
-
-	SHA256Sum   string         `json:"shasum,omitempty"`
-	SigningKeys SigningKeyList `json:"signing_keys"`
+	Filename               string         `json:"filename"`
+	DownloadURL            string         `json:"download_url"`
+	SHA256SumsURL          string         `json:"shasums_url,omitempty"`
+	SHA256SumsSignatureURL string         `json:"shasums_signature_url,omitempty"`
+	SHA256Sum              string         `json:"shasum,omitempty"`
+	Protocols              []string       `json:"protocols,omitempty"`
+	SigningKeys            SigningKeyList `json:"signing_keys"`
 }
 
 func (body *ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {

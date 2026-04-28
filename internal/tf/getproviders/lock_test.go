@@ -54,6 +54,7 @@ func mockProviderWithConstraints(t *testing.T, ctrl *gomock.Controller, address,
 	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
 	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
 	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
+	provider.EXPECT().RegistryHashes().Return(nil).AnyTimes()
 
 	return provider
 }
@@ -92,6 +93,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
 	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
 	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
+	provider.EXPECT().RegistryHashes().Return(nil).AnyTimes()
 
 	return provider
 }
@@ -266,6 +268,68 @@ provider "registry.terraform.io/hashicorp/template" {
 			assert.Equal(t, tc.expectedLockfile, string(actualLockfile))
 		})
 	}
+}
+
+// mockProviderWithRegistryHashes returns a mock Provider that exposes
+// per-platform hashes, matching the OpenTofu registry's `packages` response
+// field. In this path, lockfile generation skips the local PackageHashV1 /
+// shasums document fallback and uses the registry-supplied hashes.
+func mockProviderWithRegistryHashes(t *testing.T, ctrl *gomock.Controller, address, ver string, hashesByPlatform map[string][]getproviders.Hash) getproviders.Provider {
+	t.Helper()
+
+	provider := mocks.NewMockProvider(ctrl)
+	provider.EXPECT().Address().Return(address).AnyTimes()
+	provider.EXPECT().Version().Return(ver).AnyTimes()
+	provider.EXPECT().Constraints().Return("").AnyTimes()
+	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
+	provider.EXPECT().RegistryHashes().Return(hashesByPlatform).AnyTimes()
+
+	return provider
+}
+
+func TestMockUpdateLockfileWithRegistryHashes(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	provider := mockProviderWithRegistryHashes(t, ctrl,
+		"registry.opentofu.org/hashicorp/aws", "5.37.0",
+		map[string][]getproviders.Hash{
+			"linux_amd64": {
+				"zh:aaaa000000000000000000000000000000000000000000000000000000000001",
+				"h1:LinuxAmd64HashOpentofuRegistryProvidedValueAAA=",
+			},
+			"darwin_arm64": {
+				"zh:bbbb000000000000000000000000000000000000000000000000000000000002",
+				"h1:DarwinArm64HashOpentofuRegistryProvidedValueBBB=",
+			},
+		},
+	)
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
+
+	err := getproviders.UpdateLockfile(t.Context(), workingDir, []getproviders.Provider{provider})
+	require.NoError(t, err)
+
+	actual, err := os.ReadFile(lockfilePath)
+	require.NoError(t, err)
+
+	expected := `
+provider "registry.opentofu.org/hashicorp/aws" {
+  version     = "5.37.0"
+  constraints = "5.37.0"
+  hashes = [
+    "h1:DarwinArm64HashOpentofuRegistryProvidedValueBBB=",
+    "h1:LinuxAmd64HashOpentofuRegistryProvidedValueAAA=",
+    "zh:aaaa000000000000000000000000000000000000000000000000000000000001",
+    "zh:bbbb000000000000000000000000000000000000000000000000000000000002",
+  ]
+}
+`
+
+	assert.Equal(t, expected, string(actual))
 }
 
 // TestMockUpdateLockfilePreservesAggregatedConstraints verifies that when a lock file

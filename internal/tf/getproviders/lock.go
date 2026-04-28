@@ -105,27 +105,15 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 		providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(constraintsValue))
 	}
 
-	h1Hash, err := PackageHashV1(provider.PackageDir())
+	newHashes, err := collectNewHashes(ctx, provider)
 	if err != nil {
 		return err
-	}
-
-	newHashes := []Hash{h1Hash}
-
-	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
-	if err != nil {
-		return err
-	}
-
-	if documentSHA256Sums != nil {
-		zipHashes := DocumentHashes(documentSHA256Sums)
-		newHashes = append(newHashes, zipHashes...)
 	}
 
 	// merge with existing hashes
-	for _, newHashe := range newHashes {
-		if !slices.Contains(hashes, newHashe) {
-			hashes = append(hashes, newHashe)
+	for _, newHash := range newHashes {
+		if !slices.Contains(hashes, newHash) {
+			hashes = append(hashes, newHash)
 		}
 	}
 
@@ -134,6 +122,62 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
 
 	return nil
+}
+
+// collectNewHashes returns the hashes to merge into the lock file for the given
+// provider, preferring registry-supplied hashes when available and otherwise
+// falling back to computing them from the cached package and shasums document.
+func collectNewHashes(ctx context.Context, provider Provider) ([]Hash, error) {
+	if registryHashes := provider.RegistryHashes(); len(registryHashes) > 0 {
+		return uniqueRegistryHashes(registryHashes), nil
+	}
+
+	return computedFallbackHashes(ctx, provider)
+}
+
+// uniqueRegistryHashes flattens the per-platform hashes from the OpenTofu
+// registry's `packages` response field into a deduplicated list. Each input
+// hash is already scheme-prefixed (e.g. `h1:` or `zh:`).
+func uniqueRegistryHashes(byPlatform map[string][]Hash) []Hash {
+	seen := make(map[Hash]struct{})
+
+	var hashes []Hash
+
+	for _, platformHashes := range byPlatform {
+		for _, h := range platformHashes {
+			if _, ok := seen[h]; ok {
+				continue
+			}
+
+			seen[h] = struct{}{}
+			hashes = append(hashes, h)
+		}
+	}
+
+	return hashes
+}
+
+// computedFallbackHashes returns the legacy hash set for a provider: an `h1:`
+// hash derived from the unpacked package on disk, followed by `zh:` hashes
+// parsed from the registry's shasums document.
+func computedFallbackHashes(ctx context.Context, provider Provider) ([]Hash, error) {
+	h1Hash, err := PackageHashV1(provider.PackageDir())
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := []Hash{h1Hash}
+
+	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if documentSHA256Sums != nil {
+		hashes = append(hashes, DocumentHashes(documentSHA256Sums)...)
+	}
+
+	return hashes, nil
 }
 
 func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash, error) {
