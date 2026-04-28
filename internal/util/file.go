@@ -660,7 +660,10 @@ func compileIncludePatterns(patterns []string) (includePatterns, error) {
 	var ancestorParts []string
 
 	for _, p := range patterns {
-		normalized := filepath.ToSlash(p)
+		normalized := strings.TrimRight(filepath.ToSlash(p), "/")
+		if normalized == "" {
+			continue
+		}
 
 		matchParts = append(matchParts, normalized, normalized+"/**")
 
@@ -710,8 +713,16 @@ func compileExcludePattern(patterns []string) (glob.Matcher, error) {
 	parts := make([]string, 0, altsPerPattern*len(patterns))
 
 	for _, p := range patterns {
-		normalized := filepath.ToSlash(p)
+		normalized := strings.TrimRight(filepath.ToSlash(p), "/")
+		if normalized == "" {
+			continue
+		}
+
 		parts = append(parts, normalized, normalized+"/**")
+	}
+
+	if len(parts) == 0 {
+		return nil, nil
 	}
 
 	matcher, err := glob.Compile("{" + strings.Join(parts, ",") + "}")

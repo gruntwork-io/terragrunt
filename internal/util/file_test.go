@@ -311,15 +311,15 @@ func TestIncludeInCopy(t *testing.T) {
 	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
 
 	cases := []copyCase{
-		{"/app/terragrunt.hcl", true},
-		{"/_module/main.tf", true},
-		{"/_module/.region1/info.txt", false},
-		{"/_module/.region3/project3-1/f1-2-levels.txt", false},
-		{"/_module/.region3/project3-1/app1/.include-me-too/file.txt", true},
-		{"/_module/.region3/project3-2/.f0/f0-3-levels.txt", false},
-		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
-		{"/_module/.region2/.project2-1/readme.txt", true},
-		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/_module/main.tf", copyExpected: true},
+		{path: "/_module/.region1/info.txt", copyExpected: false},
+		{path: "/_module/.region3/project3-1/f1-2-levels.txt", copyExpected: false},
+		{path: "/_module/.region3/project3-1/app1/.include-me-too/file.txt", copyExpected: true},
+		{path: "/_module/.region3/project3-2/.f0/f0-3-levels.txt", copyExpected: false},
+		{path: "/_module/.region2/.project2-1/app2/f2-dot-f2.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-1/readme.txt", copyExpected: true},
+		{path: "/_module/.region2/project2-2/f2-dot-f0.txt", copyExpected: true},
 	}
 
 	for _, mode := range []struct {
@@ -339,16 +339,40 @@ func TestExcludeFromCopy(t *testing.T) {
 	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
 
 	cases := []copyCase{
-		{"/app/terragrunt.hcl", true},
-		{"/module/main.tf", true},
-		{"/module/region1/info.txt", true},
-		{"/module/region1/project2-1/app1/f2-dot-f2.txt", false},
-		{"/module/region3/project3-1/f1-2-levels.txt", true},
-		{"/module/region3/project3-1/app1/exclude-me-here/file.txt", false},
-		{"/module/region3/project3-2/f0/f0-3-levels.txt", true},
-		{"/module/region2/project2-1/app2/f2-dot-f2.txt", false},
-		{"/module/region2/project2-1/readme.txt", false},
-		{"/module/region2/project2-2/f2-dot-f0.txt", false},
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/module/main.tf", copyExpected: true},
+		{path: "/module/region1/info.txt", copyExpected: true},
+		{path: "/module/region1/project2-1/app1/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region3/project3-1/f1-2-levels.txt", copyExpected: true},
+		{path: "/module/region3/project3-1/app1/exclude-me-here/file.txt", copyExpected: false},
+		{path: "/module/region3/project3-2/f0/f0-3-levels.txt", copyExpected: true},
+		{path: "/module/region2/project2-1/app2/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region2/project2-1/readme.txt", copyExpected: false},
+		{path: "/module/region2/project2-2/f2-dot-f0.txt", copyExpected: false},
+	}
+
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+			runCopyFolderContentsCase(t, nil, excludeFromCopy, mode.fastCopy, cases)
+		})
+	}
+}
+
+func TestExcludeFromCopyTrailingSlash(t *testing.T) {
+	t.Parallel()
+
+	excludeFromCopy := []string{"module/region2/", "**/app1/"}
+
+	cases := []copyCase{
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/module/region1/info.txt", copyExpected: true},
+		{path: "/module/region1/project2-1/app1/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region2/project2-1/readme.txt", copyExpected: false},
+		{path: "/module/region2/project2-2/f2-dot-f0.txt", copyExpected: false},
 	}
 
 	for _, mode := range []struct {
@@ -369,10 +393,10 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	excludeFromCopy := []string{"**/.project2-2", "_module/.region3"}
 
 	cases := []copyCase{
-		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
-		{"/_module/.region2/.project2-1/readme.txt", true},
-		{"/_module/.region2/.project2-2/f2-dot-f0.txt", false},
-		{"/_module/.region3/.project2-1/readme.txt", false},
+		{path: "/_module/.region2/.project2-1/app2/f2-dot-f2.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-1/readme.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-2/f2-dot-f0.txt", copyExpected: false},
+		{path: "/_module/.region3/.project2-1/readme.txt", copyExpected: false},
 	}
 
 	for _, mode := range []struct {

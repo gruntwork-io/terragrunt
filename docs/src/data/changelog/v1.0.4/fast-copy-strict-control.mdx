@@ -5,7 +5,7 @@ category: "performance-improvements"
 
 #### `fast-copy` strict control
 
-With the new [`fast-copy`](/reference/strict-controls/active#fast-copy) strict control enabled, Terragrunt compiles each `include_in_copy` and `exclude_from_copy` pattern once and evaluates it inline during a single copy walk. This avoids re-walking subdirectories for every pattern, which should result in noticable speed improvements for large source modules.
+With the new [`fast-copy`](/reference/strict-controls/active#fast-copy) strict control enabled, Terragrunt compiles each `include_in_copy` and `exclude_from_copy` pattern once and evaluates it inline during a single copy walk. This avoids re-walking subdirectories for every pattern, which should result in noticeable speed improvements for large source modules.
 
 ```bash
 terragrunt run plan --strict-control fast-copy
