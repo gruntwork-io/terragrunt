@@ -15,17 +15,18 @@ set -euo pipefail
 source "$(dirname "$0")/lib-release-config.sh"
 
 main() {
-  require_env_vars VERSION RELEASE_ID IS_DRAFT GITHUB_STEP_SUMMARY
-  verify_config_file
+	require_env_vars VERSION RELEASE_ID IS_DRAFT GITHUB_STEP_SUMMARY
+	verify_config_file
 
-  echo "Generating upload summary..."
+	echo "Generating upload summary..."
 
-  local binary_count
-  binary_count=$(get_binary_count)
-  local total_count
-  total_count=$(get_total_file_count)
+	local binary_count
+	binary_count=$(get_binary_count)
+	local total_count
+	total_count=$(get_total_file_count)
 
-  cat >>"$GITHUB_STEP_SUMMARY" <<EOF
+	{
+		cat <<EOF
 ## Release Asset Upload Summary
 
 **Version**: $VERSION
@@ -38,10 +39,10 @@ main() {
 |----------|--------------|--------|--------|
 EOF
 
-  # Generate platform table rows from configuration
-  generate_platform_table_rows >>"$GITHUB_STEP_SUMMARY"
+		# Generate platform table rows from configuration
+		generate_platform_table_rows
 
-  cat >>"$GITHUB_STEP_SUMMARY" <<EOF
+		cat <<EOF
 
 **Archive Files**:
 - Individual ZIP archives: $binary_count files (one per binary, with +x permissions)
@@ -52,27 +53,28 @@ EOF
 
 All assets uploaded successfully to existing release!
 EOF
+	} >>"$GITHUB_STEP_SUMMARY"
 
-  echo "Upload summary generated successfully"
+	echo "Upload summary generated successfully"
 
-  return 0
+	return 0
 }
 
 require_env_vars() {
-  local missing=0
+	local missing=0
 
-  for var_name in "$@"; do
-    if [[ -z "${!var_name:-}" ]]; then
-      echo "ERROR: Required environment variable $var_name not set." >&2
-      missing=1
-    fi
-  done
+	for var_name in "$@"; do
+		if [[ -z "${!var_name:-}" ]]; then
+			echo "ERROR: Required environment variable $var_name not set." >&2
+			missing=1
+		fi
+	done
 
-  if [[ "$missing" -eq 1 ]]; then
-    exit 1
-  fi
+	if [[ "$missing" -eq 1 ]]; then
+		exit 1
+	fi
 
-  return 0
+	return 0
 }
 
 main "$@"

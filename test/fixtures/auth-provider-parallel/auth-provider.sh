@@ -25,21 +25,21 @@ echo "Auth start ${INVOCATION_ID}" >&2
 # Wait for other auth commands to also start (up to 500ms)
 # This ensures we test the parallel execution scenario
 WAIT_COUNT=0
-MAX_WAIT=50  # 50 * 10ms = 500ms max wait
+MAX_WAIT=50 # 50 * 10ms = 500ms max wait
 
 while [[ $WAIT_COUNT -lt $MAX_WAIT ]]; do
-    # Count how many auth commands have started
-    STARTED=$(ls -1 "${LOCK_DIR}"/start-* 2>/dev/null | wc -l | tr -d ' \t')
+	# Count how many auth commands have started
+	STARTED=$(find "${LOCK_DIR}" -maxdepth 1 -name 'start-*' 2>/dev/null | wc -l | tr -d ' \t')
 
-    # If we see at least 2 others started (3 total), we know it's parallel
-    if [[ "$STARTED" -ge 2 ]]; then
-        echo "Auth concurrent ${INVOCATION_ID} detected=$STARTED" >&2
-        break
-    fi
+	# If we see at least 2 others started (3 total), we know it's parallel
+	if [[ "$STARTED" -ge 2 ]]; then
+		echo "Auth concurrent ${INVOCATION_ID} detected=$STARTED" >&2
+		break
+	fi
 
-    # Sleep a bit and check again
-    sleep 0.01
-    WAIT_COUNT=$((WAIT_COUNT + 1))
+	# Sleep a bit and check again
+	sleep 0.01
+	WAIT_COUNT=$((WAIT_COUNT + 1))
 done
 
 # Simulate some auth work

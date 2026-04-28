@@ -1,0 +1,46 @@
+name: Shell CI
+
+on:
+  push:
+    paths:
+      - "**.sh"
+      - "**.bats"
+      - ".github/workflows/sh-ci.yml"
+      - "mise.toml"
+
+jobs:
+  test:
+    name: Lint and test shell scripts
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        with:
+          version: 2026.1.9
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: shellcheck
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shellcheck -- shellcheck -x -P SCRIPTDIR
+
+      - name: shfmt
+        run: |
+          find . -name "*.sh" \
+            -not -path "./node_modules/*" \
+            -not -path "./docs/node_modules/*" \
+            -not -path "./.git/*" \
+            -print0 \
+            | xargs -0 mise x shfmt -- shfmt -d
+
+      - name: bats
+        run: mise x bats -- bats --print-output-on-failure .github/scripts/release/tests/
