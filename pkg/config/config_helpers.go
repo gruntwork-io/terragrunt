@@ -536,6 +536,11 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		}
 	}
 
+	// Re-check after option-stripping; otherwise args[0] / args[1:] below panics.
+	if len(args) == 0 {
+		return "", errors.New(EmptyStringNotAllowedError("command parameter to the run_cmd function (only option flags were supplied)"))
+	}
+
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
@@ -1440,8 +1445,8 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 	var result bool
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_startswith", attrs, func(childCtx context.Context) error {
-		if len(args) == 0 {
-			return errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
+		if len(args) != matchedPats {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameStartsWith, Expected: "2", Actual: len(args)})
 		}
 
 		str := args[0]
@@ -1474,8 +1479,8 @@ func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, e
 	var result bool
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_endswith", attrs, func(childCtx context.Context) error {
-		if len(args) == 0 {
-			return errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
+		if len(args) != matchedPats {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameEndsWith, Expected: "2", Actual: len(args)})
 		}
 
 		str := args[0]
@@ -1555,8 +1560,8 @@ func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool
 	var result bool
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_strcontains", attrs, func(childCtx context.Context) error {
-		if len(args) == 0 {
-			return errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
+		if len(args) != matchedPats {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameStrContains, Expected: "2", Actual: len(args)})
 		}
 
 		str := args[0]

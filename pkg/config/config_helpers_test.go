@@ -30,18 +30,30 @@ import (
 )
 
 // assertErrorType checks that the error chain contains an error of the same type as expectedErr.
+// Used by table-driven tests where the expected type is known only at runtime;
+// for static call sites prefer the type-parameterized requireErrorAs helper.
 func assertErrorType(t *testing.T, expectedErr, actualErr error) bool {
 	t.Helper()
 
-	expectedType := reflect.TypeOf(expectedErr)
-
-	for err := actualErr; err != nil; err = errors.Unwrap(err) {
-		if reflect.TypeOf(err) == expectedType {
-			return true
-		}
+	target := reflect.New(reflect.TypeOf(expectedErr)).Interface()
+	if errors.As(actualErr, target) {
+		return true
 	}
 
 	return assert.Fail(t, "error type mismatch", "expected error of type %T in chain, but got %T", expectedErr, actualErr)
+}
+
+// requireErrorAs unwraps err looking for a value of type T and fails the test when none is found.
+// Type-parameterized wrapper over errors.As; prefer over assertErrorType when the target type is
+// known statically.
+func requireErrorAs[T error](t *testing.T, err error) T {
+	t.Helper()
+
+	var target T
+
+	require.ErrorAs(t, err, &target)
+
+	return target
 }
 
 func TestPathRelativeToInclude(t *testing.T) {
@@ -1398,6 +1410,122 @@ func TestConstraintCheck(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.value, actual)
+		})
+	}
+}
+
+// TestStartsWithArityRegression: startswith with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestStartsWithArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"foo"}},
+		{name: "three args", args: []string{"foo", "bar", "baz"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.StartsWith(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+			}, "startswith with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestEndsWithArityRegression: endswith with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestEndsWithArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"foo"}},
+		{name: "three args", args: []string{"foo", "bar", "baz"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.EndsWith(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+			}, "endswith with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestStrContainsArityRegression: strcontains with wrong arity must return WrongNumberOfParamsError, not panic.
+func TestStrContainsArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no args", args: []string{}},
+		{name: "one arg (the bug trigger)", args: []string{"hello"}},
+		{name: "three args", args: []string{"hello", "world", "extra"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.StrContains(ctx, pctx, tc.args)
+				require.Error(t, err, "must return error for wrong arity (%d args)", len(tc.args))
+				requireErrorAs[config.WrongNumberOfParamsError](t, err)
+			}, "strcontains with %d args must not panic", len(tc.args))
+		})
+	}
+}
+
+// TestRunCommandOptionsOnlyArityRegression: run_cmd with only option flags must return EmptyStringNotAllowedError, not panic.
+func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		params []string
+	}{
+		{name: "single quiet flag", params: []string{"--terragrunt-quiet"}},
+		{name: "single no-cache flag", params: []string{"--terragrunt-no-cache"}},
+		{name: "single global-cache flag", params: []string{"--terragrunt-global-cache"}},
+		{name: "two compatible flags", params: []string{"--terragrunt-quiet", "--terragrunt-no-cache"}},
+		{name: "two compatible flags reversed", params: []string{"--terragrunt-no-cache", "--terragrunt-quiet"}},
+		{name: "duplicate quiet", params: []string{"--terragrunt-quiet", "--terragrunt-quiet"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, "")
+
+			require.NotPanics(t, func() {
+				_, err := config.RunCommand(ctx, pctx, l, tc.params)
+				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
+				requireErrorAs[config.EmptyStringNotAllowedError](t, err)
+			}, "run_cmd with options-only %v must not panic", tc.params)
 		})
 	}
 }
