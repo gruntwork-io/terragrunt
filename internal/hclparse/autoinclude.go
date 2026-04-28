@@ -67,7 +67,20 @@ type AutoIncludeDependency struct {
 	ConfigPath string
 }
 
-// Resolve evaluates the autoinclude body using the provided eval context, which must contain unit.* and stack.* variables for path resolution. sourceBytes are the bytes of the file the body was parsed from; they propagate to AutoIncludeResolved so the generator slices expressions from the correct source.
+// Resolve evaluates the autoinclude body using the provided eval context,
+// which must contain unit.* and stack.* variables for path resolution.
+// sourceBytes are the bytes of the file the body was parsed from; they
+// propagate to AutoIncludeResolved so the generator slices expressions
+// from the correct source.
+//
+// The resolution follows three levels:
+//
+//  1. First parse: autoinclude body captured as Remain (unit.*.path not yet available)
+//  2. This method (second parse): dependency.config_path evaluated using unit/stack context.
+//     All other dependency attributes (mock_outputs, etc.) are preserved as raw HCL.
+//  3. inputs and other non-dependency content: NOT evaluated here.
+//     They contain dependency.*.outputs.* which is runtime-only.
+//     The RawBody is preserved so the generator can copy these from the AST.
 func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
