@@ -16,9 +16,13 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
+// Name is the analyzer's identifier, used both as the registered analyzer
+// name and as the keyword recognized in `//nolint:` directives.
+const Name = "synctestcheck"
+
 // Analyzer is the synctestcheck analysis pass.
 var Analyzer = &analysis.Analyzer{
-	Name:     "synctestcheck",
+	Name:     Name,
 	Doc:      "flags real-clock time.* calls in tests that are not inside a testing/synctest bubble",
 	URL:      "https://pkg.go.dev/testing/synctest",
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
@@ -44,6 +48,7 @@ var watched = map[string]bool{
 
 func run(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	suppressed := suppressedLines(pass)
 
 	nodeFilter := []ast.Node{(*ast.CallExpr)(nil)}
 
@@ -72,6 +77,10 @@ func run(pass *analysis.Pass) (any, error) {
 			return true
 		}
 
+		if suppressed[fileLine{pos.Filename, pos.Line}] {
+			return true
+		}
+
 		pass.Reportf(call.Pos(),
 			"prefer testing/synctest (synctest.Test) over real-clock time.%s in tests",
 			name)
@@ -80,6 +89,68 @@ func run(pass *analysis.Pass) (any, error) {
 	})
 
 	return nil, nil
+}
+
+// fileLine identifies a position by file and 1-indexed line number, which
+// is the granularity at which suppression directives apply.
+type fileLine struct {
+	file string
+	line int
+}
+
+// suppressedLines scans every comment in every file of the pass and returns
+// the set of (file, line) pairs at which a report should be silenced. Two
+// directive shapes are recognized, mirroring golangci-lint's nolint syntax:
+//
+//   - A `//nolint:synctestcheck` (or `//nolint:all`, or a comma-separated
+//     list including `synctestcheck`) on the same source line as the
+//     reportable call site silences that line.
+//   - The same directive on its own immediately preceding line silences
+//     the next line, allowing call sites that wouldn't fit a trailing
+//     comment to suppress.
+func suppressedLines(pass *analysis.Pass) map[fileLine]bool {
+	suppressed := make(map[fileLine]bool)
+
+	for _, f := range pass.Files {
+		for _, cg := range f.Comments {
+			for _, c := range cg.List {
+				if !directiveMatches(c.Text) {
+					continue
+				}
+
+				pos := pass.Fset.Position(c.Slash)
+				suppressed[fileLine{pos.Filename, pos.Line}] = true
+				suppressed[fileLine{pos.Filename, pos.Line + 1}] = true
+			}
+		}
+	}
+
+	return suppressed
+}
+
+// directiveMatches reports whether comment text is a //nolint directive
+// that names this analyzer (either explicitly or via the `all` shorthand).
+func directiveMatches(text string) bool {
+	const prefix = "//nolint:"
+
+	if !strings.HasPrefix(text, prefix) {
+		return false
+	}
+
+	// Strip the prefix and any trailing explanatory comment after a space.
+	rest := strings.TrimPrefix(text, prefix)
+	if i := strings.IndexAny(rest, " \t"); i >= 0 {
+		rest = rest[:i]
+	}
+
+	for name := range strings.SplitSeq(rest, ",") {
+		switch strings.TrimSpace(name) {
+		case Name, "all":
+			return true
+		}
+	}
+
+	return false
 }
 
 // timeFuncName returns the function name if call is a selector expression

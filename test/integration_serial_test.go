@@ -647,7 +647,7 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	// sleep for a bit to allow the metrics to be flushed
-	time.Sleep(1 * time.Second)
+	time.Sleep(1 * time.Second) //nolint:synctestcheck // integration test drives external Terragrunt subprocess
 
 	// check that output have Telemetry json output
 	assert.Contains(t, output, "{\"Name\":\"hook_after_hook_2_duration\"")

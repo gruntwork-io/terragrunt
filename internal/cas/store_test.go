@@ -147,7 +147,9 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 		acquired <- true
 
-		time.Sleep(100 * time.Millisecond) // Hold lock briefly
+		// Hold lock briefly.
+		//nolint:synctestcheck // TODO migrate to synctest
+		time.Sleep(100 * time.Millisecond)
 
 		err = lock.Unlock()
 		assert.NoError(t, err)

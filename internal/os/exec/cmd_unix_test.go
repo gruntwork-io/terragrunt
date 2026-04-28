@@ -60,7 +60,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second) //nolint:synctestcheck // kernel-level signal/process timing requires real wall-clock
 
 	start := time.Now()
 
@@ -91,7 +91,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(time.Second)
+	time.Sleep(time.Second) //nolint:synctestcheck // kernel-level signal/process timing requires real wall-clock
 
 	interruptAndWaitForProcess := func() (int, error) {
 		var (
@@ -100,7 +100,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		)
 
 		for {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond) //nolint:synctestcheck // kernel-level signal/process timing requires real wall-clock
 
 			select {
 			case err = <-runChannel:
@@ -142,7 +142,7 @@ func TestGracefulShutdownOnContextCancelUnix(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond) //nolint:synctestcheck // kernel-level signal/process timing requires real wall-clock
 
 	cancel()
 

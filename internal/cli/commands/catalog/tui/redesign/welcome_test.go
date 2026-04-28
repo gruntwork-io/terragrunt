@@ -35,7 +35,7 @@ func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -67,7 +67,7 @@ func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -100,13 +100,13 @@ func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -128,7 +128,7 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 
 	slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(5 * time.Second): //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		case <-ctx.Done():
 		}
 
@@ -168,10 +168,10 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 		})
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'h', Text: "h"})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -198,10 +198,10 @@ func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'x', Text: "x"})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -226,7 +226,7 @@ func TestWelcomeStreamingComponents(t *testing.T) {
 		for _, c := range components {
 			componentCh <- c
 
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		}
 
 		return nil
@@ -235,7 +235,7 @@ func TestWelcomeStreamingComponents(t *testing.T) {
 	m := redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
 
 	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -285,14 +285,14 @@ func runTeaModel(t *testing.T, m tea.Model, width, height int, interact func(p *
 	}()
 
 	// Give the program a moment to start and process the initial WindowSizeMsg.
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 	interact(p)
 
 	select {
 	case fm := <-done:
 		return fm
-	case <-time.After(10 * time.Second):
+	case <-time.After(10 * time.Second): //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		p.Kill()
 		t.Fatal("program did not exit within timeout")
 

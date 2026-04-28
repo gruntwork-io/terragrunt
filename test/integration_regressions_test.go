@@ -538,12 +538,12 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 		cancel()
 	case <-cmdErr:
 		t.Fatal("Command finished before we could interrupt it")
-	case <-time.After(3 * time.Second):
+	case <-time.After(3 * time.Second): //nolint:synctestcheck // integration test drives external Terragrunt subprocess
 		t.Fatal("No output appeared before timeout")
 	}
 
 	// Wait briefly for flush to occur after cancellation
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond) //nolint:synctestcheck // integration test drives external Terragrunt subprocess
 
 	outputAfterCancel := stdoutBuf.String() + stderrBuf.String()
 	writesAfterCancel := stdout.getWriteCount() + stderr.getWriteCount()
@@ -552,7 +552,7 @@ func TestOutputFlushOnInterrupt(t *testing.T) {
 	select {
 	case <-cmdErr:
 		// Command finished
-	case <-time.After(5 * time.Second):
+	case <-time.After(5 * time.Second): //nolint:synctestcheck // integration test drives external Terragrunt subprocess
 		t.Logf("Command still running after cancellation")
 	}
 

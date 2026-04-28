@@ -58,7 +58,7 @@ func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 
 		// Sleep for a random amount of time to represent this goroutine doing work
 		randomSleepTime := rand.Intn(100)
-		time.Sleep(time.Duration(randomSleepTime) * time.Millisecond)
+		time.Sleep(time.Duration(randomSleepTime) * time.Millisecond) //nolint:synctestcheck // TODO migrate to synctest
 	}
 
 	// Fire up a whole bunch of goroutines that will all try to acquire the semaphore at the same time
