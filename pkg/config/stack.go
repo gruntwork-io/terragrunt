@@ -983,7 +983,7 @@ func hasAutoIncludeInProductionConfig(stackFile *StackConfig) bool {
 	return false
 }
 
-// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block.
+// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false here, matching the production parser's autoinclude support which is native-only.
 func hasAutoIncludeInBody(body hcl.Body) bool {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {

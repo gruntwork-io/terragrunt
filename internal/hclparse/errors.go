@@ -134,8 +134,9 @@ func (e LocalsMaxIterError) Error() string {
 	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
 
-// MalformedDependencyError indicates a dependency block in an autoinclude file is malformed.
+// MalformedDependencyError indicates a dependency block in an autoinclude file is malformed. Wrapped optionally carries the original HCL diagnostics so callers can extract position info via errors.As/Is.
 type MalformedDependencyError struct {
+	Wrapped  error
 	FilePath string
 	Name     string
 	Reason   string
@@ -143,4 +144,8 @@ type MalformedDependencyError struct {
 
 func (e MalformedDependencyError) Error() string {
 	return fmt.Sprintf("malformed dependency %q in %s: %s", e.Name, e.FilePath, e.Reason)
+}
+
+func (e MalformedDependencyError) Unwrap() error {
+	return e.Wrapped
 }

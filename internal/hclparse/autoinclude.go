@@ -188,17 +188,25 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 
 	paths := make([]string, 0, len(body.Blocks))
 
+	var errs []error
+
 	for _, block := range body.Blocks {
-		depPath, found, extractErr := extractDepPath(block, autoIncludePath, unitDir)
-		if extractErr != nil {
-			return nil, extractErr
+		if !isDepBlock(block) {
+			continue
 		}
 
-		if !found {
+		depPath, extractErr := extractDepPath(block, autoIncludePath, unitDir)
+		if extractErr != nil {
+			errs = append(errs, extractErr)
+
 			continue
 		}
 
 		paths = append(paths, depPath)
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	return paths, nil
@@ -228,26 +236,27 @@ func readAutoIncludeBody(fs vfs.FS, autoIncludePath string) (*hclsyntax.Body, er
 	return body, nil
 }
 
-// extractDepPath returns the resolved config_path for a dependency block, or (_, false, nil) when the block is not a dependency.
-func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (string, bool, error) {
-	if block.Type != blockDependency || len(block.Labels) == 0 {
-		return "", false, nil
-	}
+// isDepBlock reports whether block is a labeled dependency block (the only kind AutoIncludeDependencyPaths processes).
+func isDepBlock(block *hclsyntax.Block) bool {
+	return block.Type == blockDependency && len(block.Labels) > 0
+}
 
+// extractDepPath returns the resolved config_path for a dependency block. Caller must filter via isDepBlock first.
+func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
 	name := block.Labels[0]
 
 	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
 	if !exists {
-		return "", false, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "missing config_path attribute"}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "missing config_path attribute"}
 	}
 
 	val, valDiags := configPathAttr.Expr.Value(nil)
 	if valDiags.HasErrors() {
-		return "", false, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error()}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Wrapped: valDiags}
 	}
 
 	if !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
-		return "", false, MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a known string literal"}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a known string literal"}
 	}
 
 	depPath := val.AsString()
@@ -255,5 +264,5 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 		depPath = filepath.Clean(filepath.Join(unitDir, depPath))
 	}
 
-	return util.ResolvePath(depPath), true, nil
+	return util.ResolvePath(depPath), nil
 }
