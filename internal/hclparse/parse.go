@@ -85,11 +85,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 	stackTargetDir := filepath.Join(input.StackDir, StackDir)
 
 	unitRefs := buildRefsWithAbsPath(stackTargetDir, stackFile.Units)
-
-	stackRefs, err := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
-	if err != nil {
-		return nil, err
-	}
+	stackRefs := buildStackRefsWithAbsPath(fs, input.StackDir, stackTargetDir, stackFile.Stacks, 0)
 
 	// Pass 2: resolve autoinclude blocks using the eval context.
 	evalCtx := BuildAutoIncludeEvalContext(unitRefs, stackRefs)
@@ -393,7 +389,7 @@ func buildRefsWithAbsPath(stackTargetDir string, units []*UnitBlockHCL) []Compon
 }
 
 // buildStackRefsWithAbsPath builds ComponentRef values for stack blocks and discovers their child units.
-func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) ([]ComponentRef, error) {
+func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string, stacks []*StackBlockHCL, depth int) []ComponentRef {
 	refs := make([]ComponentRef, 0, len(stacks))
 
 	for _, s := range stacks {
@@ -404,17 +400,12 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 			sourceDir = filepath.Join(stackDir, sourceDir)
 		}
 
-		childRefs, err := discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, depth+1)
-		if err != nil {
-			return nil, err
-		}
-
 		refs = append(refs, ComponentRef{
 			Name:      s.Name,
 			Path:      stackGenPath,
-			ChildRefs: childRefs,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, sourceDir, stackGenPath, depth+1),
 		})
 	}
 
-	return refs, nil
+	return refs
 }

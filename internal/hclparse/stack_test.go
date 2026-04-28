@@ -183,8 +183,7 @@ unit "db" {
 }
 `), 0644))
 
-	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-	require.NoError(t, err)
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
 	require.Len(t, refs, 2)
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "vpc"), refs[0].Path)
@@ -210,8 +209,7 @@ unit "db" {
 }
 `), 0644))
 
-	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-	require.NoError(t, err)
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
 	require.Len(t, refs, 2)
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", "vpc"), refs[0].Path)
@@ -224,8 +222,7 @@ func TestDiscoverStackChildUnits_NoStackFile(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	refs, err := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
-	require.NoError(t, err)
+	refs := hclparse.DiscoverStackChildUnits(fs, "/nonexistent", "/gen")
 	assert.Nil(t, refs)
 }
 
@@ -413,21 +410,20 @@ unit "db" {
 	symlinkSrcDir := filepath.Join(tmpDir, "symlinked-source")
 	require.NoError(t, os.Symlink(realSrcDir, symlinkSrcDir))
 
-	refs, err := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
-	require.NoError(t, err)
+	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
 	require.Len(t, refs, 1)
 	assert.Equal(t, "db", refs[0].Name)
 }
 
-func TestDiscoverStackChildUnits_MalformedReturnsError(t *testing.T) {
+// Best-effort discovery: a malformed nested stack file yields empty refs without an error so the parent stack still parses.
+func TestDiscoverStackChildUnits_MalformedReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
 	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`unit "x" { source = "."`), 0644))
 
-	refs, err := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen")
-	require.Error(t, err)
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen")
 	assert.Nil(t, refs)
 }
 

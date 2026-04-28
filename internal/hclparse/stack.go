@@ -235,23 +235,22 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
 // to prevent infinite loops from circular stack references.
 const maxDiscoverDepth = 1000
 
-// DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution.
-func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) ([]ComponentRef, error) {
+// DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution. Best-effort: nested parse failures yield empty refs, never an error.
+func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
 	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
 }
 
-func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) ([]ComponentRef, error) {
+func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir string, depth int) []ComponentRef {
 	if depth > maxDiscoverDepth {
-		return nil, nil
+		return nil
 	}
 
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if result == nil {
-		return nil, nil
+	if err != nil || result == nil {
+		// Nested stack discovery is best-effort enrichment for stack.<name>.<unit>.path references.
+		// A parse failure here only means those chained refs won't resolve; parent stack autoinclude
+		// still evaluates, and any reference to an undiscovered child surfaces as an HCL "unknown variable" error.
+		return nil
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
@@ -278,17 +277,12 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
 		}
 
-		childRefs, childErr := discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1)
-		if childErr != nil {
-			return nil, childErr
-		}
-
 		refs = append(refs, ComponentRef{
 			Name:      s.Name,
 			Path:      nestedGenPath,
-			ChildRefs: childRefs,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
 		})
 	}
 
-	return refs, nil
+	return refs
 }

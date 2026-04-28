@@ -267,7 +267,7 @@ unit "app" { source = "."; path = "app"
 			StackDir: "/fuzz/live",
 		})
 
-		_, _ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
+		_ = hclparse.DiscoverStackChildUnits(fs, "/fuzz/stacks/mid", "/fuzz/gen")
 	})
 }
 
