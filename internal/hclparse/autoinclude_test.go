@@ -282,6 +282,56 @@ dependency "vpc" {
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
 }
 
+// Each malformed dependency block surfaces as a typed MalformedDependencyError naming the dependency: the contract is loud-fail, not silent skip.
+func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		content        string
+		wantDepName    string
+		wantReasonPart string
+	}{
+		{
+			name:           "missing config_path",
+			content:        `dependency "x" {}`,
+			wantDepName:    "x",
+			wantReasonPart: "missing config_path",
+		},
+		{
+			name:           "non-string config_path",
+			content:        `dependency "x" { config_path = 42 }`,
+			wantDepName:    "x",
+			wantReasonPart: "config_path must be a known string literal",
+		},
+		{
+			name:           "unevaluable config_path",
+			content:        `dependency "x" { config_path = unit.vpc.path }`,
+			wantDepName:    "x",
+			wantReasonPart: "config_path",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(tc.content), 0644))
+
+			paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+			assert.Nil(t, paths)
+			require.Error(t, err)
+
+			var malformedErr hclparse.MalformedDependencyError
+			require.ErrorAs(t, err, &malformedErr)
+			assert.Equal(t, tc.wantDepName, malformedErr.Name)
+			assert.Contains(t, malformedErr.Reason, tc.wantReasonPart)
+			assert.Contains(t, err.Error(), `malformed dependency "x"`)
+		})
+	}
+}
+
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
 func parseHCLBody(t *testing.T, src string) hcl.Body {
 	t.Helper()

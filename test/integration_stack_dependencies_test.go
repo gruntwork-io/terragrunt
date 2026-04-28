@@ -17,15 +17,16 @@ import (
 )
 
 const (
-	testFixtureStackDepsAutoInclude = "fixtures/stacks/stack-dependencies-autoinclude"
-	testFixtureStackDepsStackRef    = "fixtures/stacks/stack-dependencies-stack-ref"
-	testFixtureStackDepsBasic       = "fixtures/stacks/stack-deps-basic"
-	testFixtureStackDepsChain       = "fixtures/stacks/stack-deps-chain"
-	testFixtureStackDepsCrossStack  = "fixtures/stacks/stack-deps-cross-stack"
-	testFixtureStackDepsUnitInStack = "fixtures/stacks/stack-deps-unit-in-stack"
-	testFixtureStackDepsEntireStack = "fixtures/stacks/stack-deps-entire-stack"
-	testFixtureStackDepsNestedStack = "fixtures/stacks/stack-deps-nested-stack"
-	testFixtureStackDepsIssue5980   = "fixtures/stacks/stack-deps-issue-5980"
+	testFixtureStackDepsAutoInclude      = "fixtures/stacks/stack-dependencies-autoinclude"
+	testFixtureStackDepsStackRef         = "fixtures/stacks/stack-dependencies-stack-ref"
+	testFixtureStackDepsBasic            = "fixtures/stacks/stack-deps-basic"
+	testFixtureStackDepsChain            = "fixtures/stacks/stack-deps-chain"
+	testFixtureStackDepsCrossStack       = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsUnitInStack      = "fixtures/stacks/stack-deps-unit-in-stack"
+	testFixtureStackDepsEntireStack      = "fixtures/stacks/stack-deps-entire-stack"
+	testFixtureStackDepsNestedStack      = "fixtures/stacks/stack-deps-nested-stack"
+	testFixtureStackDepsIssue5980        = "fixtures/stacks/stack-deps-issue-5980"
+	testFixtureStackDepsIssue5980Include = "fixtures/stacks/stack-deps-issue-5980-include"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -476,12 +477,7 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	assert.Equal(t, expectedPath, depPaths[0])
 }
 
-// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails is a regression test for
-// https://github.com/gruntwork-io/terragrunt/issues/5980. The stack file uses
-// find_in_parent_folders() in `source` (which the simplified two-pass autoinclude
-// parser cannot decode) AND declares an autoinclude block. Prior behavior silently
-// skipped autoinclude generation at debug level; the fix makes it a hard error so
-// the user immediately knows their autoinclude config will not be honored.
+// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails is a regression test for https://github.com/gruntwork-io/terragrunt/issues/5980. The fixture uses format() in `path` (which the simplified two-pass autoinclude parser cannot decode but the production parser handles) AND declares an autoinclude block. Prior behavior silently skipped autoinclude generation at debug level; the fix makes it a hard error so the user immediately knows their autoinclude config will not be honored.
 func TestStackDepsIssue5980_FailsLoudWhenAutoIncludeParseFails(t *testing.T) {
 	t.Parallel()
 
@@ -525,4 +521,21 @@ unit "vpc" {
 
 	require.DirExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc"))
 	require.NoFileExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc", "terragrunt.autoinclude.hcl"))
+}
+
+// TestStackDepsIssue5980_FailsLoudWhenAutoIncludeInIncludedFile is the include-aware regression: the root stack file has only an `include` block; the autoinclude declaration plus the parser-incompatible HCL function live in the included file. The hard-error path must still fire so the user is not silently dropped.
+func TestStackDepsIssue5980_FailsLoudWhenAutoIncludeInIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsIssue5980Include)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsIssue5980Include)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsIssue5980Include, "live")
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file the two-pass parser cannot process")
+
+	combined := err.Error() + stderr
+	assert.Contains(t, combined, "autoinclude", "error must mention the autoinclude failure so the user can locate the issue: err=%q stderr=%q", err.Error(), stderr)
 }

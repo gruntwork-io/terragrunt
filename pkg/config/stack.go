@@ -120,8 +120,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Hard error when an autoinclude block is declared: silent skip would mask the bug for the user.
-			if inthclparse.HasAutoIncludeBlock(stackSrcBytes, stackFilePath) {
+			// Hard error when an autoinclude block is declared anywhere reachable (root or any include block): silent skip would mask the bug for the user.
+			if inthclparse.HasAutoIncludeBlock(vfs.NewOSFS(), stackSourceDir, stackSrcBytes, stackFilePath) {
 				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 			}
 

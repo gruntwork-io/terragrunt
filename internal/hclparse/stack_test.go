@@ -522,9 +522,12 @@ unit "vpc" {
 			want: false,
 		},
 		{
-			name: "syntax error",
-			src:  `unit "x" { broken`,
-			want: false,
+			name: "syntax error with autoinclude still detected",
+			src: `unit "x" {
+  broken
+  autoinclude {}
+}`,
+			want: true,
 		},
 		{
 			name: "autoinclude detected even when source uses HCL functions the two-pass parser cannot decode",
@@ -543,7 +546,38 @@ unit "app" {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, hclparse.HasAutoIncludeBlock([]byte(tc.src), "test.hcl"))
+			assert.Equal(t, tc.want, hclparse.HasAutoIncludeBlock(nil, "", []byte(tc.src), "test.hcl"))
 		})
 	}
+}
+
+// Regression: root file has only an include block; the autoinclude lives in the included file. The guard must follow includes so the user gets a hard error instead of silent skip.
+func TestHasAutoIncludeBlock_FollowsIncludes(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/shared.hcl", []byte(`
+unit "app" {
+  source = "../app"
+  path   = "app"
+  autoinclude {
+    dependency "vpc" { config_path = unit.vpc.path }
+  }
+}
+`), 0644))
+
+	root := []byte(`include "shared" { path = "./shared.hcl" }`)
+	assert.True(t, hclparse.HasAutoIncludeBlock(fs, "/test", root, "/test/terragrunt.stack.hcl"))
+}
+
+// Sanity: include with relative path that doesn't resolve to an existing file is silently skipped (not a hard error).
+func TestHasAutoIncludeBlock_MissingIncludeIgnored(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+
+	root := []byte(`include "shared" { path = "./does-not-exist.hcl" }`)
+	assert.False(t, hclparse.HasAutoIncludeBlock(fs, "/test", root, "/test/terragrunt.stack.hcl"))
 }

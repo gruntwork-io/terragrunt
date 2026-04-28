@@ -13,12 +13,42 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-const blockAutoinclude = "autoinclude"
+const (
+	blockAutoinclude = "autoinclude"
+	blockUnit        = "unit"
+	blockStack       = "stack"
+	blockInclude     = "include"
+	attrPath         = "path"
+)
 
-// HasAutoIncludeBlock reports whether any unit or stack block in src declares an autoinclude block.
-func HasAutoIncludeBlock(src []byte, filename string) bool {
-	file, diags := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
+// HasAutoIncludeBlock reports whether any unit or stack block in src — or in any single-level include reachable from src — declares an autoinclude block. fs+stackDir are used to resolve include paths; pass (nil, "") to skip include resolution.
+func HasAutoIncludeBlock(fs vfs.FS, stackDir string, src []byte, filename string) bool {
+	if hasAutoIncludeInBytes(src, filename) {
+		return true
+	}
+
+	if fs == nil || stackDir == "" {
+		return false
+	}
+
+	for _, includePath := range includeFilePaths(src, filename, stackDir) {
+		data, err := vfs.ReadFile(fs, includePath)
+		if err != nil {
+			continue
+		}
+
+		if hasAutoIncludeInBytes(data, includePath) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasAutoIncludeInBytes scans a single file for unit/stack blocks containing autoinclude. Tolerates partial syntax errors so a malformed file with autoinclude still surfaces.
+func hasAutoIncludeInBytes(src []byte, filename string) bool {
+	file, _ := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if file == nil || file.Body == nil {
 		return false
 	}
 
@@ -28,7 +58,7 @@ func HasAutoIncludeBlock(src []byte, filename string) bool {
 	}
 
 	for _, block := range body.Blocks {
-		if block.Type != "unit" && block.Type != "stack" {
+		if block.Type != blockUnit && block.Type != blockStack {
 			continue
 		}
 
@@ -40,6 +70,46 @@ func HasAutoIncludeBlock(src []byte, filename string) bool {
 	}
 
 	return false
+}
+
+// includeFilePaths returns the absolute paths referenced by literal-string `path` attributes on top-level `include` blocks.
+func includeFilePaths(src []byte, filename, stackDir string) []string {
+	file, _ := hclsyntax.ParseConfig(src, filename, hcl.Pos{Line: 1, Column: 1})
+	if file == nil || file.Body == nil {
+		return nil
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+
+	var paths []string
+
+	for _, block := range body.Blocks {
+		if block.Type != blockInclude {
+			continue
+		}
+
+		pathAttr, exists := block.Body.Attributes[attrPath]
+		if !exists {
+			continue
+		}
+
+		val, diags := pathAttr.Expr.Value(nil)
+		if diags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
+			continue
+		}
+
+		p := val.AsString()
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(stackDir, p)
+		}
+
+		paths = append(paths, p)
+	}
+
+	return paths
 }
 
 // StackFileHCL represents the first-phase parse of a terragrunt.stack.hcl file.
