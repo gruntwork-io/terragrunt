@@ -126,6 +126,18 @@ func Symlink(fs FS, oldname, newname string) error {
 	return linker.SymlinkIfPossible(oldname, newname)
 }
 
+// Readlink reads the target of a symbolic link. It uses afero's
+// ReadlinkIfPossible which is supported by OsFs and any FS implementing
+// afero.Symlinker.
+func Readlink(fs FS, name string) (string, error) {
+	reader, ok := fs.(afero.Symlinker)
+	if !ok {
+		return "", &os.PathError{Op: "readlink", Path: name, Err: afero.ErrNoSymlink}
+	}
+
+	return reader.ReadlinkIfPossible(name)
+}
+
 // Lock acquires a blocking lock for the given name on the filesystem.
 func Lock(fs FS, name string) (Unlocker, error) {
 	locker, ok := fs.(Locker)

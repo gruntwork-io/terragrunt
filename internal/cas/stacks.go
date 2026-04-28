@@ -407,8 +407,15 @@ func isLocalPath(source string) bool {
 		return false
 	}
 
+	// Filesystem absolute paths must be classified as local before any URL
+	// parsing. On Windows, "C:\..." would otherwise be read as a URL with
+	// scheme "C" and routed to the remote flow.
+	if filepath.IsAbs(source) {
+		return true
+	}
+
 	// SSH shorthand like git@github.com:owner/repo.git — no scheme but not local.
-	if strings.Contains(source, "@") && strings.Contains(source, ":") && !filepath.IsAbs(source) {
+	if strings.Contains(source, "@") && strings.Contains(source, ":") {
 		return false
 	}
 
@@ -463,8 +470,22 @@ func (c *CAS) processLocalStackComponent(
 	}
 
 	contentDir := repoRoot
+
 	if subdir != "" {
-		contentDir = filepath.Join(repoRoot, subdir)
+		if filepath.IsAbs(subdir) {
+			cleanup()
+
+			return nil, fmt.Errorf("%w: %q", ErrSourceEscapesRepo, subdir)
+		}
+
+		contentDir = filepath.Clean(filepath.Join(repoRoot, subdir))
+
+		rel, err := filepath.Rel(repoRoot, contentDir)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			cleanup()
+
+			return nil, fmt.Errorf("%w: %q", ErrSourceEscapesRepo, subdir)
+		}
 	}
 
 	if _, err := os.Stat(contentDir); err != nil {
@@ -493,8 +514,8 @@ func (c *CAS) processLocalStackComponent(
 }
 
 // copyTree copies the directory tree rooted at src into dst using c.fs for all
-// reads and writes, preserving file permissions. Regular files and directories
-// are copied; symlinks and other special files are skipped.
+// reads and writes, preserving file permissions. Regular files, directories,
+// and symlinks are copied; other special files are skipped.
 func (c *CAS) copyTree(src, dst string) error {
 	return vfs.WalkDir(c.fs, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -517,39 +538,58 @@ func (c *CAS) copyTree(src, dst string) error {
 			return c.fs.MkdirAll(target, DefaultDirPerms)
 		}
 
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := vfs.Readlink(c.fs, path)
+			if err != nil {
+				return err
+			}
+
+			if err := c.fs.MkdirAll(filepath.Dir(target), DefaultDirPerms); err != nil {
+				return err
+			}
+
+			return vfs.Symlink(c.fs, linkTarget, target)
+		}
+
 		if !info.Mode().IsRegular() {
 			return nil
 		}
 
-		if err := c.fs.MkdirAll(filepath.Dir(target), DefaultDirPerms); err != nil {
-			return err
-		}
-
-		in, err := c.fs.Open(path)
-		if err != nil {
-			return err
-		}
-
-		out, err := c.fs.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
-		if err != nil {
-			_ = in.Close()
-
-			return err
-		}
-
-		if _, err := io.Copy(out, in); err != nil {
-			_ = in.Close()
-			_ = out.Close()
-
-			return err
-		}
-
-		if err := in.Close(); err != nil {
-			_ = out.Close()
-
-			return err
-		}
-
-		return out.Close()
+		return c.copyFileInFS(path, target, info.Mode().Perm())
 	})
+}
+
+// copyFileInFS copies a single regular file from srcPath to dstPath through
+// c.fs, creating any missing parent directories with DefaultDirPerms.
+func (c *CAS) copyFileInFS(srcPath, dstPath string, perm fs.FileMode) error {
+	if err := c.fs.MkdirAll(filepath.Dir(dstPath), DefaultDirPerms); err != nil {
+		return err
+	}
+
+	in, err := c.fs.Open(srcPath)
+	if err != nil {
+		return err
+	}
+
+	out, err := c.fs.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		_ = in.Close()
+
+		return err
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		_ = in.Close()
+		_ = out.Close()
+
+		return err
+	}
+
+	if err := in.Close(); err != nil {
+		_ = out.Close()
+
+		return err
+	}
+
+	return out.Close()
 }

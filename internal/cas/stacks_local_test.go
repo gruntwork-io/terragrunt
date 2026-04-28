@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,8 +70,8 @@ unit "plain" {
 }
 
 // snapshotTree reads every regular file under root and returns a sha256 of the
-// sorted (relpath, contents) pairs. Used to prove a run didn't mutate the
-// source tree.
+// (relpath, mode, contents) triples in walk order. Used to prove a run didn't
+// mutate the source tree, including file permissions.
 func snapshotTree(t *testing.T, root string) string {
 	t.Helper()
 
@@ -96,6 +97,8 @@ func snapshotTree(t *testing.T, root string) string {
 		}
 
 		h.Write([]byte(rel))
+		h.Write([]byte{0})
+		h.Write([]byte(info.Mode().String()))
 		h.Write([]byte{0})
 		h.Write(body)
 		h.Write([]byte{0})
@@ -293,6 +296,7 @@ func TestProcessStackComponent_LocalSource_NonExistentPath(t *testing.T) {
 
 	_, err := c.ProcessStackComponent(t.Context(), l, source, "stack")
 	require.Error(t, err, "non-existent local path must fail")
+	require.ErrorIs(t, err, fs.ErrNotExist, "error must be a local file-not-found error")
 }
 
 func TestProcessStackComponent_LocalSource_RegularFileRejected(t *testing.T) {
@@ -301,10 +305,10 @@ func TestProcessStackComponent_LocalSource_RegularFileRejected(t *testing.T) {
 	c := newCAS(t)
 	l := logger.CreateLogger()
 
-	// A regular file is not a valid component source. isLocalPath returns false
-	// for files, so this falls through to the remote flow and fails at URL
-	// parsing / ls-remote — either way, it must return an error rather than
-	// silently succeeding.
+	// A regular file is not a valid component source. The local flow rejects
+	// non-directories with ErrNotADirectory; the remote flow would fail at URL
+	// parsing / ls-remote. Either way, the call must return an error rather
+	// than silently succeeding.
 	tmp := helpers.TmpDirWOSymlinks(t)
 	filePath := filepath.Join(tmp, "a-file")
 	require.NoError(t, os.WriteFile(filePath, []byte("x"), 0o644))

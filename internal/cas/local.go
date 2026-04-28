@@ -68,6 +68,17 @@ func (c *CAS) buildLocalTree(dir string, alg HashAlgorithm) (string, []byte, err
 			return nil
 		}
 
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", path, err)
+		}
+
+		// Skip symlinks and other non-regular entries to keep the synthetic
+		// tree consistent with copyTree, which only copies regular files.
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err
@@ -79,11 +90,6 @@ func (c *CAS) buildLocalTree(dir string, alg HashAlgorithm) (string, []byte, err
 		fileHash, err := hashFileAlg(c.fs, path, alg)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
-		}
-
-		info, err := d.Info()
-		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", path, err)
 		}
 
 		mode := fmt.Sprintf("%06o", info.Mode().Perm())
@@ -118,6 +124,15 @@ func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeDat
 		}
 
 		if d.IsDir() {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", path, err)
+		}
+
+		if !info.Mode().IsRegular() {
 			return nil
 		}
 

@@ -485,7 +485,7 @@ func fetchComponentSource(
 	}
 
 	if opts.casEnabled {
-		casErr := fetchViaCAS(ctx, l, opts, kindStr, source, dest)
+		casErr := fetchViaCAS(ctx, l, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
 		}
@@ -521,9 +521,11 @@ func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
 	opts *generateOpts,
-	kindStr, source, dest string,
+	sourceDir, kindStr, source, dest string,
 ) error {
-	result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
+	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
+
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, resolvedSource, kindStr)
 	if err != nil {
 		return err
 	}
@@ -544,6 +546,33 @@ func fetchViaCAS(
 	}
 
 	return nil
+}
+
+// resolveLocalCASSource normalizes a relative local source against sourceDir so
+// ProcessStackComponent's filepath.Abs/Stat resolve against the stack file
+// rather than the process CWD. Remote sources, absolute paths, and any source
+// that doesn't look like a local path are returned unchanged. The "//" subdir
+// suffix used by go-getter is preserved.
+func resolveLocalCASSource(l log.Logger, sourceDir, source string) string {
+	if source == "" || sourceDir == "" {
+		return source
+	}
+
+	basePath, subdir := getter.SourceDirSubdir(source)
+	if filepath.IsAbs(basePath) || !isLocal(l, sourceDir, basePath) {
+		return source
+	}
+
+	abs, err := filepath.Abs(filepath.Join(sourceDir, basePath))
+	if err != nil {
+		return source
+	}
+
+	if subdir != "" {
+		return abs + "//" + subdir
+	}
+
+	return abs
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).

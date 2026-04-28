@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -2413,12 +2414,12 @@ func TestCASInStacksLocalSource(t *testing.T) {
 `)
 
 	liveStack := fmt.Sprintf(`stack "foo" {
-  source = "%s//stacks/foo"
+  source = %s
   path   = "foo"
 
   update_source_with_cas = true
 }
-`, catalog)
+`, strconv.Quote(filepath.ToSlash(catalog)+"//stacks/foo"))
 	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(

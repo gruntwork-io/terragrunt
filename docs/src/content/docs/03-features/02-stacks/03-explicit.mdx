@@ -487,7 +487,7 @@ stack "service" {
 }
 ```
 
-Terragrunt copies the referenced directory into a temporary directory, computes a content-addressed root hash over `(relative path, mode, file content)` triples using SHA-256, and rewrites nested `source` attributes against that copy. The original directory is never modified, so the catalog on disk stays clean even though the rewritten `source` values need somewhere to live.
+Terragrunt copies the referenced directory into a temporary directory, computes a content-addressed root hash over `(relative path, mode, file-content hash)` triples using SHA-256, and rewrites nested `source` attributes against that copy. The original directory is never modified, so the catalog on disk stays clean even though the rewritten `source` values need somewhere to live.
 
 This is useful when iterating on a catalog before tagging a release: the same `update_source_with_cas = true` attributes in the catalog's `terragrunt.stack.hcl` and `terragrunt.hcl` files apply unchanged, whether consumers pull the catalog over Git or point at a local checkout.
 
