@@ -95,6 +95,17 @@ func FileExists(vfs FS, path string) (bool, error) {
 	return false, err
 }
 
+// Lstat returns the FileInfo for the named path without following symlinks.
+// Filesystems that do not implement afero.Lstater fall back to Stat.
+func Lstat(fsys FS, path string) (os.FileInfo, error) {
+	if lstater, ok := fsys.(afero.Lstater); ok {
+		info, _, err := lstater.LstatIfPossible(path)
+		return info, err
+	}
+
+	return fsys.Stat(path)
+}
+
 // WriteFile writes data to a file on the given filesystem.
 func WriteFile(fs FS, filename string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(filename)

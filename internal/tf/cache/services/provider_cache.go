@@ -321,6 +321,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return nil
 	}
 
+	// vfs.FileExists uses Stat, which follows symlinks. A dangling symlink
+	// (e.g. left over from a previous run that pointed at ~/.terraform.d/plugins
+	// before that directory was moved or deleted) reports as non-existent here
+	// but still trips MkdirAll downstream with "file exists". Remove only the
+	// symlink itself before the download or user-plugin symlink path runs.
+	if err := cache.removeStaleSymlink(fs); err != nil {
+		return err
+	}
+
 	if err := fs.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
 		return errors.New(err)
 	}
@@ -409,6 +418,34 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 	}
 
 	return req, nil
+}
+
+// removeStaleSymlink removes a dangling symlink at cache.packageDir, if one is
+// present. The caller has already confirmed via vfs.FileExists (Stat-based)
+// that no real cached package is here. The only artifact this method deletes
+// is a symlink whose target has gone missing, typically because the user
+// moved or removed ~/.terraform.d/plugins after a prior run. A regular file
+// or directory at this path is unexpected and surfaces as an error rather
+// than a deletion.
+func (cache *ProviderCache) removeStaleSymlink(fs vfs.FS) error {
+	info, err := vfs.Lstat(fs, cache.packageDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+
+		return errors.Errorf("failed to inspect provider package path %q: %w", cache.packageDir, err)
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		return &UnexpectedProviderCachePathError{Path: cache.packageDir, Mode: info.Mode()}
+	}
+
+	if err := fs.Remove(cache.packageDir); err != nil {
+		return errors.Errorf("failed to clear stale provider package symlink %q: %w", cache.packageDir, err)
+	}
+
+	return nil
 }
 
 func (cache *ProviderCache) removeArchive() error {

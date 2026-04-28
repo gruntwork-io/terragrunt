@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### Fixed `failed to create directory ...: file exists` from the provider cache server
+
+If a previous run had cached a provider by symlinking `~/.terraform.d/plugins/<provider>` into Terragrunt's own provider cache, and that user plugin directory was later moved or deleted, the symlink was left dangling. The next run failed with `failed to create directory ...: file exists` and refused to cache the provider.
+
+Terragrunt now removes a dangling symlink at the cache path on the next run and proceeds to download the provider. A non-symlink at that path is left in place and surfaced as an error.
