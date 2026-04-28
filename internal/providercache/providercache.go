@@ -152,11 +152,12 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
-	// Include custom host blocks from user config so the cache server handles them.
+	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — filterRegistriesByImplementation
+	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
-	pcOpts.RegistryNames = appendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
+	registryNamesForHandlers := appendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
 
-	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, pcOpts.RegistryNames)
+	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, registryNamesForHandlers)
 	if err != nil {
 		return errors.Errorf("creating provider handlers failed: %w", err)
 	}
@@ -389,6 +390,7 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	cfg.PluginCacheDir = ""
 
 	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
+	filteredRegistryNames = appendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
 
 	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, cacheRequestID)
 	if err != nil {
