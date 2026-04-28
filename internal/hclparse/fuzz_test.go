@@ -311,6 +311,6 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 		}
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
-		_, _ = autoInclude.Resolve(evalCtx)
+		_, _ = autoInclude.Resolve(evalCtx, nil)
 	})
 }

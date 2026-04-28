@@ -17,17 +17,18 @@ import (
 )
 
 const (
-	testFixtureStackDepsAutoInclude          = "fixtures/stacks/stack-dependencies-autoinclude"
-	testFixtureStackDepsStackRef             = "fixtures/stacks/stack-dependencies-stack-ref"
-	testFixtureStackDepsBasic                = "fixtures/stacks/stack-deps-basic"
-	testFixtureStackDepsChain                = "fixtures/stacks/stack-deps-chain"
-	testFixtureStackDepsCrossStack           = "fixtures/stacks/stack-deps-cross-stack"
-	testFixtureStackDepsUnitInStack          = "fixtures/stacks/stack-deps-unit-in-stack"
-	testFixtureStackDepsEntireStack          = "fixtures/stacks/stack-deps-entire-stack"
-	testFixtureStackDepsNestedStack          = "fixtures/stacks/stack-deps-nested-stack"
-	testFixtureStackDepsAutoIncParserLimit   = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
-	testFixtureStackDepsAutoIncViaInclude    = "fixtures/stacks/stack-deps-autoinclude-via-include"
-	testFixtureStackDepsAutoIncViaDynInclude = "fixtures/stacks/stack-deps-autoinclude-via-dyn-include"
+	testFixtureStackDepsAutoInclude              = "fixtures/stacks/stack-dependencies-autoinclude"
+	testFixtureStackDepsStackRef                 = "fixtures/stacks/stack-dependencies-stack-ref"
+	testFixtureStackDepsBasic                    = "fixtures/stacks/stack-deps-basic"
+	testFixtureStackDepsChain                    = "fixtures/stacks/stack-deps-chain"
+	testFixtureStackDepsCrossStack               = "fixtures/stacks/stack-deps-cross-stack"
+	testFixtureStackDepsUnitInStack              = "fixtures/stacks/stack-deps-unit-in-stack"
+	testFixtureStackDepsEntireStack              = "fixtures/stacks/stack-deps-entire-stack"
+	testFixtureStackDepsNestedStack              = "fixtures/stacks/stack-deps-nested-stack"
+	testFixtureStackDepsAutoIncParserLimit       = "fixtures/stacks/stack-deps-autoinclude-parser-limit"
+	testFixtureStackDepsAutoIncViaInclude        = "fixtures/stacks/stack-deps-autoinclude-via-include"
+	testFixtureStackDepsAutoIncViaDynInclude     = "fixtures/stacks/stack-deps-autoinclude-via-dyn-include"
+	testFixtureStackDepsAutoIncViaIncludeSuccess = "fixtures/stacks/stack-deps-autoinclude-via-include-success"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -553,4 +554,29 @@ func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
 
 	combined := err.Error() + stderr
 	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
+}
+
+// Root has only an `include`; the included file declares parser-compatible autoinclude. Generation must use the included file's bytes when slicing expressions, otherwise mock_outputs/inputs come out garbled or empty.
+func TestStackDepsAutoIncludeViaIncludePreservesContent(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoIncViaIncludeSuccess)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaIncludeSuccess)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaIncludeSuccess, "live")
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	autoIncludePath := filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile)
+	require.FileExists(t, autoIncludePath)
+
+	generated, err := os.ReadFile(autoIncludePath)
+	require.NoError(t, err)
+
+	content := string(generated)
+	assert.Contains(t, content, `dependency "vpc"`)
+	assert.Contains(t, content, "mock_outputs_allowed_terraform_commands")
+	assert.Contains(t, content, "shared-mock-id")
+	assert.Contains(t, content, "dependency.vpc.outputs.id")
 }

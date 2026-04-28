@@ -3,6 +3,7 @@ package hclparse_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -19,7 +20,7 @@ func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 
 	var a *hclparse.AutoIncludeHCL
 
-	result, diags := a.Resolve(nil)
+	result, diags := a.Resolve(nil, nil)
 	assert.Nil(t, result)
 	assert.False(t, diags.HasErrors())
 }
@@ -50,7 +51,7 @@ dependency "vpc" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(evalCtx, nil)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -94,7 +95,7 @@ dependency "db" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(evalCtx, nil)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 2)
@@ -130,7 +131,7 @@ dependency "networking" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(evalCtx, nil)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -175,7 +176,7 @@ inputs = {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx)
+	result, diags := autoInclude.Resolve(evalCtx, nil)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 
@@ -310,6 +311,18 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 			wantDepName:    "x",
 			wantReasonPart: "config_path",
 		},
+		{
+			name:           "no labels",
+			content:        `dependency { config_path = "../vpc" }`,
+			wantDepName:    "<unlabeled>",
+			wantReasonPart: "exactly one label, got 0",
+		},
+		{
+			name:           "two labels",
+			content:        `dependency "vpc" "extra" { config_path = "../vpc" }`,
+			wantDepName:    "vpc extra",
+			wantReasonPart: "exactly one label, got 2",
+		},
 	}
 
 	for _, tc := range cases {
@@ -327,7 +340,7 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 			require.ErrorAs(t, err, &malformedErr)
 			assert.Equal(t, tc.wantDepName, malformedErr.Name)
 			assert.Contains(t, malformedErr.Reason, tc.wantReasonPart)
-			assert.Contains(t, err.Error(), `malformed dependency "x"`)
+			assert.Contains(t, err.Error(), "malformed dependency "+strconv.Quote(tc.wantDepName))
 		})
 	}
 }

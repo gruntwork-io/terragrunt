@@ -398,7 +398,13 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 
 	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFile, kindStr, cmp.name)
 
-	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
+	// Use the resolved autoinclude's own source bytes; falling back to root stack bytes when unset preserves prior behavior for non-include flows.
+	srcBytes := resolved.SourceBytes
+	if srcBytes == nil {
+		srcBytes = opts.stackSrcBytes
+	}
+
+	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, srcBytes, resolved.EvalCtx); err != nil {
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
 	}
 

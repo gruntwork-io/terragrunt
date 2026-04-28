@@ -1,8 +1,10 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -48,7 +50,9 @@ type AutoIncludeResolved struct {
 	// RawBody is the original autoinclude HCL body, preserved so
 	// the generator can write non-dependency content (inputs, etc.)
 	// directly from the AST without evaluating dependency.* references.
-	RawBody      hcl.Body
+	RawBody hcl.Body
+	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
+	SourceBytes  []byte
 	Dependencies []AutoIncludeDependency
 }
 
@@ -63,18 +67,8 @@ type AutoIncludeDependency struct {
 	ConfigPath string
 }
 
-// Resolve evaluates the autoinclude body using the provided eval context,
-// which must contain unit.* and stack.* variables for path resolution.
-//
-// The resolution follows three levels:
-//
-//  1. First parse: autoinclude body captured as Remain (unit.*.path not yet available)
-//  2. This method (second parse): dependency.config_path evaluated using unit/stack context.
-//     All other dependency attributes (mock_outputs, etc.) are preserved as raw HCL.
-//  3. inputs and other non-dependency content: NOT evaluated here.
-//     They contain dependency.*.outputs.* which is runtime-only.
-//     The RawBody is preserved so the generator can copy these from the AST.
-func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
+// Resolve evaluates the autoinclude body using the provided eval context, which must contain unit.* and stack.* variables for path resolution. sourceBytes are the bytes of the file the body was parsed from; they propagate to AutoIncludeResolved so the generator slices expressions from the correct source.
+func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
@@ -82,7 +76,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	body, ok := a.Remain.(*hclsyntax.Body)
 	if !ok {
 		// Non-syntax body: return result with EvalCtx even though partial evaluation is not possible.
-		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
+		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain, SourceBytes: sourceBytes}, nil
 	}
 
 	var (
@@ -91,7 +85,18 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 	)
 
 	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) == 0 {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		if len(block.Labels) != 1 {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid dependency block labels",
+				Detail:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
+				Subject:  block.DefRange().Ptr(),
+			})
+
 			continue
 		}
 
@@ -113,6 +118,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
+		SourceBytes:  sourceBytes,
 	}, nil
 }
 
@@ -191,7 +197,17 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 	var errs []error
 
 	for _, block := range body.Blocks {
-		if !isDepBlock(block) {
+		if block.Type != blockDependency {
+			continue
+		}
+
+		if len(block.Labels) != 1 {
+			errs = append(errs, MalformedDependencyError{
+				FilePath: autoIncludePath,
+				Name:     blockLabelsString(block),
+				Reason:   fmt.Sprintf("dependency block requires exactly one label, got %d", len(block.Labels)),
+			})
+
 			continue
 		}
 
@@ -236,12 +252,16 @@ func readAutoIncludeBody(fs vfs.FS, autoIncludePath string) (*hclsyntax.Body, er
 	return body, nil
 }
 
-// isDepBlock reports whether block is a labeled dependency block (the only kind AutoIncludeDependencyPaths processes).
-func isDepBlock(block *hclsyntax.Block) bool {
-	return block.Type == blockDependency && len(block.Labels) > 0
+// blockLabelsString joins a block's labels for error messages; returns "<unlabeled>" when there are none.
+func blockLabelsString(block *hclsyntax.Block) string {
+	if len(block.Labels) == 0 {
+		return "<unlabeled>"
+	}
+
+	return strings.Join(block.Labels, " ")
 }
 
-// extractDepPath returns the resolved config_path for a dependency block. Caller must filter via isDepBlock first.
+// extractDepPath returns the resolved config_path for a dependency block. Caller must ensure the block has exactly one label.
 func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (string, error) {
 	name := block.Labels[0]
 

@@ -74,8 +74,12 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		return nil, diags
 	}
 
+	// Track per-autoinclude source bytes so the generator can slice expression bytes from the correct file even after include merging.
+	srcByAutoInclude := map[*AutoIncludeHCL][]byte{}
+	recordAutoIncludeSources(srcByAutoInclude, stackFile, input.Src)
+
 	// Process includes: merge included units/stacks.
-	if err := processStackIncludes(fs, stackFile, input.StackDir); err != nil {
+	if err := processStackIncludes(fs, stackFile, input.StackDir, srcByAutoInclude); err != nil {
 		return nil, err
 	}
 
@@ -102,7 +106,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 		}
 	}
 
-	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx)
+	autoIncludes, err := resolveAutoIncludes(stackFile, evalCtx, srcByAutoInclude)
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +228,8 @@ func AutoIncludeKey(kind, name string) string {
 }
 
 // resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
-// Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions.
-func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map[string]*AutoIncludeResolved, error) {
+// Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions. srcByAutoInclude maps each AutoInclude pointer to the source bytes of the file it was parsed from so generation can slice expressions from the correct file after include merging.
+func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext, srcByAutoInclude map[*AutoIncludeHCL][]byte) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
 	for _, unit := range stackFile.Units {
@@ -233,7 +237,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, srcByAutoInclude[unit.AutoInclude])
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +252,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, srcByAutoInclude[stack.AutoInclude])
 		if err != nil {
 			return nil, err
 		}
@@ -262,8 +266,8 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 }
 
 // resolveAutoInclude resolves a single autoinclude block and attaches the eval context.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.Resolve(evalCtx)
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, error) {
+	resolved, diags := autoInclude.Resolve(evalCtx, sourceBytes)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -275,11 +279,10 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (
 	return resolved, nil
 }
 
-// processStackIncludes resolves include blocks by parsing the included files
-// and merging their unit/stack blocks into the main stack file.
-func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) error {
+// processStackIncludes resolves include blocks by parsing the included files and merging their unit/stack blocks into the main stack file. srcByAutoInclude is populated with per-block source bytes from each included file.
+func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
 	for _, inc := range stackFile.Includes {
-		if err := mergeOneInclude(fs, stackFile, inc, stackDir); err != nil {
+		if err := mergeOneInclude(fs, stackFile, inc, stackDir, srcByAutoInclude); err != nil {
 			return err
 		}
 	}
@@ -292,7 +295,7 @@ func processStackIncludes(fs vfs.FS, stackFile *StackFileHCL, stackDir string) e
 }
 
 // mergeOneInclude reads and merges a single included stack file.
-func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, stackDir string) error {
+func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, stackDir string, srcByAutoInclude map[*AutoIncludeHCL][]byte) error {
 	includePath := inc.Path
 	if !filepath.IsAbs(includePath) {
 		includePath = filepath.Join(stackDir, includePath)
@@ -321,10 +324,28 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 		return IncludeValidationError{IncludeName: inc.Name, Reason: "must not define nested includes"}
 	}
 
+	// Record per-autoinclude source bytes for the included file so generation slices the correct source after units/stacks are merged into the root.
+	recordAutoIncludeSources(srcByAutoInclude, included, data)
+
 	stackFile.Units = append(stackFile.Units, included.Units...)
 	stackFile.Stacks = append(stackFile.Stacks, included.Stacks...)
 
 	return nil
+}
+
+// recordAutoIncludeSources adds entries to srcByAutoInclude mapping each AutoInclude pointer in stackFile to src. Called once for the root stack file and once per included file so each block knows which file it was parsed from.
+func recordAutoIncludeSources(srcByAutoInclude map[*AutoIncludeHCL][]byte, stackFile *StackFileHCL, src []byte) {
+	for _, u := range stackFile.Units {
+		if u != nil && u.AutoInclude != nil {
+			srcByAutoInclude[u.AutoInclude] = src
+		}
+	}
+
+	for _, s := range stackFile.Stacks {
+		if s != nil && s.AutoInclude != nil {
+			srcByAutoInclude[s.AutoInclude] = src
+		}
+	}
 }
 
 // validateNoDuplicateUnits checks for duplicate unit names after include merge.
