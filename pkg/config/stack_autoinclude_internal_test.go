@@ -25,8 +25,8 @@ func TestHasAutoIncludeInProductionConfig(t *testing.T) {
 	plainBody := parseSyntaxBody(t, `source = "x"`)
 
 	cases := []struct {
-		name string
 		cfg  *StackConfig
+		name string
 		want bool
 	}{
 		{name: "nil config", cfg: nil, want: false},
