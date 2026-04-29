@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -228,13 +229,11 @@ func FuzzNestedStackPath(f *testing.F) {
 	f.Add("infra", "deep", "vpc", "db")
 	f.Add("network", "storage", "subnet", "bucket")
 	f.Add("a", "b", "c", "d")
-	f.Add("", "", "", "")
 	f.Add("path", "name", "source", "autoinclude")
 
 	f.Fuzz(func(t *testing.T, stackName, nestedStackName, unitName, nestedUnitName string) {
-		// Skip empty names: HCL labels can't be empty
 		if stackName == "" || nestedStackName == "" || unitName == "" || nestedUnitName == "" {
-			return
+			t.Skip("HCL labels cannot be empty")
 		}
 
 		fs := vfs.NewMemMapFS()
@@ -312,5 +311,157 @@ func FuzzAutoIncludeResolve(f *testing.F) {
 
 		autoInclude := &hclparse.AutoIncludeHCL{Remain: file.Body}
 		_, _ = autoInclude.Resolve(evalCtx)
+	})
+}
+
+// FuzzParseStackFileFromPath_ArgPanics fuzzes stackDir to probe panic paths
+// and inner behavior. Empty strings must panic; any non-empty value must not
+// panic (it may return an error — that's fine).
+func FuzzParseStackFileFromPath_ArgPanics(f *testing.F) {
+	f.Add("/project")
+	f.Add("")
+	f.Add("relative/path")
+	f.Add("/")
+	f.Add(".")
+	f.Add("\x00")
+	f.Add("\n")
+	f.Add("../..")
+	f.Add("/very/deep/nested/path/that/does/not/exist")
+
+	f.Fuzz(func(t *testing.T, stackDir string) {
+		fs := vfs.NewMemMapFS()
+
+		defer func() {
+			r := recover()
+
+			switch {
+			case stackDir == "" && r == nil:
+				t.Errorf("expected panic for empty stackDir, got none")
+			case stackDir != "" && r != nil:
+				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+			}
+		}()
+
+		_, _ = hclparse.ParseStackFileFromPath(fs, stackDir)
+	})
+}
+
+// FuzzUnitPathsFromStackDir_ArgPanics mirrors the above for UnitPathsFromStackDir.
+func FuzzUnitPathsFromStackDir_ArgPanics(f *testing.F) {
+	f.Add("/project")
+	f.Add("")
+	f.Add("relative/path")
+	f.Add("/")
+	f.Add("\x00")
+	f.Add("unicode/café")
+
+	f.Fuzz(func(t *testing.T, stackDir string) {
+		fs := vfs.NewMemMapFS()
+
+		defer func() {
+			r := recover()
+
+			switch {
+			case stackDir == "" && r == nil:
+				t.Errorf("expected panic for empty stackDir, got none")
+			case stackDir != "" && r != nil:
+				t.Errorf("unexpected panic for stackDir=%q: %v", stackDir, r)
+			}
+		}()
+
+		_, _ = hclparse.UnitPathsFromStackDir(fs, stackDir)
+	})
+}
+
+// FuzzAutoIncludeDependencyPaths_ArgErrors fuzzes unitDir plus arbitrary file
+// contents written to the in-memory FS, exercising both the argument-validation
+// error and the HCL parsing path. Empty unitDir must return EmptyArgError;
+// non-empty unitDir must not panic regardless of file content.
+func FuzzAutoIncludeDependencyPaths_ArgErrors(f *testing.F) {
+	f.Add("/unit", `dependency "vpc" { config_path = "../vpc" }`)
+	f.Add("", `dependency "x" {}`)
+	f.Add("/unit", ``)
+	f.Add("/unit", `dependency "x" { config_path = 42 }`)
+	f.Add("relative", `{}`)
+	f.Add("/unit", `not even hcl!@#$`)
+
+	f.Fuzz(func(t *testing.T, unitDir, content string) {
+		fs := vfs.NewMemMapFS()
+
+		if unitDir != "" {
+			_ = fs.MkdirAll(unitDir, 0755)
+			_ = vfs.WriteFile(fs, unitDir+"/"+hclparse.AutoIncludeFile, []byte(content), 0644)
+		}
+
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("unexpected panic for unitDir=%q: %v", unitDir, r)
+			}
+		}()
+
+		_, err := hclparse.AutoIncludeDependencyPaths(fs, unitDir)
+
+		if unitDir == "" {
+			var emptyErr hclparse.EmptyArgError
+			if !errors.As(err, &emptyErr) {
+				t.Errorf("expected EmptyArgError for empty unitDir, got %v", err)
+			}
+		}
+	})
+}
+
+// FuzzDiscoverStackChildUnits_ArgPanics fuzzes both string args.
+func FuzzDiscoverStackChildUnits_ArgPanics(f *testing.F) {
+	f.Add("/src", "/gen")
+	f.Add("", "/gen")
+	f.Add("/src", "")
+	f.Add("", "")
+	f.Add("\x00", "\x00")
+
+	f.Fuzz(func(t *testing.T, stackSourceDir, stackGenDir string) {
+		fs := vfs.NewMemMapFS()
+
+		defer func() {
+			r := recover()
+
+			shouldPanic := stackSourceDir == "" || stackGenDir == ""
+			switch {
+			case shouldPanic && r == nil:
+				t.Errorf("expected panic for empty args (src=%q gen=%q), got none", stackSourceDir, stackGenDir)
+			case !shouldPanic && r != nil:
+				t.Errorf("unexpected panic for src=%q gen=%q: %v", stackSourceDir, stackGenDir, r)
+			}
+		}()
+
+		_ = hclparse.DiscoverStackChildUnits(fs, stackSourceDir, stackGenDir)
+	})
+}
+
+// FuzzGenerateAutoIncludeFile_ArgPanics fuzzes targetDir.
+// Nil resolved is legitimate — function returns nil without panicking.
+func FuzzGenerateAutoIncludeFile_ArgPanics(f *testing.F) {
+	f.Add("/target")
+	f.Add("")
+	f.Add("/")
+	f.Add("\x00")
+	f.Add("very/long/nested/path/with/many/segments")
+
+	f.Fuzz(func(t *testing.T, targetDir string) {
+		fs := vfs.NewMemMapFS()
+
+		defer func() {
+			r := recover()
+
+			switch {
+			case targetDir == "" && r == nil:
+				t.Errorf("expected panic for empty targetDir, got none")
+			case targetDir != "" && r != nil:
+				t.Errorf("unexpected panic for targetDir=%q: %v", targetDir, r)
+			}
+		}()
+
+		// Nil resolved is a legitimate no-op; this exercises the argument-panic
+		// paths without needing to build a full AutoIncludeResolved.
+		_ = hclparse.GenerateAutoIncludeFile(fs, nil, targetDir, nil, nil)
 	})
 }
