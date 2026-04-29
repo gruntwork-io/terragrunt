@@ -260,6 +260,7 @@ func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseC
 	return includeOnlyConfig, nil
 }
 
+// flagsAsCty converts feature flag defaults and CLI overrides into the evaluation context value.
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
@@ -338,6 +339,7 @@ func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map
 	return evaluatedFlags, nil
 }
 
+// PartialParseConfigFile partially parses the Terragrunt config file at the given path.
 func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Logger, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 
@@ -451,6 +453,7 @@ func PartialParseConfigString(ctx context.Context, pctx *ParsingContext, l log.L
 	return PartialParseConfig(ctx, pctx, l, file, include)
 }
 
+// PartialParseConfig partially parses the requested sections from a parsed Terragrunt config file.
 func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	errs := &errors.MultiError{}
 
@@ -748,6 +751,7 @@ func processExcludes(ctx context.Context, pctx *ParsingContext, l log.Logger, co
 	return config, nil
 }
 
+// partialParseIncludedConfig partially parses an included Terragrunt config.
 func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
@@ -779,8 +783,8 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 	return config, nil
 }
 
-// This decodes only the `include` blocks of a terragrunt config, so its value can be used while decoding the rest of
-// the config.
+// decodeAsTerragruntInclude decodes only the include blocks of a Terragrunt config, so its value can be used while
+// decoding the rest of the config.
 // For consistency, `include` in the call to `file.Decode` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
 func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) (IncludeConfigs, error) {
@@ -798,6 +802,7 @@ type InvalidPartialBlockName struct {
 	sectionCode PartialDecodeSectionType
 }
 
+// Error returns a formatted invalid partial block error message.
 func (err InvalidPartialBlockName) Error() string {
 	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
 }

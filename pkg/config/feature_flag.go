@@ -30,15 +30,20 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	}
 
 	if source.Default == nil {
-		feature.Default = source.Default
-	} else {
-		updatedDefaults, err := deepMergeCtyMaps(*feature.Default, *source.Default)
-		if err != nil {
-			return err
-		}
-
-		feature.Default = updatedDefaults
+		return nil
 	}
+
+	if feature.Default == nil {
+		feature.Default = source.Default
+		return nil
+	}
+
+	updatedDefaults, err := deepMergeCtyMaps(*feature.Default, *source.Default)
+	if err != nil {
+		return err
+	}
+
+	feature.Default = updatedDefaults
 
 	return nil
 }
@@ -50,15 +55,20 @@ func (feature *FeatureFlag) DeepMergeMapOnly(source *FeatureFlag) error {
 	}
 
 	if source.Default == nil {
-		feature.Default = source.Default
-	} else {
-		updatedDefaults, err := deepMergeCtyMapsMapOnly(*feature.Default, *source.Default)
-		if err != nil {
-			return err
-		}
-
-		feature.Default = updatedDefaults
+		return nil
 	}
+
+	if feature.Default == nil {
+		feature.Default = source.Default
+		return nil
+	}
+
+	updatedDefaults, err := deepMergeCtyMapsMapOnly(*feature.Default, *source.Default)
+	if err != nil {
+		return err
+	}
+
+	feature.Default = updatedDefaults
 
 	return nil
 }
