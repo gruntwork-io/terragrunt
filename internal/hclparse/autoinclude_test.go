@@ -20,7 +20,7 @@ func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 
 	var a *hclparse.AutoIncludeHCL
 
-	result, diags := a.Resolve(nil, nil)
+	result, diags := a.Resolve(nil)
 	assert.Nil(t, result)
 	assert.False(t, diags.HasErrors())
 }
@@ -51,7 +51,7 @@ dependency "vpc" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx, nil)
+	result, diags := autoInclude.Resolve(evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -95,7 +95,7 @@ dependency "db" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx, nil)
+	result, diags := autoInclude.Resolve(evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 2)
@@ -131,7 +131,7 @@ dependency "networking" {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx, nil)
+	result, diags := autoInclude.Resolve(evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 	require.Len(t, result.Dependencies, 1)
@@ -176,7 +176,7 @@ inputs = {
 		},
 	}
 
-	result, diags := autoInclude.Resolve(evalCtx, nil)
+	result, diags := autoInclude.Resolve(evalCtx)
 	require.False(t, diags.HasErrors(), "resolve error: %s", diags.Error())
 	require.NotNil(t, result)
 
@@ -333,8 +333,8 @@ func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
 			require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(tc.content), 0644))
 
 			paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
-			assert.Nil(t, paths)
 			require.Error(t, err)
+			assert.Empty(t, paths, "no valid dependency paths in this fixture")
 
 			var malformedErr hclparse.MalformedDependencyError
 			require.ErrorAs(t, err, &malformedErr)

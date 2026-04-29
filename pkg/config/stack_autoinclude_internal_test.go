@@ -8,17 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// parseSyntaxBody is a helper that parses src into an *hclsyntax.Body for hasAutoIncludeInBody tests.
-func parseSyntaxBody(t *testing.T, src string) hcl.Body {
-	t.Helper()
-
-	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	assert.False(t, diags.HasErrors(), "parse: %s", diags)
-
-	return file.Body
-}
-
-func TestHasAutoIncludeInProductionConfig(t *testing.T) {
+func TestStackConfigHasAutoInclude(t *testing.T) {
 	t.Parallel()
 
 	autoBody := parseSyntaxBody(t, "autoinclude {\n  dependency \"vpc\" {\n    config_path = \"../vpc\"\n  }\n}\n")
@@ -41,12 +31,12 @@ func TestHasAutoIncludeInProductionConfig(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, hasAutoIncludeInProductionConfig(tc.cfg))
+			assert.Equal(t, tc.want, stackConfigHasAutoInclude(tc.cfg))
 		})
 	}
 }
 
-// JSON-format remain bodies aren't *hclsyntax.Body and must return false (production parser's autoinclude is native-only).
+// JSON-format remain bodies aren't *hclsyntax.Body and must return false: autoinclude blocks are only supported in native HCL.
 func TestHasAutoIncludeInBody_NonSyntaxBodyReturnsFalse(t *testing.T) {
 	t.Parallel()
 
@@ -72,4 +62,14 @@ func TestHasAutoIncludeInBody_NativeBody(t *testing.T) {
 			assert.Equal(t, tc.want, hasAutoIncludeInBody(parseSyntaxBody(t, tc.src)))
 		})
 	}
+}
+
+// parseSyntaxBody is a helper that parses src into an *hclsyntax.Body for hasAutoIncludeInBody tests.
+func parseSyntaxBody(t *testing.T, src string) hcl.Body {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	assert.False(t, diags.HasErrors(), "parse: %s", diags)
+
+	return file.Body
 }

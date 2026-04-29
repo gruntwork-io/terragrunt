@@ -265,15 +265,16 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext, srcB
 	return autoIncludes, nil
 }
 
-// resolveAutoInclude resolves a single autoinclude block and attaches the eval context.
+// resolveAutoInclude resolves a single autoinclude block and attaches the eval context plus the originating file's bytes.
 func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, error) {
-	resolved, diags := autoInclude.Resolve(evalCtx, sourceBytes)
+	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags
 	}
 
 	if resolved != nil {
 		resolved.EvalCtx = evalCtx
+		resolved.SourceBytes = sourceBytes
 	}
 
 	return resolved, nil

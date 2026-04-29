@@ -379,6 +379,7 @@ unit "app" {
 	assert.Equal(t, "app", result.Units[0].Name)
 }
 
+// Uses OSFS because MemMapFS does not faithfully reproduce os.Symlink semantics that util.ResolvePath relies on.
 func TestUnitPathsFromStackDir_Symlink(t *testing.T) {
 	t.Parallel()
 
@@ -399,7 +400,7 @@ unit "vpc" {
 	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	// Path should be based on the REAL directory, not the symlink
+	// Path should resolve to the real directory, not the symlink target.
 	assert.Contains(t, paths[0], "real-stack")
 	assert.NotContains(t, paths[0], "symlinked-stack")
 }

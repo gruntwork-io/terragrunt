@@ -120,12 +120,10 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 
 		parseResult, parseErr := inthclparse.ParseStackFile(vfs.NewOSFS(), &inthclparse.ParseStackFileInput{Src: stackSrcBytes, Filename: stackFilePath, StackDir: stackSourceDir, Values: values})
 		if parseErr != nil {
-			// Use the production-parsed, include-merged stackFile to detect autoinclude. This handles include paths that use HCL functions/locals/values, which a raw-HCL nil-eval re-scan cannot resolve.
-			if hasAutoIncludeInProductionConfig(stackFile) {
+			// Detect autoinclude on the include-merged stackFile so the check works for include paths that use HCL functions/locals/values, where a raw-HCL nil-eval re-scan would fail.
+			if stackConfigHasAutoInclude(stackFile) {
 				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 			}
-
-			l.Debugf("Autoinclude parse skipped for %s (no autoinclude block declared): %v", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {
@@ -728,10 +726,10 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 	return stackConfig, nil
 }
 
-// processStackConfigIncludes resolves include blocks in the production stack parsing path.
-// It reads each included file, parses it with the same eval context, and merges its
-// units and stacks into the main config. This ensures the production path generates
-// all components, not just those in the root file.
+// processStackConfigIncludes resolves include blocks during stack file parsing.
+// It reads each included file, parses it with the same eval context, and merges
+// its units and stacks into the main config so generation sees all components,
+// not just those in the root file.
 func processStackConfigIncludes(config *StackConfigFile, stackDir string, evalCtx *hcl.EvalContext, parserOpts []hclparse.Option) error {
 	for _, inc := range config.Includes {
 		includePath := inc.Path
@@ -968,8 +966,8 @@ func GetUnitDir(dir string, unit *Unit) string {
 	return filepath.Join(dir, StackDir, unit.Path)
 }
 
-// hasAutoIncludeInProductionConfig reports whether any unit or stack in the include-merged production-parsed stack config declares an autoinclude block.
-func hasAutoIncludeInProductionConfig(stackFile *StackConfig) bool {
+// stackConfigHasAutoInclude reports whether any unit or stack in the include-merged stack config declares an autoinclude block.
+func stackConfigHasAutoInclude(stackFile *StackConfig) bool {
 	if stackFile == nil {
 		return false
 	}
@@ -989,7 +987,7 @@ func hasAutoIncludeInProductionConfig(stackFile *StackConfig) bool {
 	return false
 }
 
-// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false here, matching the production parser's autoinclude support which is native-only.
+// hasAutoIncludeInBody reports whether the given remain body contains a top-level autoinclude block. Only native HCL syntax bodies (*hclsyntax.Body) are inspected; JSON-format stack files return false because autoinclude blocks are only supported in native HCL.
 func hasAutoIncludeInBody(body hcl.Body) bool {
 	syntaxBody, ok := body.(*hclsyntax.Body)
 	if !ok {

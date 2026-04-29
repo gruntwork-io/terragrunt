@@ -69,9 +69,10 @@ type AutoIncludeDependency struct {
 
 // Resolve evaluates the autoinclude body using the provided eval context,
 // which must contain unit.* and stack.* variables for path resolution.
-// sourceBytes are the bytes of the file the body was parsed from; they
-// propagate to AutoIncludeResolved so the generator slices expressions
-// from the correct source.
+//
+// Callers that need to record the originating file's bytes on the returned
+// AutoIncludeResolved (so generation can slice expressions from the correct
+// source after include merging) should set SourceBytes on the result.
 //
 // The resolution follows three levels:
 //
@@ -81,7 +82,7 @@ type AutoIncludeDependency struct {
 //  3. inputs and other non-dependency content: NOT evaluated here.
 //     They contain dependency.*.outputs.* which is runtime-only.
 //     The RawBody is preserved so the generator can copy these from the AST.
-func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, hcl.Diagnostics) {
+func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext) (*AutoIncludeResolved, hcl.Diagnostics) {
 	if a == nil || a.Remain == nil {
 		return nil, nil
 	}
@@ -89,7 +90,7 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext, sourceBytes []byte) (
 	body, ok := a.Remain.(*hclsyntax.Body)
 	if !ok {
 		// Non-syntax body: return result with EvalCtx even though partial evaluation is not possible.
-		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain, SourceBytes: sourceBytes}, nil
+		return &AutoIncludeResolved{EvalCtx: evalCtx, RawBody: a.Remain}, nil
 	}
 
 	var (
@@ -131,7 +132,6 @@ func (a *AutoIncludeHCL) Resolve(evalCtx *hcl.EvalContext, sourceBytes []byte) (
 		EvalCtx:      evalCtx,
 		Dependencies: deps,
 		RawBody:      a.Remain,
-		SourceBytes:  sourceBytes,
 	}, nil
 }
 
@@ -234,11 +234,8 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 		paths = append(paths, depPath)
 	}
 
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
-
-	return paths, nil
+	// Return whatever paths we discovered alongside any errors so callers can decide whether partial DAG enrichment is useful.
+	return paths, errors.Join(errs...)
 }
 
 // readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.

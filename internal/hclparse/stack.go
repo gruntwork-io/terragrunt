@@ -218,9 +218,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 	result, err := ParseStackFileFromPath(fs, stackSourceDir)
 	if err != nil || result == nil {
-		// Nested stack discovery is best-effort enrichment for stack.<name>.<unit>.path references.
-		// A parse failure here only means those chained refs won't resolve; parent stack autoinclude
-		// still evaluates, and any reference to an undiscovered child surfaces as an HCL "unknown variable" error.
+		// Nested-stack discovery is intentionally best-effort: it only enriches chained `stack.<name>.<unit>.path` refs. Any user reference to an undiscovered child surfaces later as an HCL eval diagnostic.
 		return nil
 	}
 

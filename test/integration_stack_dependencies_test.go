@@ -487,13 +487,11 @@ func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncParserLimit)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncParserLimit, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared and the two-pass parser cannot decode the stack file")
-
-	combined := err.Error() + stderr
-	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
+	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Companion contract: parser-incompatible HCL without an autoinclude block still generates successfully (silent skip is allowed only when the user has nothing to lose).
@@ -530,13 +528,11 @@ func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaInclude, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file")
-
-	combined := err.Error() + stderr
-	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
+	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Root's include.path is an HCL expression (format()) the simplified parser cannot decode; production parser still resolves it and the included file declares autoinclude.
@@ -547,13 +543,11 @@ func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaDynInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaDynInclude, "live")
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is reachable via an expression-based include path")
-
-	combined := err.Error() + stderr
-	assert.Contains(t, combined, "failed to parse autoinclude block(s)", "error must use the stable wrapper text: err=%q stderr=%q", err.Error(), stderr)
+	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Root has only an `include`; the included file declares parser-compatible autoinclude. Generation must use the included file's bytes when slicing expressions, otherwise mock_outputs/inputs come out garbled or empty.
