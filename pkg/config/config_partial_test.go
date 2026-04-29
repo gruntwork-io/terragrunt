@@ -932,3 +932,138 @@ exclude {
 		assert.True(t, terragruntConfig.Exclude.If, "exclude.if should be true when feature default is true")
 	}
 }
+
+func TestPartialParseFeatureFlagDefaultsFromIncludes(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		parentHCL   string
+		childHCL    string
+		cliFlags    map[string]string
+		expected    bool
+		expectedErr string
+	}{
+		{
+			name: "parent default visible",
+			parentHCL: `
+feature "skip_ci" {
+  default = true
+}
+`,
+			childHCL: `
+include "root" {
+  path = "../root.hcl"
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`,
+			expected: true,
+		},
+		{
+			name: "child default overrides parent default",
+			parentHCL: `
+feature "skip_ci" {
+  default = true
+}
+`,
+			childHCL: `
+include "root" {
+  path = "../root.hcl"
+}
+
+feature "skip_ci" {
+  default = false
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`,
+			expected: false,
+		},
+		{
+			name: "cli override wins over included default",
+			parentHCL: `
+feature "skip_ci" {
+  default = true
+}
+`,
+			childHCL: `
+include "root" {
+  path = "../root.hcl"
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`,
+			cliFlags: map[string]string{"skip_ci": "false"},
+			expected: false,
+		},
+		{
+			name: "no merge does not import parent default",
+			parentHCL: `
+feature "skip_ci" {
+  default = true
+}
+`,
+			childHCL: `
+include "root" {
+  path           = "../root.hcl"
+  merge_strategy = "no_merge"
+}
+
+exclude {
+  if                   = feature.skip_ci.value
+  actions              = ["plan", "apply"]
+  exclude_dependencies = false
+}
+`,
+			expectedErr: "Unsupported attribute",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			childDir := filepath.Join(tmpDir, "child")
+			require.NoError(t, os.MkdirAll(childDir, 0755))
+
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(tc.parentHCL), 0644))
+
+			childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+			require.NoError(t, os.WriteFile(childPath, []byte(tc.childHCL), 0644))
+
+			l := logger.CreateLogger()
+			ctx, pctx := newTestParsingContext(t, childPath)
+			pctx = pctx.WithDecodeList(config.FeatureFlagsBlock, config.ExcludeBlock)
+
+			for name, value := range tc.cliFlags {
+				pctx.FeatureFlags.Store(name, value)
+			}
+
+			terragruntConfig, err := config.PartialParseConfigFile(ctx, pctx, l, childPath, nil)
+			if tc.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, terragruntConfig.Exclude)
+			assert.Equal(t, tc.expected, terragruntConfig.Exclude.If)
+		})
+	}
+}

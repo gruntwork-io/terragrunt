@@ -163,7 +163,15 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		errs = errs.Append(flagErrs)
 	}
 
-	flagsAsCtyVal, err := flagsAsCty(pctx, tgFlags.FeatureFlags)
+	// Feature defaults from includes must be visible while decoding base blocks like
+	// locals and exclude, but they must remain local to this parse instead of being
+	// stored in shared command options.
+	mergedFeatureFlags, err := mergeIncludedFeatureFlags(ctx, pctx, l, trackInclude, tgFlags.FeatureFlags)
+	if err != nil {
+		errs = errs.Append(err)
+	}
+
+	flagsAsCtyVal, err := flagsAsCty(pctx, mergedFeatureFlags)
 	if err != nil {
 		errs = errs.Append(err)
 	}
@@ -185,6 +193,53 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
 	}, errs.ErrorOrNil()
+}
+
+func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.Logger, trackInclude *TrackInclude, childFlags FeatureFlags) (FeatureFlags, error) {
+	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
+		return childFlags, nil
+	}
+
+	baseConfig := &TerragruntConfig{FeatureFlags: childFlags}
+	includePctx := pctx.WithTrackInclude(trackInclude).WithDecodeList(FeatureFlagsBlock)
+
+	for i := len(trackInclude.CurrentList) - 1; i >= 0; i-- {
+		includeConfig := trackInclude.CurrentList[i]
+
+		mergeStrategy, err := includeConfig.GetMergeStrategy()
+		if err != nil {
+			return childFlags, err
+		}
+
+		if mergeStrategy == NoMerge {
+			continue
+		}
+
+		parsedIncludeConfig, err := partialParseIncludedConfig(ctx, includePctx, l, &includeConfig)
+		if err != nil {
+			return childFlags, err
+		}
+
+		includeOnlyConfig := &TerragruntConfig{FeatureFlags: parsedIncludeConfig.FeatureFlags}
+
+		// TODO: Remove lint suppression
+		switch mergeStrategy { //nolint:exhaustive
+		case ShallowMerge:
+			if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
+				return childFlags, err
+			}
+		case DeepMerge:
+			if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
+				return childFlags, err
+			}
+		default:
+			return childFlags, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+		}
+
+		baseConfig = includeOnlyConfig
+	}
+
+	return baseConfig.FeatureFlags, nil
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {

@@ -275,20 +275,5 @@ func checkUnitVersionConstraints(
 		}
 	}
 
-	if unitConfig.FeatureFlags != nil {
-		for _, flag := range unitConfig.FeatureFlags {
-			flagName := flag.Name
-
-			defaultValue, err := flag.DefaultAsString()
-			if err != nil {
-				return errors.Errorf("failed to get default value for feature flag %s in unit %s: %w", flagName, unit.DisplayPath(), err)
-			}
-
-			if _, exists := unitOpts.FeatureFlags.Load(flagName); !exists {
-				unitOpts.FeatureFlags.Store(flagName, defaultValue)
-			}
-		}
-	}
-
 	return nil
 }

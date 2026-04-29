@@ -81,7 +81,7 @@ type TerragruntOptions struct {
 	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
-	// FeatureFlags is a map of feature flags to enable.
+	// FeatureFlags is a map of explicit feature flag overrides.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
 	// EngineConfig holds the resolved engine configuration from HCL.
 	EngineConfig *engine.EngineConfig
