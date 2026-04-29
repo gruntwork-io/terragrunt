@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,10 +60,10 @@ func TestFindModules(t *testing.T) {
 
 			ctx := t.Context()
 
-			repo, err := module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: tc.repoPath})
+			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: tc.repoPath})
 			require.NoError(t, err)
 
-			modules, err := repo.FindModules(ctx)
+			modules, err := repo.FindModules(ctx, vfs.NewOSFS())
 			assert.Equal(t, tc.expectedErr, err)
 
 			realData := make([]moduleData, 0, len(modules))

@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -47,7 +48,9 @@ func LoadURL(
 
 	l.Debugf("Processing repository %s in temporary path %s", repoURL, tempPath)
 
-	repo, err := module.NewRepo(ctx, l, module.RepoOpts{
+	fsys := vfs.NewOSFS()
+
+	repo, err := module.NewRepo(ctx, l, fsys, &module.RepoOpts{
 		CloneURL:         repoURL,
 		Path:             tempPath,
 		WalkWithSymlinks: walkWithSymlinks,
@@ -59,7 +62,7 @@ func LoadURL(
 		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	discovery := NewComponentDiscovery().WithExtraIgnoreFile(opts.CatalogIgnoreFile)
+	discovery := NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(opts.CatalogIgnoreFile)
 	if walkWithSymlinks {
 		discovery = discovery.WithWalkWithSymlinks()
 	}

@@ -19,35 +19,39 @@ import (
 func TestCopyCmd_CopiesIntoWorkingDirectory(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# vpc unit\n")
-	writeFile(t, filepath.Join(repoDir, "vpc", "inputs.hcl"), "# inputs\n")
-	writeFile(t, filepath.Join(repoDir, "vpc", ".terragrunt-cache", "junk.txt"), "should be skipped")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# vpc unit\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "inputs.hcl"), "# inputs\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", ".terragrunt-cache", "junk.txt"), "should be skipped")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 	require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
 
-	workingDir := t.TempDir()
+	workingDir := testWorkingDir
+	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
+
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run())
+	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
 
-	assert.FileExists(t, filepath.Join(workingDir, "terragrunt.hcl"))
-	assert.FileExists(t, filepath.Join(workingDir, "inputs.hcl"))
-	assert.NoFileExists(t, filepath.Join(workingDir, ".terragrunt-cache", "junk.txt"))
-	assert.NoDirExists(t, filepath.Join(workingDir, ".terragrunt-cache"))
+	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "terragrunt.hcl"))
+	assertFileExistsFS(t, fsys, filepath.Join(workingDir, "inputs.hcl"))
+	assertNotExistsFS(t, fsys, filepath.Join(workingDir, ".terragrunt-cache", "junk.txt"))
+	assertNotExistsFS(t, fsys, filepath.Join(workingDir, ".terragrunt-cache"))
 }
 
 func TestCopyCmd_WritesValuesStubForUnit(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
 	unitBody := `
 locals {
@@ -59,24 +63,26 @@ inputs = {
   env = values.env
 }
 `
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := t.TempDir()
+	workingDir := testWorkingDir
+	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
+
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run())
+	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
 
 	valuesPath := filepath.Join(workingDir, "terragrunt.values.hcl")
-	assert.FileExists(t, valuesPath)
+	assertFileExistsFS(t, fsys, valuesPath)
 
-	raw, err := os.ReadFile(valuesPath)
+	raw, err := vfs.ReadFile(fsys, valuesPath)
 	require.NoError(t, err)
 
 	content := string(raw)
@@ -98,26 +104,27 @@ inputs = {
 func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"),
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"),
 		`locals { region = values.region }`)
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := t.TempDir()
+	workingDir := testWorkingDir
 	existing := []byte(`region = "us-east-1"` + "\n")
-	require.NoError(t, os.WriteFile(filepath.Join(workingDir, "terragrunt.values.hcl"), existing, 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"), existing, 0o644))
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run())
+	require.NoError(t, redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run())
 
-	got, err := os.ReadFile(filepath.Join(workingDir, "terragrunt.values.hcl"))
+	got, err := vfs.ReadFile(fsys, filepath.Join(workingDir, "terragrunt.values.hcl"))
 	require.NoError(t, err)
 	assert.Equal(t, existing, got, "pre-existing values file should be untouched")
 }
@@ -125,22 +132,23 @@ func TestCopyCmd_LeavesExistingValuesFileAlone(t *testing.T) {
 func TestCopyCmd_RefusesToOverwriteExistingFile(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack\n")
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
-	workingDir := t.TempDir()
-	writeFile(t, filepath.Join(workingDir, "terragrunt.stack.hcl"), "# preexisting")
+	workingDir := testWorkingDir
+	writeFileFS(t, fsys, filepath.Join(workingDir, "terragrunt.stack.hcl"), "# preexisting")
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = workingDir
 
-	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run()
+	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -159,19 +167,20 @@ func TestCopyCmd_RejectsNilComponent(t *testing.T) {
 func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
 	opts := options.NewTerragruntOptions()
 	opts.WorkingDir = ""
 
-	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run()
+	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty working directory")
 }
@@ -179,38 +188,46 @@ func TestCopyCmd_RejectsEmptyWorkingDir(t *testing.T) {
 func TestCopyCmd_FailsWhenSourceMissing(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
 	// Remove the source directory after discovery so the copy walk fails.
-	require.NoError(t, os.RemoveAll(filepath.Join(repoDir, "vpc")))
+	require.NoError(t, fsys.RemoveAll(filepath.Join(repoDir, "vpc")))
+
+	workingDir := testWorkingDir
+	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
 
 	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = t.TempDir()
+	opts.WorkingDir = workingDir
 
-	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).Run()
+	err = redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0]).WithFS(fsys).Run()
 	require.Error(t, err)
 }
 
+// TestCopyCmd_SkipsSymlinks stays on the real OS filesystem because the
+// behavior under test is symlink-skipping, and only OsFs participates in
+// the symlink semantics that os.Symlink + lstat exercise.
 func TestCopyCmd_SkipsSymlinks(t *testing.T) {
 	t.Parallel()
 
+	fsys := vfs.NewOSFS()
 	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
-	writeFile(t, filepath.Join(repoDir, "vpc", "real.txt"), "hello\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "real.txt"), "hello\n")
 
 	// Add a symlink inside the component; copyDir should skip it silently.
 	require.NoError(t, os.Symlink("real.txt", filepath.Join(repoDir, "vpc", "link.txt")))
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
@@ -225,28 +242,29 @@ func TestCopyCmd_SkipsSymlinks(t *testing.T) {
 }
 
 // TestCopyCmd_WithFSUsesInjectedFilesystem verifies that WithFS returns the
-// same builder and that the injected filesystem is honored during Run. The
-// underlying Repo still points at the on-disk fixture (module.NewRepo only
-// works against real git state), but the source reads and destination writes
-// go through the injected FS.
+// same builder and that the injected filesystem is honored during Run.
 func TestCopyCmd_WithFSUsesInjectedFilesystem(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), "# unit\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	require.Len(t, components, 1)
 
+	workingDir := testWorkingDir
+	require.NoError(t, fsys.MkdirAll(workingDir, 0o755))
+
 	opts := options.NewTerragruntOptions()
-	opts.WorkingDir = t.TempDir()
+	opts.WorkingDir = workingDir
 
 	cmd := redesign.NewCopyCmd(logger.CreateLogger(), opts, components[0])
 
-	chained := cmd.WithFS(vfs.NewOSFS())
+	chained := cmd.WithFS(fsys)
 	assert.Same(t, cmd, chained, "WithFS should return the same builder for chaining")
 
 	require.NoError(t, cmd.Run())
@@ -287,4 +305,22 @@ func TestCopyCmd_StdioSettersAreNoops(t *testing.T) {
 		cmd.SetStdout(&bytes.Buffer{})
 		cmd.SetStderr(&bytes.Buffer{})
 	})
+}
+
+// assertFileExistsFS asserts a file exists at path on fsys.
+func assertFileExistsFS(t *testing.T, fsys vfs.FS, path string) {
+	t.Helper()
+
+	exists, err := vfs.FileExists(fsys, path)
+	require.NoError(t, err)
+	assert.True(t, exists, "expected %q to exist on fsys", path)
+}
+
+// assertNotExistsFS asserts that nothing exists at path on fsys.
+func assertNotExistsFS(t *testing.T, fsys vfs.FS, path string) {
+	t.Helper()
+
+	exists, err := vfs.FileExists(fsys, path)
+	require.NoError(t, err)
+	assert.False(t, exists, "expected %q to not exist on fsys", path)
 }

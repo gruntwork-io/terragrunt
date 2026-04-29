@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -28,10 +29,10 @@ func TestCatalogGitRepoUpdate(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	_, err := module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	_, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 
-	_, err = module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	_, err = module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 }
 
@@ -42,10 +43,10 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx)
+	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
 	require.NoError(t, err)
 	assert.Len(t, modules, 4)
 }
@@ -57,10 +58,10 @@ func TestScaffoldGitModule(t *testing.T) {
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 
-	repo, err := module.NewRepo(ctx, logger.CreateLogger(), module.RepoOpts{CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
+	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx)
+	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
 	require.NoError(t, err)
 
 	var auroraModule *module.Module
@@ -102,14 +103,15 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	repo, err := module.NewRepo(
 		ctx,
 		logger.CreateLogger(),
-		module.RepoOpts{
+		vfs.NewOSFS(),
+		&module.RepoOpts{
 			CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules",
 			Path:     tempDir,
 		},
 	)
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx)
+	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
 	require.NoError(t, err)
 
 	var auroraModule *module.Module

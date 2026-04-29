@@ -10,8 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
-	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,14 +171,15 @@ func TestModelCopyActionTransitionsToScaffoldState(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		repoDir := helpers.TmpDirWOSymlinks(t)
+		fsys := vfs.NewMemMapFS()
+		repoDir := testRepoDir
 
 		unitBody := `locals { region = values.region }` + "\n"
-		writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+		writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
 
-		repo := newFakeRepo(t, repoDir)
+		repo := newFakeRepo(t, fsys, repoDir)
 
-		components, err := redesign.NewComponentDiscovery().Discover(repo)
+		components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 		require.NoError(t, err)
 		require.Len(t, components, 1)
 		require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
