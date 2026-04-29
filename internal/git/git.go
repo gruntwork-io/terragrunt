@@ -40,14 +40,14 @@ const (
 
 // GitRunner handles git command execution
 type GitRunner struct {
-	goRepo       *git.Repository
-	goStorage    *filesystem.Storage
-	exec         vexec.Exec
-	repoRootOnce *sync.Once
-	repoRootErr  error
-	GitPath      string
-	WorkDir      string
-	repoRoot     string
+	goRepo         *git.Repository
+	goStorage      *filesystem.Storage
+	exec           vexec.Exec
+	repoRootMu     *sync.Mutex
+	GitPath        string
+	WorkDir        string
+	repoRoot       string
+	repoRootCached bool
 }
 
 // NewGitRunner creates a new GitRunner instance. The provided vexec.Exec is
@@ -63,24 +63,24 @@ func NewGitRunner(e vexec.Exec) (*GitRunner, error) {
 	}
 
 	return &GitRunner{
-		GitPath:      gitPath,
-		exec:         e,
-		repoRootOnce: &sync.Once{},
+		GitPath:    gitPath,
+		exec:       e,
+		repoRootMu: &sync.Mutex{},
 	}, nil
 }
 
 // WithWorkDir returns a new GitRunner with the specified working directory
 func (g *GitRunner) WithWorkDir(workDir string) *GitRunner {
 	if g == nil {
-		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootOnce: &sync.Once{}}
+		return &GitRunner{WorkDir: workDir, exec: vexec.NewOSExec(), repoRootMu: &sync.Mutex{}}
 	}
 
 	newRunner := *g
 	newRunner.WorkDir = workDir
 	// A different WorkDir may resolve to a different root, so reset the memo.
-	newRunner.repoRootOnce = &sync.Once{}
+	newRunner.repoRootMu = &sync.Mutex{}
 	newRunner.repoRoot = ""
-	newRunner.repoRootErr = nil
+	newRunner.repoRootCached = false
 
 	return &newRunner
 }
@@ -111,19 +111,31 @@ func (g *GitRunner) RequiresGoRepo() error {
 	return nil
 }
 
-// GetRepoRoot returns the root directory of the git repository, memoized
-// per-runner. WithWorkDir clears the memo so a derived runner resolves its
-// own root.
+// GetRepoRoot returns the root directory of the git repository. The
+// successful result is memoized per-runner so subsequent calls skip the
+// `git rev-parse` fork; failures are not cached so callers can retry.
+// WithWorkDir clears the memo so a derived runner resolves its own root.
 func (g *GitRunner) GetRepoRoot(ctx context.Context) (string, error) {
 	if err := g.RequiresWorkDir(); err != nil {
 		return "", err
 	}
 
-	g.repoRootOnce.Do(func() {
-		g.repoRoot, g.repoRootErr = g.runRepoRoot(ctx)
-	})
+	g.repoRootMu.Lock()
+	defer g.repoRootMu.Unlock()
 
-	return g.repoRoot, g.repoRootErr
+	if g.repoRootCached {
+		return g.repoRoot, nil
+	}
+
+	root, err := g.runRepoRoot(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	g.repoRoot = root
+	g.repoRootCached = true
+
+	return root, nil
 }
 
 // runRepoRoot performs the uncached `git rev-parse --show-toplevel`. Use
