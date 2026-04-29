@@ -81,7 +81,7 @@ func LoadURL(
 
 	// Resolve the latest release tag once per repo. All components from the
 	// same repo share the Repo, so the tag is set for everyone.
-	repo.ResolveLatestTag(ctx)
+	repo.ResolveLatestTag(ctx, l)
 
 	source := ExtractRepoURL(repo.SourceURL())
 

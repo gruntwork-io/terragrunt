@@ -63,7 +63,7 @@ func TestFindModules(t *testing.T) {
 			repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: tc.repoPath})
 			require.NoError(t, err)
 
-			modules, err := repo.FindModules(ctx, vfs.NewOSFS())
+			modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 			assert.Equal(t, tc.expectedErr, err)
 
 			realData := make([]moduleData, 0, len(modules))

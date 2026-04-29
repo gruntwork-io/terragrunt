@@ -191,7 +191,7 @@ func (s *catalogServiceImpl) Load(ctx context.Context, l log.Logger) error {
 		}
 
 		// Find modules within the initialized repository.
-		repoModules, err := repo.FindModules(ctx, fsys)
+		repoModules, err := repo.FindModules(ctx, l, fsys)
 		if err != nil {
 			l.Errorf("Failed to find modules in repository %s: %v", currentRepoURL, err)
 
@@ -251,7 +251,7 @@ func (s *catalogServiceImpl) LoadStreamingURL(ctx context.Context, l log.Logger,
 		return errors.Errorf("failed to initialize repository %s: %w", repoURL, err)
 	}
 
-	repoModules, err := repo.FindModules(ctx, fsys)
+	repoModules, err := repo.FindModules(ctx, l, fsys)
 	if err != nil {
 		return errors.Errorf("failed to find modules in repository %s: %w", repoURL, err)
 	}

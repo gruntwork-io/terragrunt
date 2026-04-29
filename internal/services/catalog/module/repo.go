@@ -46,8 +46,6 @@ var (
 )
 
 type Repo struct {
-	Logger log.Logger
-
 	cloneURL       string
 	sourceURL      string
 	path           string
@@ -87,7 +85,6 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 	}
 
 	repo := &Repo{
-		Logger:           l,
 		cloneURL:         opts.CloneURL,
 		sourceURL:        opts.CloneURL,
 		path:             opts.Path,
@@ -102,7 +99,7 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 		return nil, err
 	}
 
-	if err := repo.parseRemoteURL(fsys); err != nil {
+	if err := repo.parseRemoteURL(l, fsys); err != nil {
 		return nil, err
 	}
 
@@ -115,11 +112,11 @@ func NewRepo(ctx context.Context, l log.Logger, fsys vfs.FS, opts *RepoOpts) (*R
 
 // FindModules walks the repo via fsys, searches for Terragrunt modules,
 // indexes their README.* files, and returns module instances.
-func (repo *Repo) FindModules(ctx context.Context, fsys vfs.FS) (Modules, error) {
+func (repo *Repo) FindModules(ctx context.Context, l log.Logger, fsys vfs.FS) (Modules, error) {
 	var modules Modules
 
 	// check if root repo path is a module dir
-	if module, err := NewModule(repo, ""); err != nil {
+	if module, err := NewModule(l, repo, ""); err != nil {
 		return nil, err
 	} else if module != nil {
 		modules = append(modules, module)
@@ -162,7 +159,7 @@ func (repo *Repo) FindModules(ctx context.Context, fsys vfs.FS) (Modules, error)
 
 				moduleDir = filepath.ToSlash(moduleDir)
 
-				if module, err := NewModule(repo, moduleDir); err != nil {
+				if module, err := NewModule(l, repo, moduleDir); err != nil {
 					return err
 				} else if module != nil {
 					modules = append(modules, module)
@@ -238,7 +235,7 @@ func (repo *Repo) CloneURL() string {
 // ResolveLatestTag looks up the latest semver release tag from the remote.
 // The result is stored in LatestTag. If the lookup fails or the repo has no
 // semver tags, LatestTag is left empty.
-func (repo *Repo) ResolveLatestTag(ctx context.Context) {
+func (repo *Repo) ResolveLatestTag(ctx context.Context, l log.Logger) {
 	remote := repo.remoteForTagLookup()
 	if remote == "" {
 		return
@@ -246,14 +243,14 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context) {
 
 	runner, err := gitpkg.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
-		repo.Logger.Debugf("catalog: skip tag lookup: %v", err)
+		l.Debugf("catalog: skip tag lookup: %v", err)
 
 		return
 	}
 
 	tag, err := runner.LatestReleaseTag(ctx, remote)
 	if err != nil {
-		repo.Logger.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
+		l.Debugf("catalog: failed to resolve latest tag for %q: %v", remote, err)
 
 		return
 	}
@@ -263,7 +260,6 @@ func (repo *Repo) ResolveLatestTag(ctx context.Context) {
 
 type CloneOptions struct {
 	Context    context.Context
-	Logger     log.Logger
 	SourceURL  string
 	TargetPath string
 }
@@ -273,7 +269,7 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 
 	// Handle local directory case
 	if isDir(fsys, cloneURL) {
-		return repo.handleLocalDir(cloneURL)
+		return repo.handleLocalDir(l, cloneURL)
 	}
 
 	// Prepare clone options
@@ -281,15 +277,14 @@ func (repo *Repo) clone(ctx context.Context, l log.Logger, fsys vfs.FS) error {
 		SourceURL:  cloneURL,
 		TargetPath: repo.path,
 		Context:    ctx,
-		Logger:     repo.Logger,
 	}
 
-	if err := repo.prepareCloneDirectory(fsys); err != nil {
+	if err := repo.prepareCloneDirectory(l, fsys); err != nil {
 		return err
 	}
 
 	if repo.cloneCompleted(fsys) {
-		repo.Logger.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
+		l.Debugf("The repo dir exists and %q exists. Skipping cloning.", cloneCompleteSentinel)
 
 		return nil
 	}
@@ -305,10 +300,10 @@ func (repo *Repo) resolveCloneURL() string {
 	return repo.cloneURL
 }
 
-func (repo *Repo) handleLocalDir(repoPath string) error {
+func (repo *Repo) handleLocalDir(l log.Logger, repoPath string) error {
 	if !filepath.IsAbs(repoPath) {
 		absRepoPath := filepath.Join(repo.rootWorkingDir, repoPath)
-		repo.Logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+		l.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		repo.path = absRepoPath
 
 		return nil
@@ -319,7 +314,7 @@ func (repo *Repo) handleLocalDir(repoPath string) error {
 	return nil
 }
 
-func (repo *Repo) prepareCloneDirectory(fsys vfs.FS) error {
+func (repo *Repo) prepareCloneDirectory(l log.Logger, fsys vfs.FS) error {
 	if err := fsys.MkdirAll(repo.path, os.ModePerm); err != nil {
 		return errors.New(err)
 	}
@@ -329,7 +324,7 @@ func (repo *Repo) prepareCloneDirectory(fsys vfs.FS) error {
 
 	// Clean up incomplete clones
 	if repo.shouldCleanupIncompleteClone(fsys) {
-		repo.Logger.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
+		l.Debugf("The repo dir exists but %q does not. Removing the repo dir for cloning from the remote source.", cloneCompleteSentinel)
 
 		if err := fsys.RemoveAll(repo.path); err != nil {
 			return errors.New(err)
@@ -390,7 +385,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 	}
 
 	repo.cloneURL = sourceURL.String()
-	opts.Logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+	l.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	// Check first if the query param ref is already set
 	q := sourceURL.Query()
@@ -439,7 +434,7 @@ func (repo *Repo) performClone(ctx context.Context, l log.Logger, fsys vfs.FS, o
 }
 
 // parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
-func (repo *Repo) parseRemoteURL(fsys vfs.FS) error {
+func (repo *Repo) parseRemoteURL(l log.Logger, fsys vfs.FS) error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
 	gitConfigBytes, err := vfs.ReadFile(fsys, gitConfigPath)
@@ -447,7 +442,7 @@ func (repo *Repo) parseRemoteURL(fsys vfs.FS) error {
 		return errors.Errorf("the specified path %q is not a git repository (no .git/config file found)", repo.path)
 	}
 
-	repo.Logger.Debugf("Parsing git config %q", gitConfigPath)
+	l.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigBytes)
 	if err != nil {
@@ -474,7 +469,7 @@ func (repo *Repo) parseRemoteURL(fsys vfs.FS) error {
 	}
 
 	repo.RemoteURL = inidata.Section(sectionName).Key("url").String()
-	repo.Logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
+	l.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
 
 	return nil
 }

@@ -46,7 +46,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
+	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 	require.NoError(t, err)
 	assert.Len(t, modules, 4)
 }
@@ -61,7 +61,7 @@ func TestScaffoldGitModule(t *testing.T) {
 	repo, err := module.NewRepo(ctx, logger.CreateLogger(), vfs.NewOSFS(), &module.RepoOpts{CloneURL: "https://github.com/gruntwork-io/terraform-fake-modules.git", Path: tempDir})
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
+	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 	require.NoError(t, err)
 
 	var auroraModule *module.Module
@@ -111,7 +111,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	modules, err := repo.FindModules(ctx, vfs.NewOSFS())
+	modules, err := repo.FindModules(ctx, logger.CreateLogger(), vfs.NewOSFS())
 	require.NoError(t, err)
 
 	var auroraModule *module.Module
