@@ -771,7 +771,7 @@ func forceModTimeChange(t *testing.T, path string, prev time.Time) {
 			return
 		}
 
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond) //nolint:synctestcheck // polling OS filesystem mtime; synctest fake clock has no effect on the kernel
 	}
 
 	t.Fatalf("Failed to change modification time of %s within 5 seconds", path)

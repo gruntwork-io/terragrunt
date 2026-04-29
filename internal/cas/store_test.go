@@ -147,7 +147,9 @@ func TestStore_LockConcurrency(t *testing.T) {
 
 		acquired <- true
 
-		time.Sleep(100 * time.Millisecond) // Hold lock briefly
+		// Hold lock briefly.
+		//nolint:synctestcheck // sync.Mutex.Lock is not durably blocking under synctest, so a bubble would deadlock here
+		time.Sleep(100 * time.Millisecond)
 
 		err = lock.Unlock()
 		assert.NoError(t, err)

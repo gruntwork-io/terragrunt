@@ -46,14 +46,14 @@ func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p
 		done <- finalModel
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 	interact(p)
 
 	select {
 	case fm := <-done:
 		return fm.(redesign.Model)
-	case <-time.After(10 * time.Second):
+	case <-time.After(10 * time.Second): //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		p.Kill()
 		t.Fatal("program did not exit within timeout")
 
@@ -103,10 +103,10 @@ func TestModelStreamingInsertsSorted(t *testing.T) {
 		// Send the remaining components in reverse order
 		for i := len(components) - 2; i >= 0; i-- {
 			p.Send(redesign.ComponentMsg(components[i]))
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -159,13 +159,13 @@ func TestModelTabsFilterByKind(t *testing.T) {
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		p.Send(redesign.ComponentMsg(components[1]))
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Cycle: All -> Modules -> Templates -> All (and stop on Templates).
 		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -193,11 +193,11 @@ func TestModelTabShiftTabCycles(t *testing.T) {
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		p.Send(redesign.ComponentMsg(components[1]))
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Starts on All. Shift+Tab wraps to Templates.
 		p.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})
@@ -222,7 +222,7 @@ func TestModelStreamingDeduplicates(t *testing.T) {
 
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		p.Send(redesign.ComponentMsg(components[0]))
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	})

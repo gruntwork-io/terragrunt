@@ -40,7 +40,7 @@ func TestRunCommandWithOutputInterrupt(t *testing.T) {
 		errCh <- err
 	}()
 
-	time.AfterFunc(3*time.Second, func() {
+	time.AfterFunc(3*time.Second, func() { //nolint:synctestcheck // kernel-level signal/process timing requires real wall-clock
 		cancel(signal.NewContextCanceledError(syscall.SIGINT))
 	})
 

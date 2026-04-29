@@ -59,14 +59,14 @@ func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea
 	}()
 
 	// Give the program a moment to start and process the initial WindowSizeMsg.
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 	interact(p)
 
 	select {
 	case fm := <-done:
 		return fm.(tui.Model)
-	case <-time.After(10 * time.Second):
+	case <-time.After(10 * time.Second): //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 		p.Kill()
 		t.Fatal("program did not exit within timeout")
 
@@ -197,11 +197,11 @@ func TestTUINavigationToModuleDetails(t *testing.T) {
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		// Press Enter to select the first module
 		p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Press 'q' to go back to list
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Quit
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
@@ -224,18 +224,18 @@ func TestTUIModuleFiltering(t *testing.T) {
 	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
 		// Activate filtering with '/'
 		p.Send(tea.KeyPressMsg{Code: '/', Text: "/"})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Type filter text
 		for _, r := range "VPC" {
 			p.Send(tea.KeyPressMsg{Code: r, Text: string(r)})
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Press Escape to exit filtering
 		p.Send(tea.KeyPressMsg{Code: tea.KeyEsc})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Quit
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
@@ -258,7 +258,7 @@ func TestTUIWindowResize(t *testing.T) {
 	finalModel := runModel(t, m, 80, 30, func(p *tea.Program) {
 		// Send window resize
 		p.Send(tea.WindowSizeMsg{Width: 120, Height: 40})
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) //nolint:synctestcheck // Bubble Tea program runs goroutines outside synctest awareness
 
 		// Quit
 		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
