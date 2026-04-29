@@ -74,17 +74,17 @@ func (feature *FeatureFlag) DeepMergeMapOnly(source *FeatureFlag) error {
 }
 
 // deepMergeFeatureBlocks deep merges feature flags by name.
-func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+func deepMergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
 	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
 }
 
 // deepMergeMapOnlyFeatureBlocks deep merges feature flag map defaults without appending slices.
-func deepMergeMapOnlyFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+func deepMergeMapOnlyFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
 	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMergeMapOnly)
 }
 
 // mergeFeatureBlocks merges feature flags by name using the given merge function.
-func mergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
+func mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}
