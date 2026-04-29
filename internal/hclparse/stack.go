@@ -3,7 +3,6 @@ package hclparse
 import (
 	iofs "io/fs"
 	"path/filepath"
-	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -154,14 +153,14 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 }
 
 // ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk and performs a two-pass parse.
-// Returns (nil, nil) when no stack file is reachable: file missing, or stackDir is itself a regular file (ENOTDIR).
+// Returns (nil, nil) only when the stack file does not exist. Callers that may pass non-directory paths must filter those before calling.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		if errors.Is(err, iofs.ErrNotExist) {
 			return nil, nil
 		}
 

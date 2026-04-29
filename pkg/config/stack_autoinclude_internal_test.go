@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStackConfigHasAutoInclude(t *testing.T) {
@@ -69,7 +70,7 @@ func parseSyntaxBody(t *testing.T, src string) hcl.Body {
 	t.Helper()
 
 	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	assert.False(t, diags.HasErrors(), "parse: %s", diags)
+	require.False(t, diags.HasErrors(), "parse: %s", diags)
 
 	return file.Body
 }

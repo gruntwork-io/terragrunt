@@ -339,8 +339,8 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// Discovery callers may pass an arbitrary dependency path that is itself a regular file (e.g. another-name.hcl); ENOTDIR must be treated like a missing stack file, not a hard error.
-func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
+// ParseStackFileFromPath is strict: passing a regular file produces an error. Callers that may receive non-directory paths (e.g. discovery) must filter them upstream.
+func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -348,7 +348,7 @@ func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
 
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 

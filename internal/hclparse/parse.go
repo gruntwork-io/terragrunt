@@ -334,7 +334,9 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 	return nil
 }
 
-// recordAutoIncludeSources adds entries to srcByAutoInclude mapping each AutoInclude pointer in stackFile to src. Called once for the root stack file and once per included file so each block knows which file it was parsed from.
+// recordAutoIncludeSources maps each AutoInclude pointer in stackFile to the bytes of the file it was parsed from.
+//
+// Pointer-keying invariant: every *AutoIncludeHCL in the slice trees must be a unique allocation that is never copied into a value receiver, since the lookup at resolution time uses pointer identity. gohcl.DecodeBody satisfies this because it allocates a fresh struct for each block; only direct construction by callers would risk duplicate keys.
 func recordAutoIncludeSources(srcByAutoInclude map[*AutoIncludeHCL][]byte, stackFile *StackFileHCL, src []byte) {
 	for _, u := range stackFile.Units {
 		if u != nil && u.AutoInclude != nil {

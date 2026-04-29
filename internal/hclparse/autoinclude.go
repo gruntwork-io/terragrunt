@@ -234,8 +234,11 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 		paths = append(paths, depPath)
 	}
 
-	// Return whatever paths we discovered alongside any errors so callers can decide whether partial DAG enrichment is useful.
-	return paths, errors.Join(errs...)
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return paths, nil
 }
 
 // readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.
@@ -262,10 +265,10 @@ func readAutoIncludeBody(fs vfs.FS, autoIncludePath string) (*hclsyntax.Body, er
 	return body, nil
 }
 
-// blockLabelsString joins a block's labels for error messages; returns "<unlabeled>" when there are none.
+// blockLabelsString joins a block's labels for error messages; returns "(unlabeled)" when there are none.
 func blockLabelsString(block *hclsyntax.Block) string {
 	if len(block.Labels) == 0 {
-		return "<unlabeled>"
+		return "(unlabeled)"
 	}
 
 	return strings.Join(block.Labels, " ")
@@ -282,11 +285,19 @@ func extractDepPath(block *hclsyntax.Block, autoIncludePath, unitDir string) (st
 
 	val, valDiags := configPathAttr.Expr.Value(nil)
 	if valDiags.HasErrors() {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Wrapped: valDiags}
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path: " + valDiags.Error(), Err: valDiags}
 	}
 
-	if !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
-		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a known string literal"}
+	if !val.IsKnown() {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is unknown"}
+	}
+
+	if val.IsNull() {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path is null"}
+	}
+
+	if val.Type() != cty.String {
+		return "", MalformedDependencyError{FilePath: autoIncludePath, Name: name, Reason: "config_path must be a string, got " + val.Type().FriendlyName()}
 	}
 
 	depPath := val.AsString()
