@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -50,7 +51,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	DefaultAutoIncludeFile          = "terragrunt.autoinclude.hcl"
+	DefaultAutoIncludeFile          = inthclparse.AutoIncludeFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -1347,6 +1348,16 @@ func ParseConfig(
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = errs.Append(err)
+
+			// During hcl validate, dependency resolution can fail for many reasons (invalid
+			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
+			// that the "dependency" variable still exists in the eval context — otherwise every
+			// dependency.x.outputs.y reference cascades into a confusing "dependency is not
+			// defined" error that obscures the real problem.
+			if pctx.SkipOutput && retrievedOutputs == nil {
+				dynamicVal := cty.DynamicVal
+				retrievedOutputs = &dynamicVal
+			}
 		}
 
 		pctx.DecodedDependencies = retrievedOutputs
@@ -1475,10 +1486,9 @@ func mergeAutoIncludeIfPresent(
 		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
 	}
 
-	// Deep merge: autoinclude wins over the unit config.
-	// DeepMerge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
-	// So we call config.DeepMerge(autoIncludeConfig) — autoinclude is sourceConfig and wins.
-	if err := config.DeepMerge(l, autoIncludeConfig); err != nil {
+	// Shallow merge: autoinclude wins over the unit config.
+	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
+	if err := config.Merge(l, autoIncludeConfig); err != nil {
 		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
 	}
 
@@ -2000,7 +2010,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false, DependencyFileNotFoundError{Path: configPath}
 		}
 

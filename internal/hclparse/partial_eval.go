@@ -2,7 +2,7 @@ package hclparse
 
 import (
 	"bytes"
-	"strings"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -12,95 +12,114 @@ import (
 )
 
 // deferredRoots lists variable root names that cannot be evaluated at generation time.
+// This map must not be modified after package initialization.
 var deferredRoots = map[string]bool{
-	"dependency": true,
+	varDependency: true,
+}
+
+// EvalArgs bundles the shared arguments for partial evaluation functions.
+type EvalArgs struct {
+	EvalCtx  *hcl.EvalContext
+	Deferred map[string]bool
+	SrcBytes []byte
 }
 
 // PartialEval walks an hclsyntax.Expression tree and returns HCL source text.
 // Pure expressions (no deferred refs) are fully evaluated to literals.
 // Mixed expressions get per-child treatment: evaluable parts become literals,
 // deferred parts keep their original source text.
-func PartialEval(expr hclsyntax.Expression, srcBytes []byte, evalCtx *hcl.EvalContext, deferred map[string]bool) []byte {
-	if evalCtx == nil {
-		return rangeBytes(srcBytes, expr.Range())
+func PartialEval(expr hclsyntax.Expression, args *EvalArgs) []byte {
+	if args.EvalCtx == nil {
+		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Fast path: no deferred refs anywhere — evaluate the whole thing.
-	if IsPure(expr, deferred) {
-		val, diags := expr.Value(evalCtx)
+	// Fast path: no deferred refs anywhere: evaluate the whole thing.
+	if IsPure(expr, args.Deferred) {
+		val, diags := expr.Value(args.EvalCtx)
 		if !diags.HasErrors() {
-			return valueToHCLBytes(val)
+			return ValueToHCLBytes(val)
 		}
 
-		return rangeBytes(srcBytes, expr.Range())
+		return RangeBytes(args.SrcBytes, expr.Range())
 	}
 
-	// Not pure — dispatch by expression type for partial evaluation.
+	return partialEvalByType(expr, args)
+}
+
+// partialEvalByType dispatches to type-specific handlers for mixed expressions.
+// Unhandled types fall through to verbatim source bytes.
+func partialEvalByType(expr hclsyntax.Expression, args *EvalArgs) []byte {
 	switch e := expr.(type) {
 	case *hclsyntax.LiteralValueExpr:
-		return valueToHCLBytes(e.Val)
-
+		return ValueToHCLBytes(e.Val)
 	case *hclsyntax.ScopeTraversalExpr:
-		if deferred[e.Traversal.RootName()] {
-			return rangeBytes(srcBytes, e.Range())
-		}
-
-		val, diags := e.Value(evalCtx)
-		if !diags.HasErrors() {
-			return valueToHCLBytes(val)
-		}
-
-		return rangeBytes(srcBytes, e.Range())
-
+		return partialEvalTraversal(e, args)
 	case *hclsyntax.TemplateExpr:
-		return partialEvalTemplate(e, srcBytes, evalCtx, deferred)
-
+		return partialEvalTemplate(e, args)
 	case *hclsyntax.TemplateWrapExpr:
-		return rangeBytes(srcBytes, e.Range())
-
+		return RangeBytes(args.SrcBytes, e.Range())
 	case *hclsyntax.ObjectConsExpr:
-		return partialEvalObject(e, srcBytes, evalCtx, deferred)
-
+		return partialEvalObject(e, args)
 	case *hclsyntax.TupleConsExpr:
-		return partialEvalTuple(e, srcBytes, evalCtx, deferred)
-
+		return partialEvalTuple(e, args)
 	case *hclsyntax.ConditionalExpr:
-		if IsPure(e.Condition, deferred) {
-			condVal, diags := e.Condition.Value(evalCtx)
-			if !diags.HasErrors() {
-				boolVal, err := convert.Convert(condVal, cty.Bool)
-				if err == nil {
-					if boolVal.True() {
-						return PartialEval(e.TrueResult, srcBytes, evalCtx, deferred)
-					}
-
-					return PartialEval(e.FalseResult, srcBytes, evalCtx, deferred)
-				}
-			}
-		}
-
-		return rangeBytes(srcBytes, e.Range())
-
+		return partialEvalConditional(e, args)
 	case *hclsyntax.ParenthesesExpr:
-		if IsPure(e.Expression, deferred) {
-			return PartialEval(e.Expression, srcBytes, evalCtx, deferred)
-		}
-
-		inner := PartialEval(e.Expression, srcBytes, evalCtx, deferred)
-
-		var buf bytes.Buffer
-
-		buf.WriteByte('(')
-		buf.Write(inner)
-		buf.WriteByte(')')
-
-		return buf.Bytes()
-
+		return partialEvalParens(e, args)
 	default:
-		// FunctionCallExpr, ForExpr, SplatExpr, BinaryOpExpr, UnaryOpExpr,
-		// RelativeTraversalExpr, IndexExpr, AnonSymbolExpr — all verbatim.
-		return rangeBytes(srcBytes, e.Range())
+		// Deliberate fallback: unhandled expression types (FunctionCallExpr, ForExpr,
+		// SplatExpr, BinaryOpExpr, UnaryOpExpr, etc.) are emitted as verbatim source
+		// bytes. This is safe: the generated HCL will contain the original expression
+		// text, which is valid HCL that will be evaluated at runtime.
+		return RangeBytes(args.SrcBytes, e.Range())
 	}
+}
+
+func partialEvalTraversal(e *hclsyntax.ScopeTraversalExpr, args *EvalArgs) []byte {
+	if args.Deferred[e.Traversal.RootName()] {
+		return RangeBytes(args.SrcBytes, e.Range())
+	}
+
+	val, diags := e.Value(args.EvalCtx)
+	if !diags.HasErrors() {
+		return ValueToHCLBytes(val)
+	}
+
+	return RangeBytes(args.SrcBytes, e.Range())
+}
+
+func partialEvalConditional(e *hclsyntax.ConditionalExpr, args *EvalArgs) []byte {
+	if !IsPure(e.Condition, args.Deferred) {
+		return RangeBytes(args.SrcBytes, e.Range())
+	}
+
+	condVal, diags := e.Condition.Value(args.EvalCtx)
+	if diags.HasErrors() {
+		return RangeBytes(args.SrcBytes, e.Range())
+	}
+
+	boolVal, err := convert.Convert(condVal, cty.Bool)
+	if err != nil {
+		return RangeBytes(args.SrcBytes, e.Range())
+	}
+
+	if boolVal.True() {
+		return PartialEval(e.TrueResult, args)
+	}
+
+	return PartialEval(e.FalseResult, args)
+}
+
+func partialEvalParens(e *hclsyntax.ParenthesesExpr, args *EvalArgs) []byte {
+	inner := PartialEval(e.Expression, args)
+
+	// Pure expressions evaluate to literals: parens not needed.
+	if IsPure(e.Expression, args.Deferred) {
+		return inner
+	}
+
+	// Wrap deferred expressions in parentheses.
+	return slices.Concat([]byte("("), inner, []byte(")"))
 }
 
 // IsPure returns true if the expression has no references to deferred root names.
@@ -114,30 +133,33 @@ func IsPure(expr hclsyntax.Expression, deferred map[string]bool) bool {
 	return true
 }
 
-func partialEvalTemplate(e *hclsyntax.TemplateExpr, srcBytes []byte, evalCtx *hcl.EvalContext, deferred map[string]bool) []byte {
+func partialEvalTemplate(e *hclsyntax.TemplateExpr, args *EvalArgs) []byte {
 	var buf bytes.Buffer
 
 	buf.WriteByte('"')
 
 	for _, part := range e.Parts {
 		if lit, ok := part.(*hclsyntax.LiteralValueExpr); ok {
-			buf.WriteString(escapeHCLStringLit(lit.Val.AsString()))
+			buf.Write(HCLStringContent(lit.Val.AsString()))
 
 			continue
 		}
 
-		if IsPure(part, deferred) {
-			val, diags := part.Value(evalCtx)
-			if !diags.HasErrors() && val.Type() == cty.String {
-				buf.WriteString(escapeHCLStringLit(val.AsString()))
+		if IsPure(part, args.Deferred) {
+			val, diags := part.Value(args.EvalCtx)
+			if !diags.HasErrors() {
+				strVal, err := convert.Convert(val, cty.String)
+				if err == nil {
+					buf.Write(HCLStringContent(strVal.AsString()))
 
-				continue
+					continue
+				}
 			}
 		}
 
-		// Deferred or eval failed — emit as interpolation.
+		// Deferred or eval failed: emit as interpolation.
 		buf.WriteString("${")
-		buf.Write(rangeBytes(srcBytes, part.Range()))
+		buf.Write(RangeBytes(args.SrcBytes, part.Range()))
 		buf.WriteByte('}')
 	}
 
@@ -146,88 +168,54 @@ func partialEvalTemplate(e *hclsyntax.TemplateExpr, srcBytes []byte, evalCtx *hc
 	return buf.Bytes()
 }
 
-func partialEvalObject(e *hclsyntax.ObjectConsExpr, srcBytes []byte, evalCtx *hcl.EvalContext, deferred map[string]bool) []byte {
-	var buf bytes.Buffer
+// HCLStringContent returns the inner content of an HCL-escaped string
+// (without surrounding quotes). Uses hclwrite.TokensForValue for correct
+// escaping of all HCL special characters.
+func HCLStringContent(s string) []byte {
+	raw := hclwrite.TokensForValue(cty.StringVal(s)).Bytes()
 
-	buf.WriteString("{\n")
-
-	for _, item := range e.Items {
-		keyBytes := partialEvalObjectKey(item.KeyExpr, srcBytes, evalCtx, deferred)
-		valBytes := PartialEval(item.ValueExpr, srcBytes, evalCtx, deferred)
-
-		buf.WriteString("  ")
-		buf.Write(keyBytes)
-		buf.WriteString(" = ")
-		buf.Write(valBytes)
-		buf.WriteByte('\n')
-	}
-
-	buf.WriteByte('}')
-
-	return buf.Bytes()
+	// TokensForValue produces `"escaped content"`: strip surrounding quotes.
+	return bytes.TrimPrefix(bytes.TrimSuffix(raw, []byte{'"'}), []byte{'"'})
 }
 
-func partialEvalObjectKey(expr hclsyntax.Expression, srcBytes []byte, evalCtx *hcl.EvalContext, deferred map[string]bool) []byte {
+func partialEvalObject(e *hclsyntax.ObjectConsExpr, args *EvalArgs) []byte {
+	f := hclwrite.NewEmptyFile()
+	body := f.Body()
+
+	for _, item := range e.Items {
+		key := objectKeyName(item.KeyExpr, args.SrcBytes)
+		body.SetAttributeRaw(key, RawTokens(PartialEval(item.ValueExpr, args)))
+	}
+
+	// hclwrite produces file-level attributes; wrap in braces for object syntax.
+	inner := bytes.TrimSpace(f.Bytes())
+
+	return slices.Concat([]byte("{\n"), inner, []byte("\n}"))
+}
+
+func objectKeyName(expr hclsyntax.Expression, srcBytes []byte) string {
 	if keyExpr, ok := expr.(*hclsyntax.ObjectConsKeyExpr); ok {
 		kw := hcl.ExprAsKeyword(keyExpr)
 		if kw != "" {
-			return []byte(kw)
-		}
-
-		return PartialEval(keyExpr.Wrapped, srcBytes, evalCtx, deferred)
-	}
-
-	return PartialEval(expr, srcBytes, evalCtx, deferred)
-}
-
-func partialEvalTuple(e *hclsyntax.TupleConsExpr, srcBytes []byte, evalCtx *hcl.EvalContext, deferred map[string]bool) []byte {
-	var buf bytes.Buffer
-
-	buf.WriteByte('[')
-
-	for i, elem := range e.Exprs {
-		if i > 0 {
-			buf.WriteString(", ")
-		}
-
-		buf.Write(PartialEval(elem, srcBytes, evalCtx, deferred))
-	}
-
-	buf.WriteByte(']')
-
-	return buf.Bytes()
-}
-
-func escapeHCLStringLit(s string) string {
-	var buf strings.Builder
-
-	buf.Grow(len(s))
-
-	for _, r := range s {
-		switch r {
-		case '\\':
-			buf.WriteString(`\\`)
-		case '"':
-			buf.WriteString(`\"`)
-		case '\n':
-			buf.WriteString(`\n`)
-		case '\r':
-			buf.WriteString(`\r`)
-		case '\t':
-			buf.WriteString(`\t`)
-		default:
-			buf.WriteRune(r)
+			return kw
 		}
 	}
 
-	result := buf.String()
-	result = strings.ReplaceAll(result, "${", "$${")
-	result = strings.ReplaceAll(result, "%{", "%%{")
-
-	return result
+	return string(RangeBytes(srcBytes, expr.Range()))
 }
 
-func valueToHCLBytes(val cty.Value) []byte {
+func partialEvalTuple(e *hclsyntax.TupleConsExpr, args *EvalArgs) []byte {
+	parts := make([][]byte, 0, len(e.Exprs))
+
+	for _, elem := range e.Exprs {
+		parts = append(parts, PartialEval(elem, args))
+	}
+
+	return slices.Concat([]byte("["), bytes.Join(parts, []byte(", ")), []byte("]"))
+}
+
+// ValueToHCLBytes converts a cty.Value to HCL source text bytes.
+func ValueToHCLBytes(val cty.Value) []byte {
 	tokens := hclwrite.TokensForValue(val)
 
 	return tokens.Bytes()

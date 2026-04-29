@@ -9,12 +9,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	intHclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -224,8 +222,6 @@ func sanitizeReadFiles(files []string) []string {
 }
 
 // extractDependencyPaths extracts all dependency paths from a Terragrunt configuration.
-// It also checks for terragrunt.autoinclude.hcl in the same directory and extracts
-// dependency config_path values from it, so the DAG correctly orders units.
 func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component) ([]string, error) {
 	if cfg == nil {
 		return nil, nil
@@ -237,12 +233,6 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	}
 
 	deduped := make(map[string]struct{}, maxDedupLen)
-
-	// Check for autoinclude file and extract its dependency paths for the DAG.
-	autoIncludeDeps := ExtractAutoIncludeDependencyPaths(c.Path())
-	for _, dep := range autoIncludeDeps {
-		deduped[dep] = struct{}{}
-	}
 
 	errs := make([]error, 0, maxDedupLen)
 
@@ -261,8 +251,7 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 			depPath = filepath.Clean(filepath.Join(c.Path(), depPath))
 		}
 
-		depPath = util.ResolvePath(depPath)
-		deduped[depPath] = struct{}{}
+		deduped[util.ResolvePath(depPath)] = struct{}{}
 	}
 
 	if cfg.Dependencies != nil {
@@ -271,22 +260,14 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 				dependency = filepath.Clean(filepath.Join(c.Path(), dependency))
 			}
 
-			dependency = util.ResolvePath(dependency)
-			deduped[dependency] = struct{}{}
+			deduped[util.ResolvePath(dependency)] = struct{}{}
 		}
 	}
 
 	depPaths := make([]string, 0, len(deduped))
 
 	for depPath := range deduped {
-		// When the stack-dependencies experiment is active and the dependency
-		// path points to a stack (directory with terragrunt.stack.hcl), expand
-		// it to all constituent unit paths so the DAG correctly blocks on each unit.
-		if expandedPaths := ExpandStackDependency(depPath); len(expandedPaths) > 0 {
-			depPaths = append(depPaths, expandedPaths...)
-		} else {
-			depPaths = append(depPaths, depPath)
-		}
+		depPaths = append(depPaths, depPath)
 	}
 
 	if len(errs) > 0 {
@@ -296,100 +277,46 @@ func extractDependencyPaths(cfg *config.TerragruntConfig, c component.Component)
 	return depPaths, nil
 }
 
-// ExpandStackDependency checks if a dependency path points to a stack directory.
-// If so, it reads the stack config and returns paths to all generated units
-// within .terragrunt-stack/. Returns nil if not a stack.
-func ExpandStackDependency(depPath string) []string {
-	stackFile := filepath.Join(depPath, config.DefaultStackFile)
-
-	if !util.FileExists(stackFile) {
-		return nil
-	}
-
-	// Read the stack file to discover unit paths.
-	// We only need the raw HCL to extract unit path attributes — no eval context needed.
-	data, err := os.ReadFile(stackFile)
+// stackDependencyPaths returns additional dependency paths from autoinclude
+// files and expands stack directory paths into constituent unit paths.
+// Only called when the StackDependencies experiment is enabled.
+func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) ([]string, error) {
+	// Add dependencies declared in autoinclude files.
+	autoIncludeDeps, err := inthclparse.AutoIncludeDependencyPaths(fs, c.Path())
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	unitPaths := ExtractUnitPathsFromStackFile(data, depPath)
-
-	return unitPaths
-}
-
-// ExtractUnitPathsFromStackFile parses a stack file and returns absolute paths
-// to each unit's generated directory under .terragrunt-stack/.
-func ExtractUnitPathsFromStackFile(data []byte, stackDir string) []string {
-	// Use a minimal HCL parse to extract unit blocks and their path attributes.
-	// We import the internal hclparse package which can handle this.
-	result, err := intHclparse.ParseStackFile(data, filepath.Join(stackDir, config.DefaultStackFile), stackDir, nil)
-	if err != nil {
-		return nil
+	for _, dep := range autoIncludeDeps {
+		depPaths = append(depPaths, util.ResolvePath(dep))
 	}
 
-	paths := make([]string, 0, len(result.Units))
+	// Expand stack dependency paths to individual unit paths.
+	expanded := make([]string, 0, len(depPaths))
 
-	for _, unit := range result.Units {
-		unitPath := filepath.Join(stackDir, config.StackDir, unit.Path)
-		paths = append(paths, unitPath)
-	}
+	for _, depPath := range depPaths {
+		unitPaths := inthclparse.UnitPathsFromStackDir(fs, depPath)
+		if len(unitPaths) > 0 {
+			expanded = append(expanded, unitPaths...)
 
-	return paths
-}
-
-// ExtractAutoIncludeDependencyPaths checks for a terragrunt.autoinclude.hcl file
-// in the given unit directory and extracts dependency config_path values.
-// This ensures the DAG sees dependencies defined in autoinclude files during
-// graph construction, even though they're not in the main terragrunt.hcl.
-func ExtractAutoIncludeDependencyPaths(unitDir string) []string {
-	autoIncludePath := filepath.Join(unitDir, config.DefaultAutoIncludeFile)
-
-	if !util.FileExists(autoIncludePath) {
-		return nil
-	}
-
-	data, err := os.ReadFile(autoIncludePath)
-	if err != nil {
-		return nil
-	}
-
-	// Minimal HCL parse — just extract dependency blocks and their config_path.
-	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
-	if diags.HasErrors() {
-		return nil
-	}
-
-	body, ok := file.Body.(*hclsyntax.Body)
-	if !ok {
-		return nil
-	}
-
-	var paths []string
-
-	for _, block := range body.Blocks {
-		if block.Type != "dependency" || len(block.Labels) == 0 {
 			continue
 		}
 
-		configPathAttr, exists := block.Body.Attributes["config_path"]
-		if !exists {
-			continue
-		}
-
-		// Evaluate config_path — it's already a resolved string literal in the generated file.
-		val, valDiags := configPathAttr.Expr.Value(nil)
-		if valDiags.HasErrors() || val.Type() != cty.String {
-			continue
-		}
-
-		depPath := val.AsString()
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
-		}
-
-		paths = append(paths, util.ResolvePath(depPath))
+		expanded = append(expanded, depPath)
 	}
 
-	return paths
+	// Deduplicate expanded paths.
+	seen := make(map[string]struct{}, len(expanded))
+	result := make([]string, 0, len(expanded))
+
+	for _, p := range expanded {
+		if _, exists := seen[p]; exists {
+			continue
+		}
+
+		seen[p] = struct{}{}
+		result = append(result, p)
+	}
+
+	return result, nil
 }

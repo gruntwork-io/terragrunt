@@ -1,24 +1,18 @@
 package hclparse_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 )
-
-func parseHCLBody(t *testing.T, src string) hcl.Body {
-	t.Helper()
-
-	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
-	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
-
-	return file.Body
-}
 
 func TestAutoIncludeHCL_Resolve_Nil(t *testing.T) {
 	t.Parallel()
@@ -192,4 +186,108 @@ inputs = {
 
 	// RawBody preserved (contains inputs with dependency.vpc.outputs.val)
 	assert.NotNil(t, result.RawBody)
+}
+
+func TestAutoIncludeDependencyPaths_NoFile(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
+}
+
+func TestAutoIncludeDependencyPaths_WithDependency(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../unit-w-outputs"
+}
+`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Equal(t, filepath.Clean(filepath.Join("/test", "..", "unit-w-outputs")), paths[0])
+}
+
+func TestAutoIncludeDependencyPaths_MultipleDeps(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../vpc"
+}
+dependency "db" {
+  config_path = "../database"
+}
+`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 2)
+}
+
+func TestAutoIncludeDependencyPaths_Symlink(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	resolvedTmpDir, _ := filepath.EvalSymlinks(tmpDir)
+
+	// Create real unit directory with autoinclude file
+	realDir := filepath.Join(resolvedTmpDir, "real-unit")
+	require.NoError(t, os.MkdirAll(realDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(realDir, hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../vpc"
+}
+`), 0644))
+
+	// Create symlink to unit directory
+	symlinkDir := filepath.Join(tmpDir, "symlinked-unit")
+	require.NoError(t, os.Symlink(realDir, symlinkDir))
+
+	// AutoIncludeDependencyPaths via symlink should resolve correctly
+	paths, err := hclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), symlinkDir)
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+
+	// The dependency path should be resolved relative to the REAL directory, not the symlink
+	assert.NotContains(t, paths[0], "symlinked-unit")
+	// ../vpc resolved from real-unit gives <tmpDir>/vpc
+	expected := filepath.Clean(filepath.Join(realDir, "..", "vpc"))
+	assert.Equal(t, expected, paths[0])
+}
+
+func TestAutoIncludeDependencyPaths_AbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "/absolute/path/to/vpc"
+}
+`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+}
+
+// parseHCLBody is a test helper that parses an HCL string and returns the body.
+func parseHCLBody(t *testing.T, src string) hcl.Body {
+	t.Helper()
+
+	file, diags := hclsyntax.ParseConfig([]byte(src), "test.hcl", hcl.Pos{Line: 1, Column: 1})
+	require.False(t, diags.HasErrors(), "parse error: %s", diags.Error())
+
+	return file.Body
 }

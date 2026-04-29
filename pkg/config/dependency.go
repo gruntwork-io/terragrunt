@@ -223,6 +223,13 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			// During hcl validate, config_path may be unresolvable (e.g., references an
+			// unavailable local). Skip the invalid dependency instead of aborting — it will
+			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
@@ -279,6 +286,11 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			if pctx.SkipOutput {
+				updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+				continue
+			}
+
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -388,10 +400,19 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 		}
 
 		if !IsValidConfigPath(dependency.ConfigPath) {
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
+
+		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
+		if !util.FileExists(dependencyPath) {
+			continue
+		}
 
 		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
 		if err != nil {
@@ -515,10 +536,21 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 					lock.Unlock()
 
 					dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				} else if pctx.SkipOutput {
+					// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
+					// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
+					// to unknown rather than producing an "Unsupported attribute" error.
+					l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["outputs"] = cty.DynamicVal
 				}
 
 				if dependencyConfig.Inputs != nil {
 					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				} else if pctx.SkipOutput {
+					l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["inputs"] = cty.DynamicVal
 				}
 
 				// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
@@ -703,6 +735,50 @@ func getTerragruntOutput(
 	return &convertedOutput, isEmpty, errors.New(err)
 }
 
+// collectStackUnitOutputs iterates over stack units, reads their cached
+// terraform outputs, and returns them as a map keyed by unit name.
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
+	unitOutputs := make(map[string]cty.Value)
+
+	for _, unit := range units {
+		unitDir := GetUnitDir(stackDir, unit)
+		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+
+		if !util.FileExists(unitConfigPath) {
+			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
+
+			continue
+		}
+
+		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
+		if err != nil {
+			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
+
+			continue
+		}
+
+		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
+		if err != nil {
+			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
+
+			continue
+		}
+
+		if len(outputMap) > 0 {
+			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
+			if err != nil {
+				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
+
+				continue
+			}
+
+			unitOutputs[unit.Name] = convertedOutput
+		}
+	}
+
+	return unitOutputs
+}
+
 // tryGetStackOutput checks if targetConfigPath points to a stack directory
 // (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
 // units in the stack. Returns (output, handled, error) where handled=true
@@ -717,7 +793,7 @@ func tryGetStackOutput(
 	// Check if the path is a directory containing a stack file
 	stackFilePath := targetConfigPath
 
-	if !strings.HasSuffix(stackFilePath, DefaultStackFile) {
+	if filepath.Base(stackFilePath) != DefaultStackFile {
 		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
 	}
 
@@ -729,48 +805,20 @@ func tryGetStackOutput(
 
 	stackDir := filepath.Dir(stackFilePath)
 
+	// Load values from the target stack's directory before parsing,
+	// mirroring the GenerateStackFile flow so stacks using values.* work.
+	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+	}
+
 	// Parse the stack config to discover units
-	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, nil)
+	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
 	if err != nil {
 		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
 	}
 
-	// Collect outputs from each unit in the stack
-	unitOutputs := make(map[string]cty.Value)
-
-	for _, unit := range stackConfig.Units {
-		unitDir := GetUnitDir(stackDir, unit)
-		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
-
-		if !util.FileExists(unitConfigPath) {
-			l.Debugf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
-
-			continue
-		}
-
-		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
-		if err != nil {
-			l.Debugf("Failed to get output for stack unit %s: %v", unit.Name, err)
-
-			continue
-		}
-
-		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
-		if err != nil {
-			l.Debugf("Failed to parse output for stack unit %s: %v", unit.Name, err)
-
-			continue
-		}
-
-		if len(outputMap) > 0 {
-			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
-			if err != nil {
-				continue
-			}
-
-			unitOutputs[unit.Name] = convertedOutput
-		}
-	}
+	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
 
 	if len(unitOutputs) == 0 {
 		return nil, true, nil
@@ -848,14 +896,12 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Create dependency context using WithConfigPath
 	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set dependency-specific fields
-	pctx.OriginalTerragruntConfigPath = targetConfig
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"
