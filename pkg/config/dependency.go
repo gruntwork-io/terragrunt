@@ -41,6 +41,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 )
 
@@ -1121,7 +1122,7 @@ func getTerragruntOutputJSONFromInitFolder(
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1259,7 +1260,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	out, err := tf.RunCommandWithOutput(bareCtx, l, tfRunOpts, tf.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(bareCtx, l, vexec.NewOSExec(), tfRunOpts, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1523,7 +1524,7 @@ func runTerraformInitForDependencyOutput(ctx context.Context, pctx *ParsingConte
 
 	bareCtx := tf.ContextWithTerraformCommandHook(ctx, nil)
 
-	if err := tf.RunCommand(bareCtx, l, initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
+	if err := tf.RunCommand(bareCtx, l, vexec.NewOSExec(), initRunOpts, tf.CommandNameInit, "-get=false"); err != nil {
 		l.Debugf("Ignoring expected error from dependency init call")
 		l.Debugf("Init call stderr:")
 		l.Debugf("%s", stderr.String())

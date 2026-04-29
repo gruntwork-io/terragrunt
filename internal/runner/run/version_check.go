@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-version"
 )
@@ -130,7 +131,7 @@ func GetTFVersion(ctx context.Context, l log.Logger, tfOpts *tf.TFOptions) (log.
 
 	optsCopy.ShellOptions.Env = envCopy
 
-	output, err := tf.RunCommandWithOutput(ctx, l, &optsCopy, tf.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), &optsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return l, nil, tfimpl.Unknown, err
 	}

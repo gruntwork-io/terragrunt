@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-shellwords"
 )
@@ -58,7 +59,10 @@ func (provider *Provider) GetCredentials(ctx context.Context, l log.Logger) (*pr
 		args = parts[1:]
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, provider.runOpts, "", true, false, command, args...)
+	output, err := shell.RunCommandWithOutput(
+		ctx, l, vexec.NewOSExec(), provider.runOpts,
+		"", true, false, command, args...,
+	)
 	if err != nil {
 		return nil, err
 	}
