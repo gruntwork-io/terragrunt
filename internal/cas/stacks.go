@@ -544,6 +544,18 @@ func (c *CAS) copyTree(src, dst string) error {
 				return err
 			}
 
+			resolved := linkTarget
+			if !filepath.IsAbs(resolved) {
+				resolved = filepath.Join(filepath.Dir(path), resolved)
+			}
+
+			resolved = filepath.Clean(resolved)
+
+			rel, relErr := filepath.Rel(filepath.Clean(src), resolved)
+			if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return fmt.Errorf("%w: symlink %q -> %q", ErrSourceEscapesRepo, path, linkTarget)
+			}
+
 			if err := c.fs.MkdirAll(filepath.Dir(target), DefaultDirPerms); err != nil {
 				return err
 			}

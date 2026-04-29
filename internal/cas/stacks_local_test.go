@@ -331,6 +331,32 @@ func TestProcessStackComponent_LocalSource_MissingSubdir(t *testing.T) {
 	assert.Contains(t, err.Error(), "does-not-exist")
 }
 
+func TestProcessStackComponent_LocalSource_SymlinkEscapesRepo(t *testing.T) {
+	t.Parallel()
+
+	c := newCAS(t)
+	l := logger.CreateLogger()
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	outside := filepath.Join(tmp, "outside")
+	require.NoError(t, os.MkdirAll(outside, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret"), []byte("nope"), 0o644))
+
+	root := filepath.Join(tmp, "repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "stacks", "my-stack"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "stacks", "my-stack", "terragrunt.stack.hcl"),
+		[]byte(""),
+		0o644,
+	))
+	require.NoError(t, os.Symlink(outside, filepath.Join(root, "escape")))
+
+	_, err := c.ProcessStackComponent(t.Context(), l, root+"//stacks/my-stack", "stack")
+	require.Error(t, err, "symlink pointing outside the source root must be rejected")
+	require.ErrorIs(t, err, cas.ErrSourceEscapesRepo)
+}
+
 // TestProcessStackComponent_EmptySourceFails exercises the empty-string
 // short-circuit in the local/remote dispatcher. An empty source cannot be a
 // valid local directory or a clonable URL, so it must be rejected.
