@@ -1,8 +1,9 @@
-package providercache
+package providercache_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/providercache"
 	"github.com/gruntwork-io/terragrunt/internal/tf/cliconfig"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,9 @@ func TestFilterRegistriesByImplementation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := filterRegistriesByImplementation(tt.registryNames, tt.implementation)
+
+			got := providercache.FilterRegistriesByImplementation(tt.registryNames, tt.implementation)
+
 			assert.Equal(t, tt.expected, got)
 		})
 	}
@@ -84,14 +87,15 @@ func TestFilterRegistriesByImplementationWithCustomHosts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			// Simulate what Init does: standard registries already in opts, custom host added separately.
-			// filterRegistriesByImplementation must NOT receive custom hosts mixed in — it receives
+			// FilterRegistriesByImplementation must NOT receive custom hosts mixed in — it receives
 			// pc.opts.RegistryNames which stays clean; custom hosts come from cliCfg.Hosts.
 			baseRegistries := []string{"registry.terraform.io", "registry.opentofu.org"}
 			customHosts := []cliconfig.ConfigHost{{Name: "nexus.corp"}}
 
-			filtered := filterRegistriesByImplementation(baseRegistries, tt.implementation)
-			got := appendCustomHostRegistries(customHosts, filtered)
+			filtered := providercache.FilterRegistriesByImplementation(baseRegistries, tt.implementation)
+			got := providercache.AppendCustomHostRegistries(customHosts, filtered)
 
 			assert.Equal(t, tt.expected, got)
 		})
