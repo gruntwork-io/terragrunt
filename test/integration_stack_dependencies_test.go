@@ -3,8 +3,10 @@
 package test_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
@@ -25,6 +27,7 @@ const (
 	testFixtureStackDepsUnitInStack = "fixtures/stacks/stack-deps-unit-in-stack"
 	testFixtureStackDepsEntireStack = "fixtures/stacks/stack-deps-entire-stack"
 	testFixtureStackDepsNestedStack = "fixtures/stacks/stack-deps-nested-stack"
+	testFixtureStackDepsTree        = "fixtures/stacks/stack-deps-tree"
 )
 
 // TestStackDepsAutoIncludeGenerationAndDAG tests parsing, autoinclude generation,
@@ -35,7 +38,8 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsAutoInclude)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoInclude)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoInclude, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -151,7 +155,8 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsStackRef)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsStackRef)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsStackRef, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -187,7 +192,8 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), nestedContent, 0644))
 
-	unitPaths := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	unitPaths, err := inthclparse.UnitPathsFromStackDir(vfs.NewOSFS(), stackDir)
+	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
 
 	expectedVPC := filepath.Join(stackDir, ".terragrunt-stack", "vpc")
@@ -220,11 +226,9 @@ func TestStackDepsE2EBasic(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
-	inputFiles, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs", ".terragrunt-cache", "*", "*", "input.txt"))
-	require.NoError(t, err)
-	require.Len(t, inputFiles, 1)
+	inputPath := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs"), "input.txt")
 
-	inputContent, err := os.ReadFile(inputFiles[0])
+	inputContent, err := os.ReadFile(inputPath)
 	require.NoError(t, err)
 	assert.Equal(t, "Received: Hello!", string(inputContent))
 
@@ -253,24 +257,24 @@ func TestStackDepsE2EChain(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// Verify unit-a received chained output: from-b(from-c)
-	markerA, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-a", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerA, 1)
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
 
-	contentA, err := os.ReadFile(markerA[0])
+	contentA, err := os.ReadFile(markerA)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-a received: from-b(from-c)", string(contentA))
 
 	// Verify unit-b received: from-c
-	markerB, err := filepath.Glob(filepath.Join(rootPath, ".terragrunt-stack", "unit-b", ".terragrunt-cache", "*", "*", "marker.txt"))
-	require.NoError(t, err)
-	require.Len(t, markerB, 1)
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
 
-	contentB, err := os.ReadFile(markerB[0])
+	contentB, err := os.ReadFile(markerB)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-b received: from-c", string(contentB))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+
+	// Destroy must remove the marker files produced by apply.
+	assert.NoFileExists(t, markerA)
+	assert.NoFileExists(t, markerB)
 }
 
 // TestStackDepsE2ECrossStack tests stack generation with cross-stack dependencies:
@@ -324,7 +328,8 @@ func TestStackDepsDocExample_UnitInStack(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsUnitInStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsUnitInStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsUnitInStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -370,7 +375,8 @@ func TestStackDepsDocExample_EntireStack(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsEntireStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsEntireStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsEntireStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -425,7 +431,8 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureStackDepsNestedStack)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsNestedStack)
 	liveDir := filepath.Join(tmpEnvPath, testFixtureStackDepsNestedStack, "live")
-	liveDir, _ = filepath.EvalSymlinks(liveDir)
+	liveDir, err := filepath.EvalSymlinks(liveDir)
+	require.NoError(t, err)
 
 	stackFile := filepath.Join(liveDir, "terragrunt.stack.hcl")
 
@@ -472,4 +479,340 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)
 	assert.Equal(t, expectedPath, depPaths[0])
+}
+
+// findComponent is the JSON structure returned by terragrunt find --json.
+type findComponent struct {
+	Type         string   `json:"type"`
+	Path         string   `json:"path"`
+	Dependencies []string `json:"dependencies,omitempty"`
+}
+
+// TestStackDepsFindJSON verifies that terragrunt find --json --dag --dependencies
+// correctly shows stack dependency relationships from autoinclude.
+func TestStackDepsFindJSON(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	// Find the unit-w-inputs component and verify its dependency
+	foundInputs := false
+	foundOutputs := false
+
+	for _, c := range components {
+		if c.Type != "unit" {
+			continue
+		}
+
+		if filepath.Base(c.Path) == "unit-w-inputs" {
+			foundInputs = true
+
+			require.Len(t, c.Dependencies, 1)
+			assert.Contains(t, c.Dependencies[0], "unit-w-outputs")
+		}
+
+		if filepath.Base(c.Path) == "unit-w-outputs" {
+			foundOutputs = true
+
+			assert.Empty(t, c.Dependencies)
+		}
+	}
+
+	require.True(t, foundInputs, "unit-w-inputs should be in find output")
+	require.True(t, foundOutputs, "unit-w-outputs should be in find output")
+}
+
+// TestStackDepsFindDAG verifies that terragrunt find --dag lists units in
+// dependency order: unit-w-outputs before unit-w-inputs.
+func TestStackDepsFindDAG(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	outputsIdx := strings.Index(stdout, "unit-w-outputs")
+	inputsIdx := strings.Index(stdout, "unit-w-inputs")
+
+	require.NotEqual(t, -1, outputsIdx, "unit-w-outputs should be in output")
+	require.NotEqual(t, -1, inputsIdx, "unit-w-inputs should be in output")
+	assert.Less(t, outputsIdx, inputsIdx, "unit-w-outputs should appear before unit-w-inputs in DAG order")
+}
+
+// TestStackDepsListLong verifies that terragrunt list --long --dependencies --dag
+// shows dependency columns with stack dependency relationships.
+func TestStackDepsListLong(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt list --long --dependencies --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Dependencies")
+
+	for _, line := range strings.Split(stdout, "\n") {
+		if !strings.Contains(line, "unit-w-inputs") {
+			continue
+		}
+
+		assert.Contains(t, line, "unit-w-outputs",
+			"unit-w-inputs row should show unit-w-outputs as dependency")
+	}
+}
+
+// TestStackDepsListTree verifies that terragrunt list --tree --dag
+// shows a tree structure reflecting dependency relationships.
+func TestStackDepsListTree(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsBasic)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsBasic, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt list --tree --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "unit-w-outputs")
+	assert.Contains(t, stdout, "unit-w-inputs")
+
+	outputsIdx := strings.Index(stdout, "unit-w-outputs")
+	inputsIdx := strings.Index(stdout, "unit-w-inputs")
+
+	assert.Less(t, outputsIdx, inputsIdx)
+}
+
+// TestStackDepsFindChain verifies find --json --dag --dependencies with a
+// 3-level dependency chain: unit_a -> unit_b -> unit_c.
+func TestStackDepsFindChain(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsChain)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsChain)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsChain, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	depsByPath := make(map[string][]string)
+
+	for _, c := range components {
+		depsByPath[c.Path] = c.Dependencies
+	}
+
+	var unitAPath, unitBPath, unitCPath string
+
+	for path := range depsByPath {
+		switch {
+		case filepath.Base(path) == "unit-a":
+			unitAPath = path
+		case filepath.Base(path) == "unit-b":
+			unitBPath = path
+		case filepath.Base(path) == "unit-c":
+			unitCPath = path
+		}
+	}
+
+	require.NotEmpty(t, unitAPath, "unit-a should be in output")
+	require.NotEmpty(t, unitBPath, "unit-b should be in output")
+	require.NotEmpty(t, unitCPath, "unit-c should be in output")
+
+	require.Len(t, depsByPath[unitAPath], 1)
+	assert.Equal(t, unitBPath, depsByPath[unitAPath][0])
+
+	require.Len(t, depsByPath[unitBPath], 1)
+	assert.Equal(t, unitCPath, depsByPath[unitBPath][0])
+
+	assert.Empty(t, depsByPath[unitCPath])
+}
+
+// TestStackDepsFindTree verifies find --json --dag --dependencies with a
+// multi-level dependency tree:
+//
+//	    A
+//	   / \
+//	  B   C
+//	 / \
+//	D   E
+//
+// D, E, C are leaves. B depends on D+E. A depends on B+C.
+func TestStackDepsFindTree(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsTree)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTree)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTree, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --json --dag --dependencies --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	var components []findComponent
+
+	require.NoError(t, json.Unmarshal([]byte(stdout), &components))
+
+	depsByPath := make(map[string][]string)
+
+	for _, c := range components {
+		depsByPath[c.Path] = c.Dependencies
+	}
+
+	var aPath, bPath, cPath, dPath, ePath string
+
+	for path := range depsByPath {
+		switch {
+		case filepath.Base(path) == "unit-a":
+			aPath = path
+		case filepath.Base(path) == "unit-b":
+			bPath = path
+		case filepath.Base(path) == "unit-c":
+			cPath = path
+		case filepath.Base(path) == "unit-d":
+			dPath = path
+		case filepath.Base(path) == "unit-e":
+			ePath = path
+		}
+	}
+
+	require.NotEmpty(t, aPath, "unit-a should be in output")
+	require.NotEmpty(t, bPath, "unit-b should be in output")
+	require.NotEmpty(t, cPath, "unit-c should be in output")
+	require.NotEmpty(t, dPath, "unit-d should be in output")
+	require.NotEmpty(t, ePath, "unit-e should be in output")
+
+	// A depends on B and C
+	require.Len(t, depsByPath[aPath], 2)
+	assert.Contains(t, depsByPath[aPath], bPath)
+	assert.Contains(t, depsByPath[aPath], cPath)
+
+	// B depends on D and E
+	require.Len(t, depsByPath[bPath], 2)
+	assert.Contains(t, depsByPath[bPath], dPath)
+	assert.Contains(t, depsByPath[bPath], ePath)
+
+	// C, D, E are leaves
+	assert.Empty(t, depsByPath[cPath])
+	assert.Empty(t, depsByPath[dPath])
+	assert.Empty(t, depsByPath[ePath])
+}
+
+// TestStackDepsFindTreeDAGOrder verifies that find --dag with a multi-level
+// tree outputs units in correct topological order: leaves before parents.
+func TestStackDepsFindTreeDAGOrder(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsTree)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTree)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTree, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t,
+		"terragrunt find --dag --experiment stack-dependencies --working-dir "+rootPath)
+	require.NoError(t, err)
+
+	idxA := strings.Index(stdout, "unit-a")
+	idxB := strings.Index(stdout, "unit-b")
+	idxC := strings.Index(stdout, "unit-c")
+	idxD := strings.Index(stdout, "unit-d")
+	idxE := strings.Index(stdout, "unit-e")
+
+	require.NotEqual(t, -1, idxA)
+	require.NotEqual(t, -1, idxB)
+	require.NotEqual(t, -1, idxC)
+	require.NotEqual(t, -1, idxD)
+	require.NotEqual(t, -1, idxE)
+
+	// D and E must appear before B (B depends on D+E)
+	assert.Less(t, idxD, idxB, "unit-d should appear before unit-b")
+	assert.Less(t, idxE, idxB, "unit-e should appear before unit-b")
+
+	// B and C must appear before A (A depends on B+C)
+	assert.Less(t, idxB, idxA, "unit-b should appear before unit-a")
+	assert.Less(t, idxC, idxA, "unit-c should appear before unit-a")
+}
+
+// TestStackDepsE2ETree runs apply/destroy on the multi-level dependency tree
+// and verifies output propagation through all levels.
+func TestStackDepsE2ETree(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStackDepsTree)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsTree)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsTree, "live")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
+
+	// Verify unit-b received outputs from D and E
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
+
+	contentB, err := os.ReadFile(markerB)
+	require.NoError(t, err)
+	assert.Equal(t, "unit-b(from-d,from-e)", string(contentB))
+
+	// Verify unit-a received outputs from B and C
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
+
+	contentA, err := os.ReadFile(markerA)
+	require.NoError(t, err)
+	assert.Equal(t, "unit-a(from-b(from-d,from-e),from-c)", string(contentA))
+
+	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- destroy -auto-approve")
+
+	// Destroy must remove the marker files produced by apply.
+	assert.NoFileExists(t, markerA)
+	assert.NoFileExists(t, markerB)
 }

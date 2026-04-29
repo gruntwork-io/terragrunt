@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
 
@@ -179,53 +180,89 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 // AutoIncludeDependencyPaths reads the terragrunt.autoinclude.hcl file in
 // unitDir and returns resolved dependency config_path values.
 // Returns (nil, nil) if the file does not exist or has no dependencies.
+// Panics when fs is nil (programmer error). Returns EmptyArgError when unitDir
+// is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
+	}
+
+	if unitDir == "" {
+		return nil, EmptyArgError{Func: "AutoIncludeDependencyPaths", Arg: "unitDir"}
+	}
+
 	unitDir = util.ResolvePath(unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
-	data, err := vfs.ReadFile(fs, autoIncludePath)
+	body, err := readAutoIncludeBody(fs, autoIncludePath)
+	if err != nil || body == nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, len(body.Blocks))
+
+	for _, block := range body.Blocks {
+		if depPath, ok := extractDependencyConfigPath(block, unitDir); ok {
+			paths = append(paths, depPath)
+		}
+	}
+
+	return paths, nil
+}
+
+// readAutoIncludeBody reads and parses the autoinclude file at path.
+// Returns (nil, nil) when the file does not exist.
+func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
+	data, err := vfs.ReadFile(fs, path)
 	if errors.Is(err, iofs.ErrNotExist) {
 		return nil, nil
 	}
 
 	if err != nil {
-		return nil, FileReadError{FilePath: autoIncludePath, Err: err}
+		return nil, FileReadError{FilePath: path, Err: err}
 	}
 
-	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: autoIncludePath, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: path, Detail: diags.Error()}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, UnexpectedBodyTypeError{FilePath: autoIncludePath}
+		return nil, UnexpectedBodyTypeError{FilePath: path}
 	}
 
-	var paths []string
+	return body, nil
+}
 
-	for _, block := range body.Blocks {
-		if block.Type != blockDependency || len(block.Labels) == 0 {
-			continue
-		}
-
-		configPathAttr, exists := block.Body.Attributes[attrConfigPath]
-		if !exists {
-			continue
-		}
-
-		val, valDiags := configPathAttr.Expr.Value(nil)
-		if valDiags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
-			continue
-		}
-
-		depPath := val.AsString()
-		if !filepath.IsAbs(depPath) {
-			depPath = filepath.Clean(filepath.Join(unitDir, depPath))
-		}
-
-		paths = append(paths, util.ResolvePath(depPath))
+// extractDependencyConfigPath returns the resolved absolute config_path for a
+// dependency block, or ("", false) if the block is not a valid dependency or
+// config_path cannot be evaluated to a string.
+//
+// The nil eval context passed to Expr.Value is intentional: GenerateAutoIncludeFile
+// always writes config_path as a literal quoted string via writeDependencyBlock
+// (see generate.go), so no variable resolution is required. If that contract is
+// ever relaxed to emit interpolations, callers must pass a real eval context
+// here or the dependency will be silently dropped from the DAG.
+func extractDependencyConfigPath(block *hclsyntax.Block, unitDir string) (string, bool) {
+	if block.Type != blockDependency || len(block.Labels) == 0 {
+		return "", false
 	}
 
-	return paths, nil
+	configPathAttr, exists := block.Body.Attributes[attrConfigPath]
+	if !exists {
+		return "", false
+	}
+
+	val, diags := configPathAttr.Expr.Value(nil)
+	if diags.HasErrors() || !val.IsKnown() || val.IsNull() || val.Type() != cty.String {
+		return "", false
+	}
+
+	depPath := val.AsString()
+	if !filepath.IsAbs(depPath) {
+		depPath = filepath.Clean(filepath.Join(unitDir, depPath))
+	}
+
+	return util.ResolvePath(depPath), true
 }
