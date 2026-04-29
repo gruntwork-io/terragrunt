@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -380,4 +381,38 @@ func ValidateAuthProviderScript(t *testing.T, dir string, script string) {
 
 	err = externalcmd.ValidateResponse(scriptStdout.Bytes())
 	require.NoError(t, err)
+}
+
+// FindCachedFile searches unitDir recursively for files whose base name equals
+// filename and asserts that exactly one match exists, returning its absolute
+// path. Centralizes the .terragrunt-cache layout assumption so tests do not
+// depend on the exact nesting depth produced by Terragrunt's source caching.
+// Multiple matches fail the test: stale caches from a prior failed run would
+// otherwise silently mask output-propagation regressions.
+func FindCachedFile(t *testing.T, unitDir, filename string) string {
+	t.Helper()
+
+	var matches []string
+
+	err := filepath.WalkDir(unitDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Base(path) != filename {
+			return nil
+		}
+
+		matches = append(matches, path)
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.Lenf(t, matches, 1, "expected exactly one %s under %s, got %d: %v", filename, unitDir, len(matches), matches)
+
+	return matches[0]
 }
