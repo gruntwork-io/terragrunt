@@ -9,6 +9,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// TestFeatureFlagDeepMergeHandlesNilDefaults verifies DeepMerge does not panic on nil defaults.
 func TestFeatureFlagDeepMergeHandlesNilDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +28,7 @@ func TestFeatureFlagDeepMergeHandlesNilDefaults(t *testing.T) {
 	assert.Equal(t, sourceDefault, *target.Default)
 }
 
+// TestFeatureFlagDeepMergeMapOnlyHandlesNilDefaults verifies DeepMergeMapOnly does not panic on nil defaults.
 func TestFeatureFlagDeepMergeMapOnlyHandlesNilDefaults(t *testing.T) {
 	t.Parallel()
 

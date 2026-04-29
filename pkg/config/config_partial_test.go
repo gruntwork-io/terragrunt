@@ -933,6 +933,7 @@ exclude {
 	}
 }
 
+// TestPartialParseFeatureFlagDefaultsFromIncludes verifies included feature defaults are available during partial parsing.
 func TestPartialParseFeatureFlagDefaultsFromIncludes(t *testing.T) {
 	t.Parallel()
 
@@ -1068,6 +1069,7 @@ exclude {
 	}
 }
 
+// TestDecodeBaseBlocksFeatureFlagDeepMapOnlyDefaultsFromIncludes verifies deep_map_only include behavior for feature defaults.
 func TestDecodeBaseBlocksFeatureFlagDeepMapOnlyDefaultsFromIncludes(t *testing.T) {
 	t.Parallel()
 

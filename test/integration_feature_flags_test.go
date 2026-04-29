@@ -108,6 +108,7 @@ func TestFeatureFlagRunAll(t *testing.T) {
 	validateOutputs(t, app2)
 }
 
+// TestFeatureFlagRunAllIsolatesPerUnitDefaults verifies run --all keeps feature defaults scoped to each unit.
 func TestFeatureFlagRunAllIsolatesPerUnitDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -213,6 +214,7 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]any) 
 	}
 }
 
+// assertDebugInputs verifies the effective and raw toggle values in Terragrunt debug inputs.
 func assertDebugInputs(t *testing.T, rootPath string, expectedEffective bool, expectedRaw bool) {
 	t.Helper()
 
@@ -222,6 +224,7 @@ func assertDebugInputs(t *testing.T, rootPath string, expectedEffective bool, ex
 	assert.EqualValues(t, expectedRaw, inputs["raw_toggle"])
 }
 
+// readDebugInputs reads Terragrunt's inputs debug file from the given unit path.
 func readDebugInputs(t *testing.T, rootPath string) map[string]any {
 	t.Helper()
 
@@ -234,6 +237,7 @@ func readDebugInputs(t *testing.T, rootPath string) map[string]any {
 	return inputs
 }
 
+// removeDebugInputs removes generated Terragrunt inputs debug files from unit paths.
 func removeDebugInputs(t *testing.T, paths ...string) {
 	t.Helper()
 
