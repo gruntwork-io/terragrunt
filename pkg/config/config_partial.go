@@ -220,26 +220,35 @@ func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.
 			return childFlags, err
 		}
 
-		includeOnlyConfig := &TerragruntConfig{FeatureFlags: parsedIncludeConfig.FeatureFlags}
-
-		// TODO: Remove lint suppression
-		switch mergeStrategy { //nolint:exhaustive
-		case ShallowMerge:
-			if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
-				return childFlags, err
-			}
-		case DeepMerge:
-			if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
-				return childFlags, err
-			}
-		default:
-			return childFlags, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+		mergedConfig, err := mergeFeatureFlagConfig(l, mergeStrategy, baseConfig, parsedIncludeConfig.FeatureFlags)
+		if err != nil {
+			return childFlags, err
 		}
 
-		baseConfig = includeOnlyConfig
+		baseConfig = mergedConfig
 	}
 
 	return baseConfig.FeatureFlags, nil
+}
+
+func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseConfig *TerragruntConfig, includeFlags FeatureFlags) (*TerragruntConfig, error) {
+	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
+
+	// TODO: Remove lint suppression
+	switch mergeStrategy { //nolint:exhaustive
+	case ShallowMerge:
+		if err := includeOnlyConfig.Merge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	case DeepMerge:
+		if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+	}
+
+	return includeOnlyConfig, nil
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
