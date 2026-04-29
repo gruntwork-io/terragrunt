@@ -7,6 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,4 +128,120 @@ func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
 	}
 
 	return cacheInstance
+}
+
+// RepoRootCache stores git repository roots and answers prefix-containment
+// queries. Roots are kept sorted by descending length so Lookup yields the
+// deepest matching root for paths inside nested repositories.
+type RepoRootCache struct {
+	name    string
+	roots   []string
+	mu      sync.RWMutex
+	resolve sync.Mutex
+}
+
+// NewRepoRootCache constructs an empty RepoRootCache. The name is used as a
+// prefix for telemetry counters.
+func NewRepoRootCache(name string) *RepoRootCache {
+	return &RepoRootCache{name: name}
+}
+
+// Lookup returns the deepest cached root that contains path. Containment is
+// component-aware: `/foo` does not match `/foobar`.
+func (c *RepoRootCache) Lookup(ctx context.Context, path string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, c.name+"_cache_get", 1)
+
+	for _, root := range c.roots {
+		if pathContainedIn(path, root) {
+			telemetry.TelemeterFromContext(ctx).Count(ctx, c.name+"_cache_hit", 1)
+
+			return root, true
+		}
+	}
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, c.name+"_cache_miss", 1)
+
+	return "", false
+}
+
+// Add records root as a known repository root. Inserts are ordered by
+// descending length so Lookup's first match is the deepest. Duplicates are
+// ignored.
+func (c *RepoRootCache) Add(ctx context.Context, root string) {
+	if root == "" {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	telemetry.TelemeterFromContext(ctx).Count(ctx, c.name+"_cache_put", 1)
+
+	insertAt := len(c.roots)
+
+	for i, existing := range c.roots {
+		if existing == root {
+			return
+		}
+
+		if insertAt == len(c.roots) && len(root) > len(existing) {
+			insertAt = i
+		}
+	}
+
+	c.roots = slices.Insert(c.roots, insertAt, root)
+}
+
+// BeginResolve serializes callers that are about to perform the external
+// lookup whose result they will Add. Callers must Lookup again after
+// BeginResolve returns so a concurrent populate is observed before running
+// the external resolver. EndResolve releases the lock.
+//
+// The lock is independent of the cache's read/write mutex; it is held across
+// the external call so concurrent misses collapse to a single resolution.
+func (c *RepoRootCache) BeginResolve() {
+	c.resolve.Lock()
+}
+
+// EndResolve releases the lock taken by BeginResolve.
+func (c *RepoRootCache) EndResolve() {
+	c.resolve.Unlock()
+}
+
+// Len returns the number of cached roots.
+func (c *RepoRootCache) Len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.roots)
+}
+
+// pathContainedIn reports whether path equals root or sits beneath it,
+// requiring a separator after root so `/foo` does not match `/foobar`.
+func pathContainedIn(path, root string) bool {
+	if path == root {
+		return true
+	}
+
+	if !strings.HasPrefix(path, root) {
+		return false
+	}
+
+	rest := path[len(root):]
+
+	return len(rest) > 0 && os.IsPathSeparator(rest[0])
+}
+
+// ContextRepoRootCache returns the RepoRootCache stored on the context, or a
+// fresh detached instance if none is present so callers do not need to
+// nil-check.
+func ContextRepoRootCache(ctx context.Context, key any) *RepoRootCache {
+	if c, ok := ctx.Value(key).(*RepoRootCache); ok && c != nil {
+		return c
+	}
+
+	return NewRepoRootCache(fmt.Sprintf("%v", key))
 }
