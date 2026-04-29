@@ -1122,4 +1122,5 @@ feature "skip_ci" {
 	assert.True(t, settings.GetAttr("parent").True())
 	assert.True(t, settings.GetAttr("child").True())
 	assert.Equal(t, 1, labels.LengthInt())
+	assert.Equal(t, "child", labels.Index(cty.NumberIntVal(0)).AsString())
 }
