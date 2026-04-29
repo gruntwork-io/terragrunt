@@ -29,7 +29,7 @@ import (
 // the interact callback, and returns the final model once the program exits.
 // The program runs with a pipe for input, a buffer for output, and a fixed
 // terminal size so tests are deterministic.
-func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea.Program)) tui.Model { //nolint:gocritic
+func runModel(t *testing.T, m tui.Model, width, height int, interact func(p *tea.Program)) tui.Model {
 	t.Helper()
 
 	var out bytes.Buffer

@@ -95,11 +95,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts.Filters = filter.Filters{filter.NewFilter(graphExpr, graphExpr.String())}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	if !opts.SummaryDisable {

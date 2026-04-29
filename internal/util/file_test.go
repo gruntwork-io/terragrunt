@@ -626,7 +626,13 @@ func Test_sanitizePath(t *testing.T) {
 			name:    "happy path",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
 			file:    ".terraform-version",
-			want:    "./testdata/fixture-sanitize-path/env/unit/.terraform-version",
+			want:    "testdata/fixture-sanitize-path/env/unit/.terraform-version",
+		},
+		{
+			name:    "nested file path is preserved",
+			baseDir: "./testdata/fixture-sanitize-path",
+			file:    "env/unit/.terraform-version",
+			want:    "testdata/fixture-sanitize-path/env/unit/.terraform-version",
 		},
 		{
 			name:    "base dir is empty",
@@ -660,7 +666,7 @@ func Test_sanitizePath(t *testing.T) {
 			name:    "file is just a dot",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
 			file:    ".",
-			want:    "./testdata/fixture-sanitize-path/env/unit/.",
+			want:    "testdata/fixture-sanitize-path/env/unit",
 			wantErr: false,
 		},
 		{
