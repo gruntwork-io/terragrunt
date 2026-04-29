@@ -1,7 +1,6 @@
 package redesign_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,8 +27,8 @@ func optionalNames(refs redesign.ValuesReferences) []string {
 func TestCollectValuesReferences_Unit(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "terragrunt.hcl")
+	fsys := vfs.NewMemMapFS()
+	path := "/unit/terragrunt.hcl"
 
 	body := `
 locals {
@@ -42,9 +41,9 @@ inputs = {
   extra  = "${values.env}-literal"
 }
 `
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
+	refs, err := redesign.CollectValuesReferences(fsys, path)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app", "env", "region"}, refs.Required)
 	assert.Empty(t, refs.Optional)
@@ -53,8 +52,8 @@ inputs = {
 func TestCollectValuesReferences_SplitsRequiredAndOptional(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "terragrunt.hcl")
+	fsys := vfs.NewMemMapFS()
+	path := "/unit/terragrunt.hcl"
 
 	// Required: region, app (app also appears in a try but the required
 	// usage wins).
@@ -73,9 +72,9 @@ locals {
   interpolated   = try(values.interp, "${local.x}-suffix")
 }
 `
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
+	refs, err := redesign.CollectValuesReferences(fsys, path)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app", "region"}, refs.Required)
 	assert.Equal(t, []string{"aud", "aws_partition", "deploy_branch", "tags"}, optionalNames(refs))
@@ -84,16 +83,16 @@ locals {
 func TestCollectValuesReferences_NoReferences(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "terragrunt.hcl")
+	fsys := vfs.NewMemMapFS()
+	path := "/unit/terragrunt.hcl"
 
-	require.NoError(t, os.WriteFile(path, []byte(`
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(`
 locals {
   region = "us-east-1"
 }
 `), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
+	refs, err := redesign.CollectValuesReferences(fsys, path)
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -101,8 +100,8 @@ locals {
 func TestCollectValuesReferences_StackAssignmentOnlyReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "terragrunt.stack.hcl")
+	fsys := vfs.NewMemMapFS()
+	path := "/stack/terragrunt.stack.hcl"
 
 	// Only assignments; no `values.*` reads. Should return empty.
 	body := `
@@ -115,9 +114,9 @@ unit "app" {
   }
 }
 `
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(body), 0o644))
 
-	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), path)
+	refs, err := redesign.CollectValuesReferences(fsys, path)
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -125,7 +124,9 @@ unit "app" {
 func TestCollectValuesReferences_MissingFile(t *testing.T) {
 	t.Parallel()
 
-	refs, err := redesign.CollectValuesReferences(vfs.NewOSFS(), filepath.Join(t.TempDir(), "nope.hcl"))
+	fsys := vfs.NewMemMapFS()
+
+	refs, err := redesign.CollectValuesReferences(fsys, "/missing/nope.hcl")
 	require.NoError(t, err)
 	assert.True(t, refs.IsEmpty())
 }
@@ -133,7 +134,9 @@ func TestCollectValuesReferences_MissingFile(t *testing.T) {
 func TestWriteValuesStub_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	fsys := vfs.NewMemMapFS()
+	dir := "/unit"
+	require.NoError(t, fsys.MkdirAll(dir, 0o755))
 
 	refs := redesign.ValuesReferences{
 		Required: []string{"region", "app"},
@@ -143,11 +146,11 @@ func TestWriteValuesStub_HappyPath(t *testing.T) {
 		},
 	}
 
-	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, refs)
+	written, err := redesign.WriteValuesStub(fsys, dir, refs)
 	require.NoError(t, err)
 	assert.True(t, written)
 
-	raw, err := os.ReadFile(filepath.Join(dir, "terragrunt.values.hcl"))
+	raw, err := vfs.ReadFile(fsys, filepath.Join(dir, "terragrunt.values.hcl"))
 	require.NoError(t, err)
 
 	out := string(raw)
@@ -184,32 +187,36 @@ func TestWriteValuesStub_HappyPath(t *testing.T) {
 func TestWriteValuesStub_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	fsys := vfs.NewMemMapFS()
+	dir := "/unit"
+	require.NoError(t, fsys.MkdirAll(dir, 0o755))
 
-	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, redesign.ValuesReferences{})
+	written, err := redesign.WriteValuesStub(fsys, dir, redesign.ValuesReferences{})
 	require.NoError(t, err)
 	assert.False(t, written)
 
-	_, err = os.Stat(filepath.Join(dir, "terragrunt.values.hcl"))
-	assert.True(t, os.IsNotExist(err))
+	exists, err := vfs.FileExists(fsys, filepath.Join(dir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+	assert.False(t, exists)
 }
 
 func TestWriteValuesStub_SkipsWhenExists(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	fsys := vfs.NewMemMapFS()
+	dir := "/unit"
 	path := filepath.Join(dir, "terragrunt.values.hcl")
 
 	original := []byte("# user-authored content\nfoo = \"existing\"\n")
-	require.NoError(t, os.WriteFile(path, original, 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, path, original, 0o644))
 
 	refs := redesign.ValuesReferences{Required: []string{"foo", "bar"}}
 
-	written, err := redesign.WriteValuesStub(vfs.NewOSFS(), dir, refs)
+	written, err := redesign.WriteValuesStub(fsys, dir, refs)
 	require.NoError(t, err)
 	assert.False(t, written)
 
-	got, err := os.ReadFile(path)
+	got, err := vfs.ReadFile(fsys, path)
 	require.NoError(t, err)
 	assert.Equal(t, original, got, "existing values file should be untouched")
 }

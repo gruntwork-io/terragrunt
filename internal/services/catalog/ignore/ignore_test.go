@@ -1,7 +1,6 @@
 package ignore_test
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,7 +14,10 @@ import (
 func TestMatcher_MissingFileIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	m, err := ignore.Load(vfs.NewOSFS(), t.TempDir())
+	fsys := vfs.NewMemMapFS()
+	require.NoError(t, fsys.MkdirAll("/repo", 0o755))
+
+	m, err := ignore.Load(fsys, "/repo")
 	require.NoError(t, err)
 	require.NotNil(t, m)
 	assert.True(t, m.Empty())
@@ -85,18 +87,20 @@ func TestMatcher_InvalidPatternReturnsError(t *testing.T) {
 func TestLoadFile_MissingFileIsError(t *testing.T) {
 	t.Parallel()
 
-	_, err := ignore.LoadFile(vfs.NewOSFS(), filepath.Join(t.TempDir(), "does-not-exist"))
+	fsys := vfs.NewMemMapFS()
+
+	_, err := ignore.LoadFile(fsys, "/repo/does-not-exist")
 	require.Error(t, err)
 }
 
 func TestLoadFile_ReadsExistingFile(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "extra-ignore")
-	require.NoError(t, os.WriteFile(path, []byte("examples\n"), 0644))
+	fsys := vfs.NewMemMapFS()
+	path := "/repo/extra-ignore"
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte("examples\n"), 0o644))
 
-	m, err := ignore.LoadFile(vfs.NewOSFS(), path)
+	m, err := ignore.LoadFile(fsys, path)
 	require.NoError(t, err)
 	assert.True(t, m.Match("examples"))
 }
@@ -121,10 +125,11 @@ func TestMerge_AppendsRulesLastWins(t *testing.T) {
 func TestLoad_ReadsFile(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ignore.FileName), []byte("examples\n"), 0644))
+	fsys := vfs.NewMemMapFS()
+	dir := "/repo"
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(dir, ignore.FileName), []byte("examples\n"), 0o644))
 
-	m, err := ignore.Load(vfs.NewOSFS(), dir)
+	m, err := ignore.Load(fsys, dir)
 	require.NoError(t, err)
 	assert.False(t, m.Empty())
 	assert.True(t, m.Match("examples"))
