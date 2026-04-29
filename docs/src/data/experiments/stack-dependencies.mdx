@@ -143,3 +143,22 @@ Provide your feedback on the [Stack Dependencies RFC](https://github.com/gruntwo
 - [ ] Performance validation at scale
 
 </Since>
+
+<Since version="1.0.4">
+
+- [x] Create `internal/hclparse` package with two-phase stack file parser and autoinclude data structures
+- [x] Implement `terragrunt.autoinclude.hcl` file generator with relative path resolution
+- [x] Implement AST-walking partial evaluator for mixed `local.*` + `dependency.*` expressions
+- [x] Integrate autoinclude parsing and generation into `pkg/config/stack.go` stack generation pipeline
+- [x] Auto-merge `terragrunt.autoinclude.hcl` into unit config during `ParseConfig()` with deep merge
+- [x] Add `tryGetStackOutput()` for dependency blocks targeting stack directories
+- [x] Add `ExtractAutoIncludeDependencyPaths()` so DAG sees dependencies from autoinclude files
+- [x] Add integration tests and test fixtures for end-to-end validation
+- [x] E2E validation with `stack run apply` and `stack run destroy`
+- [x] Resolve `stack.<name>.<nested_stack>.path` at arbitrary nesting depth
+- [x] Surface autoinclude dependencies in `terragrunt find` and `terragrunt list` (JSON, tree, and long formats)
+- [ ] Community feedback on `autoinclude` syntax and merge behavior
+- [ ] Integration with CAS for generated files
+- [ ] Performance validation at scale
+
+</Since>

@@ -1,6 +1,7 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
 
@@ -152,9 +153,16 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 	return refs
 }
 
-// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk and performs a two-pass parse.
-// Returns (nil, nil) only when the stack file does not exist. Callers that may pass non-directory paths must filter those before calling.
+// ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk and performs a two-pass parse. Returns (nil, nil) only when the stack file does not exist. Callers that may pass non-directory paths must filter those before calling.
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.ParseStackFileFromPath: stackDir is empty")
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
 
@@ -174,8 +182,16 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 	})
 }
 
-// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory.
+// UnitPathsFromStackDir parses the stack file in stackDir and returns paths to each unit's generated directory. Returns (nil, err) on parse errors so callers can distinguish "not a stack dir" from "malformed stack file".
 func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 
 	result, err := ParseStackFileFromPath(fs, stackDir)
@@ -207,6 +223,18 @@ const maxDiscoverDepth = 1000
 
 // DiscoverStackChildUnits parses a stack's source dir for stack.<name>.<unit>.path resolution. Best-effort: nested parse failures yield empty refs, never an error.
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
+	}
+
+	if stackSourceDir == "" {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackSourceDir is empty (stackGenDir=%q)", stackGenDir))
+	}
+
+	if stackGenDir == "" {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (stackSourceDir=%q)", stackSourceDir))
+	}
+
 	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
 }
 
@@ -239,6 +267,10 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 
 	for _, s := range result.Stacks {
 		nestedGenPath := filepath.Join(childTargetDir, s.Path)
+
+		if s.NoStack != nil && *s.NoStack {
+			nestedGenPath = filepath.Join(stackGenDir, s.Path)
+		}
 
 		nestedSourceDir := s.Source
 		if !filepath.IsAbs(nestedSourceDir) {

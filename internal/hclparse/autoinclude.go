@@ -195,8 +195,16 @@ func BuildAutoIncludeEvalContext(unitRefs, stackRefs []ComponentRef) *hcl.EvalCo
 	}
 }
 
-// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values.
+// AutoIncludeDependencyPaths reads the autoinclude file in unitDir and returns resolved dependency config_path values. Returns EmptyArgError when unitDir is empty so callers can distinguish bad input from a missing file.
 func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.AutoIncludeDependencyPaths: fs is nil (unitDir=%q)", unitDir))
+	}
+
+	if unitDir == "" {
+		return nil, EmptyArgError{Func: "AutoIncludeDependencyPaths", Arg: "unitDir"}
+	}
+
 	unitDir = util.ResolvePath(unitDir)
 	autoIncludePath := filepath.Join(unitDir, AutoIncludeFile)
 
@@ -242,24 +250,24 @@ func AutoIncludeDependencyPaths(fs vfs.FS, unitDir string) ([]string, error) {
 }
 
 // readAutoIncludeBody reads and parses an autoinclude file, returning (nil, nil) when the file does not exist.
-func readAutoIncludeBody(fs vfs.FS, autoIncludePath string) (*hclsyntax.Body, error) {
-	data, err := vfs.ReadFile(fs, autoIncludePath)
+func readAutoIncludeBody(fs vfs.FS, path string) (*hclsyntax.Body, error) {
+	data, err := vfs.ReadFile(fs, path)
 	if errors.Is(err, iofs.ErrNotExist) {
 		return nil, nil
 	}
 
 	if err != nil {
-		return nil, FileReadError{FilePath: autoIncludePath, Err: err}
+		return nil, FileReadError{FilePath: path, Err: err}
 	}
 
-	file, diags := hclsyntax.ParseConfig(data, autoIncludePath, hcl.Pos{Line: 1, Column: 1})
+	file, diags := hclsyntax.ParseConfig(data, path, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, FileParseError{FilePath: autoIncludePath, Detail: diags.Error()}
+		return nil, FileParseError{FilePath: path, Detail: diags.Error()}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, UnexpectedBodyTypeError{FilePath: autoIncludePath}
+		return nil, UnexpectedBodyTypeError{FilePath: path}
 	}
 
 	return body, nil

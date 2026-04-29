@@ -149,3 +149,13 @@ func (e MalformedDependencyError) Error() string {
 func (e MalformedDependencyError) Unwrap() error {
 	return e.Err
 }
+
+// EmptyArgError indicates that a required string argument was empty.
+type EmptyArgError struct {
+	Func string
+	Arg  string
+}
+
+func (e EmptyArgError) Error() string {
+	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
+}

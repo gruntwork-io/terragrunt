@@ -4,6 +4,7 @@ package hclparse
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 
@@ -61,6 +62,23 @@ type ParseResult struct {
 // body using the eval context. dependency.config_path is evaluated (references
 // unit.*.path), while inputs are left unevaluated (contain dependency.*.outputs.*).
 func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error) {
+	if fs == nil {
+		filename := ""
+		if input != nil {
+			filename = input.Filename
+		}
+
+		panic(fmt.Sprintf("hclparse.ParseStackFile: fs is nil (filename=%q)", filename))
+	}
+
+	if input == nil {
+		panic("hclparse.ParseStackFile: input is nil")
+	}
+
+	if input.StackDir == "" {
+		panic(fmt.Sprintf("hclparse.ParseStackFile: input.StackDir is empty (filename=%q)", input.Filename))
+	}
+
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		return nil, diags
@@ -334,9 +352,7 @@ func mergeOneInclude(fs vfs.FS, stackFile *StackFileHCL, inc *StackIncludeHCL, s
 	return nil
 }
 
-// recordAutoIncludeSources maps each AutoInclude pointer in stackFile to the bytes of the file it was parsed from.
-//
-// Pointer-keying invariant: every *AutoIncludeHCL in the slice trees must be a unique allocation that is never copied into a value receiver, since the lookup at resolution time uses pointer identity. gohcl.DecodeBody satisfies this because it allocates a fresh struct for each block; only direct construction by callers would risk duplicate keys.
+// recordAutoIncludeSources maps each AutoInclude pointer in stackFile to its source bytes; relies on gohcl.DecodeBody allocating fresh struct pointers (pointer-keyed identity).
 func recordAutoIncludeSources(srcByAutoInclude map[*AutoIncludeHCL][]byte, stackFile *StackFileHCL, src []byte) {
 	for _, u := range stackFile.Units {
 		if u != nil && u.AutoInclude != nil {
@@ -418,6 +434,10 @@ func buildStackRefsWithAbsPath(fs vfs.FS, stackDir string, stackTargetDir string
 
 	for _, s := range stacks {
 		stackGenPath := filepath.Join(stackTargetDir, s.Path)
+
+		if s.NoStack != nil && *s.NoStack {
+			stackGenPath = filepath.Join(filepath.Dir(stackTargetDir), s.Path)
+		}
 
 		sourceDir := s.Source
 		if !filepath.IsAbs(sourceDir) {
