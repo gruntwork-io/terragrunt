@@ -124,6 +124,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 			if stackConfigHasAutoInclude(stackFile) {
 				return errors.Errorf("failed to parse autoinclude block(s) in %s: %w", stackFilePath, parseErr)
 			}
+
+			l.Tracef("Autoinclude parse skipped for %s: %v", stackFilePath, parseErr)
 		}
 
 		if parseErr == nil {

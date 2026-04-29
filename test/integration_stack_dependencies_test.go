@@ -59,7 +59,7 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
 
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "app")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestStackDepsAutoIncludeGenerationAndDAG(t *testing.T) {
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)
 
-	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
+	vpcDir := filepath.Join(liveDir, inthclparse.StackDir, "vpc")
 	assert.Equal(t, vpcDir, depPaths[0])
 }
 
@@ -137,13 +137,13 @@ func TestStackDepsDAGWithoutAutoInclude(t *testing.T) {
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app")]
 	require.True(t, ok)
 
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "app")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
 
 	// vpc unit has no autoinclude: should return no deps
-	vpcDir := filepath.Join(liveDir, ".terragrunt-stack", "vpc")
+	vpcDir := filepath.Join(liveDir, inthclparse.StackDir, "vpc")
 	require.NoError(t, os.MkdirAll(vpcDir, 0755))
 
 	vpcDeps, vpcErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), vpcDir)
@@ -177,7 +177,7 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	resolved, ok := result.AutoIncludes[inthclparse.AutoIncludeKey("unit", "app_stack_dep")]
 	require.True(t, ok)
 
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app-stack-dep")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "app-stack-dep")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -200,8 +200,8 @@ func TestStackDepsDAGExpandsStackToUnits(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, unitPaths, 2, "networking stack should expand to 2 unit paths")
 
-	expectedVPC := filepath.Join(stackDir, ".terragrunt-stack", "vpc")
-	expectedSubnets := filepath.Join(stackDir, ".terragrunt-stack", "subnets")
+	expectedVPC := filepath.Join(stackDir, inthclparse.StackDir, "vpc")
+	expectedSubnets := filepath.Join(stackDir, inthclparse.StackDir, "subnets")
 
 	assert.Contains(t, unitPaths, expectedVPC)
 	assert.Contains(t, unitPaths, expectedSubnets)
@@ -220,7 +220,7 @@ func TestStackDepsE2EBasic(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	autoIncludePath := filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs", "terragrunt.autoinclude.hcl")
+	autoIncludePath := filepath.Join(rootPath, inthclparse.StackDir, "unit-w-inputs", "terragrunt.autoinclude.hcl")
 	require.FileExists(t, autoIncludePath)
 
 	content, err := os.ReadFile(autoIncludePath)
@@ -230,7 +230,7 @@ func TestStackDepsE2EBasic(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
-	inputPath := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-w-inputs"), "input.txt")
+	inputPath := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-w-inputs"), "input.txt")
 
 	inputContent, err := os.ReadFile(inputPath)
 	require.NoError(t, err)
@@ -254,21 +254,21 @@ func TestStackDepsE2EChain(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	// Verify autoinclude generated for unit-b and unit-a but not unit-c
-	require.FileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b", "terragrunt.autoinclude.hcl"))
-	require.FileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a", "terragrunt.autoinclude.hcl"))
-	assert.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-c", "terragrunt.autoinclude.hcl"))
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-b", "terragrunt.autoinclude.hcl"))
+	require.FileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-a", "terragrunt.autoinclude.hcl"))
+	assert.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-c", "terragrunt.autoinclude.hcl"))
 
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// Verify unit-a received chained output: from-b(from-c)
-	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-a"), "marker.txt")
 
 	contentA, err := os.ReadFile(markerA)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-a received: from-b(from-c)", string(contentA))
 
 	// Verify unit-b received: from-c
-	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-b"), "marker.txt")
 
 	contentB, err := os.ReadFile(markerB)
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	autoIncludePath := filepath.Join(rootPath, ".terragrunt-stack", "app", "terragrunt.autoinclude.hcl")
+	autoIncludePath := filepath.Join(rootPath, inthclparse.StackDir, "app", "terragrunt.autoinclude.hcl")
 	require.FileExists(t, autoIncludePath)
 
 	content, err := os.ReadFile(autoIncludePath)
@@ -312,16 +312,16 @@ func TestStackDepsE2ECrossStack(t *testing.T) {
 	assert.Contains(t, string(content), "../network")
 
 	// Verify network stack units were generated
-	networkStackDir := filepath.Join(rootPath, ".terragrunt-stack", "network", ".terragrunt-stack")
+	networkStackDir := filepath.Join(rootPath, inthclparse.StackDir, "network", inthclparse.StackDir)
 	assert.DirExists(t, filepath.Join(networkStackDir, "vpc"))
 	assert.DirExists(t, filepath.Join(networkStackDir, "subnets"))
 
 	// Verify DAG sees the dependency
-	appDir := filepath.Join(rootPath, ".terragrunt-stack", "app")
+	appDir := filepath.Join(rootPath, inthclparse.StackDir, "app")
 	depPaths, depErr := inthclparse.AutoIncludeDependencyPaths(vfs.NewOSFS(), appDir)
 	require.NoError(t, depErr)
 	require.Len(t, depPaths, 1)
-	assert.Equal(t, filepath.Join(rootPath, ".terragrunt-stack", "network"), depPaths[0])
+	assert.Equal(t, filepath.Join(rootPath, inthclparse.StackDir, "network"), depPaths[0])
 }
 
 // TestStackDepsDocExample_UnitInStack tests the docs example:
@@ -354,10 +354,10 @@ func TestStackDepsDocExample_UnitInStack(t *testing.T) {
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "unit_w_outputs", resolved.Dependencies[0].Name)
 
-	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "stack-w-outputs", ".terragrunt-stack", "unit-w-outputs")
+	expectedPath := filepath.Join(liveDir, inthclparse.StackDir, "stack-w-outputs", inthclparse.StackDir, "unit-w-outputs")
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "unit-w-inputs")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "unit-w-inputs")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -401,10 +401,10 @@ func TestStackDepsDocExample_EntireStack(t *testing.T) {
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "infra", resolved.Dependencies[0].Name)
 
-	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "infra")
+	expectedPath := filepath.Join(liveDir, inthclparse.StackDir, "infra")
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "app")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -459,11 +459,11 @@ func TestStackDepsDocExample_NestedStackPath(t *testing.T) {
 	assert.Equal(t, "deep", resolved.Dependencies[0].Name)
 
 	// Path should point to nested stack: .terragrunt-stack/infra/.terragrunt-stack/deep
-	expectedPath := filepath.Join(liveDir, ".terragrunt-stack", "infra", ".terragrunt-stack", "deep")
+	expectedPath := filepath.Join(liveDir, inthclparse.StackDir, "infra", inthclparse.StackDir, "deep")
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 
 	// Generate autoinclude and verify content
-	appDir := filepath.Join(liveDir, ".terragrunt-stack", "app")
+	appDir := filepath.Join(liveDir, inthclparse.StackDir, "app")
 
 	err = inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, appDir, srcBytes, resolved.EvalCtx)
 	require.NoError(t, err)
@@ -493,11 +493,12 @@ func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncParserLimit)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncParserLimit, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared and the two-pass parser cannot decode the stack file")
-	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
+	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Companion contract: parser-incompatible HCL without an autoinclude block still generates successfully (silent skip is allowed only when the user has nothing to lose).
@@ -522,8 +523,8 @@ unit "vpc" {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+stackDir)
 	require.NoError(t, err, "stack generate must succeed without autoinclude even if the two-pass parser cannot decode source/path expressions")
 
-	require.DirExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc"))
-	require.NoFileExists(t, filepath.Join(stackDir, ".terragrunt-stack", "vpc", "terragrunt.autoinclude.hcl"))
+	require.DirExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc"))
+	require.NoFileExists(t, filepath.Join(stackDir, inthclparse.StackDir, "vpc", "terragrunt.autoinclude.hcl"))
 }
 
 // Root has only an `include` block (literal path); autoinclude lives in the included file along with parser-incompatible HCL.
@@ -534,11 +535,12 @@ func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaInclude, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file")
-	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
+	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Root's include.path is an HCL expression (format()) the simplified parser cannot decode; production parser still resolves it and the included file declares autoinclude.
@@ -549,11 +551,12 @@ func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackDepsAutoIncViaDynInclude)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackDepsAutoIncViaDynInclude, "live")
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is reachable via an expression-based include path")
-	require.NoFileExists(t, filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile))
+	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
 // Root has only an `include`; the included file declares parser-compatible autoinclude. Generation must use the included file's bytes when slicing expressions, otherwise mock_outputs/inputs come out garbled or empty.
@@ -568,7 +571,7 @@ func TestStackDepsAutoIncludeViaIncludePreservesContent(t *testing.T) {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 	require.NoError(t, err)
 
-	autoIncludePath := filepath.Join(rootPath, ".terragrunt-stack", "subnet", inthclparse.AutoIncludeFile)
+	autoIncludePath := filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile)
 	require.FileExists(t, autoIncludePath)
 
 	generated, err := os.ReadFile(autoIncludePath)
@@ -897,14 +900,14 @@ func TestStackDepsE2ETree(t *testing.T) {
 	helpers.RunTerragrunt(t, "terragrunt run --all --non-interactive --experiment stack-dependencies --working-dir "+rootPath+" -- apply -auto-approve")
 
 	// Verify unit-b received outputs from D and E
-	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-b"), "marker.txt")
+	markerB := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-b"), "marker.txt")
 
 	contentB, err := os.ReadFile(markerB)
 	require.NoError(t, err)
 	assert.Equal(t, "unit-b(from-d,from-e)", string(contentB))
 
 	// Verify unit-a received outputs from B and C
-	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, ".terragrunt-stack", "unit-a"), "marker.txt")
+	markerA := helpers.FindCachedFile(t, filepath.Join(rootPath, inthclparse.StackDir, "unit-a"), "marker.txt")
 
 	contentA, err := os.ReadFile(markerA)
 	require.NoError(t, err)

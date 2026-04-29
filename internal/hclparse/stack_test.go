@@ -307,6 +307,9 @@ func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
 	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
 	require.Error(t, err)
 	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+	require.ErrorAs(t, err, &fpe)
 }
 
 func TestParseStackFileFromPath(t *testing.T) {

@@ -291,7 +291,7 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 
 	for _, depPath := range depPaths {
 		// Only expand directories: dependency paths can also point at non-default-named config files (e.g. another-name.hcl), which the stack-file parser would otherwise reject as "not a directory".
-		if info, statErr := os.Stat(depPath); statErr != nil || !info.IsDir() {
+		if info, statErr := fs.Stat(depPath); statErr != nil || !info.IsDir() {
 			expanded = append(expanded, depPath)
 			continue
 		}

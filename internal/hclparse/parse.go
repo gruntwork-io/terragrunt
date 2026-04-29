@@ -81,7 +81,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	file, diags := hclsyntax.ParseConfig(input.Src, input.Filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, FileParseError{FilePath: input.Filename, Detail: diags.Error()}
 	}
 
 	// Pass 1: decode unit/stack blocks. Autoinclude body captured as remain.
@@ -89,7 +89,7 @@ func ParseStackFile(fs vfs.FS, input *ParseStackFileInput) (*ParseResult, error)
 
 	diags = gohcl.DecodeBody(file.Body, nil, stackFile)
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, FileDecodeError{Name: input.Filename, Detail: diags.Error()}
 	}
 
 	// Track per-autoinclude source bytes so the generator can slice expression bytes from the correct file even after include merging.

@@ -1,6 +1,7 @@
 package hclparse_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -401,6 +402,39 @@ dependency "broken" {}
 	var malformedErr hclparse.MalformedDependencyError
 	require.ErrorAs(t, err, &malformedErr)
 	assert.Equal(t, "broken", malformedErr.Name)
+}
+
+func TestAutoIncludeDependencyPaths_FileParseErrorOnSyntaxError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`dependency "x" { config_path = "`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+	require.ErrorAs(t, err, &fpe)
+}
+
+func TestAutoIncludeDependencyPaths_UnexpectedBodyTypeOnJSON(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	jsonBody := `{"dependency": {"vpc": {"config_path": "../vpc"}}}`
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile+".json"), []byte(jsonBody), 0644))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(jsonBody), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+
+	var ube hclparse.UnexpectedBodyTypeError
+
+	assert.True(t, errors.As(err, &fpe) || errors.As(err, &ube), "expected FileParseError or UnexpectedBodyTypeError, got %T: %v", err, err)
 }
 
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
