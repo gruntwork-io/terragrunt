@@ -43,8 +43,38 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	return nil
 }
 
-// DeepMerge feature flags.
+// DeepMergeMapOnly merges the source FeatureFlag into the target FeatureFlag without appending slices in defaults.
+func (feature *FeatureFlag) DeepMergeMapOnly(source *FeatureFlag) error {
+	if source.Name != "" {
+		feature.Name = source.Name
+	}
+
+	if source.Default == nil {
+		feature.Default = source.Default
+	} else {
+		updatedDefaults, err := deepMergeCtyMapsMapOnly(*feature.Default, *source.Default)
+		if err != nil {
+			return err
+		}
+
+		feature.Default = updatedDefaults
+	}
+
+	return nil
+}
+
+// deepMergeFeatureBlocks deep merges feature flags by name.
 func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMerge)
+}
+
+// deepMergeMapOnlyFeatureBlocks deep merges feature flag map defaults without appending slices.
+func deepMergeMapOnlyFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+	return mergeFeatureBlocks(targetFeatureFlags, sourceFeatureFlags, (*FeatureFlag).DeepMergeMapOnly)
+}
+
+// mergeFeatureBlocks merges feature flags by name using the given merge function.
+func mergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag, mergeFlag func(*FeatureFlag, *FeatureFlag) error) ([]*FeatureFlag, error) {
 	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}
@@ -62,7 +92,7 @@ func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlag
 		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
 		if hasSameKey {
 			sameKeyFlagPtr := sameKeyDep
-			if err := sameKeyFlagPtr.DeepMerge(flag); err != nil {
+			if err := mergeFlag(sameKeyFlagPtr, flag); err != nil {
 				return nil, err
 			}
 
@@ -94,7 +124,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	return CtyValueAsString(*feature.Default)
 }
 
-// Convert generic flag value to cty.Value.
+// flagToCtyValue converts a generic flag value to cty.Value.
 func flagToCtyValue(name string, value any) (cty.Value, error) {
 	ctyValue, err := GoTypeToCty(value)
 	if err != nil {
@@ -109,7 +139,7 @@ func flagToCtyValue(name string, value any) (cty.Value, error) {
 	return GoTypeToCty(ctyFlag)
 }
 
-// Convert a flag to a cty.Value using the provided cty.Type.
+// flagToTypedCtyValue converts a flag to a cty.Value using the provided cty.Type.
 func flagToTypedCtyValue(name string, ctyType cty.Type, value any) (cty.Value, error) {
 	var flagValue = value
 	if ctyType == cty.Bool {

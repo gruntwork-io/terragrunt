@@ -1067,3 +1067,57 @@ exclude {
 		})
 	}
 }
+
+func TestDecodeBaseBlocksFeatureFlagDeepMapOnlyDefaultsFromIncludes(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	childDir := filepath.Join(tmpDir, "child")
+	require.NoError(t, os.MkdirAll(childDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "root.hcl"), []byte(`
+feature "skip_ci" {
+  default = {
+    labels = ["parent"]
+    settings = {
+      parent = true
+      child  = false
+    }
+  }
+}
+`), 0644))
+
+	childPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+	require.NoError(t, os.WriteFile(childPath, []byte(`
+include "root" {
+  path           = "../root.hcl"
+  merge_strategy = "deep_map_only"
+}
+
+feature "skip_ci" {
+  default = {
+    labels = ["child"]
+    settings = {
+      child = true
+    }
+  }
+}
+`), 0644))
+
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, childPath)
+	file, err := hclparse.NewParser(pctx.ParserOptions...).ParseFromFile(childPath)
+	require.NoError(t, err)
+
+	decodedBaseBlocks, err := config.DecodeBaseBlocks(ctx, pctx, l, file, nil)
+	require.NoError(t, err)
+	require.NotNil(t, decodedBaseBlocks.FeatureFlags)
+
+	featureValue := decodedBaseBlocks.FeatureFlags.GetAttr("skip_ci").GetAttr("value")
+	settings := featureValue.GetAttr("settings")
+	labels := featureValue.GetAttr("labels")
+
+	assert.True(t, settings.GetAttr("parent").True())
+	assert.True(t, settings.GetAttr("child").True())
+	assert.Equal(t, 1, labels.LengthInt())
+}

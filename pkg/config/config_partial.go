@@ -195,6 +195,7 @@ func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, f
 	}, errs.ErrorOrNil()
 }
 
+// mergeIncludedFeatureFlags merges feature defaults from included configs into the current parse.
 func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.Logger, trackInclude *TrackInclude, childFlags FeatureFlags) (FeatureFlags, error) {
 	if trackInclude == nil || len(trackInclude.CurrentList) == 0 {
 		return childFlags, nil
@@ -231,6 +232,7 @@ func mergeIncludedFeatureFlags(ctx context.Context, pctx *ParsingContext, l log.
 	return baseConfig.FeatureFlags, nil
 }
 
+// mergeFeatureFlagConfig applies an include merge strategy to feature defaults only.
 func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseConfig *TerragruntConfig, includeFlags FeatureFlags) (*TerragruntConfig, error) {
 	includeOnlyConfig := &TerragruntConfig{FeatureFlags: includeFlags}
 
@@ -244,6 +246,13 @@ func mergeFeatureFlagConfig(l log.Logger, mergeStrategy MergeStrategyType, baseC
 		if err := includeOnlyConfig.DeepMerge(l, baseConfig); err != nil {
 			return nil, err
 		}
+	case DeepMergeMapOnly:
+		mergedFlags, err := deepMergeMapOnlyFeatureBlocks(includeOnlyConfig.FeatureFlags, baseConfig.FeatureFlags)
+		if err != nil {
+			return nil, err
+		}
+
+		includeOnlyConfig.FeatureFlags = mergedFlags
 	default:
 		return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
 	}
