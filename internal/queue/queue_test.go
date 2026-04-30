@@ -272,7 +272,8 @@ func TestQueue_LinearDependencyExecution(t *testing.T) {
 	// Check that all entries are ready initially and in order A, B, C
 	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status,
+		"Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
 
 	// Mark A as running and complete it
@@ -325,7 +326,8 @@ func TestQueue_ParallelExecution(t *testing.T) {
 	// 1. Initially, only A should be ready
 	readyEntries := q.GetReadyWithDependencies(logger.CreateLogger())
 	assert.Len(t, readyEntries, 1, "Initially only A should be ready")
-	assert.Equal(t, queue.StatusReady, readyEntries[0].Status, "Entry %s should have StatusReady", readyEntries[0].Component.Path())
+	assert.Equal(t, queue.StatusReady, readyEntries[0].Status,
+		"Entry %s should have StatusReady", readyEntries[0].Component.Path())
 	assert.Equal(t, "A", readyEntries[0].Component.Path(), "First ready entry should be A")
 
 	// Mark A as running and complete it
@@ -418,7 +420,8 @@ func TestQueue_FailFast(t *testing.T) {
 
 	// All entries should be listed as terminal (A: Failed, B/C: EarlyExit)
 	for _, entry := range q.Entries {
-		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit, "Entry %s should be terminal", entry.Component.Path())
+		assert.True(t, entry.Status == queue.StatusFailed || entry.Status == queue.StatusEarlyExit,
+			"Entry %s should be terminal", entry.Component.Path())
 	}
 
 	// Now all should be terminal

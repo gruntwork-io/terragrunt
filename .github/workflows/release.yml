@@ -1,38 +1,63 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - 'alpha*'
-      - 'beta*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to release (e.g., v0.58.8)'
+      version:
+        description: 'Version to build (must match an existing draft release, e.g., v1.0.2)'
         required: true
         type: string
-      clobber:
-        description: 'Overwrite existing release assets (--clobber)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
+  # Validate the release is a draft with a valid semver tag,
+  # targeting an explicit commit SHA.
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      ref: ${{ steps.resolve.outputs.ref }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Resolve version and ref
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/release/resolve-version-ref.sh
+
+      - name: Validate semver
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: .github/scripts/release/validate-semver.sh "$VERSION"
+
+      - name: Enforce commit SHA target
+        env:
+          REF: ${{ steps.resolve.outputs.ref }}
+        run: .github/scripts/release/enforce-commit-sha.sh "$REF"
+
   # Build and sign all binaries (reuses build.yml workflow)
   build-and-sign:
     name: Build and Sign All Binaries
+    needs: validate
     uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+      is_release: true
+      ref: ${{ needs.validate.outputs.ref }}
     permissions:
       contents: write
       id-token: write
       actions: read
     secrets: inherit
 
-  # Upload binaries to existing GitHub release
+  # Upload binaries to the draft GitHub release
   upload-assets:
     name: Upload Release Assets
-    needs: build-and-sign
+    needs: [validate, build-and-sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,19 +67,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Get version
-        id: version
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: .github/scripts/release/get-version.sh
+        with:
+          ref: ${{ needs.validate.outputs.ref }}
 
       - name: Check if release exists
         id: check_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.validate.outputs.version }}
         run: .github/scripts/release/check-release-exists.sh
 
       - name: Download pre-built signed binaries
@@ -78,11 +98,7 @@ jobs:
       - name: Import GPG key and export public key
         env:
           SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
-        run: |
-          echo "${SIGNING_GPG_PRIVATE_KEY}" | base64 --decode | gpg --batch --import
-          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
-          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >> "${GITHUB_ENV}"
-          gpg --armor --export "${GPG_FINGERPRINT}" > bin/terragrunt-signing-key.asc
+        run: .github/scripts/release/import-gpg-key.sh bin
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
@@ -98,21 +114,21 @@ jobs:
       - name: Upload assets to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          CLOBBER: 'true'
         run: .github/scripts/release/upload-assets.sh bin
 
       - name: Verify all assets uploaded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-          CLOBBER: ${{ github.event_name == 'workflow_dispatch' && inputs.clobber || 'false' }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          CLOBBER: 'true'
         run: .github/scripts/release/verify-assets-uploaded.sh bin
 
       - name: Upload summary
         if: always()
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.validate.outputs.version }}
           RELEASE_ID: ${{ steps.check_release.outputs.release_id }}
           IS_DRAFT: ${{ steps.check_release.outputs.is_draft }}
         run: .github/scripts/release/generate-upload-summary.sh

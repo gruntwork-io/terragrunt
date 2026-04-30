@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1277,7 +1278,7 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
-	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`} {
+	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`} {
 		assert.Regexp(t, logRegexp, reerr)
 	}
 }
@@ -1295,7 +1296,7 @@ func TestAwsDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+		`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -1351,7 +1352,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := util.ReadFileAsString(mainTFFile)
 	require.NoError(t, err)
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	branchName := gitRunner.WithWorkDir(modulePath).GetCurrentBranch(t.Context())
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
@@ -1495,7 +1496,7 @@ func TestAwsUpdatePolicy(t *testing.T) {
 func TestAwsAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
 		return
 	}
@@ -1788,7 +1789,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
-		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -2091,7 +2092,7 @@ func TestErrorExplaining(t *testing.T) {
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("Not compatible with Terraform 1.5.x")
 		return
 	}

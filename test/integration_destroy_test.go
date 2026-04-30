@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -201,7 +202,7 @@ func TestDestroyDependentModule(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureDestroyDependentModule))
 	rootPath := filepath.Join(tmpEnvPath, testFixtureDestroyDependentModule)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -287,8 +288,8 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	appV1Path := filepath.Join(rootPath, "app-v1")
 	appV2Path := filepath.Join(rootPath, "app-v2")
 
-	cleanupTerraformFolder(t, rootPath)
-	cleanupTerraformFolder(t, vpcPath)
+	helpers.CleanupTerraformFolder(t, rootPath)
+	helpers.CleanupTerraformFolder(t, vpcPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -399,7 +400,7 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testFixtureExternalDependency)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)

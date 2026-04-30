@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
+	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
@@ -49,6 +50,7 @@ const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
+	DefaultAutoIncludeFile          = inthclparse.AutoIncludeFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -242,6 +244,10 @@ func (cfg *TerragruntConfig) WriteTo(w io.Writer) (int64, error) {
 		// Handle source
 		if cfg.Terraform.Source != nil {
 			terraformBody.SetAttributeValue("source", terraformAsCty.GetAttr("source"))
+		}
+
+		if cfg.Terraform.UpdateSourceWithCAS != nil {
+			terraformBody.SetAttributeValue("update_source_with_cas", terraformAsCty.GetAttr("update_source_with_cas"))
 		}
 
 		// Handle extra_arguments blocks
@@ -846,7 +852,8 @@ func (conf *ErrorHook) String() string {
 // NOTE: If any attributes or blocks are added here, be sure to add it to ctyTerraformConfig in config_as_cty.go as
 // well.
 type TerraformConfig struct {
-	Source *string `hcl:"source,attr"`
+	Source              *string `hcl:"source,attr"`
+	UpdateSourceWithCAS *bool   `hcl:"update_source_with_cas,attr"`
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
@@ -1345,6 +1352,16 @@ func ParseConfig(
 		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, pctx, l, file)
 		if err != nil {
 			errs = errs.Append(err)
+
+			// During hcl validate, dependency resolution can fail for many reasons (invalid
+			// config_path, target parse errors, etc.). Use cty.DynamicVal as a fallback so
+			// that the "dependency" variable still exists in the eval context — otherwise every
+			// dependency.x.outputs.y reference cascades into a confusing "dependency is not
+			// defined" error that obscures the real problem.
+			if pctx.SkipOutput && retrievedOutputs == nil {
+				dynamicVal := cty.DynamicVal
+				retrievedOutputs = &dynamicVal
+			}
 		}
 
 		pctx.DecodedDependencies = retrievedOutputs
@@ -1377,6 +1394,17 @@ func ParseConfig(
 	config, err := convertToTerragruntConfig(ctx, pctx, file.ConfigPath, terragruntConfigFile)
 	if err != nil {
 		errs = errs.Append(err)
+	}
+
+	// Auto-merge terragrunt.autoinclude.hcl if present in the same directory.
+	// Gated by the stack-dependencies experiment and skipped for autoinclude files themselves.
+	if filepath.Base(file.ConfigPath) != DefaultAutoIncludeFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
+		if mergeErr != nil {
+			errs = errs.Append(mergeErr)
+		} else if autoMerged != nil {
+			config = autoMerged
+		}
 	}
 
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
@@ -1427,6 +1455,48 @@ func ParseConfig(
 	}
 
 	return config, errs.ErrorOrNil()
+}
+
+// mergeAutoIncludeIfPresent checks for terragrunt.autoinclude.hcl in the same directory
+// as the config file and merges it into the config. The autoinclude takes precedence.
+func mergeAutoIncludeIfPresent(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	config *TerragruntConfig,
+	configPath string,
+) (*TerragruntConfig, error) {
+	autoIncludePath := filepath.Join(filepath.Dir(configPath), DefaultAutoIncludeFile)
+
+	if !util.FileExists(autoIncludePath) {
+		return nil, nil
+	}
+
+	l.Debugf("Found %s, auto-merging into unit config", autoIncludePath)
+
+	// Clone the parsing context and reset DecodedDependencies so the
+	// autoinclude file gets its own dependency resolution pass.
+	//
+	// PartialParseDecodeList is intentionally inherited from the parent:
+	// - During DAG construction (partial mode): extracts dependency config_path
+	//   for graph ordering WITHOUT resolving outputs (which aren't available yet)
+	// - During actual unit run (full mode): resolves dependency outputs normally
+	//   because the DAG already ensured dependencies ran first
+	autoIncludePctx := pctx.Clone()
+	autoIncludePctx.DecodedDependencies = nil
+
+	autoIncludeConfig, err := ParseConfigFile(ctx, autoIncludePctx, l, autoIncludePath, nil)
+	if err != nil {
+		return nil, errors.Errorf("failed to parse %s: %w", autoIncludePath, err)
+	}
+
+	// Shallow merge: autoinclude wins over the unit config.
+	// Merge(sourceConfig) merges sourceConfig INTO the receiver, with sourceConfig winning.
+	if err := config.Merge(l, autoIncludeConfig); err != nil {
+		return nil, errors.Errorf("failed to merge %s: %w", autoIncludePath, err)
+	}
+
+	return config, nil
 }
 
 // DetectDeprecatedConfigurations detects if deprecated configurations are used in the given HCL file.
@@ -1701,6 +1771,10 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	terragruntConfig.Terraform = terragruntConfigFromFile.Terraform
 	if terragruntConfig.Terraform != nil { // since Terraform is nil each time avoid saving metadata when it is nil
 		terragruntConfig.SetFieldMetadata(MetadataTerraform, defaultMetadata)
+
+		if pctx.Experiments.Evaluate(experiment.MarkManyAsRead) && terragruntConfig.Terraform.Source != nil {
+			markLocalModuleSourceAsRead(pctx, configPath, *terragruntConfig.Terraform.Source)
+		}
 	}
 
 	if err := validateDependencies(pctx, terragruntConfigFromFile.Dependencies); err != nil {
@@ -1886,6 +1960,75 @@ func convertToTerragruntConfig(ctx context.Context, pctx *ParsingContext, config
 	}
 
 	return terragruntConfig, errs.ErrorOrNil()
+}
+
+// moduleSourceReadExtensions lists file extensions within a local terraform module
+// whose changes should propagate to consuming units via reading-based filters.
+var moduleSourceReadExtensions = map[string]struct{}{
+	".tf":        {},
+	".tf.json":   {},
+	".hcl":       {},
+	".tofu":      {},
+	".tofu.json": {},
+}
+
+// markLocalModuleSourceAsRead walks the local terraform module pointed to by
+// rawSource and marks its configuration files as read in pctx.FilesRead. It is a
+// best-effort annotation: non-local sources are skipped and walk errors are
+// swallowed, since a genuinely broken source will surface during download.
+func markLocalModuleSourceAsRead(pctx *ParsingContext, configPath, rawSource string) {
+	sourceWithoutSubdir, subdir := getter.SourceDirSubdir(rawSource)
+
+	sourceURL, err := tf.ToSourceURL(sourceWithoutSubdir, filepath.Dir(configPath))
+	if err != nil || !tf.IsLocalSource(sourceURL) {
+		return
+	}
+
+	moduleDir := filepath.Clean(sourceURL.Path)
+	if subdir != "" {
+		moduleDir = filepath.Clean(filepath.Join(moduleDir, subdir))
+	}
+
+	walkFunc := filepath.WalkDir
+	if pctx.Experiments.Evaluate(experiment.Symlinks) {
+		walkFunc = util.WalkDirWithSymlinks
+	}
+
+	_ = walkFunc(moduleDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// Skip unreadable entries rather than aborting the whole walk.
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if d.IsDir() {
+			return util.SkipDirIfIgnorable(d.Name())
+		}
+
+		ext := moduleSourceFileExtension(d.Name())
+		if _, ok := moduleSourceReadExtensions[ext]; !ok {
+			return nil
+		}
+
+		trackFileRead(pctx.FilesRead, path)
+
+		return nil
+	})
+}
+
+// moduleSourceFileExtension returns the extension used for matching module source
+// files, honoring compound extensions like ".tf.json" and ".tofu.json".
+func moduleSourceFileExtension(name string) string {
+	for _, compound := range []string{".tf.json", ".tofu.json"} {
+		if strings.HasSuffix(name, compound) {
+			return compound
+		}
+	}
+
+	return filepath.Ext(name)
 }
 
 // Iterate over dependencies paths and check if directories exists, return error with all missing dependencies

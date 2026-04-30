@@ -24,9 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
-// httpClient is the default client to be used by HttpGetters.
-var httpClient = cleanhttp.DefaultClient()
-
 // Constants relevant to the module registry
 const (
 	defaultRegistryDomain   = "registry.terraform.io"
@@ -70,13 +67,82 @@ type RegistryServicePath struct {
 // over the file detector. We deferred the implementation for that to a future release.
 // GH issue: https://github.com/gruntwork-io/terragrunt/issues/1772
 type RegistryGetter struct {
-	client             *getter.Client
-	Logger             log.Logger
+	// client is the [github.com/hashicorp/go-getter.Client] driving the
+	// current download, injected by [github.com/hashicorp/go-getter] via
+	// [RegistryGetter.SetClient]. It is unexported because callers should
+	// not set it directly; go-getter owns its lifecycle. We read its
+	// Options in [RegistryGetter.Get] so downstream
+	// [github.com/hashicorp/go-getter.Get] calls inherit the same
+	// configuration (progress tracking, client mode, etc.) as the top-level
+	// client.
+	client *getter.Client
+	// HTTPClient is the HTTP client used for registry-protocol requests
+	// (service discovery and module download lookup). [NewRegistryGetter]
+	// seeds it with a [github.com/hashicorp/go-cleanhttp.DefaultClient].
+	//
+	// Tests or callers needing a custom transport should swap it via
+	// [RegistryGetter.WithHTTPClient].
+	HTTPClient *http.Client
+	// Logger is stored on the struct because the
+	// [github.com/hashicorp/go-getter.Getter] interface restricts Get to
+	// the signature `Get(string, *url.URL) error`, so there is no way to
+	// pass a logger in per-call. Stashing it here is the only way
+	// downstream code executed from [RegistryGetter.Get] can emit
+	// diagnostic output. [NewRegistryGetter] requires it to guarantee it
+	// is never nil.
+	Logger log.Logger
+	// TofuImplementation selects which default registry domain is used
+	// when the source URL does not specify a host:
+	//
+	// - [github.com/gruntwork-io/terragrunt/internal/tfimpl.OpenTofu]
+	// resolves to registry.opentofu.org
+	//
+	// - [github.com/gruntwork-io/terragrunt/internal/tfimpl.Terraform] to
+	// registry.terraform.io.
+	//
+	// Overridable at runtime via the
+	// TG_TF_DEFAULT_REGISTRY_HOST environment variable (see
+	// [GetDefaultRegistryDomain]).
 	TofuImplementation tfimpl.Type
 }
 
-// SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
-// progress tracking.
+// NewRegistryGetter returns a [RegistryGetter] configured with sensible
+// defaults: a [github.com/hashicorp/go-cleanhttp.DefaultClient] for
+// registry-protocol requests, the supplied logger for diagnostic output, and
+// [github.com/gruntwork-io/terragrunt/internal/tfimpl.OpenTofu] as the
+// default implementation. A logger is required because this package does not
+// consistently guard against a nil logger, so requiring one at construction
+// time prevents nil-pointer panics at call time. Use the With* methods to
+// customize other behavior.
+func NewRegistryGetter(l log.Logger) *RegistryGetter {
+	return &RegistryGetter{
+		HTTPClient:         cleanhttp.DefaultClient(),
+		Logger:             l,
+		TofuImplementation: tfimpl.OpenTofu,
+	}
+}
+
+// WithHTTPClient overrides the HTTP client used for registry-protocol
+// requests. Intended for tests that need to route requests through a
+// [net/http/httptest.Server], or for callers that need custom transport
+// configuration.
+func (tfrGetter *RegistryGetter) WithHTTPClient(c *http.Client) *RegistryGetter {
+	tfrGetter.HTTPClient = c
+	return tfrGetter
+}
+
+// WithTofuImplementation selects which default registry domain is used when
+// the source URL does not specify a host. See [RegistryGetter.TofuImplementation].
+func (tfrGetter *RegistryGetter) WithTofuImplementation(impl tfimpl.Type) *RegistryGetter {
+	tfrGetter.TofuImplementation = impl
+	return tfrGetter
+}
+
+// SetClient is part of the [github.com/hashicorp/go-getter.Getter] interface:
+// go-getter calls it to inject the
+// [github.com/hashicorp/go-getter.Client] driving the current download so
+// individual getters can share its options (progress tracking, client mode,
+// etc.).
 func (tfrGetter *RegistryGetter) SetClient(client *getter.Client) {
 	tfrGetter.client = client
 }
@@ -88,11 +154,6 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 	}
 
 	return tfrGetter.client.Ctx
-}
-
-// registryDomain returns the default registry domain to use for the getter.
-func (tfrGetter *RegistryGetter) registryDomain() string {
-	return GetDefaultRegistryDomain(tfrGetter.TofuImplementation)
 }
 
 // GetDefaultRegistryDomain returns the appropriate registry domain based on the terraform implementation and environment variables.
@@ -142,7 +203,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.Logger, tfrGetter.HTTPClient, registryDomain)
 	if err != nil {
 		return err
 	}
@@ -152,7 +213,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.Logger, tfrGetter.HTTPClient, moduleURL)
 	if err != nil {
 		return err
 	}
@@ -251,14 +312,14 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, l log.Logger, dstP
 // (https://www.terraform.io/docs/internals/remote-service-discovery.html)
 // to figure out where the modules are stored. This will return the base
 // path where the modules can be accessed
-func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(ctx context.Context, l log.Logger, httpClient *http.Client, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, logger, &sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, l, httpClient, &sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -275,8 +336,8 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
 // body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
-func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url *url.URL) (string, error) {
-	body, header, err := httpGETAndGetResponse(ctx, logger, url)
+func GetTerraformGetHeader(ctx context.Context, l log.Logger, httpClient *http.Client, url *url.URL) (string, error) {
+	body, header, err := httpGETAndGetResponse(ctx, l, httpClient, url)
 	if err != nil {
 		details := "error receiving HTTP data"
 
@@ -330,6 +391,11 @@ func GetDownloadURLFromHeader(moduleURL *url.URL, terraformGet string) (string, 
 	return terraformGet, nil
 }
 
+// registryDomain returns the default registry domain to use for the getter.
+func (tfrGetter *RegistryGetter) registryDomain() string {
+	return GetDefaultRegistryDomain(tfrGetter.TofuImplementation)
+}
+
 func applyHostToken(req *http.Request) (*http.Request, error) {
 	cliCfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
@@ -351,7 +417,11 @@ func applyHostToken(req *http.Request) (*http.Request, error) {
 
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
-func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL *url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(ctx context.Context, l log.Logger, httpClient *http.Client, getURL *url.URL) ([]byte, *http.Header, error) {
+	if httpClient == nil {
+		httpClient = cleanhttp.DefaultClient()
+	}
+
 	if getURL == nil {
 		return nil, nil, errors.New("httpGETAndGetResponse received nil getURL")
 	}
@@ -376,7 +446,7 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL *url.U
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			logger.Warnf("Error closing response body: %v", err)
+			l.Warnf("Error closing response body: %v", err)
 		}
 	}()
 

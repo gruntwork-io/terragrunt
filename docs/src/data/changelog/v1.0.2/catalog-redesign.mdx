@@ -1,0 +1,26 @@
+---
+version: "v1.0.2"
+category: "experiments-added"
+---
+
+#### `catalog-redesign` — Reworked `terragrunt catalog` TUI
+
+A new `catalog-redesign` experiment reworks the design of the `terragrunt catalog` TUI.
+
+`terragrunt catalog` now launches the TUI right away and runs discovery in the background instead of waiting for discovery to complete before launching the TUI. As a consequence, `terragrunt catalog` users with large catalogs should see significant speed improvements as they launch the `terragrunt catalog` TUI.
+
+Modules now stream into the list view of the catalog as they are discovered, so you'll be able to select and use a module even if your entire catalog hasn't been discovered yet.
+
+If `catalog.urls` is not configured in `root.hcl`, `terragrunt catalog` no longer errors. A welcome screen explains how to populate the catalog and can open the catalog documentation on a keypress. In addition, `terraform.source` values from existing units are automatically included in the set of URLs used for discovery, so users with existing units get a populated catalog pointing to other modules that can be pulled from the same module source without any additional configuration.
+
+Each list entry now shows a metadata row beneath its title and description with a component-type pill (module, template), the source URL the entry was discovered from, and the module's version when one is available. Component types are distinguished visually, making it clear which repository or path a component came from when browsing multiple sources at once.
+
+This experiment is subject to change, and core elements of the design are being iterated on rapidly.
+
+To try it out, run:
+
+```bash
+terragrunt catalog --experiment catalog-redesign
+```
+
+To learn more, see the [experiment documentation](/reference/experiments/active#catalog-redesign).

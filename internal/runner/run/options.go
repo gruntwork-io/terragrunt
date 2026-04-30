@@ -64,6 +64,8 @@ type Options struct {
 	Experiments                  experiment.Experiments
 	StrictControls               strict.Controls
 	MaxFoldersToCheck            int
+	CASCloneDepth                int
+	NoCAS                        bool
 	AutoRetry                    bool
 	Headless                     bool
 	NonInteractive               bool
@@ -179,19 +181,17 @@ func (o *Options) DataDir() string {
 
 // shellRunOptions builds a *shell.ShellOptions from this Options.
 func (o *Options) shellRunOptions() *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         o.Writers,
-		WorkingDir:      o.WorkingDir,
-		Env:             o.Env,
-		TFPath:          o.TFPath,
-		EngineConfig:    o.EngineConfig,
-		EngineOptions:   o.EngineOptions,
-		Experiments:     o.Experiments,
-		Telemetry:       o.Telemetry,
-		RootWorkingDir:  o.RootWorkingDir,
-		Headless:        o.Headless,
-		ForwardTFStdout: o.ForwardTFStdout,
-	}
+	return shell.NewShellOptions().
+		WithWorkingDir(o.WorkingDir).
+		WithEnv(o.Env).
+		WithWriters(o.Writers).
+		WithTelemetry(o.Telemetry).
+		WithEngine(o.EngineConfig, o.EngineOptions).
+		WithTFPath(o.TFPath).
+		WithRootWorkingDir(o.RootWorkingDir).
+		WithExperiments(o.Experiments).
+		WithHeadless(o.Headless).
+		WithForwardTFStdout(o.ForwardTFStdout)
 }
 
 // tfRunOptions builds a *tf.TFOptions from this Options.

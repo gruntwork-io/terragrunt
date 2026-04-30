@@ -3,7 +3,9 @@
 package cas_test
 
 import (
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
@@ -17,16 +19,16 @@ import (
 func TestCASGetterGetWithRacing(t *testing.T) {
 	t.Parallel()
 
+	repoURL := startTestServer(t)
+
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	storePath := filepath.Join(tempDir, "store")
 
-	c, err := cas.New(cas.Options{
-		StorePath: storePath,
-	})
+	c, err := cas.New(cas.WithStorePath(storePath))
 	require.NoError(t, err)
 
 	opts := &cas.CloneOptions{
-		Branch: "main",
+		Depth: -1,
 	}
 
 	l := logger.CreateLogger()
@@ -37,15 +39,12 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		url       string
-		queryRef  string
-		expectRef string
+		name string
+		url  string
 	}{
 		{
-			name:      "URL with ref parameter",
-			url:       "github.com/gruntwork-io/terragrunt?ref=v0.75.0",
-			expectRef: "v0.75.0",
+			name: "clone via getter with ref",
+			url:  "git::" + repoURL + "?ref=main",
 		},
 	}
 
@@ -66,5 +65,62 @@ func TestCASGetterGetWithRacing(t *testing.T) {
 
 			assert.Equal(t, tmpDir, res.Dst)
 		})
+	}
+}
+
+func TestProcessStackComponentLocalSourceConcurrentWithRacing(t *testing.T) {
+	t.Parallel()
+
+	// Two concurrent ProcessStackComponent calls against the same local source
+	// and the same CAS store must succeed without racing on blob/tree writes,
+	// and must produce identical rewritten stack files.
+	root := buildLocalStackFixture(t)
+	l := logger.CreateLogger()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+	c, err := cas.New(cas.WithStorePath(storePath))
+	require.NoError(t, err)
+
+	const workers = 4
+
+	results := make([]string, workers)
+	errs := make([]error, workers)
+
+	var wg sync.WaitGroup
+
+	for i := range workers {
+		wg.Add(1)
+
+		go func(idx int) {
+			defer wg.Done()
+
+			source := root + "//stacks/my-stack"
+
+			result, runErr := c.ProcessStackComponent(t.Context(), l, source, "stack")
+			if runErr != nil {
+				errs[idx] = runErr
+				return
+			}
+
+			defer result.Cleanup()
+
+			body, readErr := os.ReadFile(filepath.Join(result.ContentDir, "terragrunt.stack.hcl"))
+			if readErr != nil {
+				errs[idx] = readErr
+				return
+			}
+
+			results[idx] = string(body)
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i, e := range errs {
+		require.NoErrorf(t, e, "worker %d failed", i)
+	}
+
+	for i := 1; i < workers; i++ {
+		assert.Equal(t, results[0], results[i], "all concurrent runs must produce identical rewritten output")
 	}
 }

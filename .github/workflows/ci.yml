@@ -70,9 +70,48 @@ jobs:
   build:
     needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
     permissions:
       contents: read
     secrets: inherit
+
+  tip_build:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: tip
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
+
+  notify_issues:
+    needs: [tip_build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Notify issues about tip build
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const notify = require('./.github/scripts/tip-build-notify-issues.js');
+            await notify({ github, context, core });
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time

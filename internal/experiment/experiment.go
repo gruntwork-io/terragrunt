@@ -44,6 +44,18 @@ const (
 	// DAGQueueDisplay is the experiment that shows the run queue as a DAG tree
 	// with dependency hierarchy instead of a flat list.
 	DAGQueueDisplay = "dag-queue-display"
+	// StackDependencies is the experiment that enables the autoinclude block
+	// in terragrunt.stack.hcl files, allowing units and stacks to define
+	// dependency relationships and arbitrary configuration overrides during
+	// stack generation. See RFC #5663.
+	StackDependencies = "stack-dependencies"
+	// CatalogRedesign is the experiment that enables the redesigned catalog experience.
+	CatalogRedesign = "catalog-redesign"
+	// MarkManyAsRead enables behaviors that mark many files as read in one
+	// step: automatic marking of files inside a local terraform module source
+	// (so reading-based filter expressions detect changes to the module) and
+	// the mark_glob_as_read HCL function.
+	MarkManyAsRead = "mark-many-as-read"
 )
 
 const (
@@ -101,6 +113,15 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: DAGQueueDisplay,
+		},
+		{
+			Name: StackDependencies,
+		},
+		{
+			Name: CatalogRedesign,
+		},
+		{
+			Name: MarkManyAsRead,
 		},
 	}
 }

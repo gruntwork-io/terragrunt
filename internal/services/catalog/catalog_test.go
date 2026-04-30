@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -26,7 +27,7 @@ func TestListModules_HappyPath(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		// Use a temp dir for the dummyRepoDir to ensure cleanup and parallelism safety.
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), strings.ReplaceAll(repoOpts.CloneURL, "github.com/gruntwork-io/", ""))
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -40,7 +41,7 @@ func TestListModules_HappyPath(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		if repoOpts.CloneURL == "github.com/gruntwork-io/repo2" {
@@ -50,7 +51,7 @@ func TestListModules_HappyPath(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		return nil, fmt.Errorf("unexpected repoURL in mock newRepoFunc: %s", repoOpts.CloneURL)
@@ -109,7 +110,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		if repoOpts.CloneURL == "github.com/gruntwork-io/only-repo" {
 			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "only-repo")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -120,7 +121,7 @@ func TestListModules_SingleRepoFromFlag(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
@@ -145,7 +146,7 @@ func TestListModules_ErrorFromNewRepo(t *testing.T) {
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
 	expectedErr := errors.Errorf("failed to clone repo")
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		return nil, expectedErr
 	}
 
@@ -164,7 +165,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		if repoOpts.CloneURL == "github.com/gruntwork-io/find-error-repo" {
 			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "find-error-repo-dir")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -178,7 +179,7 @@ func TestListModules_ErrorFromFindModules(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
@@ -198,7 +199,7 @@ func TestListModules_TofuExtension(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		if repoOpts.CloneURL == "github.com/gruntwork-io/tofu-repo" {
 			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "tofu-repo")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -210,7 +211,7 @@ func TestListModules_TofuExtension(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
@@ -234,7 +235,7 @@ func TestListModules_MixedTfAndTofu(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		if repoOpts.CloneURL == "github.com/gruntwork-io/mixed-repo" {
 			dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "mixed-repo")
 			os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
@@ -255,7 +256,7 @@ func TestListModules_MixedTfAndTofu(t *testing.T) {
 
 			repoOpts.CloneURL = dummyRepoDir
 
-			return module.NewRepo(ctx, logger, repoOpts)
+			return module.NewRepo(ctx, logger, fsys, repoOpts)
 		}
 
 		return nil, fmt.Errorf("unexpected repoURL: %s", repoOpts.CloneURL)
@@ -282,7 +283,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 	opts := options.NewTerragruntOptions()
 	opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 
-	mockNewRepo := func(ctx context.Context, logger log.Logger, repoOpts module.RepoOpts) (*module.Repo, error) {
+	mockNewRepo := func(ctx context.Context, logger log.Logger, fsys vfs.FS, repoOpts *module.RepoOpts) (*module.Repo, error) {
 		dummyRepoDir := filepath.Join(helpers.TmpDirWOSymlinks(t), "empty-repo-dir")
 		os.MkdirAll(filepath.Join(dummyRepoDir, ".git"), 0755)
 		os.WriteFile(filepath.Join(dummyRepoDir, ".git", "config"), []byte("[remote \"origin\"]\nurl = "+repoOpts.CloneURL), 0644)
@@ -290,7 +291,7 @@ func TestListModules_NoModulesFound(t *testing.T) {
 
 		repoOpts.CloneURL = dummyRepoDir
 
-		return module.NewRepo(ctx, logger, repoOpts)
+		return module.NewRepo(ctx, logger, fsys, repoOpts)
 	}
 
 	svc := catalog.NewCatalogService(opts).WithNewRepoFunc(mockNewRepo).WithRepoURL("github.com/gruntwork-io/empty-repo")

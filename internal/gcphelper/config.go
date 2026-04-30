@@ -195,7 +195,10 @@ func credentialsTypeFromString(t string) (option.CredentialsType, error) {
 
 // createGCPCredentialsFromGoogleCredentialsEnv creates GCP credentials from GOOGLE_CREDENTIALS environment variable.
 // This can be either a file path or the JSON content directly (to mirror how Terraform works).
-func createGCPCredentialsFromGoogleCredentialsEnv(ctx context.Context, env map[string]string) (option.ClientOption, error) {
+func createGCPCredentialsFromGoogleCredentialsEnv(
+	ctx context.Context,
+	env map[string]string,
+) (option.ClientOption, error) {
 	var account = struct {
 		PrivateKeyID string `json:"private_key_id"`
 		PrivateKey   string `json:"private_key"`

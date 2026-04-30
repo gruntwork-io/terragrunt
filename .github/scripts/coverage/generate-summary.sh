@@ -14,9 +14,9 @@ TOTAL=$(go tool cover -func="$COVER_FILE" | grep '^total:' | awk '{print $NF}' |
 
 # Build per-package JSON: average coverage per package (go tool cover reports per-function)
 # awk outputs TSV lines, jq handles JSON escaping safely
-PACKAGES_JSON=$(go tool cover -func="$COVER_FILE" \
-	| grep -v '^total:' \
-	| awk -F'\t+' '{
+PACKAGES_JSON=$(go tool cover -func="$COVER_FILE" |
+	grep -v '^total:' |
+	awk -F'\t+' '{
 		split($1, parts, ":")
 		file = parts[1]
 		n = split(file, segs, "/")

@@ -2,76 +2,103 @@ package cas
 
 import (
 	"context"
-	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"os"
+	"io"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// DefaultLocalHashAlgorithm is used for content-addressed hashing of local source
+// trees. It is chosen independently of any git repository's object format because
+// local sources have no repository to inherit a format from.
+const DefaultLocalHashAlgorithm = HashSHA256
+
 // StoreLocalDirectory persists all content from a local source directory into the CAS
-// and then links the persisted files to the target directory
+// and then links the persisted files to the target directory.
 func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, targetDir string) error {
-	// Generate a synthetic hash for the local directory based on its contents
-	hash, treeData, err := c.hashDirectory(sourceDir)
+	hash, treeData, err := c.buildLocalTree(sourceDir, DefaultLocalHashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("failed to hash local directory %s: %w", sourceDir, err)
 	}
 
-	// Store all files from the directory into the CAS
-	if err = c.storeLocalContent(l, sourceDir, hash, treeData); err != nil {
+	if err = c.storeLocalContent(l, sourceDir, hash, treeData, DefaultLocalHashAlgorithm); err != nil {
 		return fmt.Errorf("failed to store local content: %w", err)
 	}
 
-	// Parse the tree data and link to target directory
 	tree, err := git.ParseTree(treeData, targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return LinkTree(ctx, c.store, tree, targetDir)
+	return LinkTree(ctx, c.blobStore, c.treeStore, tree, targetDir)
 }
 
-// hashDirectory creates a synthetic hash and tree structure for a local directory
-func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
-	var treeData []byte
+// ComputeLocalRootHash walks dir in deterministic (lexical) order and produces a
+// content-addressed hash over (relpath, mode, file-content-hash) triples. The
+// returned hash plays the same role as a git ref hash does in the remote flow —
+// it is the "root" for DeterministicTreeHash calls when rewriting nested sources.
+// The same file-content hashes are used both inside the root-hash and as blob
+// hashes in the synthetic tree, so blob lookups and tree lookups stay consistent.
+func (c *CAS) ComputeLocalRootHash(dir string, alg HashAlgorithm) (string, error) {
+	hash, _, err := c.buildLocalTree(dir, alg)
+	return hash, err
+}
 
-	var allHashes []string
+// buildLocalTree walks dir and returns (rootHash, treeData). The treeData has
+// the same "<mode> blob <hash>\t<path>\n" format as a git tree, but with
+// file-content hashes taken in the chosen algorithm.
+func (c *CAS) buildLocalTree(dir string, alg HashAlgorithm) (string, []byte, error) {
+	var (
+		treeData []byte
+		rootBuf  []byte
+	)
 
-	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	err := vfs.WalkDir(c.fs, dir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
 
-		// Implicitly handled by tracking the file hashes.
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(sourceDir, path)
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", path, err)
+		}
+
+		// Skip symlinks and other non-regular entries to keep the synthetic
+		// tree consistent with copyTree, which only copies regular files.
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err
 		}
 
-		// Convert to forward slashes for consistency (git-style paths)
+		// Git-style forward slashes in tree entries, regardless of host OS.
 		relPath = strings.ReplaceAll(relPath, string(filepath.Separator), "/")
 
-		fileHash, err := hashFile(path)
+		fileHash, err := hashFileAlg(c.fs, path, alg)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
 		}
 
-		// Artificially create a tree entry for the file.
 		mode := fmt.Sprintf("%06o", info.Mode().Perm())
-		treeLine := fmt.Sprintf("%s blob %s\t%s\n", mode, fileHash, relPath)
-		treeData = append(treeData, []byte(treeLine)...)
+		treeData = append(treeData, fmt.Appendf(nil, "%s blob %s\t%s\n", mode, fileHash, relPath)...)
 
-		// Collect all hashes for directory hash calculation
-		allHashes = append(allHashes, fileHash)
+		// Root hash input includes path, mode, and content hash so that two
+		// trees with identical files at different relative paths (or different
+		// permissions) get distinct root hashes.
+		rootBuf = append(rootBuf, fmt.Appendf(nil, "%s %s %s\n", relPath, mode, fileHash)...)
 
 		return nil
 	})
@@ -79,39 +106,42 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 		return "", nil, err
 	}
 
-	// Create a synthetic hash for the entire directory based on all file hashes
-	// This ensures the same directory contents always get the same hash
-	dirHash := hashString(strings.Join(allHashes, ""))
-
-	return dirHash, treeData, nil
+	return alg.Sum(rootBuf), treeData, nil
 }
 
-// storeLocalContent stores all files from a local directory into the CAS
-func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeData []byte) error {
-	// First store the tree object itself
-	content := NewContent(c.store)
-	if err := content.Ensure(l, dirHash, treeData); err != nil {
+// storeLocalContent stores the tree object and every blob referenced by it.
+func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeData []byte, alg HashAlgorithm) error {
+	treeContent := NewContent(c.treeStore)
+	if err := treeContent.Ensure(l, dirHash, treeData); err != nil {
 		return fmt.Errorf("failed to store tree data: %w", err)
 	}
 
-	// Walk the directory and store all files
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	blobContent := NewContent(c.blobStore)
+
+	return vfs.WalkDir(c.fs, sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip directories and the root directory itself
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
-		// Hash the file to get its content hash
-		fileHash, err := hashFile(path)
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", path, err)
+		}
+
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+
+		fileHash, err := hashFileAlg(c.fs, path, alg)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
 		}
 
-		if err := content.EnsureCopy(l, fileHash, path); err != nil {
+		if err := blobContent.EnsureCopy(l, fileHash, path); err != nil {
 			return fmt.Errorf("failed to store file %s: %w", path, err)
 		}
 
@@ -119,9 +149,26 @@ func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeDat
 	})
 }
 
-func hashString(s string) string {
-	h := sha1.New()
-	h.Write([]byte(s))
+// hashFileAlg hashes a file's contents using the given algorithm and returns
+// the hex-encoded digest. It exists alongside hashFile (which is hard-coded
+// to SHA-1 for the git remote flow) so the local flow can use SHA-256.
+func hashFileAlg(fsys vfs.FS, path string, alg HashAlgorithm) (string, error) {
+	file, err := fsys.Open(path)
+	if err != nil {
+		return "", err
+	}
 
-	return hex.EncodeToString(h.Sum(nil))
+	h := alg.NewHash()
+
+	if _, err := io.Copy(h, file); err != nil {
+		_ = file.Close()
+
+		return "", err
+	}
+
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("closing %s after hashing failed: %w", path, err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

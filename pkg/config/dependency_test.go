@@ -186,6 +186,61 @@ dependency "enabled" {
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }
 
+// TestDependencyOriginalTerragruntDir verifies that when parsing a dependency's
+// config during cycle detection, get_original_terragrunt_dir() returns the
+// dependency's directory, not the caller's directory.
+//
+// Regression test: when unit-a depends on unit-b, and unit-b's config chain
+// calls get_original_terragrunt_dir(), it must resolve to unit-b's directory so
+// that paths constructed from it point to files that exist alongside unit-b.
+func TestDependencyOriginalTerragruntDir(t *testing.T) {
+	t.Parallel()
+
+	filename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"dependency-original-terragrunt-dir",
+			"unit-a",
+			"terragrunt.hcl",
+		),
+	)
+	require.NoError(t, err)
+
+	ctx, pctx := newTestParsingContext(t, filename)
+	pctx.OriginalTerragruntConfigPath = filename
+	pctx.SkipOutput = true
+
+	tfConfig, err := config.ParseConfigFile(ctx, pctx, logger.CreateLogger(), filename, nil)
+	require.NoError(t, err)
+	require.NotNil(t, tfConfig)
+
+	// Parse unit-b directly and verify that its locals resolved correctly
+	// through the get_original_terragrunt_dir() -> common.hcl -> _common.hcl chain.
+	unitBFilename, err := filepath.Abs(
+		filepath.Join(
+			"../..",
+			"test",
+			"fixtures",
+			"regressions",
+			"dependency-original-terragrunt-dir",
+			"unit-b",
+			"terragrunt.hcl",
+		),
+	)
+	require.NoError(t, err)
+
+	ctxB, pctxB := newTestParsingContext(t, unitBFilename)
+	pctxB.OriginalTerragruntConfigPath = unitBFilename
+
+	unitBConfig, err := config.ParseConfigFile(ctxB, pctxB, logger.CreateLogger(), unitBFilename, nil)
+	require.NoError(t, err)
+	require.NotNil(t, unitBConfig)
+	assert.Equal(t, "myapp", unitBConfig.Locals["app_name"])
+}
+
 // TestDisabledDependencyWithEmptyConfigPath verifies that disabled dependencies
 // with empty config_path don't cause errors.
 func TestDisabledDependencyWithEmptyConfigPath(t *testing.T) {

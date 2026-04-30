@@ -94,7 +94,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		return err
 	}
 
-	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
+	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
 		return err
 	}

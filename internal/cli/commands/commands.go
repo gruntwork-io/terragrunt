@@ -366,7 +366,7 @@ func setupAutoProviderCacheDir(ctx context.Context, l log.Logger, opts *options.
 	// Set up the provider cache directory
 	providerCacheDir := opts.ProviderCacheOptions.Dir
 	if providerCacheDir == "" {
-		cacheDir, err := util.GetCacheDir()
+		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
 			return errors.Errorf("failed to get cache directory: %w", err)
 		}

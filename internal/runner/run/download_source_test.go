@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
@@ -565,8 +566,6 @@ func copyFolder(t *testing.T, src string, dest string) {
 		filepath.FromSlash(src),
 		filepath.FromSlash(dest),
 		".terragrunt-test",
-		nil,
-		nil,
 	)
 	require.NoError(t, err)
 }
@@ -905,6 +904,66 @@ func TestDownloadSourceCASInitializationFailure(t *testing.T) {
 
 	expectedFilePath := filepath.Join(tmpDir, "main.tf")
 	assert.FileExists(t, expectedFilePath)
+}
+
+// TestDownloadSourceUpdateSourceWithCASRequiresCAS verifies that setting
+// update_source_with_cas = true on a terraform block errors when CAS is unavailable,
+// either because the experiment is off or because --no-cas is set.
+func TestDownloadSourceUpdateSourceWithCASRequiresCAS(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		enableCAS bool
+		noCAS     bool
+	}{
+		{name: "experiment off", enableCAS: false, noCAS: false},
+		{name: "experiment on with --no-cas", enableCAS: true, noCAS: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := helpers.TmpDirWOSymlinks(t)
+
+			localSourcePath := absPath(t, "../../../test/fixtures/download-source/hello-world")
+			src := &tf.Source{
+				CanonicalSourceURL: parseURL(t, "file://"+localSourcePath),
+				DownloadDir:        tmpDir,
+				WorkingDir:         tmpDir,
+				VersionFile:        filepath.Join(tmpDir, "version-file.txt"),
+			}
+
+			opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
+			require.NoError(t, err)
+
+			opts.Experiments = experiment.NewExperiments()
+			if tc.enableCAS {
+				require.NoError(t, opts.Experiments.EnableExperiment(experiment.CAS))
+			}
+
+			opts.NoCAS = tc.noCAS
+			opts.TerragruntConfigPath = "/tmp/terragrunt.hcl"
+
+			cfg := &runcfg.RunConfig{
+				Terraform: runcfg.TerraformConfig{
+					UpdateSourceWithCAS: true,
+				},
+			}
+
+			l := logger.CreateLogger()
+			l.SetOptions(log.WithOutput(io.Discard))
+
+			_, err = run.DownloadTerraformSourceIfNecessary(t.Context(), l, src, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+			require.Error(t, err)
+
+			var target *cas.UpdateSourceWithCASRequiresCASError
+			require.ErrorAs(t, err, &target)
+			assert.Equal(t, "terraform", target.BlockType)
+			assert.Equal(t, opts.TerragruntConfigPath, target.Path)
+		})
+	}
 }
 
 // TestDownloadSourceWithCASMultipleSources tests that CAS works with multiple different sources

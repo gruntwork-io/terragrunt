@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -33,6 +34,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -40,6 +42,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -101,6 +104,7 @@ const (
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
+	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
 )
 
@@ -199,6 +203,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, pctx, l, getWorkingDir),
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
+		FuncNameMarkGlobAsRead:                          wrapStringSliceToStringSliceAsFuncImpl(ctx, pctx, l, markGlobAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
@@ -1672,6 +1677,70 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 		trackFileRead(pctx.FilesRead, path)
 
 		result = file
+
+		return nil
+	})
+
+	return result, err
+}
+
+// markGlobAsRead expands the given glob pattern and marks each matched file as
+// read. Pattern syntax follows the internal/glob package: '/' is the
+// separator, `**` matches any sequence of characters, `*` matches within a
+// single segment, and '\' escapes the next metacharacter. `**` only
+// collapses the flanking separators when the adjacent segments are literals,
+// so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
+// both depths. Returns the list of absolute file paths that were marked.
+func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
+	attrs := map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["glob"] = args[0]
+	}
+
+	var result []string
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_mark_glob_as_read", attrs, func(childCtx context.Context) error {
+		if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			return errors.New(MarkGlobAsReadRequiresExperimentError{
+				ConfigPath: pctx.TerragruntConfigPath,
+				Pattern:    pattern,
+			})
+		}
+
+		if len(args) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)})
+		}
+
+		raw := args[0]
+
+		// Keep the pattern in forward-slash space end-to-end. filepath.Join and
+		// filepath.Clean would rewrite '/' to '\' on Windows, and a subsequent
+		// filepath.ToSlash would then clobber any user-supplied '\' escapes that
+		// gobwas relies on to match literal metacharacters.
+		var pattern string
+		if filepath.IsAbs(raw) {
+			pattern = path.Clean(raw)
+		} else {
+			pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
+		}
+
+		matches, err := glob.Expand(vfs.NewOSFS(), pattern, glob.WithFilesOnly())
+		if err != nil {
+			return errors.New(fmt.Errorf("could not expand glob %q: %w", raw, err))
+		}
+
+		for _, match := range matches {
+			trackFileRead(pctx.FilesRead, match)
+			result = append(result, match)
+		}
 
 		return nil
 	})

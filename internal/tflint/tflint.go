@@ -37,7 +37,13 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *TFLintOptions, cfg *runcfg.RunConfig, hook *runcfg.Hook) error {
+func RunTflintWithOpts(
+	ctx context.Context,
+	l log.Logger,
+	opts *TFLintOptions,
+	cfg *runcfg.RunConfig,
+	hook *runcfg.Hook,
+) error {
 	hookExecute := slices.Clone(hook.Execute)
 	hookExecute = slices.DeleteFunc(hookExecute, func(arg string) bool {
 		return arg == tfExternalTFLint
@@ -49,7 +55,8 @@ func RunTflintWithOpts(ctx context.Context, l log.Logger, opts *TFLintOptions, c
 		return err
 	}
 
-	l.Debugf("Using .tflint.hcl file in %s", util.RelPathForLog(opts.RootWorkingDir, configFile, opts.Writers.LogShowAbsPaths))
+	l.Debugf("Using .tflint.hcl file in %s",
+		util.RelPathForLog(opts.RootWorkingDir, configFile, opts.Writers.LogShowAbsPaths))
 
 	variables, err := InputsToTflintVar(cfg.Inputs)
 	if err != nil {
@@ -235,8 +242,9 @@ func tfArgumentsToTflintVar(l log.Logger, hook *runcfg.Hook,
 	return variables, nil
 }
 
-// findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
-// When running from cache, we start searching from the original config directory to find config in the source directory.
+// findTflintConfigInProject looks for a .tflint.hcl file in the current
+// folder or it's parents. When running from cache, we start searching
+// from the original config directory to find config in the source directory.
 func findTflintConfigInProject(l log.Logger, opts *TFLintOptions) (string, error) {
 	startDir := opts.WorkingDir
 	if opts.TerragruntConfigPath != "" {
@@ -259,7 +267,9 @@ func findTflintConfigInProject(l log.Logger, opts *TFLintOptions) (string, error
 
 		fileToFind := filepath.Join(previousDir, ".tflint.hcl")
 		if util.FileExists(fileToFind) {
-			l.Debugf("Found .tflint.hcl in %s", util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.Writers.LogShowAbsPaths))
+			l.Debugf("Found .tflint.hcl in %s",
+				util.RelPathForLog(opts.RootWorkingDir, fileToFind, opts.Writers.LogShowAbsPaths))
+
 			return fileToFind, nil
 		}
 

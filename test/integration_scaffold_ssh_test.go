@@ -36,14 +36,13 @@ func TestSSHScaffoldWithCustomDefaultTemplate(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := filepath.Join(tmpEnvPath, testScaffoldWithCustomDefaultTemplate)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf(
 		"terragrunt --non-interactive --working-dir %s scaffold %s",
 		filepath.Join(testPath, "unit"),
 		testScaffoldModuleURL,
 	))
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
 
 	assert.FileExists(t, filepath.Join(testPath, "unit", "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(testPath, "unit", "external-template.txt"))
@@ -54,9 +53,8 @@ func TestSSHScaffoldModuleExternalTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s %s", tmpEnvPath, testScaffoldModuleGit, testScaffoldExternalTemplateModule))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s %s", tmpEnvPath, testScaffoldModuleGit, testScaffoldExternalTemplateModule))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
 	// check that exists file from external template
 	assert.FileExists(t, tmpEnvPath+"/external-template.txt")
 	assert.FileExists(t, tmpEnvPath+"/dependency/dependency.txt")
@@ -67,19 +65,20 @@ func TestSSHScaffoldModuleDifferentRevisionAndSSH(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4 --var=SourceUrlType=git-ssh", tmpEnvPath, testScaffoldModuleShort))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var=Ref=v0.67.4 --var=SourceUrlType=git-ssh", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
-	assert.Contains(t, stderr, "Scaffolding completed")
+
+	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
+	require.NoError(t, err)
+	assert.Contains(t, content, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
 }
 
 func TestSSHScaffoldModuleSSH(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleGit))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldModuleGit))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
 }
 
 func TestSSHScaffoldModuleTemplate(t *testing.T) {
@@ -87,9 +86,8 @@ func TestSSHScaffoldModuleTemplate(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldTemplateModule))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s", tmpEnvPath, testScaffoldTemplateModule))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
 	// check that exists file from .boilerplate dir
 	assert.FileExists(t, tmpEnvPath+"/template-file.txt")
 }
@@ -108,12 +106,11 @@ SourceUrlType: "git-ssh"
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var-file=%s", tmpEnvPath, testScaffoldModuleShort, varFile))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --non-interactive --working-dir %s %s --var-file=%s", tmpEnvPath, testScaffoldModuleShort, varFile))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
-	assert.Contains(t, stderr, "Scaffolding completed")
 
 	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
 	require.NoError(t, err)
+	assert.Contains(t, content, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.67.4")
 	assert.NotContains(t, content, "find_in_parent_folders")
 }

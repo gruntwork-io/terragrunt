@@ -223,6 +223,13 @@ func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.L
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			// During hcl validate, config_path may be unresolvable (e.g., references an
+			// unavailable local). Skip the invalid dependency instead of aborting — it will
+			// get a cty.DynamicVal placeholder in dependencyBlocksToCtyValue.
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return nil, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 	}
@@ -279,6 +286,11 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		}
 
 		if !IsValidConfigPath(dep.ConfigPath) {
+			if pctx.SkipOutput {
+				updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+				continue
+			}
+
 			return &updatedDependencies, errors.New(DependencyInvalidConfigPathError{DependencyName: dep.Name})
 		}
 
@@ -307,7 +319,7 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			l.Debugf("Reading Terragrunt config file at %s", util.RelPathForLog(pctx.RootWorkingDir, depPath, pctx.Writers.LogShowAbsPaths))
 		}
 
-		_, depCtx, err := pctx.WithConfigPath(l, depPath)
+		_, depCtx, err := pctx.WithDependencyConfigPath(l, depPath)
 		if err != nil {
 			return nil, err
 		}
@@ -388,12 +400,21 @@ func checkForDependencyBlockCycles(ctx context.Context, pctx *ParsingContext, l 
 		}
 
 		if !IsValidConfigPath(dependency.ConfigPath) {
+			if pctx.SkipOutput {
+				continue
+			}
+
 			return errors.New(DependencyInvalidConfigPathError{DependencyName: dependency.Name})
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		// Skip cycle checking for nonexistent dependency targets — there is nothing to traverse.
+		if !util.FileExists(dependencyPath) {
+			continue
+		}
+
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -436,7 +457,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
 
-		l, dependencyContext, err := pctx.WithConfigPath(l, dependencyPath)
+		l, dependencyContext, err := pctx.WithDependencyConfigPath(l, dependencyPath)
 		if err != nil {
 			return err
 		}
@@ -515,10 +536,21 @@ func dependencyBlocksToCtyValue(traceCtx context.Context, pctx *ParsingContext, 
 					lock.Unlock()
 
 					dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+				} else if pctx.SkipOutput {
+					// During hcl validate, output resolution is skipped. Use cty.DynamicVal so that
+					// attribute access on dependency outputs (e.g. dependency.x.outputs.y) evaluates
+					// to unknown rather than producing an "Unsupported attribute" error.
+					l.Debugf("Setting outputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["outputs"] = cty.DynamicVal
 				}
 
 				if dependencyConfig.Inputs != nil {
 					dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
+				} else if pctx.SkipOutput {
+					l.Debugf("Setting inputs for dependency %s to DynamicVal (output resolution skipped)", dependencyConfig.Name)
+
+					dependencyEncodingMap["inputs"] = cty.DynamicVal
 				}
 
 				// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to
@@ -653,6 +685,16 @@ func getTerragruntOutput(
 		pctx.TerragruntConfigPath,
 	)
 
+	// When the stack-dependencies experiment is enabled, check if config_path
+	// points to a directory containing a stack file. If so, resolve outputs
+	// from all units in the stack as a nested map.
+	if pctx.Experiments.Evaluate(experiment.StackDependencies) {
+		stackOutput, handled, err := tryGetStackOutput(ctx, pctx, l, targetConfigPath, dependencyConfig)
+		if handled {
+			return stackOutput, stackOutput == nil, err
+		}
+	}
+
 	if !util.FileExists(targetConfigPath) {
 		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
 	}
@@ -691,6 +733,100 @@ func getTerragruntOutput(
 	}
 
 	return &convertedOutput, isEmpty, errors.New(err)
+}
+
+// collectStackUnitOutputs iterates over stack units, reads their cached
+// terraform outputs, and returns them as a map keyed by unit name.
+func collectStackUnitOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, stackDir string, units []*Unit) map[string]cty.Value {
+	unitOutputs := make(map[string]cty.Value)
+
+	for _, unit := range units {
+		unitDir := GetUnitDir(stackDir, unit)
+		unitConfigPath := filepath.Join(unitDir, DefaultTerragruntConfigPath)
+
+		if !util.FileExists(unitConfigPath) {
+			l.Warnf("Stack unit %s config not found at %s, skipping", unit.Name, unitConfigPath)
+
+			continue
+		}
+
+		jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, unitConfigPath)
+		if err != nil {
+			l.Warnf("Failed to get output for stack unit %s: %v", unit.Name, err)
+
+			continue
+		}
+
+		outputMap, err := TerraformOutputJSONToCtyValueMap(unitConfigPath, jsonBytes)
+		if err != nil {
+			l.Warnf("Failed to parse output for stack unit %s: %v", unit.Name, err)
+
+			continue
+		}
+
+		if len(outputMap) > 0 {
+			convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
+			if err != nil {
+				l.Warnf("Failed to convert output map for stack unit %s: %v", unit.Name, err)
+
+				continue
+			}
+
+			unitOutputs[unit.Name] = convertedOutput
+		}
+	}
+
+	return unitOutputs
+}
+
+// tryGetStackOutput checks if targetConfigPath points to a stack directory
+// (contains terragrunt.stack.hcl) and resolves aggregated outputs from all
+// units in the stack. Returns (output, handled, error) where handled=true
+// means the path was a stack and was processed (even if there was an error).
+func tryGetStackOutput(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	targetConfigPath string,
+	dependencyConfig *Dependency,
+) (*cty.Value, bool, error) {
+	// Check if the path is a directory containing a stack file
+	stackFilePath := targetConfigPath
+
+	if filepath.Base(stackFilePath) != DefaultStackFile {
+		stackFilePath = filepath.Join(targetConfigPath, DefaultStackFile)
+	}
+
+	if !util.FileExists(stackFilePath) {
+		return nil, false, nil
+	}
+
+	l.Debugf("Dependency %s points to stack %s, resolving stack outputs", dependencyConfig.Name, stackFilePath)
+
+	stackDir := filepath.Dir(stackFilePath)
+
+	// Load values from the target stack's directory before parsing,
+	// mirroring the GenerateStackFile flow so stacks using values.* work.
+	stackValues, err := ReadValues(ctx, pctx, l, stackDir)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to read values for stack %s: %w", stackFilePath, err)
+	}
+
+	// Parse the stack config to discover units
+	stackConfig, err := ReadStackConfigFile(ctx, l, pctx, stackFilePath, stackValues)
+	if err != nil {
+		return nil, true, errors.Errorf("failed to parse stack config %s: %w", stackFilePath, err)
+	}
+
+	unitOutputs := collectStackUnitOutputs(ctx, pctx, l, stackDir, stackConfig.Units)
+
+	if len(unitOutputs) == 0 {
+		return nil, true, nil
+	}
+
+	result := cty.ObjectVal(unitOutputs)
+
+	return &result, true, nil
 }
 
 func isAwsS3NoSuchKey(err error) bool {
@@ -760,14 +896,12 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
-	// Create dependency context using WithConfigPath
-	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
+	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set dependency-specific fields
-	pctx.OriginalTerragruntConfigPath = targetConfig
 	pctx.ForwardTFStdout = false
 	pctx.CheckDependentUnits = false
 	pctx.TerraformCommand = "output"
@@ -1292,6 +1426,7 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 		BackendBootstrap:             pctx.BackendBootstrap,
 		Telemetry:                    pctx.Telemetry,
 		AuthProviderCmd:              pctx.AuthProviderCmd,
+		CASCloneDepth:                pctx.CASCloneDepth,
 	}
 
 	err = run.Run(ctx, l, runOpts, report.NewReport(), runCfg, credsGetter)
@@ -1312,21 +1447,19 @@ func runTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	return jsonBytes, nil
 }
 
-// shellRunOptsFromPctx builds a *shell.RunOptions from ParsingContext flat fields.
+// shellRunOptsFromPctx builds a *shell.ShellOptions from ParsingContext flat fields.
 func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
-	return &shell.ShellOptions{
-		Writers:         pctx.Writers,
-		EngineOptions:   pctx.EngineOptions,
-		WorkingDir:      pctx.WorkingDir,
-		Env:             pctx.Env,
-		TFPath:          pctx.TFPath,
-		EngineConfig:    pctx.EngineConfig,
-		Experiments:     pctx.Experiments,
-		Telemetry:       pctx.Telemetry,
-		RootWorkingDir:  pctx.RootWorkingDir,
-		Headless:        pctx.Headless,
-		ForwardTFStdout: pctx.ForwardTFStdout,
-	}
+	return shell.NewShellOptions().
+		WithWorkingDir(pctx.WorkingDir).
+		WithEnv(pctx.Env).
+		WithWriters(pctx.Writers).
+		WithTelemetry(pctx.Telemetry).
+		WithEngine(pctx.EngineConfig, pctx.EngineOptions).
+		WithTFPath(pctx.TFPath).
+		WithRootWorkingDir(pctx.RootWorkingDir).
+		WithExperiments(pctx.Experiments).
+		WithHeadless(pctx.Headless).
+		WithForwardTFStdout(pctx.ForwardTFStdout)
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.

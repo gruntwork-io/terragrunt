@@ -84,6 +84,7 @@ type ParsingContext struct {
 
 	MaxFoldersToCheck int
 	ParseDepth        int
+	CASCloneDepth     int
 
 	TFPathExplicitlySet bool
 	SkipOutput          bool
@@ -99,6 +100,7 @@ type ParsingContext struct {
 	UsePartialParseConfigCache       bool
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
+	NoCAS                            bool
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {
@@ -224,9 +226,16 @@ func (ctx *ParsingContext) WithIncrementedDepth() (*ParsingContext, error) {
 	return c, nil
 }
 
-// WithConfigPath returns a new ParsingContext with the config path updated.
-// It normalizes the path to an absolute path, updates WorkingDir to the directory
-// containing the config, and adjusts the logger's working directory field if it changed.
+// WithConfigPath returns a new ParsingContext targeting a different config file.
+//
+// It normalizes configPath to an absolute path, sets TerragruntConfigPath and
+// WorkingDir accordingly, and updates the logger when the working directory changes.
+//
+// OriginalTerragruntConfigPath is preserved so that get_original_terragrunt_dir()
+// continues to resolve to the caller. This is the correct behavior when one config
+// reads another via read_terragrunt_config.
+//
+// To parse a dependency as an independent unit, use [ParsingContext.WithDependencyConfigPath].
 func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
 	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
@@ -242,6 +251,24 @@ func (ctx *ParsingContext) WithConfigPath(l log.Logger, configPath string) (log.
 	c := ctx.Clone()
 	c.TerragruntConfigPath = configPath
 	c.WorkingDir = workingDir
+
+	return l, c, nil
+}
+
+// WithDependencyConfigPath returns a new ParsingContext for parsing a dependency
+// as an independent unit.
+//
+// It performs the same path and logger updates as [ParsingContext.WithConfigPath],
+// and additionally resets OriginalTerragruntConfigPath to the dependency's path.
+// This ensures that get_original_terragrunt_dir() resolves to the dependency's
+// own directory rather than the caller's.
+func (ctx *ParsingContext) WithDependencyConfigPath(l log.Logger, configPath string) (log.Logger, *ParsingContext, error) {
+	l, c, err := ctx.WithConfigPath(l, configPath)
+	if err != nil {
+		return l, nil, err
+	}
+
+	c.OriginalTerragruntConfigPath = c.TerragruntConfigPath
 
 	return l, c, nil
 }

@@ -14,6 +14,7 @@ import starlightLlmsTxt from "starlight-llms-txt";
 import d2 from "astro-d2";
 
 import { sidebar } from "./src/data/sidebar.ts";
+import { rehypeChangelogAnchors } from "./src/lib/rehype-changelog-anchors.ts";
 
 // Check if we're in Vercel environment
 const isVercel = globalThis.process?.env?.VERCEL;
@@ -47,41 +48,6 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:title',
-            content: 'Terragrunt',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:type',
-            content: 'website',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:url',
-            content: 'https://docs.terragrunt.com',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
             name: 'twitter:card',
             content: 'summary_large_image',
           },
@@ -89,15 +55,26 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:title',
-            content: 'Terragrunt',
+            property: 'og:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-og-image-1200x630.png',
           },
         },
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+            name: 'twitter:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-twitter-image.png',
+          },
+        },
+        {
+          tag: 'script',
+          attrs: {
+            async: true,
+            src: 'https://widget.kapa.ai/kapa-widget.bundle.js',
+            'data-website-id': '925274e5-086f-446e-9108-64761bc7c4b4',
+            'data-project-name': 'Terragrunt',
+            'data-project-color': '#7B5AFF',
+            'data-project-logo': 'https://docs.terragrunt.com/favicon.svg',
           },
         },
       ],
@@ -140,9 +117,12 @@ export default defineConfig({
             "/reference/experiments/completed#*",
             "/reference/strict-controls/active#*",
             "/reference/strict-controls/completed#*",
+            "/process/changelog#*",
+            "/process/changelog/*#*",
 
-            // Used as a redirect to the Terragrunt Discord server
+            // Used as redirects to the Terragrunt Discord server
             "/community/invite",
+            "/tgs-discord",
           ],
         }),
         starlightLlmsTxt()
@@ -168,6 +148,9 @@ export default defineConfig({
     }),
     sitemap(),
   ],
+  markdown: {
+    rehypePlugins: [rehypeChangelogAnchors],
+  },
   // Note that some redirects are handled in vercel.json instead.
   //
   // This is because Astro won't do dynamic redirects for external destinations.
@@ -192,7 +175,7 @@ export default defineConfig({
 
     // Redirects to external sites.
     "/terragrunt-ambassador": "https://terragrunt.com/terragrunt-ambassador",
-    "/terragrunt-scale": "https://terragrunt.com/terragrunt-scale",
+    "/terragrunt-scale": "/terragrunt-scale/overview/",
     "/contact/": "https://gruntwork.io/contact",
     "/commercial-support/": "https://gruntwork.io/support",
     "/cookie-policy/": "https://gruntwork.io/legal/cookie-policy/",

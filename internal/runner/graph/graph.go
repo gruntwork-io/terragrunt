@@ -30,7 +30,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
 	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
 	// different opts after clone).
-	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, configbridge.ShellRunOptsFromOpts(opts)); err != nil {
+	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, shellOpts); err != nil {
 		return err
 	}
 
@@ -42,7 +43,11 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	}
 
 	if cfg == nil {
-		return errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+		return errors.New(
+			"terragrunt was not able to render the config as json because it received no config." +
+				" This is almost certainly a bug in Terragrunt. Please open an issue on" +
+				" github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl",
+		)
 	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
@@ -90,11 +95,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts.Filters = filter.Filters{filter.NewFilter(graphExpr, graphExpr.String())}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	if !opts.SummaryDisable {

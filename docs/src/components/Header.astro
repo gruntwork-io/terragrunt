@@ -7,6 +7,7 @@ import Search from 'virtual:starlight/components/Search';
 import HeadphonesIcon from '@assets/headset-icon.svg';
 import PipelineIcon from '@assets/pipelines.svg';
 import TerragruntLogo from '@assets/horizontal-logo-light.svg';
+import TerragruntIcon from '@assets/logo-dark-2.svg';
 import ThemeToggle from '@components/ThemeToggle.astro';
 import ButtonLink from '@components/ui/ButtonLink';
 import { getGitHubRepo, formatStarCount } from '@lib/github';
@@ -152,13 +153,14 @@ if (!process.env.GITHUB_STARS) {
 
         <!-- Buttons -->
         <ButtonLink
-          href="/terragrunt-scale"
-          variant="secondary"
           className="hidden md:flex whitespace-nowrap"
+          href="https://www.gruntwork.io/services/terragrunt"
           size={'lg'}
+          variant="secondary"
         >
-          Automate Deployments
+          Enterprise Support
         </ButtonLink>
+
         <ButtonLink
           href="/terragrunt-scale"
           variant="secondary"
@@ -173,18 +175,26 @@ if (!process.env.GITHUB_STARS) {
           />
         </ButtonLink>
 
+
         <ButtonLink
-          href="https://www.gruntwork.io/services/terragrunt"
-          variant="primary"
+          buttonClassName="flex items-center justify-center gap-2"
           className="hidden md:flex whitespace-nowrap"
-          isExternalLink={true}
+          href="https://terragrunt.com/terragrunt-scale"
           size={'lg'}
+          variant="primary"
         >
-          Enterprise Support
+          Terragrunt Scale
+            <Image
+              alt="Terragrunt Scale Icon"
+              height={16}
+              src={TerragruntIcon}
+              quality="max"
+              width={16}
+            />
         </ButtonLink>
 
         <ButtonLink
-          href="https://www.gruntwork.io/services/terragrunt"
+          href="https://terragrunt.com/terragrunt-scale"
           variant="primary"
           size="icon"
           className="md:hidden"

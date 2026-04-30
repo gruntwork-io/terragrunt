@@ -48,7 +48,7 @@ func TestSSHCASGetterGet(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 			storePath := filepath.Join(tmpDir, "store")
-			c, err := cas.New(cas.Options{StorePath: storePath})
+			c, err := cas.New(cas.WithStorePath(storePath))
 			require.NoError(t, err)
 
 			opts := &cas.CloneOptions{

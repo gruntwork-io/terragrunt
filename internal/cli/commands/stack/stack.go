@@ -55,7 +55,11 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	if len(gitFilters) > 0 {
 		var err error
 
-		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+			WorkingDir:     opts.WorkingDir,
+			GitExpressions: gitFilters,
+			Experiments:    opts.Experiments,
+		})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}
@@ -68,11 +72,13 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}()
 	}
 
+	gen := generate.NewGenerator()
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts, wts)
+		return gen.GenerateStacks(ctx, l, opts, wts)
 	})
 }
 
@@ -96,6 +102,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 // RunOutput stack output.
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
+	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
 	var outputs cty.Value
 

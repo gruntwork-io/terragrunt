@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -139,6 +140,9 @@ type TerragruntOptions struct {
 	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
+	// Path to an additional ignore file layered on top of a repo's
+	// .terragrunt-catalog-ignore during catalog discovery.
+	CatalogIgnoreFile string
 	// Path to a file with a list of directories that need to be excluded when running *-all commands.
 	ExcludesFile string
 	// Path to folder of scaffold output
@@ -177,6 +181,10 @@ type TerragruntOptions struct {
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
+	// CASCloneDepth is passed to git clone as --depth when CAS clones a remote
+	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
+	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
+	CASCloneDepth int
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -239,6 +247,8 @@ type TerragruntOptions struct {
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
+	// NoCAS disables the CAS feature even when the experiment is enabled.
+	NoCAS bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
@@ -321,6 +331,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		Telemetry:              new(telemetry.Options),
 		EngineOptions:          new(engine.EngineOptions),
 		VersionManagerFileName: defaultVersionManagerFileName,
+		CASCloneDepth:          1,
 	}
 }
 
@@ -528,7 +539,7 @@ func (opts *TerragruntOptions) DataDir() string {
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable(ctx context.Context) string {
-	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
+	if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available

@@ -20,11 +20,15 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
@@ -32,10 +36,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/mattn/go-shellwords"
-
-	"os"
-	"path/filepath"
-	"testing"
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -48,6 +48,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,9 +74,9 @@ const (
 
 	ReportFile = "report.json"
 
-	readPermissions      = 0444
-	readWritePermissions = 0666
-	allPermissions       = 0777
+	readPermissions      = 0o444
+	readWritePermissions = 0o666
+	allPermissions       = 0o777
 
 	caKeyBits = 4096
 
@@ -110,8 +111,9 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 			environmentPath,
 			filepath.Join(tmpDir, environmentPath),
 			".terragrunt-test",
-			includeInCopy,
-			excludeFromCopy,
+			util.WithIncludeInCopy(includeInCopy...),
+			util.WithExcludeFromCopy(excludeFromCopy...),
+			util.WithFastCopy(),
 		),
 	)
 
@@ -842,33 +844,47 @@ func ValidateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-// WrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
-func WrappedBinary() string {
-	value, found := os.LookupEnv("TG_TF_PATH")
-	if !found {
-		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(context.Background(), TofuBinary, "-version") {
-			return TofuBinary
+// wrappedBinaryOnce memoizes the detected wrapped binary. The result is stable
+// for the lifetime of the process (env vars and installed binaries don't
+// change during a test run), so paying for detection once is enough.
+var (
+	wrappedBinaryOnce   sync.Once
+	wrappedBinaryCached string
+)
+
+// WrappedBinary returns which binary will be wrapped by Terragrunt. The
+// detection runs at most once per process; subsequent calls return the cached
+// value. The ctx is used only on the first call.
+func WrappedBinary(ctx context.Context) string {
+	wrappedBinaryOnce.Do(func() {
+		if value, found := os.LookupEnv("TG_TF_PATH"); found {
+			wrappedBinaryCached = filepath.Base(value)
+			return
 		}
 
-		return TerraformBinary
-	}
+		if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuBinary, "-version") {
+			wrappedBinaryCached = TofuBinary
+			return
+		}
 
-	return filepath.Base(value)
+		wrappedBinaryCached = TerraformBinary
+	})
+
+	return wrappedBinaryCached
 }
 
-// ExpectedWrongCommandErr - return expected error message for wrong command
-func ExpectedWrongCommandErr(command string) error {
-	if WrappedBinary() == TofuBinary {
+// ExpectedWrongCommandErr returns the expected error message for a wrong command.
+func ExpectedWrongCommandErr(ctx context.Context, command string) error {
+	if WrappedBinary(ctx) == TofuBinary {
 		return run.WrongTofuCommand(command)
 	}
 
 	return run.WrongTerraformCommand(command)
 }
 
-// IsTerraform checks if the wrapped binary currently in use is the Terraform binary.
-func IsTerraform() bool {
-	return WrappedBinary() == TerraformBinary
+// IsTerraform reports whether the wrapped binary is Terraform.
+func IsTerraform(ctx context.Context) bool {
+	return WrappedBinary(ctx) == TerraformBinary
 }
 
 // IsTerraform110OrHigher checks if the installed Terraform binary is version 1.10.0 or higher.
@@ -880,11 +896,11 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 		requiredMinor = 10
 	)
 
-	if !IsTerraform() {
+	if !IsTerraform(t.Context()) {
 		return false
 	}
 
-	output, err := exec.CommandContext(t.Context(), WrappedBinary(), "-version").Output()
+	output, err := exec.CommandContext(t.Context(), WrappedBinary(t.Context()), "-version").Output()
 	require.NoError(t, err)
 
 	matches := regexp.MustCompile(`Terraform v(\d+)\.(\d+)\.`).FindStringSubmatch(string(output))
@@ -900,13 +916,13 @@ func IsTerraform110OrHigher(t *testing.T) bool {
 }
 
 // IsOpenTofuInstalled checks if OpenTofu is installed.
-func IsOpenTofuInstalled() bool {
-	return util.IsCommandExecutable(context.Background(), TofuBinary, "-version")
+func IsOpenTofuInstalled(ctx context.Context) bool {
+	return util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuBinary, "-version")
 }
 
 // IsTerraformInstalled checks if Terraform is installed.
-func IsTerraformInstalled() bool {
-	return util.IsCommandExecutable(context.Background(), TerraformBinary, "-version")
+func IsTerraformInstalled(ctx context.Context) bool {
+	return util.IsCommandExecutable(vexec.NewOSExec(), ctx, TerraformBinary, "-version")
 }
 
 // IsNativeS3LockingSupported checks if the installed Terraform binary supports native S3 locking.
@@ -921,7 +937,7 @@ func IsNativeS3LockingSupported(t *testing.T) bool {
 		tofuRequiredMinor      = 10
 	)
 
-	if IsTerraform() {
+	if IsTerraform(t.Context()) {
 		output, err := exec.CommandContext(t.Context(), TerraformBinary, "-version").Output()
 		require.NoError(t, err)
 
@@ -988,20 +1004,16 @@ func CleanupTerragruntFolder(t *testing.T, templatesPath string) {
 func RemoveFile(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 
 func RemoveFolder(t *testing.T, path string) {
 	t.Helper()
 
-	if util.FileExists(path) {
-		if err := os.RemoveAll(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
+	if err := os.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Error while removing %s: %v", path, err)
 	}
 }
 

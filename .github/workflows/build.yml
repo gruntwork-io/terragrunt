@@ -2,6 +2,22 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: 'Version string for ldflags (defaults to github.ref_name)'
+        required: false
+        type: string
+        default: ''
+      is_release:
+        description: 'Whether this is a release build (enables signing)'
+        required: false
+        type: boolean
+        default: false
+      ref:
+        description: 'Git ref to checkout (defaults to triggering ref)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   detect_release:
@@ -10,18 +26,14 @@ jobs:
     outputs:
       is_release: ${{ steps.check.outputs.is_release }}
     steps:
-      - name: Check if release tag
+      - name: Check if release build
         id: check
+        env:
+          IS_RELEASE_INPUT: ${{ inputs.is_release }}
         run: |
-          REF="${GITHUB_REF}"
-          echo "Git ref: $REF"
-
-          # Check if this is a release tag (v*, alpha*, beta*)
-          if [[ "$REF" =~ ^refs/tags/v.* ]] || \
-             [[ "$REF" =~ ^refs/tags/alpha.* ]] || \
-             [[ "$REF" =~ ^refs/tags/beta.* ]]; then
+          if [[ "$IS_RELEASE_INPUT" == "true" ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "This is a RELEASE build - signing will be enabled"
+            echo "This is a RELEASE build (from caller input) - signing will be enabled"
           else
             echo "is_release=false" >> "$GITHUB_OUTPUT"
             echo "This is NOT a release build - signing will be skipped"
@@ -52,6 +64,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Use mise to install dependencies
         uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
@@ -87,13 +101,14 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 0
+          BUILD_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}"
           if [[ "${GOOS}" == "windows" ]]; then
             OUTPUT="${OUTPUT}.exe"
           fi
           go build -o "${OUTPUT}" \
-            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${GITHUB_REF_NAME}" \
+            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${BUILD_VERSION}" \
             .
 
       - name: Verify Static Linking
@@ -136,6 +151,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Download macOS signed binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

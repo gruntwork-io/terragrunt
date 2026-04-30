@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -466,7 +467,7 @@ unit "unit_to_be_untouched" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1314,7 +1315,7 @@ func setupGitRepo(t *testing.T) (string, *git.GitRunner) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1461,7 +1462,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1622,7 +1623,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1777,7 +1778,7 @@ unit "app" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Run discovery
@@ -1930,7 +1931,7 @@ unit "myapp" {
 
 	// Generate stacks — using tmpDir as working directory so that only
 	// worktreeStacksToGenerate can cause generation inside worktrees.
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// Verify: no .terragrunt-stack directories should exist in the worktrees,
@@ -2053,7 +2054,7 @@ unit "myapp" {
 	require.NoError(t, err)
 
 	// Generate stacks
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — the land-mine stack should not have been parsed.
@@ -2166,7 +2167,7 @@ unit "myapp" {
 	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
 	require.NoError(t, err)
 
-	err = generate.GenerateStacks(t.Context(), l, opts, w)
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
 	require.NoError(t, err)
 
 	// The marker file should NOT exist — negation should prevent parsing
@@ -2317,13 +2318,13 @@ unit "myapp" {
 		fromOpts := opts.Clone()
 		fromOpts.WorkingDir = pair.FromWorktree.Path
 		fromOpts.RootWorkingDir = pair.FromWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, fromOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, fromOpts, w)
 		require.NoError(t, err)
 
 		toOpts := opts.Clone()
 		toOpts.WorkingDir = pair.ToWorktree.Path
 		toOpts.RootWorkingDir = pair.ToWorktree.Path
-		err = generate.GenerateStacks(t.Context(), l, toOpts, w)
+		err = generate.NewGenerator().GenerateStacks(t.Context(), l, toOpts, w)
 		require.NoError(t, err)
 	}
 
@@ -2364,4 +2365,251 @@ unit "myapp" {
 	assert.NotEmpty(t, unitPaths,
 		"Expected at least one unit to be discovered when a read file changes, "+
 			"but got no units. All components: %v", componentPaths)
+}
+
+// TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries tests that
+// negated path filters (e.g., from .terragrunt-filters) are applied within worktree
+// sub-discoveries, not just during the final filter evaluation.
+// This is a regression test for #5821: source catalog units in worktrees were being
+// discovered and parsed despite being excluded by a negated path filter, because the
+// worktree sub-discoveries did not receive the exclusion filters.
+func TestWorktreePhase_Integration_NegatedFiltersAppliedInWorktreeSubDiscoveries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create two units: one that should be discovered and one that should be excluded.
+	createUnit(t, tmpDir, "app", `# App unit`)
+	// This catalog unit references values.* — it's a template that only works
+	// when generated through a stack. Without the fix, the worktree sub-discovery
+	// tries to parse it and fails with "Unknown variable: values".
+	createUnit(t, tmpDir, "catalog/units/svc", `
+locals {
+  environment = values.environment
+}
+`)
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Modify both units
+	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "catalog", "units", "svc", "terragrunt.hcl"), []byte(`
+locals {
+  environment = values.environment
+  region      = "us-east-1"
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify both units")
+
+	l := logger.CreateLogger()
+
+	// Parse filters: git expression + negated path that excludes catalog
+	filterQueries := []string{"[HEAD~1...HEAD]", "!./catalog/**"}
+	filters, parseErr := filter.ParseFilterQueries(l, filterQueries)
+	require.NoError(t, parseErr)
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{
+			WorkingDir: tmpDir,
+			Cmd:        "plan",
+		}).
+		WithWorktrees(w).
+		WithRelationships().
+		WithFilters(filters)
+
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	worktreePair := w.WorktreePairs["[HEAD~1...HEAD]"]
+	require.NotEmpty(t, worktreePair)
+
+	toWorktree := worktreePair.ToWorktree.Path
+
+	// The app unit should be discovered (it's in the git diff and not excluded)
+	assert.Contains(t, unitPaths, filepath.Join(toWorktree, "app"),
+		"app unit should be discovered")
+
+	// The catalog unit should NOT be discovered (excluded by !./catalog/**)
+	for _, p := range unitPaths {
+		assert.NotContains(t, p, "catalog",
+			"catalog units should be excluded by the negated filter, but found: %s", p)
+	}
+}
+
+// TestWorktreePhase_Integration_GitFilterExclusionPreventsParsingInWorktree verifies that
+// a negated filter prevents excluded units from being parsed inside worktree sub-discoveries.
+// The land-mine unit uses run_cmd("exit 1") which would cause a fatal parse error if evaluated.
+func TestWorktreePhase_Integration_GitFilterExclusionPreventsParsingInWorktree(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	createUnit(t, tmpDir, "app", `# App unit`)
+	createUnit(t, tmpDir, "land-mine", `
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+}
+`)
+
+	commitChanges(t, runner, "Initial commit")
+
+	err := os.WriteFile(filepath.Join(tmpDir, "app", "terragrunt.hcl"), []byte(`# Modified app`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "land-mine", "terragrunt.hcl"), []byte(`
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+  modified = true
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Modify both units")
+
+	l := logger.CreateLogger()
+	filters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]", "!./land-mine"})
+	require.NoError(t, parseErr)
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: filters.UniqueGitFilters(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	d := discovery.NewDiscovery(tmpDir).
+		WithDiscoveryContext(&component.DiscoveryContext{WorkingDir: tmpDir, Cmd: "plan"}).
+		WithWorktrees(w).
+		WithRelationships().
+		WithFilters(filters)
+
+	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
+	components, err := d.Discover(t.Context(), l, opts)
+	require.NoError(t, err)
+
+	unitPaths := components.Filter(component.UnitKind).Paths()
+
+	toWorktree := w.WorktreePairs["[HEAD~1...HEAD]"].ToWorktree.Path
+	assert.Contains(t, unitPaths, filepath.Join(toWorktree, "app"), "app should be discovered")
+
+	for _, p := range unitPaths {
+		assert.NotContains(t, p, "land-mine", "land-mine should not be discovered: %s", p)
+	}
+}
+
+// TestWorktreePhase_Integration_StackDiscoveryDoesNotParseUnits verifies that
+// discoverStacks (via GenerateStacks) does not parse non-stack components even when
+// reading filters trigger the parse phase. The land-mine unit uses run_cmd("exit 1")
+// which would cause a fatal error if parsed.
+func TestWorktreePhase_Integration_StackDiscoveryDoesNotParseUnits(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, runner := setupGitRepo(t)
+
+	// Create a land-mine unit at the repo root
+	createUnit(t, tmpDir, "land-mine", `
+locals {
+  boom = run_cmd("--terragrunt-quiet", "bash", "-c", "exit 1")
+}
+`)
+
+	// Create a catalog unit for the stack to source
+	catalogDir := filepath.Join(tmpDir, "catalog", "units", "myapp")
+	err := os.MkdirAll(catalogDir, 0o755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogDir, "terragrunt.hcl"), []byte(`# catalog unit`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(catalogDir, "main.tf"), []byte(`output "ok" { value = "ok" }`), 0o644)
+	require.NoError(t, err)
+
+	// Create a stack that reads a config file (triggers reading filter path in worktreeStacksToGenerate)
+	stackDir := filepath.Join(tmpDir, "live", "stack")
+	err = os.MkdirAll(stackDir, 0o755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v1" }`), 0o644)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(stackDir, "terragrunt.stack.hcl"), []byte(`
+locals {
+  config = read_terragrunt_config("config.hcl")
+}
+
+unit "myapp" {
+  source = "${get_repo_root()}/catalog/units/myapp"
+  path   = "myapp"
+  values = local.config.inputs
+}
+`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Initial commit")
+
+	// Change only the config file (triggers reading filter, not a direct stack change)
+	err = os.WriteFile(filepath.Join(stackDir, "config.hcl"), []byte(`inputs = { v = "v2" }`), 0o644)
+	require.NoError(t, err)
+
+	commitChanges(t, runner, "Update config file")
+
+	l := logger.CreateLogger()
+	gitExpressions := filter.GitExpressions{filter.NewGitExpression("HEAD~1", "HEAD")}
+
+	w, err := worktrees.NewWorktrees(t.Context(), l, worktrees.WorktreeOpts{
+		WorkingDir:     tmpDir,
+		GitExpressions: gitExpressions,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupErr := w.Cleanup(context.WithoutCancel(t.Context()), l)
+		require.NoError(t, cleanupErr)
+	})
+
+	opts := options.NewTerragruntOptions()
+	opts.WorkingDir = tmpDir
+	opts.RootWorkingDir = tmpDir
+
+	parsedFilters, parseErr := filter.ParseFilterQueries(l, []string{"[HEAD~1...HEAD]"})
+	require.NoError(t, parseErr)
+
+	opts.Filters = parsedFilters
+	opts.Experiments = experiment.NewExperiments()
+	err = opts.Experiments.EnableExperiment(experiment.FilterFlag)
+	require.NoError(t, err)
+
+	// GenerateStacks internally calls discoverStacks with reading filters.
+	// If the land-mine unit is parsed, run_cmd("exit 1") causes a fatal error.
+	err = generate.NewGenerator().GenerateStacks(t.Context(), l, opts, w)
+	require.NoError(t, err)
 }

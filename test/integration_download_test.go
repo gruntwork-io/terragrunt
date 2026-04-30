@@ -271,7 +271,7 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 func TestCustomLockFile(t *testing.T) {
 	t.Parallel()
 
-	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary())
+	path := fmt.Sprintf("%s-%s", testFixtureCustomLockFile, wrappedBinary(t.Context()))
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := filepath.Join(tmpEnvPath, path)
 
@@ -960,10 +960,10 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 func TestCASStorageDirectory(t *testing.T) {
 	t.Parallel()
 
-	homeDir, err := os.UserHomeDir()
+	cacheDir, err := os.UserCacheDir()
 	require.NoError(t, err)
 
-	expectedCASDir := filepath.Join(homeDir, ".cache", "terragrunt", "cas")
+	expectedCASDir := filepath.Join(cacheDir, "terragrunt", "cas")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
 	testPath := filepath.Join(tmpEnvPath, "fixtures/download/local")

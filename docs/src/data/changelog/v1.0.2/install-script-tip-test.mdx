@@ -1,0 +1,14 @@
+---
+version: "v1.0.2"
+category: "process-updates"
+---
+
+#### Install script now supports tip and test builds
+
+The install script can now install [tip builds](/process/releases#tip-builds) and on-demand test builds. Three new flags are available:
+
+- `--tip` installs the latest tip build from `main`
+- `--test` installs an on-demand test build
+- `--commit <sha>` installs a build for a specific commit
+
+Downloads are verified against GPG/Cosign signatures and SHA256 checksums before installation.

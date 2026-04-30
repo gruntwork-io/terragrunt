@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 func TestGitRunner_LsRemote(t *testing.T) {
 	t.Parallel()
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -60,7 +61,7 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("shallow clone", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -75,7 +76,7 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("clone without workdir fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 		err = runner.Clone(ctx, "https://github.com/gruntwork-io/terragrunt.git", true, 1, "main")
 		require.Error(t, err)
@@ -88,7 +89,7 @@ func TestGitRunner_Clone(t *testing.T) {
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -104,7 +105,7 @@ func TestGitRunner_Clone(t *testing.T) {
 func TestCreateTempDir(t *testing.T) {
 	t.Parallel()
 
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	dir, cleanup, err := gitRunner.CreateTempDir()
 	require.NoError(t, err)
@@ -163,7 +164,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("valid repository", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -181,7 +182,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("ls-tree without workdir fails", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		_, err = runner.LsTreeRecursive(ctx, "HEAD")
@@ -195,7 +196,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("invalid reference", func(t *testing.T) {
 		t.Parallel()
 		cloneDir := helpers.TmpDirWOSymlinks(t)
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 
 		runner = runner.WithWorkDir(cloneDir)
@@ -216,7 +217,7 @@ func TestGitRunner_LsTree(t *testing.T) {
 	t.Run("invalid repository", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
 
@@ -236,7 +237,7 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 	t.Run("with workdir", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 		runner = runner.WithWorkDir(helpers.TmpDirWOSymlinks(t))
 		err = runner.RequiresWorkDir()
@@ -246,7 +247,7 @@ func TestGitRunner_RequiresWorkDir(t *testing.T) {
 	t.Run("without workdir", func(t *testing.T) {
 		t.Parallel()
 
-		runner, err := git.NewGitRunner()
+		runner, err := git.NewGitRunner(vexec.NewOSExec())
 		require.NoError(t, err)
 		err = runner.RequiresWorkDir()
 		require.Error(t, err)

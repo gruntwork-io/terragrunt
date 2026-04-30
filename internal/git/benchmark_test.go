@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,7 +12,7 @@ func BenchmarkGitOperations(b *testing.B) {
 	// Setup a git repository for testing
 	repoDir := b.TempDir()
 
-	g, err := git.NewGitRunner()
+	g, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(b, err)
 
 	g = g.WithWorkDir(repoDir)

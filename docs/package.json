@@ -20,7 +20,7 @@
     "@astrojs/starlight-tailwind": "5.0.0",
     "@astrojs/vercel": "10.0.3",
     "@tailwindcss/vite": "^4.2.2",
-    "astro": "6.1.2",
+    "astro": "6.1.6",
     "astro-d2": "^0.10.0",
     "clsx": "^2.1.1",
     "gray-matter": "^4.0.3",

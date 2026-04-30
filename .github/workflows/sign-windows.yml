@@ -1,6 +1,18 @@
 name: Sign Windows Binaries
 
 on:
+  workflow_dispatch:
+    inputs:
+      artifact_pattern:
+        description: 'Pattern for artifacts to download (default: terragrunt_windows_*)'
+        required: false
+        type: string
+        default: 'terragrunt_windows_*'
+      upload_artifact_name:
+        description: 'Name for the uploaded signed artifacts'
+        required: false
+        type: string
+        default: 'windows-signed-files'
   workflow_call:
     inputs:
       artifact_pattern:
@@ -15,9 +27,78 @@ on:
         default: 'windows-signed-files'
 
 jobs:
+  build:
+    name: Build (windows/${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, "386"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        with:
+          version: 2026.1.9
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+      - name: Go Build Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}-windows-${{ matrix.arch }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      - name: Build Terragrunt
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+          BUILD_VERSION: ${{ github.ref_name }}
+        run: |
+          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}.exe"
+          go build -o "${OUTPUT}" \
+            -ldflags "-s -w -X github.com/gruntwork-io/go-commons/version.Version=${BUILD_VERSION}" \
+            .
+
+      - name: Verify Static Linking
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          OUTPUT="bin/terragrunt_${GOOS}_${GOARCH}.exe"
+          .github/scripts/release/verify-static-binary.sh "${OUTPUT}" "${GOOS}" "${GOARCH}"
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: terragrunt_windows_${{ matrix.arch }}
+          path: bin/terragrunt_windows_${{ matrix.arch }}.exe
+
   sign-windows:
     name: Sign Windows Binaries
-    runs-on: windows-latest
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: windows-2025
 
     env:
       SM_HOST: https://clientauth.one.digicert.com
