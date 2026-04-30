@@ -39,8 +39,10 @@ type Entry struct {
 	// including its path, dependencies, and discovery context (such as the command being run).
 	Component component.Component
 
-	// Status represents the current lifecycle state of this entry in the queue. It tracks whether the entry is pending,
-	// blocked, ready, running, succeeded, or failed. Status is updated as dependencies are resolved and as execution progresses.
+	// Status represents the current lifecycle state of this entry in the
+	// queue. It tracks whether the entry is pending, blocked, ready,
+	// running, succeeded, or failed. Status is updated as dependencies
+	// are resolved and as execution progresses.
 	Status Status
 }
 
@@ -141,9 +143,6 @@ func (e *Entry) IsUp() bool {
 }
 
 type Queue struct {
-	// unitsMap is a map of unit paths to Unit objects, used to check if dependencies not in the queue
-	// are assumed already applied or have existing state.
-	unitsMap map[string]*component.Unit
 	// Entries is a list of entries in the queue.
 	Entries Entries
 	// mu is a mutex used to synchronize access to the queue.
@@ -297,7 +296,8 @@ func NewQueue(discovered component.Components) (*Queue, error) {
 	return q, errors.New("cycle detected during queue construction")
 }
 
-// GetReadyWithDependencies returns all entries that are ready to run and have all dependencies completed (or no dependencies).
+// GetReadyWithDependencies returns all entries that are ready to run and
+// have all dependencies completed (or no dependencies).
 func (q *Queue) GetReadyWithDependencies(l log.Logger) []*Entry {
 	q.mu.RLock()
 	defer q.mu.RUnlock()
@@ -545,13 +545,4 @@ func isTerminal(status Status) bool {
 // isTerminalOrRunning returns true if the status is terminal or running.
 func isTerminalOrRunning(status Status) bool {
 	return status == StatusRunning || isTerminal(status)
-}
-
-// SetUnitsMap sets the units map for the queue. This map is used to check if dependencies
-// not in the queue are assumed already applied or have existing state.
-func (q *Queue) SetUnitsMap(unitsMap map[string]*component.Unit) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	q.unitsMap = unitsMap
 }

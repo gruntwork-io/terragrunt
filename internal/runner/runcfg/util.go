@@ -11,33 +11,42 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-getter"
 )
 
-// DefaultTerragruntConfigPath is the default name of the terragrunt configuration file.
-const DefaultTerragruntConfigPath = "terragrunt.hcl"
-
 // DefaultEngineType is the default engine type.
 const DefaultEngineType = "rpc"
-
-// TerraformCommandsNeedInput lists terraform commands that require input handling.
-var TerraformCommandsNeedInput = []string{"apply", "destroy", "refresh", "import"}
 
 // CopyLockFile copies the lock file from the source folder to the destination folder.
 //
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder.
-func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, destinationFolder string) error {
+func CopyLockFile(l log.Logger, rootWorkingDir string, logShowAbsPaths bool, sourceFolder, destinationFolder string) error {
 	sourceLockFilePath := filepath.Join(sourceFolder, tf.TerraformLockFile)
 	destinationLockFilePath := filepath.Join(destinationFolder, tf.TerraformLockFile)
 
 	if util.FileExists(sourceLockFilePath) {
-		l.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+		l.Debugf(
+			"Copying lock file from %s to %s",
+			util.RelPathForLog(
+				rootWorkingDir,
+				sourceLockFilePath,
+				logShowAbsPaths,
+			),
+			util.RelPathForLog(
+				rootWorkingDir,
+				destinationLockFilePath,
+				logShowAbsPaths,
+			),
+		)
+
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 
@@ -50,12 +59,12 @@ func CopyLockFile(l log.Logger, opts *options.TerragruntOptions, sourceFolder, d
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
 // method returns the source URL. If neither is specified, returns "." to indicate the current directory should be
 // used as the source, ensuring a .terragrunt-cache directory is always created for consistency.
-func GetTerraformSourceURL(opts *options.TerragruntOptions, cfg *RunConfig) (string, error) {
+func GetTerraformSourceURL(source string, sourceMap map[string]string, originalConfigPath string, cfg *RunConfig) (string, error) {
 	switch {
-	case opts.Source != "":
-		return opts.Source, nil
+	case source != "":
+		return source, nil
 	case cfg != nil && cfg.Terraform.Source != "":
-		return AdjustSourceWithMap(opts.SourceMap, cfg.Terraform.Source, opts.OriginalTerragruntConfigPath)
+		return AdjustSourceWithMap(sourceMap, cfg.Terraform.Source, originalConfigPath)
 	default:
 		return ".", nil
 	}
@@ -170,17 +179,8 @@ func GetModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// ShouldCopyLockFile determines if the terraform lock file should be copied.
-func ShouldCopyLockFile(cfg *TerraformConfig) bool {
-	if cfg == nil {
-		return true // Default to copying
-	}
-
-	return !cfg.NoCopyTerraformLockFile
-}
-
 // EngineOptions fetches engine options from the RunConfig.
-func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
+func (cfg *RunConfig) EngineOptions() (*engine.EngineConfig, error) {
 	if !cfg.Engine.Enable {
 		return nil, nil
 	}
@@ -204,7 +204,7 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 		engineType = DefaultEngineType
 	}
 
-	return &options.EngineOptions{
+	return &engine.EngineConfig{
 		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,
@@ -213,15 +213,21 @@ func (cfg *RunConfig) EngineOptions() (*options.EngineOptions, error) {
 }
 
 // GetIAMRoleOptions returns the IAM role options from the RunConfig.
-func (cfg *RunConfig) GetIAMRoleOptions() options.IAMRoleOptions {
+func (cfg *RunConfig) GetIAMRoleOptions() iam.RoleOptions {
 	return cfg.IAMRole
 }
 
 // ErrorsConfig fetches errors configuration from the RunConfig.
-func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
-	result := &options.ErrorsConfig{
-		Retry:  make(map[string]*options.RetryConfig),
-		Ignore: make(map[string]*options.IgnoreConfig),
+// Returns nil when no retry or ignore blocks are defined, so callers
+// can preserve default error handling (e.g. built-in retryable errors).
+func (cfg *RunConfig) ErrorsConfig() (*errorconfig.Config, error) {
+	if len(cfg.Errors.Retry) == 0 && len(cfg.Errors.Ignore) == 0 {
+		return nil, nil
+	}
+
+	result := &errorconfig.Config{
+		Retry:  make(map[string]*errorconfig.RetryConfig),
+		Ignore: make(map[string]*errorconfig.IgnoreConfig),
 	}
 
 	for _, retryBlock := range cfg.Errors.Retry {
@@ -238,7 +244,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			return nil, errors.Errorf("cannot sleep for less than 0 seconds in errors.retry %q, but you specified %d", retryBlock.Label, retryBlock.SleepIntervalSec)
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
 			value, err := errorsPattern(pattern)
@@ -250,7 +256,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Retry[retryBlock.Label] = &options.RetryConfig{
+		result.Retry[retryBlock.Label] = &errorconfig.RetryConfig{
 			Name:             retryBlock.Label,
 			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
@@ -276,7 +282,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
-		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
+		compiledPatterns := make([]*errorconfig.Pattern, 0, len(ignoreBlock.IgnorableErrors))
 
 		for _, pattern := range ignoreBlock.IgnorableErrors {
 			value, err := errorsPattern(pattern)
@@ -288,7 +294,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
-		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+		result.Ignore[ignoreBlock.Label] = &errorconfig.IgnoreConfig{
 			Name:            ignoreBlock.Label,
 			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
@@ -300,7 +306,7 @@ func (cfg *RunConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 }
 
 // errorsPattern builds an ErrorsPattern from a string pattern.
-func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+func errorsPattern(pattern string) (*errorconfig.Pattern, error) {
 	isNegative := false
 	p := pattern
 
@@ -314,7 +320,7 @@ func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 		return nil, err
 	}
 
-	return &options.ErrorsPattern{
+	return &errorconfig.Pattern{
 		Pattern:  compiled,
 		Negative: isNegative,
 	}, nil
@@ -380,9 +386,15 @@ func ShouldPreventRunBasedOnExclude(actions []string, noRun *bool, ifCondition b
 		return false
 	}
 
-	if noRun != nil && *noRun {
+	switch {
+	case noRun == nil:
+		// When no_run isn't set, preserve legacy behavior: only exact action matches prevent a run.
+		return slices.Contains(actions, command)
+	case !*noRun:
+		// When no_run is explicitly false, never prevent the run.
+		return false
+	default:
+		// When no_run is explicitly true, use the shared action matcher (supports special values).
 		return IsActionListedInExclude(actions, command)
 	}
-
-	return slices.Contains(actions, command)
 }

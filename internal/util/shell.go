@@ -10,25 +10,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 )
 
-// IsCommandExecutable - returns true if a command can be executed without errors.
-func IsCommandExecutable(ctx context.Context, command string, args ...string) bool {
-	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	if err := cmd.Run(); err != nil {
-		var exitErr *exec.ExitError
-		if ok := errors.As(err, &exitErr); ok {
-			return exitErr.ExitCode() == 0
-		}
-
-		return false
-	}
-
-	return true
+// IsCommandExecutable returns true if the command can be run to completion
+// without error via the given vexec.Exec.
+func IsCommandExecutable(e vexec.Exec, ctx context.Context, command string, args ...string) bool {
+	return vexec.Run(e, ctx, command, args...) == nil
 }
 
 type CmdOutput struct {
@@ -73,12 +61,14 @@ func GetExitCode(err error) (int, error) {
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err            error
-	WorkingDir     string
-	Command        string
-	Args           []string
-	Output         CmdOutput
-	DisableSummary bool
+	Err             error
+	WorkingDir      string
+	RootWorkingDir  string
+	Command         string
+	Args            []string
+	Output          CmdOutput
+	LogShowAbsPaths bool
+	DisableSummary  bool
 }
 
 func (err ProcessExecutionError) Error() string { //nolint:gocritic
@@ -86,16 +76,18 @@ func (err ProcessExecutionError) Error() string { //nolint:gocritic
 		strings.Join(append([]string{err.Command}, err.Args...), " "),
 	)
 
+	workingDirForLog := RelPathForLog(err.RootWorkingDir, err.WorkingDir, err.LogShowAbsPaths)
+
 	if err.DisableSummary {
 		return fmt.Sprintf("Failed to execute \"%s\" in %s",
 			commandStr,
-			err.WorkingDir,
+			workingDirForLog,
 		)
 	}
 
 	return fmt.Sprintf("Failed to execute \"%s\" in %s\n%s\n%v",
 		commandStr,
-		err.WorkingDir,
+		workingDirForLog,
 		err.Output.Stderr.String(),
 		err.Err,
 	)

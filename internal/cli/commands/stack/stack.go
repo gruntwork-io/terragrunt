@@ -13,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/output"
@@ -46,17 +45,21 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}
 	}
 
-	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return errors.Errorf("failed to parse filters: %w", err)
-	}
+	filters := opts.Filters
 
 	gitFilters := filters.UniqueGitFilters()
 
 	// Only create worktrees when git filter expressions are present
 	var wts *worktrees.Worktrees
+
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		var err error
+
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+			WorkingDir:     opts.WorkingDir,
+			GitExpressions: gitFilters,
+			Experiments:    opts.Experiments,
+		})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}
@@ -69,11 +72,13 @@ func RunGenerate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 		}()
 	}
 
+	gen := generate.NewGenerator()
+
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 		"stack_config_path": opts.TerragruntStackConfigPath,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		return generate.GenerateStacks(ctx, l, opts, wts)
+		return gen.GenerateStacks(ctx, l, opts, wts)
 	})
 }
 
@@ -97,6 +102,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 // RunOutput stack output.
 func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, index string) error {
 	opts.StackAction = "output"
+	opts.TerraformCommand = "output" // required for discovery exclude action matching in StackOutput
 
 	var outputs cty.Value
 
@@ -119,21 +125,19 @@ func RunOutput(ctx context.Context, l log.Logger, opts *options.TerragruntOption
 
 	// render outputs
 
-	writer := opts.Writer
-
 	switch opts.StackOutputFormat {
 	default:
-		if err := PrintOutputs(writer, filteredOutputs); err != nil {
+		if err := PrintOutputs(opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := PrintRawOutputs(opts, writer, filteredOutputs); err != nil {
+		if err := PrintRawOutputs(opts, opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 
 	case jsonOutputFormat:
-		if err := PrintJSONOutput(writer, filteredOutputs); err != nil {
+		if err := PrintJSONOutput(opts.Writers.Writer, filteredOutputs); err != nil {
 			return errors.New(err)
 		}
 	}

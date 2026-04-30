@@ -1,0 +1,28 @@
+name: Test Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Binaries
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}-${{ github.sha }}
+    permissions:
+      contents: read
+
+  upload:
+    needs: [build]
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: ${{ github.ref == 'refs/heads/main' && 'tip' || 'test' }}
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}

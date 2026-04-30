@@ -1,0 +1,12 @@
+---
+version: "v1.0.3"
+category: "bug-fixes"
+---
+
+#### Fixed crash when `include` and `locals` with `read_terragrunt_config` coexist
+
+A unit that combined an `include` block with a `locals` block calling `read_terragrunt_config(...)` could crash during discovery, surfacing as a misleading `Call to function "read_terragrunt_config" failed` error pointed at the `locals` expression.
+
+Discovery now reports the underlying error instead of crashing.
+
+Reported in [#5949](https://github.com/gruntwork-io/terragrunt/issues/5949).

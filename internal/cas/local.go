@@ -5,11 +5,12 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -33,7 +34,7 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return LinkTree(ctx, c.store, tree, targetDir)
+	return LinkTree(ctx, c.blobStore, c.treeStore, tree, targetDir)
 }
 
 // hashDirectory creates a synthetic hash and tree structure for a local directory
@@ -42,13 +43,13 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 
 	var allHashes []string
 
-	err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	err := vfs.WalkDir(c.fs, sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Implicitly handled by tracking the file hashes.
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
@@ -60,9 +61,14 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 		// Convert to forward slashes for consistency (git-style paths)
 		relPath = strings.ReplaceAll(relPath, string(filepath.Separator), "/")
 
-		fileHash, err := hashFile(path)
+		fileHash, err := hashFile(c.fs, path)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", path, err)
 		}
 
 		// Artificially create a tree entry for the file.
@@ -89,29 +95,31 @@ func (c *CAS) hashDirectory(sourceDir string) (string, []byte, error) {
 // storeLocalContent stores all files from a local directory into the CAS
 func (c *CAS) storeLocalContent(l log.Logger, sourceDir, dirHash string, treeData []byte) error {
 	// First store the tree object itself
-	content := NewContent(c.store)
-	if err := content.Ensure(l, dirHash, treeData); err != nil {
+	treeContent := NewContent(c.treeStore)
+	if err := treeContent.Ensure(l, dirHash, treeData); err != nil {
 		return fmt.Errorf("failed to store tree data: %w", err)
 	}
 
+	blobContent := NewContent(c.blobStore)
+
 	// Walk the directory and store all files
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	return vfs.WalkDir(c.fs, sourceDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories and the root directory itself
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Hash the file to get its content hash
-		fileHash, err := hashFile(path)
+		fileHash, err := hashFile(c.fs, path)
 		if err != nil {
 			return fmt.Errorf("failed to hash file %s: %w", path, err)
 		}
 
-		if err := content.EnsureCopy(l, fileHash, path); err != nil {
+		if err := blobContent.EnsureCopy(l, fileHash, path); err != nil {
 			return fmt.Errorf("failed to store file %s: %w", path, err)
 		}
 

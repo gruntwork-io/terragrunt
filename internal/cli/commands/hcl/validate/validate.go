@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 
 	"github.com/google/shlex"
@@ -24,6 +23,7 @@ import (
 
 	"maps"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/prepare"
 	"github.com/gruntwork-io/terragrunt/internal/report"
@@ -90,9 +90,9 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// Create discovery with filter support if experiment enabled
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
 	})
 	if err != nil {
 		return processDiagnostics(l, opts, diags, errors.New(err))
@@ -100,14 +100,9 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if parseErr != nil {
-		return fmt.Errorf("failed to parse filters: %w", parseErr)
-	}
+	gitFilters := opts.Filters.UniqueGitFilters()
 
-	gitFilters := filters.UniqueGitFilters()
-
-	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	worktrees, parseErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 	if parseErr != nil {
 		return errors.Errorf("failed to create worktrees: %w", parseErr)
 	}
@@ -138,12 +133,12 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			stackFilePath := filepath.Join(c.Path(), config.DefaultStackFile)
 			parseOpts.TerragruntConfigPath = stackFilePath
 
-			values, err := config.ReadValues(ctx, l, parseOpts, c.Path())
+			ctx, parser := configbridge.NewParsingContext(ctx, l, parseOpts)
+
+			values, err := config.ReadValues(ctx, parser, l, c.Path())
 			if err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
-
-			ctx, parser := config.NewParsingContext(ctx, l, parseOpts)
 
 			parser = parser.WithParseOption(parseOptions)
 			if values != nil {
@@ -156,7 +151,7 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				continue
 			}
 
-			if _, err := config.ParseStackConfig(ctx, l, parser, parseOpts, file, values); err != nil {
+			if _, err := config.ParseStackConfig(ctx, l, parser, file, values); err != nil {
 				parseErrs = append(parseErrs, errors.New(err))
 			}
 
@@ -171,7 +166,8 @@ func RunValidate(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 
 		parseOpts.TerragruntConfigPath = filepath.Join(c.Path(), configFilename)
 
-		if _, err := config.ReadTerragruntConfig(ctx, l, parseOpts, parseOptions); err != nil {
+		_, pctx := configbridge.NewParsingContext(ctx, l, parseOpts)
+		if _, err := config.ReadTerragruntConfig(ctx, l, pctx, parseOptions); err != nil {
 			parseErrs = append(parseErrs, errors.New(err))
 		}
 	}
@@ -225,7 +221,7 @@ func writeDiagnostics(l log.Logger, opts *options.TerragruntOptions, diags diagn
 		render = view.NewJSONRender()
 	}
 
-	writer := view.NewWriter(opts.Writer, render)
+	writer := view.NewWriter(opts.Writers.Writer, render)
 
 	if opts.HCLValidateShowConfigPath {
 		return writer.ShowConfigPath(diags)
@@ -241,25 +237,20 @@ func RunValidateInputs(ctx context.Context, l log.Logger, opts *options.Terragru
 	opts.NonInteractive = true
 
 	d, err := discovery.NewForHCLCommand(l, discovery.HCLCommandOptions{
-		WorkingDir:    opts.WorkingDir,
-		FilterQueries: opts.FilterQueries,
-		Experiments:   opts.Experiments,
+		WorkingDir:  opts.WorkingDir,
+		Filters:     opts.Filters,
+		Experiments: opts.Experiments,
 	})
 	if err != nil {
 		return err
 	}
 
 	if opts.Experiments.Evaluate(experiment.FilterFlag) {
-		filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
-		if parseErr != nil {
-			return fmt.Errorf("failed to parse filters: %w", parseErr)
-		}
+		gitFilters := opts.Filters.UniqueGitFilters()
 
-		gitFilters := filters.UniqueGitFilters()
-
-		worktrees, parseErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
-		if parseErr != nil {
-			return errors.Errorf("failed to create worktrees: %w", parseErr)
+		worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
+		if worktreeErr != nil {
+			return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 		}
 
 		defer func() {
@@ -410,7 +401,7 @@ func getDefinedTerragruntInputs(l log.Logger, opts *options.TerragruntOptions, c
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
 
-	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, opts, cfg)
+	varFileTFVars, err := getTerraformInputNamesFromVarFiles(l, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +490,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 
 // getTerraformInputNamesFromVarFiles will return the list of names of variables configured by var files set in the
 // extra_arguments block required_var_files and optional_var_files settings of the given terragrunt config.
-func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
+func getTerraformInputNamesFromVarFiles(l log.Logger, terragruntConfig *config.TerragruntConfig) ([]string, error) {
 	if terragruntConfig.Terraform == nil {
 		return nil, nil
 	}
@@ -509,7 +500,7 @@ func getTerraformInputNamesFromVarFiles(l log.Logger, opts *options.TerragruntOp
 		varFiles = append(varFiles, arg.GetVarFiles(l)...)
 	}
 
-	return getVarNamesFromVarFiles(l, opts, varFiles)
+	return getVarNamesFromVarFiles(l, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -535,7 +526,7 @@ func getTerraformInputNamesFromCLIArgs(l log.Logger, opts *options.TerragruntOpt
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(l, opts, varFiles)
+	fileVars, err := getVarNamesFromVarFiles(l, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -574,16 +565,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(l log.Logger, opts *options.Ter
 
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
 
-	return getVarNamesFromVarFiles(l, opts, automaticVarFiles)
+	return getVarNamesFromVarFiles(l, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(l log.Logger, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(l, opts, varFile)
+		fileVars, err := getVarNamesFromVarFile(l, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -596,7 +587,7 @@ func getVarNamesFromVarFiles(l log.Logger, opts *options.TerragruntOptions, varF
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFile string) ([]string, error) {
+func getVarNamesFromVarFile(l log.Logger, varFile string) ([]string, error) {
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
@@ -608,7 +599,7 @@ func getVarNamesFromVarFile(l log.Logger, opts *options.TerragruntOptions, varFi
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(l, opts, varFile, fileContents, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(l, varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}

@@ -5,19 +5,21 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
@@ -29,9 +31,138 @@ import (
 // if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 15
 
+// ShellOptions contains the configuration needed to run shell commands.
+type ShellOptions struct {
+	Writers       writer.Writers
+	EngineOptions *engine.EngineOptions
+	EngineConfig  *engine.EngineConfig
+	Telemetry     *telemetry.Options
+	Env           map[string]string
+
+	RootWorkingDir  string
+	WorkingDir      string
+	TFPath          string
+	Experiments     experiment.Experiments
+	Headless        bool
+	ForwardTFStdout bool
+}
+
+// NewShellOptions creates ShellOptions with sensible defaults:
+//   - Writers default to os.Stdout / os.Stderr.
+//   - Telemetry is always non-nil; TRACEPARENT is read from the environment when set.
+//
+// Use the With* methods to override any of these.
+func NewShellOptions() *ShellOptions {
+	opts := &ShellOptions{
+		Env: make(map[string]string),
+		Writers: writer.Writers{
+			Writer:    os.Stdout,
+			ErrWriter: os.Stderr,
+		},
+		Telemetry: &telemetry.Options{},
+	}
+
+	if tp := os.Getenv(telemetry.TraceParentEnv); tp != "" {
+		opts.Telemetry.TraceParent = tp
+	}
+
+	return opts
+}
+
+// WithWorkingDir sets the working directory for command execution.
+func (o *ShellOptions) WithWorkingDir(dir string) *ShellOptions {
+	o.WorkingDir = dir
+
+	return o
+}
+
+// WithEnv sets the environment variables for command execution.
+func (o *ShellOptions) WithEnv(env map[string]string) *ShellOptions {
+	o.Env = env
+
+	return o
+}
+
+// WithWriters sets the stdout/stderr writers.
+func (o *ShellOptions) WithWriters(w writer.Writers) *ShellOptions {
+	o.Writers = w
+
+	return o
+}
+
+// SetTraceParent explicitly overrides the TRACEPARENT value used for trace context propagation.
+func (o *ShellOptions) SetTraceParent(tp string) *ShellOptions {
+	if o.Telemetry == nil {
+		o.Telemetry = &telemetry.Options{}
+	}
+
+	o.Telemetry.TraceParent = tp
+
+	return o
+}
+
+// WithTelemetry sets the full telemetry options, replacing the defaults from the constructor.
+func (o *ShellOptions) WithTelemetry(t *telemetry.Options) *ShellOptions {
+	if t != nil {
+		o.Telemetry = t
+	}
+
+	return o
+}
+
+// WithEngine sets the engine configuration and options.
+func (o *ShellOptions) WithEngine(cfg *engine.EngineConfig, opts *engine.EngineOptions) *ShellOptions {
+	o.EngineConfig = cfg
+	o.EngineOptions = opts
+
+	return o
+}
+
+// WithTFPath sets the path to the Terraform/OpenTofu binary.
+func (o *ShellOptions) WithTFPath(path string) *ShellOptions {
+	o.TFPath = path
+
+	return o
+}
+
+// WithRootWorkingDir sets the root working directory used in error messages.
+func (o *ShellOptions) WithRootWorkingDir(dir string) *ShellOptions {
+	o.RootWorkingDir = dir
+
+	return o
+}
+
+// WithExperiments sets the active experiments.
+func (o *ShellOptions) WithExperiments(exp experiment.Experiments) *ShellOptions {
+	o.Experiments = exp
+
+	return o
+}
+
+// WithHeadless sets the headless mode flag.
+func (o *ShellOptions) WithHeadless(h bool) *ShellOptions {
+	o.Headless = h
+
+	return o
+}
+
+// WithForwardTFStdout sets the flag to forward TF stdout.
+func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
+	o.ForwardTFStdout = f
+
+	return o
+}
+
+// NoEngine returns true if the user explicitly disabled the engine via --no-engine.
+// Returns false when EngineOptions is nil (default: don't disable), letting the
+// other guards (EngineConfig != nil, experiment enabled) decide whether to run.
+func (o *ShellOptions) NoEngine() bool {
+	return o.EngineOptions != nil && o.EngineOptions.NoEngine
+}
+
 // RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, opts, "", false, false, command, args...)
+func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
 
 	return err
 }
@@ -44,7 +175,7 @@ func RunCommand(ctx context.Context, l log.Logger, opts *options.TerragruntOptio
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
 	needsPTY bool,
@@ -57,7 +188,7 @@ func RunCommandWithOutput(
 	)
 
 	if workingDir == "" {
-		commandDir = opts.WorkingDir
+		commandDir = runOpts.WorkingDir
 	}
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "run_"+command, map[string]any{
@@ -68,16 +199,14 @@ func RunCommandWithOutput(
 		l.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		var (
-			cmdStderr = io.MultiWriter(opts.ErrWriter, &output.Stderr)
-			cmdStdout = io.MultiWriter(opts.Writer, &output.Stdout)
+			cmdStderr = io.MultiWriter(runOpts.Writers.ErrWriter, &output.Stderr)
+			cmdStdout = io.MultiWriter(runOpts.Writers.Writer, &output.Stdout)
 		)
 
 		// Pass the traceparent to the child process if it is available in the context.
-		traceParent := telemetry.TraceParentFromContext(ctx, opts.Telemetry)
-
-		if traceParent != "" {
+		if traceParent := telemetry.TraceParentFromContext(ctx, runOpts.Telemetry); traceParent != "" {
 			l.Debugf("Setting trace parent=%q for command %s", traceParent, fmt.Sprintf("%s %v", command, args))
-			opts.Env[telemetry.TraceParentEnv] = traceParent
+			runOpts.Env[telemetry.TraceParentEnv] = traceParent
 		}
 
 		if suppressStdout {
@@ -86,20 +215,29 @@ func RunCommandWithOutput(
 			cmdStdout = io.MultiWriter(&output.Stdout)
 		}
 
-		if command == opts.TFPath {
+		if command == runOpts.TFPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if opts.Engine != nil && opts.Experiments.Evaluate(experiment.IacEngine) && !opts.NoEngine {
+			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
-				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
-					TerragruntOptions: opts,
-					CmdStdout:         cmdStdout,
-					CmdStderr:         cmdStderr,
+				cmdOutput, err := engine.Run(ctx, l, vexec.NewOSExec(), &engine.ExecutionOptions{
+					Writers: writer.Writers{
+						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
+						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
+						LogShowAbsPaths:        runOpts.Writers.LogShowAbsPaths,
+						LogDisableErrorSummary: runOpts.Writers.LogDisableErrorSummary,
+					},
+					EngineOptions:     runOpts.EngineOptions,
+					EngineConfig:      runOpts.EngineConfig,
+					Env:               runOpts.Env,
 					WorkingDir:        commandDir,
-					SuppressStdout:    suppressStdout,
-					AllocatePseudoTty: needsPTY,
+					RootWorkingDir:    runOpts.RootWorkingDir,
 					Command:           command,
 					Args:              args,
+					Headless:          runOpts.Headless,
+					ForwardTFStdout:   runOpts.ForwardTFStdout,
+					SuppressStdout:    suppressStdout,
+					AllocatePseudoTty: needsPTY,
 				})
 				if err != nil {
 					return errors.New(err)
@@ -109,8 +247,6 @@ func RunCommandWithOutput(
 
 				return err
 			}
-
-			l.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
 		cmd := exec.Command(ctx, command, args...)
@@ -120,17 +256,23 @@ func RunCommandWithOutput(
 		cmd.Configure(
 			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
-			exec.WithEnv(opts.Env),
+			exec.WithEnv(runOpts.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
+		// Save/restore console mode around subprocess — Windows subprocesses can reset it.
+		savedConsole := exec.SaveConsoleState()
+		defer savedConsole.Restore()
+
 		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
 			err = util.ProcessExecutionError{
-				Err:            err,
-				Args:           args,
-				Command:        command,
-				WorkingDir:     cmd.Dir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				Err:             err,
+				Args:            args,
+				Command:         command,
+				WorkingDir:      cmd.Dir,
+				RootWorkingDir:  runOpts.RootWorkingDir,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -141,12 +283,14 @@ func RunCommandWithOutput(
 
 		if err := cmd.Wait(); err != nil {
 			err = util.ProcessExecutionError{
-				Err:            err,
-				Args:           args,
-				Command:        command,
-				Output:         output,
-				WorkingDir:     cmd.Dir,
-				DisableSummary: opts.LogDisableErrorSummary,
+				Err:             err,
+				Args:            args,
+				Command:         command,
+				Output:          output,
+				WorkingDir:      cmd.Dir,
+				RootWorkingDir:  runOpts.RootWorkingDir,
+				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
+				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

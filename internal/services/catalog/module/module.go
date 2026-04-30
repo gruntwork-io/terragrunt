@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 const (
@@ -16,10 +16,7 @@ const (
 	maxDescriptionLength = 200
 )
 
-var (
-	terraformFileExts = []string{".tf"}
-	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
-)
+var ignoreFiles = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
 
 type Modules []*Module
 
@@ -46,11 +43,11 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 		return nil, err
 	}
 
-	repo.logger.Debugf("Found module in directory %q", moduleDir)
+	repo.Logger.Debugf("Found module in directory %q", moduleDir)
 
 	module.url = repo.ModuleURL(moduleDir)
 
-	repo.logger.Debugf("Module URL: %s", module.url)
+	repo.Logger.Debugf("Module URL: %s", module.url)
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 
@@ -62,10 +59,6 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module.Doc = doc
 
 	return module, nil
-}
-
-func (module *Module) Logger() log.Logger {
-	return module.logger
 }
 
 // FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue
@@ -128,8 +121,7 @@ func (module *Module) isValid() (bool, error) {
 			continue
 		}
 
-		ext := filepath.Ext(file.Name())
-		if collections.ListContainsElement(terraformFileExts, ext) {
+		if util.IsTFFile(file.Name()) {
 			return true, nil
 		}
 	}

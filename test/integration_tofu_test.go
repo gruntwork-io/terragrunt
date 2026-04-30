@@ -108,8 +108,9 @@ func TestTfPathRespectedForDependencies(t *testing.T) {
 		err,
 		"Expected tf-path to be respected for dependency lookups, but it was overridden by terraform_binary in config",
 	)
-	assert.Contains(t, stderr, "Custom TF script used in ./app")
-	assert.Contains(t, stderr, "Custom TF script used in ./dep")
+	// Accept relative (./app, ./dep) or absolute paths; PWD in the script is set by the runner.
+	assert.Regexp(t, `Custom TF script used in .*[/\\]app.*!`, stderr)
+	assert.Regexp(t, `Custom TF script used in .*[/\\]dep.*!`, stderr)
 }
 
 // TestHTTPBackendEncryptionDependencyFails tests that OpenTofu state encryption

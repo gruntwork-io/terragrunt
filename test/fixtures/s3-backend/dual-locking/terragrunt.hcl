@@ -8,6 +8,12 @@ feature "enable_lock_table_ssencryption" {
   default = false
 }
 
+# Feature flag for access logging bucket
+# This allows the --feature flag to control access logging during bootstrap
+feature "access_logging_bucket" {
+  default = ""
+}
+
 remote_state {
   backend = "s3"
   generate = {
@@ -22,6 +28,7 @@ remote_state {
     dynamodb_table                 = "__FILL_IN_LOCK_TABLE_NAME__" # Traditional DynamoDB locking
     use_lockfile                   = true                          # New S3 native locking
     enable_lock_table_ssencryption = feature.enable_lock_table_ssencryption.value
+    accesslogging_bucket_name      = feature.access_logging_bucket.value
   }
 }
 

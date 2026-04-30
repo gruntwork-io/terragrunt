@@ -20,7 +20,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/test"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
-	"github.com/gruntwork-io/terratest/modules/retry"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
 	// Retry to handle intermittent failures due to network issues on CICD
-	retry.DoWithRetry(t, "Run terragrunt init with provider cache", 3, 0, func() (string, error) {
+	require.NoError(t, util.DoWithRetry(t.Context(), "Run terragrunt init with provider cache", 3, 0, logger.CreateLogger(), log.DebugLevel, func(ctx context.Context) error {
 		// Clean up before each attempt
 		helpers.CleanupTerraformFolder(t, appPath)
 
@@ -98,30 +99,30 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 		stdout := bytes.Buffer{}
 		stderr := bytes.Buffer{}
 
-		err = helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
+		err = helpers.RunTerragruntCommandWithContext(t, ctx, fmt.Sprintf("terragrunt run --all init --provider-cache --provider-cache-registry-names example.com --provider-cache-registry-names registry.opentofu.org --provider-cache-registry-names registry.terraform.io --provider-cache-dir %s --non-interactive --working-dir %s", providerCacheDir, appPath), &stdout, &stderr)
 		if err != nil {
-			return "", fmt.Errorf("terragrunt command failed: %w", err)
+			return fmt.Errorf("terragrunt command failed: %w", err)
 		}
 
 		// Verify the config was created correctly - it's now in the cache directory
 		cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
 		if cacheWorkingDir == "" {
-			return "", fmt.Errorf("failed to find cache working directory for %s", appPath)
+			return fmt.Errorf("failed to find cache working directory for %s", appPath)
 		}
 
 		terraformrcBytes, readErr := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
 		if readErr != nil {
-			return "", fmt.Errorf("failed to read .terraformrc: %w", readErr)
+			return fmt.Errorf("failed to read .terraformrc: %w", readErr)
 		}
 
 		terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
 
 		if !strings.Contains(terraformrc, expectedProviderInstallation) {
-			return "", fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
+			return fmt.Errorf("config mismatch:\nactual: %s\nexpected substring: %s", terraformrc, expectedProviderInstallation)
 		}
 
-		return "Success", nil
-	})
+		return nil
+	}))
 }
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
@@ -238,6 +239,116 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 		assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
 	}
+}
+
+// TestTerragruntProviderCacheWithAbsoluteModuleURL tests that the provider cache correctly handles
+// registries that return absolute URLs in their .well-known/terraform.json discovery response.
+// See https://github.com/gruntwork-io/terragrunt/issues/5156
+func TestTerragruntProviderCacheWithAbsoluteModuleURL(t *testing.T) {
+	rootPath := t.TempDir()
+	appPath := filepath.Join(rootPath, "app")
+	providerCacheDir := filepath.Join(rootPath, "providers-cache")
+	providersPath := filepath.Join(rootPath, "providers")
+
+	err := os.MkdirAll(appPath, os.ModePerm)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	defaultTransport := http.DefaultTransport
+
+	defer func() {
+		http.DefaultTransport = defaultTransport
+	}()
+
+	absoluteModulesURL := "https://modules.example.com/registry/v1/modules/"
+
+	registryURL := runMockRegistryWithAbsoluteModuleURL(t, ctx, providersPath, absoluteModulesURL)
+	registryHost := registryURL.Host
+
+	fakeProvider := FakeProvider{
+		RegistryName: registryHost,
+		Namespace:    "hashicorp",
+		Name:         "null",
+		Version:      "3.2.0",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, providersPath)
+
+	mainTfPath := filepath.Join(appPath, "main.tf")
+	mainTfContent := fmt.Sprintf(`terraform {
+  required_providers {
+    null = {
+      source  = "%s/hashicorp/null"
+      version = "3.2.0"
+    }
+  }
+}
+`, registryHost)
+	err = os.WriteFile(mainTfPath, []byte(mainTfContent), 0644)
+	require.NoError(t, err)
+
+	terragruntHclPath := filepath.Join(appPath, "terragrunt.hcl")
+	err = os.WriteFile(terragruntHclPath, []byte("# Test fixture for absolute module URL\n"), 0644)
+	require.NoError(t, err)
+
+	cliConfigFilename, err := os.CreateTemp(helpers.TmpDirWOSymlinks(t), "*")
+	require.NoError(t, err)
+
+	defer cliConfigFilename.Close()
+
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile)
+
+	cliConfigSettings := &test.CLIConfigSettings{
+		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
+			{
+				Path:    providersPath,
+				Include: []string{registryHost + "/*/*"},
+			},
+		},
+		DirectMethods: []test.CLIConfigProviderInstallationDirect{
+			{
+				Exclude: []string{registryHost + "/*/*"},
+			},
+		},
+	}
+	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt init --provider-cache --provider-cache-registry-names %s --provider-cache-dir %s --non-interactive --working-dir %s",
+			registryHost,
+			providerCacheDir,
+			appPath,
+		),
+	)
+
+	cacheWorkingDir := helpers.FindCacheWorkingDir(t, appPath)
+	require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory")
+
+	terraformrcBytes, err := os.ReadFile(filepath.Join(cacheWorkingDir, ".terraformrc"))
+	require.NoError(t, err)
+
+	terraformrc := string(terraformrcBytes)
+
+	assert.Contains(
+		t,
+		terraformrc,
+		absoluteModulesURL,
+		"The .terraformrc should contain the absolute modules.v1 URL as-is",
+	)
+
+	malformedURL := fmt.Sprintf("https://%s%s", registryHost, absoluteModulesURL)
+	assert.NotContains(
+		t,
+		terraformrc,
+		malformedURL,
+		"The .terraformrc should NOT contain a malformed URL with double hostname",
+	)
 }
 
 func TestTerragruntDownloadDir(t *testing.T) {
@@ -616,7 +727,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	}
 
 	registryName := "registry.opentofu.org"
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		registryName = "registry.terraform.io"
 	}
 
@@ -694,6 +805,55 @@ func TestTerragruntProviderCache(t *testing.T) {
 	}
 }
 
+// TestTerragruntProviderCacheWithDependency verifies that the provider cache server
+// is used when resolving dependency outputs. Before the fix, ReadTerragruntConfig and
+// NewParsingContext cleared the provider cache hook from the Go context, causing
+// dependency init to bypass the cache server and download providers directly.
+func TestTerragruntProviderCacheWithDependency(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureProviderCacheDependency)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDependency)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDependency)
+
+	cacheDir := helpers.TmpDirWOSymlinks(t)
+
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-dependency")
+
+	helpers.RunTerragrunt(
+		t,
+		fmt.Sprintf(
+			"terragrunt run --provider-cache --provider-cache-dir %s --non-interactive --working-dir %s -- init",
+			providerCacheDir,
+			filepath.Join(rootPath, "app"),
+		),
+	)
+
+	registryName := "registry.opentofu.org"
+	if isTerraform(t.Context()) {
+		registryName = "registry.terraform.io"
+	}
+
+	// Verify that the provider cache directory contains providers from both units.
+	// dep uses hashicorp/local, app uses hashicorp/null — if both are cached,
+	// the provider cache server was used for both the dependency and the dependent.
+	for _, provider := range []string{
+		"hashicorp/local/2.7.0",
+		"hashicorp/null/3.2.4",
+	} {
+		providerPath := filepath.Join(providerCacheDir, registryName, provider)
+		assert.DirExists(t, providerPath, "Provider cache dir should contain %s at %s", provider, providerPath)
+	}
+
+	// Verify both units have been initialized by checking for .terraform directories
+	for _, unit := range []string{"dep", "app"} {
+		unitPath := filepath.Join(rootPath, unit)
+		cacheWorkingDir := helpers.FindCacheWorkingDir(t, unitPath)
+		require.NotEmpty(t, cacheWorkingDir, "Should find cache working directory for %s", unitPath)
+
+		terraformDir := filepath.Join(cacheWorkingDir, ".terraform")
+		assert.DirExists(t, terraformDir, ".terraform directory should exist in cache for %s", unit)
+	}
+}
+
 func TestParseTFLog(t *testing.T) {
 	t.Setenv("TF_LOG", "info")
 
@@ -711,7 +871,7 @@ func TestParseTFLog(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
+		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary(t.Context())+`: TF_LOG: Go runtime version`)
 	}
 }
 
@@ -806,7 +966,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary(t.Context())) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	// Expected 2 version commands:
@@ -816,7 +976,7 @@ func TestVersionIsInvokedInDifferentDirectory(t *testing.T) {
 	expected := 2
 
 	assert.Len(t, matches, expected, "Expected exactly %d occurrence(s) of '-version' command, found %d", expected, len(matches))
-	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary()+" -version")
+	assert.Contains(t, stderr, "prefix=dependency-with-custom-version msg=Running command: "+wrappedBinary(t.Context())+" -version")
 }
 
 func TestVersionIsInvokedOnlyOnce(t *testing.T) {
@@ -833,7 +993,7 @@ func TestVersionIsInvokedOnlyOnce(t *testing.T) {
 	require.NoError(t, err)
 
 	// check that version command was invoked only once -version
-	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary()) + ` -version`)
+	versionCmdPattern := regexp.MustCompile(`Running command: ` + regexp.QuoteMeta(wrappedBinary(t.Context())) + ` -version`)
 	matches := versionCmdPattern.FindAllStringIndex(stderr, -1)
 
 	expected := 1

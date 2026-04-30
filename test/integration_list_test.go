@@ -77,7 +77,7 @@ unit  b-unit
 			require.NoError(t, err)
 
 			if tc.unnecessaryExperimentFlag {
-				require.Contains(t, stderr, "The following experiment(s) are already completed: cli-redesign. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments")
+				require.Contains(t, stderr, "The following experiment(s) are already completed: cli-redesign. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://docs.terragrunt.com/reference/experiments")
 			} else {
 				require.Empty(t, stderr)
 			}
@@ -215,7 +215,7 @@ func TestListHidden(t *testing.T) {
 	}{
 		{
 			name:     "default (includes hidden)",
-			expected: ".hide/unit  stack       unit        \n",
+			expected: filepath.Join(".hide", "unit") + "  stack       unit        \n",
 		},
 		{
 			name:     "no-hidden flag excludes hidden",
@@ -240,9 +240,7 @@ func TestListHidden(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Empty(t, stderr)
-			// Normalize path separators in the output for cross-platform compatibility
-			normalizedStdout := filepath.ToSlash(stdout)
-			assert.Equal(t, tc.expected, normalizedStdout)
+			assert.Equal(t, tc.expected, stdout)
 		})
 	}
 }

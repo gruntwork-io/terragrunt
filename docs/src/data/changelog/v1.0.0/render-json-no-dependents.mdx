@@ -1,0 +1,19 @@
+---
+version: "v1.0.0"
+category: "breaking-changes"
+---
+
+#### `render --format=json` no longer discovers dependents by default
+
+Prior to this release, the `render --format=json` command would automatically start to perform dependent discovery on other units related to the unit being rendered. Avoiding this required usage of the `--disable-dependent-modules` flag. That behavior has been removed. HCL and JSON rendering of unit configurations will now proceed without the additional overhead of dependent discovery by default.
+
+This functionality is better served by a combination of [`find`](/reference/cli/commands/find/) and [graph-based filters](/features/filter/graph/).
+
+e.g. If you want to detect all the dependents of a given unit `foo`, expecting to find the dependent unit `bar` you can run the following:
+
+```bash
+$ terragrunt find --filter '...^foo'
+bar
+```
+
+*If you aren't familiar with [filters](/features/filter), this reads as "find all dependents of `foo`, not `foo` itself"*

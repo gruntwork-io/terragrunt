@@ -10,8 +10,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/internal/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // RunConfig contains all configuration data needed to execute terragrunt commands.
@@ -36,7 +36,7 @@ type RunConfig struct {
 	// TerraformBinary is the path to the terraform/tofu binary
 	TerraformBinary string
 	// IAMRole contains IAM role options for AWS authentication
-	IAMRole options.IAMRoleOptions
+	IAMRole iam.RoleOptions
 	// Errors contains error handling configuration
 	Errors ErrorsConfig
 	// Dependencies contains paths to dependent modules
@@ -75,6 +75,12 @@ type TerraformConfig struct {
 	// NoCopyTerraformLockFile specifies whether to skip copying the lock file
 	// Defaults to false (copy the lock file) when not set
 	NoCopyTerraformLockFile bool
+
+	// UpdateSourceWithCAS indicates the terraform.source is a relative path
+	// meant to be rewritten against a cloned repository by CAS. The run path
+	// rejects this when CAS is unavailable, since the relative path has no
+	// meaning without a resolved repo root.
+	UpdateSourceWithCAS bool
 }
 
 // Hook represents a lifecycle hook (before/after).

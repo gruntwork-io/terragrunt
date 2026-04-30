@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # Handle -version
-if [ "$1" = "-version" ]; then
-  echo "OpenToFu v1.0.0"
-  exit 0
+if [[ "$1" = "-version" ]]; then
+	echo "OpenToFu v1.0.0"
+	exit 0
 fi
 
 # Output variable
-cat << 'EOF'
+cat <<'EOF'
 {
 "baz": {
   "sensitive": false,

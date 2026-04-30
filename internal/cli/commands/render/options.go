@@ -28,29 +28,24 @@ type Options struct {
 
 	// RenderMetadata adds metadata to the rendered config.
 	RenderMetadata bool
-
-	// DisableDependentUnits disables the identification of dependent modules when rendering config.
-	DisableDependentUnits bool
 }
 
 func NewOptions(opts *options.TerragruntOptions) *Options {
 	return &Options{
-		TerragruntOptions:     opts,
-		Format:                FormatHCL,
-		Write:                 false,
-		RenderMetadata:        false,
-		DisableDependentUnits: false,
+		TerragruntOptions: opts,
+		Format:            FormatHCL,
+		Write:             false,
+		RenderMetadata:    false,
 	}
 }
 
 func (o *Options) Clone() *Options {
 	return &Options{
-		TerragruntOptions:     o.TerragruntOptions.Clone(),
-		Format:                o.Format,
-		OutputPath:            o.OutputPath,
-		Write:                 o.Write,
-		RenderMetadata:        o.RenderMetadata,
-		DisableDependentUnits: o.DisableDependentUnits,
+		TerragruntOptions: o.TerragruntOptions.Clone(),
+		Format:            o.Format,
+		OutputPath:        o.OutputPath,
+		Write:             o.Write,
+		RenderMetadata:    o.RenderMetadata,
 	}
 }
 

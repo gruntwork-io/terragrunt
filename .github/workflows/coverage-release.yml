@@ -1,0 +1,125 @@
+name: Coverage Check (Release)
+
+on:
+  release:
+    # Match announce-release.yml — skip pre-releases
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag name of the release'
+        required: true
+
+jobs:
+  check-coverage:
+    name: Coverage Check
+    runs-on: ubuntu-latest
+    env:
+      MISE_PROFILE: cicd
+      GOGC: "400"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag_name }}
+          fetch-depth: 1
+
+      - name: Use mise to install dependencies
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        with:
+          version: 2026.1.9
+          experimental: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: go-cache-paths
+        run: |
+          echo "go-build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "go-mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
+      - name: Go Build Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-build-
+
+      - name: Go Mod Cache
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-mod-
+
+      - name: Run Tests with Coverage
+        run: |
+          set -o pipefail
+          if ! go test -coverprofile=coverage.out -covermode=atomic ./... -timeout 45m; then
+            echo "::warning::Some tests failed — coverage data may be incomplete"
+          fi
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Coverage Summary
+        run: ./.github/scripts/coverage/generate-summary.sh
+
+      - name: Get Previous Release Coverage
+        id: prev-coverage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+        run: |
+          OUTPUT=$(./.github/scripts/coverage/download-previous-release.sh previous)
+          echo "$OUTPUT"
+          grep -q "has_previous=true" <<<"$OUTPUT" && echo "has_previous=true" >> "$GITHUB_OUTPUT" || echo "has_previous=false" >> "$GITHUB_OUTPUT"
+
+      - name: Compare Coverage
+        id: compare
+        run: |
+          PREV_FILE="previous/coverage-summary.json"
+          if [[ "${{ steps.prev-coverage.outputs.has_previous }}" != "true" ]]; then
+            PREV_FILE="nonexistent"
+          fi
+          ./.github/scripts/coverage/compare-coverage.sh coverage-summary.json "$PREV_FILE" comparison-report.json
+
+      - name: Write Summary
+        if: always()
+        run: ./.github/scripts/coverage/write-summary.sh comparison-report.json
+
+      - name: Notify Slack
+        if: always() && hashFiles('comparison-report.json') != '' && env.COVERAGE_SLACK_WEBHOOK_URL != ''
+        env:
+          COVERAGE_SLACK_WEBHOOK_URL: ${{ secrets.COVERAGE_SLACK_WEBHOOK_URL }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: ./.github/scripts/coverage/notify-slack.sh comparison-report.json
+
+      - name: Upload comparison-report.json
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.json
+          path: comparison-report.json
+          retention-days: 30
+
+      - name: Upload comparison-report.html
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: comparison-report.html
+          path: comparison-report.html
+          retention-days: 30
+
+      - name: Upload Coverage as Release Asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name || inputs.tag_name }}
+        run: |
+          FILES=""
+          for f in coverage-summary.json coverage-summary.html comparison-report.json comparison-report.html; do
+            [[ -f "$f" ]] && FILES="$FILES $f"
+          done
+          [[ -n "$FILES" ]] && gh release upload "$TAG_NAME" $FILES --clobber

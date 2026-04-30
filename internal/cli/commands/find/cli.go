@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -38,8 +39,12 @@ const (
 
 func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	filterFlags := shared.NewFilterFlags(l, opts.TerragruntOptions)
 
-	flags := clihelper.Flags{
+	const numLocalFlags = 11
+
+	result := make(clihelper.Flags, 0, numLocalFlags+len(filterFlags))
+	result = append(result,
 		flags.NewFlag(&clihelper.GenericFlag[string]{
 			Name:        FormatFlagName,
 			EnvVars:     tgPrefix.EnvVars(FormatFlagName),
@@ -109,13 +114,20 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Name:    External,
 			EnvVars: tgPrefix.EnvVars(External),
 			Hidden:  true,
-			Usage:   "Discover external dependencies from initial results, and add them to top-level results (implies discovery of dependencies).",
+			Usage: "Discover external dependencies from initial results," +
+				" and add them to top-level results (implies discovery of dependencies).",
 			Action: func(_ context.Context, _ *clihelper.Context, value bool) error {
 				if !value {
 					return nil
 				}
 
-				opts.FilterQueries = append(opts.FilterQueries, "{./**}...")
+				pathExpr, err := filter.NewPathFilter("./**")
+				if err != nil {
+					return err
+				}
+
+				graphExpr := filter.NewGraphExpression(pathExpr).WithDependencies()
+				opts.Filters = append(opts.Filters, filter.NewFilter(graphExpr, graphExpr.String()))
 
 				return nil
 			},
@@ -127,9 +139,9 @@ func NewFlags(l log.Logger, opts *Options, prefix flags.Prefix) clihelper.Flags 
 			Usage:       "Construct the queue as if a specific command was run.",
 			Aliases:     []string{QueueConstructAsFlagAlias},
 		}),
-	}
+	)
 
-	return append(flags, shared.NewFilterFlags(l, opts.TerragruntOptions)...)
+	return append(result, filterFlags...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {

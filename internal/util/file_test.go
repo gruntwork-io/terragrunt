@@ -1,8 +1,8 @@
 package util_test
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -11,13 +11,7 @@ import (
 	"strconv"
 	"testing"
 
-	"fmt"
-
-	"slices"
-
-	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -84,86 +78,6 @@ func TestCanonicalPath(t *testing.T) {
 			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
 		})
 	}
-}
-
-func TestGlobs(t *testing.T) {
-	t.Parallel()
-
-	basePath := "testdata/fixture-glob-canonical"
-
-	expectedHelper := func(path string) string {
-		basePath, err := filepath.Abs(basePath)
-		require.NoError(t, err)
-
-		return filepath.ToSlash(filepath.Join(basePath, path))
-	}
-
-	testCases := []struct {
-		paths    []string
-		expected []string
-	}{
-		{[]string{"*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"**"}, []string{expectedHelper("module-a"), expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child"), expectedHelper("module-b/module-b-child/main.tf"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
-		{[]string{"module-a", "module-b/module-b-child/.."}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"*-a", "*-b"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"module-*"}, []string{expectedHelper("module-a"), expectedHelper("module-b")}},
-		{[]string{"module-*/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl")}},
-		{[]string{"module-*/**.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/root.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
-	}
-
-	l := logger.CreateLogger()
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			compiledGlobs, err := util.CompileGlobs(basePath, tc.paths...)
-			require.NoError(t, err)
-
-			actual, err := getGlobPaths(t.Context(), l, basePath, compiledGlobs)
-
-			slices.Sort(actual)
-
-			slices.Sort(tc.expected)
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.paths, basePath)
-		})
-	}
-}
-
-func getGlobPaths(ctx context.Context, l log.Logger, basePath string, compiledGlobs map[string]glob.Glob) ([]string, error) {
-	if len(compiledGlobs) == 0 {
-		return []string{}, nil
-	}
-
-	basePath, err := util.CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		path = filepath.ToSlash(path)
-
-		for globPath, compiledGlob := range compiledGlobs {
-			ll := l.WithField("glob_path", globPath)
-			if compiledGlob.Match(path) {
-				ll.WithField("matched_path", path).Debug("Matched glob pattern")
-
-				paths = append(paths, path)
-			}
-		}
-
-		return nil
-	})
-
-	return paths, err
 }
 
 func TestPathContainsHiddenFileOrFolder(t *testing.T) {
@@ -239,7 +153,7 @@ func TestFileManifest(t *testing.T) {
 
 	files := []string{"file1", "file2"}
 
-	var testfiles = make([]string, 0, len(files))
+	testfiles := make([]string, 0, len(files))
 
 	// create temp dir
 	dir := helpers.TmpDirWOSymlinks(t)
@@ -256,7 +170,8 @@ func TestFileManifest(t *testing.T) {
 	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := util.NewFileManifest(logger.CreateLogger(), dir, ".terragrunt-test-manifest")
+	l := logger.CreateLogger()
+	manifest := util.NewFileManifest(dir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -270,33 +185,10 @@ func TestFileManifest(t *testing.T) {
 	// Close the manifest file handle before cleaning
 	require.NoError(t, manifest.Close())
 
-	assert.NoError(t, manifest.Clean())
+	assert.NoError(t, manifest.Clean(l))
 	// test if the files have been deleted
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
-	}
-}
-
-func TestSplitPath(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		path     string
-		expected []string
-	}{
-		{"foo/bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
-		{"/foo/bar/.tf/tg.hcl", []string{"", "foo", "bar", ".tf", "tg.hcl"}},
-		{"../foo/bar/.tf/tg.hcl", []string{"..", "foo", "bar", ".tf", "tg.hcl"}},
-		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
-	}
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			actual := util.SplitPath(tc.path)
-			assert.Equal(t, tc.expected, actual, "For path %s", tc.path)
-		})
 	}
 }
 
@@ -366,25 +258,17 @@ func TestHasPathPrefix(t *testing.T) {
 	}
 }
 
-func TestIncludeInCopy(t *testing.T) {
-	t.Parallel()
+// copyCase is one expected include/exclude outcome for a relative path.
+type copyCase struct {
+	path         string
+	copyExpected bool
+}
 
-	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
-
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
-		{"/app/terragrunt.hcl", true},
-		{"/_module/main.tf", true},
-		{"/_module/.region1/info.txt", false},
-		{"/_module/.region3/project3-1/f1-2-levels.txt", false},
-		{"/_module/.region3/project3-1/app1/.include-me-too/file.txt", true},
-		{"/_module/.region3/project3-2/.f0/f0-3-levels.txt", false},
-		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
-		{"/_module/.region2/.project2-1/readme.txt", true},
-		{"/_module/.region2/project2-2/f2-dot-f0.txt", true},
-	}
+// runCopyFolderContentsCase materializes the given test cases as files under
+// a temp source dir, runs [util.CopyFolderContents] with the given include /
+// exclude patterns, and asserts the destination matches `copyExpected`.
+func runCopyFolderContentsCase(t *testing.T, includeInCopy, excludeFromCopy []string, fastCopy bool, cases []copyCase) {
+	t.Helper()
 
 	tempDir := helpers.TmpDirWOSymlinks(t)
 	source := filepath.Join(tempDir, "source")
@@ -392,15 +276,23 @@ func TestIncludeInCopy(t *testing.T) {
 
 	fileContent := []byte("source file")
 
-	for _, tc := range testCases {
+	for _, tc := range cases {
 		path := filepath.Join(source, tc.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0o644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, nil))
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(includeInCopy...),
+		util.WithExcludeFromCopy(excludeFromCopy...),
+	}
+	if fastCopy {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
 
-	for i, tc := range testCases {
+	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", copyOpts...))
+
+	for i, tc := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
@@ -413,50 +305,83 @@ func TestIncludeInCopy(t *testing.T) {
 	}
 }
 
+func TestIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
+	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
+
+	cases := []copyCase{
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/_module/main.tf", copyExpected: true},
+		{path: "/_module/.region1/info.txt", copyExpected: false},
+		{path: "/_module/.region3/project3-1/f1-2-levels.txt", copyExpected: false},
+		{path: "/_module/.region3/project3-1/app1/.include-me-too/file.txt", copyExpected: true},
+		{path: "/_module/.region3/project3-2/.f0/f0-3-levels.txt", copyExpected: false},
+		{path: "/_module/.region2/.project2-1/app2/f2-dot-f2.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-1/readme.txt", copyExpected: true},
+		{path: "/_module/.region2/project2-2/f2-dot-f0.txt", copyExpected: true},
+	}
+
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+			runCopyFolderContentsCase(t, includeInCopy, nil, mode.fastCopy, cases)
+		})
+	}
+}
+
 func TestExcludeFromCopy(t *testing.T) {
 	t.Parallel()
 
 	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
 
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
-		{"/app/terragrunt.hcl", true},
-		{"/module/main.tf", true},
-		{"/module/region1/info.txt", true},
-		{"/module/region1/project2-1/app1/f2-dot-f2.txt", false},
-		{"/module/region3/project3-1/f1-2-levels.txt", true},
-		{"/module/region3/project3-1/app1/exclude-me-here/file.txt", false},
-		{"/module/region3/project3-2/f0/f0-3-levels.txt", true},
-		{"/module/region2/project2-1/app2/f2-dot-f2.txt", false},
-		{"/module/region2/project2-1/readme.txt", false},
-		{"/module/region2/project2-2/f2-dot-f0.txt", false},
+	cases := []copyCase{
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/module/main.tf", copyExpected: true},
+		{path: "/module/region1/info.txt", copyExpected: true},
+		{path: "/module/region1/project2-1/app1/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region3/project3-1/f1-2-levels.txt", copyExpected: true},
+		{path: "/module/region3/project3-1/app1/exclude-me-here/file.txt", copyExpected: false},
+		{path: "/module/region3/project3-2/f0/f0-3-levels.txt", copyExpected: true},
+		{path: "/module/region2/project2-1/app2/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region2/project2-1/readme.txt", copyExpected: false},
+		{path: "/module/region2/project2-2/f2-dot-f0.txt", copyExpected: false},
 	}
 
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	source := filepath.Join(tempDir, "source")
-	destination := filepath.Join(tempDir, "destination")
-
-	fileContent := []byte("source file")
-
-	for _, tc := range testCases {
-		path := filepath.Join(source, tc.path)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
-	}
-
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
+			runCopyFolderContentsCase(t, nil, excludeFromCopy, mode.fastCopy, cases)
+		})
+	}
+}
 
-			_, err := os.Stat(filepath.Join(destination, tc.path))
-			assert.True(t,
-				tc.copyExpected && err == nil ||
-					!tc.copyExpected && errors.Is(err, os.ErrNotExist),
-				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tc.path, tc.copyExpected, err)
+func TestExcludeFromCopyTrailingSlash(t *testing.T) {
+	t.Parallel()
+
+	excludeFromCopy := []string{"module/region2/", "**/app1/"}
+
+	cases := []copyCase{
+		{path: "/app/terragrunt.hcl", copyExpected: true},
+		{path: "/module/region1/info.txt", copyExpected: true},
+		{path: "/module/region1/project2-1/app1/f2-dot-f2.txt", copyExpected: false},
+		{path: "/module/region2/project2-1/readme.txt", copyExpected: false},
+		{path: "/module/region2/project2-2/f2-dot-f0.txt", copyExpected: false},
+	}
+
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+			runCopyFolderContentsCase(t, nil, excludeFromCopy, mode.fastCopy, cases)
 		})
 	}
 }
@@ -467,39 +392,20 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	includeInCopy := []string{"_module/.region2", "_module/.region3"}
 	excludeFromCopy := []string{"**/.project2-2", "_module/.region3"}
 
-	testCases := []struct {
-		path         string
-		copyExpected bool
-	}{
-		{"/_module/.region2/.project2-1/app2/f2-dot-f2.txt", true},
-		{"/_module/.region2/.project2-1/readme.txt", true},
-		{"/_module/.region2/.project2-2/f2-dot-f0.txt", false},
-		{"/_module/.region3/.project2-1/readme.txt", false},
+	cases := []copyCase{
+		{path: "/_module/.region2/.project2-1/app2/f2-dot-f2.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-1/readme.txt", copyExpected: true},
+		{path: "/_module/.region2/.project2-2/f2-dot-f0.txt", copyExpected: false},
+		{path: "/_module/.region3/.project2-1/readme.txt", copyExpected: false},
 	}
 
-	tempDir := helpers.TmpDirWOSymlinks(t)
-	source := filepath.Join(tempDir, "source")
-	destination := filepath.Join(tempDir, "destination")
-
-	fileContent := []byte("source file")
-
-	for _, tc := range testCases {
-		path := filepath.Join(source, tc.path)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
-	}
-
-	require.NoError(t, util.CopyFolderContents(logger.CreateLogger(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+	for _, mode := range []struct {
+		name     string
+		fastCopy bool
+	}{{"slow", false}, {"fast", true}} {
+		t.Run(mode.name, func(t *testing.T) {
 			t.Parallel()
-
-			_, err := os.Stat(filepath.Join(destination, tc.path))
-			assert.True(t,
-				tc.copyExpected && err == nil ||
-					!tc.copyExpected && errors.Is(err, os.ErrNotExist),
-				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tc.path, tc.copyExpected, err)
+			runCopyFolderContentsCase(t, includeInCopy, excludeFromCopy, mode.fastCopy, cases)
 		})
 	}
 }
@@ -536,12 +442,12 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	// Create directories
 	dirs := []string{"a", "d"}
 	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
 	}
 
 	// Create test files
 	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
 
 	// Create symlinks
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b")))
@@ -559,8 +465,8 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Normalize path separators to forward slashes for cross-platform compatibility
-		paths = append(paths, filepath.ToSlash(relPath))
+
+		paths = append(paths, relPath)
 
 		return nil
 	})
@@ -573,14 +479,14 @@ func TestWalkWithSimpleSymlinks(t *testing.T) {
 	expectedPaths := []string{
 		".",
 		"a",
-		"a/test.txt",
+		filepath.Join("a", "test.txt"),
 		"b",
-		"b/test.txt",
+		filepath.Join("b", "test.txt"),
 		"c",
-		"c/test.txt",
+		filepath.Join("c", "test.txt"),
 		"d",
-		"d/a",
-		"d/a/test.txt",
+		filepath.Join("d", "a"),
+		filepath.Join("d", "a", "test.txt"),
 	}
 	sort.Strings(expectedPaths)
 
@@ -612,12 +518,12 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	// Create directories
 	dirs := []string{"a", "b", "c", "d"}
 	for _, dir := range dirs {
-		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(tempDir, dir), 0o755))
 	}
 
 	// Create test files
 	testFile := filepath.Join(tempDir, "a", "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test"), 0o644))
 
 	// Create symlinks
 	require.NoError(t, os.Symlink(filepath.Join(tempDir, "a"), filepath.Join(tempDir, "b", "link-to-a")))
@@ -638,8 +544,8 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Normalize path separators to forward slashes for cross-platform compatibility
-		paths = append(paths, filepath.ToSlash(relPath))
+
+		paths = append(paths, relPath)
 
 		return nil
 	})
@@ -652,21 +558,21 @@ func TestWalkWithCircularSymlinks(t *testing.T) {
 	expectedPaths := []string{
 		".",
 		"a",
-		"a/link-to-d",
-		"a/link-to-d/link-to-a",
-		"a/link-to-d/link-to-a/link-to-d",
-		"a/link-to-d/link-to-a/test.txt",
-		"a/test.txt",
+		filepath.Join("a", "link-to-d"),
+		filepath.Join("a", "link-to-d", "link-to-a"),
+		filepath.Join("a", "link-to-d", "link-to-a", "link-to-d"),
+		filepath.Join("a", "link-to-d", "link-to-a", "test.txt"),
+		filepath.Join("a", "test.txt"),
 		"b",
-		"b/link-to-a",
-		"b/link-to-a/link-to-d",
-		"b/link-to-a/test.txt",
+		filepath.Join("b", "link-to-a"),
+		filepath.Join("b", "link-to-a", "link-to-d"),
+		filepath.Join("b", "link-to-a", "test.txt"),
 		"c",
-		"c/another-link-to-a",
-		"c/another-link-to-a/link-to-d",
-		"c/another-link-to-a/test.txt",
+		filepath.Join("c", "another-link-to-a"),
+		filepath.Join("c", "another-link-to-a", "link-to-d"),
+		filepath.Join("c", "another-link-to-a", "test.txt"),
 		"d",
-		"d/link-to-a",
+		filepath.Join("d", "link-to-a"),
 	}
 	sort.Strings(expectedPaths)
 
@@ -720,7 +626,13 @@ func Test_sanitizePath(t *testing.T) {
 			name:    "happy path",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
 			file:    ".terraform-version",
-			want:    "./testdata/fixture-sanitize-path/env/unit/.terraform-version",
+			want:    "testdata/fixture-sanitize-path/env/unit/.terraform-version",
+		},
+		{
+			name:    "nested file path is preserved",
+			baseDir: "./testdata/fixture-sanitize-path",
+			file:    "env/unit/.terraform-version",
+			want:    "testdata/fixture-sanitize-path/env/unit/.terraform-version",
 		},
 		{
 			name:    "base dir is empty",
@@ -754,7 +666,7 @@ func Test_sanitizePath(t *testing.T) {
 			name:    "file is just a dot",
 			baseDir: "./testdata/fixture-sanitize-path/env/unit",
 			file:    ".",
-			want:    "./testdata/fixture-sanitize-path/env/unit/.",
+			want:    "testdata/fixture-sanitize-path/env/unit",
 			wantErr: false,
 		},
 		{
@@ -790,13 +702,159 @@ func TestMoveFile(t *testing.T) {
 	src := filepath.Join(tempDir, "src.txt")
 	dst := filepath.Join(tempDir, "dst.txt")
 
-	require.NoError(t, os.WriteFile(src, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(src, []byte("test"), 0o644))
 	require.NoError(t, util.MoveFile(src, dst))
 
 	// Verify the file was moved
 	_, err := os.Stat(src)
-	require.True(t, os.IsNotExist(err))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 	contents, err := os.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, "test", string(contents))
 }
+
+func TestRelPathForLog(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		basePath    string
+		targetPath  string
+		expected    string
+		showAbsPath bool
+	}{
+		{
+			name:        "showAbsPath true returns targetPath unchanged",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child/file.txt",
+			showAbsPath: true,
+			expected:    helpers.RootFolder + "base/child/file.txt",
+		},
+		{
+			name:        "same path returns targetPath",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base",
+			showAbsPath: false,
+			expected:    helpers.RootFolder + "base",
+		},
+		{
+			name:        "child path gets ./ prefix",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child",
+			showAbsPath: false,
+			expected:    "." + string(filepath.Separator) + "child",
+		},
+		{
+			name:        "nested child path gets ./ prefix",
+			basePath:    helpers.RootFolder + "base",
+			targetPath:  helpers.RootFolder + "base/child/subchild/file.txt",
+			showAbsPath: false,
+			expected:    "." + string(filepath.Separator) + filepath.Join("child", "subchild", "file.txt"),
+		},
+		{
+			name:        "parent path returns relative path with ..",
+			basePath:    helpers.RootFolder + "base/child",
+			targetPath:  helpers.RootFolder + "base",
+			showAbsPath: false,
+			expected:    "..",
+		},
+		{
+			name:        "sibling path returns relative path with ..",
+			basePath:    helpers.RootFolder + "base/child1",
+			targetPath:  helpers.RootFolder + "base/child2",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + "child2",
+		},
+		{
+			name:        "deeply nested sibling path",
+			basePath:    helpers.RootFolder + "base/a/b/c",
+			targetPath:  helpers.RootFolder + "base/x/y/z",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + ".." + string(filepath.Separator) + filepath.Join("x", "y", "z"),
+		},
+		{
+			name:        "unrelated paths at different roots",
+			basePath:    helpers.RootFolder + "foo",
+			targetPath:  helpers.RootFolder + "bar/baz",
+			showAbsPath: false,
+			expected:    ".." + string(filepath.Separator) + filepath.Join("bar", "baz"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.RelPathForLog(tc.basePath, tc.targetPath, tc.showAbsPath)
+			assert.Equal(t, tc.expected, actual, "For basePath %s and targetPath %s", tc.basePath, tc.targetPath)
+		})
+	}
+}
+
+// buildCopyBenchTree lays out a synthetic module source: topDirs
+// top-level directories, each a chain chainDepth levels deep with
+// filesPerLevel files at every level. A bare-directory include pattern
+// like the top-level name triggers the legacy expandGlobPath recursion
+// once per nested directory.
+//
+// Returns the tree root and the top-level directory names, which the
+// benchmark uses as include patterns.
+func buildCopyBenchTree(b *testing.B, topDirs, chainDepth, filesPerLevel int) (string, []string) {
+	b.Helper()
+
+	root := b.TempDir()
+	content := []byte("x")
+	names := make([]string, 0, topDirs)
+
+	for i := range topDirs {
+		name := fmt.Sprintf("mod%03d", i)
+		names = append(names, name)
+
+		current := filepath.Join(root, name)
+
+		for depth := range chainDepth {
+			require.NoError(b, os.MkdirAll(current, 0o755))
+
+			for f := range filesPerLevel {
+				p := filepath.Join(current, fmt.Sprintf("f%02d.tf", f))
+				require.NoError(b, os.WriteFile(p, content, 0o644))
+			}
+
+			current = filepath.Join(current, fmt.Sprintf("level%02d", depth))
+		}
+	}
+
+	cache := filepath.Join(root, util.TerragruntCacheDir, "should-be-skipped")
+	require.NoError(b, os.MkdirAll(cache, 0o755))
+	require.NoError(b, os.WriteFile(filepath.Join(cache, "skip.tf"), content, 0o644))
+
+	return root, names
+}
+
+func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
+	b.Helper()
+
+	const (
+		topDirs       = 20
+		chainDepth    = 8
+		filesPerLevel = 5
+	)
+
+	source, include := buildCopyBenchTree(b, topDirs, chainDepth, filesPerLevel)
+	l := logger.CreateLogger()
+
+	copyOpts := []util.CopyOption{
+		util.WithIncludeInCopy(include...),
+		util.WithExcludeFromCopy("**/f00.tf"),
+	}
+	if fastCopy {
+		copyOpts = append(copyOpts, util.WithFastCopy())
+	}
+
+	for b.Loop() {
+		require.NoError(b, util.CopyFolderContents(l, source, b.TempDir(), ".terragrunt-test", copyOpts...))
+	}
+}
+
+func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
+func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }

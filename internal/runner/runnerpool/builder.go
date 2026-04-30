@@ -12,24 +12,22 @@ import (
 func Build(
 	ctx context.Context,
 	l log.Logger,
-	terragruntOptions *options.TerragruntOptions,
-	opts ...common.Option,
+	opts *options.TerragruntOptions,
+	runnerOpts ...common.Option,
 ) (common.StackRunner, error) {
-	discovered, err := discoverWithRetry(ctx, l, terragruntOptions, opts...)
+	discovered, err := discoverWithRetry(ctx, l, opts, runnerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	runner, err := createRunner(ctx, l, terragruntOptions, discovered, opts...)
+	rnr, err := createRunner(ctx, l, opts, discovered, runnerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	units := runner.GetStack().Units
-
-	if err := checkVersionConstraints(ctx, l, terragruntOptions, units); err != nil {
+	if err := checkVersionConstraints(ctx, l, opts, rnr.GetStack().Units); err != nil {
 		return nil, err
 	}
 
-	return runner, nil
+	return rnr, nil
 }

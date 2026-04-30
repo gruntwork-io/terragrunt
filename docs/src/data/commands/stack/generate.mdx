@@ -1,0 +1,112 @@
+---
+name: generate
+path: "stack/generate"
+category: stack
+description: Generate a stack of units based on configurations in a terragrunt.stack.hcl file.
+usage: |
+  Generate a stack of units based on configurations in a terragrunt.stack.hcl file.
+sidebar:
+  order: 400
+examples:
+  - description: Generate stacks of units using the configurations in all terragrunt.stack.hcl files found, starting in the current directory.
+    code: |
+      terragrunt stack generate
+flags:
+  - stack-generate-filter
+  - no-cas
+---
+
+import FileTree from "@components/vendored/starlight/FileTree.astro";
+import { Aside } from "@astrojs/starlight/components";
+
+## Generating a stack
+
+```hcl
+# terragrunt.stack.hcl
+
+unit "mother" {
+	source = "units/chicken"
+	path   = "mother"
+}
+
+unit "father" {
+	source = "./units/chicken"
+	path   = "father"
+}
+
+unit "chick_1" {
+	source = "./units/chick"
+	path   = "chicks/chick-1"
+}
+
+unit "chick_2" {
+	source = "units/chick"
+	path   = "chicks/chick-2"
+}
+```
+
+Running the following:
+
+```bash
+terragrunt stack generate
+```
+
+Generates the following stack:
+
+<FileTree>
+
+- terragrunt.stack.hcl
+- .terragrunt-stack
+  - mother
+    - terragrunt.hcl
+  - father
+    - terragrunt.hcl
+  - chicks
+    - chick-1
+      - terragrunt.hcl
+    - chick-2
+      - terragrunt.hcl
+
+</FileTree>
+
+<Aside type="note">
+Parallel Execution: Stack generation runs concurrently to improve performance. The number of parallel tasks is determined by the `GOMAXPROCS` environment variable and can be explicitly controlled using the `--parallelism` flag:
+
+```bash
+terragrunt stack generate --parallelism 4
+```
+
+Automatic Discovery: The command automatically discovers all `terragrunt.stack.hcl` files within the directory structure and generates them in parallel.
+
+Validation of Units and Stacks: During the stack generation, the system will validate that each unit and stack's target directory contains the appropriate configuration file (`terragrunt.hcl` for units and `terragrunt.stack.hcl` for stacks). This ensures the directories are correctly structured before proceeding with the stack generation.
+To **skip this validation**, you can use the `--no-stack-validate` flag:
+
+```bash
+terragrunt stack generate --no-stack-validate
+```
+
+</Aside>
+
+<Aside type="caution">
+  Path Restrictions: If an absolute path is provided as an argument, `generate` will throw an error. Only relative paths
+  within the working directory are supported.
+</Aside>
+
+<Aside type="caution">
+Recreating the stack directory and cleaning stale files: By default, `terragrunt stack generate` does not delete files in `.terragrunt-stack` that are no longer produced by the current `terragrunt.stack.hcl`. If you removed or changed `values` or units and still see old files (e.g., a lingering `terragrunt.values.hcl`), regenerate from a clean state by either refreshing sources or cleaning the directory first:
+
+```bash
+# Refresh sources and regenerate from a clean copy
+terragrunt stack generate --source-update
+
+# Or explicitly remove the generated directory first
+terragrunt stack clean && terragrunt stack generate
+```
+
+You can also pass `--source-update` when running commands via `stack run`:
+
+```bash
+terragrunt stack run plan --source-update
+```
+
+</Aside>

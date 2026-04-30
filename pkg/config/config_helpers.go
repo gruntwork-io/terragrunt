@@ -4,16 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
@@ -30,21 +34,41 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
+	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
 	noMatchedPats = 1
 	matchedPats   = 2
 )
+
+// RunCmdCacheEntry stores run_cmd results including output for replay.
+// This allows the output to be replayed on cache hits, which is necessary
+// when the command was first executed during discovery phase (with io.Discard writers)
+// but needs to show output during the execution phase (with real writers).
+type RunCmdCacheEntry struct {
+	// Stdout is the raw stdout of the command.
+	Stdout string
+	// Stderr is the raw stderr of the command.
+	Stderr string
+	// replayOnce ensures output is replayed exactly once to a real (non-Discard) writer.
+	replayOnce sync.Once
+}
+
+// Value returns the whitespace-trimmed stdout, which is the return value of run_cmd.
+func (e *RunCmdCacheEntry) Value() string {
+	return strings.TrimSuffix(e.Stdout, "\n")
+}
 
 const (
 	FuncNameFindInParentFolders                     = "find_in_parent_folders"
@@ -80,9 +104,8 @@ const (
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
 	FuncNameMarkAsRead                              = "mark_as_read"
+	FuncNameMarkGlobAsRead                          = "mark_glob_as_read"
 	FuncNameConstraintCheck                         = "constraint_check"
-
-	sopsCacheName = "sopsCache"
 )
 
 // TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
@@ -180,6 +203,7 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, pctx, l, getWorkingDir),
 		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, pctx, l, markAsRead),
+		FuncNameMarkGlobAsRead:                          wrapStringSliceToStringSliceAsFuncImpl(ctx, pctx, l, markGlobAsRead),
 		FuncNameConstraintCheck:                         wrapStringSliceToBoolAsFuncImpl(ctx, pctx, ConstraintCheck),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
@@ -221,11 +245,21 @@ func createTerragruntEvalContext(ctx context.Context, pctx *ParsingContext, l lo
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
 		exposedInclude, err := includeMapAsCtyVal(ctx, pctx, l)
-		if err != nil {
-			return evalCtx, err
+		if err != nil && len(pctx.PartialParseDecodeList) == 0 {
+			return nil, fmt.Errorf("could not resolve exposed includes for eval context in %s: %w", configPath, err)
 		}
 
-		evalCtx.Variables[MetadataInclude] = exposedInclude
+		if err != nil {
+			// Include resolution can fail during partial parsing of configs in dependency chains,
+			// e.g. when an included config has a dependency block whose outputs aren't yet available.
+			// This is expected and non-fatal — locals referencing the include will be left unevaluated,
+			// and the system will fall back to full parsing when needed.
+			l.Debugf("Could not resolve exposed includes for eval context in %s (partial parse): %v", configPath, err)
+		}
+
+		if err == nil {
+			evalCtx.Variables[MetadataInclude] = exposedInclude
+		}
 	}
 
 	return evalCtx, nil
@@ -239,8 +273,8 @@ func getPlatform(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 // Return the repository root as an absolute path
 func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
@@ -248,7 +282,7 @@ func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_repo_root", attrs, func(childCtx context.Context) error {
 		var innerErr error
 
-		result, innerErr = shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		result, innerErr = shell.GitTopLevelDir(childCtx, l, pctx.Env, pctx.WorkingDir)
 
 		return innerErr
 	})
@@ -259,24 +293,24 @@ func getRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (strin
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_path_from_repo_root", attrs, func(childCtx context.Context) error {
-		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.Env, pctx.WorkingDir)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
 
-		repoRelPath, innerErr := filepath.Rel(repoAbsPath, pctx.TerragruntOptions.WorkingDir)
+		repoRelPath, innerErr := filepath.Rel(repoAbsPath, pctx.WorkingDir)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(repoRelPath)
+		result = repoRelPath
 
 		return nil
 	})
@@ -287,24 +321,24 @@ func getPathFromRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger
 // Return the path to the repository root
 func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_path_to_repo_root", attrs, func(childCtx context.Context) error {
-		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.TerragruntOptions, pctx.TerragruntOptions.WorkingDir)
+		repoAbsPath, innerErr := shell.GitTopLevelDir(childCtx, l, pctx.Env, pctx.WorkingDir)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
 
-		repoRootPathAbs, innerErr := filepath.Rel(pctx.TerragruntOptions.WorkingDir, repoAbsPath)
+		repoRootPathAbs, innerErr := filepath.Rel(pctx.WorkingDir, repoAbsPath)
 		if innerErr != nil {
 			return errors.New(innerErr)
 		}
 
-		result = filepath.ToSlash(strings.TrimSpace(repoRootPathAbs))
+		result = strings.TrimSpace(repoRootPathAbs)
 
 		return nil
 	})
@@ -315,21 +349,14 @@ func getPathToRepoRoot(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 // GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terragrunt_dir", attrs, func(childCtx context.Context) error {
-		path := pctx.TerragruntOptions.TerragruntConfigPath
-
-		terragruntConfigFileAbsPath, innerErr := filepath.Abs(path)
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
-
-		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+		result = filepath.Dir(pctx.TerragruntConfigPath)
 
 		return nil
 	})
@@ -343,19 +370,14 @@ func GetTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (
 // get back /terraform-code.
 func getOriginalTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_original_terragrunt_dir", attrs, func(childCtx context.Context) error {
-		terragruntConfigFileAbsPath, innerErr := filepath.Abs(pctx.TerragruntOptions.OriginalTerragruntConfigPath)
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
-
-		result = filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath))
+		result = filepath.Dir(pctx.OriginalTerragruntConfigPath)
 
 		return nil
 	})
@@ -366,8 +388,8 @@ func getOriginalTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.L
 // GetParentTerragruntDir returns the parent directory where the Terragrunt configuration file lives.
 func GetParentTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(params) > 0 {
 		attrs["include_label"] = params[0]
@@ -381,14 +403,11 @@ func GetParentTerragruntDir(ctx context.Context, pctx *ParsingContext, l log.Log
 			return errors.New(innerErr)
 		}
 
-		currentPath := filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath)
+		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
-		parentPath, innerErr = filepath.Abs(filepath.Join(currentPath, parentPath))
-		if innerErr != nil {
-			return errors.New(innerErr)
-		}
+		parentPath = filepath.Clean(filepath.Join(currentPath, parentPath))
 
-		result = filepath.ToSlash(parentPath)
+		result = parentPath
 
 		return nil
 	})
@@ -454,8 +473,8 @@ func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_run_cmd", map[string]any{
-		"config_path":     pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir":     pctx.TerragruntOptions.WorkingDir,
+		"config_path":     pctx.TerragruntConfigPath,
+		"working_dir":     pctx.WorkingDir,
 		"command":         command,
 		"args":            fmt.Sprintf("%v", originalArgs),
 		"suppress_output": suppressOutput,
@@ -476,7 +495,7 @@ func RunCommand(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	runCommandCache := cache.ContextCache[*RunCmdCacheEntry](ctx, RunCmdCacheContextKey)
 
 	if len(args) == 0 {
 		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
@@ -485,7 +504,7 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	suppressOutput := false
 	disableCache := false
 	useGlobalCache := false
-	currentPath := filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath)
+	currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 	cachePath := currentPath
 
 	checkOptions := true
@@ -523,19 +542,44 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 
 	// Skip cache lookup if --terragrunt-no-cache is set
 	if !disableCache {
-		cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
+		cachedEntry, foundInCache := runCommandCache.Get(ctx, cacheKey)
 		if foundInCache {
+			// Replay stdout/stderr to current writers once when we have a real (non-Discard) writer.
+			// This is needed because the command may have first run during discovery phase
+			// with io.Discard writers, so we need to replay the output during execution phase.
+			// We only call Do() when we have a real writer, so it won't fire during discovery.
+			if pctx.Writers.Writer != io.Discard {
+				cachedEntry.replayOnce.Do(func() {
+					if !suppressOutput && cachedEntry.Stdout != "" {
+						_, _ = pctx.Writers.Writer.Write([]byte(cachedEntry.Stdout))
+					}
+
+					if cachedEntry.Stderr != "" {
+						_, _ = pctx.Writers.ErrWriter.Write([]byte(cachedEntry.Stderr))
+					}
+				})
+			}
+
 			if suppressOutput {
 				l.Debugf("run_cmd, cached output: [REDACTED]")
 			} else {
-				l.Debugf("run_cmd, cached output: [%s]", cachedValue)
+				l.Debugf("run_cmd, cached output: [%s]", cachedEntry.Value())
 			}
 
-			return cachedValue, nil
+			return cachedEntry.Value(), nil
 		}
 	}
 
-	cmdOutput, err := shell.RunCommandWithOutput(ctx, l, pctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(
+		ctx,
+		l,
+		shellRunOptsFromPctx(pctx),
+		currentPath,
+		true,
+		false,
+		args[0],
+		args[1:]...,
+	)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -548,10 +592,25 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 		l.Debugf("run_cmd output: [%s]", value)
 	}
 
-	// Persisting result in cache to avoid future re-evaluation, unless --terragrunt-no-cache is set
-	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	entry := &RunCmdCacheEntry{
+		Stdout: cmdOutput.Stdout.String(),
+		Stderr: cmdOutput.Stderr.String(),
+	}
+
+	if pctx.Writers.Writer != io.Discard {
+		entry.replayOnce.Do(func() {
+			if !suppressOutput && entry.Stdout != "" {
+				_, _ = pctx.Writers.Writer.Write([]byte(entry.Stdout))
+			}
+
+			if entry.Stderr != "" {
+				_, _ = pctx.Writers.ErrWriter.Write([]byte(entry.Stderr))
+			}
+		})
+	}
+
 	if !disableCache {
-		runCommandCache.Put(ctx, cacheKey, value)
+		runCommandCache.Put(ctx, cacheKey, entry)
 	}
 
 	return value, nil
@@ -559,8 +618,8 @@ func runCommandImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 
 func getEnvironmentVariable(ctx context.Context, pctx *ParsingContext, l log.Logger, parameters []string) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	if len(parameters) > 0 {
@@ -579,7 +638,7 @@ func getEnvironmentVariable(ctx context.Context, pctx *ParsingContext, l log.Log
 			return errors.New(innerErr)
 		}
 
-		envValue, exists := pctx.TerragruntOptions.Env[parameterMap.Name]
+		envValue, exists := pctx.Env[parameterMap.Name]
 
 		if !exists {
 			if parameterMap.IsRequired {
@@ -606,8 +665,8 @@ func FindInParentFolders(
 	params []string,
 ) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(params) > 0 {
 		attrs["file_to_find"] = params[0]
@@ -651,15 +710,10 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 		return "", errors.New(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
-	previousDir, err := filepath.Abs(filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath))
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	previousDir = filepath.ToSlash(previousDir)
+	previousDir := filepath.Dir(pctx.TerragruntConfigPath)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		allControls := pctx.TerragruntOptions.StrictControls
+		allControls := pctx.StrictControls
 		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
 		logger := log.ContextWithLogger(ctx, l)
 
@@ -679,15 +733,15 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	// To avoid getting into an accidental infinite loop (e.g. do to cyclical symlinks), set a max on the number of
 	// parent folders we'll check
-	for range pctx.TerragruntOptions.MaxFoldersToCheck {
-		currentDir := filepath.ToSlash(filepath.Dir(previousDir))
+	for range pctx.MaxFoldersToCheck {
+		currentDir := filepath.Dir(previousDir)
 		if currentDir == previousDir {
 			if numParams == matchedPats {
 				return fallbackParam, nil
 			}
 
 			return "", errors.New(ParentFileNotFoundError{
-				Path:  pctx.TerragruntOptions.TerragruntConfigPath,
+				Path:  pctx.TerragruntConfigPath,
 				File:  fileToFindStr,
 				Cause: "Traversed all the way to the root",
 			})
@@ -706,9 +760,9 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 	}
 
 	return "", errors.New(ParentFileNotFoundError{
-		Path:  pctx.TerragruntOptions.TerragruntConfigPath,
+		Path:  pctx.TerragruntConfigPath,
 		File:  fileToFindStr,
-		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.TerragruntOptions.MaxFoldersToCheck),
+		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", pctx.MaxFoldersToCheck),
 	})
 }
 
@@ -717,8 +771,8 @@ func findInParentFoldersImpl(ctx context.Context, pctx *ParsingContext, l log.Lo
 // relevant import block when called in a child config with multiple import blocks.
 func PathRelativeToInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(params) > 0 {
 		attrs["include_label"] = params[0]
@@ -750,7 +804,7 @@ func PathRelativeToInclude(ctx context.Context, pctx *ParsingContext, l log.Logg
 			return nil
 		}
 
-		currentPath := filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath)
+		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 		includePath := filepath.Dir(included.Path)
 
 		if !filepath.IsAbs(includePath) {
@@ -770,8 +824,8 @@ func PathRelativeToInclude(ctx context.Context, pctx *ParsingContext, l log.Logg
 // PathRelativeFromInclude returns the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
 func PathRelativeFromInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(params) > 0 {
 		attrs["include_label"] = params[0]
@@ -794,7 +848,7 @@ func PathRelativeFromInclude(ctx context.Context, pctx *ParsingContext, l log.Lo
 		}
 
 		includePath := filepath.Dir(included.Path)
-		currentPath := filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath)
+		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
 		if !filepath.IsAbs(includePath) {
 			includePath = filepath.Join(currentPath, includePath)
@@ -810,14 +864,14 @@ func PathRelativeFromInclude(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 // getTerraformCommand returns the current terraform command in execution
 func getTerraformCommand(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	return pctx.TerragruntOptions.TerraformCommand, nil
+	return pctx.TerraformCommand, nil
 }
 
 // getWorkingDir returns the current working dir
 func getWorkingDir(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
@@ -843,20 +897,20 @@ func getWorkingDirImpl(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := ParseConfigFile(ctx, pctx, l, pctx.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
 
-	sourceURL, err := GetTerraformSourceURL(pctx.TerragruntOptions, terragruntConfig)
+	sourceURL, err := GetTerraformSourceURL(pctx.Source, pctx.SourceMap, pctx.OriginalTerragruntConfigPath, terragruntConfig)
 	if err != nil {
 		return "", err
 	}
 
 	// sourceURL will always be at least "." (current directory) to ensure cache is always used
-	walkWithSymlinks := pctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
+	walkWithSymlinks := pctx.Experiments.Evaluate(experiment.Symlinks)
 
-	source, err := tf.NewSource(l, sourceURL, pctx.TerragruntOptions.DownloadDir, pctx.TerragruntOptions.WorkingDir, walkWithSymlinks)
+	source, err := tf.NewSource(l, sourceURL, pctx.DownloadDir, pctx.WorkingDir, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}
@@ -867,14 +921,17 @@ func getWorkingDirImpl(ctx context.Context, pctx *ParsingContext, l log.Logger) 
 // getTerraformCliArgs returns cli args for terraform
 func getTerraformCliArgs(ctx context.Context, pctx *ParsingContext, l log.Logger) ([]string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terraform_cli_args", attrs, func(childCtx context.Context) error {
-		result = pctx.TerragruntOptions.TerraformCliArgs.Slice()
+		if pctx.TerraformCliArgs != nil {
+			result = pctx.TerraformCliArgs.Slice()
+		}
+
 		return nil
 	})
 
@@ -884,130 +941,66 @@ func getTerraformCliArgs(ctx context.Context, pctx *ParsingContext, l log.Logger
 // getDefaultRetryableErrors returns default retryable errors for use in errors.retry blocks
 func getDefaultRetryableErrors(ctx context.Context, pctx *ParsingContext, l log.Logger) ([]string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result []string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_default_retryable_errors", attrs, func(childCtx context.Context) error {
-		result = options.DefaultRetryableErrors
+		result = retry.DefaultRetryableErrors
 		return nil
 	})
 
 	return result, err
 }
 
-// Return the AWS account alias
+// getAWSField is a common helper for fetching a single AWS field with telemetry.
+// It builds an AWS config from the parsing context, then calls fetchFn to get the value.
+func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, telemetryName string, fetchFn func(context.Context, *aws.Config) (string, error)) (string, error) {
+	attrs := map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
+	}
+
+	var result string
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, telemetryName, attrs, func(childCtx context.Context) error {
+		awsConfig, err := awshelper.NewAWSConfigBuilder().
+			WithEnv(pctx.Env).
+			WithIAMRoleOptions(pctx.IAMRoleOptions).
+			Build(childCtx, l)
+		if err != nil {
+			return err
+		}
+
+		val, err := fetchFn(childCtx, &awsConfig)
+		if err != nil {
+			return err
+		}
+
+		result = val
+
+		return nil
+	})
+
+	return result, err
+}
+
 func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_alias", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		accountAlias, err := awshelper.GetAWSAccountAlias(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = accountAlias
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_account_alias", awshelper.GetAWSAccountAlias)
 }
 
-// Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_account_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		accountID, err := awshelper.GetAWSAccountID(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = accountID
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_account_id", awshelper.GetAWSAccountID)
 }
 
-// Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_arn", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		identityARN, err := awshelper.GetAWSIdentityArn(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = identityARN
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_caller_identity_arn", awshelper.GetAWSIdentityArn)
 }
 
-// Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
-	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
-	}
-
-	var result string
-
-	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_aws_caller_identity_user_id", attrs, func(childCtx context.Context) error {
-		awsConfig, err := awshelper.CreateAwsConfig(childCtx, l, nil, pctx.TerragruntOptions)
-		if err != nil {
-			return err
-		}
-
-		userID, err := awshelper.GetAWSUserID(childCtx, &awsConfig)
-		if err != nil {
-			return err
-		}
-
-		result = userID
-
-		return nil
-	})
-
-	return result, err
+	return getAWSField(ctx, pctx, l, "hcl_fn_get_aws_caller_identity_user_id", awshelper.GetAWSUserID)
 }
 
 // ParseTerragruntConfig parses the terragrunt config and return a
@@ -1017,7 +1010,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
-	targetConfig := getCleanedTargetConfigPath(configPath, pctx.TerragruntOptions.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(configPath, pctx.TerragruntConfigPath)
 
 	targetConfigFileExists := util.FileExists(targetConfig)
 
@@ -1032,7 +1025,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	path := targetConfig
 
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
+		path = filepath.Join(pctx.WorkingDir, path)
 		path = filepath.Clean(path)
 	}
 
@@ -1040,23 +1033,30 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	trackFileRead(pctx.FilesRead, path)
 
 	// We update the ctx of terragruntOptions to the config being read in.
-	l, opts, err := pctx.TerragruntOptions.CloneWithConfigPath(l, targetConfig)
+	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
-	pctx = pctx.WithTerragruntOptions(opts).WithDiagnosticsSuppressed(l)
+	pctx = pctx.WithDiagnosticsSuppressed(l)
+
+	// The parent's decoded dependencies are not the target config's. Reset so the
+	// target config decodes its own dependency blocks. Also reset SkipOutputsResolution
+	// so that dependency tracing accurately reflects that resolution is happening.
+	// See: https://github.com/gruntwork-io/terragrunt/issues/5624
+	pctx.DecodedDependencies = nil
+	pctx.SkipOutputsResolution = false
 
 	// check if file is stack file, decode as stack file
 	if filepath.Base(targetConfig) == DefaultStackFile {
 		stackSourceDir := filepath.Dir(targetConfig)
 
-		values, readErr := ReadValues(ctx, l, opts, stackSourceDir)
+		values, readErr := ReadValues(ctx, pctx, l, stackSourceDir)
 		if readErr != nil {
 			return cty.NilVal, errors.Errorf("failed to read values from directory %s: %v", stackSourceDir, readErr)
 		}
 
-		stackFile, readErr := ReadStackConfigFile(ctx, l, opts, targetConfig, values)
+		stackFile, readErr := ReadStackConfigFile(ctx, l, pctx, targetConfig, values)
 		if readErr != nil {
 			return cty.NilVal, errors.New(readErr)
 		}
@@ -1066,7 +1066,7 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 
 	// check if file is a values file, decode as values file
 	if strings.HasSuffix(targetConfig, valuesFile) {
-		unitValues, readErr := ReadValues(ctx, l, pctx.TerragruntOptions, filepath.Dir(targetConfig))
+		unitValues, readErr := ReadValues(ctx, pctx, l, filepath.Dir(targetConfig))
 		if readErr != nil {
 			return cty.NilVal, errors.New(readErr)
 		}
@@ -1123,8 +1123,8 @@ func readTerragruntConfigAsFuncImpl(ctx context.Context, pctx *ParsingContext, l
 			targetConfigPath := strArgs[0]
 
 			attrs := map[string]any{
-				"config_path":        pctx.TerragruntOptions.TerragruntConfigPath,
-				"working_dir":        pctx.TerragruntOptions.WorkingDir,
+				"config_path":        pctx.TerragruntConfigPath,
+				"working_dir":        pctx.WorkingDir,
 				"target_config_path": targetConfigPath,
 				"has_default":        defaultVal != nil,
 			}
@@ -1159,7 +1159,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
 
-	return util.CleanPath(targetConfig)
+	return filepath.Clean(targetConfig)
 }
 
 // GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the
@@ -1231,14 +1231,6 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	return matches[1], nil
 }
 
-// A cache of the results of a decrypt operation via sops. Each decryption
-// operation can take several seconds, so this cache speeds up terragrunt executions
-// where the same sops files are referenced multiple times.
-//
-// The cache keys are the canonical paths to the encrypted files, and the values are the
-// plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string](sopsCacheName)
-
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) (string, error) {
 	var sourceFile string
@@ -1247,17 +1239,35 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 	}
 
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 		"file_path":   sourceFile,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_sops_decrypt_file", attrs, func(childCtx context.Context) error {
+		if len(params) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: len(params)})
+		}
+
+		format, err := getSopsFileFormat(sourceFile)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		path := sourceFile
+
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(pctx.WorkingDir, path)
+			path = filepath.Clean(path)
+		}
+
+		trackFileRead(pctx.FilesRead, path)
+
 		var innerErr error
 
-		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, params)
+		result, innerErr = sopsDecryptFileImpl(childCtx, pctx, l, path, format, decrypt.File)
 
 		return innerErr
 	})
@@ -1266,60 +1276,61 @@ func sopsDecryptFile(ctx context.Context, pctx *ParsingContext, l log.Logger, pa
 }
 
 // sopsDecryptFileImpl contains the actual implementation of sopsDecryptFile
-func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger, params []string) (string, error) {
-	numParams := len(params)
+func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger, path string, format string, decryptFn func(string, string) ([]byte, error)) (string, error) {
+	sopsCache := cache.ContextCache[string](ctx, SopsCacheContextKey)
 
-	var sourceFile string
-
-	if numParams > 0 {
-		sourceFile = params[0]
-	}
-
-	if numParams != 1 {
-		return "", errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
-	}
-
-	format, err := getSopsFileFormat(sourceFile)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	path := sourceFile
-
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
-		path = filepath.Clean(path)
-	}
-
-	// Track that this file was read during parsing
-	trackFileRead(pctx.FilesRead, path)
-
-	// Set environment variables from the TerragruntOptions.Env map.
-	// This is especially useful for integrations with things like the `auth-provider` flag,
-	// which can set environment variables that are used for decryption.
-	//
-	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
-	// for decryption, we have to rely on environment variables to pass these configurations.
-	// This can cause a race condition, so we have to be careful to avoid having anything else
-	// running concurrently that might interfere with the environment variables.
-	env := pctx.TerragruntOptions.Env
-	if len(env) > 0 {
-		locks.EnvLock.Lock()
-		defer locks.EnvLock.Unlock()
-
-		for k, v := range env {
-			if os.Getenv(k) == "" {
-				os.Setenv(k, v)      //nolint:errcheck
-				defer os.Unsetenv(k) //nolint:errcheck
-			}
-		}
-	}
-
+	// Fast path: check cache before acquiring lock.
+	// Cache has its own sync.RWMutex, safe for concurrent reads.
 	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit for %s (len=%d)", path, len(val))
+
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(path, format)
+	// Cache miss: acquire lock for env mutation + decrypt.
+	// The lock serializes os.Setenv/os.Unsetenv to prevent race conditions
+	// when multiple units decrypt concurrently with different auth credentials.
+	// See https://github.com/gruntwork-io/terragrunt/issues/5515
+	l.Debugf("sops decrypt: cache miss, acquiring lock for %s (format=%s)", path, format)
+
+	locks.EnvLock.Lock()
+	defer locks.EnvLock.Unlock()
+
+	// Double-check: another goroutine may have populated cache while we waited for the lock.
+	if val, ok := sopsCache.Get(ctx, path); ok {
+		l.Debugf("sops decrypt: cache hit after lock for %s (len=%d)", path, len(val))
+
+		return val, nil
+	}
+
+	// Set env vars from opts.Env that are missing from process env.
+	// Auth-provider credentials (e.g., AWS_SESSION_TOKEN) may not exist
+	// in process env yet — SOPS needs them for KMS auth.
+	// Existing process env vars are preserved to avoid overriding real
+	// credentials with empty auth-provider values.
+	env := pctx.Env
+
+	setKeys := make([]string, 0, len(env))
+
+	for k, v := range env {
+		if _, exists := os.LookupEnv(k); exists {
+			continue
+		}
+
+		os.Setenv(k, v) //nolint:errcheck
+
+		setKeys = append(setKeys, k)
+	}
+
+	defer func() {
+		for _, k := range setKeys {
+			os.Unsetenv(k) //nolint:errcheck
+		}
+	}()
+
+	l.Debugf("sops decrypt: decrypting %s", path)
+
+	rawData, err := decryptFn(path, format)
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
@@ -1331,7 +1342,7 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, _ log.Logger
 		return value, nil
 	}
 
-	return "", errors.New(InvalidSopsFormatError{SourceFilePath: sourceFile})
+	return "", errors.New(InvalidSopsFormatError{SourceFilePath: path})
 }
 
 // Mapping of SOPS format to string
@@ -1358,14 +1369,14 @@ func getSopsFileFormat(sourceFile string) (string, error) {
 // Return the location of the Terraform files provided via --source
 func getTerragruntSourceCliFlag(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 
 	var result string
 
 	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_get_terragrunt_source_cli_flag", attrs, func(childCtx context.Context) error {
-		result = pctx.TerragruntOptions.Source
+		result = pctx.Source
 		return nil
 	})
 
@@ -1415,8 +1426,8 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 //nolint:dupl
 func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["str"] = args[0]
@@ -1449,8 +1460,8 @@ func StartsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool,
 //nolint:dupl
 func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["str"] = args[0]
@@ -1481,8 +1492,8 @@ func EndsWith(ctx context.Context, pctx *ParsingContext, args []string) (bool, e
 // TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func TimeCmp(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (int64, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["timestamp_a"] = args[0]
@@ -1530,8 +1541,8 @@ func TimeCmp(ctx context.Context, pctx *ParsingContext, l log.Logger, args []str
 //nolint:dupl
 func StrContains(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["str"] = args[0]
@@ -1567,8 +1578,8 @@ func readTFVarsFile(ctx context.Context, pctx *ParsingContext, l log.Logger, arg
 	}
 
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 		"file_path":   filePath,
 	}
 
@@ -1594,7 +1605,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	varFile := args[0]
 
 	if !filepath.IsAbs(varFile) {
-		varFile = filepath.Join(pctx.TerragruntOptions.WorkingDir, varFile)
+		varFile = filepath.Join(pctx.WorkingDir, varFile)
 		varFile = filepath.Clean(varFile)
 	}
 
@@ -1621,7 +1632,7 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 	}
 
 	var variables map[string]any
-	if err := ParseAndDecodeVarFile(l, pctx.TerragruntOptions, varFile, fileContents, &variables); err != nil {
+	if err := ParseAndDecodeVarFile(l, varFile, fileContents, &variables); err != nil {
 		return "", err
 	}
 
@@ -1636,8 +1647,8 @@ func readTFVarsFileImpl(pctx *ParsingContext, l log.Logger, args []string) (stri
 // markAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
 func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) (string, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["file_path"] = args[0]
@@ -1658,7 +1669,7 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 		path := file
 
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(pctx.TerragruntOptions.WorkingDir, path)
+			path = filepath.Join(pctx.WorkingDir, path)
 			path = filepath.Clean(path)
 		}
 
@@ -1666,6 +1677,70 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 		trackFileRead(pctx.FilesRead, path)
 
 		result = file
+
+		return nil
+	})
+
+	return result, err
+}
+
+// markGlobAsRead expands the given glob pattern and marks each matched file as
+// read. Pattern syntax follows the internal/glob package: '/' is the
+// separator, `**` matches any sequence of characters, `*` matches within a
+// single segment, and '\' escapes the next metacharacter. `**` only
+// collapses the flanking separators when the adjacent segments are literals,
+// so "a/**/*.tf" will not match "a/b.tf"; use "a/{*.tf,**/*.tf}" to cover
+// both depths. Returns the list of absolute file paths that were marked.
+func markGlobAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []string) ([]string, error) {
+	attrs := map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
+	}
+	if len(args) > 0 {
+		attrs["glob"] = args[0]
+	}
+
+	var result []string
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "hcl_fn_mark_glob_as_read", attrs, func(childCtx context.Context) error {
+		if !pctx.Experiments.Evaluate(experiment.MarkManyAsRead) {
+			pattern := ""
+			if len(args) > 0 {
+				pattern = args[0]
+			}
+
+			return errors.New(MarkGlobAsReadRequiresExperimentError{
+				ConfigPath: pctx.TerragruntConfigPath,
+				Pattern:    pattern,
+			})
+		}
+
+		if len(args) != 1 {
+			return errors.New(WrongNumberOfParamsError{Func: FuncNameMarkGlobAsRead, Expected: "1", Actual: len(args)})
+		}
+
+		raw := args[0]
+
+		// Keep the pattern in forward-slash space end-to-end. filepath.Join and
+		// filepath.Clean would rewrite '/' to '\' on Windows, and a subsequent
+		// filepath.ToSlash would then clobber any user-supplied '\' escapes that
+		// gobwas relies on to match literal metacharacters.
+		var pattern string
+		if filepath.IsAbs(raw) {
+			pattern = path.Clean(raw)
+		} else {
+			pattern = path.Clean(filepath.ToSlash(pctx.WorkingDir) + "/" + raw)
+		}
+
+		matches, err := glob.Expand(vfs.NewOSFS(), pattern, glob.WithFilesOnly())
+		if err != nil {
+			return errors.New(fmt.Errorf("could not expand glob %q: %w", raw, err))
+		}
+
+		for _, match := range matches {
+			trackFileRead(pctx.FilesRead, match)
+			result = append(result, match)
+		}
 
 		return nil
 	})
@@ -1681,7 +1756,7 @@ func markAsRead(ctx context.Context, pctx *ParsingContext, l log.Logger, args []
 
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
-func ParseAndDecodeVarFile(l log.Logger, opts *options.TerragruntOptions, varFile string, fileContents []byte, out any) error {
+func ParseAndDecodeVarFile(l log.Logger, varFile string, fileContents []byte, out any) error {
 	parser := hclparse.NewParser(hclparse.WithLogger(l))
 
 	file, err := parser.ParseFromBytes(fileContents, varFile)
@@ -1767,8 +1842,8 @@ func extractSopsErrors(err error) *errors.MultiError {
 // ConstraintCheck Implementation of Terraform's StartsWith function
 func ConstraintCheck(ctx context.Context, pctx *ParsingContext, args []string) (bool, error) {
 	attrs := map[string]any{
-		"config_path": pctx.TerragruntOptions.TerragruntConfigPath,
-		"working_dir": pctx.TerragruntOptions.WorkingDir,
+		"config_path": pctx.TerragruntConfigPath,
+		"working_dir": pctx.WorkingDir,
 	}
 	if len(args) > 0 {
 		attrs["version"] = args[0]

@@ -62,72 +62,38 @@ func (src Source) EncodeSourceVersion(l log.Logger) (string, error) {
 
 		var err error
 
+		walkDir := filepath.WalkDir
 		if src.WalkDirWithSymlinks {
-			err = util.WalkDirWithSymlinks(sourceDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					// If we've encountered an error while walking the tree, give up
-					return err
-				}
-
-				if d.IsDir() {
-					// We don't use any info from directories to calculate our hash
-					return nil
-				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
-				if d.Name() == util.TerraformLockFile {
-					return nil
-				}
-
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-
-				fileModified := info.ModTime().UnixMicro()
-
-				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-				sourceHash.Write([]byte(hashContents))
-
-				return nil
-			})
-		} else {
-			err = filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					// If we've encountered an error while walking the tree, give up
-					return err
-				}
-
-				if d.IsDir() {
-					// We don't use any info from directories to calculate our hash
-					return nil
-				}
-				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-				if strings.Contains(path, util.TerragruntCacheDir) {
-					return nil
-				}
-				// avoid checking files in .terraform directory since contents is auto-generated
-				if d.Name() == util.TerraformLockFile {
-					return nil
-				}
-
-				info, err := d.Info()
-				if err != nil {
-					return err
-				}
-
-				fileModified := info.ModTime().UnixMicro()
-
-				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-				sourceHash.Write([]byte(hashContents))
-
-				return nil
-			})
+			walkDir = util.WalkDirWithSymlinks
 		}
 
+		err = walkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				// If we've encountered an error while walking the tree, give up
+				return err
+			}
+
+			if d.IsDir() {
+				// We don't use any info from directories to calculate our hash
+				return util.SkipDirIfIgnorable(d.Name())
+			}
+			// avoid checking .terraform.lock.hcl file since contents is auto-generated
+			if d.Name() == util.TerraformLockFile {
+				return nil
+			}
+
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+
+			fileModified := info.ModTime().UnixMicro()
+
+			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+			sourceHash.Write([]byte(hashContents))
+
+			return nil
+		})
 		if err == nil {
 			hash := hex.EncodeToString(sourceHash.Sum(nil))
 
@@ -191,10 +157,7 @@ func (src Source) WriteVersionFile(l log.Logger) error {
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(l log.Logger, source string, downloadDir string, workingDir string, walkDirWithSymlinks bool) (*Source, error) {
-	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
-	if err != nil {
-		return nil, err
-	}
+	canonicalWorkingDir := filepath.Clean(workingDir)
 
 	canonicalSourceURL, err := ToSourceURL(source, canonicalWorkingDir)
 	if err != nil {
@@ -210,12 +173,7 @@ func NewSource(l log.Logger, source string, downloadDir string, workingDir strin
 		// Always use canonical file paths for local source folders, rather than relative paths, to ensure
 		// that the same local folder always maps to the same download folder, no matter how the local folder
 		// path is specified
-		canonicalFilePath, canonicalPathErr := util.CanonicalPath(rootSourceURL.Path, "")
-		if canonicalPathErr != nil {
-			return nil, canonicalPathErr
-		}
-
-		rootSourceURL.Path = canonicalFilePath
+		rootSourceURL.Path = filepath.ToSlash(filepath.Clean(rootSourceURL.Path))
 	}
 
 	rootPath, err := encodeSourceName(rootSourceURL)

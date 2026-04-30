@@ -1,0 +1,8 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### `read_terragrunt_config()` behavior in implicit stacks fixed
+
+A regression introduced in v0.99.4 caused `read_terragrunt_config()` to fail to parse `dependency` blocks in external configurations during stack execution. This is fixed by resetting parsing context fields that prevented proper evaluation of dependencies in configurations read by `read_terragrunt_config()`.

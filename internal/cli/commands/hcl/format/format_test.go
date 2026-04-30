@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/hcl/format"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -19,7 +19,7 @@ import (
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -96,7 +96,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-errors", t.Name(), func(path string) bool { return true })
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
 	})
@@ -130,7 +130,7 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -174,7 +174,7 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-check-errors", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -217,7 +217,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -314,7 +314,7 @@ func TestHCLFmtStdin(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("../../../../../test/fixtures/hclfmt-heredoc", t.Name(), func(path string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 
 	require.NoError(t, err)
@@ -336,10 +336,67 @@ func TestHCLFmtHeredoc(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestRunForFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpPath := t.TempDir()
+	err := util.CopyFolderContentsWithFilter(logger.CreateLogger(), filepath.Join(".", "testdata", "fixtures"), tmpPath, ".copymanifest", func(path string) bool { return true })
+	require.NoError(t, err)
+
+	expected, err := util.ReadFileAsString(filepath.Join(".", "testdata", "fixtures", "expected.hcl"))
+	require.NoError(t, err)
+
+	original, err := util.ReadFileAsString(filepath.Join(".", "testdata", "fixtures", "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// Format only specific files, mixing relative and absolute paths, including a non-hcl file
+	absPath := filepath.Join(tmpPath, "a", "b", "c", "terragrunt.hcl")
+	files := []string{
+		"terragrunt.hcl", // relative, should be formatted
+		absPath,          // absolute, should be formatted
+		filepath.Join("a", "b", "c", "d", "services.hcl"), // relative, should be formatted
+		filepath.Join("a", "terragrunt.hcl"),              // relative, should be formatted
+		"README.md",                                       // non-hcl, should be skipped
+	}
+
+	err = format.RunForFiles(t.Context(), logger.CreateLogger(), tgOptions, tmpPath, files)
+	require.NoError(t, err)
+
+	// Verify formatted files
+	for _, rel := range []string{
+		"terragrunt.hcl",
+		filepath.Join("a", "b", "c", "terragrunt.hcl"),
+		filepath.Join("a", "b", "c", "d", "services.hcl"),
+		filepath.Join("a", "terragrunt.hcl"),
+	} {
+		actual, err := util.ReadFileAsString(filepath.Join(tmpPath, rel))
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual, "File %s should be formatted", rel)
+	}
+
+	// Verify file NOT in the list was left untouched
+	actual, err := util.ReadFileAsString(filepath.Join(tmpPath, "a", "b", "c", "d", "e", "terragrunt.hcl"))
+	require.NoError(t, err)
+	assert.Equal(t, original, actual, "File a/b/c/d/e/terragrunt.hcl should NOT be formatted")
+}
+
+func TestRunForFilesEmptyList(t *testing.T) {
+	t.Parallel()
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	err = format.RunForFiles(t.Context(), logger.CreateLogger(), tgOptions, t.TempDir(), nil)
+	require.NoError(t, err)
+}
+
 func TestHCLFmtFilter(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -360,7 +417,11 @@ func TestHCLFmtFilter(t *testing.T) {
 	require.NoError(t, err)
 
 	tgOptions.WorkingDir = tmpPath
-	tgOptions.FilterQueries = []string{"./a/b/**"}
+
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{"./a/b/**"})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
@@ -404,7 +465,7 @@ func TestHCLFmtFilter(t *testing.T) {
 func TestHCLFmtFilterMultiple(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -426,10 +487,13 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	tgOptions.FilterQueries = []string{
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
 		filepath.Join(tmpPath, "terragrunt.hcl"),
 		"./a/b/c/d/e/**",
-	}
+	})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)
@@ -473,7 +537,7 @@ func TestHCLFmtFilterMultiple(t *testing.T) {
 func TestHCLFmtFilterNegation(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
+	tmpPath, err := util.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -495,10 +559,13 @@ func TestHCLFmtFilterNegation(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	tgOptions.FilterQueries = []string{
+	filters, parseErr := filter.ParseFilterQueries(logger.CreateLogger(), []string{
 		"./a/**",
 		"!./a/b/c/d/**",
-	}
+	})
+	require.NoError(t, parseErr)
+
+	tgOptions.Filters = filters
 
 	err = format.Run(t.Context(), logger.CreateLogger(), tgOptions)
 	require.NoError(t, err)

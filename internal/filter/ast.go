@@ -3,9 +3,9 @@ package filter
 import (
 	"path/filepath"
 	"strconv"
-	"sync"
 
-	"github.com/gobwas/glob"
+	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -31,28 +31,25 @@ type Expressions []Expression
 
 // PathExpression represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
 type PathExpression struct {
-	compiledGlob glob.Glob
-	compileErr   error
+	compiledGlob glob.Matcher
 	Value        string
-	compileOnce  sync.Once
 }
 
-// NewPathFilter creates a new PathFilter with lazy glob compilation.
-func NewPathFilter(value string) *PathExpression {
-	return &PathExpression{Value: value}
+// NewPathFilter creates a new PathFilter with eager glob compilation.
+func NewPathFilter(value string) (*PathExpression, error) {
+	pattern := filepath.Clean(filepath.ToSlash(value))
+
+	compiled, err := glob.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PathExpression{Value: value, compiledGlob: compiled}, nil
 }
 
-// CompileGlob returns the compiled glob pattern, compiling it on first call.
-// Subsequent calls return the cached compiled glob and any error.
-// Uses sync.Once for thread-safe lazy initialization.
-func (p *PathExpression) CompileGlob() (glob.Glob, error) {
-	p.compileOnce.Do(func() {
-		pattern := p.Value
-		pattern = filepath.Clean(filepath.ToSlash(pattern))
-		p.compiledGlob, p.compileErr = glob.Compile(pattern, '/')
-	})
-
-	return p.compiledGlob, p.compileErr
+// Glob returns the pre-compiled glob pattern.
+func (p *PathExpression) Glob() glob.Matcher {
+	return p.compiledGlob
 }
 
 func (p *PathExpression) expressionNode()                       {}
@@ -64,38 +61,43 @@ func (p *PathExpression) Negated() Expression                   { return NewPref
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
-	compiledGlob glob.Glob
-	compileErr   error
+	compiledGlob glob.Matcher
 	Key          string
 	Value        string
-	compileOnce  sync.Once
 }
 
-// NewAttributeExpression creates a new AttributeFilter with lazy glob compilation.
-func NewAttributeExpression(key string, value string) *AttributeExpression {
-	return &AttributeExpression{Key: key, Value: value}
-}
+// NewAttributeExpression creates a new AttributeExpression with eager glob compilation
+// for attributes that support glob matching (name, reading, source).
+func NewAttributeExpression(key string, value string) (*AttributeExpression, error) {
+	expr := &AttributeExpression{Key: key, Value: value}
 
-// CompileGlob returns the compiled glob pattern for name and reading filters, compiling it on first call.
-// Returns an error if called on unsupported attributes (e.g. type, external).
-// Uses sync.Once for thread-safe lazy initialization.
-func (a *AttributeExpression) CompileGlob() (glob.Glob, error) {
-	// Only compile for attributes that support glob matching
-	if !a.supportsGlob() {
-		return nil, NewEvaluationError("attribute '" + a.Key + "' does not support glob patterns")
-	}
+	if expr.supportsGlob() {
+		pattern := value
 
-	a.compileOnce.Do(func() {
-		pattern := a.Value
-
-		if a.Key == AttributeReading {
+		if key == AttributeReading {
 			pattern = filepath.Clean(filepath.ToSlash(pattern))
 		}
 
-		a.compiledGlob, a.compileErr = glob.Compile(pattern, '/')
-	})
+		compiled, err := glob.Compile(pattern)
+		if err != nil {
+			return nil, err
+		}
 
-	return a.compiledGlob, a.compileErr
+		expr.compiledGlob = compiled
+	}
+
+	return expr, nil
+}
+
+// NewTypeExpression creates a new AttributeExpression for the "type" attribute.
+// Type filters do not support glob matching, so this constructor cannot fail.
+func NewTypeExpression(kind component.Kind) *AttributeExpression {
+	return &AttributeExpression{Key: AttributeType, Value: string(kind)}
+}
+
+// Glob returns the pre-compiled glob pattern.
+func (a *AttributeExpression) Glob() glob.Matcher {
+	return a.compiledGlob
 }
 
 // supportsGlob returns true if the attribute filter supports glob patterns.
@@ -239,19 +241,31 @@ type GraphExpression struct {
 	DependencyDepth     int
 }
 
-// NewGraphExpression creates a new GraphExpression.
-func NewGraphExpression(
-	target Expression,
-	includeDependents bool,
-	includeDependencies bool,
-	excludeTarget bool,
-) *GraphExpression {
+// NewGraphExpression creates a new GraphExpression for the given target.
+// Use the builder methods WithDependents, WithDependencies, and WithExcludeTarget
+// to configure graph traversal behavior.
+func NewGraphExpression(target Expression) *GraphExpression {
 	return &GraphExpression{
-		Target:              target,
-		IncludeDependents:   includeDependents,
-		IncludeDependencies: includeDependencies,
-		ExcludeTarget:       excludeTarget,
+		Target: target,
 	}
+}
+
+// WithDependents includes dependents (reverse dependencies) in the graph traversal.
+func (g *GraphExpression) WithDependents() *GraphExpression {
+	g.IncludeDependents = true
+	return g
+}
+
+// WithDependencies includes dependencies in the graph traversal.
+func (g *GraphExpression) WithDependencies() *GraphExpression {
+	g.IncludeDependencies = true
+	return g
+}
+
+// WithExcludeTarget excludes the target itself from the graph traversal results.
+func (g *GraphExpression) WithExcludeTarget() *GraphExpression {
+	g.ExcludeTarget = true
+	return g
 }
 
 func (g *GraphExpression) expressionNode() {}

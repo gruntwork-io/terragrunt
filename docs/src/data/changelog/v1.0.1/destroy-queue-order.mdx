@@ -1,0 +1,8 @@
+---
+version: "v1.0.1"
+category: "bug-fixes"
+---
+
+#### Destroy queue now displays units in correct order
+
+Previously, the run queue display showed units in apply order even for destroy commands. The queue now correctly shows dependents before their dependencies when running destroy, matching the actual execution order.

@@ -76,6 +76,13 @@ const (
 
 	// DeprecatedHiddenFlag is the control that prevents the use of the deprecated `--hidden` flag.
 	DeprecatedHiddenFlag = "deprecated-hidden-flag"
+
+	// DisableDependentModules is the control that prevents the use of the deprecated `--disable-dependent-modules` flag.
+	DisableDependentModules = "disable-dependent-modules"
+
+	// FastCopy is the control that switches `include_in_copy` and
+	// `exclude_from_copy` pattern matching from zglob to gobwas.
+	FastCopy = "fast-copy"
 )
 
 //nolint:lll
@@ -210,8 +217,8 @@ func New() strict.Controls {
 		&Control{
 			Name:        RootTerragruntHCL,
 			Description: "Throw an error when users try to reference a root terragrunt.hcl file using find_in_parent_folders.",
-			Error:       errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
-			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
+			Error:       errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl"),
+			Warning:     "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://docs.terragrunt.com/migrate/migrating-from-root-terragrunt-hcl",
 			Category:    stageCategory,
 		},
 
@@ -220,7 +227,7 @@ func New() strict.Controls {
 			Description: "Prevents the use of the `include` block without a label.",
 			Category:    stageCategory,
 			Error:       errors.New("Using an `include` block without a label is deprecated. Please use the `include` block with a label instead."),
-			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/bare-include/",
+			Warning:     "Using an `include` block without a label is deprecated. Please use the `include` block with a label instead. For more information, see https://docs.terragrunt.com/migrate/bare-include/",
 		},
 
 		&Control{
@@ -279,6 +286,18 @@ func New() strict.Controls {
 			Category:    stageCategory,
 			Error:       errors.New("The `--hidden` flag is no longer supported. Hidden directories are now included by default. Use `--no-hidden` to exclude them."),
 			Warning:     "The `--hidden` flag is deprecated and will be removed in a future version of Terragrunt. Hidden directories are now included by default. Use `--no-hidden` to exclude them.",
+		},
+		&Control{
+			Name:        DisableDependentModules,
+			Description: "Prevents the use of the deprecated `--disable-dependent-modules` flag.",
+			Category:    stageCategory,
+			Error:       errors.New("The `--disable-dependent-modules` flag is no longer supported. Dependent modules discovery has been removed from `terragrunt render`."),
+			Warning:     "The `--disable-dependent-modules` flag is deprecated and will be removed in a future version of Terragrunt. Dependent modules discovery has been removed from `terragrunt render`, so this flag has no effect.",
+		},
+		&Control{
+			Name:        FastCopy,
+			Description: "Switches `include_in_copy` and `exclude_from_copy` pattern matching from zglob to gobwas. `**` no longer collapses when adjacent to a wildcard, so `a/**/*.tf` will not match `a/foo.tf`. Use brace alternation like `{*.tf,**/*.tf}` to cover both depths.",
+			Category:    stageCategory,
 		},
 	}
 

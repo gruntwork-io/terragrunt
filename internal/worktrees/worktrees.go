@@ -4,18 +4,24 @@ package worktrees
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"golang.org/x/sync/errgroup"
@@ -24,9 +30,17 @@ import (
 // Worktrees is a map of WorktreePairs, and the Git runner used to create and manage the worktrees.
 // The key is the string representation of the GitExpression that generated the worktree pair.
 type Worktrees struct {
-	WorktreePairs      map[string]WorktreePair
-	gitRunner          *git.GitRunner
+	// WorktreePairs maps Git expression strings to their corresponding worktree pairs.
+	WorktreePairs map[string]WorktreePair
+	// gitRunner is the Git runner used to create and manage the worktrees.
+	gitRunner *git.GitRunner
+	// OriginalWorkingDir is the user's working directory before worktrees were created.
 	OriginalWorkingDir string
+	// ReadingAffectedStacks holds stacks identified during generation as affected by
+	// changes to files they read, even though the stack file itself did not change in
+	// the git diff. These are included in Stacks().ReadingAffected so that the worktree
+	// discovery phase walks them for unit-level changes.
+	ReadingAffectedStacks []StackDiffChangedPair
 }
 
 // WorktreePair is a pair of worktrees, one for the from and one for the to reference, along with
@@ -42,6 +56,13 @@ type WorktreePair struct {
 type Worktree struct {
 	Ref  string
 	Path string
+}
+
+// WorktreeOpts contains parameters for NewWorktrees.
+type WorktreeOpts struct {
+	WorkingDir     string
+	GitExpressions filter.GitExpressions
+	Experiments    experiment.Experiments
 }
 
 // WorkingDir returns the path within a worktree that corresponds to the user's
@@ -108,7 +129,7 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 				seen[worktree.Path] = struct{}{}
 
 				// Skip removal if the worktree path doesn't exist (may have been cleaned up already)
-				if _, err := os.Stat(worktree.Path); os.IsNotExist(err) {
+				if _, err := os.Stat(worktree.Path); errors.Is(err, fs.ErrNotExist) {
 					l.Debugf("Worktree path %s already removed, skipping cleanup", worktree.Path)
 
 					continue
@@ -144,9 +165,16 @@ func (w *Worktrees) Cleanup(ctx context.Context, l log.Logger) error {
 }
 
 type StackDiff struct {
-	Added   []*component.Stack
+	// Added contains stacks whose terragrunt.stack.hcl was added in the git diff.
+	Added []*component.Stack
+	// Removed contains stacks whose terragrunt.stack.hcl was removed in the git diff.
 	Removed []*component.Stack
+	// Changed contains stacks whose terragrunt.stack.hcl was modified in the git diff.
 	Changed []StackDiffChangedPair
+	// ReadingAffected contains stacks whose terragrunt.stack.hcl did not change directly,
+	// but that read files which did. These are identified during stack generation and need
+	// to be walked for unit-level changes.
+	ReadingAffected []StackDiffChangedPair
 }
 
 type StackDiffChangedPair struct {
@@ -176,9 +204,11 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(added)
+
 			stackDiff.Added = append(
 				stackDiff.Added,
-				component.NewStack(filepath.Join(toWorktree, filepath.Dir(added))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: toWorktree,
 						Ref:        pair.ToWorktree.Ref,
@@ -192,9 +222,11 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(removed)
+
 			stackDiff.Removed = append(
 				stackDiff.Removed,
-				component.NewStack(filepath.Join(fromWorktree, filepath.Dir(removed))).WithDiscoveryContext(
+				component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 					&component.DiscoveryContext{
 						WorkingDir: fromWorktree,
 						Ref:        pair.FromWorktree.Ref,
@@ -208,16 +240,18 @@ func (w *Worktrees) Stacks() StackDiff {
 				continue
 			}
 
+			dir := filepath.Dir(changed)
+
 			stackDiff.Changed = append(
 				stackDiff.Changed,
 				StackDiffChangedPair{
-					FromStack: component.NewStack(filepath.Join(fromWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					FromStack: component.NewStack(filepath.Join(fromWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: fromWorktree,
 							Ref:        pair.FromWorktree.Ref,
 						},
 					),
-					ToStack: component.NewStack(filepath.Join(toWorktree, filepath.Dir(changed))).WithDiscoveryContext(
+					ToStack: component.NewStack(filepath.Join(toWorktree, dir)).WithDiscoveryContext(
 						&component.DiscoveryContext{
 							WorkingDir: toWorktree,
 							Ref:        pair.ToWorktree.Ref,
@@ -228,12 +262,14 @@ func (w *Worktrees) Stacks() StackDiff {
 		}
 	}
 
+	stackDiff.ReadingAffected = w.ReadingAffectedStacks
+
 	return stackDiff
 }
 
 // Expand expands a worktree pair with an associated Git expression into the equivalent to and from filter
 // expressions based on the provided diffs for the worktree pair.
-func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
+func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters, error) {
 	diffs := wp.Diffs
 
 	toPath := wp.ToWorktree.Path
@@ -242,46 +278,12 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 	toExpressions := make(filter.Expressions, 0, len(diffs.Added)+len(diffs.Changed))
 
 	// Build simple expressions that can be determined simply from the diffs.
-	for _, path := range diffs.Removed {
-		dir := filepath.Dir(path)
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			fromExpressions = append(fromExpressions, filter.NewPathFilter(dir))
-		case config.DefaultStackFile:
-			fromExpressions = append(
-				fromExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
-		default:
-			// Check to see if the removed file is in the same directory as a unit in the to worktree.
-			// If so, we'll consider the unit modified.
-			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-			}
-		}
+	if err := expandDiffPaths(diffs.Removed, toPath, &fromExpressions, &toExpressions); err != nil {
+		return nil, nil, err
 	}
 
-	for _, path := range diffs.Added {
-		dir := filepath.Dir(path)
-
-		switch filepath.Base(path) {
-		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-		case config.DefaultStackFile:
-			toExpressions = append(
-				toExpressions,
-				filter.NewPathFilter(dir),
-				filter.NewPathFilter(filepath.Join(dir, "**")),
-			)
-		default:
-			// Check to see if the added file is in the same directory as a unit in the to worktree.
-			// If so, we'll consider the unit modified.
-			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-			}
-		}
+	if err := expandDiffPaths(diffs.Added, toPath, &toExpressions, &toExpressions); err != nil {
+		return nil, nil, err
 	}
 
 	for _, path := range diffs.Changed {
@@ -289,21 +291,34 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 
 		switch filepath.Base(path) {
 		case config.DefaultTerragruntConfigPath:
-			toExpressions = append(toExpressions, filter.NewPathFilter(dir))
-		case config.DefaultStackFile:
-			// We handle changed stack files elsewhere, as we need to handle walking the filesystem to assess diffs.
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			toExpressions = append(toExpressions, expr)
 		default:
 			// Check to see if the changed file is in the same directory as a unit in the to worktree.
 			// If so, we'll consider the unit modified.
 			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
-				toExpressions = append(toExpressions, filter.NewPathFilter(dir))
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return nil, nil, errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				toExpressions = append(toExpressions, expr)
 
 				continue
 			}
 
 			// Otherwise, we'll consider it a file that could potentially be read by other units, and needs to be
 			// tracked using a reading filter.
-			toExpressions = append(toExpressions, filter.NewAttributeExpression(filter.AttributeReading, path))
+			expr, err := filter.NewAttributeExpression(filter.AttributeReading, path)
+			if err != nil {
+				return nil, nil, errors.Errorf("failed to create reading filter for %s: %w", path, err)
+			}
+
+			toExpressions = append(toExpressions, expr)
 		}
 	}
 
@@ -323,7 +338,7 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 		)
 	}
 
-	return fromFilters, toFilters
+	return fromFilters, toFilters, nil
 }
 
 // NewWorktrees creates a new Worktrees for a given set of Git filters.
@@ -332,9 +347,12 @@ func (wp *WorktreePair) Expand() (filter.Filters, filter.Filters) {
 func NewWorktrees(
 	ctx context.Context,
 	l log.Logger,
-	workingDir string,
-	gitExpressions filter.GitExpressions,
+	opts WorktreeOpts,
 ) (*Worktrees, error) {
+	workingDir := opts.WorkingDir
+	gitExpressions := opts.GitExpressions
+	experiments := opts.Experiments
+
 	if len(gitExpressions) == 0 {
 		return &Worktrees{
 			WorktreePairs:      make(map[string]WorktreePair),
@@ -349,7 +367,7 @@ func NewWorktrees(
 		outerErr  error
 	)
 
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	if err != nil {
 		return nil, errors.Errorf("failed to create Git runner for worktree creation: %w", err)
 	}
@@ -362,113 +380,118 @@ func NewWorktrees(
 	repoCommit := gitRunner.GetHeadCommit(ctx)
 
 	// Wrap entire worktree creation process with telemetry
-	traceErr := filter.TraceGitWorktreesCreate(ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-		var (
-			errs []error
-			mu   sync.Mutex
-		)
+	traceErr := filter.TraceGitWorktreesCreate(
+		ctx, workingDir, len(gitRefs), repoRemote, repoBranch, repoCommit,
+		func(ctx context.Context) error {
+			var (
+				errs []error
+				mu   sync.Mutex
+			)
 
-		expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
+			expressionsToDiffs := make(map[*filter.GitExpression]*git.Diffs, len(gitExpressions))
 
-		gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
-		gitCmdGroup.SetLimit(min(runtime.NumCPU(), len(gitRefs)))
+			gitCmdGroup, gitCmdCtx := errgroup.WithContext(ctx)
+			// Cap concurrent git commands to the number of refs, but no more than available CPUs.
+			gitCmdGroup.SetLimit(min(runtime.GOMAXPROCS(0), len(gitRefs)))
 
-		refsToPaths := make(map[string]string, len(gitRefs))
+			refsToPaths := make(map[string]string, len(gitRefs))
 
-		if len(gitRefs) > 0 {
-			gitCmdGroup.Go(func() error {
-				paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit)
-				if err != nil {
+			if len(gitRefs) > 0 {
+				gitCmdGroup.Go(func() error {
+					paths, err := createGitWorktrees(gitCmdCtx, l, gitRunner, gitRefs, repoRemote, repoBranch, repoCommit, experiments)
+					if err != nil {
+						mu.Lock()
+
+						errs = append(errs, err)
+
+						mu.Unlock()
+
+						return err
+					}
+
 					mu.Lock()
 
-					errs = append(errs, err)
-
-					mu.Unlock()
-
-					return err
-				}
-
-				mu.Lock()
-
-				maps.Copy(refsToPaths, paths)
-
-				mu.Unlock()
-
-				return nil
-			})
-		}
-
-		for _, gitExpression := range gitExpressions {
-			gitCmdGroup.Go(func() error {
-				// Wrap git diff with telemetry
-				var diffs *git.Diffs
-
-				diffErr := filter.TraceGitDiff(gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote, func(ctx context.Context) error {
-					var err error
-
-					diffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
-
-					return err
-				})
-				if diffErr != nil {
-					mu.Lock()
-
-					errs = append(errs, diffErr)
+					maps.Copy(refsToPaths, paths)
 
 					mu.Unlock()
 
 					return nil
+				})
+			}
+
+			for _, gitExpression := range gitExpressions {
+				gitCmdGroup.Go(func() error {
+					// Wrap git diff with telemetry
+					var diffs *git.Diffs
+
+					diffErr := filter.TraceGitDiff(
+						gitCmdCtx, gitExpression.FromRef, gitExpression.ToRef, repoRemote,
+						func(ctx context.Context) error {
+							var err error
+
+							diffs, err = gitRunner.Diff(ctx, gitExpression.FromRef, gitExpression.ToRef)
+
+							return err
+						})
+					if diffErr != nil {
+						mu.Lock()
+
+						errs = append(errs, diffErr)
+
+						mu.Unlock()
+
+						return nil
+					}
+
+					mu.Lock()
+
+					expressionsToDiffs[gitExpression] = diffs
+
+					mu.Unlock()
+
+					return nil
+				})
+			}
+
+			if err := gitCmdGroup.Wait(); err != nil {
+				worktrees = &Worktrees{
+					WorktreePairs:      make(map[string]WorktreePair),
+					OriginalWorkingDir: workingDir,
+					gitRunner:          gitRunner,
+				}
+				outerErr = err
+
+				return err
+			}
+
+			worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
+			for _, gitExpression := range gitExpressions {
+				worktreePairs[gitExpression.String()] = WorktreePair{
+					GitExpression: gitExpression,
+					Diffs:         expressionsToDiffs[gitExpression],
+					FromWorktree:  Worktree{Ref: gitExpression.FromRef, Path: refsToPaths[gitExpression.FromRef]},
+					ToWorktree:    Worktree{Ref: gitExpression.ToRef, Path: refsToPaths[gitExpression.ToRef]},
 				}
 
-				mu.Lock()
+				// Record telemetry for diff results
+				if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
+					recordDiffTelemetry(ctx, diffs)
+				}
+			}
 
-				expressionsToDiffs[gitExpression] = diffs
-
-				mu.Unlock()
-
-				return nil
-			})
-		}
-
-		if err := gitCmdGroup.Wait(); err != nil {
 			worktrees = &Worktrees{
-				WorktreePairs:      make(map[string]WorktreePair),
+				WorktreePairs:      worktreePairs,
 				OriginalWorkingDir: workingDir,
 				gitRunner:          gitRunner,
 			}
-			outerErr = err
 
-			return err
-		}
-
-		worktreePairs := make(map[string]WorktreePair, len(gitExpressions))
-		for _, gitExpression := range gitExpressions {
-			worktreePairs[gitExpression.String()] = WorktreePair{
-				GitExpression: gitExpression,
-				Diffs:         expressionsToDiffs[gitExpression],
-				FromWorktree:  Worktree{Ref: gitExpression.FromRef, Path: refsToPaths[gitExpression.FromRef]},
-				ToWorktree:    Worktree{Ref: gitExpression.ToRef, Path: refsToPaths[gitExpression.ToRef]},
+			if len(errs) > 0 {
+				outerErr = errors.Join(errs...)
+				return outerErr
 			}
 
-			// Record telemetry for diff results
-			if diffs := expressionsToDiffs[gitExpression]; diffs != nil {
-				recordDiffTelemetry(ctx, diffs)
-			}
-		}
-
-		worktrees = &Worktrees{
-			WorktreePairs:      worktreePairs,
-			OriginalWorkingDir: workingDir,
-			gitRunner:          gitRunner,
-		}
-
-		if len(errs) > 0 {
-			outerErr = errors.Join(errs...)
-			return outerErr
-		}
-
-		return nil
-	})
+			return nil
+		})
 
 	if traceErr != nil && outerErr == nil {
 		l.Warnf("telemetry trace error during worktree creation: %v", traceErr)
@@ -482,6 +505,48 @@ func NewWorktrees(
 	}
 
 	return worktrees, outerErr
+}
+
+// expandDiffPaths processes a list of changed paths from a worktree diff, creating path filter expressions
+// for discovered units and stacks. primaryExprs receives filters for config files (units/stacks),
+// while fallbackExprs receives filters for non-config files adjacent to units in the "to" worktree.
+func expandDiffPaths(paths []string, toPath string, primaryExprs, fallbackExprs *filter.Expressions) error {
+	for _, path := range paths {
+		dir := filepath.Dir(path)
+
+		switch filepath.Base(path) {
+		case config.DefaultTerragruntConfigPath:
+			expr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			*primaryExprs = append(*primaryExprs, expr)
+		case config.DefaultStackFile:
+			dirExpr, err := filter.NewPathFilter(dir)
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+			}
+
+			globExpr, err := filter.NewPathFilter(filepath.Join(dir, "**"))
+			if err != nil {
+				return errors.Errorf("failed to create path filter for %s/**: %w", dir, err)
+			}
+
+			*primaryExprs = append(*primaryExprs, dirExpr, globExpr)
+		default:
+			if _, err := os.Stat(filepath.Join(toPath, dir, config.DefaultTerragruntConfigPath)); err == nil {
+				expr, err := filter.NewPathFilter(dir)
+				if err != nil {
+					return errors.Errorf("failed to create path filter for %s: %w", dir, err)
+				}
+
+				*fallbackExprs = append(*fallbackExprs, expr)
+			}
+		}
+	}
+
+	return nil
 }
 
 // recordDiffTelemetry records telemetry metrics for git diff results.
@@ -507,8 +572,11 @@ func createGitWorktrees(
 	gitRunner *git.GitRunner,
 	gitRefs []string,
 	repoRemote, repoBranch, repoCommit string,
+	experiments experiment.Experiments,
 ) (map[string]string, error) {
 	var errs []error
+
+	slowReporting := experiments.Evaluate(experiment.SlowTaskReporting)
 
 	refsToPaths := make(map[string]string, len(gitRefs))
 
@@ -535,9 +603,20 @@ func createGitWorktrees(
 		}
 
 		// Wrap individual worktree creation with telemetry including repo info
-		err = filter.TraceGitWorktreeCreate(ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit, func(ctx context.Context) error {
-			return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
-		})
+		err = filter.TraceGitWorktreeCreate(
+			ctx, ref, tmpDir, repoRemote, repoBranch, repoCommit,
+			func(ctx context.Context) error {
+				if slowReporting {
+					return util.NotifyIfSlow(ctx, l, util.SpinnerWriter(), time.Second, util.SlowNotifyMsg{
+						Spinner: fmt.Sprintf("Creating Git worktree for reference %s...", ref),
+						Done:    "Created Git worktree for reference " + ref,
+					}, func() error {
+						return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+					})
+				}
+
+				return gitRunner.CreateDetachedWorktree(ctx, tmpDir, ref)
+			})
 		if err != nil {
 			if cleanErr := os.RemoveAll(tmpDir); cleanErr != nil {
 				l.Warnf("failed to clean worktree directory %s: %v", tmpDir, cleanErr)

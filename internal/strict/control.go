@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const CompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode or get the actual list by running the `terragrunt info strict` command."
+const CompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://docs.terragrunt.com/reference/strict-mode or get the actual list by running the `terragrunt info strict` command."
 
 type ControlNames []string
 
@@ -195,15 +195,18 @@ func (ctrls Controls) EnableControl(name string) error {
 	return NewInvalidControlNameError(ctrls.FilterByStatus(ActiveStatus).Names())
 }
 
-// LogEnabled logs the control names that are enabled and have completed Status.
+// LogEnabled logs the control names that are enabled.
 func (ctrls Controls) LogEnabled(logger log.Logger) {
 	enabledControls := ctrls.FilterByEnabled()
 
 	if len(enabledControls) > 0 {
 		logger.Debugf("Enabled strict control(s): %s", enabledControls.Names())
 	}
+}
 
-	completedControls := enabledControls.FilterByStatus(CompletedStatus)
+// LogCompletedControls warns about any completed controls from the given explicitly requested names.
+func (ctrls Controls) LogCompletedControls(logger log.Logger, requestedNames []string) {
+	completedControls := ctrls.FilterByNames(requestedNames...).FilterByStatus(CompletedStatus)
 
 	if len(completedControls) > 0 {
 		logger.Warnf(CompletedControlsFmt, completedControls.Names().String())

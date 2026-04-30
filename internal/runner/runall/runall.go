@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/clean"
@@ -14,8 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
@@ -48,7 +47,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 	}
 
-	stackOpts := []common.Option{}
+	runnerOpts := []common.Option{}
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -64,8 +63,6 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		r.WithShowUnitLevelSummary()
 	}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
-
 	if opts.ReportSchemaFile != "" {
 		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
 	}
@@ -78,20 +75,22 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// - When JSON output is requested (--json or report format is JSON)
 	// - When running 'output' command (typically for programmatic consumption)
 	if !opts.SummaryDisable && !shouldSkipSummary(opts) {
-		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+				l.Warnf("Failed to write summary: %v", err)
+			}
+		}()
 	}
 
-	filters, err := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if err != nil {
-		return errors.Errorf("failed to parse filters: %w", err)
-	}
-
-	gitFilters := filters.UniqueGitFilters()
+	gitFilters := opts.Filters.UniqueGitFilters()
 
 	// Only create worktrees when git filter expressions are present
-	var wts *worktrees.Worktrees
+	var (
+		wts *worktrees.Worktrees
+		err error
+	)
 	if len(gitFilters) > 0 {
-		wts, err = worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+		wts, err = worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{WorkingDir: opts.WorkingDir, GitExpressions: gitFilters, Experiments: opts.Experiments})
 		if err != nil {
 			return errors.Errorf("failed to create worktrees: %w", err)
 		}
@@ -123,11 +122,12 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		}
 
 		// Generate the stack configuration with telemetry tracking
+		gen := generate.NewGenerator()
 		err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "stack_generate", map[string]any{
 			"stack_config_path": opts.TerragruntStackConfigPath,
 			"working_dir":       opts.WorkingDir,
 		}, func(ctx context.Context) error {
-			return generate.GenerateStacks(ctx, l, opts, wts)
+			return gen.GenerateStacks(ctx, l, opts, wts)
 		})
 
 		// Handle any errors during stack generation
@@ -140,21 +140,22 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Pass worktrees to runner for git filter expressions
 	if wts != nil && len(wts.WorktreePairs) > 0 {
-		stackOpts = append(stackOpts, common.WithWorktrees(wts))
+		runnerOpts = append(runnerOpts, common.WithWorktrees(wts))
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, opts, stackOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, opts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return RunAllOnStack(ctx, l, opts, stack)
+	return RunAllOnStack(ctx, l, opts, rnr, r)
 }
 
-func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, runner common.StackRunner) error {
-	l.Debugf("%s", runner.GetStack().String())
+func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, rnr common.StackRunner, r *report.Report) error {
+	l.Debugf("%s", rnr.GetStack().String())
 
-	if err := runner.LogUnitDeployOrder(l, opts.TerraformCommand); err != nil {
+	isDestroy := opts.TerraformCliArgs.IsDestroyCommand(opts.TerraformCommand)
+	if err := rnr.LogUnitDeployOrder(l, isDestroy, opts.Writers.LogShowAbsPaths, opts.Experiments); err != nil {
 		return err
 	}
 
@@ -170,7 +171,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 		if err != nil {
 			return err
 		}
@@ -187,7 +188,7 @@ func RunAllOnStack(ctx context.Context, l log.Logger, opts *options.TerragruntOp
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(ctx context.Context) error {
-		err := runner.Run(ctx, l, opts)
+		err := rnr.Run(ctx, l, opts, r)
 		if err != nil {
 			// At this stage, we can't handle the error any further, so we just log it and return nil.
 			// After this point, we'll need to report on what happened, and we want that to happen
@@ -224,7 +225,7 @@ func shouldSkipSummary(opts *options.TerragruntOptions) bool {
 	}
 
 	// Skip summary when JSON output is requested via -json flag
-	if opts.TerraformCliArgs.Normalize(clihelper.SingleDashFlag).Contains(tf.FlagNameJSON) {
+	if opts.TerraformCliArgs.Normalize(iacargs.SingleDashFlag).Contains(tf.FlagNameJSON) {
 		return true
 	}
 

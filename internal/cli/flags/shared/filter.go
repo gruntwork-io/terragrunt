@@ -2,11 +2,12 @@ package shared
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/git"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -26,15 +27,20 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 	return clihelper.Flags{
 		flags.NewFlag(
 			&clihelper.SliceFlag[string]{
-				Name:        FilterFlagName,
-				EnvVars:     tgPrefix.EnvVars(FilterFlagName),
-				Destination: &opts.FilterQueries,
-				Usage:       "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics.",
+				Name:    FilterFlagName,
+				EnvVars: tgPrefix.EnvVars(FilterFlagName),
+				Usage:   "Filter components using filter syntax. Can be specified multiple times for union (OR) semantics.",
 				Action: func(_ context.Context, _ *clihelper.Context, val []string) error {
 					if len(val) == 0 {
 						return nil
 					}
 
+					parsed, err := filter.ParseFilterQueries(l, val)
+					if err != nil {
+						return err
+					}
+
+					opts.Filters = append(opts.Filters, parsed...)
 					opts.RunAll = true
 
 					return nil
@@ -63,7 +69,7 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 					}
 
 					// Check for uncommitted changes
-					gitRunner, err := git.NewGitRunner()
+					gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 					if err != nil {
 						return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
 					}
@@ -76,7 +82,8 @@ func NewFilterFlags(l log.Logger, opts *options.TerragruntOptions) clihelper.Fla
 
 					defaultBranch := gitRunner.GetDefaultBranch(ctx, l)
 
-					opts.FilterQueries = append(opts.FilterQueries, fmt.Sprintf("[%s...HEAD]", defaultBranch))
+					gitExpr := filter.NewGitExpression(defaultBranch, "HEAD")
+					opts.Filters = append(opts.Filters, filter.NewFilter(gitExpr, gitExpr.String()))
 
 					return nil
 				},

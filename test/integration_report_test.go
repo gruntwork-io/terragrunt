@@ -18,6 +18,7 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -632,7 +633,7 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -766,6 +767,107 @@ func TestTerragruntReportWithGitFilter(t *testing.T) {
 					run := runs.FindByName(ignoredUnit)
 					assert.Nil(t, run, "Ignored unit '%s' should NOT be in report", ignoredUnit)
 				}
+			}
+		})
+	}
+}
+
+// TestTerragruntReportSingleUnit tests that report generation works correctly
+// for single unit runs (not --all). This verifies the fix that adds report
+// generation support to single `terragrunt run` commands.
+func TestTerragruntReportSingleUnit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		reportFormat   string
+		schemaFile     string
+		validateSchema bool
+	}{
+		{
+			name:         "JSON format",
+			reportFormat: "json",
+		},
+		{
+			name:         "CSV format",
+			reportFormat: "csv",
+		},
+		{
+			name:           "JSON format with schema",
+			reportFormat:   "json",
+			schemaFile:     "schema.json",
+			validateSchema: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureReportPath)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReportPath)
+			unitPath := filepath.Join(tmpEnvPath, testFixtureReportPath, "first-success")
+
+			reportFile := "report." + tc.reportFormat
+			reportFilePath := filepath.Join(unitPath, reportFile)
+
+			cmd := fmt.Sprintf(
+				"terragrunt run plan --non-interactive --working-dir %s --report-file %s --report-format %s",
+				unitPath,
+				reportFilePath,
+				tc.reportFormat,
+			)
+
+			if tc.schemaFile != "" {
+				cmd += " --report-schema-file " + filepath.Join(unitPath, tc.schemaFile)
+			}
+
+			var stdout, stderr bytes.Buffer
+
+			err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
+			require.NoError(t, err)
+
+			require.FileExists(t, reportFilePath, "Report file should exist for single unit run")
+
+			switch tc.reportFormat {
+			case "json":
+				runs, err := report.ParseJSONRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse JSON report")
+
+				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
+
+				run := runs[0]
+				assert.Equal(t, "first-success", run.Name, "Report should contain the unit name")
+				assert.Equal(t, "succeeded", run.Result, "Unit should have succeeded")
+
+				assert.False(t, run.Started.IsZero(), "Started timestamp should not be zero")
+				assert.False(t, run.Ended.IsZero(), "Ended timestamp should not be zero")
+
+			case "csv":
+				runs, err := report.ParseCSVRunsFromFile(reportFilePath)
+				require.NoError(t, err, "Should be able to parse CSV report")
+
+				require.Len(t, runs, 1, "Single unit run should have exactly one entry in report")
+
+				run := runs[0]
+				assert.Equal(t, "first-success", run.Name, "Report should contain the unit name")
+				assert.Equal(t, "succeeded", run.Result, "Unit should have succeeded")
+			}
+
+			if tc.schemaFile != "" {
+				schemaFilePath := filepath.Join(unitPath, tc.schemaFile)
+				require.FileExists(t, schemaFilePath, "Schema file should exist")
+
+				schemaContent, err := os.ReadFile(schemaFilePath)
+				require.NoError(t, err)
+
+				var schema map[string]any
+
+				err = json.Unmarshal(schemaContent, &schema)
+				require.NoError(t, err, "Schema should be valid JSON")
+
+				assert.Equal(t, "array", schema["type"])
+				assert.Equal(t, "Terragrunt Run Report Schema", schema["title"])
 			}
 		})
 	}

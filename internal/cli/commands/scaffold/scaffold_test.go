@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
@@ -84,7 +85,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, vars, true, true)
 
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -99,7 +100,8 @@ func TestDefaultTemplateVariables(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := config.ReadTerragruntConfig(t.Context(), l, opts, config.DefaultParserOptions(l, opts))
+	_, pctx := configbridge.NewParsingContext(t.Context(), l, opts)
+	cfg, err := config.ReadTerragruntConfig(t.Context(), l, pctx, config.DefaultParserOptions(l, opts.StrictControls))
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
 	assert.Len(t, cfg.Inputs, 1)
@@ -327,7 +329,8 @@ catalog {
 			l := logger.CreateLogger()
 
 			// First, verify catalog config parsing
-			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, opts)
+			_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
+			catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
 			require.NoError(t, err)
 			require.NotNil(t, catalogCfg, tc.description)
 
@@ -393,7 +396,8 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, opts)
+	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -431,7 +435,8 @@ catalog {
 	l := logger.CreateLogger()
 
 	// Parse the configuration
-	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, opts)
+	_, catalogPctx := configbridge.NewParsingContext(context.Background(), l, opts)
+	catalogCfg, err := config.ReadCatalogConfig(context.Background(), l, catalogPctx)
 	require.NoError(t, err)
 	require.NotNil(t, catalogCfg)
 
@@ -480,7 +485,7 @@ shell_output = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -538,7 +543,7 @@ shell_output = "{{ shell "echo" "SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -604,7 +609,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -672,7 +677,7 @@ test_var = "{{ .TestVar }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, false, false)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 
@@ -734,7 +739,7 @@ shell_result = "{{ shell "echo SHELL_EXECUTED" }}"
 	boilerplateOpts := newTestBoilerplateOptions(templateDir, outputDir, map[string]any{}, true, true)
 
 	// Process the template
-	emptyDep := variables.Dependency{}
+	emptyDep := &variables.Dependency{}
 	err = templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep)
 	require.NoError(t, err)
 

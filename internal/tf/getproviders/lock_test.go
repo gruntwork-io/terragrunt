@@ -20,6 +20,44 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func mockProviderWithConstraints(t *testing.T, ctrl *gomock.Controller, address, ver, constraints string) getproviders.Provider {
+	t.Helper()
+
+	packageDir := helpers.TmpDirWOSymlinks(t)
+	file, err := os.Create(filepath.Join(packageDir, "terraform-provider-v"+ver))
+	require.NoError(t, err)
+	_, err = fmt.Fprintf(file, "mock-provider-content-%s-%s", address, ver)
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+
+	var document string
+
+	var documentSB strings.Builder
+
+	for i := 0; i < 2; i++ {
+		packageName := fmt.Sprintf("%s-%s-%d", address, ver, i)
+		hasher := sha256.New()
+		_, err := hasher.Write([]byte(packageName))
+		require.NoError(t, err)
+
+		sha := hex.EncodeToString(hasher.Sum(nil))
+		fmt.Fprintf(&documentSB, "%s %s\n", sha, packageName)
+	}
+
+	document += documentSB.String()
+
+	provider := mocks.NewMockProvider(ctrl)
+	provider.EXPECT().Address().Return(address).AnyTimes()
+	provider.EXPECT().Version().Return(ver).AnyTimes()
+	provider.EXPECT().Constraints().Return(constraints).AnyTimes()
+	provider.EXPECT().PackageDir().Return(packageDir).AnyTimes()
+	provider.EXPECT().Logger().Return(logger.CreateLogger()).AnyTimes()
+	provider.EXPECT().DocumentSHA256Sums(gomock.Any()).Return([]byte(document), nil).AnyTimes()
+
+	return provider
+}
+
 func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, version string) getproviders.Provider {
 	t.Helper()
 
@@ -33,7 +71,7 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 
 	var document string
 
-	var documentSb35 strings.Builder
+	var documentSB strings.Builder
 
 	for i := 0; i < 2; i++ {
 		packageName := fmt.Sprintf("%s-%s-%d", address, version, i)
@@ -42,10 +80,10 @@ func mockProviderUpdateLock(t *testing.T, ctrl *gomock.Controller, address, vers
 		require.NoError(t, err)
 
 		sha := hex.EncodeToString(hasher.Sum(nil))
-		documentSb35.WriteString(fmt.Sprintf("%s %s\n", sha, packageName))
+		fmt.Fprintf(&documentSB, "%s %s\n", sha, packageName)
 	}
 
-	document += documentSb35.String()
+	document += documentSB.String()
 
 	provider := mocks.NewMockProvider(ctrl)
 	provider.EXPECT().Address().Return(address).AnyTimes()
@@ -228,4 +266,53 @@ provider "registry.terraform.io/hashicorp/template" {
 			assert.Equal(t, tc.expectedLockfile, string(actualLockfile))
 		})
 	}
+}
+
+// TestMockUpdateLockfilePreservesAggregatedConstraints verifies that when a lock file
+// already has valid aggregated constraints from the full dependency tree (e.g.
+// ">= 2.0.0, >= 3.0.0, >= 4.9.0, < 7.0.0"), and the provider's module-only
+// constraints differ (e.g. ">= 3.0.0, < 7.0.0"), the lock file constraints are
+// preserved as-is because the version still satisfies them.
+// This is the bug described in https://github.com/gruntwork-io/terragrunt/issues/5616
+func TestMockUpdateLockfilePreservesAggregatedConstraints(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create a provider whose module-level constraints differ from the lock file's
+	// aggregated constraints, but whose version satisfies the lock file constraints.
+	provider := mockProviderWithConstraints(t, ctrl,
+		"registry.terraform.io/hashicorp/aws", "5.37.0",
+		">= 3.0.0, < 7.0.0", // module-only constraints (subset of lock file)
+	)
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	lockfilePath := filepath.Join(workingDir, ".terraform.lock.hcl")
+
+	// Write a lock file with aggregated constraints from the full dependency tree.
+	initialLockfile := `
+provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.37.0"
+  constraints = ">= 2.0.0, >= 3.0.0, >= 4.9.0, < 7.0.0"
+  hashes = [
+    "h1:existing-hash=",
+  ]
+}
+`
+	err := os.WriteFile(lockfilePath, []byte(initialLockfile), 0644)
+	require.NoError(t, err)
+
+	err = getproviders.UpdateLockfile(t.Context(), workingDir, []getproviders.Provider{provider})
+	require.NoError(t, err)
+
+	actualLockfile, err := os.ReadFile(lockfilePath)
+	require.NoError(t, err)
+
+	// The constraints line must be preserved as the original aggregated constraints,
+	// NOT overwritten with the module-only constraints.
+	assert.Contains(t, string(actualLockfile), `constraints = ">= 2.0.0, >= 3.0.0, >= 4.9.0, < 7.0.0"`,
+		"Lock file constraints should be preserved, not overwritten with module-only constraints")
+	assert.NotContains(t, string(actualLockfile), `constraints = ">= 3.0.0, < 7.0.0"`,
+		"Module-only constraints should not replace the aggregated constraints")
 }

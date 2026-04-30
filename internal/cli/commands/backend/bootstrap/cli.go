@@ -15,12 +15,16 @@ const CommandName = "bootstrap"
 func NewFlags(opts *options.TerragruntOptions) clihelper.Flags {
 	prefix := flags.Prefix{flags.TgPrefix}
 
-	sharedFlags := clihelper.Flags{
+	backendFlags := shared.NewBackendFlags(opts, prefix)
+	featureFlags := shared.NewFeatureFlags(opts, prefix)
+
+	sharedFlags := make(clihelper.Flags, 0, 2+len(backendFlags)+len(featureFlags))
+	sharedFlags = append(sharedFlags,
 		shared.NewConfigFlag(opts, prefix, CommandName),
 		shared.NewDownloadDirFlag(opts, prefix, CommandName),
-	}
-	sharedFlags = append(sharedFlags, shared.NewBackendFlags(opts, prefix)...)
-	sharedFlags = append(sharedFlags, shared.NewFeatureFlags(opts, prefix)...)
+	)
+	sharedFlags = append(sharedFlags, backendFlags...)
+	sharedFlags = append(sharedFlags, featureFlags...)
 
 	return sharedFlags
 }

@@ -22,7 +22,7 @@ func GetHint(code ErrorCode, token, query string, position int) string {
 		return "This character is not recognized. Valid operators: | (union), ! (negation), = (attribute)"
 
 	// These have error messages that are pretty self-explanatory and don't need hints.
-	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression, ErrorCodeMissingOperand:
+	case ErrorCodeEmptyGitFilter, ErrorCodeEmptyExpression, ErrorCodeMissingOperand, ErrorCodeInvalidGlob:
 		return ""
 
 	// These are errors that don't have obvious hints that can be offered.

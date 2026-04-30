@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -722,7 +723,7 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -886,6 +887,114 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 	}
 }
 
+func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+
+	runner = runner.WithWorkDir(tmpDir)
+
+	err = runner.Init(t.Context())
+	require.NoError(t, err)
+
+	err = runner.GoOpenRepo()
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = runner.GoCloseStorage()
+		if err != nil {
+			t.Logf("Error closing storage: %s", err)
+		}
+	})
+
+	// Create a root.hcl at the repo root that the nested unit will include
+	rootHCLPath := filepath.Join(tmpDir, "root.hcl")
+	err = os.WriteFile(rootHCLPath, []byte(`# Root config
+`), 0644)
+	require.NoError(t, err)
+
+	// Create a deeply nested unit that uses get_path_to_repo_root() in its include path
+	nestedUnitDir := filepath.Join(tmpDir, "level1", "level2", "level3", "nested-unit")
+	err = os.MkdirAll(nestedUnitDir, 0755)
+	require.NoError(t, err)
+
+	nestedUnitHCLPath := filepath.Join(nestedUnitDir, "terragrunt.hcl")
+	err = os.WriteFile(nestedUnitHCLPath, []byte(`include "root" {
+  path = "${get_path_to_repo_root()}/root.hcl"
+}
+`), 0644)
+	require.NoError(t, err)
+
+	// Initial commit on main
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Initial commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	head, err := runner.GoOpenRepoHead()
+	require.NoError(t, err)
+
+	// Ensure the main branch exists
+	b, err := runner.Config(t.Context(), "init.defaultBranch")
+	if err != nil || b != "main" {
+		err = runner.GoCheckout(&gogit.CheckoutOptions{
+			Branch: plumbing.ReferenceName("refs/heads/main"),
+			Create: true,
+			Hash:   head.Hash(),
+		})
+		require.NoError(t, err)
+	}
+
+	// Create a feature branch
+	err = runner.GoCheckout(&gogit.CheckoutOptions{
+		Branch: plumbing.ReferenceName("refs/heads/relative-include-test"),
+		Create: true,
+		Hash:   head.Hash(),
+	})
+	require.NoError(t, err)
+
+	// Modify the nested unit
+	err = os.WriteFile(nestedUnitHCLPath, []byte(`include "root" {
+  path = "${get_path_to_repo_root()}/root.hcl"
+}
+
+# Modified on feature branch
+`), 0644)
+	require.NoError(t, err)
+
+	err = runner.GoAdd(".")
+	require.NoError(t, err)
+
+	err = runner.GoCommit("Modify nested unit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	helpers.CleanupTerraformFolder(t, tmpDir)
+
+	cmd := "terragrunt find --no-color --working-dir " + tmpDir + " --filter '[main...HEAD]'"
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+
+	require.NoError(t, err, "terragrunt find with git filter failed: %s", stderr)
+
+	results := strings.Split(strings.TrimSpace(stdout), "\n")
+	assert.ElementsMatch(t, []string{"level1/level2/level3/nested-unit"}, results)
+}
+
 func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 	t.Parallel()
 
@@ -927,7 +1036,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1113,7 +1222,7 @@ func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1165,17 +1274,14 @@ terraform {
 	require.NoError(t, err)
 
 	// Apply the unit so that it shows up in state first.
-	cmd := "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir + " -- apply"
+	cmd := "terragrunt run --non-interactive --all --no-color --report-file report.json --working-dir " + tmpDir + " -- apply"
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 	require.NoError(t, err)
 
-	assert.Contains(
-		t,
-		stderr,
-		"Unit unit-to-be-removed",
-		"unit-to-be-removed should be discovered and run",
-	)
+	runs := helpers.ReadReport(t, tmpDir, "report.json")
+	assert.NotNil(t, runs.FindByName("unit-to-be-removed"),
+		"unit-to-be-removed should be discovered and run")
 
 	assert.Contains(
 		t,
@@ -1202,7 +1308,7 @@ terraform {
 	cmd = "terragrunt run --non-interactive --all --no-color --working-dir " + tmpDir +
 		" --filter '[HEAD~1]' --filter-allow-destroy -- plan"
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, cmd)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 
 	combinedOutput := stdout + stderr
 
@@ -1278,7 +1384,7 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1411,7 +1517,7 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -2125,7 +2231,7 @@ func TestOutDirWithGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -2240,7 +2346,7 @@ func TestDestroyWithOutDirGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)

@@ -22,9 +22,8 @@ func TestRenderJSON_Basic(t *testing.T) {
 
 	var outputBuffer bytes.Buffer
 
-	opts.Writer = &outputBuffer
+	opts.Writers.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
-	opts.DisableDependentUnits = true
 	opts.RenderMetadata = false
 	opts.Write = false
 
@@ -47,9 +46,8 @@ func TestRenderJSON_WithMetadata(t *testing.T) {
 
 	var outputBuffer bytes.Buffer
 
-	opts.Writer = &outputBuffer
+	opts.Writers.Writer = &outputBuffer
 	opts.Format = render.FormatJSON
-	opts.DisableDependentUnits = true
 	opts.RenderMetadata = true
 	opts.Write = false
 
@@ -71,7 +69,6 @@ func TestRenderJSON_WriteToFile(t *testing.T) {
 	opts, _ := setupTest(t)
 	outputPath := filepath.Join(helpers.TmpDirWOSymlinks(t), "output.json")
 	opts.Format = render.FormatJSON
-	opts.DisableDependentUnits = true
 	opts.RenderMetadata = false
 	opts.Write = true
 	opts.OutputPath = outputPath
@@ -111,7 +108,7 @@ func TestRenderJSON_HCLFormat(t *testing.T) {
 
 	var renderedBuffer bytes.Buffer
 
-	opts.Writer = &renderedBuffer
+	opts.Writers.Writer = &renderedBuffer
 
 	err := render.Run(t.Context(), logger.CreateLogger(), opts)
 	require.NoError(t, err)

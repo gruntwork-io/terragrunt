@@ -24,9 +24,6 @@ func (hash Hash) String() string {
 type HashScheme string
 
 const (
-	// HashScheme1 is the scheme identifier for the first hash scheme.
-	HashScheme1 HashScheme = HashScheme("h1:")
-
 	// HashSchemeZip is the scheme identifier for the legacy hash scheme that applies to distribution archives (.zip files) rather than package contents.
 	HashSchemeZip HashScheme = HashScheme("zh:")
 )

@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -97,7 +96,7 @@ type GenerateConfig struct {
 // - if ExistsError, return an error.
 // - if ExistsSkip, do nothing and return
 // - if ExistsOverwrite, overwrite the existing file
-func WriteToFile(l log.Logger, opts *options.TerragruntOptions, basePath string, config *GenerateConfig) error {
+func WriteToFile(l log.Logger, basePath string, config *GenerateConfig) error {
 	// Figure out the target path to generate the code in. If relative, merge with basePath.
 	var targetPath string
 	if filepath.IsAbs(config.Path) {

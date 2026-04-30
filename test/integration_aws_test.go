@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,14 +27,14 @@ import (
 
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
-	terraws "github.com/gruntwork-io/terratest/modules/aws"
-	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,6 +55,7 @@ const (
 	testFixtureS3Backend                         = "fixtures/s3-backend"
 	testFixtureS3BackendDualLocking              = "fixtures/s3-backend/dual-locking"
 	testFixtureS3BackendUseLockfile              = "fixtures/s3-backend/use-lockfile"
+	testFixtureS3BackendDisableInit              = "fixtures/s3-backend-disable-init"
 	testFixtureAssumeRoleWithExternalIDWithComma = "fixtures/assume-role/external-id-with-comma"
 
 	qaMyAppRelPath = "qa/my-app"
@@ -178,6 +180,78 @@ func TestAwsBootstrapBackend(t *testing.T) {
 			tc.checkExpectedResultFn(t, stdout+stderr, s3BucketName, dynamoDBName, err)
 		})
 	}
+}
+
+// TestAwsDisableInitS3Backend verifies that remote_state.disable_init=true prevents
+// Terragrunt from bootstrapping S3 resources while still allowing Terraform to initialize
+// the backend normally.
+func TestAwsDisableInitS3Backend(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureS3BackendDisableInit)
+
+	// setupEnv copies the fixture, fills placeholders, and returns the working dir root path.
+	setupEnv := func(bucketName string) string {
+		tmpPath := helpers.CopyEnvironment(t, testFixtureS3BackendDisableInit)
+		root := filepath.Join(tmpPath, testFixtureS3BackendDisableInit)
+		cfgPath := filepath.Join(root, "terragrunt.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, cfgPath, cfgPath, bucketName, "", helpers.TerraformRemoteStateS3Region)
+
+		return root
+	}
+
+	// Case 1: pre-existing bucket + disable_init=true → plan SUCCEEDS.
+	// Terragrunt passes -backend-config= args (not -backend=false), so Terraform
+	// can initialize the backend and run plan against the pre-existing bucket.
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	rootPath := setupEnv(s3BucketName)
+
+	createS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath,
+	)
+	require.NoError(t, err, "Expected plan to succeed with disable_init=true and pre-existing S3 bucket. stdout: %s, stderr: %s", stdout, stderr)
+
+	// Case 2: no bucket + disable_init=true (no --backend-bootstrap) → Terraform attempts backend init.
+	// Proves disable_init=true passes -backend-config= args (not -backend=false): the plan fails at
+	// the Terraform backend-init stage (bucket not found), not silently with disabled backend.
+	s3BucketName2 := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName2)
+
+	rootPath2 := setupEnv(s3BucketName2)
+
+	noBucketStdout, noBucketStderr, noBucketErr := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run plan --non-interactive --log-level debug --working-dir "+rootPath2,
+	)
+	noBucketOut := noBucketStdout + noBucketStderr
+
+	require.Error(t, noBucketErr, "Expected plan to fail when backend bucket does not exist")
+	assert.Contains(t, noBucketOut, "Initializing the backend", "Terraform should have attempted backend init, proving -backend-config= args were passed (not -backend=false)")
+
+	// Case 3: no bucket + disable_init=true + --backend-bootstrap → bootstrap is still SKIPPED.
+	// This directly exercises the prepareInitCommandRunCfg guard: even with BackendBootstrap=true,
+	// DisableInit=true must prevent Terragrunt from creating backend resources.
+	// Expected: plan fails at Terraform backend-init (bucket not found), not from Terragrunt bootstrap.
+	s3BucketName3 := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+	defer deleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName3)
+
+	rootPath3 := setupEnv(s3BucketName3)
+
+	bootstrapStdout, bootstrapStderr, bootstrapErr := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run plan --backend-bootstrap --non-interactive --log-level debug --working-dir "+rootPath3,
+	)
+	bootstrapOut := bootstrapStdout + bootstrapStderr
+
+	require.Error(t, bootstrapErr, "Expected plan to fail when backend bucket does not exist even with --backend-bootstrap")
+	// Terraform must have reached backend init (received -backend-config= args, not -backend=false).
+	assert.Contains(t, bootstrapOut, "Initializing the backend", "Terraform should have attempted backend init with --backend-bootstrap + disable_init=true")
+	// Terragrunt bootstrap must NOT have run — it would have printed this if it tried to create the bucket.
+	assert.NotContains(t, bootstrapOut, "Creating S3 bucket", "Terragrunt must not attempt bucket creation when disable_init=true, even with --backend-bootstrap")
 }
 
 func TestAwsDualLockingBackend(t *testing.T) {
@@ -323,10 +397,11 @@ func TestAwsBootstrapBackendWithoutVersioning(t *testing.T) {
 	contents, err = util.ReadFileAsString(useLockfileConfigPath)
 	require.NoError(t, err)
 
-	anchorText = "    use_lockfile = true"
-	require.Contains(t, contents, anchorText, "Expected anchor text not found in %s", useLockfileConfigPath)
-	newContents = strings.ReplaceAll(contents, anchorText, anchorText+"\n    skip_bucket_versioning = true")
-	require.NotEqual(t, contents, newContents, "strings.ReplaceAll did not modify contents of %s", useLockfileConfigPath)
+	// Use regex to match use_lockfile with any amount of whitespace before the equals sign
+	useLockfileRegex := regexp.MustCompile(`([ \t]+use_lockfile\s*=\s*true)`)
+	require.Regexp(t, useLockfileRegex, contents, "Expected use_lockfile pattern not found in %s", useLockfileConfigPath)
+	newContents = useLockfileRegex.ReplaceAllString(contents, "$1\n    skip_bucket_versioning = true")
+	require.NotEqual(t, contents, newContents, "regex replacement did not modify contents of %s", useLockfileConfigPath)
 	err = os.WriteFile(useLockfileConfigPath, []byte(newContents), 0644)
 	require.NoError(t, err)
 
@@ -654,7 +729,9 @@ func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(testFixtureHooksBeforeAfterAndErrorMergePath, qaMyAppRelPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAfterAndErrorMergePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureHooksBeforeAfterAndErrorMergePath)
+	childPath := filepath.Join(rootPath, qaMyAppRelPath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -697,7 +774,9 @@ func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, testFixturePath)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(helpers.UniqueID())
@@ -705,9 +784,9 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, testFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, testFixturePath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, rootPath))
 
 	var expectedS3Tags = map[string]string{
 		"owner": "terragrunt integration test",
@@ -726,7 +805,8 @@ func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/with-target-prefix-input")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	examplePath := filepath.Join(tmpEnvPath, testFixtureRegressions, "accesslogging-bucket/with-target-prefix-input")
 	helpers.CleanupTerraformFolder(t, examplePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -747,8 +827,8 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt validate --non-interactive --backend-bootstrap --config %s --working-dir %s", tmpTerragruntConfigPath, examplePath))
 
-	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	targetLoggingBucket := helpers.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	targetLoggingBucketPrefix := helpers.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
 	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
@@ -789,7 +869,8 @@ func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetP
 func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
 	t.Parallel()
 
-	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/no-target-prefix-input")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
+	examplePath := filepath.Join(tmpEnvPath, testFixtureRegressions, "accesslogging-bucket/no-target-prefix-input")
 	helpers.CleanupTerraformFolder(t, examplePath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
@@ -817,8 +898,8 @@ func TestAwsSetsAccessLoggingForTfSTateS3BucketToADifferentBucketWithDefaultTarg
 		),
 	)
 
-	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
-	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	targetLoggingBucket := helpers.GetS3BucketLoggingTarget(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
+	targetLoggingBucketPrefix := helpers.GetS3BucketLoggingTargetPrefix(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
 	encryptionConfig, err := bucketEncryption(t, helpers.TerraformRemoteStateS3Region, targetLoggingBucket)
 	require.NoError(t, err)
@@ -1065,7 +1146,7 @@ func TestAwsGetAccountAliasFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), createLogger(), nil, nil)
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -1106,7 +1187,7 @@ func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	)
 
 	// Get values from STS
-	awsCfg, err := awshelper.CreateAwsConfig(t.Context(), createLogger(), nil, nil)
+	awsCfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), createLogger())
 	if err != nil {
 		t.Fatalf("Error while creating AWS config: %v", err)
 	}
@@ -1197,7 +1278,7 @@ func TestAwsDependencyOutputOptimization(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
-	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`} {
+	for _, logRegexp := range []string{`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`} {
 		assert.Regexp(t, logRegexp, reerr)
 	}
 }
@@ -1206,7 +1287,7 @@ func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
+		`prefix=../dep .+Unit '../dep' is already init-ed. Retrieving outputs directly from working directory.`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
@@ -1215,7 +1296,7 @@ func TestAwsDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+		`prefix=../dep .+Running command: ` + wrappedBinary(t.Context()) + ` init -get=false`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -1271,7 +1352,9 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := util.ReadFileAsString(mainTFFile)
 	require.NoError(t, err)
-	branchName := git.GetCurrentBranchName(t)
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
+	require.NoError(t, err)
+	branchName := gitRunner.WithWorkDir(modulePath).GetCurrentBranch(t.Context())
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
 	// https://github.com/gruntwork-io/terragrunt/issues/1778
 	branchName = url.QueryEscape(branchName)
@@ -1413,7 +1496,7 @@ func TestAwsUpdatePolicy(t *testing.T) {
 func TestAwsAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
 		return
 	}
@@ -1497,7 +1580,8 @@ func TestAwsDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
 func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 	t.Parallel()
 
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "s3")
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCodegenPath)
+	generateTestCase := filepath.Join(tmpEnvPath, testFixtureCodegenPath, "remote-state", "s3")
 
 	helpers.CleanupTerraformFolder(t, generateTestCase)
 	helpers.CleanupTerragruntFolder(t, generateTestCase)
@@ -1705,7 +1789,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
-		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),
@@ -1751,7 +1835,10 @@ func TestAwsAssumeRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(opts.Env).
+		WithIAMRoleOptions(opts.IAMRoleOptions).
+		Build(t.Context(), l)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
@@ -1791,7 +1878,10 @@ func TestAwsAssumeRoleWithExternalIDWithComma(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, opts)
+	cfg, err := awshelper.NewAWSConfigBuilder().
+		WithEnv(opts.Env).
+		WithIAMRoleOptions(opts.IAMRoleOptions).
+		Build(t.Context(), l)
 	require.NoError(t, err)
 
 	identityARN, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
@@ -1920,20 +2010,22 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cfg, err := awshelper.CreateAwsConfig(t.Context(), l, nil, &options.TerragruntOptions{})
+	cfg, err := awshelper.NewAWSConfigBuilder().Build(t.Context(), l)
 	require.NoError(t, err)
 
 	identityArn, err := awshelper.GetAWSIdentityArn(t.Context(), &cfg)
 	require.NoError(t, err)
 
-	helpers.CleanupTerraformFolder(t, testFixtureReadIamRole)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadIamRole)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureReadIamRole)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// Execution outputs to be verified
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
 	// Invoke terragrunt and verify used IAM role
-	err = helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+testFixtureReadIamRole, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt init --working-dir "+rootPath, &stdout, &stderr)
 
 	// Since are used not existing AWS accounts, for validation are used success and error outputs
 	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
@@ -1941,19 +2033,21 @@ func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	// Check that output contains value defined in IAM role
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
-	assert.True(t, util.FileNotExists(filepath.Join(testFixtureReadIamRole, identityArn+".txt")))
+	assert.True(t, util.FileNotExists(filepath.Join(rootPath, identityArn+".txt")))
 }
 
 func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeFixturePath, includeShallowFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeFixturePath)
+	childPath := filepath.Join(rootPath, includeShallowFixturePath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, rootPath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
@@ -1962,13 +2056,15 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	t.Parallel()
 
-	childPath := filepath.Join(includeFixturePath, includeNoMergeFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, includeFixturePath)
+	rootPath := filepath.Join(tmpEnvPath, includeFixturePath)
+	childPath := filepath.Join(rootPath, includeNoMergeFixturePath)
 	helpers.CleanupTerraformFolder(t, childPath)
 
 	// We deliberately pick an s3 bucket name that is invalid, as we don't expect to create this s3 bucket.
 	s3BucketName := "__INVALID_NAME__"
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, rootPath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)
@@ -1996,7 +2092,7 @@ func TestErrorExplaining(t *testing.T) {
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
 
-	if isTerraform() {
+	if isTerraform(t.Context()) {
 		t.Skip("Not compatible with Terraform 1.5.x")
 		return
 	}

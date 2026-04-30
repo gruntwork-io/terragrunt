@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	DefaultCommandsCategoryName     = "Default commands"
-	RunAllCommandsCategoryName      = "`*-all` commands"
 	CLIRedesignCommandsCategoryName = "CLI redesign commands"
 )
 

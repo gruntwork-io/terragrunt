@@ -63,9 +63,7 @@ func NewPrettyFormatPlaceholders() Placeholders {
 			Suffix(": "),
 			Color(CyanColor),
 		),
-		Message(
-			PathFormat(RelativePath),
-		),
+		Message(),
 		Field(CacheServerURLKeyName,
 			Prefix(" "+CacheServerURLKeyName+"="),
 		),
@@ -108,7 +106,6 @@ func NewJSONFormatPlaceholders() Placeholders {
 		Message(
 			Prefix(`, "msg":"`),
 			Suffix(`"`),
-			PathFormat(RelativePath),
 			Color(DisableColor),
 			Escape(JSONEscape),
 		),
@@ -135,7 +132,6 @@ func NewKeyValueFormatPlaceholders() Placeholders {
 		),
 		Message(
 			Prefix(" msg="),
-			PathFormat(RelativePath),
 			Color(DisableColor),
 		),
 	}

@@ -5,11 +5,10 @@ import (
 )
 
 const (
-	WorkDirKeyName     = "prefix"
-	DownloadDirKeyName = "download-dir"
-	TFPathKeyName      = "tf-path"
-	TFCmdArgsKeyName   = "tf-command-args"
-	TFCmdKeyName       = "tf-command"
+	WorkDirKeyName   = "prefix"
+	TFPathKeyName    = "tf-path"
+	TFCmdArgsKeyName = "tf-command-args"
+	TFCmdKeyName     = "tf-command"
 
 	// Terragrunt Provider Cache Server fields.
 	CacheServerURLKeyName    = "url"

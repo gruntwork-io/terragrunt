@@ -425,8 +425,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		require.Len(t, targets, 1)
 
 		// Verify the target is the correct expression
-		expectedTarget := &filter.AttributeExpression{Key: "name", Value: "app"}
-		assert.Equal(t, expectedTarget, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 
 	t.Run("multiple dependency graph expressions", func(t *testing.T) {
@@ -438,8 +437,8 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 2)
 
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "db"}, targets[1])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
+		assert.Equal(t, mustAttr(t, "name", "db"), targets[1])
 	})
 
 	t.Run("dependent-only graph expression - no dependency discovery", func(t *testing.T) {
@@ -460,7 +459,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 
 		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
@@ -491,7 +490,7 @@ func TestFilters_RequiresDependencyDiscovery(t *testing.T) {
 
 		targets := filters.DependencyGraphExpressions()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 }
 
@@ -517,7 +516,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
 
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 
 	t.Run("multiple dependent graph expressions", func(t *testing.T) {
@@ -529,8 +528,8 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 2)
 
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "db"}, targets[1])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
+		assert.Equal(t, mustAttr(t, "name", "db"), targets[1])
 	})
 
 	t.Run("dependency-only graph expression - no dependent discovery", func(t *testing.T) {
@@ -551,7 +550,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 
 		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 
 	t.Run("nested graph expressions in infix", func(t *testing.T) {
@@ -582,7 +581,7 @@ func TestFilters_RequiresDependentDiscovery(t *testing.T) {
 
 		targets := filters.DependentGraphExpressions()
 		require.Len(t, targets, 1)
-		assert.Equal(t, &filter.AttributeExpression{Key: "name", Value: "app"}, targets[0])
+		assert.Equal(t, mustAttr(t, "name", "app"), targets[0])
 	})
 }
 
@@ -627,6 +626,82 @@ func TestFilters_RestrictToStacks(t *testing.T) {
 
 		restricted := filters.RestrictToStacks()
 		require.Empty(t, restricted)
+	})
+}
+
+func TestFilters_ExcludingGitFilters(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty filters", func(t *testing.T) {
+		t.Parallel()
+
+		filters := filter.Filters{}
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("only git expression", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]"})
+		require.NoError(t, err)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result)
+	})
+
+	t.Run("no git expressions", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"./live/**", "!./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("mixed git and non-git", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "!./iac/**", "type=unit"})
+		require.NoError(t, err)
+		require.Len(t, filters, 3)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 2)
+
+		// Verify the remaining filters are the non-git ones
+		resultStrs := make([]string, 0, len(result))
+		for _, f := range result {
+			resultStrs = append(resultStrs, f.String())
+		}
+
+		assert.Contains(t, resultStrs, "!./iac/**")
+		assert.Contains(t, resultStrs, "type=unit")
+	})
+
+	t.Run("infix containing git expression is excluded", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD] | !./iac/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 1)
+
+		result := filters.ExcludingGitFilters()
+		assert.Empty(t, result, "infix filter containing a git expression should be excluded")
+	})
+
+	t.Run("does not modify original", func(t *testing.T) {
+		t.Parallel()
+
+		filters, err := filter.ParseFilterQueries(testLogger(), []string{"[HEAD~1...HEAD]", "./live/**"})
+		require.NoError(t, err)
+		require.Len(t, filters, 2)
+
+		result := filters.ExcludingGitFilters()
+		assert.Len(t, result, 1)
+		assert.Len(t, filters, 2, "original should not be modified")
 	})
 }
 

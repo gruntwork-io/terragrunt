@@ -98,26 +98,6 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	return buffer, nil
 }
 
-func DecodeJSONBody(resp *http.Response, value any) error {
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-
-	buffer, err := ResponseBuffer(resp)
-	if err != nil {
-		return err
-	}
-
-	decoder := json.NewDecoder(buffer)
-	if err := decoder.Decode(value); err != nil {
-		return errors.New(err)
-	}
-
-	resp.Body = io.NopCloser(buffer)
-
-	return nil
-}
-
 func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
 	if resp.StatusCode != http.StatusOK {
 		return nil

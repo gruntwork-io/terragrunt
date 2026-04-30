@@ -63,12 +63,16 @@
       "description": "GPG detached signature"
     },
     {
+      "name": "SHA256SUMS.sigstore.json",
+      "description": "Cosign sigstore bundle"
+    },
+    {
       "name": "SHA256SUMS.sig",
-      "description": "Cosign signature"
+      "description": "Cosign signature (legacy)"
     },
     {
       "name": "SHA256SUMS.pem",
-      "description": "Cosign certificate"
+      "description": "Cosign certificate (legacy)"
     },
     {
       "name": "terragrunt-signing-key.asc",

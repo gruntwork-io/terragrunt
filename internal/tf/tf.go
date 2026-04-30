@@ -37,8 +37,6 @@ const (
 	CommandNameLogout         = "logout"
 	CommandNameMetadate       = "metadata"
 	CommandNamePull           = "pull"
-	CommandNameList           = "list"
-	CommandNameMove           = "mv"
 	CommandNamePush           = "push"
 	CommandNameRefresh        = "refresh"
 	CommandNameTest           = "test"
@@ -63,12 +61,12 @@ const (
 	// `platform` is a flag used with the `providers lock` command.
 	FlagNamePlatform = "-platform"
 
-	EnvNameTFCLIConfigFile                         = "TF_CLI_CONFIG_FILE"
-	EnvNameTFPluginCacheDir                        = "TF_PLUGIN_CACHE_DIR"
-	EnvNameTFPluginCacheMayBreakDependencyLockFile = "TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE"
-	EnvNameTFTokenFmt                              = "TF_TOKEN_%s"
-	EnvNameTFVarFmt                                = "TF_VAR_%s"
+	EnvNameTFCLIConfigFile  = "TF_CLI_CONFIG_FILE"
+	EnvNameTFPluginCacheDir = "TF_PLUGIN_CACHE_DIR"
+	EnvNameTFTokenFmt       = "TF_TOKEN_%s"
+	EnvNameTFVarFmt         = "TF_VAR_%s"
 
+	DefaultTFDataDir  = ".terraform"
 	TerraformLockFile = ".terraform.lock.hcl"
 
 	TerraformPlanFile     = "tfplan.tfplan"

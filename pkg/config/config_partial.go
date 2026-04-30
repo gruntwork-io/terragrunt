@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -203,7 +204,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			if flag.Default == nil {
-				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntOptions.TerragruntConfigPath))
+				errs = errs.Append(fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, ctx.TerragruntConfigPath))
 				continue
 			}
 
@@ -227,7 +228,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 // cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
 // to their corresponding Cty values and any error encountered during conversion.
 func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map[string]cty.Value, error) {
-	if ctx.TerragruntOptions.FeatureFlags == nil {
+	if ctx.FeatureFlags == nil {
 		return make(map[string]cty.Value), nil
 	}
 
@@ -235,7 +236,7 @@ func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map
 
 	var conversionErr error
 
-	ctx.TerragruntOptions.FeatureFlags.Range(func(name, value string) bool {
+	ctx.FeatureFlags.Range(func(name, value string) bool {
 		var flag cty.Value
 
 		var err error
@@ -269,7 +270,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, TerragruntConfigNotFoundError{Path: configPath}
 		}
 
@@ -286,7 +287,7 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 	err = TraceParseConfigFile(
 		ctx,
 		configPath,
-		pctx.TerragruntOptions.WorkingDir,
+		pctx.WorkingDir,
 		true, // isPartial
 		pctx.PartialParseDecodeList,
 		include,
@@ -321,19 +322,19 @@ func PartialParseConfigFile(ctx context.Context, pctx *ParsingContext, l log.Log
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList)
+	cacheKey := fmt.Sprintf("%#v-%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, pctx.PartialParseDecodeList, pctx.TerragruntConfigPath)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, TerragruntConfigCacheContextKey)
-	if pctx.TerragruntOptions.UsePartialParseConfigCache {
+	if pctx.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
+			l.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntConfigPath, pctx.PartialParseDecodeList)
 
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil
 		}
 
-		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntOptions.TerragruntConfigPath, pctx.PartialParseDecodeList)
+		l.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", pctx.TerragruntConfigPath, pctx.PartialParseDecodeList)
 	}
 
 	config, err := PartialParseConfig(ctx, pctx, l, file, includeFromChild)
@@ -341,7 +342,7 @@ func TerragruntConfigFromPartialConfig(ctx context.Context, pctx *ParsingContext
 		return config, err
 	}
 
-	if pctx.TerragruntOptions.UsePartialParseConfigCache {
+	if pctx.UsePartialParseConfigCache {
 		putConfig := clone.Clone(config).(*TerragruntConfig)
 		terragruntConfigCache.Put(ctx, cacheKey, putConfig)
 	}
@@ -391,7 +392,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 	pctx = pctx.WithTrackInclude(nil)
 
 	// read unit files and add to context
-	unitValues, err := ReadValues(ctx, l, pctx.TerragruntOptions, filepath.Dir(file.ConfigPath))
+	unitValues, err := ReadValues(ctx, pctx, l, filepath.Dir(file.ConfigPath))
 	if err != nil {
 		return nil, err
 	}
@@ -534,7 +535,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			}
 
 			// If the TFPath is not explicitly set, use the TFPath from the config if it is set.
-			if !pctx.TerragruntOptions.TFPathExplicitlySet && decoded.TerraformBinary != nil {
+			if !pctx.TFPathExplicitlySet && decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
@@ -605,7 +606,9 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	// If there have been errors during this parse, don't attempt to parse the included config.
-	if len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
+	// TrackInclude is nil when DecodeBaseBlocks returned (nil, err), e.g. an invalid feature
+	// default. Skip the merge in that case and let the error surface at the return below.
+	if pctx.TrackInclude != nil && len(pctx.TrackInclude.CurrentList) > 0 && !errsContainsIncludeErr {
 		includeCount := len(pctx.TrackInclude.CurrentList)
 		includePaths := make([]string, 0, includeCount)
 
@@ -628,10 +631,12 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			errs = errs.Append(err)
 		}
 
-		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
-		config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
-
-		output = config
+		// handleInclude returns nil when a Merge/DeepMerge fails; keep the pre-include output so the
+		// appended error surfaces below instead of panicking on a nil ProcessedIncludes assignment.
+		if config != nil {
+			config.ProcessedIncludes = pctx.TrackInclude.CurrentMap
+			output = config
+		}
 	}
 
 	if errs.ErrorOrNil() != nil {
@@ -672,13 +677,13 @@ func processExcludes(ctx context.Context, pctx *ParsingContext, l log.Logger, co
 
 func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(pctx.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
 
 	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntOptions.TerragruntConfigPath), includePath)
+		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
 	}
 
 	config, err := PartialParseConfigFile(
@@ -692,7 +697,7 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 		// Convert generic config not found error to include-specific error
 		var configNotFoundError TerragruntConfigNotFoundError
 		if errors.As(err, &configNotFoundError) {
-			return nil, IncludeConfigNotFoundError{IncludePath: includePath, SourcePath: pctx.TerragruntOptions.TerragruntConfigPath}
+			return nil, IncludeConfigNotFoundError{IncludePath: includePath, SourcePath: pctx.TerragruntConfigPath}
 		}
 
 		return nil, err

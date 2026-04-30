@@ -11,17 +11,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 var (
@@ -65,8 +65,8 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	// order
 	var allOutputBuffer BufferWithLocking
 
-	terragruntOptions.Writer = &allOutputBuffer
-	terragruntOptions.ErrWriter = &allOutputBuffer
+	terragruntOptions.Writers.Writer = &allOutputBuffer
+	terragruntOptions.Writers.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs.AppendArgument("same")
 	terragruntOptions.TFPath = "testdata/test_outputs.sh"
@@ -76,7 +76,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	l := logger.CreateLogger()
 	l = withLogger(l)
 
-	out, err := tf.RunCommandWithOutput(t.Context(), l, terragruntOptions, "same")
+	out, err := tf.RunCommandWithOutput(t.Context(), l, configbridge.TFRunOptsFromOpts(terragruntOptions), "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

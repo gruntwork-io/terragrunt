@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://terragrunt.gruntwork.io/sitemap-index.xml

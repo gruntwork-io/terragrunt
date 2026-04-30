@@ -50,11 +50,11 @@ func NewApp(l log.Logger, opts *options.TerragruntOptions) *App {
 
 	app := clihelper.NewApp()
 	app.Name = AppName
-	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://terragrunt.gruntwork.io/."
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.\nFor documentation, see https://docs.terragrunt.com/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = opts.Writer
-	app.ErrWriter = opts.ErrWriter
+	app.Writer = opts.Writers.Writer
+	app.ErrWriter = opts.Writers.ErrWriter
 	app.Flags = global.NewFlags(l, opts, nil)
 	app.Commands = terragruntCommands.WrapAction(commands.WrapWithTelemetry(l, opts))
 	app.Before = beforeAction(opts)
@@ -94,7 +94,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		return err
 	}
 
-	telemeter, err := telemetry.NewTelemeter(ctx, app.Name, app.Version, app.Writer, app.opts.Telemetry)
+	telemeter, err := telemetry.NewTelemeter(ctx, app.l, app.Name, app.Version, app.Writer, app.opts.Telemetry)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx = run.WithRunVersionCache(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx, app.l, app.opts); err != nil {
+		if err := engine.Shutdown(ctx, app.l, app.opts.Experiments, app.opts.EngineOptions.NoEngine); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
@@ -171,7 +171,7 @@ func beforeAction(_ *options.TerragruntOptions) clihelper.ActionFunc {
 				// Show a clear error pointing users to the explicit run form.
 				// Example: `terragrunt workspace ls` -> suggest `terragrunt run -- workspace ls`.
 				return clihelper.NewExitError(
-					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://terragrunt.gruntwork.io/docs/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
+					errors.Errorf("unknown command: %q. Terragrunt no longer forwards unknown commands by default. Use 'terragrunt run -- %s ...' or a supported shortcut. Learn more: https://docs.terragrunt.com/migrate/cli-redesign/#use-the-new-run-command", cmdName, cmdName),
 					clihelper.ExitCodeGeneralError,
 				)
 			}

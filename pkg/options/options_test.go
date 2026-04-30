@@ -1,9 +1,11 @@
 package options_test
 
 import (
+	"io"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,7 +62,7 @@ func TestInsertTerraformCliArgsSubcommandReplacement(t *testing.T) {
 			t.Parallel()
 
 			opts := &options.TerragruntOptions{
-				TerraformCliArgs: clihelper.NewIacArgs(tt.initial...),
+				TerraformCliArgs: iacargs.New(tt.initial...),
 			}
 			opts.InsertTerraformCliArgs(tt.insert...)
 			assert.Equal(t, tt.expected, opts.TerraformCliArgs.Slice())
@@ -75,4 +77,11 @@ func TestInsertTerraformCliArgsNilGuard(t *testing.T) {
 	// Should not panic
 	opts.InsertTerraformCliArgs("plan")
 	assert.Equal(t, []string{"plan"}, opts.TerraformCliArgs.Slice())
+}
+
+func TestNewTerragruntOptionsWithWriters_DefaultCASCloneDepth(t *testing.T) {
+	t.Parallel()
+
+	opts := options.NewTerragruntOptionsWithWriters(io.Discard, io.Discard)
+	assert.Equal(t, cas.DefaultCASCloneDepth, opts.CASCloneDepth)
 }

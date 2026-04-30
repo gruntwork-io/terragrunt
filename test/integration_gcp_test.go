@@ -14,12 +14,12 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	gcsbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
-	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
@@ -258,8 +258,10 @@ func TestGcpMigrateBackend(t *testing.T) {
 func TestGcpWorksWithBackend(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
-	helpers.CleanupTerragruntFolder(t, testFixtureGcsPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGcsPath)
+	helpers.CleanupTerraformFolder(t, rootPath)
+	helpers.CleanupTerragruntFolder(t, rootPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -269,7 +271,7 @@ func TestGcpWorksWithBackend(t *testing.T) {
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
 		t,
-		testFixtureGcsPath,
+		rootPath,
 		project,
 		terraformRemoteStateGcpRegion,
 		gcsBucketName,
@@ -280,7 +282,7 @@ func TestGcpWorksWithBackend(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt apply -auto-approve --non-interactive --backend-bootstrap --config %s --working-dir %s",
 			tmpTerragruntGCSConfigPath,
-			testFixtureGcsPath,
+			rootPath,
 		),
 	)
 
@@ -293,7 +295,9 @@ func TestGcpWorksWithBackend(t *testing.T) {
 func TestGcpWorksWithExistingBucket(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGcsByoBucketPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsByoBucketPath)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGcsByoBucketPath)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -307,7 +311,7 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
 		t,
-		testFixtureGcsByoBucketPath,
+		rootPath,
 		project,
 		terraformRemoteStateGcpRegion,
 		gcsBucketName,
@@ -318,7 +322,7 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt apply -auto-approve --non-interactive --config %s --working-dir %s",
 			tmpTerragruntGCSConfigPath,
-			testFixtureGcsByoBucketPath,
+			rootPath,
 		),
 	)
 
@@ -328,7 +332,9 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 func TestGcpCheckMissingBucket(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGcsNoBucket)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsNoBucket)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGcsNoBucket)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -336,7 +342,7 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(
 		t,
-		testFixtureGcsNoBucket,
+		rootPath,
 		project,
 		terraformRemoteStateGcpRegion,
 		gcsBucketName,
@@ -347,7 +353,7 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 		fmt.Sprintf(
 			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
 			tmpTerragruntGCSConfigPath,
-			testFixtureGcsNoBucket,
+			rootPath,
 		),
 	)
 	require.Error(t, err)
@@ -358,7 +364,9 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 func TestGcpNoPrefixBucket(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureGcsNoPrefix)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGcsNoPrefix)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGcsNoPrefix)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -366,13 +374,13 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoPrefix, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, rootPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
 	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		fmt.Sprintf(
 			"terragrunt apply -auto-approve --backend-bootstrap --non-interactive --config %s --working-dir %s",
 			tmpTerragruntGCSConfigPath,
-			testFixtureGcsNoPrefix,
+			rootPath,
 		),
 	)
 	require.NoError(t, err)
@@ -387,7 +395,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 	}
 
 	for i := range 20 {
-		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureGcsParallelStateInit, tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 
 		err = os.Rename(
@@ -457,10 +465,9 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 		},
 	}
 
-	l := logger.CreateLogger()
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(t.Context(), l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(t.Context(), extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	// verify the bucket exists
@@ -489,10 +496,9 @@ func doesGCSBucketObjectExist(t *testing.T, bucketName, prefix string) bool {
 		},
 	}
 
-	l := logger.CreateLogger()
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	defer gcsClient.Close()
@@ -526,10 +532,9 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 		},
 	}
 
-	l := logger.CreateLogger()
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	bucket := gcsClient.Bucket(bucketName)
@@ -570,10 +575,9 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
-	l := logger.CreateLogger()
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
@@ -598,10 +602,9 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 
 	extGCSCfg := &gcsbackend.ExtendedRemoteStateConfigGCS{}
 
-	l := logger.CreateLogger()
 	opts := options.NewTerragruntOptions()
 
-	gcsClient, err := gcsbackend.NewClient(ctx, l, extGCSCfg, opts)
+	gcsClient, err := gcsbackend.NewClient(ctx, extGCSCfg, configbridge.BackendOptsFromOpts(opts))
 	require.NoError(t, err, "Error creating GCS client")
 
 	t.Logf("Deleting test GCS bucket %s", bucketName)

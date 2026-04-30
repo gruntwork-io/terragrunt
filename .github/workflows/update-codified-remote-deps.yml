@@ -1,0 +1,56 @@
+name: Update Codified Remote Dependencies
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday at 9:00 UTC
+  workflow_dispatch:
+
+jobs:
+  live-stacks-example:
+    permissions:
+      contents: write
+      pull-requests: write
+    name: Live Stacks Example Commit
+    runs-on: ubuntu-slim
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check for update
+        id: check
+        run: |
+          LATEST_COMMIT=$(git ls-remote https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example.git HEAD | awk '{print $1}')
+          CURRENT_COMMIT=$(grep -oP 'git", "checkout", "\K[0-9a-f]{40}' test/integration_example_live_stacks_test.go)
+
+          echo "latest=$LATEST_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT_COMMIT" >> "$GITHUB_OUTPUT"
+
+          if [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update commit hash
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          CURRENT_COMMIT: ${{ steps.check.outputs.current }}
+          LATEST_COMMIT: ${{ steps.check.outputs.latest }}
+        run: |
+          sed -i "s/$CURRENT_COMMIT/$LATEST_COMMIT/" test/integration_example_live_stacks_test.go
+
+      - name: Create pull request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v7
+        with:
+          branch: chore/update-live-stacks-example-commit
+          commit-message: 'chore: Update live stacks example commit to ${{ steps.check.outputs.latest }}'
+          title: 'chore: Update live stacks example commit'
+          body: |
+            Updates the pinned commit in `TestExampleLiveStacks` from:
+            - `${{ steps.check.outputs.current }}`
+            to:
+            - `${{ steps.check.outputs.latest }}`
+
+            [Compare changes](https://github.com/gruntwork-io/terragrunt-infrastructure-live-stacks-example/compare/${{ steps.check.outputs.current }}...${{ steps.check.outputs.latest }})
+          labels: automated

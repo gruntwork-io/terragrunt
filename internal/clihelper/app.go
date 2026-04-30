@@ -89,6 +89,13 @@ func NewApp() *App {
 	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
 	cliApp.HideHelp = true
 	cliApp.HideHelpCommand = true
+	// urfave/cli/v2 exposes VersionFlag as a package-level *BoolFlag singleton
+	// that App.Setup() auto-appends to every App's flag set. Two App instances
+	// running concurrently in the same process (parallel integration tests
+	// under -race) race on that shared flag when flag-parsing calls Apply().
+	// Terragrunt owns --version via flags/global.NewHelpVersionFlags, so
+	// hiding urfave's flag has no user-visible effect.
+	cliApp.HideVersion = true
 
 	return &App{
 		App:          cliApp,

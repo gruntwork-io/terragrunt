@@ -158,7 +158,7 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			tc.expected.TerragruntDependencies = config.Dependencies{}
 		}
 
-		err := tc.includedConfig.Merge(logger.CreateLogger(), tc.config, mockOptionsForTest(t))
+		err := tc.includedConfig.Merge(logger.CreateLogger(), tc.config)
 		require.NoError(t, err)
 		assert.EqualExportedValues(t, tc.expected, tc.includedConfig)
 	}
@@ -307,7 +307,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.target.DeepMerge(logger.CreateLogger(), tc.source, mockOptionsForTest(t))
+			err := tc.target.DeepMerge(logger.CreateLogger(), tc.source)
 			require.NoError(t, err)
 
 			// if nil, initialize to empty dependency list

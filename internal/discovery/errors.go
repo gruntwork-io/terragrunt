@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
@@ -27,7 +28,8 @@ func (e GitFilterCommandError) Error() string {
 
 	return fmt.Sprintf(
 		"Git-based filtering is not supported with the command '%s'. "+
-			"Git-based filtering can only be used with 'plan', 'apply', or discovery commands (like 'find' or 'list') that don't require additional arguments.",
+			"Git-based filtering can only be used with 'plan', 'apply', "+
+			"or discovery commands (like 'find' or 'list') that don't require additional arguments.",
 		command,
 	)
 }
@@ -50,7 +52,8 @@ type MissingDiscoveryContextError struct {
 func (e MissingDiscoveryContextError) Error() string {
 	return fmt.Sprintf(
 		"Component at path '%s' is missing its discovery context during dependency discovery. "+
-			"This is a bug in Terragrunt. Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
+			"This is a bug in Terragrunt. "+
+			"Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
 			"with details about how you encountered this error.",
 		e.ComponentPath,
 	)
@@ -73,7 +76,8 @@ type MissingWorkingDirectoryError struct {
 func (e MissingWorkingDirectoryError) Error() string {
 	return fmt.Sprintf(
 		"Component at path '%s' has a discovery context but is missing its working directory during dependency discovery. "+
-			"This is a bug in Terragrunt. Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
+			"This is a bug in Terragrunt. "+
+			"Please open a bug report at https://github.com/gruntwork-io/terragrunt/issues "+
 			"with details about how you encountered this error.",
 		e.ComponentPath,
 	)
@@ -83,5 +87,51 @@ func (e MissingWorkingDirectoryError) Error() string {
 func NewMissingWorkingDirectoryError(componentPath string) error {
 	return errors.New(MissingWorkingDirectoryError{
 		ComponentPath: componentPath,
+	})
+}
+
+// ClassificationError represents an error during component classification.
+type ClassificationError struct {
+	ComponentPath string
+	Reason        string
+}
+
+func (e ClassificationError) Error() string {
+	return fmt.Sprintf(
+		"Failed to classify component at '%s': %s",
+		e.ComponentPath, e.Reason,
+	)
+}
+
+// NewClassificationError creates a new ClassificationError.
+func NewClassificationError(componentPath, reason string) error {
+	return errors.New(ClassificationError{
+		ComponentPath: componentPath,
+		Reason:        reason,
+	})
+}
+
+// CoexistenceError represents an error when a directory contains both
+// a unit configuration file and a stack configuration file.
+type CoexistenceError struct {
+	ComponentPath string
+	ConfigFileA   string
+	ConfigFileB   string
+}
+
+func (e CoexistenceError) Error() string {
+	return fmt.Sprintf(
+		"Component %q contains both configuration files %s and %s. "+
+			"A component must be either a unit or a stack, not both.",
+		e.ComponentPath, e.ConfigFileA, e.ConfigFileB,
+	)
+}
+
+// NewCoexistenceError creates a new CoexistenceError from two components with different kinds.
+func NewCoexistenceError(a, b component.Component) error {
+	return errors.New(CoexistenceError{
+		ComponentPath: a.Path(),
+		ConfigFileA:   a.ConfigFile(),
+		ConfigFileB:   b.ConfigFile(),
 	})
 }

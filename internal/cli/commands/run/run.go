@@ -2,9 +2,12 @@ package run
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/graph"
@@ -28,6 +31,19 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
+	// Configure report colors.
+	//
+	// This doesn't actually do anything for single-unit runs, but it's
+	// helpful to leave it in here for consistency, if we ever add
+	// support for run summaries in single-unit runs.
+	if l.Formatter().DisabledColors() || stdout.IsRedirected() {
+		r.WithDisableColor()
+	}
+
+	if opts.ReportFormat != "" {
+		r.WithFormat(opts.ReportFormat)
+	}
+
 	tgOpts := opts.OptionsFromContext(ctx)
 
 	if tgOpts.RunAll {
@@ -36,6 +52,14 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	if tgOpts.Graph {
 		return graph.Run(ctx, l, tgOpts)
+	}
+
+	if opts.ReportSchemaFile != "" {
+		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+	}
+
+	if opts.ReportFile != "" {
+		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
 	}
 
 	if opts.TerraformCommand == "" {
@@ -53,8 +77,8 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(
 		ctx,
 		l,
-		opts,
-		externalcmd.NewProvider(l, opts),
+		opts.Env,
+		externalcmd.NewProvider(l, opts.AuthProviderCmd, configbridge.ShellRunOptsFromOpts(opts)),
 	); err != nil {
 		return err
 	}
@@ -64,7 +88,9 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 		return err
 	}
 
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	parseCtx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.ReadTerragruntConfig(parseCtx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return err
 	}
@@ -78,7 +104,41 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	runCfg := cfg.ToRunConfig(l)
 
-	return run.Run(ctx, l, tgOpts, r, runCfg, credsGetter)
+	unitPath := filepath.Clean(opts.RootWorkingDir)
+
+	if _, err := r.EnsureRun(l, unitPath); err != nil {
+		return err
+	}
+
+	var runErr error
+
+	defer func() {
+		if runErr != nil {
+			if endErr := r.EndRun(
+				l,
+				unitPath,
+				report.WithResult(report.ResultFailed),
+				report.WithReason(report.ReasonRunError),
+				report.WithCauseRunError(runErr.Error()),
+			); endErr != nil {
+				l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+			}
+
+			return
+		}
+
+		if endErr := r.EndRun(
+			l,
+			unitPath,
+			report.WithResult(report.ResultSucceeded),
+		); endErr != nil {
+			l.Errorf("Error ending run for unit %s: %v", unitPath, endErr)
+		}
+	}()
+
+	runErr = run.Run(ctx, l, configbridge.NewRunOptions(tgOpts), r, runCfg, credsGetter)
+
+	return runErr
 }
 
 // isTerraformPath returns true if the TFPath ends with the default Terraform path.
@@ -98,7 +158,7 @@ func runVersionCommand(ctx context.Context, l log.Logger, opts *options.Terragru
 		}
 	}
 
-	return tf.RunCommand(ctx, l, opts, opts.TerraformCliArgs.Slice()...)
+	return tf.RunCommand(ctx, l, configbridge.TFRunOptsFromOpts(opts), opts.TerraformCliArgs.Slice()...)
 }
 
 func getTFPathFromConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (string, error) {
@@ -133,22 +193,25 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 		opts.TFPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	l, err = run.PopulateTFVersion(ctx, l, opts)
+	l, ver, impl, err := run.PopulateTFVersion(ctx, l, opts.WorkingDir, opts.VersionManagerFileName, configbridge.TFRunOptsFromOpts(opts))
 	if err != nil {
 		return l, err
 	}
+
+	opts.TerraformVersion = ver
+	opts.TofuImplementation = impl
 
 	terraformVersionConstraint := run.DefaultTerraformVersionConstraint
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
 
-	if err := run.CheckTerraformVersion(terraformVersionConstraint, opts); err != nil {
+	if err := run.CheckTerraformVersionMeetsConstraint(opts.TerraformVersion, terraformVersionConstraint); err != nil {
 		return l, err
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
-		if err := run.CheckTerragruntVersion(partialTerragruntConfig.TerragruntVersionConstraint, opts); err != nil {
+		if err := run.CheckTerragruntVersionMeetsConstraint(opts.TerragruntVersion, partialTerragruntConfig.TerragruntVersionConstraint); err != nil {
 			return l, err
 		}
 	}
@@ -173,7 +236,7 @@ func checkVersionConstraints(ctx context.Context, l log.Logger, opts *options.Te
 }
 
 func getTerragruntConfig(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) (*config.TerragruntConfig, error) {
-	ctx, configCtx := config.NewParsingContext(ctx, l, opts)
+	ctx, configCtx := configbridge.NewParsingContext(ctx, l, opts)
 	configCtx = configCtx.WithDecodeList(
 		config.TerragruntVersionConstraints,
 		config.FeatureFlagsBlock,
@@ -197,13 +260,13 @@ func confirmActionWithDependentUnits(
 ) bool {
 	units := findDependentUnits(ctx, l, opts, cfg)
 	if len(units) != 0 {
-		if _, err := opts.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
+		if _, err := opts.Writers.ErrWriter.Write([]byte("Detected dependent units:\n")); err != nil {
 			l.Error(err)
 			return false
 		}
 
 		for _, unit := range units {
-			if _, err := opts.ErrWriter.Write([]byte(unit + "\n")); err != nil {
+			if _, err := opts.Writers.ErrWriter.Write([]byte(unit + "\n")); err != nil {
 				l.Error(err)
 				return false
 			}
@@ -211,7 +274,7 @@ func confirmActionWithDependentUnits(
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 		if err != nil {
 			l.Error(err)
 			return false

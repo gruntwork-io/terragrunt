@@ -3,41 +3,64 @@ name: CI
 on:
   push:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   precommit:
     uses: ./.github/workflows/precommit.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   codespell:
     uses: ./.github/workflows/codespell.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   go_mod_tidy_check:
     uses: ./.github/workflows/go-mod-tidy-check.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   markdownlint:
     uses: ./.github/workflows/markdownlint.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   install_script_test:
     uses: ./.github/workflows/install-script-test.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   license_check:
     uses: ./.github/workflows/license-check.yml
+    permissions:
+      contents: read
     secrets: inherit
 
   fuzz:
     uses: ./.github/workflows/fuzz.yml
+    permissions:
+      contents: read
     secrets: inherit
 
+  # Fast feedback: only gate on lint/precommit/go_mod_tidy. Other checks (codespell,
+  # markdownlint, license_check, install_script_test) run in parallel and are enforced
+  # by branch protection rules, not by job dependencies.
   base_tests:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/base-test.yml
     permissions:
       contents: read
@@ -45,15 +68,66 @@ jobs:
     secrets: inherit
 
   build:
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref == 'refs/heads/main' && format('tip-{0}', github.sha) || '' }}
+    permissions:
+      contents: read
     secrets: inherit
+
+  tip_build:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/upload-tip-build.yml
+    with:
+      prefix: tip
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    secrets:
+      TIP_BUILD_ROLE_ARN: ${{ secrets.TIP_BUILD_ROLE_ARN }}
+      TIP_BUILD_BUCKET: ${{ secrets.TIP_BUILD_BUCKET }}
+      SIGNING_GPG_PRIVATE_KEY: ${{ secrets.SIGNING_GPG_PRIVATE_KEY }}
+      SIGNING_GPG_PASSPHRASE: ${{ secrets.SIGNING_GPG_PASSPHRASE }}
+
+  notify_issues:
+    needs: [tip_build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Notify issues about tip build
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const notify = require('./.github/scripts/tip-build-notify-issues.js');
+            await notify({ github, context, core });
 
   build_no_proxy:
     # Only run no_proxy builds on main branch to save CI time
     if: github.ref == 'refs/heads/main'
-    needs: [lint, precommit, codespell, go_mod_tidy_check, markdownlint, install_script_test, license_check]
+    needs: [lint, precommit, go_mod_tidy_check]
     uses: ./.github/workflows/build-no-proxy.yml
+    permissions:
+      contents: read
+    secrets: inherit
+
+  coverage_compare:
+    needs: [base_tests]
+    uses: ./.github/workflows/coverage-compare-main.yml
+    permissions:
+      contents: read
+      actions: read
     secrets: inherit
 
   integration_tests:

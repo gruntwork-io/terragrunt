@@ -4,6 +4,8 @@ package catalog
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags"
@@ -15,10 +17,53 @@ import (
 
 const (
 	CommandName = "catalog"
+
+	IgnoreFileFlagName = "ignore-file"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) clihelper.Flags {
-	return shared.NewScaffoldingFlags(opts, prefix)
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+
+	catalogFlags := clihelper.Flags{
+		flags.NewFlag(&clihelper.GenericFlag[string]{
+			Name:        IgnoreFileFlagName,
+			EnvVars:     tgPrefix.EnvVars(IgnoreFileFlagName),
+			Destination: &opts.CatalogIgnoreFile,
+			Usage:       "Path to an additional ignore file layered on top of a repo's .terragrunt-catalog-ignore during discovery.",
+			Action: func(_ context.Context, _ *clihelper.Context, value string) error {
+				if value == "" {
+					return nil
+				}
+
+				resolved := value
+				if !filepath.IsAbs(resolved) {
+					workDir := opts.WorkingDir
+					if workDir == "" {
+						workDir = opts.RootWorkingDir
+					}
+
+					if workDir != "" {
+						resolved = filepath.Join(workDir, resolved)
+					}
+				}
+
+				info, err := os.Stat(resolved)
+				if err != nil {
+					return clihelper.NewExitError(err, clihelper.ExitCodeGeneralError)
+				}
+
+				if info.IsDir() {
+					return clihelper.NewExitError("--"+IgnoreFileFlagName+" must point to a file, not a directory", clihelper.ExitCodeGeneralError)
+				}
+
+				opts.CatalogIgnoreFile = resolved
+
+				return nil
+			},
+		}),
+	}
+
+	return append(shared.NewScaffoldingFlags(opts, prefix), catalogFlags...)
 }
 
 func NewCommand(l log.Logger, opts *options.TerragruntOptions) *clihelper.Command {

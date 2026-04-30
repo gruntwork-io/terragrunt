@@ -48,12 +48,20 @@ func (controller *ProviderController) Register(router *router.Router) {
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms
 
 	// Get All Versions for a Single Provider
-	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/versions", controller.getVersionsAction)
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/
+	// provider-versions-platforms#get-all-versions-for-a-single-provider
+	controller.GET(
+		"/:cache_request_id/:registry_name/:namespace/:name/versions",
+		controller.getVersionsAction,
+	)
 
 	// Get a Platform
-	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.getPlatformsAction)
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/
+	// provider-versions-platforms#get-a-platform
+	controller.GET(
+		"/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch",
+		controller.getPlatformsAction,
+	)
 }
 
 func (controller *ProviderController) getVersionsAction(ctx echo.Context) error {
@@ -84,12 +92,17 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		}
 	}
 
+	validVersions, invalidVersions := allVersions.FilterValid()
+	for _, v := range invalidVersions {
+		controller.Logger.Warnf("Skipping invalid version %q for provider %s", v, provider.Address())
+	}
+
 	versions := struct {
 		ID       string          `json:"id"`
 		Versions models.Versions `json:"versions"`
 	}{
 		ID:       provider.Address(),
-		Versions: allVersions,
+		Versions: validVersions,
 	}
 
 	return ctx.JSON(http.StatusOK, versions)

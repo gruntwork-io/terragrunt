@@ -63,7 +63,7 @@ func ParseFilterQueries(l log.Logger, filterStrings []string) (Filters, error) {
 // HasPositiveFilter returns true if the filters have any positive filters.
 func (f Filters) HasPositiveFilter() bool {
 	for _, filter := range f {
-		if !startsWithNegation(filter.expr) {
+		if !IsNegated(filter.expr) {
 			return true
 		}
 	}
@@ -91,6 +91,21 @@ func (f Filters) RequiresParse() (Expression, bool) {
 	}
 
 	return nil, false
+}
+
+// ExcludingGitFilters returns all filters that do not contain a git expression.
+// Git expressions are excluded because they are handled by the worktree phase
+// itself and would cause infinite recursion if propagated to sub-discoveries.
+func (f Filters) ExcludingGitFilters() Filters {
+	result := make(Filters, 0, len(f))
+
+	for _, filter := range f {
+		if !containsGitExpression(filter.expr) {
+			result = append(result, filter)
+		}
+	}
+
+	return result
 }
 
 // DependencyGraphExpressions returns all target expressions from graph expressions that require dependency traversal.
@@ -139,132 +154,15 @@ func (f Filters) UniqueGitFilters() GitExpressions {
 
 // RestrictToStacks returns a new Filters object with only the filters that are restricted to stacks.
 func (f Filters) RestrictToStacks() Filters {
-	return slices.Collect(func(yield func(*Filter) bool) {
-		for _, filter := range f {
-			if filter.expr.IsRestrictedToStacks() && !yield(filter) {
-				return
-			}
+	result := make(Filters, 0, len(f))
+
+	for _, filter := range f {
+		if filter.expr.IsRestrictedToStacks() {
+			result = append(result, filter)
 		}
-	})
-}
-
-// collectGraphExpressionTargetsWithDependencies recursively collects target expressions from GraphExpression nodes that have IncludeDependencies set.
-func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
-	var targets []Expression
-
-	if graphExpr, ok := expr.(*GraphExpression); ok {
-		if graphExpr.IncludeDependencies {
-			targets = append(targets, graphExpr.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependencies(graphExpr.Target)...)
-
-		return targets
 	}
 
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGraphExpressionTargetsWithDependencies(node.Right)
-	case *InfixExpression:
-		leftTargets := collectGraphExpressionTargetsWithDependencies(node.Left)
-		rightTargets := collectGraphExpressionTargetsWithDependencies(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		if node.IncludeDependencies {
-			targets = append(targets, node.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependencies(node.Target)...)
-	}
-
-	return targets
-}
-
-// collectGraphExpressionTargetsWithDependents recursively collects target expressions from GraphExpression nodes that have IncludeDependents set.
-func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
-	var targets []Expression
-
-	if graphExpr, ok := expr.(*GraphExpression); ok {
-		if graphExpr.IncludeDependents {
-			targets = append(targets, graphExpr.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependents(graphExpr.Target)...)
-
-		return targets
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGraphExpressionTargetsWithDependents(node.Right)
-	case *InfixExpression:
-		leftTargets := collectGraphExpressionTargetsWithDependents(node.Left)
-		rightTargets := collectGraphExpressionTargetsWithDependents(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		if node.IncludeDependents {
-			targets = append(targets, node.Target)
-		}
-		// Also check the target expression for nested graph expressions
-		targets = append(targets, collectGraphExpressionTargetsWithDependents(node.Target)...)
-	}
-
-	return targets
-}
-
-// collectWorktreeExpressions recursively collects worktree expressions from GitFilter nodes.
-func collectWorktreeExpressions(expr Expression) []*GitExpression {
-	var targets []*GitExpression
-
-	if gitFilter, ok := expr.(*GitExpression); ok {
-		targets = append(targets, gitFilter)
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectWorktreeExpressions(node.Right)
-	case *InfixExpression:
-		leftTargets := collectWorktreeExpressions(node.Left)
-		rightTargets := collectWorktreeExpressions(node.Right)
-
-		return append(leftTargets, rightTargets...)
-	case *GraphExpression:
-		targets = append(targets, collectWorktreeExpressions(node.Target)...)
-	}
-
-	return targets
-}
-
-// collectGitReferences recursively collects Git references from GitFilter nodes.
-func collectGitReferences(expr Expression) []string {
-	var refs []string
-
-	if gitFilter, ok := expr.(*GitExpression); ok {
-		refs = append(refs, gitFilter.FromRef, gitFilter.ToRef)
-
-		return refs
-	}
-
-	// Check nested expressions
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return collectGitReferences(node.Right)
-	case *InfixExpression:
-		leftRefs := collectGitReferences(node.Left)
-		rightRefs := collectGitReferences(node.Right)
-
-		return append(leftRefs, rightRefs...)
-	case *GraphExpression:
-		// Git filters can be nested inside graph expressions
-		return collectGitReferences(node.Target)
-	}
-
-	return refs
+	return result
 }
 
 // Evaluate applies all filters with union (OR) semantics in two phases:
@@ -284,7 +182,7 @@ func (f Filters) Evaluate(l log.Logger, components component.Components) (compon
 	)
 
 	for _, filter := range f {
-		if startsWithNegation(filter.expr) {
+		if IsNegated(filter.expr) {
 			negativeFilters = append(negativeFilters, filter)
 
 			continue
@@ -366,6 +264,37 @@ func (f Filters) EvaluateOnFiles(l log.Logger, files []string, workingDir string
 	return f.Evaluate(l, comps)
 }
 
+// String returns a JSON array representation of all filter strings.
+func (f Filters) String() string {
+	filterStrings := make([]string, len(f))
+	for i, filter := range f {
+		filterStrings[i] = filter.String()
+	}
+
+	jsonBytes, err := json.Marshal(filterStrings)
+	if err != nil {
+		return "[]"
+	}
+
+	return string(jsonBytes)
+}
+
+// containsGitExpression returns true if the expression tree contains a GitExpression.
+func containsGitExpression(expr Expression) bool {
+	found := false
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if _, ok := e.(*GitExpression); ok {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
+}
+
 func initialComponents(l log.Logger, positiveFilters []*Filter, components component.Components) (component.Components, error) {
 	if len(positiveFilters) == 0 {
 		return components, nil
@@ -392,29 +321,58 @@ func initialComponents(l log.Logger, positiveFilters []*Filter, components compo
 	return remaining, nil
 }
 
-// String returns a JSON array representation of all filter strings.
-func (f Filters) String() string {
-	filterStrings := make([]string, len(f))
-	for i, filter := range f {
-		filterStrings[i] = filter.String()
-	}
+func collectGraphExpressionTargetsWithDependencies(expr Expression) []Expression {
+	var targets []Expression
 
-	jsonBytes, err := json.Marshal(filterStrings)
-	if err != nil {
-		return "[]"
-	}
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependencies {
+			targets = append(targets, graphExpr.Target)
+		}
 
-	return string(jsonBytes)
+		return true
+	})
+
+	return targets
 }
 
-// startsWithNegation checks if an expression starts with a negation operator.
-func startsWithNegation(expr Expression) bool {
-	switch node := expr.(type) {
-	case *PrefixExpression:
-		return node.Operator == "!"
-	case *InfixExpression:
-		return startsWithNegation(node.Left)
-	default:
-		return false
-	}
+func collectGraphExpressionTargetsWithDependents(expr Expression) []Expression {
+	var targets []Expression
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if graphExpr, ok := e.(*GraphExpression); ok && graphExpr.IncludeDependents {
+			targets = append(targets, graphExpr.Target)
+		}
+
+		return true
+	})
+
+	return targets
+}
+
+func collectGitReferences(expr Expression) []string {
+	var refs []string
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			refs = append(refs, gitExpr.FromRef, gitExpr.ToRef)
+		}
+
+		return true
+	})
+
+	return refs
+}
+
+func collectWorktreeExpressions(expr Expression) []*GitExpression {
+	var targets []*GitExpression
+
+	WalkExpressions(expr, func(e Expression) bool {
+		if gitExpr, ok := e.(*GitExpression); ok {
+			targets = append(targets, gitExpr)
+		}
+
+		return true
+	})
+
+	return targets
 }

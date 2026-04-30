@@ -188,6 +188,56 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"string-bool-use-lockfile-true",
+			backend.Config{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": "true",
+			},
+			map[string]any{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": true,
+			},
+			true,
+		},
+		{
+			"string-bool-use-lockfile-false",
+			backend.Config{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": "false",
+			},
+			map[string]any{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"use_lockfile": false,
+			},
+			true,
+		},
+		{
+			"string-bool-encrypt-and-use-lockfile",
+			backend.Config{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"encrypt":      "true",
+				"use_lockfile": "true",
+			},
+			map[string]any{
+				"bucket":       "foo",
+				"key":          "bar",
+				"region":       "us-east-1",
+				"encrypt":      true,
+				"use_lockfile": true,
+			},
+			true,
+		},
 	}
 
 	for _, tc := range testCases {

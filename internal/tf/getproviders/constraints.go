@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -20,7 +20,7 @@ import (
 type ProviderConstraints map[string]string
 
 // ParseProviderConstraints parses all .tf and .tofu files in the given directory and extracts required_providers constraints
-func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string) (ProviderConstraints, error) {
+func ParseProviderConstraints(impl tfimpl.Type, workingDir string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	var allFiles []string
@@ -45,7 +45,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 	}
 
 	for _, file := range allFiles {
-		fileConstraints, err := parseProviderConstraintsFromFile(opts, file)
+		fileConstraints, err := parseProviderConstraintsFromFile(impl, file)
 		if err != nil {
 			// Log parsing errors but continue processing other files
 			// This allows partial success when some files have syntax errors
@@ -60,7 +60,7 @@ func ParseProviderConstraints(opts *options.TerragruntOptions, workingDir string
 }
 
 // parseProviderConstraintsFromFile parses a single .tf file and extracts required_providers constraints
-func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename string) (ProviderConstraints, error) {
+func parseProviderConstraintsFromFile(impl tfimpl.Type, filename string) (ProviderConstraints, error) {
 	constraints := make(ProviderConstraints)
 
 	content, err := os.ReadFile(filename)
@@ -92,7 +92,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 			}
 
 			// Parse each provider in the required_providers block
-			providerConstraints := parseProvidersFromRequiredProvidersBlock(opts, nestedBlock)
+			providerConstraints := parseProvidersFromRequiredProvidersBlock(impl, nestedBlock)
 
 			// Merge constraints from this required_providers block
 			maps.Copy(constraints, providerConstraints)
@@ -103,7 +103,7 @@ func parseProviderConstraintsFromFile(opts *options.TerragruntOptions, filename 
 }
 
 // parseProvidersFromRequiredProvidersBlock extracts provider constraints from a required_providers block
-func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, block *hclsyntax.Block) ProviderConstraints {
+func parseProvidersFromRequiredProvidersBlock(impl tfimpl.Type, block *hclsyntax.Block) ProviderConstraints {
 	constraints := make(ProviderConstraints)
 
 	// Parse the attributes in the required_providers block
@@ -175,11 +175,11 @@ func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, b
 		// If we have both source and version, create the constraint mapping
 		if source != "" && version != "" {
 			// Normalize the source address to full registry format
-			providerAddr := normalizeProviderAddress(opts, source)
+			providerAddr := normalizeProviderAddress(impl, source)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		} else if source == "" && version != "" {
 			// If only version is specified, assume it's a hashicorp provider
-			registryDomain := tf.GetDefaultRegistryDomain(opts)
+			registryDomain := tf.GetDefaultRegistryDomain(impl)
 			providerAddr := fmt.Sprintf("%s/hashicorp/%s", registryDomain, name)
 			constraints[providerAddr] = normalizeVersionConstraint(version)
 		}
@@ -189,9 +189,9 @@ func parseProvidersFromRequiredProvidersBlock(opts *options.TerragruntOptions, b
 }
 
 // normalizeProviderAddress converts provider source to full registry format
-func normalizeProviderAddress(opts *options.TerragruntOptions, source string) string {
+func normalizeProviderAddress(impl tfimpl.Type, source string) string {
 	parts := strings.Split(source, "/")
-	registryDomain := tf.GetDefaultRegistryDomain(opts)
+	registryDomain := tf.GetDefaultRegistryDomain(impl)
 
 	const (
 		singlePart    = 1
@@ -220,40 +220,46 @@ func normalizeProviderAddress(opts *options.TerragruntOptions, source string) st
 // This includes:
 // 1. Removing the "=" prefix if present
 // 2. Normalizing version numbers to full 3-part format (e.g., "2.2" becomes "2.2.0")
+// 3. Handling multi-part constraints (e.g., ">= 3.0, < 7.0" becomes ">= 3.0.0, < 7.0.0")
 func normalizeVersionConstraint(constraint string) string {
 	constraint = strings.TrimSpace(constraint)
 
-	// If constraint starts with "=", remove it
+	parts := strings.Split(constraint, ",")
+	normalized := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		normalized = append(normalized, normalizeSingleConstraint(strings.TrimSpace(part)))
+	}
+
+	return strings.Join(normalized, ", ")
+}
+
+// normalizeSingleConstraint normalizes a single version constraint (no commas).
+func normalizeSingleConstraint(constraint string) string {
 	if after, ok := strings.CutPrefix(constraint, "="); ok {
 		constraint = strings.TrimSpace(after)
 	}
 
-	// Split the constraint into operator and version parts
-	parts := strings.Fields(constraint)
+	fields := strings.Fields(constraint)
 
-	// This is just a version number without an operator (e.g., "1.2.3")
 	const justVersionParts = 1
-	if len(parts) == justVersionParts {
-		if v, err := version.NewVersion(parts[0]); err == nil {
+	if len(fields) == justVersionParts {
+		if v, err := version.NewVersion(fields[0]); err == nil {
 			return v.String()
 		}
 
 		return constraint
 	}
 
-	// This has an operator and version (e.g., ">= 2.2")
 	const operatorAndVersionParts = 2
-	if len(parts) == operatorAndVersionParts {
-		operator := parts[0]
-		versionStr := parts[1]
+	if len(fields) == operatorAndVersionParts {
+		operator := fields[0]
+		versionStr := fields[1]
 
-		// Parse the version to normalize it
 		if v, err := version.NewVersion(versionStr); err == nil {
-			// The version library normalizes "2.2" to "2.2.0"
 			return fmt.Sprintf("%s %s", operator, v.String())
 		}
 	}
 
-	// If parsing fails or unexpected format, return the original constraint
 	return constraint
 }

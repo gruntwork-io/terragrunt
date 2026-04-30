@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -99,6 +101,62 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 		Scheme: "https",
 		Host:   ln.Addr().String(),
 		Path:   urlPrefix,
+	}
+}
+
+// runMockRegistryWithAbsoluteModuleURL runs a mock Terraform registry server that returns
+// an absolute URL for modules.v1 in its .well-known/terraform.json discovery response.
+// This is used to test the fix for https://github.com/gruntwork-io/terragrunt/issues/5156
+func runMockRegistryWithAbsoluteModuleURL(t *testing.T, ctx context.Context, providerDir, absoluteModulesURL string) *url.URL {
+	t.Helper()
+
+	serverTLSConf, clientTLSConf := certSetup(t)
+
+	http.DefaultTransport = &http.Transport{
+		TLSClientConfig: clientTLSConf,
+	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/.well-known/terraform.json", func(resp http.ResponseWriter, req *http.Request) {
+		discovery := map[string]string{
+			"modules.v1":   absoluteModulesURL,
+			"providers.v1": "/v1/providers/",
+		}
+
+		resp.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(resp).Encode(discovery); err != nil {
+			t.Logf("Error encoding discovery response: %v", err)
+			http.Error(resp, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	fs := http.FileServer(http.Dir(providerDir))
+	mux.Handle("/v1/providers/", http.StripPrefix("/v1/providers/", fs))
+
+	ln, err := tls.Listen("tcp", "localhost:0", serverTLSConf)
+	require.NoError(t, err)
+
+	server := &http.Server{
+		Addr:    ln.Addr().String(),
+		Handler: mux,
+	}
+
+	go func() {
+		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(ctx) //nolint:errcheck
+	}()
+
+	return &url.URL{
+		Scheme: "https",
+		Host:   ln.Addr().String(),
 	}
 }
 
@@ -339,23 +397,34 @@ func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, ke
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
-func wrappedBinary() string {
-	value, found := os.LookupEnv("TG_TF_PATH")
-	if !found {
-		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(context.Background(), helpers.TofuBinary, "-version") {
-			return helpers.TofuBinary
+// wrappedBinaryOnce memoizes the detected wrapped binary for the test process.
+var (
+	wrappedBinaryOnce   sync.Once
+	wrappedBinaryCached string
+)
+
+// wrappedBinary returns which binary will be wrapped by Terragrunt. Detection
+// runs at most once per test process; ctx is used only on the first call.
+func wrappedBinary(ctx context.Context) string {
+	wrappedBinaryOnce.Do(func() {
+		if value, found := os.LookupEnv("TG_TF_PATH"); found {
+			wrappedBinaryCached = filepath.Base(value)
+			return
 		}
 
-		return helpers.TerraformBinary
-	}
+		if util.IsCommandExecutable(vexec.NewOSExec(), ctx, helpers.TofuBinary, "-version") {
+			wrappedBinaryCached = helpers.TofuBinary
+			return
+		}
 
-	return filepath.Base(value)
+		wrappedBinaryCached = helpers.TerraformBinary
+	})
+
+	return wrappedBinaryCached
 }
 
-func isTerraform() bool {
-	return wrappedBinary() == helpers.TerraformBinary
+func isTerraform(ctx context.Context) bool {
+	return wrappedBinary(ctx) == helpers.TerraformBinary
 }
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {

@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/runner"
 	"github.com/gruntwork-io/terragrunt/internal/runner/common"
+	"github.com/gruntwork-io/terragrunt/internal/runner/run/creds"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runall"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
@@ -21,13 +24,30 @@ import (
 )
 
 func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) error {
-	cfg, err := config.ReadTerragruntConfig(ctx, l, opts, config.DefaultParserOptions(l, opts))
+	// Get credentials BEFORE config parsing — sops_decrypt_file() and
+	// get_aws_account_id() in locals need auth-provider credentials
+	// available in opts.Env during HCL evaluation.
+	// *Getter discarded: graph.Run only needs creds in opts.Env for initial config parse.
+	// Per-unit creds are re-fetched in runnerpool task (intentional: each unit may have
+	// different opts after clone).
+	shellOpts := configbridge.ShellRunOptsFromOpts(opts)
+	if _, err := creds.ObtainCredsForParsing(ctx, l, opts.AuthProviderCmd, opts.Env, shellOpts); err != nil {
+		return err
+	}
+
+	ctx, pctx := configbridge.NewParsingContext(ctx, l, opts)
+
+	cfg, err := config.ReadTerragruntConfig(ctx, l, pctx, pctx.ParserOptions)
 	if err != nil {
 		return err
 	}
 
 	if cfg == nil {
-		return errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+		return errors.New(
+			"terragrunt was not able to render the config as json because it received no config." +
+				" This is almost certainly a bug in Terragrunt. Please open an issue on" +
+				" github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl",
+		)
 	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
@@ -35,7 +55,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts, opts.WorkingDir)
+		gitRoot, gitRootErr := shell.GitTopLevelDir(ctx, l, opts.Env, opts.WorkingDir)
 		if gitRootErr != nil {
 			return gitRootErr
 		}
@@ -48,7 +68,7 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 	graphOpts := opts.Clone()
 	graphOpts.RootWorkingDir = rootDir
 
-	stackOpts := make([]common.Option, 0, 1)
+	runnerOpts := make([]common.Option, 0, 1)
 
 	r := report.NewReport().WithWorkingDir(opts.WorkingDir)
 
@@ -66,26 +86,42 @@ func Run(ctx context.Context, l log.Logger, opts *options.TerragruntOptions) err
 
 	// Limit graph to the working directory and its dependents.
 	// The prefix ellipsis means "include dependents"; target is included by default.
-	graphOpts.FilterQueries = []string{fmt.Sprintf("...{%s}", opts.WorkingDir)}
+	pathExpr, err := filter.NewPathFilter(opts.WorkingDir)
+	if err != nil {
+		return fmt.Errorf("failed to create path filter for %s: %w", opts.WorkingDir, err)
+	}
 
-	stackOpts = append(stackOpts, common.WithReport(r))
+	graphExpr := filter.NewGraphExpression(pathExpr).WithDependents()
+	graphOpts.Filters = filter.Filters{filter.NewFilter(graphExpr, graphExpr.String())}
 
 	if opts.ReportSchemaFile != "" {
-		defer r.WriteSchemaToFile(opts.ReportSchemaFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSchemaToFile(opts.ReportSchemaFile); err != nil {
+				l.Warnf("Failed to write report schema to %s: %v", opts.ReportSchemaFile, err)
+			}
+		}()
 	}
 
 	if opts.ReportFile != "" {
-		defer r.WriteToFile(opts.ReportFile) //nolint:errcheck
+		defer func() {
+			if err := r.WriteToFile(opts.ReportFile); err != nil {
+				l.Warnf("Failed to write report to %s: %v", opts.ReportFile, err)
+			}
+		}()
 	}
 
 	if !opts.SummaryDisable {
-		defer r.WriteSummary(opts.Writer) //nolint:errcheck
+		defer func() {
+			if err := r.WriteSummary(opts.Writers.Writer); err != nil {
+				l.Warnf("Failed to write summary: %v", err)
+			}
+		}()
 	}
 
-	stack, err := runner.FindStackInSubfolders(ctx, l, graphOpts, stackOpts...)
+	rnr, err := runner.NewStackRunner(ctx, l, graphOpts, runnerOpts...)
 	if err != nil {
 		return err
 	}
 
-	return runall.RunAllOnStack(ctx, l, graphOpts, stack)
+	return runall.RunAllOnStack(ctx, l, graphOpts, rnr, r)
 }

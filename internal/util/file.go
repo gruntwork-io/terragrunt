@@ -5,31 +5,33 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"syscall"
 
-	"github.com/gobwas/glob"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
-	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/mattn/go-zglob"
 	"github.com/mitchellh/go-homedir"
 )
 
 const (
 	TerraformLockFile     = ".terraform.lock.hcl"
 	TerragruntCacheDir    = ".terragrunt-cache"
+	TerraformCacheDir     = ".terraform"
+	GitDir                = ".git"
 	DefaultBoilerplateDir = ".boilerplate"
-	TfFileExtension       = ".tf"
 	ChecksumReadBlock     = 8192
 )
 
@@ -66,7 +68,7 @@ func FileExists(path string) bool {
 // FileNotExists returns true if the given file does not exist.
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
-	return os.IsNotExist(err)
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
@@ -74,7 +76,7 @@ func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
 		return errors.New(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
-		const ownerReadWriteExecutePerms = 0700
+		const ownerReadWriteExecutePerms = 0o700
 
 		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
@@ -82,149 +84,72 @@ func EnsureDirectory(path string) error {
 	return nil
 }
 
-// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given path is a
-// relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
-// components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
+// CanonicalPath returns the canonical version of the given path, relative to the given base path. That is, if the given
+// path is a relative path, assume it is relative to the given base path. A canonical path is an absolute path with all
+// relative components (e.g. "../") fully resolved, which makes it safe to compare paths as strings. If the path is
+// relative, basePath must be absolute or an error is returned.
 func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
+		if !filepath.IsAbs(basePath) {
+			return "", fmt.Errorf("base path %q is not absolute", basePath)
+		}
+
 		path = filepath.Join(basePath, path)
 	}
 
-	absPath, err := filepath.Abs(path)
+	return filepath.Clean(path), nil
+}
+
+// CanonicalResolvedPath returns the cleaned absolute path with symlinks resolved best-effort.
+func CanonicalResolvedPath(path, basePath string) (string, error) {
+	canonical, err := CanonicalPath(path, basePath)
 	if err != nil {
-		return "", errors.New(err)
+		return "", err
 	}
 
-	return CleanPath(absPath), nil
+	return ResolvePath(canonical), nil
 }
 
-func CompileGlobs(basePath string, globPaths ...string) (map[string]glob.Glob, error) {
-	basePath, err := CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
+// GrepFilesWithSuffix returns true if regex matches the contents of any file
+// under rootDir whose name ends with suffix. The walk stops as soon as a match
+// is found. A missing rootDir is not an error; the function returns false.
+func GrepFilesWithSuffix(fsys vfs.FS, regex *regexp.Regexp, rootDir, suffix string) (bool, error) {
+	var found bool
 
-	var errs []error
+	err := vfs.WalkDir(fsys, rootDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if errors.Is(walkErr, fs.ErrNotExist) {
+				return fs.SkipAll
+			}
 
-	compiledGlobs := map[string]glob.Glob{}
+			return walkErr
+		}
 
-	for _, globPath := range globPaths {
-		canGlobPath, err := CanonicalPath(globPath, basePath)
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(d.Name(), suffix) {
+			return nil
+		}
+
+		contents, err := vfs.ReadFile(fsys, path)
 		if err != nil {
-			errs = append(errs, errors.Errorf("failed to canonicalize glob path %q: %w", globPath, err))
-			continue
+			return err
 		}
 
-		compiledGlob, err := glob.Compile(canGlobPath, '/')
-		if err != nil {
-			errs = append(errs, errors.Errorf("invalid glob pattern %q: %w", globPath, err))
-			continue
+		if regex.Match(contents) {
+			found = true
+			return fs.SkipAll
 		}
 
-		compiledGlobs[globPath] = compiledGlob
-	}
-
-	if len(errs) > 0 {
-		return compiledGlobs, errors.Errorf("failed to compile some glob patterns: %w", errors.Join(errs...))
-	}
-
-	return compiledGlobs, nil
-}
-
-// GlobCanonicalPath returns the canonical versions of the given glob paths, relative to the given base path.
-func GlobCanonicalPath(l log.Logger, basePath string, globPaths ...string) ([]string, error) {
-	if len(globPaths) == 0 {
-		return []string{}, nil
-	}
-
-	var err error
-
-	// Ensure basePath is canonical
-	basePath, err = CanonicalPath("", basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-
-	for _, globPath := range globPaths {
-		// Log a warning if globPath uses the old glob pattern
-		if strings.HasSuffix(globPath, "**/*") {
-			l.Warn("Glob behavior will change in a future version of Terragrunt. `**/*` will match all files in a directory and its subdirectories with a depth of at least one. Switch to `**` with the strict-control double-star enabled to preserve the current behavior.")
-		}
-
-		// Ensure globPath are absolute
-		if !filepath.IsAbs(globPath) {
-			globPath = filepath.Join(basePath, globPath)
-		}
-
-		const stackDir = "/.terragrunt-stack/"
-
-		matches, err := zglob.Glob(globPath)
-		if err == nil {
-			paths = append(paths, matches...)
-		} else if errors.Is(err, os.ErrNotExist) && strings.Contains(CleanPath(globPath), stackDir) {
-			// when using the stack feature, the directory may not exist yet,
-			// as stack generation occurs after parsing the argument flags.
-			paths = append(paths, globPath)
-		}
-	}
-
-	// Make sure all paths are canonical
-	for i := range paths {
-		paths[i], err = CanonicalPath(paths[i], basePath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return paths, nil
-}
-
-// CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
-// relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
-// components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
-func CanonicalPaths(paths []string, basePath string) ([]string, error) {
-	canonicalPaths := []string{}
-
-	for _, path := range paths {
-		canonicalPath, err := CanonicalPath(path, basePath)
-		if err != nil {
-			return canonicalPaths, err
-		}
-
-		canonicalPaths = append(canonicalPaths, canonicalPath)
-	}
-
-	return canonicalPaths, nil
-}
-
-// Grep returns true if the given regex can be found in any of the files matched by the given glob.
-func Grep(regex *regexp.Regexp, glob string) (bool, error) {
-	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
-	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
-	// So we use a third-party library.
-	matches, err := zglob.Glob(glob)
+		return nil
+	})
 	if err != nil {
 		return false, errors.New(err)
 	}
 
-	for _, match := range matches {
-		if IsDir(match) {
-			continue
-		}
-
-		bytes, err := os.ReadFile(match)
-		if err != nil {
-			return false, errors.New(err)
-		}
-
-		if regex.Match(bytes) {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return found, nil
 }
 
 // FindTFFiles walks through the directory and returns all OpenTofu/Terraform files (.tf, .tofu, .tf.json, .tofu.json)
@@ -347,22 +272,12 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		basePath = "."
 	}
 
-	inputFolderAbs, err := filepath.Abs(basePath)
+	relPath, err := filepath.Rel(basePath, path)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
-	fileAbs, err := filepath.Abs(path)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
-	if err != nil {
-		return "", errors.New(err)
-	}
-
-	return filepath.ToSlash(relPath), nil
+	return relPath, nil
 }
 
 // ReadFileAsString returns the contents of the file at the given path as a string.
@@ -399,7 +314,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
-	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
+	absoluteExpandGlob, err := glob.LegacyExpand(absoluteGlobPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.New(err)
@@ -415,7 +330,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			return nil, err
 		}
 
-		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
+		includeExpandedGlobs = append(includeExpandedGlobs, filepath.ToSlash(relativeExpandGlobPath))
 
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
@@ -430,25 +345,65 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	return includeExpandedGlobs, nil
 }
 
+// CopyOption configures a [CopyFolderContents] call.
+type CopyOption func(*copyConfig)
+
+type copyConfig struct {
+	includeInCopy   []string
+	excludeFromCopy []string
+	fastCopy        bool
+}
+
+// WithIncludeInCopy adds glob patterns that must be copied even when
+// [TerragruntExcludes] would skip them (for example hidden files).
+func WithIncludeInCopy(patterns ...string) CopyOption {
+	return func(c *copyConfig) {
+		c.includeInCopy = append(c.includeInCopy, patterns...)
+	}
+}
+
+// WithExcludeFromCopy adds glob patterns whose matches must be skipped
+// during the copy.
+func WithExcludeFromCopy(patterns ...string) CopyOption {
+	return func(c *copyConfig) {
+		c.excludeFromCopy = append(c.excludeFromCopy, patterns...)
+	}
+}
+
+// WithFastCopy enables the fast-copy path: patterns compile once through
+// [glob.Compile] and the source tree is walked once via
+// [vfs.WalkDirParallel]. See the `fast-copy` strict control for the
+// semantic implications.
+func WithFastCopy() CopyOption {
+	return func(c *copyConfig) {
+		c.fastCopy = true
+	}
+}
+
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContents(
-	logger log.Logger,
-	source,
-	destination,
-	manifestFile string,
-	includeInCopy []string,
-	excludeFromCopy []string,
-) error {
+//
+// Optional behavior is configured through [CopyOption] values such as
+// [WithIncludeInCopy], [WithExcludeFromCopy], and [WithFastCopy].
+func CopyFolderContents(l log.Logger, source, destination, manifestFile string, opts ...CopyOption) error {
+	var cfg copyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	// We use filepath.ToSlash because we end up using globs here, and those expect forward slashes.
 	source = filepath.ToSlash(source)
 	destination = filepath.ToSlash(destination)
+
+	if cfg.fastCopy {
+		return copyFolderContentsFast(l, source, destination, manifestFile, cfg.includeInCopy, cfg.excludeFromCopy)
+	}
 
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
 
-	for _, includeGlob := range includeInCopy {
+	for _, includeGlob := range cfg.includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
@@ -461,7 +416,7 @@ func CopyFolderContents(
 
 	excludeExpandedGlobs := []string{}
 
-	for _, excludeGlob := range excludeFromCopy {
+	for _, excludeGlob := range cfg.excludeFromCopy {
 		globPath := filepath.Join(source, excludeGlob)
 
 		expandGlob, err := expandGlobPath(source, globPath)
@@ -472,16 +427,21 @@ func CopyFolderContents(
 		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(l, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		if err != nil {
+			return false
+		}
+
+		relativePath = filepath.ToSlash(relativePath)
 		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
 		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
-		if err == nil && listHasElementWithPrefix && !pathHasPrefix {
+		if listHasElementWithPrefix && !pathHasPrefix {
 			return true
 		}
 
-		if err == nil && pathContainsPrefix(relativePath, excludeExpandedGlobs) {
+		if pathHasPrefix {
 			return false
 		}
 
@@ -489,15 +449,299 @@ func CopyFolderContents(
 	})
 }
 
-// CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
-	const ownerReadWriteExecutePerms = 0700
+// copyFolderContentsFast is the [CopyFolderContents] path used when the
+// `fast-copy` strict control is enabled. Include and exclude patterns
+// are compiled once and the source tree is walked once through
+// [vfs.WalkDirParallel].
+func copyFolderContentsFast(
+	l log.Logger,
+	source,
+	destination,
+	manifestFile string,
+	includeInCopy []string,
+	excludeFromCopy []string,
+) error {
+	include, err := compileIncludePatterns(includeInCopy)
+	if err != nil {
+		return err
+	}
+
+	exclude, err := compileExcludePattern(excludeFromCopy)
+	if err != nil {
+		return err
+	}
+
+	const ownerReadWriteExecutePerms = 0o700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.New(err)
 	}
 
-	manifest := NewFileManifest(logger, destination, manifestFile)
-	if err := manifest.Clean(); err != nil {
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
+		return errors.New(err)
+	}
+
+	if err := manifest.Create(); err != nil {
+		return errors.New(err)
+	}
+
+	defer func() {
+		if err := manifest.Close(); err != nil {
+			l.Warnf("Error closing manifest file: %v", err)
+		}
+	}()
+
+	// The walk is parallel. The gob-encoded manifest is not safe for
+	// concurrent writes, so AddFile is guarded.
+	var manifestMu sync.Mutex
+
+	walkFn := func(absolutePath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if absolutePath == source {
+			return nil
+		}
+
+		rel, err := filepath.Rel(source, absolutePath)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		rel = filepath.ToSlash(rel)
+
+		isDir := d.IsDir()
+
+		// fastwalk reports the link itself (type = symlink) before
+		// descending into a followed directory symlink, so `d.IsDir()`
+		// is false on the initial visit. Stat the target so the rest of
+		// the walkFn treats a directory symlink as a directory and
+		// matches the legacy copy semantics.
+		if !isDir && d.Type()&fs.ModeSymlink != 0 {
+			targetInfo, err := os.Stat(absolutePath)
+			if err != nil {
+				return errors.New(err)
+			}
+
+			isDir = targetInfo.IsDir()
+		}
+
+		// Skip .terragrunt-cache before include matching. A user
+		// include like "**" would otherwise pull it back in.
+		if slices.Contains(strings.Split(rel, "/"), TerragruntCacheDir) {
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if exclude != nil && exclude.Match(rel) {
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		included := include.matches(rel)
+
+		if !included && TerragruntExcludes(filepath.FromSlash(rel)) {
+			// A directory on the way to a potential include match must
+			// still be descended into even when TerragruntExcludes
+			// would reject it.
+			if isDir && include.isAncestor(rel) {
+				return nil
+			}
+
+			if isDir {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		dest := filepath.Join(destination, rel)
+
+		if isDir {
+			info, err := d.Info()
+			if err != nil {
+				return errors.New(err)
+			}
+
+			// A sibling file-copy worker may have created `dest`
+			// already with default perms. Chmod forces the source's
+			// mode.
+			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
+				return errors.New(err)
+			}
+
+			if err := os.Chmod(dest, info.Mode().Perm()); err != nil {
+				return errors.New(err)
+			}
+
+			return nil
+		}
+
+		parentDir := filepath.Dir(dest)
+		if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
+			return errors.New(err)
+		}
+
+		if err := CopyFile(absolutePath, dest); err != nil {
+			return err
+		}
+
+		manifestMu.Lock()
+		defer manifestMu.Unlock()
+
+		return manifest.AddFile(dest)
+	}
+
+	if err := vfs.WalkDirParallel(vfs.NewOSFS(), source, walkFn, vfs.WithFollowSymlinks()); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
+// includePatterns holds the compiled include matcher and an ancestor
+// predicate. The predicate lets the walk descend through dot-prefixed
+// parents like `_module/.region3` to reach an include below.
+type includePatterns struct {
+	// match is a single matcher that OR-s every user pattern as
+	// `{<p>,<p>/**}` so one Match call per entry covers all of them.
+	match glob.Matcher
+
+	// ancestor matches the path prefixes of every pattern that does
+	// not contain `**`. A rel that matches is a directory on the way
+	// to a potential include match.
+	ancestor glob.Matcher
+
+	// descendAny is true when any pattern contains a `**` segment. In
+	// that case every directory is a possible ancestor, so `ancestor`
+	// is not consulted.
+	descendAny bool
+}
+
+func (p includePatterns) matches(rel string) bool {
+	return p.match != nil && p.match.Match(rel)
+}
+
+func (p includePatterns) isAncestor(rel string) bool {
+	if rel == "" || rel == "." {
+		return true
+	}
+
+	if p.descendAny {
+		return true
+	}
+
+	return p.ancestor != nil && p.ancestor.Match(rel)
+}
+
+// compileIncludePatterns compiles user `include_in_copy` patterns into
+// one combined matcher that covers each pattern and all its descendants,
+// reproducing the recursive expansion in [expandGlobPath], plus an
+// ancestor matcher for directories on the path toward a potential match.
+func compileIncludePatterns(patterns []string) (includePatterns, error) {
+	out := includePatterns{}
+
+	if len(patterns) == 0 {
+		return out, nil
+	}
+
+	// Each pattern contributes two alternatives: itself and itself/**.
+	const altsPerPattern = 2
+
+	matchParts := make([]string, 0, altsPerPattern*len(patterns))
+
+	var ancestorParts []string
+
+	for _, p := range patterns {
+		normalized := strings.TrimRight(filepath.ToSlash(p), "/")
+		if normalized == "" {
+			continue
+		}
+
+		matchParts = append(matchParts, normalized, normalized+"/**")
+
+		segments := strings.Split(normalized, "/")
+
+		if slices.Contains(segments, "**") {
+			out.descendAny = true
+			continue
+		}
+
+		for i := 1; i < len(segments); i++ {
+			ancestorParts = append(ancestorParts, strings.Join(segments[:i], "/"))
+		}
+	}
+
+	match, err := glob.Compile("{" + strings.Join(matchParts, ",") + "}")
+	if err != nil {
+		return includePatterns{}, errors.New(err)
+	}
+
+	out.match = match
+
+	if len(ancestorParts) > 0 {
+		ancestor, err := glob.Compile("{" + strings.Join(ancestorParts, ",") + "}")
+		if err != nil {
+			return includePatterns{}, errors.New(err)
+		}
+
+		out.ancestor = ancestor
+	}
+
+	return out, nil
+}
+
+// compileExcludePattern compiles user `exclude_from_copy` patterns into one
+// combined matcher. Each pattern is wrapped as `{<p>,<p>/**}` so excluding a
+// directory excludes everything under it. Returns nil when patterns is
+// empty.
+func compileExcludePattern(patterns []string) (glob.Matcher, error) {
+	if len(patterns) == 0 {
+		return nil, nil
+	}
+
+	// Each pattern contributes two alternatives: itself and itself/**.
+	const altsPerPattern = 2
+
+	parts := make([]string, 0, altsPerPattern*len(patterns))
+
+	for _, p := range patterns {
+		normalized := strings.TrimRight(filepath.ToSlash(p), "/")
+		if normalized == "" {
+			continue
+		}
+
+		parts = append(parts, normalized, normalized+"/**")
+	}
+
+	if len(parts) == 0 {
+		return nil, nil
+	}
+
+	matcher, err := glob.Compile("{" + strings.Join(parts, ",") + "}")
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return matcher, nil
+}
+
+// CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
+func CopyFolderContentsWithFilter(l log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+	const ownerReadWriteExecutePerms = 0o700
+	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
+		return errors.New(err)
+	}
+
+	manifest := NewFileManifest(destination, manifestFile)
+	if err := manifest.Clean(l); err != nil {
 		return errors.New(err)
 	}
 
@@ -508,7 +752,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
-			logger.Warnf("Error closing manifest file: %v", err)
+			l.Warnf("Error closing manifest file: %v", err)
 		}
 	}(manifest)
 
@@ -542,7 +786,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 				return errors.New(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(l, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -552,7 +796,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 		} else {
 			parentDir := filepath.Dir(dest)
 
-			const ownerReadWriteExecutePerms = 0700
+			const ownerReadWriteExecutePerms = 0o700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.New(err)
 			}
@@ -568,6 +812,22 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	}
 
 	return nil
+}
+
+// CopyFolderToTemp creates a temp directory with the given prefix, copies the
+// contents of the source folder into it using the provided filter, and returns
+// the path to the temp directory.
+func CopyFolderToTemp(source string, tempPrefix string, filter func(path string) bool) (string, error) {
+	dest, err := os.MkdirTemp("", tempPrefix)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	if err := CopyFolderContentsWithFilter(log.New(), source, dest, ".copymanifest", filter); err != nil {
+		return "", err
+	}
+
+	return dest, nil
 }
 
 // IsSymLink returns true if the given file is a symbolic link
@@ -595,58 +855,47 @@ func TerragruntExcludes(path string) bool {
 
 // CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
-	contents, err := os.ReadFile(source)
+	file, err := os.Open(source)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	return WriteFileWithSamePermissions(source, destination, contents)
+	err = WriteFileWithSamePermissions(source, destination, file)
+
+	return errors.New(errors.Join(err, file.Close()))
 }
 
 // WriteFileWithSamePermissions writes a file to the given destination with the given contents
 // using the same permissions as the file at source.
-func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
+func WriteFileWithSamePermissions(source string, destination string, contents io.Reader) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	// If destination exists, remove it first to avoid permission issues
-	// This is especially important when CAS creates read-only files
-	if FileExists(destination) {
-		if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
-			return errors.New(err)
-		}
+	// CAS may place read-only files at the destination, which would block a plain open.
+	if err := os.Remove(destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.New(err)
 	}
 
-	return os.WriteFile(destination, contents, fileInfo.Mode())
-}
+	file, err := os.OpenFile(destination, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
+	if err != nil {
+		return err
+	}
 
-// SplitPath splits the given path into a list.
-// E.g. "foo/bar/boo.txt" -> ["foo", "bar", "boo.txt"]
-// E.g. "/foo/bar/boo.txt" -> ["", "foo", "bar", "boo.txt"]
-// Notice that if path is absolute the resulting list will begin with an empty string.
-func SplitPath(path string) []string {
-	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
-}
+	_, err = io.Copy(file, contents)
 
-// CleanPath is a wrapper around filepath.Clean.
-//
-// Use this function when cleaning paths to ensure the returned
-// path uses / as the path separator to improve cross-platform compatibility
-func CleanPath(path string) string {
-	return filepath.ToSlash(filepath.Clean(path))
+	return errors.Join(err, file.Close())
 }
 
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
 // E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
 func ContainsPath(path, subpath string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitSubpath := SplitPath(CleanPath(subpath))
-	contains := ListContainsSublist(splitPath, splitSubpath)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitSubpath := strings.Split(filepath.Clean(subpath), string(filepath.Separator))
 
-	return contains
+	return ListContainsSublist(splitPath, splitSubpath)
 }
 
 // HasPathPrefix returns true if path starts with the given path prefix
@@ -654,11 +903,10 @@ func ContainsPath(path, subpath string) bool {
 // E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
 // path)
 func HasPathPrefix(path, prefix string) bool {
-	splitPath := SplitPath(CleanPath(path))
-	splitPrefix := SplitPath(CleanPath(prefix))
-	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+	splitPath := strings.Split(filepath.Clean(path), string(filepath.Separator))
+	splitPrefix := strings.Split(filepath.Clean(prefix), string(filepath.Separator))
 
-	return hasPrefix
+	return ListHasPrefix(splitPath, splitPrefix)
 }
 
 // JoinTerraformModulePath joins two paths together with a double-slash between them, as this is what
@@ -696,7 +944,6 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 // we have to track all the files we touch in a manifest. This way we know exactly which files we need to clean on
 // subsequent runs.
 type fileManifest struct {
-	logger         log.Logger
 	encoder        *gob.Encoder
 	fileHandle     *os.File
 	ManifestFolder string
@@ -712,12 +959,12 @@ type fileManifestEntry struct {
 }
 
 // Clean will recursively remove all files specified in the manifest
-func (manifest *fileManifest) Clean() error {
-	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+func (manifest *fileManifest) Clean(l log.Logger) error {
+	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
 // clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(manifestPath string) error {
+func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
@@ -731,11 +978,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
-			manifest.logger.Warnf("Error closing file %s: %v", name, err)
+			l.Warnf("Error closing file %s: %v", name, err)
 		}
 
 		if err := os.Remove(name); err != nil {
-			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
@@ -755,11 +1002,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
 		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return errors.New(err)
 			}
 		}
@@ -770,7 +1017,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
-	const ownerWriteGlobalReadPerms = 0644
+	const ownerWriteGlobalReadPerms = 0o644
 
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
@@ -798,8 +1045,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors
@@ -836,7 +1083,7 @@ func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) 
 			return err
 		}
 
-		if !d.IsDir() && filepath.Ext(path) == TfFileExtension {
+		if !d.IsDir() && IsTFFile(path) {
 			tfFiles = append(tfFiles, path)
 		}
 
@@ -1157,12 +1404,12 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
 // to access anything outside the base directory.
-func SanitizePath(baseDir string, file string) (string, error) {
+func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 	if baseDir == "" || file == "" {
 		return "", errors.New("baseDir and file must be provided")
 	}
 
-	file, err := url.QueryUnescape(file)
+	file, err = url.QueryUnescape(file)
 	if err != nil {
 		return "", err
 	}
@@ -1176,16 +1423,62 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer root.Close() //nolint:errcheck
 
-	fileInfo, err := root.Stat(file)
-	if err != nil {
+	defer func() {
+		if cerr := root.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	if _, err := root.Stat(file); err != nil {
 		return "", err
 	}
 
-	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
+	// Preserve nested directories from the validated input. Using
+	// fileInfo.Name() would flatten "a/b/c.txt" to "<baseDir>/c.txt".
+	// root.Stat already rejects paths that escape baseDir, so we only need
+	// to clean the input and join it back onto baseDir.
+	cleanedRelative := filepath.Clean(file)
+	cleanedRelative = strings.TrimLeft(cleanedRelative, string(os.PathSeparator))
 
-	return fullPath, nil
+	return filepath.Join(baseDir, cleanedRelative), nil
+}
+
+// RelPathForLog returns a relative path suitable for logging.
+// If the path cannot be made relative, it returns the original path.
+// Paths that don't start with ".." get a "./" prefix for clarity.
+// If showAbsPath is true, the original targetPath is returned unchanged.
+func RelPathForLog(basePath, targetPath string, showAbsPath bool) string {
+	if showAbsPath {
+		return targetPath
+	}
+
+	if relPath, err := filepath.Rel(basePath, targetPath); err == nil {
+		if relPath == "." {
+			return targetPath
+		}
+
+		// Add "./" prefix for paths within the base directory for clarity
+		if !strings.HasPrefix(relPath, "..") {
+			return "." + string(filepath.Separator) + relPath
+		}
+
+		return relPath
+	}
+
+	return targetPath
+}
+
+// ResolvePath resolves symlinks in a path for consistent comparison across platforms.
+// On macOS, /var is a symlink to /private/var, so paths must be resolved.
+// Returns the original path if symlink resolution fails.
+func ResolvePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
 }
 
 // MoveFile attempts to rename a file from source to destination, if this fails
@@ -1203,6 +1496,17 @@ func MoveFile(source string, destination string) error {
 		}
 
 		return renameErr
+	}
+
+	return nil
+}
+
+// SkipDirIfIgnorable checks if an entire directory should be skipped based on the fact that it's
+// in a directory that should never have components discovered in it.
+func SkipDirIfIgnorable(dir string) error {
+	switch dir {
+	case GitDir, TerraformCacheDir, TerragruntCacheDir:
+		return filepath.SkipDir
 	}
 
 	return nil

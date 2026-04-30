@@ -26,7 +26,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	testFalse := false
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
-	dependentModulesPath := []*string{&testSource}
 	metaVal := cty.MapVal(map[string]cty.Value{
 		"foo": cty.StringVal("bar"),
 	})
@@ -94,7 +93,6 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		Locals: map[string]any{
 			"quote": "the answer is 42",
 		},
-		DependentModulesPath: dependentModulesPath,
 		TerragruntDependencies: config.Dependencies{
 			config.Dependency{
 				Name:                                "foo",
@@ -219,8 +217,24 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 func TestTerraformConfigAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
+	// Fields that are intentionally excluded from CtyTerraformConfig because
+	// they use omit-when-nil semantics via ctyObjectAddField.
+	omitWhenNilFields := map[string]bool{
+		"UpdateSourceWithCAS": true,
+	}
+
 	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
-	terraformConfigFields := terraformConfigStructInfo.Names()
+
+	var terraformConfigFields []string
+
+	for _, name := range terraformConfigStructInfo.Names() {
+		if omitWhenNilFields[name] {
+			continue
+		}
+
+		terraformConfigFields = append(terraformConfigFields, name)
+	}
+
 	sort.Strings(terraformConfigFields)
 
 	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
@@ -233,8 +247,7 @@ func TestStackUnitCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/basic/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -253,8 +266,7 @@ func TestStackLocalsCtyReading(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
-	ctx, pctx := config.NewParsingContext(t.Context(), l, options)
+	ctx, pctx := newTestParsingContext(t, config.DefaultTerragruntConfigPath)
 	tgConfigCty, err := config.ParseTerragruntConfig(ctx, pctx, l, "../../test/fixtures/stacks/locals/live/terragrunt.stack.hcl", nil)
 	require.NoError(t, err)
 	stackMap, err := ctyhelper.ParseCtyValueToMap(tgConfigCty)
@@ -308,8 +320,6 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "", false
 	case "FieldsMetadata":
 		return "", false
-	case "DependentModulesPath":
-		return "dependent_modules", true
 	case "Engine":
 		return "engine", true
 	case "FeatureFlags":

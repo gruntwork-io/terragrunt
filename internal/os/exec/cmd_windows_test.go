@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package exec_test
 
@@ -25,9 +24,12 @@ func TestWindowsConsolePrepare(t *testing.T) {
 
 	l := log.New(log.WithOutput(&stdout), log.WithLevel(log.DebugLevel))
 
-	exec.PrepareConsole(l)
+	// In a test environment, handles are not real console handles,
+	// so PrepareConsole should return false.
+	result := exec.PrepareConsole(l)
+	assert.False(t, result, "PrepareConsole should return false when handles are invalid")
 
-	assert.Contains(t, stdout.String(), "msg=\"failed to get console mode: The handle is invalid.")
+	assert.Contains(t, stdout.String(), "failed to get console mode")
 }
 
 func TestWindowsExitCode(t *testing.T) {

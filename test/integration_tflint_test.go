@@ -84,15 +84,18 @@ func TestTflintWithoutConfigFile(t *testing.T) {
 }
 
 func TestTflintFindsConfigInCurrentPath(t *testing.T) {
-	out := new(bytes.Buffer)
-	errOut := new(bytes.Buffer)
 	rootPath := CopyEnvironmentWithTflint(t, testFixtureTflintNoTfSourcePath)
 	modulePath := filepath.Join(rootPath, testFixtureTflintNoTfSourcePath)
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan --log-level debug --working-dir "+modulePath, out, errOut)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt plan --log-level debug --working-dir "+modulePath,
+	)
 	require.NoError(t, err)
 
-	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
-	assert.Contains(t, errOut.String(), "--config ./.tflint.hcl")
+	assert.Contains(t, stderr, "Tflint has run successfully. No issues found")
+
+	expectedTflintHCLPath := filepath.Join("..", "..", "..", ".tflint.hcl")
+	assert.Contains(t, stderr, expectedTflintHCLPath)
 }
 
 func TestTflintInitSameModule(t *testing.T) {
@@ -107,7 +110,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	// generate multiple "app" modules that will be initialized in parallel
 	for i := 0; i < tflintInitSamples; i++ {
 		appPath := filepath.Join(modulePath, "dev", fmt.Sprintf("app-%d", i))
-		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{}, []string{})
+		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test")
 		require.NoError(t, err)
 	}
 
@@ -218,7 +221,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, filepath.Join(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}, []string{}))
+	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, filepath.Join(tmpDir, environmentPath), ".terragrunt-test", util.WithIncludeInCopy(".tflint.hcl")))
 
 	return tmpDir
 }

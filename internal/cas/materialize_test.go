@@ -1,0 +1,244 @@
+package cas_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/hashicorp/go-getter/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMaterializeTree_FromSynthStore(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	blobStore := cas.NewStore(filepath.Join(storeDir, "blobs"))
+	treeStore := cas.NewStore(filepath.Join(storeDir, "trees"))
+	synthStore := cas.NewStore(filepath.Join(storeDir, "synth", "trees"))
+
+	for _, s := range []*cas.Store{blobStore, treeStore, synthStore} {
+		require.NoError(t, os.MkdirAll(s.Path(), 0755))
+	}
+
+	// Store a blob in the blob store
+	blobData := []byte("hello world\n")
+	blobHash := "abc123"
+
+	blobContent := cas.NewContent(blobStore)
+	require.NoError(t, blobContent.Store(nil, blobHash, blobData))
+
+	// Store a synthetic tree that references the blob
+	treeData := []byte("100644 blob abc123\tREADME.md\n")
+	treeHash := "synth999"
+
+	synthContent := cas.NewContent(synthStore)
+	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+
+	// Build a CAS instance using the same store paths
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+	l := logger.CreateLogger()
+
+	err = c.MaterializeTree(t.Context(), l, treeHash, destDir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(destDir, "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, blobData, content)
+}
+
+func TestMaterializeTree_FromGitTreeStore(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	blobStore := cas.NewStore(filepath.Join(storeDir, "blobs"))
+	treeStore := cas.NewStore(filepath.Join(storeDir, "trees"))
+	synthStore := cas.NewStore(filepath.Join(storeDir, "synth", "trees"))
+
+	for _, s := range []*cas.Store{blobStore, treeStore, synthStore} {
+		require.NoError(t, os.MkdirAll(s.Path(), 0755))
+	}
+
+	blobData := []byte("module content\n")
+	blobHash := "blob111"
+
+	blobContent := cas.NewContent(blobStore)
+	require.NoError(t, blobContent.Store(nil, blobHash, blobData))
+
+	// Store a tree in the git tree store (not synth)
+	treeData := []byte("100644 blob blob111\tmain.tf\n")
+	treeHash := "tree222"
+
+	treeContent := cas.NewContent(treeStore)
+	require.NoError(t, treeContent.Store(nil, treeHash, treeData))
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+	l := logger.CreateLogger()
+
+	err = c.MaterializeTree(t.Context(), l, treeHash, destDir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(destDir, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, blobData, content)
+}
+
+func TestMaterializeTree_NotFound(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+	l := logger.CreateLogger()
+
+	err = c.MaterializeTree(t.Context(), l, "nonexistent", destDir)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, cas.ErrTreeNotFound)
+}
+
+func TestMaterializeTree_SynthTakesPrecedence(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	blobStore := cas.NewStore(filepath.Join(storeDir, "blobs"))
+	treeStore := cas.NewStore(filepath.Join(storeDir, "trees"))
+	synthStore := cas.NewStore(filepath.Join(storeDir, "synth", "trees"))
+
+	for _, s := range []*cas.Store{blobStore, treeStore, synthStore} {
+		require.NoError(t, os.MkdirAll(s.Path(), 0755))
+	}
+
+	blobA := []byte("synth version\n")
+	blobB := []byte("git version\n")
+
+	blobContent := cas.NewContent(blobStore)
+	require.NoError(t, blobContent.Store(nil, "blobA", blobA))
+	require.NoError(t, blobContent.Store(nil, "blobB", blobB))
+
+	hash := "samehash"
+
+	// Store in synth store (references blobA)
+	synthContent := cas.NewContent(synthStore)
+	require.NoError(t, synthContent.Store(nil, hash, []byte("100644 blob blobA\tfile.txt\n")))
+
+	// Store in git tree store (references blobB)
+	gitContent := cas.NewContent(treeStore)
+	require.NoError(t, gitContent.Store(nil, hash, []byte("100644 blob blobB\tfile.txt\n")))
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+	l := logger.CreateLogger()
+
+	err = c.MaterializeTree(t.Context(), l, hash, destDir)
+	require.NoError(t, err)
+
+	// Synth store is checked first, so the synth version should win
+	content, err := os.ReadFile(filepath.Join(destDir, "file.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, blobA, content)
+}
+
+func TestHashAlgorithmSum(t *testing.T) {
+	t.Parallel()
+
+	sha1Result := cas.HashSHA1.Sum([]byte("test"))
+	assert.Len(t, sha1Result, 40)
+
+	sha256Result := cas.HashSHA256.Sum([]byte("test"))
+	assert.Len(t, sha256Result, 64)
+
+	// Same input produces same output
+	assert.Equal(t, sha1Result, cas.HashSHA1.Sum([]byte("test")))
+	assert.Equal(t, sha256Result, cas.HashSHA256.Sum([]byte("test")))
+
+	// Different inputs produce different outputs
+	assert.NotEqual(t, sha1Result, cas.HashSHA1.Sum([]byte("other")))
+}
+
+func TestCASProtocolGetterGet(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	blobStore := cas.NewStore(filepath.Join(storeDir, "blobs"))
+	synthStore := cas.NewStore(filepath.Join(storeDir, "synth", "trees"))
+
+	for _, s := range []*cas.Store{
+		blobStore,
+		cas.NewStore(filepath.Join(storeDir, "trees")),
+		synthStore,
+	} {
+		require.NoError(t, os.MkdirAll(s.Path(), 0755))
+	}
+
+	fileContent := []byte("resource {}\n")
+	fileHash := "file123"
+
+	blobContent := cas.NewContent(blobStore)
+	require.NoError(t, blobContent.Store(nil, fileHash, fileContent))
+
+	treeHash := "tree456"
+	treeData := []byte("100644 blob file123\tmain.tf\n")
+
+	synthContent := cas.NewContent(synthStore)
+	require.NoError(t, synthContent.Store(nil, treeHash, treeData))
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	g := cas.NewCASProtocolGetter(l, c)
+
+	destDir := helpers.TmpDirWOSymlinks(t)
+
+	req := &getter.Request{
+		Src: "sha1:" + treeHash,
+		Dst: destDir,
+	}
+
+	err = g.Get(t.Context(), req)
+	require.NoError(t, err)
+
+	result, err := os.ReadFile(filepath.Join(destDir, "main.tf"))
+	require.NoError(t, err)
+	assert.Equal(t, fileContent, result)
+}
+
+func TestCASProtocolGetterGet_InvalidRef(t *testing.T) {
+	t.Parallel()
+
+	storeDir := helpers.TmpDirWOSymlinks(t)
+
+	c, err := cas.New(cas.WithStorePath(storeDir))
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	g := cas.NewCASProtocolGetter(l, c)
+
+	req := &getter.Request{
+		Src: "badprefix:abc123",
+		Dst: t.TempDir(),
+	}
+
+	err = g.Get(t.Context(), req)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, cas.ErrCASRefMissingPrefix)
+}

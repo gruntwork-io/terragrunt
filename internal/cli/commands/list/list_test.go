@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/list"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/view/dag"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -49,7 +50,7 @@ func TestBasicDiscovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1"}
+	expectedPaths := []string{"unit1", "unit2", filepath.Join("nested", "unit4"), "stack1"}
 
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
@@ -66,7 +67,7 @@ func TestBasicDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	l := logger.CreateLogger()
 
@@ -84,11 +85,6 @@ func TestBasicDiscovery(t *testing.T) {
 
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
-
-	// Normalize path separators in the output fields
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
@@ -135,7 +131,10 @@ func TestHiddenDiscovery(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	expectedPaths := []string{"unit1", "unit2", "nested/unit4", "stack1", ".hidden/unit3"}
+	expectedPaths := []string{
+		"unit1", "unit2", filepath.Join("nested", "unit4"),
+		"stack1", filepath.Join(".hidden", "unit3"),
+	}
 
 	tgOpts := options.NewTerragruntOptions()
 	tgOpts.WorkingDir = tmpDir
@@ -152,7 +151,7 @@ func TestHiddenDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -166,11 +165,6 @@ func TestHiddenDiscovery(t *testing.T) {
 
 	// Split output into fields and trim whitespace
 	fields := strings.Fields(string(output))
-
-	// Normalize path separators in the output fields
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	// Verify we have the expected number of lines
 	assert.Len(t, fields, len(expectedPaths))
@@ -235,7 +229,7 @@ dependency "unit2" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -313,7 +307,7 @@ dependency "unit3" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -425,7 +419,7 @@ dependency "C" {
 	require.NoError(t, err)
 
 	// Set the writer in options
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -479,18 +473,18 @@ dependency "C" {
 func TestColorizer(t *testing.T) {
 	t.Parallel()
 
-	colorizer := list.NewColorizer(true)
+	colorizer := dag.NewColorizer(true)
 
 	tests := []struct {
 		name   string
-		config *list.ListedComponent
+		config *dag.ListedComponent
 		// We can't test exact ANSI codes as they might vary by environment,
 		// so we'll test that different types result in different outputs
 		shouldBeDifferent []component.Kind
 	}{
 		{
 			name: "unit config",
-			config: &list.ListedComponent{
+			config: &dag.ListedComponent{
 				Type: component.UnitKind,
 				Path: "path/to/unit",
 			},
@@ -498,7 +492,7 @@ func TestColorizer(t *testing.T) {
 		},
 		{
 			name: "stack config",
-			config: &list.ListedComponent{
+			config: &dag.ListedComponent{
 				Type: component.StackKind,
 				Path: "path/to/stack",
 			},
@@ -515,7 +509,7 @@ func TestColorizer(t *testing.T) {
 
 			// Test that different types produce different colorized outputs
 			for _, diffType := range tt.shouldBeDifferent {
-				diffConfig := &list.ListedComponent{
+				diffConfig := &dag.ListedComponent{
 					Type: diffType,
 					Path: tt.config.Path,
 				}
@@ -567,7 +561,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -629,7 +623,7 @@ func TestDotFormatWithoutDependencies(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -704,7 +698,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -784,7 +778,7 @@ dependency "unit2" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -857,7 +851,7 @@ dependency "unit1" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -926,7 +920,7 @@ exclude {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)
@@ -938,12 +932,9 @@ exclude {
 
 	outputStr := string(output)
 
-	expectedPaths := []string{"001/unit1", "001/unit3"}
+	expectedPaths := []string{filepath.Join("001", "unit1"), filepath.Join("001", "unit3")}
 
 	fields := strings.Fields(outputStr)
-	for i, field := range fields {
-		fields[i] = filepath.ToSlash(field)
-	}
 
 	assert.Len(t, fields, len(expectedPaths))
 	assert.ElementsMatch(t, expectedPaths, fields)
@@ -1013,7 +1004,7 @@ dependency "unit3" {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	opts.Writer = w
+	opts.Writers.Writer = w
 
 	err = list.Run(t.Context(), l, opts)
 	require.NoError(t, err)

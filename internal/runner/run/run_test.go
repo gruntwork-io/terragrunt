@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
+	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -74,12 +75,14 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			opts.Env = tc.envVarsInOpts
 
+			runOpts := configbridge.NewRunOptions(opts)
+
 			cfg := &runcfg.RunConfig{Inputs: tc.inputsInConfig}
 
 			l := logger.CreateLogger()
-			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, opts, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(l, runOpts, cfg))
 
-			assert.Equal(t, tc.expected, opts.Env)
+			assert.Equal(t, tc.expected, runOpts.Env)
 		})
 	}
 }
@@ -165,7 +168,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 
 			opts.WorkingDir = tmpDir
 
-			err = run.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(configbridge.NewRunOptions(opts))
 			if (err != nil) && tc.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -227,17 +230,29 @@ func TestToTerraformEnvVars(t *testing.T) {
 			vars:        map[string]any{"str": "bar", "int": 42, "bool": false, "list": []int{1, 2, 3}, "map": map[string]any{"a": "b"}},
 			expected:    map[string]string{"TF_VAR_str": `bar`, "TF_VAR_int": `42`, "TF_VAR_bool": `false`, "TF_VAR_list": `[1,2,3]`, "TF_VAR_map": `{"a":"b"}`},
 		},
+		{
+			description: "map value with interpolation pattern",
+			vars:        map[string]any{"stuff": map[string]any{"foo": "test ${bar} test"}},
+			expected:    map[string]string{"TF_VAR_stuff": `{"foo":"test $${bar} test"}`},
+		},
+		{
+			description: "plain string with interpolation pattern not escaped",
+			vars:        map[string]any{"mystr": "plain ${bar} string"},
+			expected:    map[string]string{"TF_VAR_mystr": `plain ${bar} string`},
+		},
+		{
+			description: "typed slice with interpolation pattern",
+			vars:        map[string]any{"list": []string{"${a}", "b"}},
+			expected:    map[string]string{"TF_VAR_list": `["$${a}","b"]`},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsForTest("")
-			require.NoError(t, err)
-
 			l := logger.CreateLogger()
-			actual, err := run.ToTerraformEnvVars(l, opts, tc.vars)
+			actual, err := run.ToTerraformEnvVars(l, tc.vars)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})
@@ -247,7 +262,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 func TestFilterTerraformExtraArgs(t *testing.T) {
 	t.Parallel()
 
-	workingDir := filepath.ToSlash(helpers.TmpDirWOSymlinks(t))
+	workingDir := helpers.TmpDirWOSymlinks(t)
 
 	temporaryFile := createTempFile(t)
 
@@ -349,7 +364,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: runcfg.TerraformConfig{ExtraArgs: []runcfg.TerraformExtraArguments{tc.extraArgs}},
 		}
 		l := logger.CreateLogger()
-		out := run.FilterTerraformExtraArgs(l, tc.options, &config)
+		out := run.FilterTerraformExtraArgs(l, configbridge.NewRunOptions(tc.options), &config)
 		assert.Equal(t, tc.expectedArgs, out)
 	}
 }
@@ -420,7 +435,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
+	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
@@ -437,7 +452,7 @@ func createTempFile(t *testing.T) string {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
-	return filepath.ToSlash(tmpFile.Name())
+	return tmpFile.Name()
 }
 
 func TestShouldCopyLockFile(t *testing.T) {
@@ -517,7 +532,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 				t,
 				tt.want,
 				run.ShouldCopyLockFile(
-					clihelper.NewIacArgs(tt.args.args...),
+					iacargs.New(tt.args.args...),
 					tt.args.terraformConfig,
 				),
 				"shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)

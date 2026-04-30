@@ -1,0 +1,51 @@
+---
+title: Catalog
+description: Learn how to search, browse, and scaffold modules with Terragrunt's catalog ecosystem.
+slug: features/catalog
+sidebar:
+  label: Overview
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Terragrunt's catalog ecosystem provides two complementary tools for working with OpenTofu/Terraform modules:
+
+- **[Catalog TUI](/features/catalog/tui)** — A terminal user interface for browsing and searching your module catalog.
+- **[Scaffold](/features/catalog/scaffold)** — A command for generating `terragrunt.hcl` files from module templates.
+
+You can use Scaffold standalone, or launch it directly from the Catalog TUI by pressing `S` on a selected module.
+
+## Security Configuration
+
+The `catalog` block supports security-related configuration options:
+
+- `no_shell` (bool): When set to `true`, disables shell command execution in boilerplate templates during scaffolding. This is useful for organizations that want to prevent the use of shell commands in templates for security reasons.
+- `no_hooks` (bool): When set to `true`, disables hook execution in boilerplate templates during scaffolding. This is useful for organizations that want to prevent the use of hooks in templates for security reasons.
+
+<Aside type="caution">
+
+Do not use catalog/scaffold to scaffold untrusted templates. IaC configurations are inherently powerful, as they
+can run arbitrary code on your system, so make sure to only use trusted templates you have reviewed and approved.
+
+</Aside>
+
+These configuration values can be overridden by their corresponding CLI flags:
+
+```bash
+terragrunt catalog --no-shell --no-hooks
+
+terragrunt scaffold module-url --no-shell
+```
+
+**Priority order**: CLI flags > catalog configuration > defaults (both default to `false`, allowing `shell` and `hooks` to be used by default)
+
+## Custom templates for scaffolding
+
+Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize how code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via multiple mechanisms:
+
+1. You can define a custom Boilerplate template in a `.boilerplate` sub-directory of any OpenTofu/Terraform module.
+2. You can specify a custom Boilerplate template in the catalog configuration using the `default_template` option.
+3. You can specify a custom boilerplate template to use as the second argument of the [`scaffold` command](/features/catalog/scaffold).
+
+See the [Catalog TUI](/features/catalog/tui) and [Scaffold](/features/catalog/scaffold) pages for more details on configuring templates.

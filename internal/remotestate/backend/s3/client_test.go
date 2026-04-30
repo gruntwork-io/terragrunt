@@ -5,6 +5,7 @@ package s3_test
 import (
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,10 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/util"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +30,7 @@ const defaultTestRegion = "us-east-1"
 func CreateS3ClientForTest(t *testing.T) *s3backend.Client {
 	t.Helper()
 
-	mockOptions, err := options.NewTerragruntOptionsForTest("aws_test")
-	require.NoError(t, err, "Error creating mockOptions")
+	mockOptions := &backend.Options{}
 
 	extS3Cfg := &s3backend.ExtendedRemoteStateConfigS3{
 		RemoteStateConfigS3: s3backend.RemoteStateConfigS3{
@@ -239,4 +240,49 @@ func CreateKeyFromItemID(itemID string) map[string]dynamodbtypes.AttributeValue 
 	return map[string]dynamodbtypes.AttributeValue{
 		"LockID": &dynamodbtypes.AttributeValueMemberS{Value: itemID},
 	}
+}
+
+// TestAwsCreateS3BucketWithTagsAtCreation verifies that tags passed via
+// CreateS3BucketOpts are applied at bucket creation time (via
+// CreateBucketConfiguration.Tags), without relying on a subsequent
+// PutBucketTagging call.
+func TestAwsCreateS3BucketWithTagsAtCreation(t *testing.T) {
+	t.Parallel()
+
+	client := CreateS3ClientForTest(t)
+	bucketName := "terragrunt-test-" + strings.ToLower(util.UniqueID())
+
+	l := logger.CreateLogger()
+
+	expectedTags := map[string]string{
+		"team": "platform",
+		"env":  "test",
+	}
+
+	// Create bucket with tags supplied only at creation time.
+	err := client.CreateS3Bucket(t.Context(), l, bucketName, s3backend.CreateS3BucketOpts{Tags: expectedTags})
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, client.DeleteS3BucketWithAllObjects(t.Context(), l, bucketName))
+	}()
+
+	err = client.WaitUntilS3BucketExists(t.Context(), l, bucketName)
+	require.NoError(t, err)
+
+	// Verify tags are present — no PutBucketTagging was called, so these
+	// must have come from CreateBucketConfiguration.Tags at creation time.
+	s3Client := client.GetS3Client()
+
+	tagsOut, err := s3Client.GetBucketTagging(t.Context(), &s3.GetBucketTaggingInput{
+		Bucket: aws.String(bucketName),
+	})
+	require.NoError(t, err)
+
+	actualTags := make(map[string]string)
+	for _, tag := range tagsOut.TagSet {
+		actualTags[*tag.Key] = *tag.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Tags should be present from creation-time CreateBucketConfiguration.Tags")
 }

@@ -6,10 +6,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -26,8 +26,8 @@ type ParsedVariable struct {
 }
 
 // ParseVariables - parse variables from tf files.
-func ParseVariables(l log.Logger, opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
-	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
+func ParseVariables(l log.Logger, experiments experiment.Experiments, strictControls strict.Controls, directoryPath string) ([]*ParsedVariable, error) {
+	walkWithSymlinks := experiments.Evaluate(experiment.Symlinks)
 
 	// list all tf files
 	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)
@@ -35,7 +35,7 @@ func ParseVariables(l log.Logger, opts *options.TerragruntOptions, directoryPath
 		return nil, errors.New(err)
 	}
 
-	parser := hclparse.NewParser(DefaultParserOptions(l, opts)...)
+	parser := hclparse.NewParser(DefaultParserOptions(l, strictControls)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable

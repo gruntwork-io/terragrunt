@@ -1,0 +1,15 @@
+---
+title: Caching
+description: Learn how Terragrunt optimizes performance through provider caching and content deduplication.
+slug: features/caching
+sidebar:
+  label: Overview
+  order: 1
+---
+
+Terragrunt provides several caching mechanisms to improve performance and reduce bandwidth usage when working with OpenTofu/Terraform. These features ensure that providers and content are downloaded and stored efficiently, avoiding redundant work across multiple units.
+
+Terragrunt's caching ecosystem includes:
+
+- **Provider caching** to avoid redundant downloads of large provider binaries
+- **Content deduplication** to share identical content across multiple configurations

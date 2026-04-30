@@ -1,7 +1,6 @@
 package runnerpool_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -10,86 +9,12 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/runner/runnerpool"
-	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	thlogger "github.com/gruntwork-io/terragrunt/test/helpers/logger"
 )
 
-func TestBuildCanonicalConfigPath_DirectoryPath(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	unit := component.NewUnit(tmpDir)
-
-	canonicalPath, canonicalDir, err := runnerpool.BuildCanonicalConfigPath(unit, tmpDir)
-
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(tmpDir, config.DefaultTerragruntConfigPath), canonicalPath)
-	assert.Equal(t, tmpDir, canonicalDir)
-	assert.Equal(t, tmpDir, unit.Path())
-}
-
-func TestBuildCanonicalConfigPath_HCLSuffix(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
-	unit := component.NewUnit(configPath)
-
-	canonicalPath, canonicalDir, err := runnerpool.BuildCanonicalConfigPath(unit, tmpDir)
-
-	require.NoError(t, err)
-	assert.Equal(t, configPath, canonicalPath)
-	assert.Equal(t, tmpDir, canonicalDir)
-}
-
-func TestBuildCanonicalConfigPath_JSONSuffix(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	configPath := filepath.Join(tmpDir, "terragrunt.hcl.json")
-	unit := component.NewUnit(configPath)
-
-	canonicalPath, canonicalDir, err := runnerpool.BuildCanonicalConfigPath(unit, tmpDir)
-
-	require.NoError(t, err)
-	assert.Equal(t, configPath, canonicalPath)
-	assert.Equal(t, tmpDir, canonicalDir)
-}
-
-func TestBuildCanonicalConfigPath_RelativePath(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	subDir := filepath.Join(tmpDir, "subdir")
-	require.NoError(t, os.MkdirAll(subDir, 0o755))
-
-	unit := component.NewUnit("subdir")
-
-	canonicalPath, canonicalDir, err := runnerpool.BuildCanonicalConfigPath(unit, tmpDir)
-
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(subDir, config.DefaultTerragruntConfigPath), canonicalPath)
-	assert.Equal(t, subDir, canonicalDir)
-	assert.Equal(t, subDir, unit.Path())
-}
-
-func TestCloneUnitOptions_NilStackExecution(t *testing.T) {
-	t.Parallel()
-
-	stack := component.NewStack(helpers.TmpDirWOSymlinks(t))
-	unit := component.NewUnit("/some/path")
-	l := thlogger.CreateLogger()
-
-	opts, logger, err := runnerpool.CloneUnitOptions(stack, unit, "/some/path/terragrunt.hcl", "", l)
-
-	require.NoError(t, err)
-	assert.Nil(t, opts)
-	assert.NotNil(t, logger)
-}
-
-func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
+func TestCloneUnitOptions_WithStackOpts(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -98,15 +23,10 @@ func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
 	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	stack := component.NewStack(tmpDir)
-	stack.Execution = &component.StackExecution{
-		TerragruntOptions: stackOpts,
-	}
-
 	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
-	opts, logger, err := runnerpool.CloneUnitOptions(stack, unit, configPath, "", l)
+	opts, logger, err := runnerpool.CloneUnitOptions(stackOpts, unit, configPath, "", l)
 
 	require.NoError(t, err)
 	require.NotNil(t, opts)
@@ -115,67 +35,63 @@ func TestCloneUnitOptions_WithStackExecution(t *testing.T) {
 	assert.NotEmpty(t, opts.DownloadDir)
 }
 
-func TestShouldSkipUnitWithoutTerraform_WithSource(t *testing.T) {
-	t.Parallel()
-
-	source := "github.com/example/module"
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			Source: &source,
-		},
-	}
-	unit := component.NewUnit(helpers.TmpDirWOSymlinks(t)).WithConfig(cfg)
-	l := thlogger.CreateLogger()
-
-	skip, err := runnerpool.ShouldSkipUnitWithoutTerraform(unit, helpers.TmpDirWOSymlinks(t), l)
-
-	require.NoError(t, err)
-	assert.False(t, skip)
-}
-
-func TestShouldSkipUnitWithoutTerraform_WithTFFiles(t *testing.T) {
+func TestBuildUnitOpts_BasicUnit(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "main.tf"), []byte(""), 0o600))
+
+	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
 
 	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
-	skip, err := runnerpool.ShouldSkipUnitWithoutTerraform(unit, tmpDir, l)
+	unitOpts, unitLogger, err := runnerpool.BuildUnitOpts(l, stackOpts, unit)
 
 	require.NoError(t, err)
-	assert.False(t, skip)
+	require.NotNil(t, unitOpts)
+	assert.NotNil(t, unitLogger)
+	assert.Contains(t, unitOpts.TerragruntConfigPath, "terragrunt.hcl")
 }
 
-func TestShouldSkipUnitWithoutTerraform_NoSourceNoFiles(t *testing.T) {
+func TestBuildUnitOpts_WithDiscoveryContext(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
+
+	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	unit := component.NewUnit(tmpDir)
+	unit.SetDiscoveryContext(&component.DiscoveryContext{
+		Cmd:  "plan",
+		Args: []string{"-input=false"},
+	})
+
+	l := thlogger.CreateLogger()
+
+	unitOpts, _, err := runnerpool.BuildUnitOpts(l, stackOpts, unit)
+
+	require.NoError(t, err)
+	assert.Equal(t, "plan", unitOpts.TerraformCommand)
+}
+
+func TestCloneUnitOptions_WithCustomDownloadDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	configPath := filepath.Join(tmpDir, "terragrunt.hcl")
+
+	stackOpts, err := options.NewTerragruntOptionsForTest(filepath.Join(tmpDir, "stack", "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	stackOpts.DownloadDir = "/custom/download"
+
 	unit := component.NewUnit(tmpDir)
 	l := thlogger.CreateLogger()
 
-	skip, err := runnerpool.ShouldSkipUnitWithoutTerraform(unit, tmpDir, l)
+	opts, _, err := runnerpool.CloneUnitOptions(stackOpts, unit, configPath, "", l)
 
 	require.NoError(t, err)
-	assert.True(t, skip)
-}
-
-func TestShouldSkipUnitWithoutTerraform_EmptySource(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := helpers.TmpDirWOSymlinks(t)
-	source := ""
-	cfg := &config.TerragruntConfig{
-		Terraform: &config.TerraformConfig{
-			Source: &source,
-		},
-	}
-	unit := component.NewUnit(tmpDir).WithConfig(cfg)
-	l := thlogger.CreateLogger()
-
-	skip, err := runnerpool.ShouldSkipUnitWithoutTerraform(unit, tmpDir, l)
-
-	require.NoError(t, err)
-	assert.True(t, skip)
+	assert.Equal(t, "/custom/download", opts.DownloadDir)
 }

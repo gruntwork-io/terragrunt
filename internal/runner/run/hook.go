@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -26,11 +25,38 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
+// hookErrorMessage extracts command, args and output from the error
+// so users see WHY a hook failed, not just the exit code.
+func hookErrorMessage(hookName string, err error) string {
+	var processErr util.ProcessExecutionError
+	if !errors.As(err, &processErr) {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
+	}
+
+	exitCode, exitCodeErr := processErr.ExitStatus()
+	if exitCodeErr != nil {
+		return fmt.Sprintf("Hook %q failed to execute: %v", hookName, err)
+	}
+
+	cmd := strings.Join(append([]string{processErr.Command}, processErr.Args...), " ")
+
+	output := strings.TrimSpace(processErr.Output.Stderr.String())
+	if output == "" {
+		output = strings.TrimSpace(processErr.Output.Stdout.String())
+	}
+
+	if output != "" {
+		return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d:\n%s", hookName, cmd, exitCode, output)
+	}
+
+	return fmt.Sprintf("Hook %q (command: %s) exited with non-zero exit code %d", hookName, cmd, exitCode)
+}
+
 func processErrorHooks(
 	ctx context.Context,
 	l log.Logger,
 	hooks []runcfg.ErrorHook,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	previousExecErrors *errors.MultiError,
 ) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
@@ -76,19 +102,19 @@ func processErrorHooks(
 
 				actionToExecute := curHook.Execute[0]
 				actionParams := curHook.Execute[1:]
-				opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
+				hookOpts := optsWithHookEnvs(opts, curHook.Name)
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
 					l,
-					opts,
+					hookOpts.shellRunOptions(),
 					curHook.WorkingDir,
 					curHook.SuppressStdout,
 					false,
 					actionToExecute, actionParams...,
 				)
 				if possibleError != nil {
-					l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+					l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
 					return possibleError
 				}
 
@@ -108,7 +134,7 @@ func ProcessHooks(
 	ctx context.Context,
 	l log.Logger,
 	hooks []runcfg.Hook,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	previousExecErrors *errors.MultiError,
 	_ *report.Report,
@@ -147,7 +173,7 @@ func ProcessHooks(
 
 func shouldRunHook(
 	hook *runcfg.Hook,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	previousExecErrors *errors.MultiError,
 ) bool {
 	// if there's no previous error, execute command
@@ -165,7 +191,7 @@ func shouldRunHook(
 func runHook(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
 ) error {
@@ -176,7 +202,7 @@ func runHook(
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
-	opts = terragruntOptionsWithHookEnvs(opts, curHook.Name)
+	hookOpts := optsWithHookEnvs(opts, curHook.Name)
 
 	if actionToExecute == "tflint" {
 		return executeTFLint(ctx, l, opts, cfg, curHook, workingDir)
@@ -185,14 +211,14 @@ func runHook(
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
 		l,
-		opts,
+		hookOpts.shellRunOptions(),
 		workingDir,
 		suppressStdout,
 		false,
 		actionToExecute, actionParams...,
 	)
 	if possibleError != nil {
-		l.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
+		l.Errorf("%s", hookErrorMessage(curHook.Name, possibleError))
 	}
 
 	return possibleError
@@ -201,7 +227,7 @@ func runHook(
 func executeTFLint(
 	ctx context.Context,
 	l log.Logger,
-	opts *options.TerragruntOptions,
+	opts *Options,
 	cfg *runcfg.RunConfig,
 	curHook *runcfg.Hook,
 	workingDir string,
@@ -213,16 +239,16 @@ func executeTFLint(
 	actualLock.Lock()
 	defer actualLock.Unlock()
 
-	err := tflint.RunTflintWithOpts(ctx, l, opts, cfg, curHook)
+	err := tflint.RunTflintWithOpts(ctx, l, opts.tflintRunOptions(), cfg, curHook)
 	if err != nil {
-		l.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
+		l.Errorf("%s", hookErrorMessage(curHook.Name, err))
 		return err
 	}
 
 	return nil
 }
 
-func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
+func optsWithHookEnvs(opts *Options, hookName string) *Options {
 	newOpts := *opts
 	newOpts.Env = cloner.Clone(opts.Env)
 	newOpts.Env[HookCtxTFPathEnvName] = opts.TFPath

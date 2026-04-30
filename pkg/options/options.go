@@ -6,24 +6,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
+	"github.com/gruntwork-io/terragrunt/internal/engine"
+	"github.com/gruntwork-io/terragrunt/internal/errorconfig"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/filter"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
+	"github.com/gruntwork-io/terragrunt/internal/iam"
+	pcoptions "github.com/gruntwork-io/terragrunt/internal/providercache/options"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
+	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/tips"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -52,8 +57,6 @@ const (
 
 	DefaultTFDataDir = ".terraform"
 
-	DefaultIAMAssumeRoleDuration = 3600
-
 	defaultExcludesFile = ".terragrunt-excludes"
 	defaultFiltersFile  = ".terragrunt-filters"
 
@@ -63,50 +66,27 @@ const (
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable(context.Background())
 
-	defaultProviderCacheRegistryNames = []string{
-		"registry.terraform.io",
-		"registry.opentofu.org",
-	}
-
-	TerraformCommandsWithSubcommand = []string{
-		"debug",
-		"force-unlock",
-		"state",
-	}
-
 	defaultVersionManagerFileName = []string{
 		".terraform-version",
 		".tool-versions",
 		"mise.toml",
 		".mise.toml",
 	}
-
-	// Pattern used to clean error message when looking for retry and ignore patterns.
-	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
 
 type ctxKey byte
 
-type TerraformImplementationType string
-
-const (
-	TerraformImpl TerraformImplementationType = "terraform"
-	OpenTofuImpl  TerraformImplementationType = "tofu"
-	UnknownImpl   TerraformImplementationType = "unknown"
-)
-
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// If you want stdout to go somewhere other than os.stdout
-	Writer io.Writer
-	// If you want stderr to go somewhere other than os.stderr
-	ErrWriter io.Writer
+	Writers writer.Writers
 	// Version of terragrunt
 	TerragruntVersion *version.Version `clone:"shadowcopy"`
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
-	// Options to use engine for running IaC operations.
-	Engine *EngineOptions
+	// EngineConfig holds the resolved engine configuration from HCL.
+	EngineConfig *engine.EngineConfig
+	// EngineOptions groups CLI-supplied engine options.
+	EngineOptions *engine.EngineOptions
 	// Telemetry are telemetry options.
 	Telemetry *telemetry.Options
 	// Attributes to override in AWS provider nested within modules as part of the aws-provider-patch command.
@@ -114,7 +94,7 @@ type TerragruntOptions struct {
 	// Version of terraform (obtained by running 'terraform version')
 	TerraformVersion *version.Version `clone:"shadowcopy"`
 	// Errors is a configuration for error handling.
-	Errors *ErrorsConfig
+	Errors *errorconfig.Config
 	// Map to replace terraform source locations.
 	SourceMap map[string]string
 	// Environment variables at runtime
@@ -122,11 +102,9 @@ type TerragruntOptions struct {
 	// StackAction is the action that should be performed on the stack.
 	StackAction string
 	// IAM Role options that should be used when authenticating to AWS.
-	IAMRoleOptions IAMRoleOptions
+	IAMRoleOptions iam.RoleOptions
 	// IAM Role options set from command line.
-	OriginalIAMRoleOptions IAMRoleOptions
-	// The Token for authentication to the Terragrunt Provider Cache server.
-	ProviderCacheToken string
+	OriginalIAMRoleOptions iam.RoleOptions
 	// Current Terraform command being executed by Terragrunt
 	TerraformCommand string
 	// StackOutputFormat format how the stack output is rendered.
@@ -147,15 +125,9 @@ type TerragruntOptions struct {
 	// Original Terraform command being executed by Terragrunt.
 	OriginalTerraformCommand string
 	// Terraform implementation tool (e.g. terraform, tofu) that terragrunt is wrapping
-	TofuImplementation TerraformImplementationType
+	TofuImplementation tfimpl.Type
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
-	// The path to store unpacked providers.
-	ProviderCacheDir string
-	// Custom log level for engine
-	EngineLogLevel string
-	// Path to cache directory for engine files
-	EngineCachePath string
 	// The command and arguments that can be used to fetch authentication configurations.
 	AuthProviderCmd string
 	// Folder to store JSON representation of output files.
@@ -164,12 +136,13 @@ type TerragruntOptions struct {
 	OutputFolder string
 	// The file which hclfmt should be specifically run on
 	HclFile string
-	// The hostname of the Terragrunt Provider Cache server.
-	ProviderCacheHostname string
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
+	// Path to an additional ignore file layered on top of a repo's
+	// .terragrunt-catalog-ignore during catalog discovery.
+	CatalogIgnoreFile string
 	// Path to a file with a list of directories that need to be excluded when running *-all commands.
 	ExcludesFile string
 	// Path to folder of scaffold output
@@ -185,31 +158,33 @@ type TerragruntOptions struct {
 	// Path to the report schema file.
 	ReportSchemaFile string
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs *clihelper.IacArgs
+	TerraformCliArgs *iacargs.IacArgs
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
-	// The list of remote registries to cached by Terragrunt Provider Cache server.
-	ProviderCacheRegistryNames []string
 	// If set hclfmt will skip files in given directories.
 	HclExclude []string
 	// Variables for usage in scaffolding.
 	ScaffoldVars []string
 	// StrictControls is a slice of strict controls.
 	StrictControls strict.Controls `clone:"shadowcopy"`
-	// FilterQueries contains filter query strings for component selection
-	FilterQueries []string
+	// Filters contains parsed filter objects for component selection.
+	Filters filter.Filters `clone:"shadowcopy"`
 	// When set, it will be used to compute the cache key for `-version` checks.
 	VersionManagerFileName []string
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 	// Tips is a collection of tips that can be shown to users.
 	Tips tips.Tips `clone:"shadowcopy"`
+	// ProviderCacheOptions groups all provider-cache-specific configuration.
+	ProviderCacheOptions pcoptions.ProviderCacheOptions
 	// Parallelism limits the number of commands to run concurrently during *-all commands
 	Parallelism int
 	// When searching the directory tree, this is the max folders to check before exiting with an error.
 	MaxFoldersToCheck int
-	// The port of the Terragrunt Provider Cache server.
-	ProviderCachePort int
+	// CASCloneDepth is passed to git clone as --depth when CAS clones a remote
+	// repository. Defaults to 1 (see internal/cas.DefaultCASCloneDepth). Values must be
+	// positive (git rejects --depth 0) or negative (e.g. -1) for a full clone without --depth.
+	CASCloneDepth int
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 	// True if terragrunt should run in debug mode
@@ -234,10 +209,6 @@ type TerragruntOptions struct {
 	Check bool
 	// Enables caching of includes during partial parsing operations.
 	UsePartialParseConfigCache bool
-	// Disable listing of dependent modules in render json output
-	JSONDisableDependentModules bool
-	// Enables Terragrunt's provider caching.
-	ProviderCache bool
 	// True if is required to show dependent units and confirm action
 	CheckDependentUnits bool
 	// True if is required to check for dependent modules during destroy operations
@@ -252,8 +223,6 @@ type TerragruntOptions struct {
 	SkipOutput bool
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
-	// Skip checksum check for engine package.
-	EngineSkipChecksumCheck bool
 	// If set to true, ignore the dependency order when running *-all command.
 	IgnoreDependencyOrder bool
 	// If set to true, continue running *-all commands even if a dependency has errors.
@@ -274,14 +243,12 @@ type TerragruntOptions struct {
 	DisableLogFormatting bool
 	// Headless is set when Terragrunt is running in headless mode.
 	Headless bool
-	// LogDisableErrorSummary is a flag to skip the error summary
-	LogDisableErrorSummary bool
-	// Disable replacing full paths in logs with short relative paths
-	LogShowAbsPaths bool
 	// NoStackGenerate disable stack generation.
 	NoStackGenerate bool
 	// NoStackValidate disable generated stack validation.
 	NoStackValidate bool
+	// NoCAS disables the CAS feature even when the experiment is enabled.
+	NoCAS bool
 	// RunAll runs the provided OpenTofu/Terraform command against a stack.
 	RunAll bool
 	// Graph runs the provided OpenTofu/Terraform against the graph of dependencies for the unit in the current working directory.
@@ -300,8 +267,6 @@ type TerragruntOptions struct {
 	SummaryPerUnit bool
 	// NoAutoProviderCacheDir disables the auto-provider-cache-dir feature even when the experiment is enabled.
 	NoAutoProviderCacheDir bool
-	// NoEngine disables IaC engines even when the iac-engine experiment is enabled.
-	NoEngine bool
 	// NoDependencyFetchOutputFromState disables the dependency-fetch-output-from-state feature even when the experiment is enabled.
 	NoDependencyFetchOutputFromState bool
 	// TFPathExplicitlySet is set to true if the user has explicitly set the TFPath via the --tf-path flag.
@@ -335,36 +300,6 @@ func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	}
 }
 
-// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
-type IAMRoleOptions struct {
-	RoleARN               string
-	WebIdentityToken      string
-	AssumeRoleSessionName string
-	AssumeRoleDuration    int64
-}
-
-func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOptions {
-	out := target
-
-	if source.RoleARN != "" {
-		out.RoleARN = source.RoleARN
-	}
-
-	if source.AssumeRoleDuration != 0 {
-		out.AssumeRoleDuration = source.AssumeRoleDuration
-	}
-
-	if source.AssumeRoleSessionName != "" {
-		out.AssumeRoleSessionName = source.AssumeRoleSessionName
-	}
-
-	if source.WebIdentityToken != "" {
-		out.WebIdentityToken = source.WebIdentityToken
-	}
-
-	return out
-}
-
 // NewTerragruntOptions creates a new TerragruntOptions object with
 // reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
@@ -373,59 +308,60 @@ func NewTerragruntOptions() *TerragruntOptions {
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	return &TerragruntOptions{
-		TFPath:                     DefaultWrappedPath,
-		ExcludesFile:               defaultExcludesFile,
-		FiltersFile:                defaultFiltersFile,
-		AutoInit:                   true,
-		RunAllAutoApprove:          true,
-		Env:                        map[string]string{},
-		SourceMap:                  map[string]string{},
-		TerraformCliArgs:           clihelper.NewIacArgs(),
-		Writer:                     stdout,
-		ErrWriter:                  stderr,
-		MaxFoldersToCheck:          DefaultMaxFoldersToCheck,
-		AutoRetry:                  true,
-		Parallelism:                DefaultParallelism,
-		JSONOut:                    DefaultJSONOutName,
-		TofuImplementation:         UnknownImpl,
-		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
-		FeatureFlags:               xsync.NewMapOf[string, string](),
-		Errors:                     defaultErrorsConfig(),
-		StrictControls:             controls.New(),
-		Experiments:                experiment.NewExperiments(),
-		Tips:                       tips.NewTips(),
-		Telemetry:                  new(telemetry.Options),
-		VersionManagerFileName:     defaultVersionManagerFileName,
+		Writers:                writer.Writers{Writer: stdout, ErrWriter: stderr},
+		TFPath:                 DefaultWrappedPath,
+		ExcludesFile:           defaultExcludesFile,
+		FiltersFile:            defaultFiltersFile,
+		AutoInit:               true,
+		RunAllAutoApprove:      true,
+		Env:                    map[string]string{},
+		SourceMap:              map[string]string{},
+		TerraformCliArgs:       iacargs.New(),
+		MaxFoldersToCheck:      DefaultMaxFoldersToCheck,
+		AutoRetry:              true,
+		Parallelism:            DefaultParallelism,
+		JSONOut:                DefaultJSONOutName,
+		TofuImplementation:     tfimpl.Unknown,
+		ProviderCacheOptions:   pcoptions.ProviderCacheOptions{RegistryNames: pcoptions.DefaultRegistryNames},
+		FeatureFlags:           xsync.NewMapOf[string, string](),
+		Errors:                 defaultErrorsConfig(),
+		StrictControls:         controls.New(),
+		Experiments:            experiment.NewExperiments(),
+		Tips:                   tips.NewTips(),
+		Telemetry:              new(telemetry.Options),
+		EngineOptions:          new(engine.EngineOptions),
+		VersionManagerFileName: defaultVersionManagerFileName,
+		CASCloneDepth:          1,
 	}
 }
 
 func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*TerragruntOptions, error) {
 	opts := NewTerragruntOptions()
+
+	// Ensure config path is absolute so downstream code can rely on it.
+	// Skip resolution for empty paths (sentinel meaning "not set").
+	if terragruntConfigPath != "" {
+		if !filepath.IsAbs(terragruntConfigPath) {
+			absPath, err := filepath.Abs(terragruntConfigPath)
+			if err != nil {
+				return nil, errors.New(err)
+			}
+
+			terragruntConfigPath = absPath
+		}
+
+		terragruntConfigPath = filepath.Clean(terragruntConfigPath)
+	}
+
 	opts.TerragruntConfigPath = terragruntConfigPath
 
-	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
-	if err != nil {
-		return nil, errors.New(err)
-	}
+	workingDir, downloadDir := util.DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 
 	opts.WorkingDir = workingDir
 	opts.RootWorkingDir = workingDir
 	opts.DownloadDir = downloadDir
 
 	return opts, nil
-}
-
-// DefaultWorkingAndDownloadDirs gets the default working and download
-// directories for the given Terragrunt config path.
-func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
-
-	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
-	if err != nil {
-		return "", "", errors.New(err)
-	}
-
-	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
 // GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
@@ -440,7 +376,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.New(err), log.WithFormatter(formatter))
+		log.WithOptions(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter)).Errorf("%v\n", errors.New(err))
 
 		return nil, err
 	}
@@ -482,14 +418,9 @@ func (opts *TerragruntOptions) CloneWithConfigPath(l log.Logger, configPath stri
 	newOpts := opts.Clone()
 
 	// Ensure configPath is absolute and normalized for consistent path handling
-	configPath = util.CleanPath(configPath)
+	configPath = filepath.Clean(configPath)
 	if !filepath.IsAbs(configPath) {
-		absConfigPath, err := filepath.Abs(configPath)
-		if err != nil {
-			return l, nil, err
-		}
-
-		configPath = util.CleanPath(absConfigPath)
+		configPath = filepath.Clean(filepath.Join(opts.WorkingDir, configPath))
 	}
 
 	workingDir := filepath.Dir(configPath)
@@ -513,11 +444,11 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
 	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
+		opts.TerraformCliArgs = iacargs.New()
 	}
 
 	// Parse args using IacArgs to properly separate flags from arguments
-	parsed := clihelper.NewIacArgs(argsToInsert...)
+	parsed := iacargs.New(argsToInsert...)
 
 	// Insert flags at beginning
 	opts.TerraformCliArgs.InsertFlag(0, parsed.Flags...)
@@ -539,14 +470,14 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 // SubCommand rules:
 //   - If parsed has explicit subcommands, use them (last writer wins)
 //   - Otherwise keep any subcommand set during command merging
-func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *clihelper.IacArgs) {
+func (opts *TerragruntOptions) mergeCommandAndSubCommand(parsed *iacargs.IacArgs) {
 	// Handle command field
 	switch {
 	case opts.TerraformCliArgs.Command == "":
 		opts.TerraformCliArgs.Command = parsed.Command
 	case parsed.Command == "" || parsed.Command == opts.TerraformCliArgs.Command:
 		// no-op
-	case clihelper.IsKnownSubCommand(parsed.Command):
+	case iacargs.IsKnownSubCommand(parsed.Command):
 		opts.TerraformCliArgs.SubCommand = []string{parsed.Command}
 	default:
 		opts.TerraformCliArgs.InsertArguments(0, parsed.Command)
@@ -565,11 +496,11 @@ func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	// Insert/AppendTerraformCliArgs without pre-initializing the struct,
 	// which is common when building options incrementally or in tests.
 	if opts.TerraformCliArgs == nil {
-		opts.TerraformCliArgs = clihelper.NewIacArgs()
+		opts.TerraformCliArgs = iacargs.New()
 	}
 
 	// Parse args using IacArgs to properly separate flags from arguments
-	parsed := clihelper.NewIacArgs(argsToAppend...)
+	parsed := iacargs.New(argsToAppend...)
 
 	opts.TerraformCliArgs.AppendFlag(parsed.Flags...)
 
@@ -608,46 +539,11 @@ func (opts *TerragruntOptions) DataDir() string {
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable(ctx context.Context) string {
-	if util.IsCommandExecutable(ctx, TofuDefaultPath, "-version") {
+	if util.IsCommandExecutable(vexec.NewOSExec(), ctx, TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
 	// fallback to Terraform if tofu is not available
 	return TerraformDefaultPath
-}
-
-// EngineOptions Options for the Terragrunt engine.
-type EngineOptions struct {
-	Meta    map[string]any
-	Source  string
-	Version string
-	Type    string
-}
-
-// ErrorsConfig extracted errors handling configuration.
-type ErrorsConfig struct {
-	Retry  map[string]*RetryConfig
-	Ignore map[string]*IgnoreConfig
-}
-
-// RetryConfig represents the configuration for retrying specific errors.
-type RetryConfig struct {
-	Name             string
-	RetryableErrors  []*ErrorsPattern
-	MaxAttempts      int
-	SleepIntervalSec int
-}
-
-// IgnoreConfig represents the configuration for ignoring specific errors.
-type IgnoreConfig struct {
-	Signals         map[string]any
-	Name            string
-	Message         string
-	IgnorableErrors []*ErrorsPattern
-}
-
-type ErrorsPattern struct {
-	Pattern  *regexp.Regexp `clone:"shadowcopy"`
-	Negative bool
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
@@ -671,12 +567,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		reportWorkingDir = filepath.Dir(opts.OriginalTerragruntConfigPath)
 	}
 
-	reportDir, err := filepath.Abs(reportWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	reportDir = util.CleanPath(reportDir)
+	reportDir := filepath.Clean(reportWorkingDir)
 
 	for {
 		err := operation()
@@ -687,7 +578,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(
 		// Process the error through our error handling configuration
 		action, recoveryErr := opts.Errors.AttemptErrorRecovery(l, err, currentAttempt)
 		if recoveryErr != nil {
-			var maxAttemptsReachedError *MaxAttemptsReachedError
+			var maxAttemptsReachedError *errorconfig.MaxAttemptsReachedError
 			if errors.As(recoveryErr, &maxAttemptsReachedError) {
 				return maxAttemptsReachedError
 			}
@@ -792,103 +683,4 @@ func (opts *TerragruntOptions) handleIgnoreSignals(l log.Logger, signals map[str
 	}
 
 	return nil
-}
-
-// ErrorAction represents the action to take when an error occurs
-type ErrorAction struct {
-	IgnoreSignals   map[string]any
-	IgnoreBlockName string
-	RetryBlockName  string
-	IgnoreMessage   string
-	RetryAttempts   int
-	RetrySleepSecs  int
-	ShouldIgnore    bool
-	ShouldRetry     bool
-}
-
-type MaxAttemptsReachedError struct {
-	Err        error
-	MaxRetries int
-}
-
-func (e *MaxAttemptsReachedError) Error() string {
-	return fmt.Sprintf("max retry attempts (%d) reached for error: %v", e.MaxRetries, e.Err)
-}
-
-// AttemptErrorRecovery attempts to recover from an error by checking the ignore and retry rules.
-func (c *ErrorsConfig) AttemptErrorRecovery(l log.Logger, err error, currentAttempt int) (*ErrorAction, error) {
-	if err == nil {
-		return nil, nil
-	}
-
-	errStr := extractErrorMessage(err)
-	action := &ErrorAction{}
-
-	l.Debugf("Attempting error recovery for error: %s", errStr)
-
-	// First check ignore rules
-	for _, ignoreBlock := range c.Ignore {
-		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
-		if !isIgnorable {
-			continue
-		}
-
-		action.IgnoreBlockName = ignoreBlock.Name
-		action.ShouldIgnore = true
-		action.IgnoreMessage = ignoreBlock.Message
-		action.IgnoreSignals = make(map[string]any)
-
-		// Convert cty.Value map to regular map
-		maps.Copy(action.IgnoreSignals, ignoreBlock.Signals)
-
-		return action, nil
-	}
-
-	// Then check retry rules
-	for _, retryBlock := range c.Retry {
-		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
-		if !isRetryable {
-			continue
-		}
-
-		if currentAttempt >= retryBlock.MaxAttempts {
-			return nil, &MaxAttemptsReachedError{
-				MaxRetries: retryBlock.MaxAttempts,
-				Err:        err,
-			}
-		}
-
-		action.RetryBlockName = retryBlock.Name
-		action.ShouldRetry = true
-		action.RetryAttempts = retryBlock.MaxAttempts
-		action.RetrySleepSecs = retryBlock.SleepIntervalSec
-
-		return action, nil
-	}
-
-	// We encountered no error while attempting error recovery, even though the underlying error
-	// is still present. Recovery did not error, the original error will be handled externally.
-	return nil, nil
-}
-
-func extractErrorMessage(err error) string {
-	// fetch the error string and remove any ASCII escape sequences
-	multilineText := log.RemoveAllASCISeq(err.Error())
-	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
-
-	return strings.Join(strings.Fields(errorText), " ")
-}
-
-// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
-func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
-	for _, pattern := range patterns {
-		isNegative := pattern.Negative
-		matched := pattern.Pattern.MatchString(input)
-
-		if matched {
-			return !isNegative
-		}
-	}
-
-	return false
 }

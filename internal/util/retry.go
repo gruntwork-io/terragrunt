@@ -14,7 +14,7 @@ import (
 // MaxRetriesExceeded error.
 func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger log.Logger, logLevel log.Level, action func(ctx context.Context) error) error {
 	for i := 0; i <= maxRetries; i++ {
-		logger.Logf(logLevel, actionDescription)
+		logger.Logf(logLevel, "%s", actionDescription)
 
 		err := action(ctx)
 		if err == nil {

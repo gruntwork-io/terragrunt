@@ -3,7 +3,6 @@ package find
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/component"
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/os/stdout"
 	"github.com/gruntwork-io/terragrunt/internal/queue"
 	"github.com/gruntwork-io/terragrunt/internal/worktrees"
@@ -33,7 +31,7 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		Exclude:           opts.Exclude,
 		Include:           opts.Include,
 		Reading:           opts.Reading,
-		FilterQueries:     opts.FilterQueries,
+		Filters:           opts.Filters,
 		Experiments:       opts.Experiments,
 	})
 	if err != nil {
@@ -42,14 +40,13 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 
 	// We do worktree generation here instead of in the discovery constructor
 	// so that we can defer cleanup in the same context.
-	filters, parseErr := filter.ParseFilterQueries(l, opts.FilterQueries)
-	if parseErr != nil {
-		return fmt.Errorf("failed to parse filters: %w", parseErr)
-	}
+	gitFilters := opts.Filters.UniqueGitFilters()
 
-	gitFilters := filters.UniqueGitFilters()
-
-	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, opts.WorkingDir, gitFilters)
+	worktrees, worktreeErr := worktrees.NewWorktrees(ctx, l, worktrees.WorktreeOpts{
+		WorkingDir:     opts.WorkingDir,
+		GitExpressions: gitFilters,
+		Experiments:    opts.Experiments,
+	})
 	if worktreeErr != nil {
 		return errors.Errorf("failed to create worktrees: %w", worktreeErr)
 	}
@@ -265,7 +262,7 @@ func outputJSON(opts *Options, components FoundComponents) error {
 		return errors.New(err)
 	}
 
-	_, err = opts.Writer.Write(append(jsonBytes, []byte("\n")...))
+	_, err = opts.Writers.Writer.Write(append(jsonBytes, []byte("\n")...))
 	if err != nil {
 		return errors.New(err)
 	}
@@ -338,7 +335,7 @@ func outputText(l log.Logger, opts *Options, components FoundComponents) error {
 		buf.WriteString(colorizer.Colorize(c) + "\n")
 	}
 
-	_, err := opts.Writer.Write([]byte(buf.String()))
+	_, err := opts.Writers.Writer.Write([]byte(buf.String()))
 
 	return errors.New(err)
 }

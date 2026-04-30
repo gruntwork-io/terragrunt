@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli/flags/shared"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -45,8 +46,6 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	workingDir = filepath.ToSlash(workingDir)
 
 	testCases := []struct {
 		expectedErr     error
@@ -464,16 +463,10 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actual *options.TerragruntOptions, msgAndArgs ...any) {
 	t.Helper()
 
-	// Normalize path separators for cross-platform compatibility
-	expectedConfigPath := filepath.ToSlash(expected.TerragruntConfigPath)
-	actualConfigPath := filepath.ToSlash(actual.TerragruntConfigPath)
-	expectedWorkingDir := filepath.ToSlash(expected.WorkingDir)
-	actualWorkingDir := filepath.ToSlash(actual.WorkingDir)
-
-	assert.Equal(t, expectedConfigPath, actualConfigPath, msgAndArgs...)
+	assert.Equal(t, expected.TerragruntConfigPath, actual.TerragruntConfigPath, msgAndArgs...)
 	assert.Equal(t, expected.NonInteractive, actual.NonInteractive, msgAndArgs...)
 	assert.Equal(t, expected.TerraformCliArgs, actual.TerraformCliArgs, msgAndArgs...)
-	assert.Equal(t, expectedWorkingDir, actualWorkingDir, msgAndArgs...)
+	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, msgAndArgs...)
 	assert.Equal(t, expected.Source, actual.Source, msgAndArgs...)
 	assert.Equal(t, expected.IgnoreDependencyErrors, actual.IgnoreDependencyErrors, msgAndArgs...)
 	assert.Equal(t, expected.IAMRoleOptions, actual.IAMRoleOptions, msgAndArgs...)
@@ -485,17 +478,13 @@ func assertOptionsEqual(t *testing.T, expected *options.TerragruntOptions, actua
 func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, _ log.Level, debug bool) *options.TerragruntOptions {
 	t.Helper()
 
-	// Normalize path separators for cross-platform compatibility
-	terragruntConfigPath = filepath.ToSlash(terragruntConfigPath)
-	workingDir = filepath.ToSlash(workingDir)
-
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
 	opts.WorkingDir = workingDir
-	opts.TerraformCliArgs = clihelper.NewIacArgs(terraformCliArgs...)
+	opts.TerraformCliArgs = iacargs.New(terraformCliArgs...)
 	opts.NonInteractive = nonInteractive
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
@@ -669,7 +658,7 @@ func TestParseMultiStringArg(t *testing.T) {
 				assert.EqualError(t, actualErr, tc.expectedErr.Error())
 			} else {
 				require.NoError(t, actualErr)
-				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheRegistryNames, "For args %q", tc.args)
+				assert.Equal(t, tc.expectedVals, actualOptions.ProviderCacheOptions.RegistryNames, "For args %q", tc.args)
 			}
 		})
 	}

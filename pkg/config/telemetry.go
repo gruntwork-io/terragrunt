@@ -13,13 +13,12 @@ import (
 
 // Telemetry operation names for config parsing operations.
 const (
-	TelemetryOpParseConfigFile       = "parse_config_file"
-	TelemetryOpParseBaseBlocks       = "parse_base_blocks"
-	TelemetryOpParseBaseBlocksResult = "parse_base_blocks_result"
-	TelemetryOpParseDependencies     = "parse_dependencies"
-	TelemetryOpParseDependency       = "parse_dependency"
-	TelemetryOpParseConfigDecode     = "parse_config_decode"
-	TelemetryOpParseIncludeMerge     = "parse_include_merge"
+	TelemetryOpParseConfigFile   = "parse_config_file"
+	TelemetryOpParseBaseBlocks   = "parse_base_blocks"
+	TelemetryOpParseDependencies = "parse_dependencies"
+	TelemetryOpParseDependency   = "parse_dependency"
+	TelemetryOpParseConfigDecode = "parse_config_decode"
+	TelemetryOpParseIncludeMerge = "parse_include_merge"
 )
 
 // Telemetry attribute keys for config parsing operations.

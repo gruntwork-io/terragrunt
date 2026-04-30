@@ -1,7 +1,6 @@
 package graph_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,9 +15,6 @@ import (
 func BenchmarkRunGraphDependencies(b *testing.B) {
 	// Setup
 	b.StopTimer()
-
-	cwd, err := os.Getwd()
-	require.NoError(b, err)
 
 	testDir := "../../../../../test/fixtures"
 
@@ -36,7 +32,8 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 	// Run benchmarks
 	for _, fixture := range fixtureDirs {
 		b.Run(fixture.description, func(b *testing.B) {
-			workingDir := filepath.Join(cwd, testDir, fixture.workingDir)
+			workingDir, err := filepath.Abs(filepath.Join(testDir, fixture.workingDir))
+			require.NoError(b, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest(workingDir)
 			if fixture.usePartialParseCache {

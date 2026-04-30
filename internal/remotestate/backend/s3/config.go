@@ -1,24 +1,21 @@
 package s3
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/hclhelper"
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
+	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mitchellh/mapstructure"
-
-	"maps"
-
-	"github.com/gruntwork-io/terragrunt/internal/util"
 )
 
 const (
 	configLockTableKey                 = "lock_table"
 	configDynamoDBTableKey             = "dynamodb_table"
-	configEncryptKey                   = "encrypt"
-	configKeyKey                       = "key"
 	configAssumeRoleKey                = "assume_role"
 	configAssumeRoleWithWebIdentityKey = "assume_role_with_web_identity"
 	configAccessloggingTargetPrefixKey = "accesslogging_target_prefix"
@@ -75,7 +72,11 @@ func (cfg Config) GetTFInitArgs() Config {
 		filtered[key] = val
 	}
 
-	return filtered
+	// Normalize string boolean values to native Go bools using reflection
+	// on the S3 config structs. HCL ternary type unification can convert
+	// bools to strings, which causes generated backend blocks to contain
+	// "true"/"false" string literals instead of true/false boolean literals.
+	return Config(backend.NormalizeBoolValues(backend.Config(filtered), &ExtendedRemoteStateConfigS3{}))
 }
 
 func (cfg Config) Normalize(logger log.Logger) Config {
@@ -105,11 +106,11 @@ func (cfg Config) ParseExtendedS3Config() (*ExtendedRemoteStateConfigS3, error) 
 		extendedConfig ExtendedRemoteStateConfigS3
 	)
 
-	if err := mapstructure.Decode(cfg, &s3Config); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &s3Config); err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := mapstructure.Decode(cfg, &extendedConfig); err != nil {
+	if err := mapstructure.WeakDecode(cfg, &extendedConfig); err != nil {
 		return nil, errors.New(err)
 	}
 

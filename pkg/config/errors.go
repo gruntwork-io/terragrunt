@@ -276,10 +276,10 @@ dependency "` + err.targetName + `" {
 }
 
 For more info, see:
-https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
+https://docs.terragrunt.com/features/stacks/#unapplied-dependency-and-mock-outputs
 
 If you do not require outputs from your dependency, consider using the dependencies block instead:
-https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+https://docs.terragrunt.com/reference/config-blocks-and-attributes/#dependencies
 `
 
 	return fmt.Sprintf(
@@ -312,4 +312,15 @@ type MaxParseDepthError struct {
 
 func (err MaxParseDepthError) Error() string {
 	return fmt.Sprintf("maximum parse depth of %d exceeded (current depth: %d). This usually indicates circular includes or extremely deep config nesting.", err.Max, err.Depth)
+}
+
+// MarkGlobAsReadRequiresExperimentError is returned when the mark_glob_as_read
+// HCL function is called without the mark-many-as-read experiment enabled.
+type MarkGlobAsReadRequiresExperimentError struct {
+	ConfigPath string
+	Pattern    string
+}
+
+func (err MarkGlobAsReadRequiresExperimentError) Error() string {
+	return fmt.Sprintf("mark_glob_as_read(%q) in %s requires the 'mark-many-as-read' experiment to be enabled", err.Pattern, err.ConfigPath)
 }

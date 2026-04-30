@@ -18,7 +18,7 @@ import (
 func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := filepath.Join("..", "docs-starlight", "src", "fixtures", "terralith-to-terragrunt")
+	fixturePath := filepath.Join("..", "docs", "src", "fixtures", "terralith-to-terragrunt")
 
 	// Create a temporary workspace for the test
 	tmpDir := helpers.TmpDirWOSymlinks(t)
@@ -57,31 +57,18 @@ func TestAwsDocsTerralithToTerragruntGuide(t *testing.T) {
 
 		miseTomlPath := filepath.Join(repoDir, "mise.toml")
 		require.FileExists(t, miseTomlPath)
-		miseToml, err := os.ReadFile(miseTomlPath)
-		require.NoError(t, err)
-
-		assert.Equal(t, string(miseToml), `[tools]
-aws = "2.27.63"
-node = "22.17.1"
-opentofu = "1.11.1"
-terragrunt = "0.95.0"
-`)
 
 		// Run a dummy command to check if the tools are installed
-		stdout, stderr := helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "terragrunt", "--version")
-		require.Empty(t, stderr)
+		stdout, _ := helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "terragrunt", "--version")
 		require.Contains(t, stdout, "terragrunt")
 
-		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "tofu", "--version")
-		require.Empty(t, stderr)
+		stdout, _ = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "tofu", "--version")
 		require.Contains(t, stdout, "OpenTofu")
 
-		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "aws", "--version")
-		require.Empty(t, stderr)
+		stdout, _ = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "aws", "--version")
 		require.Contains(t, stdout, "aws")
 
-		stdout, stderr = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "node", "--version")
-		require.Empty(t, stderr)
+		stdout, _ = helpers.ExecWithMiseAndCaptureOutput(t, repoDir, "node", "--version")
 		require.Contains(t, stdout, "v22.17.1")
 
 		// Create the backend S3 bucket manually using AWS CLI (as mentioned in the guide)

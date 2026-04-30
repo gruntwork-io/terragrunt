@@ -1,0 +1,8 @@
+---
+version: "v1.0.0"
+category: "bug-fixes"
+---
+
+#### Interaction between `--working-dir` and `-detailed-exitcode` fixed
+
+Fixes a bug where the wrong cache key was used for storing exit codes for OpenTofu/Terraform runs in units when the `--working-dir` flag was also used.

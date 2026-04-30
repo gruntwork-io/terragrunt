@@ -135,7 +135,14 @@ func (p *Parser) parseExpression(precedence int) Expression {
 			break
 		}
 
-		leftExpr = &AttributeExpression{Key: "name", Value: p.curToken.Literal}
+		attr, attrErr := NewAttributeExpression("name", p.curToken.Literal)
+		if attrErr != nil {
+			p.addErrorWithCode(ErrorCodeInvalidGlob, "Invalid glob pattern", "Invalid glob pattern in name filter: "+attrErr.Error())
+			return nil
+		}
+
+		leftExpr = attr
+
 		p.nextToken()
 	case ILLEGAL:
 		p.addErrorWithCode(ErrorCodeIllegalToken, "Illegal token", "Unrecognized character '"+p.curToken.Literal+"'")
@@ -232,16 +239,19 @@ func parseDepth(literal string) int {
 }
 
 // parsePrefixExpression parses a prefix expression (e.g., "!name=foo").
+// It collapses consecutive negations: !! becomes positive, !!! becomes negative, etc.
 func (p *Parser) parsePrefixExpression() Expression {
-	expression := &PrefixExpression{
-		Operator: p.curToken.Literal,
+	// Count consecutive negation operators
+	negationCount := 0
+	for p.curToken.Type == BANG {
+		negationCount++
+
+		p.nextToken()
 	}
 
-	p.nextToken()
-
-	expression.Right = p.parseExpression(PREFIX)
-
-	if expression.Right == nil {
+	// Parse the inner expression
+	inner := p.parseExpression(PREFIX)
+	if inner == nil {
 		// Clear any errors from parseExpression (like generic EOF error)
 		// and add our specific error with the EOF title for consistency
 		p.errors = nil
@@ -250,7 +260,16 @@ func (p *Parser) parsePrefixExpression() Expression {
 		return nil
 	}
 
-	return expression
+	// If even number of negations, they cancel out - return inner expression directly
+	if negationCount%2 == 0 {
+		return inner
+	}
+
+	// Odd number of negations - wrap in single PrefixExpression
+	return &PrefixExpression{
+		Operator: "!",
+		Right:    inner,
+	}
 }
 
 // parseInfixExpression parses an infix expression (e.g., "./apps/* | name=bar").
@@ -278,7 +297,12 @@ func (p *Parser) parseInfixExpression(left Expression) Expression {
 
 // parsePathFilter parses a path filter (e.g., "./apps/*").
 func (p *Parser) parsePathFilter() Expression {
-	expr := NewPathFilter(p.curToken.Literal)
+	expr, err := NewPathFilter(p.curToken.Literal)
+	if err != nil {
+		p.addErrorWithCode(ErrorCodeInvalidGlob, "Invalid glob pattern", "Invalid glob pattern '"+p.curToken.Literal+"': "+err.Error())
+		return nil
+	}
+
 	p.nextToken()
 
 	return expr
@@ -315,7 +339,13 @@ func (p *Parser) parseBracedPath() Expression {
 	// Join all parts to form the complete path
 	pathValue := strings.Join(pathParts, "")
 
-	return NewPathFilter(pathValue)
+	expr, err := NewPathFilter(pathValue)
+	if err != nil {
+		p.addErrorWithCode(ErrorCodeInvalidGlob, "Invalid glob pattern", "Invalid glob pattern '"+pathValue+"': "+err.Error())
+		return nil
+	}
+
+	return expr
 }
 
 // parseAttributeFilter parses an attribute filter (e.g., "name=foo").
@@ -336,10 +366,13 @@ func (p *Parser) parseAttributeFilter() Expression {
 	value := p.curToken.Literal
 	p.nextToken()
 
-	return &AttributeExpression{
-		Key:   key,
-		Value: value,
+	expr, err := NewAttributeExpression(key, value)
+	if err != nil {
+		p.addErrorWithCode(ErrorCodeInvalidGlob, "Invalid glob pattern", "Invalid glob pattern in "+key+" filter: "+err.Error())
+		return nil
 	}
+
+	return expr
 }
 
 // parseGitFilter parses a Git filter expression (e.g., "[main...HEAD]" or "[main]").

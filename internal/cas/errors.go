@@ -20,14 +20,24 @@ const (
 	ErrCreateDir Error = "failed to create directory"
 	// ErrReadFile is returned when failing to read a file
 	ErrReadFile Error = "failed to read file"
-	// ErrParseTree is returned when failing to parse git tree output
-	ErrParseTree Error = "failed to parse git tree output"
 	// ErrGitClone is returned when the git clone operation fails
 	ErrGitClone Error = "failed to complete git clone"
-	// ErrCreateTempDir is returned when failing to create a temporary directory
-	ErrCreateTempDir Error = "failed to create temporary directory"
-	// ErrCleanupTempDir is returned when failing to clean up a temporary directory
-	ErrCleanupTempDir Error = "failed to clean up temporary directory"
+	// ErrNoTerraformBlock is returned when a terragrunt.hcl file has no terraform block
+	ErrNoTerraformBlock Error = "no terraform block found"
+	// ErrBlockNotFound is returned when a named block is not found in a stack file
+	ErrBlockNotFound Error = "block not found"
+	// ErrGetFileNotSupported is returned when GetFile is called on the CAS protocol getter
+	ErrGetFileNotSupported Error = "CAS protocol does not support single file downloads"
+	// ErrCASRefMissingPrefix is returned when a CAS reference is missing the expected hash algorithm prefix
+	ErrCASRefMissingPrefix Error = "CAS reference missing expected hash algorithm prefix"
+	// ErrCASRefEmptyHash is returned when a CAS reference has an empty hash
+	ErrCASRefEmptyHash Error = "CAS reference has empty hash"
+	// ErrTreeNotFound is returned when a tree hash is not found in any CAS store
+	ErrTreeNotFound Error = "tree not found in CAS store"
+	// ErrAbsoluteSource is returned when an update_source_with_cas source is an absolute path
+	ErrAbsoluteSource Error = "update_source_with_cas does not support absolute sources"
+	// ErrSourceEscapesRepo is returned when an update_source_with_cas source resolves outside the cloned repository
+	ErrSourceEscapesRepo Error = "update_source_with_cas source escapes repository root"
 )
 
 // WrappedError provides additional context for errors
@@ -64,4 +74,31 @@ func wrapError(op, path string, err error) error {
 		Path: path,
 		Err:  err,
 	}
+}
+
+// UpdateSourceWithCASRequiresCASError is returned when a block sets
+// update_source_with_cas = true but CAS is unavailable, either because the
+// experiment is not enabled or because --no-cas is set. The relative source
+// has no meaning without CAS, so Terragrunt rejects the configuration rather
+// than silently falling through to the standard getter.
+type UpdateSourceWithCASRequiresCASError struct {
+	// BlockType is the kind of block carrying the attribute: "unit", "stack", or "terraform".
+	BlockType string
+	// Name is the block label. Empty for "terraform" blocks, which are unlabeled.
+	Name string
+	// Path is the file containing the offending block.
+	Path string
+}
+
+func (e *UpdateSourceWithCASRequiresCASError) Error() string {
+	subject := e.BlockType
+	if e.Name != "" {
+		subject = fmt.Sprintf("%s %q", e.BlockType, e.Name)
+	}
+
+	return fmt.Sprintf(
+		"%s in %s sets update_source_with_cas = true, which requires "+
+			"the 'cas' experiment to be enabled and the --no-cas flag to be unset",
+		subject, e.Path,
+	)
 }

@@ -1,0 +1,280 @@
+package redesign_test
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
+
+	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
+	"github.com/gruntwork-io/terragrunt/pkg/options"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// runModel starts a tea.Program with the given model, sends messages via
+// the interact callback, and returns the final model once the program exits.
+func runModel(t *testing.T, m redesign.Model, width, height int, interact func(p *tea.Program)) redesign.Model {
+	t.Helper()
+
+	var out bytes.Buffer
+
+	pr, pw, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer pr.Close()
+	defer pw.Close()
+
+	p := tea.NewProgram(m,
+		tea.WithInput(pr),
+		tea.WithOutput(&out),
+		tea.WithWindowSize(width, height),
+		tea.WithColorProfile(colorprofile.TrueColor),
+	)
+
+	done := make(chan tea.Model, 1)
+
+	go func() {
+		finalModel, err := p.Run()
+		assert.NoError(t, err)
+
+		done <- finalModel
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	interact(p)
+
+	select {
+	case fm := <-done:
+		return fm.(redesign.Model)
+	case <-time.After(10 * time.Second):
+		p.Kill()
+		t.Fatal("program did not exit within timeout")
+
+		return redesign.Model{}
+	}
+}
+
+// makeComponents builds a deterministic list of ComponentEntry values for
+// testing. Each entry has a distinct Dir so Title() returns the directory
+// basename and sort order is predictable.
+func makeComponents(t *testing.T) []*redesign.ComponentEntry {
+	t.Helper()
+
+	return []*redesign.ComponentEntry{
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo-1",
+			"modules/aws-vpc",
+			"# AWS VPC Module\nThis module creates a VPC in AWS.",
+		)).WithSource("github.com/gruntwork-io/test-repo-1"),
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo-2",
+			"modules/eks-cluster",
+			"# AWS EKS Module\nThis module creates an EKS cluster.",
+		)).WithSource("github.com/gruntwork-io/test-repo-2"),
+	}
+}
+
+// TestModelStreamingInsertsSorted verifies that components sent via componentMsg
+// are inserted in alphabetical order in the list.
+func TestModelStreamingInsertsSorted(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+	require.GreaterOrEqual(t, len(components), 2, "need at least 2 components")
+
+	// Start with the last component alphabetically
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[len(components)-1], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		// Send the remaining components in reverse order
+		for i := len(components) - 2; i >= 0; i-- {
+			p.Send(redesign.ComponentMsg(components[i]))
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.ListState, finalModel.State)
+	items := finalModel.List().Items()
+	assert.Len(t, items, len(components), "all components should be in the list")
+
+	for i := 1; i < len(items); i++ {
+		prev := strings.ToLower(items[i-1].(*redesign.ComponentEntry).Title())
+		curr := strings.ToLower(items[i].(*redesign.ComponentEntry).Title())
+		assert.LessOrEqual(t, prev, curr, "components should be in alphabetical order: %q should come before %q", prev, curr)
+	}
+}
+
+// makeMixedComponents returns a module entry followed by a template entry
+// for tests that need both kinds.
+func makeMixedComponents(t *testing.T) []*redesign.ComponentEntry {
+	t.Helper()
+
+	return []*redesign.ComponentEntry{
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindModule,
+			"github.com/gruntwork-io/test-repo",
+			"modules/aws-vpc",
+			"# AWS VPC",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+		redesign.NewComponentEntry(redesign.NewComponentForTest(
+			redesign.ComponentKindTemplate,
+			"github.com/gruntwork-io/test-repo",
+			"templates/service",
+			"# Service Template",
+		)).WithSource("github.com/gruntwork-io/test-repo"),
+	}
+}
+
+// TestModelTabsFilterByKind verifies that each tab shows only components
+// of its kind, while the All tab shows everything.
+func TestModelTabsFilterByKind(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Cycle: All -> Templates (first tab after All in the current order).
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabTemplates, finalModel.ActiveTab(), "tab key should cycle to Templates")
+
+	templatesItems := finalModel.List().Items()
+	require.Len(t, templatesItems, 1, "Templates tab should contain only the one template")
+	assert.Equal(t, redesign.ComponentKindTemplate, templatesItems[0].(*redesign.ComponentEntry).Kind())
+}
+
+// TestModelTabShiftTabCycles verifies that shift+tab cycles tabs in
+// reverse order.
+func TestModelTabShiftTabCycles(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeMixedComponents(t)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[1]))
+		time.Sleep(100 * time.Millisecond)
+
+		// Starts on All. Shift+Tab wraps to the last tab (Stacks).
+		p.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		time.Sleep(30 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.TabModules, finalModel.ActiveTab(), "shift+tab from All should wrap to the last tab")
+}
+
+// TestModelCopyActionMaterializesUnit drives the Model through a real
+// scaffold-key press on a unit component and asserts that the copy action
+// runs end-to-end: the unit's files land in the working directory and a
+// terragrunt.values.hcl stub is generated from the referenced values.*.
+func TestModelCopyActionMaterializesUnit(t *testing.T) {
+	t.Parallel()
+
+	repoDir := helpers.TmpDirWOSymlinks(t)
+
+	unitBody := `locals { region = values.region }` + "\n"
+	writeFile(t, filepath.Join(repoDir, "vpc", "terragrunt.hcl"), unitBody)
+
+	repo := newFakeRepo(t, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	require.Equal(t, redesign.ComponentKindUnit, components[0].Kind)
+
+	workingDir := t.TempDir()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	opts.WorkingDir = workingDir
+
+	entry := redesign.NewComponentEntry(components[0]).WithSource("github.com/gruntwork-io/fake-repo")
+
+	componentCh := make(chan *redesign.ComponentEntry)
+	m := redesign.NewModelStreaming(logger.CreateLogger(), opts, entry, componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		// 's' is the scaffold key. For units and stacks, this dispatches to
+		// the copy action via primaryActionCmd.
+		p.Send(tea.KeyPressMsg{Code: 's', Text: "s"})
+	})
+
+	assert.FileExists(t, filepath.Join(workingDir, "terragrunt.hcl"))
+	assert.FileExists(t, filepath.Join(workingDir, "terragrunt.values.hcl"))
+
+	raw, err := os.ReadFile(filepath.Join(workingDir, "terragrunt.values.hcl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "region")
+
+	assert.Contains(t, finalModel.ExitMessage(), "terragrunt.values.hcl generated",
+		"the model should stash a post-exit callout after a successful copy")
+}
+
+// TestModelStreamingDeduplicates verifies that sending the same component
+// twice does not result in a duplicate entry in the list.
+func TestModelStreamingDeduplicates(t *testing.T) {
+	t.Parallel()
+
+	opts, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	l := logger.CreateLogger()
+	components := makeComponents(t)
+	require.NotEmpty(t, components)
+
+	componentCh := make(chan *redesign.ComponentEntry, len(components))
+	m := redesign.NewModelStreaming(l, opts, components[0], componentCh)
+
+	finalModel := runModel(t, m, 120, 40, func(p *tea.Program) {
+		p.Send(redesign.ComponentMsg(components[0]))
+		time.Sleep(100 * time.Millisecond)
+
+		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	})
+
+	assert.Equal(t, redesign.ListState, finalModel.State)
+	assert.Len(t, finalModel.List().Items(), 1, "duplicate component should not appear twice")
+}
