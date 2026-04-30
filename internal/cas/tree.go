@@ -2,6 +2,7 @@ package cas
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 
@@ -61,7 +62,7 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 
 	for dirPath := range dirsToCreate {
 		if err := fs.MkdirAll(dirPath, DefaultDirPerms); err != nil {
-			return wrapError("mkdir_all", dirPath, err)
+			return fmt.Errorf("mkdir %s: %w", dirPath, err)
 		}
 	}
 
@@ -80,22 +81,22 @@ func LinkTree(ctx context.Context, blobStore *Store, treeStore *Store, t *git.Tr
 			case "link":
 				err := blobContent.Link(ctx, work.entry.Hash, work.path)
 				if err != nil {
-					return wrapError("link_blob", work.path, err)
+					return fmt.Errorf("link blob %s: %w", work.path, err)
 				}
 			case "subtree":
 				treeData, err := treeContent.Read(work.entry.Hash)
 				if err != nil {
-					return wrapError("read_tree", work.entry.Hash, err)
+					return fmt.Errorf("read tree %s: %w", work.entry.Hash, err)
 				}
 
 				subTree, err := git.ParseTree(treeData, work.path)
 				if err != nil {
-					return wrapError("parse_tree", work.entry.Hash, err)
+					return fmt.Errorf("parse tree %s: %w", work.entry.Hash, err)
 				}
 
 				err = LinkTree(ctx, blobStore, treeStore, subTree, work.path)
 				if err != nil {
-					return wrapError("link_subtree", work.path, err)
+					return fmt.Errorf("link subtree %s: %w", work.path, err)
 				}
 			}
 

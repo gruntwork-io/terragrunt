@@ -55,6 +55,7 @@ type CAS struct {
 	blobStore  *Store
 	treeStore  *Store
 	synthStore *Store
+	gitStore   *GitStore
 	git        *git.GitRunner
 	storePath  string
 	cloneDepth int
@@ -130,6 +131,13 @@ func New(opts ...Option) (*CAS, error) {
 
 	c.git = g
 
+	gs, err := NewGitStore(c.fs, g, filepath.Join(c.storePath, "git"))
+	if err != nil {
+		return nil, err
+	}
+
+	c.gitStore = gs
+
 	return c, nil
 }
 
@@ -160,18 +168,6 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 		return fmt.Errorf("failed to create tree store path: %w", err)
 	}
 
-	// Acquire global clone lock to ensure only one clone at a time
-	globalLock, err := vfs.Lock(c.fs, filepath.Join(c.storePath, "clone.lock"))
-	if err != nil {
-		return fmt.Errorf("failed to acquire global clone lock: %w", err)
-	}
-
-	defer func() {
-		if unlockErr := globalLock.Unlock(); unlockErr != nil {
-			l.Warnf("failed to release global clone lock: %v", unlockErr)
-		}
-	}()
-
 	return telemetry.TelemeterFromContext(ctx).Collect(ctx, "cas_clone", map[string]any{
 		"url":    url,
 		"branch": opts.Branch,
@@ -184,20 +180,8 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 		targetDir := c.prepareTargetDirectory(opts.Dir, url)
 
 		if c.treeStore.NeedsWrite(hash) {
-			// Create a temporary directory for git operations
-			_, cleanup, createTempDirErr := c.git.CreateTempDir()
-			if createTempDirErr != nil {
-				return createTempDirErr
-			}
-
-			defer func() {
-				if cleanupErr := cleanup(); cleanupErr != nil {
-					l.Warnf("cleanup error: %v", cleanupErr)
-				}
-			}()
-
-			if cloneAndStoreErr := c.cloneAndStoreContent(childCtx, l, opts, url, hash); cloneAndStoreErr != nil {
-				return cloneAndStoreErr
+			if err := c.populateTreeFromGit(childCtx, l, opts, url, hash); err != nil {
+				return err
 			}
 		}
 
@@ -215,6 +199,65 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 
 		return LinkTree(childCtx, c.blobStore, c.treeStore, tree, targetDir)
 	})
+}
+
+// populateTreeFromGit fetches the commit at hash and stores its tree and
+// reachable blobs in the CAS. It tries the central git store first. Any
+// error from the central store is logged as a warning, and the function
+// then falls back to a bare clone in a temporary directory.
+func (c *CAS) populateTreeFromGit(ctx context.Context, l log.Logger, opts *CloneOptions, url, hash string) error {
+	depth := resolveCloneDepth(opts.Depth, c.cloneDepth)
+
+	repoPath, unlocker, err := c.gitStore.EnsureRef(ctx, l, c.fs, url, opts.Branch, hash, depth)
+	if err == nil {
+		defer func() {
+			if unlockErr := unlocker.Unlock(); unlockErr != nil {
+				l.Warnf("git store: failed to release lock for %s: %v", url, unlockErr)
+			}
+		}()
+
+		runner := c.git.WithWorkDir(repoPath)
+
+		return c.storeRootTreeFrom(ctx, l, runner, hash, opts)
+	}
+
+	l.Warnf("central git store unavailable for %s, falling back to temporary clone: %v", url, err)
+
+	tempDir, err := vfs.MkdirTemp(c.fs, "", "terragrunt-cas-fallback-*")
+	if err != nil {
+		return fmt.Errorf("create fallback clone dir: %w", errors.Join(ErrFallbackCloneDir, err))
+	}
+
+	defer func() {
+		if rmErr := c.fs.RemoveAll(tempDir); rmErr != nil {
+			l.Warnf("cleanup error: %v", rmErr)
+		}
+	}()
+
+	runner := c.git.WithWorkDir(tempDir)
+
+	if err := runner.Clone(ctx, url, true, depth, opts.Branch); err != nil {
+		return err
+	}
+
+	return c.storeRootTreeFrom(ctx, l, runner, hash, opts)
+}
+
+func resolveCloneDepth(optDepth, casDepth int) int {
+	depth := optDepth
+	if depth == 0 {
+		depth = casDepth
+	}
+
+	if depth == 0 {
+		depth = DefaultCASCloneDepth
+	}
+
+	if depth < 0 {
+		depth = 0
+	}
+
+	return depth
 }
 
 func (c *CAS) prepareTargetDirectory(dir, url string) string {
@@ -243,40 +286,23 @@ func (c *CAS) resolveReference(ctx context.Context, url, branch string) (string,
 	return results[0].Hash, nil
 }
 
-func (c *CAS) cloneAndStoreContent(
+// storeRootTreeFrom reads the recursive tree at hash from the supplied
+// runner's working repository and stores its tree and reachable blobs in
+// the CAS. The runner must already have its WorkDir pointed at a bare repo
+// (or worktree) that contains the requested object.
+func (c *CAS) storeRootTreeFrom(
 	ctx context.Context,
 	l log.Logger,
-	opts *CloneOptions,
-	url,
+	runner *git.GitRunner,
 	hash string,
+	opts *CloneOptions,
 ) error {
-	depth := opts.Depth
-	if depth == 0 {
-		depth = c.cloneDepth
-	}
-
-	if depth == 0 {
-		depth = DefaultCASCloneDepth
-	}
-
-	if depth < 0 {
-		depth = 0
-	}
-
-	if err := c.git.Clone(ctx, url, true, depth, opts.Branch); err != nil {
-		return err
-	}
-
-	return c.storeRootTree(ctx, l, hash, opts)
-}
-
-func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts *CloneOptions) error {
-	tree, err := c.git.LsTreeRecursive(ctx, hash)
+	tree, err := runner.LsTreeRecursive(ctx, hash)
 	if err != nil {
 		return err
 	}
 
-	if err = c.storeTreeRecursive(ctx, l, hash, tree); err != nil {
+	if err = c.storeTreeRecursive(ctx, l, runner, hash, tree); err != nil {
 		return err
 	}
 
@@ -292,7 +318,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 	}
 
 	for _, file := range opts.IncludedGitFiles {
-		stat, err := c.fs.Stat(filepath.Join(c.git.WorkDir, file))
+		stat, err := c.fs.Stat(filepath.Join(runner.WorkDir, file))
 		if err != nil {
 			return err
 		}
@@ -301,7 +327,7 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 			continue
 		}
 
-		workDirPath := filepath.Join(c.git.WorkDir, file)
+		workDirPath := filepath.Join(runner.WorkDir, file)
 
 		includedHash, err := hashFile(c.fs, workDirPath)
 		if err != nil {
@@ -324,12 +350,18 @@ func (c *CAS) storeRootTree(ctx context.Context, l log.Logger, hash string, opts
 }
 
 // storeTreeRecursive stores a tree fetched from git ls-tree -r
-func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string, tree *git.Tree) error {
+func (c *CAS) storeTreeRecursive(
+	ctx context.Context,
+	l log.Logger,
+	runner *git.GitRunner,
+	hash string,
+	tree *git.Tree,
+) error {
 	if !c.treeStore.NeedsWrite(hash) {
 		return nil
 	}
 
-	if err := c.storeBlobs(ctx, tree.Entries()); err != nil {
+	if err := c.storeBlobs(ctx, runner, tree.Entries()); err != nil {
 		return err
 	}
 
@@ -343,13 +375,13 @@ func (c *CAS) storeTreeRecursive(ctx context.Context, l log.Logger, hash string,
 }
 
 // storeBlobs stores blobs in the CAS
-func (c *CAS) storeBlobs(ctx context.Context, entries []git.TreeEntry) error {
+func (c *CAS) storeBlobs(ctx context.Context, runner *git.GitRunner, entries []git.TreeEntry) error {
 	for _, entry := range entries {
 		if !c.blobStore.NeedsWrite(entry.Hash) {
 			continue
 		}
 
-		if err := c.ensureBlob(ctx, entry.Hash); err != nil {
+		if err := c.ensureBlob(ctx, runner, entry.Hash); err != nil {
 			return err
 		}
 	}
@@ -361,7 +393,7 @@ func (c *CAS) storeBlobs(ctx context.Context, entries []git.TreeEntry) error {
 // It doesn't use the standard content.Store method because
 // we want to take advantage of the ability to write to the
 // entry using `git cat-file`.
-func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
+func (c *CAS) ensureBlob(ctx context.Context, runner *git.GitRunner, hash string) error {
 	needsWrite, lock, err := c.blobStore.EnsureWithWait(hash)
 	if err != nil {
 		return err
@@ -396,7 +428,7 @@ func (c *CAS) ensureBlob(ctx context.Context, hash string) error {
 		}
 	}()
 
-	err = c.git.CatFile(ctx, hash, tmpHandle)
+	err = runner.CatFile(ctx, hash, tmpHandle)
 	if err != nil {
 		return err
 	}
