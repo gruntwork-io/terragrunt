@@ -12,6 +12,10 @@ examples:
       Provision backend resources defined in remote_state.
     code: |
       terragrunt backend bootstrap
+  - description: |
+      Bootstrap an Azure backend (requires experiment flag).
+    code: |
+      terragrunt --experiment azure-backend backend bootstrap
 flags:
   - backend-bootstrap-all
   - backend-bootstrap-config
@@ -60,6 +64,45 @@ You'll ensure the availability of:
   - TLS Enforcement
 - A DynamoDB table named `tf-lock` in the `us-east-1` region with SSE.
 - An S3 bucket named `mybucket-logs` configured as the access log destination for the `mybucket` bucket.
+
+### Azure Backend
+
+If you are using the `azurerm` backend, `bootstrap` provisions the Azure Storage account and blob container defined in your `remote_state` block. This requires the `azure-backend` experiment flag.
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "myterragruntstate"
+    container_name       = "tfstate"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "12345678-1234-1234-1234-123456789abc"
+    key                  = "app/terraform.tfstate"
+    use_azuread_auth     = true
+
+    create_storage_account_if_not_exists = true
+    location         = "westeurope"
+    replication_type = "LRS"
+    enable_versioning = true
+  }
+}
+```
+
+Then run:
+
+```bash
+terragrunt --experiment azure-backend backend bootstrap
+```
+
+This will ensure the availability of:
+
+- A Storage Account named `myterragruntstate` in `westeurope` with blob versioning enabled.
+- A blob container named `tfstate` within that storage account.
+- RBAC role assignments (when using Azure AD auth with `use_azuread_auth = true`).
+
+The identity running the bootstrap needs the **Contributor** role on the resource group. For data plane operations with Azure AD auth, the **Storage Blob Data Contributor** role is also required on the storage account.
 
 The `bootstrap` command is idempotent. If the resources already exist, `bootstrap` will not provision them again.
 

@@ -1,0 +1,180 @@
+---
+title: Azure Backend
+description: Troubleshooting common issues with the Azure (azurerm) remote state backend.
+slug: troubleshooting/azure-backend
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers common errors when using the Azure (`azurerm`) remote state backend and how to resolve them.
+
+<Aside type="caution" title="Experimental">
+The Azure backend requires `--experiment azure-backend` or `TG_EXPERIMENT=azure-backend`. If you see an error about the experiment not being enabled, add the flag to your command.
+</Aside>
+
+## Authentication errors
+
+### "no valid authentication method found"
+
+**Full message:** `no valid authentication method found: Azure AD auth is recommended. Alternatively, provide one of: MSI, service principal credentials, or SAS token`
+
+**Cause:** Terragrunt could not determine which authentication method to use.
+
+**Fix:** Set exactly one of the following in your `remote_state.config`:
+
+| Method | Config fields |
+|--------|--------------|
+| Azure AD (recommended) | `use_azuread_auth = true` |
+| Managed Service Identity | `use_msi = true` |
+| Service Principal | `client_id`, `client_secret`, `tenant_id` |
+| SAS token | `sas_token` |
+| Access key | `access_key` |
+
+If using Azure AD, make sure you are logged in via `az login` or have workload identity / managed identity configured on your compute environment.
+
+### "Azure authentication failed using \<method\>"
+
+**Cause:** Credentials were found but rejected by Azure.
+
+**Fix:**
+- **Azure AD / CLI:** Run `az login` and verify the correct subscription is active with `az account show`.
+- **Service Principal:** Verify `client_id`, `client_secret`, and `tenant_id` are correct. Check that the service principal has not expired.
+- **MSI:** Verify the managed identity is assigned to the VM/container and has the required RBAC roles.
+- **SAS token:** Check the token has not expired and has the required permissions (read, write, list on the container).
+
+### "cannot specify multiple authentication methods"
+
+**Cause:** More than one authentication method is configured simultaneously (e.g., both `use_azuread_auth = true` and `sas_token` are set).
+
+**Fix:** Remove all but one authentication method from your config.
+
+### "subscription_id is required when using service principal authentication"
+
+**Cause:** Service principal auth needs `subscription_id` to scope operations.
+
+**Fix:** Add `subscription_id` to your `remote_state.config`.
+
+## Missing configuration errors
+
+### "missing required Azure remote state configuration \<field\>"
+
+**Cause:** A required field is not set. The field name is included in the error message.
+
+**Fix:** Ensure all of the following are present in `remote_state.config`:
+
+- `storage_account_name`
+- `container_name`
+- `key`
+
+### "location is required for storage account creation"
+
+**Cause:** `create_storage_account_if_not_exists` is `true` but `location` is not set.
+
+**Fix:** Add `location` (e.g., `"westeurope"`, `"eastus"`) to your config.
+
+### "subscription_id is required for storage account creation"
+
+**Cause:** `create_storage_account_if_not_exists` is `true` but `subscription_id` is not set.
+
+**Fix:** Add `subscription_id` to your config.
+
+### "resource_group_name is required to delete a storage account"
+
+**Cause:** A storage account delete operation was attempted without `resource_group_name` in the config.
+
+**Fix:** Add `resource_group_name` to your `remote_state.config`.
+
+## Storage account and container errors
+
+### "error with storage account \<name\>"
+
+**Cause:** The storage account could not be created or accessed. Common reasons:
+- The storage account name is already taken globally (names are unique across all of Azure).
+- The name doesn't meet Azure naming requirements (3-24 characters, lowercase alphanumeric only).
+- Insufficient permissions on the resource group.
+
+**Fix:**
+- Choose a unique storage account name. Run `az storage account check-name --name <name>` to verify availability.
+- Ensure the identity has the **Contributor** role on the resource group.
+
+### "Container \<name\> does not exist"
+
+**Cause:** The blob container referenced in `container_name` does not exist and `create_storage_account_if_not_exists` is not enabled.
+
+**Fix:** Either:
+- Set `create_storage_account_if_not_exists = true` and provide `location` to let Terragrunt create it.
+- Create the container manually: `az storage container create --name <name> --account-name <account>`.
+
+### Container name validation errors
+
+**Cause:** The container name doesn't meet Azure requirements.
+
+**Fix:** Container names must be:
+- 3 to 63 characters long
+- Lowercase letters, numbers, and hyphens only
+- Must start with a letter or number
+- Cannot have consecutive hyphens
+
+## Permission errors
+
+### 403 Forbidden on data plane operations
+
+**Cause:** The identity has control plane access (can manage the storage account) but lacks data plane RBAC roles.
+
+**Fix:** When using `use_azuread_auth = true`, assign one of these roles on the storage account:
+- **Storage Blob Data Contributor** (read/write/delete blobs)
+- **Storage Blob Data Owner** (full control including ACLs)
+
+```bash
+az role assignment create \
+  --role "Storage Blob Data Contributor" \
+  --assignee <principal-id> \
+  --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<account>
+```
+
+<Aside type="tip" title="RBAC propagation delay">
+Azure RBAC role assignments can take up to 5 minutes to propagate. If you just assigned a role and see a 403, wait a few minutes and retry.
+</Aside>
+
+### Quota limit errors
+
+**Cause:** The Azure subscription has reached its storage account quota (default: 250 per subscription per region).
+
+**Fix:** Delete unused storage accounts or request a quota increase through the Azure Portal.
+
+## Transient and network errors
+
+### Retry exhaustion / "Exceeded max retries waiting for Azure Storage container"
+
+**Cause:** Terragrunt retried a transient Azure API error (network timeout, 429 rate limit, 503 service unavailable) and exhausted all retry attempts.
+
+**Fix:**
+- Check Azure service health at [status.azure.com](https://status.azure.com).
+- If you are behind a corporate proxy or firewall, verify connectivity to `*.blob.core.windows.net` and `management.azure.com`.
+- Retry the command — transient errors are typically short-lived.
+
+## Delete operation errors
+
+### "cannot delete storage account \<name\> in non-interactive mode"
+
+**Cause:** Storage account deletion requires explicit user confirmation and cannot run with `--non-interactive`.
+
+**Fix:** Run the command interactively (without `--non-interactive`) to confirm the deletion, or delete the storage account directly via `az storage account delete`.
+
+## Debugging
+
+Enable debug logging to see detailed information about Azure API calls, authentication flows, and retry attempts:
+
+```bash
+terragrunt --experiment azure-backend --log-level debug run -- plan
+```
+
+The Azure backend logs structured telemetry for each operation, including:
+- Operation type (bootstrap, delete, migrate)
+- Duration and retry attempts
+- Error classification (authentication, configuration, permissions, transient, etc.)
+- Storage account and container names
+
+This information helps narrow down whether an issue is related to authentication, permissions, network, or configuration.
