@@ -31,6 +31,8 @@ var (
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
 	// ErrProcessNotStarted is returned from Signal before Start.
 	ErrProcessNotStarted = errors.New("vexec: process not started")
+	// ErrNotOSBacked reports that a Cmd does not satisfy OSCmder.
+	ErrNotOSBacked = errors.New("vexec: Cmd is not OS-backed")
 )
 
 // Exec is the process-execution interface used throughout the codebase.
@@ -81,6 +83,13 @@ type Cmd interface {
 type ExitCoder interface {
 	error
 	ExitCode() int
+}
+
+// OSCmder exposes the underlying *exec.Cmd of an OS-backed Cmd. It is
+// intended as an escape hatch for callers that must pass the concrete type
+// to a library that does not accept the Cmd interface.
+type OSCmder interface {
+	OSCmd() *exec.Cmd
 }
 
 // ExitCode extracts an exit code from err. It returns 0 if err is nil, or -1
@@ -139,6 +148,8 @@ func (c *osCmd) SetEnv(env []string)   { c.cmd.Env = env }
 func (c *osCmd) SetDir(dir string)     { c.cmd.Dir = dir }
 
 func (c *osCmd) SetCancel(fn func() error) { c.cmd.Cancel = fn }
+
+func (c *osCmd) OSCmd() *exec.Cmd { return c.cmd }
 
 func (c *osCmd) Signal(sig os.Signal) error {
 	if c.cmd.Process == nil {

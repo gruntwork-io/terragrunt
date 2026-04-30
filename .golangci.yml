@@ -109,6 +109,13 @@ linters:
       - linters:
           - dupl
         path: cli/flags/shared
+      # BubbleTea's tea.Model expects value-receiver methods (Init/Update/View),
+      # so Model and WelcomeModel in the TUI packages trip gocritic's hugeParam
+      # check. Silence it for these packages only; hugeParam still runs everywhere else.
+      - linters:
+          - gocritic
+        text: "hugeParam:"
+        path: internal/cli/commands/catalog/tui/
       # Incrementally linting lines that are too long to ensure that
       # we don't have conflicts on every file in the codebase while
       # trying to get this merged in.

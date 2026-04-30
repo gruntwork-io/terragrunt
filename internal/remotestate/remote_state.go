@@ -104,7 +104,9 @@ func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstO
 	}
 
 	defer func() {
-		os.Remove(stateFile) // nolint: errcheck
+		if err := os.Remove(stateFile); err != nil && !os.IsNotExist(err) {
+			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
+		}
 	}()
 
 	return dstRemote.pushState(ctx, l, dstOpts.TFRunOpts, stateFile)

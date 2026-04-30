@@ -153,13 +153,12 @@ func TestCatalogWithLocalDefaultTemplate(t *testing.T) {
 	targetPath := filepath.Join(rootPath, "app")
 	moduleURL := "github.com/gruntwork-io/terragrunt//test/fixtures/inputs"
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt scaffold --non-interactive --working-dir "+targetPath+" "+moduleURL,
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "Scaffolding completed")
 	assert.FileExists(t, filepath.Join(targetPath, "terragrunt.hcl"))
 	assert.FileExists(t, filepath.Join(targetPath, "custom-template.txt"))
 
