@@ -17,15 +17,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureutil"
 
-	azErrors "github.com/gruntwork-io/terragrunt/internal/azure/errors"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/gruntwork-io/terragrunt/internal/azure/factory"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/azure/types"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // BackendName is the name of the Azure backend
@@ -95,11 +95,11 @@ func ValidateContainerName(containerName string) error {
 type Backend struct {
 	*backend.CommonBackend
 	telemetry        *AzureTelemetryCollector
-	telemetryOnce    sync.Once
 	errorHandler     *azureutil.OperationHandler
-	errorHandlerOnce sync.Once
 	serviceContainer interfaces.AzureServiceContainer
 	serviceFactory   interfaces.ServiceFactory
+	telemetryOnce    sync.Once
+	errorHandlerOnce sync.Once
 }
 
 // BackendConfig holds configuration for the backend
@@ -210,20 +210,20 @@ func NewBackendWithContext(ctx context.Context, cfg *BackendConfig) *Backend {
 
 // NewBackendFromRemoteStateConfig creates a backend from remote state configuration
 // This method allows creation of a backend with configuration extracted from backend.Config
-func NewBackendFromRemoteStateConfig(remoteStateConfig backend.Config, opts *options.TerragruntOptions) (*Backend, error) {
+func NewBackendFromRemoteStateConfig(remoteStateConfig backend.Config, opts *backend.Options) (*Backend, error) {
 	cfg := &BackendConfig{}
 
 	// Extract configuration from remote state config
-	extractBackendConfigFromRemoteState(remoteStateConfig, cfg, opts)
+	extractBackendConfigFromRemoteState(remoteStateConfig, cfg)
 
 	return NewBackend(cfg), nil
 }
 
 // extractBackendConfigFromRemoteState extracts backend configuration from remote state config
-func extractBackendConfigFromRemoteState(remoteStateConfig backend.Config, cfg *BackendConfig, _ *options.TerragruntOptions) {
+func extractBackendConfigFromRemoteState(remoteStateConfig backend.Config, cfg *BackendConfig) {
 	// Set retry configuration based on defaults
 	cfg.RetryConfig = &interfaces.RetryConfig{
-		MaxRetries: options.DefaultRetryMaxAttempts,
+		MaxRetries: defaultRetryMaxAttempts,
 		RetryDelay: defaultRetryDelaySeconds,
 		MaxDelay:   defaultMaxDelaySeconds,
 		RetryableStatusCodes: []int{
@@ -345,7 +345,7 @@ func (backend *Backend) bootstrapStorageAccountIfNeeded(ctx context.Context, l l
 
 	if azureCfg.RemoteStateConfigAzurerm.SubscriptionID == "" {
 		err := NewMissingSubscriptionIDError()
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ConfigurationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -357,7 +357,7 @@ func (backend *Backend) bootstrapStorageAccountIfNeeded(ctx context.Context, l l
 
 	if azureCfg.StorageAccountConfig.Location == "" {
 		err := NewMissingLocationError()
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ConfigurationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -374,7 +374,7 @@ func (backend *Backend) bootstrapStorageAccountIfNeeded(ctx context.Context, l l
 	})
 	if err != nil {
 		wrappedErr := WrapStorageAccountError(err, azureCfg.RemoteStateConfigAzurerm.StorageAccountName)
-		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, wrappedErr, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "StorageAccountError",
 			Classification: ClassifyError(err),
 			Operation:      OperationBootstrap,
@@ -395,16 +395,11 @@ func (backend *Backend) createContainerIfNeeded(ctx context.Context, l log.Logge
 	retryConfig := DefaultRetryConfig()
 
 	err := WithRetry(ctx, l, "container creation", retryConfig, func() error {
-		createErr := client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
-		if createErr != nil {
-			return WrapTransientError(createErr, "container creation")
-		}
-
-		return nil
+		return client.CreateContainerIfNecessary(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 	})
 	if err != nil {
 		wrappedErr := WrapContainerError(err, azureCfg.RemoteStateConfigAzurerm.ContainerName)
-		tel.LogError(ctx, wrappedErr, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, wrappedErr, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ContainerError",
 			Classification: ClassifyError(err),
 			Operation:      OperationBootstrap,
@@ -420,7 +415,11 @@ func (backend *Backend) createContainerIfNeeded(ctx context.Context, l log.Logge
 }
 
 // Bootstrap creates the Azure Storage container if it doesn't exist.
-func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
+	if !opts.Experiments.Evaluate(experiment.AzureBackend) {
+		return errors.Errorf("the azurerm backend requires the 'azure-backend' experiment to be enabled. Set TG_EXPERIMENT=azure-backend or pass --experiment azure-backend")
+	}
+
 	startTime := time.Now()
 	tel := backend.getTelemetry(l)
 	errorHandler := backend.getErrorHandler(l)
@@ -461,7 +460,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	}
 
 	if err := azureauth.ValidateAuthConfig(authConfig); err != nil {
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "AuthValidationError",
 			Classification: ErrorClassAuthentication,
 			Operation:      OperationBootstrap,
@@ -498,7 +497,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 	// Get blob service
 	client, err := backend.getBlobService(ctx, l, azureCfg, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassAuthentication,
 			Operation:      OperationBootstrap,
@@ -527,7 +526,7 @@ func (backend *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConf
 }
 
 // checkContainerExistence checks if a container exists with retry logic.
-func (backend *Backend) checkContainerExistence(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) checkContainerExistence(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) (bool, error) {
 	var containerExists bool
 
 	retryConfig := DefaultRetryConfig()
@@ -558,7 +557,7 @@ func (backend *Backend) handleContainerExistenceError(err error, containerExists
 		return WrapTransientError(err, operationContainerExistenceCheck)
 	}
 
-	if azureutil.IsPermissionError(err) {
+	if errorutil.IsPermissionError(err) {
 		return err
 	}
 
@@ -572,13 +571,17 @@ func (backend *Backend) handleContainerExistenceError(err error, containerExists
 }
 
 // NeedsBootstrap checks if Azure Storage container needs initialization.
-func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
+	if !opts.Experiments.Evaluate(experiment.AzureBackend) {
+		return false, errors.Errorf("the azurerm backend requires the 'azure-backend' experiment to be enabled. Set TG_EXPERIMENT=azure-backend or pass --experiment azure-backend")
+	}
+
 	startTime := time.Now()
 	tel := backend.getTelemetry(l)
 
 	azureCfg, err := Config(backendConfig).ExtendedAzureConfig()
 	if err != nil {
-		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationNeedsBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ConfigError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationNeedsBootstrap,
@@ -613,7 +616,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 	_, err = backend.getBlobService(ctx, l, azureCfg, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationNeedsBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassAuthentication,
 			Operation:      OperationNeedsBootstrap,
@@ -625,7 +628,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 
 	containerExists, err := backend.checkContainerExistence(ctx, l, azureCfg, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationNeedsBootstrap, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationNeedsBootstrap, &AzureErrorMetrics{
 			ErrorType:      "ContainerExistenceCheckError",
 			Classification: ClassifyError(err),
 			Operation:      OperationNeedsBootstrap,
@@ -654,7 +657,7 @@ func (backend *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backen
 }
 
 // Delete deletes the remote state file from Azure Storage.
-func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
 	startTime := time.Now()
 
 	backend.initTelemetry(l)
@@ -685,7 +688,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	// Prompt user for confirmation
 	shouldContinue, err := backend.promptForBlobDeletion(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDelete, &AzureErrorMetrics{
 			ErrorType:      "UserPromptError",
 			Classification: ErrorClassUserInput,
 			Operation:      OperationDelete,
@@ -708,7 +711,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	// Get blob service from container
 	blobService, err := backend.GetBlobServiceFromConfig(ctx, l, azureCfg)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDelete, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDelete, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationDelete,
@@ -722,7 +725,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 	// Delete the blob
 	err = backend.deleteBlobWithRetry(ctx, l, blobService, azureCfg.RemoteStateConfigAzurerm.ContainerName, azureCfg.RemoteStateConfigAzurerm.Key)
 	if err != nil {
-		tel.LogErrorWithMetrics(ctx, err, OperationDelete, AzureErrorMetrics{
+		tel.LogErrorWithMetrics(ctx, err, OperationDelete, &AzureErrorMetrics{
 			ErrorType:      "BlobDeletionError",
 			Classification: ClassifyError(err),
 			Operation:      OperationDelete,
@@ -741,7 +744,7 @@ func (backend *Backend) Delete(ctx context.Context, l log.Logger, backendConfig 
 }
 
 // DeleteContainer deletes the entire Azure Storage container.
-func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
 	startTime := time.Now()
 
 	backend.initTelemetry(l)
@@ -772,7 +775,7 @@ func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backe
 	// Prompt user for confirmation
 	shouldContinue, err := backend.promptForContainerDeletion(ctx, l, azureCfg.RemoteStateConfigAzurerm.ContainerName, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, &AzureErrorMetrics{
 			ErrorType:      "UserPromptError",
 			Classification: ErrorClassUserInput,
 			Operation:      OperationDeleteContainer,
@@ -794,7 +797,7 @@ func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backe
 	// Get blob service from container
 	blobService, err := backend.GetBlobServiceFromConfig(ctx, l, azureCfg)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteContainer, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationDeleteContainer,
@@ -807,7 +810,7 @@ func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backe
 
 	err = backend.deleteContainerWithRetry(ctx, l, blobService, azureCfg.RemoteStateConfigAzurerm.ContainerName)
 	if err != nil {
-		tel.LogErrorWithMetrics(ctx, err, OperationDeleteContainer, AzureErrorMetrics{
+		tel.LogErrorWithMetrics(ctx, err, OperationDeleteContainer, &AzureErrorMetrics{
 			ErrorType:      "ContainerDeletionError",
 			Classification: ClassifyError(err),
 			Operation:      OperationDeleteContainer,
@@ -826,15 +829,15 @@ func (backend *Backend) DeleteContainer(ctx context.Context, l log.Logger, backe
 }
 
 // promptForContainerDeletion prompts the user to confirm deletion of a container.
-func (backend *Backend) promptForContainerDeletion(ctx context.Context, l log.Logger, containerName string, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) promptForContainerDeletion(ctx context.Context, l log.Logger, containerName string, opts *backend.Options) (bool, error) {
 	prompt := fmt.Sprintf("Azure Storage container %s and all its contents will be deleted. Do you want to continue?", containerName)
-	return shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	return shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 }
 
 // promptForBlobDeletion prompts the user to confirm deletion of a blob.
-func (backend *Backend) promptForBlobDeletion(ctx context.Context, l log.Logger, containerName, blobKey string, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) promptForBlobDeletion(ctx context.Context, l log.Logger, containerName, blobKey string, opts *backend.Options) (bool, error) {
 	prompt := fmt.Sprintf("Azure Storage container %s blob %s will be deleted. Do you want to continue?", containerName, blobKey)
-	return shell.PromptUserForYesNo(ctx, l, prompt, opts)
+	return shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 }
 
 // deleteContainerWithRetry deletes a container with retry logic.
@@ -842,12 +845,7 @@ func (backend *Backend) deleteContainerWithRetry(ctx context.Context, l log.Logg
 	retryConfig := DefaultRetryConfig()
 
 	return WithRetry(ctx, l, "container deletion", retryConfig, func() error {
-		deleteErr := blobService.DeleteContainer(ctx, l, containerName)
-		if deleteErr != nil {
-			return WrapTransientError(deleteErr, "container deletion")
-		}
-
-		return nil
+		return blobService.DeleteContainer(ctx, l, containerName)
 	})
 }
 
@@ -865,12 +863,7 @@ func (backend *Backend) deleteBlobWithRetry(ctx context.Context, l log.Logger, b
 	retryConfig := DefaultRetryConfig()
 
 	return WithRetry(ctx, l, "blob deletion", retryConfig, func() error {
-		deleteErr := blobService.DeleteBlobIfNecessary(ctx, l, containerName, blobKey)
-		if deleteErr != nil {
-			return WrapTransientError(deleteErr, "blob deletion")
-		}
-
-		return nil
+		return blobService.DeleteBlobIfNecessary(ctx, l, containerName, blobKey)
 	})
 }
 
@@ -927,37 +920,32 @@ func (backend *Backend) uploadBlobFromReader(
 	retryConfig := DefaultRetryConfig()
 
 	return WithRetry(ctx, l, "blob upload", retryConfig, func() error {
-		uploadErr := blobService.UploadBlob(ctx, l, containerName, blobName, blobData)
-		if uploadErr != nil {
-			return WrapTransientError(uploadErr, "blob upload")
-		}
-
-		return nil
+		return blobService.UploadBlob(ctx, l, containerName, blobName, blobData)
 	})
 }
 
 // WrapBlobError wraps an error with blob-specific context
 func (backend *Backend) wrapBlobError(err error, container, key string) error {
-	return azErrors.WrapBlobError(err, container, key)
+	return errorutil.WrapBlobError(err, container, key)
 }
 
 // WrapStorageAccountError wraps an error with storage account context
 func (backend *Backend) wrapStorageAccountError(err error, accountName string) error {
-	return azErrors.WrapStorageAccountError(err, accountName)
+	return errorutil.WrapStorageAccountError(err, accountName)
 }
 
 // WrapContainerError wraps an error with container context
 func (backend *Backend) wrapContainerError(err error, containerName string) error {
-	return azErrors.WrapContainerError(err, containerName)
+	return errorutil.WrapContainerError(err, containerName)
 }
 
 // WrapContainerDoesNotExistError wraps an error indicating a container does not exist
 func (backend *Backend) wrapContainerDoesNotExistError(err error, containerName string) error {
-	return azErrors.WrapContainerDoesNotExistError(err, containerName)
+	return errorutil.WrapContainerDoesNotExistError(err, containerName)
 }
 
 // Migrate copies the state file from source container to destination container and deletes the original.
-func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) Migrate(ctx context.Context, l log.Logger, srcBackendConfig, dstBackendConfig backend.Config, opts *backend.Options) error {
 	// If not using force flag, warn about versioning being a storage account level setting
 	if !opts.ForceBackendMigrate {
 		l.Warn("Warning: Blob versioning in Azure Storage is a storage account level setting. Use the Azure Portal or CLI to verify that blob versioning is enabled on both source and destination storage accounts.")
@@ -1076,7 +1064,7 @@ func (backend *Backend) parseMigrateConfigs(
 }
 
 // DeleteStorageAccount deletes an Azure Storage account.
-func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) error {
+func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) error {
 	startTime := time.Now()
 	tel := backend.getTelemetry(l)
 	errorHandler := backend.getErrorHandler(l)
@@ -1110,7 +1098,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 
 	// Validate required fields
 	if err := backend.validateDeleteStorageAccountConfig(resourceGroupName, subscriptionID); err != nil {
-		tel.LogError(ctx, err, OperationDeleteAccount, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteAccount, &AzureErrorMetrics{
 			ErrorType:      "ConfigValidationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      "delete_account",
@@ -1127,7 +1115,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	// Ask for confirmation
 	shouldContinue, err := backend.promptForStorageAccountDeletion(ctx, l, storageAccountName, opts)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteAccount, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteAccount, &AzureErrorMetrics{
 			ErrorType:      "UserPromptError",
 			Classification: ErrorClassUserInput,
 			Operation:      "delete_account",
@@ -1149,7 +1137,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	// Get the storage account service using our helper
 	storageService, err := backend.getStorageAccountService(ctx, l, azureCfg)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteAccount, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteAccount, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationDeleteAccount,
@@ -1164,7 +1152,7 @@ func (backend *Backend) DeleteStorageAccount(ctx context.Context, l log.Logger, 
 	// Delete the storage account (service is already configured for the target account)
 	err = backend.deleteStorageAccountWithRetry(ctx, l, storageService)
 	if err != nil {
-		tel.LogError(ctx, err, OperationDeleteAccount, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationDeleteAccount, &AzureErrorMetrics{
 			ErrorType:      "StorageAccountDeletionError",
 			Classification: ClassifyError(err),
 			Operation:      "delete_account",
@@ -1209,7 +1197,7 @@ func (backend *Backend) executeStorageBootstrap(ctx context.Context, l log.Logge
 
 	// Step 1: Validate storage configuration
 	if err := backend.validateStorageConfig(azureCfg); err != nil {
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "ConfigValidationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -1228,7 +1216,7 @@ func (backend *Backend) executeStorageBootstrap(ctx context.Context, l log.Logge
 
 	// Step 3: Ensure storage account exists (creates if needed)
 	if err := backend.ensureStorageAccountExists(ctx, l, storageService, azureCfg); err != nil {
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "StorageAccountCreationError",
 			Classification: ClassifyError(err),
 			Operation:      OperationBootstrap,
@@ -1267,7 +1255,7 @@ func (backend *Backend) initBootstrapServices(ctx context.Context, l log.Logger,
 	// Get storage account service
 	storageService, err := backend.serviceContainer.GetStorageAccountService(ctx, l, storageConfig)
 	if err != nil {
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -1281,7 +1269,7 @@ func (backend *Backend) initBootstrapServices(ctx context.Context, l log.Logger,
 	// Get blob service for access verification
 	blobService, err := backend.serviceContainer.GetBlobService(ctx, l, storageConfig)
 	if err != nil {
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -1330,7 +1318,7 @@ func (backend *Backend) configureRBACIfNeeded(ctx context.Context, l log.Logger,
 	rbacService, err := backend.serviceContainer.GetRBACService(ctx, l, rbacConfig)
 	if err != nil {
 		l.Warnf("Failed to get RBAC service: %v", err)
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "RBACServiceError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationBootstrap,
@@ -1345,7 +1333,7 @@ func (backend *Backend) configureRBACIfNeeded(ctx context.Context, l log.Logger,
 	if err := backend.assignRBACRolesWithService(ctx, l, rbacService, storageService, azureCfg); err != nil {
 		l.Warnf("Failed to assign RBAC roles: %v", err)
 		// Don't fail the bootstrap process for RBAC errors
-		backend.logBootstrapError(ctx, tel, err, AzureErrorMetrics{
+		backend.logBootstrapError(ctx, tel, err, &AzureErrorMetrics{
 			ErrorType:      "RBACAssignmentError",
 			Classification: ErrorClassPermissions,
 			Operation:      OperationBootstrap,
@@ -1356,7 +1344,7 @@ func (backend *Backend) configureRBACIfNeeded(ctx context.Context, l log.Logger,
 }
 
 // logBootstrapError logs an error during bootstrap with telemetry metrics.
-func (backend *Backend) logBootstrapError(ctx context.Context, tel *AzureTelemetryCollector, err error, metrics AzureErrorMetrics) {
+func (backend *Backend) logBootstrapError(ctx context.Context, tel *AzureTelemetryCollector, err error, metrics *AzureErrorMetrics) {
 	tel.LogErrorWithMetrics(ctx, err, OperationBootstrap, metrics)
 }
 
@@ -1377,7 +1365,7 @@ func (backend *Backend) convertToStorageAccountConfig(azureCfg *ExtendedRemoteSt
 }
 
 // prepareServiceConfig creates a configuration map for service initialization.
-func (backend *Backend) prepareServiceConfig(azureCfg *ExtendedRemoteStateConfigAzurerm, opts *options.TerragruntOptions) map[string]interface{} {
+func (backend *Backend) prepareServiceConfig(azureCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) map[string]interface{} {
 	config := map[string]interface{}{
 		"subscription_id":          azureCfg.RemoteStateConfigAzurerm.SubscriptionID,
 		"resource_group_name":      azureCfg.StorageAccountConfig.ResourceGroupName,
@@ -1428,7 +1416,7 @@ func (backend *Backend) prepareStorageServiceConfig(azureCfg *ExtendedRemoteStat
 }
 
 // prepareBlobServiceConfig creates a configuration map specifically for blob services.
-func (backend *Backend) prepareBlobServiceConfig(azureCfg *ExtendedRemoteStateConfigAzurerm, opts *options.TerragruntOptions) map[string]interface{} {
+func (backend *Backend) prepareBlobServiceConfig(azureCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) map[string]interface{} {
 	config := backend.prepareServiceConfig(azureCfg, opts)
 	config["container_name"] = azureCfg.RemoteStateConfigAzurerm.ContainerName
 
@@ -1442,7 +1430,7 @@ func (backend *Backend) getStorageAccountService(ctx context.Context, l log.Logg
 }
 
 // getBlobService creates a BlobService with proper configuration.
-func (backend *Backend) getBlobService(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm, opts *options.TerragruntOptions) (interfaces.BlobService, error) {
+func (backend *Backend) getBlobService(ctx context.Context, l log.Logger, azureCfg *ExtendedRemoteStateConfigAzurerm, opts *backend.Options) (interfaces.BlobService, error) {
 	config := backend.prepareBlobServiceConfig(azureCfg, opts)
 	return backend.serviceContainer.GetBlobService(ctx, l, config)
 }
@@ -1496,38 +1484,12 @@ func (backend *Backend) ensureStorageAccountExists(ctx context.Context, l log.Lo
 	return nil
 }
 
-// verifyStorageAccess verifies access to the storage account by checking that
-// the configured container exists and is accessible. This is a read-only
-// operation that avoids creating test blobs in production containers.
-func (backend *Backend) verifyStorageAccess(ctx context.Context, l log.Logger, blobService interfaces.BlobService, azureCfg *ExtendedRemoteStateConfigAzurerm) error {
-	containerName := azureCfg.RemoteStateConfigAzurerm.ContainerName
-
-	exists, err := blobService.ContainerExists(ctx, containerName)
-	if err != nil {
-		return backend.wrapContainerError(err, containerName)
-	}
-
-	if !exists {
-		return backend.wrapContainerDoesNotExistError(
-			errors.Errorf("container %s does not exist after bootstrap", containerName),
-			containerName,
-		)
-	}
-
-	return nil
-}
-
 // deleteStorageAccountWithRetry attempts to delete a storage account with retry logic.
 func (backend *Backend) deleteStorageAccountWithRetry(ctx context.Context, l log.Logger, storageService interfaces.StorageAccountService) error {
 	retryConfig := DefaultRetryConfig()
 
 	return WithRetry(ctx, l, "storage account deletion", retryConfig, func() error {
-		err := storageService.DeleteStorageAccount(ctx, l)
-		if err != nil {
-			return WrapTransientError(err, "storage account deletion")
-		}
-
-		return nil
+		return storageService.DeleteStorageAccount(ctx, l)
 	})
 }
 
@@ -1630,7 +1592,7 @@ func (backend *Backend) logServiceOperation(ctx context.Context, l log.Logger, o
 			IsRetryable:    false, // Conservative default
 		}
 
-		tel.LogError(ctx, err, operation, metrics)
+		tel.LogError(ctx, err, operation, &metrics)
 	} else {
 		// Log successful operation
 		tel.LogOperation(ctx, operation, duration, attrs)
@@ -1768,14 +1730,14 @@ func (backend *Backend) validateDeleteStorageAccountConfig(resourceGroupName, su
 }
 
 // promptForStorageAccountDeletion prompts user for confirmation before deletion
-func (backend *Backend) promptForStorageAccountDeletion(ctx context.Context, l log.Logger, storageAccountName string, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) promptForStorageAccountDeletion(ctx context.Context, l log.Logger, storageAccountName string, opts *backend.Options) (bool, error) {
 	if opts.NonInteractive {
 		return false, errors.Errorf("cannot delete storage account %s in non-interactive mode: user confirmation is required", storageAccountName)
 	}
 
 	prompt := fmt.Sprintf("Are you sure you want to delete storage account %s? This action cannot be undone. (y/N)", storageAccountName)
 
-	response, err := shell.PromptUserForInput(ctx, l, prompt, opts)
+	response, err := shell.PromptUserForInput(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 	if err != nil {
 		return false, errors.Errorf("failed to get user confirmation: %w", err)
 	}
@@ -1849,7 +1811,7 @@ func (backend *Backend) assignRBACRolesWithService(ctx context.Context, l log.Lo
 	// This data-plane role provides full access to blob data (read, write, delete, manage ACLs)
 	if err := rbacService.AssignStorageBlobDataOwnerRole(ctx, l, scope); err != nil {
 		// Check if it's a permission error (user doesn't have rights to assign roles)
-		if rbacService.IsPermissionError(err) {
+		if errorutil.IsPermissionError(err) {
 			l.Warnf("Insufficient permissions to assign RBAC roles. You may need to manually assign 'Storage Blob Data Owner' role.")
 			return nil // Don't fail bootstrap for permission errors
 		}
@@ -1962,7 +1924,7 @@ func (backend *Backend) UpdateFactoryConfiguration(updates map[string]interface{
 }
 
 // IsVersionControlEnabled returns true if blob versioning is enabled for the Azure storage account.
-func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *options.TerragruntOptions) (bool, error) {
+func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logger, backendConfig backend.Config, opts *backend.Options) (bool, error) {
 	startTime := time.Now()
 	tel := backend.getTelemetry(l)
 	errorHandler := backend.getErrorHandler(l)
@@ -1984,7 +1946,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 		},
 	)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationVersionCheck, &AzureErrorMetrics{
 			ErrorType:      "ConfigError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationVersionCheck,
@@ -2006,7 +1968,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 		},
 	)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationVersionCheck, &AzureErrorMetrics{
 			ErrorType:      "ValidationError",
 			Classification: ErrorClassValidation,
 			Operation:      OperationVersionCheck,
@@ -2020,7 +1982,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 	// Get the storage account service to check versioning
 	storageService, err := backend.getStorageAccountService(ctx, l, azureCfg)
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationVersionCheck, &AzureErrorMetrics{
 			ErrorType:      "ServiceCreationError",
 			Classification: ErrorClassConfiguration,
 			Operation:      OperationVersionCheck,
@@ -2047,7 +2009,7 @@ func (backend *Backend) IsVersionControlEnabled(ctx context.Context, l log.Logge
 		return nil
 	})
 	if err != nil {
-		tel.LogError(ctx, err, OperationVersionCheck, AzureErrorMetrics{
+		tel.LogError(ctx, err, OperationVersionCheck, &AzureErrorMetrics{
 			ErrorType:      "VersioningCheckError",
 			Classification: ClassifyError(err),
 			Operation:      OperationVersionCheck,

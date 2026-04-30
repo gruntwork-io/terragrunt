@@ -36,7 +36,7 @@ type ErrorMetrics struct {
 	SubscriptionID string
 	Location       string
 	AuthMethod     string
-	Classification ErrorClass
+	Classification errorutil.ErrorClass
 	Operation      OperationType
 	Duration       time.Duration
 	StatusCode     int
@@ -46,40 +46,10 @@ type ErrorMetrics struct {
 }
 
 // Error implements the error interface for ErrorMetrics.
-func (e ErrorMetrics) Error() string {
+func (e *ErrorMetrics) Error() string {
 	if e.ErrorMessage != "" {
 		return e.ErrorMessage
 	}
 
 	return fmt.Sprintf("%s error: %s (status: %d)", e.ErrorType, e.Classification, e.StatusCode)
-}
-
-// ClassifyError determines the classification of an error based on its content
-
-func ClassifyError(err error) ErrorClass {
-	// Convert from errorutil.ErrorClass to local ErrorClass enum
-	switch errorutil.ClassifyError(err) {
-	case errorutil.ErrorClassAuthentication:
-		return ErrorClassAuthorization
-	case errorutil.ErrorClassPermission:
-		return ErrorClassPermission
-	case errorutil.ErrorClassInvalidRequest:
-		return ErrorClassInvalidRequest
-	case errorutil.ErrorClassConfiguration:
-		return ErrorClassInvalidRequest // Map configuration errors to invalid request
-	case errorutil.ErrorClassNetworking:
-		return ErrorClassNetworking
-	case errorutil.ErrorClassNotFound:
-		return ErrorClassNotFound
-	case errorutil.ErrorClassResource:
-		return ErrorClassResource
-	case errorutil.ErrorClassThrottling:
-		return ErrorClassThrottling
-	case errorutil.ErrorClassTransient:
-		return ErrorClassSystem // Map transient errors to system
-	case errorutil.ErrorClassUnknown:
-		return ErrorClassUnknown
-	default:
-		return ErrorClassUnknown
-	}
 }

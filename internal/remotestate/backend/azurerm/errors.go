@@ -558,7 +558,7 @@ func WrapErrorWithTelemetry(ctx context.Context, err error, tel *AzureTelemetryC
 	classification, _, details := GetErrorContext(err)
 
 	// Log error with telemetry
-	tel.LogError(ctx, err, operation, AzureErrorMetrics{
+	tel.LogError(ctx, err, operation, &AzureErrorMetrics{
 		Classification: classification,
 		Operation:      operation,
 		ResourceType:   resourceType,

@@ -3,21 +3,38 @@ package azurerm_test
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	testing_pkg "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm/testing"
+	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newTestOpts() *backend.Options {
+	exps := experiment.NewExperiments()
+	for _, e := range exps {
+		if e.Name == experiment.AzureBackend {
+			e.Enabled = true
+		}
+	}
+
+	return &backend.Options{
+		Writers:        writer.Writers{Writer: io.Discard, ErrWriter: io.Discard},
+		NonInteractive: true,
+		Experiments:    exps,
+	}
+}
 
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
@@ -44,9 +61,7 @@ func TestBackendBootstrapInvalidConfig(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	testCases := []struct {
 		config      backend.Config // map pointer (8 bytes) - place first for alignment
@@ -104,11 +119,7 @@ func TestDeleteStorageAccount(t *testing.T) {
 	formatter.SetDisabledColors(true)
 	l := log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	// Do not make actual API calls for this test
-	opts.NonInteractive = true
+	opts := newTestOpts()
 
 	// Create a backend instance
 	b := newTestBackend()
@@ -200,8 +211,7 @@ func TestAzureBackendBootstrapScenarios(t *testing.T) {
 	// Create logger for testing
 	l := createLogger()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	// Make sure we're using non-interactive mode to avoid prompts
 	opts.NonInteractive = true
@@ -390,7 +400,7 @@ func TestStorageAccountCreationConfig(t *testing.T) {
 
 		// Config parsing succeeds but bootstrap would fail because subscription_id and location are required
 		l := createLogger()
-		opts, _ := options.NewTerragruntOptionsForTest("")
+		opts := newTestOpts()
 		b := newTestBackend()
 		err = b.Bootstrap(t.Context(), l, config, opts)
 		require.Error(t, err)
@@ -478,8 +488,7 @@ func TestBlobServiceClientCreationError(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	// Setup test cases with configurations that will cause blob service client creation to fail
 	testCases := []struct {
@@ -535,8 +544,7 @@ func TestContainerCreationError(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	// Setup test cases with configurations that will cause container creation to fail
 	testCases := []struct {
@@ -740,13 +748,13 @@ func TestStorageAccountConfigOptions(t *testing.T) {
 				return
 			}
 
-			assertStorageAccountConfigFields(t, tc.expectedSAConfig, azureCfg.StorageAccountConfig)
+			assertStorageAccountConfigFields(t, tc.expectedSAConfig, &azureCfg.StorageAccountConfig)
 		})
 	}
 }
 
 // assertStorageAccountConfigFields validates storage account config fields against expected values.
-func assertStorageAccountConfigFields(t *testing.T, expected map[string]interface{}, actual azurerm.StorageAccountBootstrapConfig) {
+func assertStorageAccountConfigFields(t *testing.T, expected map[string]interface{}, actual *azurerm.StorageAccountBootstrapConfig) {
 	t.Helper()
 
 	// Map of field names to their actual values
@@ -993,8 +1001,7 @@ func TestBootstrapConfigurationDependencyValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 
@@ -1105,9 +1112,7 @@ func TestBootstrapConfigurationDependencyValidation(t *testing.T) {
 func TestBootstrapAuthenticationConfigurationErrors(t *testing.T) {
 	// Note: Cannot use t.Parallel() here because we use t.Setenv()
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 
@@ -1231,8 +1236,7 @@ func TestDeleteErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 
@@ -1324,8 +1328,7 @@ func TestDeleteContainerErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 
@@ -1393,8 +1396,7 @@ func TestMigrateErrorPathsDetailed(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 
@@ -1476,8 +1478,7 @@ func TestNeedsBootstrapConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	b := azurerm.NewBackend(nil)
 
@@ -1575,8 +1576,7 @@ func TestDeleteStorageAccountConfigValidation(t *testing.T) {
 	t.Parallel()
 
 	l := createLogger()
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := newTestOpts()
 
 	opts.NonInteractive = true
 

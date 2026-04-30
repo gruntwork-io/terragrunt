@@ -94,8 +94,10 @@ func BackendOptsFromOpts(opts *options.TerragruntOptions) *backend.Options {
 		Writers:                      opts.Writers,
 		Env:                          opts.Env,
 		IAMRoleOptions:               opts.IAMRoleOptions,
+		Experiments:                  opts.Experiments,
 		NonInteractive:               opts.NonInteractive,
 		FailIfBucketCreationRequired: opts.FailIfBucketCreationRequired,
+		ForceBackendMigrate:          opts.ForceBackendMigrate,
 	}
 }
 

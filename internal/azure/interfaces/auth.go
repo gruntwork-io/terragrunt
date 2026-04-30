@@ -12,7 +12,6 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrNotImplemented     = errors.New("not implemented")
-	ErrImmutableService   = errors.New("authentication service is immutable; create a new service instance with the desired configuration")
 )
 
 const (
@@ -33,8 +32,13 @@ type PrincipalInfo struct {
 
 // AuthenticationService defines the interface for Azure authentication operations.
 // This interface abstracts Azure authentication to improve testability and decouple
-// from specific Azure SDK authentication implementations. It provides methods for
-// credential management, token operations, and authentication information retrieval.
+// from specific Azure SDK authentication implementations.
+//
+// The interface is intentionally small. Getters for subscription ID, tenant ID, etc.
+// are available as exported methods on the concrete AuthenticationServiceImpl struct
+// but are not part of the interface because no external caller uses them through it.
+// Stateless error classifiers (IsAuthenticationError, IsTokenExpiredError, IsPermissionError)
+// live in the errorutil package as standalone functions.
 //
 // Usage examples:
 //
@@ -44,14 +48,9 @@ type PrincipalInfo struct {
 //	// Validate current credentials
 //	err := authService.ValidateCredentials(ctx)
 //
-//	// Get current subscription ID
-//	subscriptionID, err := authService.GetSubscriptionID(ctx)
-//
-//	// Get access token for specific scopes
-//	token, err := authService.GetAccessToken(ctx, []string{"https://storage.azure.com/.default"})
+//	// Get current principal information
+//	principal, err := authService.GetCurrentPrincipal(ctx)
 type AuthenticationService interface {
-	// Credential Management
-
 	// GetCredential creates and returns an Azure credential based on the provided configuration.
 	// The configuration map should contain authentication parameters such as:
 	// - client_id, client_secret, tenant_id for Service Principal auth
@@ -64,90 +63,24 @@ type AuthenticationService interface {
 	// This method performs a lightweight operation to verify credential validity.
 	ValidateCredentials(ctx context.Context) error
 
-	// RefreshCredentials refreshes the current credentials if they support refresh.
-	// This is useful for long-running operations that might exceed token lifetimes.
-	RefreshCredentials(ctx context.Context) error
-
-	// Authentication Information
-
 	// GetCurrentPrincipal retrieves information about the currently authenticated principal.
 	// Returns details about the user, service principal, or managed identity.
 	GetCurrentPrincipal(ctx context.Context) (interface{}, error)
 
-	// GetSubscriptionID retrieves the Azure subscription ID from the current authentication context.
-	// This may come from configuration, environment variables, or the authenticated context.
-	GetSubscriptionID(ctx context.Context) (string, error)
-
-	// GetTenantID retrieves the Azure AD tenant ID from the current authentication context.
-	// This may come from configuration, environment variables, or the authenticated context.
-	GetTenantID(ctx context.Context) (string, error)
-
-	// GetClientID retrieves the client ID from the current authentication context.
-	// This is applicable for Service Principal and some other authentication methods.
-	GetClientID(ctx context.Context) (string, error)
-
-	// Token Operations
-
-	// GetAccessToken retrieves an access token for the specified scopes.
-	// scopes: The OAuth 2.0 scopes for which to request the token
-	// Returns a token that can be used for direct API calls.
-	GetAccessToken(ctx context.Context, scopes []string) (string, error)
-
-	// RefreshToken refreshes the current access token if it's expired or near expiry.
-	// This is handled automatically by most Azure SDK clients but can be useful for direct API calls.
-	RefreshToken(ctx context.Context) error
-
-	// Authentication Method Detection
-
-	// GetAuthenticationMethod returns the authentication method being used.
-	// Possible values: "azuread", "service_principal", "msi", "cli", "sas_token"
-	GetAuthenticationMethod(ctx context.Context) (string, error)
-
-	// IsServicePrincipal returns true if authenticating with a Service Principal.
-	IsServicePrincipal(ctx context.Context) (bool, error)
-
-	// IsManagedIdentity returns true if authenticating with Managed Service Identity.
-	IsManagedIdentity(ctx context.Context) (bool, error)
-
-	// IsAzureAD returns true if authenticating with Azure AD (default method).
-	IsAzureAD(ctx context.Context) (bool, error)
-
-	// Cloud Environment Support
-
-	// GetCloudEnvironment returns the Azure cloud environment being used.
-	// Possible values: "public", "government", "china", "german"
-	GetCloudEnvironment(ctx context.Context) (string, error)
-
-	// SetCloudEnvironment sets the Azure cloud environment for authentication.
-	// environment: The cloud environment name ("public", "government", "china", "german")
-	SetCloudEnvironment(ctx context.Context, environment string) error
-
-	// Configuration Management
-
-	// GetConfiguration returns the current authentication configuration.
-	// This includes sanitized configuration (secrets are masked).
-	GetConfiguration(ctx context.Context) (map[string]interface{}, error)
-
-	// UpdateConfiguration is not supported - authentication services are immutable.
-	// To change configuration, create a new service instance with the desired settings.
-	// This method always returns ErrImmutableService.
-	//
-	// Deprecated: This method exists for interface compatibility but should not be used.
-	UpdateConfiguration(ctx context.Context, config map[string]interface{}) error
-
-	// Error Handling and Utilities
-
-	// IsAuthenticationError checks if an error is related to authentication.
-	// This is useful for error classification and retry logic.
-	IsAuthenticationError(err error) bool
-
-	// IsTokenExpiredError checks if an error indicates an expired token.
-	// This can trigger automatic token refresh in retry logic.
-	IsTokenExpiredError(err error) bool
-
 	// IsPermissionError checks if an error is due to insufficient permissions.
 	// This helps distinguish between authentication and authorization errors.
 	IsPermissionError(err error) bool
+}
+
+// AuthInfo holds authentication metadata that is known at credential creation time.
+// These values were previously exposed as interface methods (GetSubscriptionID, GetTenantID, etc.)
+// but are better represented as plain struct fields since they are set once and never change.
+type AuthInfo struct {
+	SubscriptionID       string // Azure subscription ID
+	TenantID             string // Azure AD tenant ID
+	ClientID             string // Azure AD application client ID
+	AuthenticationMethod string // "azuread", "service_principal", "msi", "cli", "sas_token"
+	CloudEnvironment     string // "public", "government", "china"
 }
 
 // AuthenticationConfig represents configuration for authentication operations.

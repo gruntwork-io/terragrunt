@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
@@ -55,10 +54,6 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 	// Create a logger for testing
 	testLogger := logger.CreateLogger()
 
-	// Create options
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
 	// Setup remote state config
 	backendConfig := map[string]interface{}{
 		"storage_account_name": storageAccount,
@@ -76,7 +71,7 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 
 	// Create Azure client - use t.Context() instead of context.Background()
 	ctx := t.Context()
-	client, err := azurehelper.CreateBlobServiceClient(ctx, testLogger, terragruntOptions, backendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, testLogger, backendConfig)
 	require.NoError(t, err)
 
 	// Setup - Create container and upload state file
@@ -92,20 +87,17 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test direct state access
-	jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(ctx, testLogger, terragruntOptions, remoteState)
+	jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(ctx, testLogger, remoteState)
 	require.NoError(t, err)
 
-	// Parse and verify outputs
-	var stateFileObj map[string]interface{}
-	err = json.Unmarshal(jsonBytes, &stateFileObj)
+	// Parse and verify outputs — the function returns only the "outputs" section
+	var outputsMap map[string]interface{}
+	err = json.Unmarshal(jsonBytes, &outputsMap)
 	require.NoError(t, err)
-
-	stateOutputsMap, outputsOk := stateFileObj["outputs"].(map[string]interface{})
-	require.True(t, outputsOk, "outputs section not found in state file")
 
 	// Verify the output value
-	testOutputIface, testOutputOk := stateOutputsMap["test_output"]
-	require.True(t, testOutputOk, "test_output not found in state file")
+	testOutputIface, testOutputOk := outputsMap["test_output"]
+	require.True(t, testOutputOk, "test_output not found in outputs")
 
 	testOutputMap, testOutputMapOk := testOutputIface.(map[string]interface{})
 	require.True(t, testOutputMapOk, "test_output is not a map")
@@ -118,11 +110,12 @@ func TestDirectStateAccessAzurerm(t *testing.T) {
 	assert.Equal(t, "azure_test_value", valueStr)
 }
 
-// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
-// This is the test version of the function from config/dependency.go
-func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) ([]byte, error) {
+// getTerragruntOutputJSONFromRemoteStateAzurerm is a mock/stub that simulates the production
+// function from config/dependency.go for integration-style testing. It fetches state from Azure
+// Storage, extracts the "outputs" section, and re-marshals it — matching production semantics.
+func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState) ([]byte, error) {
 	// Create Azure blob client from the configuration
-	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, remoteState.BackendConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -141,12 +134,9 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 	}
 
 	// Get the state file blob content
-	container := containerName
-	keyPtr := &key
-	containerPtr := &container
 	input := &azurehelper.GetObjectInput{
-		Container: containerPtr,
-		Key:       keyPtr,
+		Container: &containerName,
+		Key:       &key,
 	}
 
 	output, err := client.GetObject(ctx, input)
@@ -155,10 +145,18 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 	}
 
 	defer output.Body.Close()
-	data, err := io.ReadAll(output.Body)
+	stateBytes, err := io.ReadAll(output.Body)
 	if err != nil {
 		return nil, errors.Errorf("error reading response body: %w", err)
 	}
 
-	return data, nil
+	// Parse state and extract outputs — matching production code semantics
+	var state struct {
+		Outputs map[string]interface{} `json:"outputs"`
+	}
+	if err := json.Unmarshal(stateBytes, &state); err != nil {
+		return nil, errors.Errorf("error parsing state file JSON: %w", err)
+	}
+
+	return json.Marshal(state.Outputs)
 }

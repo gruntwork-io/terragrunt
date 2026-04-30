@@ -62,3 +62,32 @@ Including the environment variable:
 ```bash
 TG_EXPERIMENT='symlinks,stacks' terragrunt plan
 ```
+
+## Ongoing Experiments
+
+### `azure-backend`
+
+The `azure-backend` experiment enables native Azure Storage (azurerm) as a remote state backend. When enabled, Terragrunt can manage Azure Blob Storage for state files, including automatic creation of storage accounts and containers via the `remote_state` block with `backend = "azurerm"`.
+
+**What it does:**
+
+- Adds `azurerm` as a supported backend type in the `remote_state` block
+- Supports automatic storage account and container creation (`create_storage_account_if_not_exists`)
+- Supports multiple Azure authentication methods (Azure AD, Managed Identity, Service Principal, SAS token)
+- Integrates with the `backend bootstrap` and `backend delete` CLI commands
+
+**How to enable:**
+
+```bash
+terragrunt --experiment azure-backend plan
+```
+
+Or via environment variable:
+
+```bash
+TG_EXPERIMENT='azure-backend' terragrunt plan
+```
+
+**Feedback:** File issues on the [Terragrunt GitHub repository](https://github.com/gruntwork-io/terragrunt) with the `azure-backend` label.
+
+**Stabilization criteria:** The experiment will be considered stable after sufficient community testing across different Azure environments, authentication methods, and edge cases (sovereign clouds, private endpoints, cross-subscription access).

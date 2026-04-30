@@ -4,10 +4,8 @@ package azureauth
 import "github.com/gruntwork-io/terragrunt/pkg/log"
 
 // logDebug logs a debug message if the logger is not nil.
-//
-//nolint:unparam // args parameter is unused but kept for future flexibility
-func logDebug(l log.Logger, msg string, _ ...interface{}) {
+func logDebug(l log.Logger, msg string, args ...interface{}) {
 	if l != nil {
-		l.Debug(msg)
+		l.Debugf(msg, args...)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,9 +25,9 @@ type MockTelemetryCollector struct { //nolint:govet // test helper prioritizes r
 
 type testContextKey string
 
-func (m *MockTelemetryCollector) LogError(ctx context.Context, err error, operation OperationType, metrics ErrorMetrics) {
+func (m *MockTelemetryCollector) LogError(ctx context.Context, err error, operation OperationType, metrics *ErrorMetrics) {
 	m.ErrorsLogged++
-	m.LastErrorMetrics = metrics
+	m.LastErrorMetrics = *metrics
 }
 
 func (m *MockTelemetryCollector) LogOperation(ctx context.Context, operation OperationType, duration time.Duration, attrs map[string]interface{}) {
@@ -212,47 +213,45 @@ func TestErrorClassificationComprehensive(t *testing.T) {
 	tests := []struct { //nolint:govet // test table readability over packing
 		name          string
 		errMsg        string
-		expectedClass ErrorClass
+		expectedClass errorutil.ErrorClass
 	}{
-		// Permission errors (following original types_test.go expectations)
-		{"unauthorized", "unauthorized access", ErrorClassAuthorization},
-		{"forbidden", "forbidden operation", ErrorClassUnknown}, // No specific match in original logic
-		{"access denied", "access denied to resource", ErrorClassAuthorization},
-		{"insufficient privileges", "insufficient privileges", ErrorClassPermission},
+		// Authentication errors (errorutil classifies as ErrorClassAuthentication)
+		{"unauthorized", "unauthorized access", errorutil.ErrorClassAuthentication},
+		{"forbidden", "forbidden operation", errorutil.ErrorClassUnknown},
+		{"access denied", "access denied to resource", errorutil.ErrorClassAuthentication},
+		{"insufficient privileges", "insufficient privileges", errorutil.ErrorClassPermission},
+		{"auth failed", "authentication failed", errorutil.ErrorClassAuthentication},
+		{"invalid credentials", "invalid credentials provided", errorutil.ErrorClassAuthentication},
+		{"token expired", "authentication token expired", errorutil.ErrorClassAuthentication},
 
-		// Authentication errors
-		{"auth failed", "authentication failed", ErrorClassAuthorization},
-		{"invalid credentials", "invalid credentials provided", ErrorClassAuthorization},
-		{"token expired", "authentication token expired", ErrorClassAuthorization},
-
-		// Not found errors (but resource-specific errors go to Resource class)
-		{"not found", "resource not found", ErrorClassNotFound},
-		{"does not exist", "container does not exist", ErrorClassResource},           // Resource class takes precedence
-		{"missing resource", "the specified resource is missing", ErrorClassUnknown}, // No specific match
+		// Not found / resource errors
+		{"not found", "resource not found", errorutil.ErrorClassNotFound},
+		{"does not exist", "container does not exist", errorutil.ErrorClassResource},
+		{"missing resource", "the specified resource is missing", errorutil.ErrorClassUnknown},
 
 		// Throttling errors
-		{"too many requests", "too many requests", ErrorClassThrottling},
-		{"rate limit", "rate limit exceeded", ErrorClassThrottling},
-		{"quota exceeded", "quota exceeded", ErrorClassThrottling},
+		{"too many requests", "too many requests", errorutil.ErrorClassThrottling},
+		{"rate limit", "rate limit exceeded", errorutil.ErrorClassThrottling},
+		{"quota exceeded", "quota exceeded", errorutil.ErrorClassThrottling},
 
 		// Network errors
-		{"connection failed", "network connection failed", ErrorClassNetworking},
-		{"timeout", "operation timed out", ErrorClassNetworking},
-		{"dns error", "dns resolution failed", ErrorClassNetworking},
+		{"connection failed", "network connection failed", errorutil.ErrorClassNetworking},
+		{"timeout", "operation timed out", errorutil.ErrorClassNetworking},
+		{"dns error", "dns resolution failed", errorutil.ErrorClassNetworking},
 
-		// Configuration errors
-		{"invalid config", "invalid configuration", ErrorClassInvalidRequest},
-		{"missing parameter", "required parameter missing", ErrorClassInvalidRequest},
-		{"malformed", "malformed configuration file", ErrorClassInvalidRequest}, // Contains "config" so matches InvalidRequest
+		// Configuration / invalid request errors
+		{"invalid config", "invalid configuration", errorutil.ErrorClassInvalidRequest},
+		{"missing parameter", "required parameter missing", errorutil.ErrorClassInvalidRequest},
+		{"malformed", "malformed configuration file", errorutil.ErrorClassInvalidRequest},
 
-		// Validation errors
-		{"validation failed", "validation failed", ErrorClassUnknown},  // No specific match in original logic
-		{"bad request", "bad request format", ErrorClassUnknown},       // No specific match
-		{"invalid input", "invalid input provided", ErrorClassUnknown}, // No specific match
+		// No specific match
+		{"validation failed", "validation failed", errorutil.ErrorClassUnknown},
+		{"bad request", "bad request format", errorutil.ErrorClassUnknown},
+		{"invalid input", "invalid input provided", errorutil.ErrorClassUnknown},
 
 		// Generic/unknown errors
-		{"generic error", "something went wrong", ErrorClassUnknown},
-		{"empty error", "", ErrorClassUnknown}, // Empty error message creates nil error, should return unknown
+		{"generic error", "something went wrong", errorutil.ErrorClassUnknown},
+		{"empty error", "", errorutil.ErrorClassUnknown},
 	}
 
 	for _, tc := range tests {
@@ -267,7 +266,7 @@ func TestErrorClassificationComprehensive(t *testing.T) {
 				err = errors.New(tc.errMsg)
 			}
 
-			result := ClassifyError(err)
+			result := errorutil.ClassifyError(err)
 			assert.Equal(t, tc.expectedClass, result,
 				"Error message '%s' should be classified as '%s', got '%s'",
 				tc.errMsg, tc.expectedClass, result)
@@ -321,7 +320,7 @@ func TestErrorMetricsFieldAccess(t *testing.T) {
 
 	metrics := ErrorMetrics{
 		ErrorType:      "test_error",
-		Classification: ErrorClassPermission,
+		Classification: errorutil.ErrorClassPermission,
 		Operation:      OperationBootstrap,
 		ResourceType:   "storage_account",
 		ResourceName:   "test-account",
@@ -378,10 +377,10 @@ func TestResourceTypeConstants(t *testing.T) {
 	t.Parallel()
 
 	expectedTypes := map[string]string{
-		ResourceTypeBlob:          "blob",
-		ResourceTypeContainer:     "container",
-		ResourceTypeResourceGroup: "resource_group",
-		ResourceTypeStorage:       "storage_account",
+		errorutil.ResourceTypeBlob:          "blob",
+		errorutil.ResourceTypeContainer:     "container",
+		errorutil.ResourceTypeResourceGroup: "resource_group",
+		errorutil.ResourceTypeStorage:       "storage_account",
 	}
 
 	for constant, expected := range expectedTypes {
@@ -452,7 +451,7 @@ func TestIsPermissionErrorEdgeCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := IsPermissionError(tc.err)
+			result := errorutil.IsPermissionError(tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

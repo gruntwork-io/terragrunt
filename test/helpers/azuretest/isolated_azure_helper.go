@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
 
@@ -264,9 +263,6 @@ func generateIsolatedContainerName(testName, testID string) string {
 func GetAzureBlobClient(t *testing.T, config *IsolatedAzureConfig) *azurehelper.BlobServiceClient {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
 	ctx := context.Background()
 
 	// Create configuration based on authentication method
@@ -283,7 +279,7 @@ func GetAzureBlobClient(t *testing.T, config *IsolatedAzureConfig) *azurehelper.
 	}
 
 	// Create Azure blob service client
-	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, nil, opts, azureConfig)
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, nil, azureConfig)
 	require.NoError(t, err, "Failed to initialize Azure blob service client")
 
 	return blobClient

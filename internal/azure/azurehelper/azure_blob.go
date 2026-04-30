@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 const (
@@ -91,7 +90,11 @@ func createBlobClientWithAuth(url string, authResult *azureauth.AuthResult) (*az
 		return azblob.NewClientWithNoCredential(url+"?"+sas, nil)
 	}
 
-	return azblob.NewClient(url, authResult.Credential, nil)
+	clientOpts := &azblob.ClientOptions{
+		ClientOptions: *authResult.CreateStorageClientOptions(),
+	}
+
+	return azblob.NewClient(url, authResult.Credential, clientOpts)
 }
 
 // handleClientCreationError wraps client creation errors with appropriate context.
@@ -185,7 +188,7 @@ func verifyStorageAccountConnectivity(ctx context.Context, l log.Logger, client 
 }
 
 // CreateBlobServiceClient creates a new Azure Blob Service client using the configuration from the backend.
-func CreateBlobServiceClient(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, config map[string]interface{}) (*BlobServiceClient, error) {
+func CreateBlobServiceClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*BlobServiceClient, error) {
 	storageAccountName, okStorageAccountName := config["storage_account_name"].(string)
 	if !okStorageAccountName || storageAccountName == "" {
 		return nil, errors.Errorf("storage_account_name is required")

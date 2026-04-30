@@ -225,7 +225,7 @@ func TestAzureTelemetryCollector_NilSafety(t *testing.T) {
 
 	// These should not panic with nil telemeter
 	require.NotPanics(t, func() {
-		collector.LogError(ctx, err, azurerm.OperationBootstrap, azurerm.AzureErrorMetrics{
+		collector.LogError(ctx, err, azurerm.OperationBootstrap, &azurerm.AzureErrorMetrics{
 			ErrorType:      "TestError",
 			Classification: azurerm.ErrorClassConfiguration,
 		})
@@ -248,12 +248,12 @@ func TestAzureTelemetryCollector_LogError(t *testing.T) {
 	err := errors.New("test authentication error")
 
 	// Test with minimal metrics
-	collector.LogError(ctx, err, azurerm.OperationBootstrap, azurerm.AzureErrorMetrics{
+	collector.LogError(ctx, err, azurerm.OperationBootstrap, &azurerm.AzureErrorMetrics{
 		ErrorType: "AuthError",
 	})
 
 	// Test with comprehensive metrics
-	collector.LogError(ctx, err, azurerm.OperationBootstrap, azurerm.AzureErrorMetrics{
+	collector.LogError(ctx, err, azurerm.OperationBootstrap, &azurerm.AzureErrorMetrics{
 		ErrorType:      "AuthError",
 		Classification: azurerm.ErrorClassAuthentication,
 		Operation:      azurerm.OperationBootstrap,
@@ -272,7 +272,7 @@ func TestAzureTelemetryCollector_LogError(t *testing.T) {
 	})
 
 	// Test with nil error - should return early
-	collector.LogError(ctx, nil, azurerm.OperationBootstrap, azurerm.AzureErrorMetrics{
+	collector.LogError(ctx, nil, azurerm.OperationBootstrap, &azurerm.AzureErrorMetrics{
 		ErrorType: "TestError",
 	})
 }
@@ -360,7 +360,7 @@ func TestFormatLogMessage(t *testing.T) {
 		"retry_attempts": 0,
 	}
 
-	result := azurerm.FormatLogMessage(metrics, fields)
+	result := azurerm.FormatLogMessage(&metrics, fields)
 
 	// Should contain the base error message and structured parts in brackets
 	assert.Contains(t, result, "Configuration error occurred")
@@ -380,7 +380,7 @@ func TestFormatLogMessage(t *testing.T) {
 		"operation":  "delete",
 	}
 
-	minimalResult := azurerm.FormatLogMessage(minimalMetrics, minimalFields)
+	minimalResult := azurerm.FormatLogMessage(&minimalMetrics, minimalFields)
 	assert.Contains(t, minimalResult, "Test error message")
 	assert.Contains(t, minimalResult, "[operation=delete]")
 }

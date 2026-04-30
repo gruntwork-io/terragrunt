@@ -10,6 +10,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// FormatWithStackTrace formats a string with arguments and ensures stack traces are preserved
+func FormatWithStackTrace(format string, args ...interface{}) string {
+	for i, arg := range args {
+		if err, ok := arg.(error); ok && err != nil {
+			args[i] = errors.New(err)
+		}
+	}
+
+	return fmt.Sprintf(format, args...)
+}
+
 // ErrorClass represents the classification of an Azure error
 type ErrorClass string
 
@@ -354,7 +365,8 @@ func WrapError(err error, message string, opts ...ErrorOption) error {
 	}
 
 	// Start with options that come from the error itself, with capacity for additional options
-	options := make([]ErrorOption, 0, 2+len(opts))
+	baseOpts := 2 //nolint:mnd // WithCause + WithClassification are always prepended.
+	options := make([]ErrorOption, 0, baseOpts+len(opts))
 	options = append(options, WithCause(err), WithClassification(ClassifyError(err)))
 
 	// Add any additional options
@@ -394,4 +406,41 @@ func WrapStorageAccountError(err error, accountName string) error {
 	return WrapError(err, fmt.Sprintf("Error with storage account '%s'", accountName),
 		WithResourceType(ResourceTypeStorage),
 		WithResourceName(accountName))
+}
+
+// WrapResourceGroupError wraps a resource group-related error with context
+func WrapResourceGroupError(err error, resourceGroupName string) error {
+	if err == nil {
+		return nil
+	}
+
+	return WrapError(err, fmt.Sprintf("Error with resource group '%s'", resourceGroupName),
+		WithResourceType(ResourceTypeResourceGroup),
+		WithResourceName(resourceGroupName))
+}
+
+// WrapContainerDoesNotExistError wraps a container not found error with context
+func WrapContainerDoesNotExistError(err error, containerName string) error {
+	if err == nil {
+		return nil
+	}
+
+	return NewError(
+		fmt.Sprintf("Container '%s' does not exist: %v", containerName, err),
+		WithCause(err),
+		WithClassification(ErrorClassNotFound),
+		WithResourceType(ResourceTypeContainer),
+		WithResourceName(containerName))
+}
+
+// WrapAuthenticationError wraps an authentication error with context
+func WrapAuthenticationError(err error, method string) error {
+	if err == nil {
+		return nil
+	}
+
+	return NewError(
+		fmt.Sprintf("Failed to authenticate using %s: %v", method, err),
+		WithCause(err),
+		WithClassification(ErrorClassAuthentication))
 }

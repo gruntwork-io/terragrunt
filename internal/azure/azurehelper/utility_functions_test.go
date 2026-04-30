@@ -66,9 +66,9 @@ func TestConvertAzureError(t *testing.T) {
 
 	//nolint: govet
 	tests := []struct {
-		name           string
 		input          error
 		expectedResult *azurehelper.AzureResponseError
+		name           string
 	}{
 		{
 			name:           "nil error",
@@ -228,9 +228,9 @@ func TestCompareStringMaps(t *testing.T) {
 
 	//nolint: govet
 	tests := []struct {
-		name     string
 		existing map[string]*string
 		desired  map[string]string
+		name     string
 		expected bool
 	}{
 		{
@@ -330,9 +330,9 @@ func TestConvertToPointerMap(t *testing.T) {
 
 	//nolint: govet
 	tests := []struct {
-		name     string
 		input    map[string]string
 		expected map[string]*string
+		name     string
 	}{
 		{
 			name:     "empty map",
@@ -584,9 +584,9 @@ func TestStorageAccountConfigValidate(t *testing.T) {
 	//nolint: govet
 	tests := []struct {
 		name        string
+		errorMsg    string
 		config      azurehelper.StorageAccountConfig
 		expectError bool
-		errorMsg    string
 	}{
 		{
 			name: "valid complete config",
@@ -687,10 +687,10 @@ func TestResourceGroupConfigValidate(t *testing.T) {
 
 	//nolint: govet
 	tests := []struct {
-		name        string
 		config      azurehelper.ResourceGroupConfig
-		expectError bool
+		name        string
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name: "valid complete config",
@@ -775,8 +775,8 @@ func TestIsNotFoundError(t *testing.T) {
 
 	//nolint: govet
 	tests := []struct {
-		name     string
 		err      error
+		name     string
 		expected bool
 	}{
 		{

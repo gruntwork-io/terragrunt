@@ -126,7 +126,7 @@ The backend uses exponential backoff with jitter for transient errors:
 - Max delay: 30 seconds
 - Max attempts: 3
 - Backoff multiplier: 2.0
-- Jitter: ±25%
+- Jitter: 0-25% positive jitter
 
 ## Future Improvements
 

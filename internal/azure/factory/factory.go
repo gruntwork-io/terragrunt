@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/azure/implementations"
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
 // Options for configuring the enhanced service factory
@@ -275,7 +274,7 @@ func (f *AzureServiceFactory) getCachedRBACService(cacheKey string) interfaces.R
 	return nil
 }
 
-// GetStorageAccountService creates and returns a StorageAccountService instance
+//nolint:dupl // Parallel factory methods share structure but differ in cache map, client, and service type.
 func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.StorageAccountService, error) {
 	f.cacheMutex.RLock()
 
@@ -328,7 +327,7 @@ func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l lo
 	return service, nil
 }
 
-// GetBlobService creates and returns a BlobService instance
+//nolint:dupl // Parallel factory methods share structure but differ in cache map, client, and service type.
 func (f *AzureServiceFactory) GetBlobService(ctx context.Context, l log.Logger, config map[string]interface{}) (interfaces.BlobService, error) {
 	f.cacheMutex.RLock()
 
@@ -361,14 +360,8 @@ func (f *AzureServiceFactory) GetBlobService(ctx context.Context, l log.Logger, 
 		}
 	}
 
-	// Extract TerragruntOptions from config if available
-	var terragruntOpts *options.TerragruntOptions
-	if opts, ok := config["terragrunt_opts"].(*options.TerragruntOptions); ok {
-		terragruntOpts = opts
-	}
-
 	// Create a new blob service client
-	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, terragruntOpts, config)
+	blobClient, err := azurehelper.CreateBlobServiceClient(ctx, l, config)
 	if err != nil {
 		return nil, errors.Errorf("failed to create blob service client: %w", err)
 	}

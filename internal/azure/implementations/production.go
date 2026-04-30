@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,6 +36,10 @@ const (
 	// azureManagementScope is the default scope for Azure Resource Manager operations
 	azureManagementScope = "https://management.azure.com/.default"
 )
+
+// uuidPattern validates that a string is a well-formed UUID (8-4-4-4-12 hex format).
+// Used to prevent injection when extracting principal IDs from JWT claims.
+var uuidPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // NewStorageAccountService creates a new StorageAccountService implementation
 func NewStorageAccountService(client *azurehelper.StorageAccountClient, logger log.Logger) interfaces.StorageAccountService {
@@ -614,7 +619,10 @@ func (r *RBACServiceImpl) IsPermissionError(err error) bool {
 	return unauthorized || forbidden || noPermission || accessDenied
 }
 
-// AuthenticationServiceImpl is the production implementation of AuthenticationService
+// AuthenticationServiceImpl is the production implementation of AuthenticationService.
+// Only the 4 methods on the AuthenticationService interface are required; the remaining
+// exported methods are kept for backward compatibility and internal convenience but are
+// not part of the interface contract.
 type AuthenticationServiceImpl struct {
 	credential azcore.TokenCredential
 	config     interfaces.AuthenticationConfig
@@ -628,16 +636,17 @@ func NewAuthenticationService(credential azcore.TokenCredential, config *interfa
 	}
 }
 
+// ---------------------------------------------------------------------------
+// AuthenticationService interface methods (4 methods)
+// ---------------------------------------------------------------------------
+
 // GetCredential returns the current credential
 func (a *AuthenticationServiceImpl) GetCredential(ctx context.Context, config map[string]interface{}) (azcore.TokenCredential, error) {
-	// For production, we could implement different credential types based on config
-	// For now, return the existing credential
 	return a.credential, nil
 }
 
 // ValidateCredentials validates that the current credentials are valid
 func (a *AuthenticationServiceImpl) ValidateCredentials(ctx context.Context) error {
-	// Try to get a token to validate credentials
 	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{azureManagementScope},
 	})
@@ -650,28 +659,6 @@ func (a *AuthenticationServiceImpl) ValidateCredentials(ctx context.Context) err
 	}
 
 	return nil
-}
-
-// RefreshCredentials refreshes the current credentials if they support refresh
-func (a *AuthenticationServiceImpl) RefreshCredentials(ctx context.Context) error {
-	// Most Azure credentials auto-refresh, so this is typically a no-op
-	return nil
-}
-
-// RefreshToken refreshes the current access token
-func (a *AuthenticationServiceImpl) RefreshToken(ctx context.Context) error {
-	// Most Azure credentials auto-refresh
-	return nil
-}
-
-// IsServicePrincipal checks if using service principal auth
-func (a *AuthenticationServiceImpl) IsServicePrincipal(ctx context.Context) (bool, error) {
-	return a.config.ClientID != "" && a.config.ClientSecret != "", nil
-}
-
-// IsManagedIdentity checks if using managed identity auth
-func (a *AuthenticationServiceImpl) IsManagedIdentity(ctx context.Context) (bool, error) {
-	return a.config.UseManagedIdentity, nil
 }
 
 // GetCurrentPrincipal retrieves information about the currently authenticated principal
@@ -688,10 +675,8 @@ func (a *AuthenticationServiceImpl) GetCurrentPrincipal(ctx context.Context) (in
 		return nil, err
 	}
 
-	// Extract the principal information
 	principalInfo := make(map[string]interface{})
 
-	// Extract Object ID (principal ID)
 	if oid, ok := claims["oid"].(string); ok && oid != "" {
 		principalInfo["id"] = oid
 	} else if sub, ok := claims["sub"].(string); ok && sub != "" {
@@ -700,7 +685,6 @@ func (a *AuthenticationServiceImpl) GetCurrentPrincipal(ctx context.Context) (in
 		return nil, errors.New("could not extract principal ID from token claims")
 	}
 
-	// Set the principal type
 	if _, ok := claims["idp"].(string); ok {
 		principalInfo["type"] = "User"
 	} else {
@@ -710,14 +694,51 @@ func (a *AuthenticationServiceImpl) GetCurrentPrincipal(ctx context.Context) (in
 	return principalInfo, nil
 }
 
-// GetSubscriptionID returns the current subscription ID
-func (a *AuthenticationServiceImpl) GetSubscriptionID(ctx context.Context) (string, error) {
-	return a.config.SubscriptionID, nil
+// IsPermissionError checks if an error is related to insufficient permissions
+func (a *AuthenticationServiceImpl) IsPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := strings.ToLower(err.Error())
+
+	forbidden := strings.Contains(errMsg, "forbidden")
+	unauthorized := strings.Contains(errMsg, "unauthorized")
+	insufficient := strings.Contains(errMsg, "insufficient privileges")
+	accessDenied := strings.Contains(errMsg, "access denied")
+	permission := strings.Contains(errMsg, "permission")
+	roleAssignment := strings.Contains(errMsg, "role assignment")
+	aadsts50105 := strings.Contains(errMsg, "aadsts50105")
+	aadsts65001 := strings.Contains(errMsg, "aadsts65001")
+	aadsts50001 := strings.Contains(errMsg, "aadsts50001")
+
+	return forbidden || unauthorized || insufficient || accessDenied || permission || roleAssignment || aadsts50105 || aadsts65001 || aadsts50001
 }
 
-// GetTenantID returns the current tenant ID
-func (a *AuthenticationServiceImpl) GetTenantID(ctx context.Context) (string, error) {
-	return a.config.TenantID, nil
+// ---------------------------------------------------------------------------
+// Convenience methods on the concrete struct (NOT part of the interface)
+// ---------------------------------------------------------------------------
+
+// AuthInfo returns authentication metadata as a value struct.
+func (a *AuthenticationServiceImpl) AuthInfo() interfaces.AuthInfo {
+	method := "unknown"
+
+	switch {
+	case a.config.UseManagedIdentity:
+		method = "managed-identity"
+	case a.config.ClientID != "" && a.config.ClientSecret != "":
+		method = "service-principal"
+	case a.config.Method != "":
+		method = a.config.Method
+	}
+
+	return interfaces.AuthInfo{
+		SubscriptionID:       a.config.SubscriptionID,
+		TenantID:             a.config.TenantID,
+		ClientID:             a.config.ClientID,
+		AuthenticationMethod: method,
+		CloudEnvironment:     a.config.CloudEnvironment,
+	}
 }
 
 // GetAccessToken gets an access token for the specified scopes
@@ -730,115 +751,6 @@ func (a *AuthenticationServiceImpl) GetAccessToken(ctx context.Context, scopes [
 	}
 
 	return token.Token, nil
-}
-
-// GetTokenClaims extracts claims from the current token
-func (a *AuthenticationServiceImpl) GetTokenClaims(ctx context.Context) (map[string]interface{}, error) {
-	token, err := a.credential.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{azureManagementScope},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return parseJWTToken(token.Token)
-}
-
-// GetAuthenticationMethod returns the current authentication method
-func (a *AuthenticationServiceImpl) GetAuthenticationMethod(ctx context.Context) (string, error) {
-	// This is a simple implementation that determines the auth method based on the credential type
-	// In a real implementation, this would inspect the credential type more thoroughly
-	// In a real implementation, we would determine this from the credential type
-	if a.config.UseManagedIdentity {
-		return "managed-identity", nil
-	}
-
-	if a.config.ClientID != "" {
-		return "service-principal", nil
-	}
-
-	return "unknown", nil
-}
-
-// GetClientID returns the current client ID
-func (a *AuthenticationServiceImpl) GetClientID(ctx context.Context) (string, error) {
-	return a.config.ClientID, nil
-}
-
-// GetCloudEnvironment returns the current Azure cloud environment
-func (a *AuthenticationServiceImpl) GetCloudEnvironment(ctx context.Context) (string, error) {
-	// This could be configurable in the future, for now default to public cloud
-	return "AzurePublicCloud", nil
-}
-
-// GetConfiguration returns the current authentication configuration.
-// Sensitive fields are redacted to prevent accidental exposure in logs or diagnostics.
-func (a *AuthenticationServiceImpl) GetConfiguration(ctx context.Context) (map[string]interface{}, error) {
-	// Convert the config struct to a map, redacting sensitive values
-	clientSecretValue := ""
-	if a.config.ClientSecret != "" {
-		clientSecretValue = "<redacted>"
-	}
-
-	return map[string]interface{}{
-		"subscription_id":      a.config.SubscriptionID,
-		"tenant_id":            a.config.TenantID,
-		"client_id":            a.config.ClientID,
-		"client_secret":        clientSecretValue,
-		"use_managed_identity": a.config.UseManagedIdentity,
-	}, nil
-}
-
-// UpdateConfiguration is not supported - authentication services are immutable.
-// To change configuration, create a new service instance with the desired settings.
-// This design ensures credential objects remain consistent with their configuration.
-func (a *AuthenticationServiceImpl) UpdateConfiguration(_ context.Context, _ map[string]interface{}) error {
-	return interfaces.ErrImmutableService
-}
-
-// IsAuthenticationError checks if an error is related to authentication
-func (a *AuthenticationServiceImpl) IsAuthenticationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := strings.ToLower(err.Error())
-
-	unauthorized := strings.Contains(errMsg, "unauthorized")
-	authentication := strings.Contains(errMsg, "authentication")
-	unauthenticated := strings.Contains(errMsg, "unauthenticated")
-	invalidClient := strings.Contains(errMsg, "invalid_client")
-	invalidToken := strings.Contains(errMsg, "invalid_token")
-	tokenExpired := strings.Contains(errMsg, "token expired")
-	aadError := strings.Contains(errMsg, "aadsts")
-
-	return unauthorized || authentication || unauthenticated || invalidClient || invalidToken || tokenExpired || aadError
-}
-
-// IsAzureAD checks if using Azure AD authentication
-func (a *AuthenticationServiceImpl) IsAzureAD(ctx context.Context) (bool, error) {
-	// This would require inspecting the credential type or configuration
-	// For now, we'll assume it's Azure AD if it's not service principal or managed identity
-	isSP, err := a.IsServicePrincipal(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	if isSP {
-		return false, nil
-	}
-
-	isMSI, err := a.IsManagedIdentity(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	if isMSI {
-		return false, nil
-	}
-
-	// If not service principal or managed identity, assume Azure AD
-	return true, nil
 }
 
 // ProductionServiceContainer implements the real Azure service container
@@ -1192,7 +1104,7 @@ func createStorageClient(ctx context.Context, l log.Logger, config map[string]in
 }
 
 func createBlobClient(ctx context.Context, l log.Logger, config map[string]interface{}) (*azurehelper.BlobServiceClient, error) {
-	return azurehelper.CreateBlobServiceClient(ctx, l, nil, config)
+	return azurehelper.CreateBlobServiceClient(ctx, l, config)
 }
 
 // createCredentialFromConfig is a shared helper that creates Azure credentials from configuration
@@ -1298,59 +1210,16 @@ func mergeConfig(base, override map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// IsPermissionError checks if an error is related to insufficient permissions
-func (a *AuthenticationServiceImpl) IsPermissionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Check common Azure authentication/permission error patterns
-	errMsg := strings.ToLower(err.Error())
-
-	forbidden := strings.Contains(errMsg, "forbidden")
-	unauthorized := strings.Contains(errMsg, "unauthorized")
-	insufficient := strings.Contains(errMsg, "insufficient privileges")
-	accessDenied := strings.Contains(errMsg, "access denied")
-	permission := strings.Contains(errMsg, "permission")
-	roleAssignment := strings.Contains(errMsg, "role assignment")
-	aadsts50105 := strings.Contains(errMsg, "aadsts50105")
-	aadsts65001 := strings.Contains(errMsg, "aadsts65001")
-	aadsts50001 := strings.Contains(errMsg, "aadsts50001")
-
-	return forbidden || unauthorized || insufficient || accessDenied || permission || roleAssignment || aadsts50105 || aadsts65001 || aadsts50001
-}
-
-// IsTokenExpiredError checks if an error is related to an expired token
-func (a *AuthenticationServiceImpl) IsTokenExpiredError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	errMsg := strings.ToLower(err.Error())
-
-	tokenExpired := strings.Contains(errMsg, "token expired")
-	tokenHasExpired := strings.Contains(errMsg, "token has expired")
-	aadsts50013 := strings.Contains(errMsg, "aadsts50013")
-	aadsts70043 := strings.Contains(errMsg, "aadsts70043")
-	jwtExpired := strings.Contains(errMsg, "jwt token expired")
-	tokenIsExpired := strings.Contains(errMsg, "token is expired")
-
-	return tokenExpired || tokenHasExpired || aadsts50013 || aadsts70043 || jwtExpired || tokenIsExpired
-}
-
-// SetCloudEnvironment sets the current Azure cloud environment
-func (a *AuthenticationServiceImpl) SetCloudEnvironment(ctx context.Context, environment string) error {
-	// In a real implementation, this would validate and set the cloud environment
-	// For now, we only support AzurePublicCloud
-	if environment != "" && environment != "AzurePublicCloud" {
-		return errors.Errorf("unsupported cloud environment: %s, only AzurePublicCloud is currently supported", environment)
-	}
-
-	return nil
-}
-
-// extractPrincipalInfoFromToken parses a JWT token and extracts the principal ID and type
-// For Azure AD tokens, the principal ID is typically in the "oid" claim (Object ID)
+// extractPrincipalInfoFromToken parses a JWT token and extracts the principal ID and type.
+// For Azure AD tokens, the principal ID is typically in the "oid" claim (Object ID).
+//
+// Security note: We decode the JWT payload without cryptographic signature verification.
+// This is acceptable here because:
+//  1. The token was obtained from Azure AD via credential.GetToken(), which uses the
+//     Azure SDK's authenticated credential chain over a verified TLS connection.
+//  2. We are only reading the "oid" claim to identify which principal to assign a role to;
+//     the RBAC assignment API itself validates the caller's permissions server-side.
+//  3. The extracted OID is validated as a well-formed UUID to prevent any injection.
 func (r *RBACServiceImpl) extractPrincipalInfoFromToken(tokenString string) (string, string, error) {
 	claims, err := parseJWTToken(tokenString)
 	if err != nil {
@@ -1365,7 +1234,12 @@ func (r *RBACServiceImpl) extractPrincipalInfoFromToken(tokenString string) (str
 		// Fall back to subject claim if oid is not available
 		principalID = sub
 	} else {
-		return "", "", errors.New("could not extract principal ID from token claims")
+		return "", "", errors.New("could not extract principal ID from token claims: neither 'oid' nor 'sub' claim found")
+	}
+
+	// Validate that the principal ID is a well-formed UUID to prevent injection
+	if !uuidPattern.MatchString(principalID) {
+		return "", "", errors.Errorf("principal ID from token is not a valid UUID: %q", principalID)
 	}
 
 	// Determine principal type
@@ -1377,12 +1251,21 @@ func (r *RBACServiceImpl) extractPrincipalInfoFromToken(tokenString string) (str
 	return principalID, principalType, nil
 }
 
-// parseJWTToken is a helper function that parses a JWT token and returns its claims
+// parseJWTToken decodes the payload of a JWT token and returns its claims.
+// It does NOT verify the token signature. This is intentional — the token is obtained
+// from Azure AD via the SDK's credential chain (verified TLS), so the payload is
+// trustworthy for reading claims. Callers that use claims for security-sensitive
+// decisions (e.g., RBAC role assignment) must validate claim values (e.g., UUID format)
+// and rely on Azure's server-side authorization for actual access control.
 func parseJWTToken(tokenString string) (map[string]interface{}, error) {
+	if tokenString == "" {
+		return nil, errors.New("token string is empty")
+	}
+
 	// Split the JWT token into parts
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != jwtExpectedPartCount {
-		return nil, errors.New("invalid token format")
+		return nil, errors.Errorf("invalid token format: expected %d parts, got %d", jwtExpectedPartCount, len(parts))
 	}
 
 	// Decode the payload (second part)

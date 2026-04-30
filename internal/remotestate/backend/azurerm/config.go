@@ -3,6 +3,7 @@ package azurerm
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/mitchellh/mapstructure"
@@ -407,8 +408,20 @@ func (cfg Config) ParseExtendedAzureConfig() (*ExtendedRemoteStateConfigAzurerm,
 	hasCompleteServicePrincipal := hasClientID && hasClientSecret && hasTenantID &&
 		clientID != "" && clientSecret != "" && tenantID != ""
 
+	// Safely extract the boolean value of use_msi, handling both bool and string types
+	useMsiBool := false
+
+	if hasMsi {
+		switch v := useMsi.(type) {
+		case bool:
+			useMsiBool = v
+		case string:
+			useMsiBool = strings.EqualFold(v, "true")
+		}
+	}
+
 	// Only default to Azure AD auth if not using MSI and not using complete service principal
-	if (!hasMsi || useMsi != true) && !hasCompleteServicePrincipal {
+	if !useMsiBool && !hasCompleteServicePrincipal {
 		extConfig.RemoteStateConfigAzurerm.UseAzureADAuth = true // Default to Azure AD auth only if not using MSI or service principal
 	}
 

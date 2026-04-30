@@ -224,13 +224,14 @@ type StorageAccountService interface {
 
 ```go
 type BlobService interface {
-    GetObject(ctx context.Context, input *azurehelper.GetObjectInput) (*azurehelper.GetObjectOutput, error)
+    GetObject(ctx context.Context, input *types.GetObjectInput) (*types.GetObjectOutput, error)
     ContainerExists(ctx context.Context, containerName string) (bool, error)
     CreateContainerIfNecessary(ctx context.Context, l log.Logger, containerName string) error
     DeleteContainer(ctx context.Context, l log.Logger, containerName string) error
     DeleteBlobIfNecessary(ctx context.Context, l log.Logger, containerName string, blobName string) error
     UploadBlob(ctx context.Context, l log.Logger, containerName, blobName string, data []byte) error
-    CopyBlobToContainer(ctx context.Context, srcContainer, srcKey string, dstClient *azurehelper.BlobServiceClient, dstContainer, dstKey string) error
+    UploadBlobFromReader(ctx context.Context, l log.Logger, containerName, blobName string, reader io.Reader) error
+    CopyBlobToContainer(ctx context.Context, l log.Logger, srcContainer, srcKey string, dstClient BlobService, dstContainer, dstKey string) error
 }
 ```
 
@@ -249,9 +250,9 @@ type ResourceGroupService interface {
 
 ```go
 type AzureServiceContainer interface {
-    GetStorageAccountService(ctx context.Context, logger log.Logger, config interface{}) (StorageAccountService, error)
-    GetBlobService(ctx context.Context, logger log.Logger, config interface{}) (BlobService, error)
-    GetResourceGroupService(ctx context.Context, logger log.Logger, config interface{}) (ResourceGroupService, error)
+    GetStorageAccountService(ctx context.Context, l log.Logger, config map[string]interface{}) (StorageAccountService, error)
+    GetBlobService(ctx context.Context, l log.Logger, config map[string]interface{}) (BlobService, error)
+    GetResourceGroupService(ctx context.Context, l log.Logger, config map[string]interface{}) (ResourceGroupService, error)
 }
 ```
 
@@ -260,34 +261,54 @@ type AzureServiceContainer interface {
 ```text
 internal/azure/
 ├── interfaces/           # Service interface definitions
+│   ├── auth.go          # AuthenticationService interface
+│   ├── container.go     # AzureServiceContainer interface
+│   ├── factory.go       # Factory interface
+│   ├── rbac.go          # RBACService interface
 │   ├── storage.go       # StorageAccountService, BlobService interfaces
 │   └── interfaces_test.go # Interface tests
 ├── implementations/     # Production implementations
 │   ├── production.go    # Production service implementations
-│   └── production_test.go # Production implementation tests
+│   ├── blob_service.go  # BlobService implementation
+│   └── *_test.go        # Implementation tests
 ├── factory/            # Service factory and dependency injection
 │   ├── factory.go      # AzureServiceFactory implementation
 │   ├── adapters.go     # SDK adapter functions
 │   └── factory_test.go # Factory tests
 ├── types/              # Type definitions and conversions
+│   ├── doc.go             # Package documentation
 │   ├── storage_account.go # StorageAccount type definitions
 │   ├── storage_types.go   # Storage-related types
 │   ├── blob_types.go      # Blob-related types
-│   └── types_test.go      # Type tests
+│   └── *_test.go          # Type tests
 ├── errors/             # Error handling and classification
 │   ├── types.go        # Error types and classification
+│   ├── wrappers.go     # Error wrapping helpers
 │   └── types_test.go   # Error handling tests
+├── errorutil/          # Error classification utilities
+│   └── errors.go       # Error classification (ErrorClass)
 ├── azureutil/          # Utility functions and helpers
 │   ├── types.go        # Utility types and error classification
+│   ├── error_types.go  # Error type definitions
 │   ├── errors.go       # Error creation helpers
 │   ├── errorhandling.go # Error handling utilities
 │   └── *_test.go       # Utility tests
-├── azurehelper/        # Legacy Azure helper (being phased out)
-│   └── azure_storage_account.go # Legacy storage account helpers
-├── remotestate/        # Remote state backend integration
-│   └── backend/azurerm/testing/mock_services.go # Mock services for testing
+├── azureauth/          # Authentication helpers
+│   ├── auth.go         # Credential management and AuthConfig
+│   ├── logging.go      # Auth logging helpers
+│   └── auth_test.go    # Auth tests
+├── azurehelper/        # Azure SDK helpers
+│   ├── azure_storage_account.go # Storage account operations
+│   ├── azure_blob.go            # Blob operations
+│   ├── azure_resource_group.go  # Resource group operations
+│   ├── azure_constants.go       # Azure constants
+│   ├── storage_account_adapter.go # Storage account adapter
+│   ├── logging.go               # Helper logging
+│   ├── test_helpers.go          # Test utilities
+│   └── *_test.go                # Helper tests
 ├── README.md           # This file
-└── CONFIGURATION.md    # Configuration guide
+├── CONFIGURATION.md    # Configuration guide
+└── DESIGN.md           # Architecture and design decisions
 ```
 
 ## Migration from Legacy Implementation

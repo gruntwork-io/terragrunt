@@ -2,6 +2,9 @@
 
 This document provides a comprehensive guide to configuring Terragrunt for use with Azure services, particularly for remote state storage.
 
+> **Note:** The Azure backend requires the `azure-backend` experiment flag to be enabled.
+> Use `--experiment azure-backend` or set `TG_EXPERIMENT=azure-backend` in your environment.
+
 ## Quick Start
 
 To use Azure as your Terragrunt backend, add this configuration to your `terragrunt.hcl`:
@@ -65,13 +68,13 @@ export ARM_TENANT_ID="your-tenant-id"
 export ARM_SUBSCRIPTION_ID="your-subscription-id"
 ```
 
-#### Credential Sources (in order of precedence)
+#### Credential Sources (DefaultAzureCredential order)
 
-1. Environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
-2. Azure CLI authentication
-3. Managed Service Identity (when running on Azure)
-4. Visual Studio authentication
-5. Visual Studio Code authentication
+1. Environment variables (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET or AZURE_CLIENT_CERTIFICATE_PATH)
+2. Workload Identity
+3. Managed Identity
+4. Azure CLI
+5. Azure Developer CLI (azd)
 
 ### 2. Managed Service Identity (MSI)
 
@@ -166,6 +169,11 @@ az account show
 | `client_id` | `""` | Service Principal Client ID |
 | `client_secret` | `""` | Service Principal Client Secret |
 | `tenant_id` | `""` | Azure AD Tenant ID |
+| `endpoint` | `""` | Custom endpoint URL for the Azure Storage service |
+| `access_key` | `""` | Storage account access key (passed through to Terraform) |
+| `environment` | `"public"` | Azure cloud environment (`public`, `government`, `china`) |
+| `disable_blob_public_access` | `false` | Disable public access to blobs (bootstrap-only) |
+| `account_replication_type` | `""` | Alternative name for `replication_type` (bootstrap-only) |
 
 ### Storage Account Creation Options
 
@@ -178,9 +186,9 @@ These options are only used when `create_storage_account_if_not_exists = true`:
 | `replication_type` | `"LRS"` | Replication type (`LRS`, `GRS`, `RAGRS`, etc.) |
 | `account_kind` | `"StorageV2"` | Storage Account kind |
 | `access_tier` | `"Hot"` | Access tier (`Hot` or `Cool`) |
-| `min_tls_version` | `"TLS1_2"` | Minimum TLS version |
 | `allow_blob_public_access` | `false` | Allow public access to blobs |
-| `enable_https_traffic_only` | `true` | Allow only HTTPS traffic |
+| `skip_storage_account_update` | `false` | Skip updating existing storage account properties |
+| `storage_account_tags` | `{}` | Custom metadata tags to apply to the storage account |
 
 ## Advanced Features
 
@@ -263,136 +271,6 @@ remote_state {
 - Check Terragrunt debug logs with `TF_LOG=DEBUG terragrunt <command>`
 - File issues on the [Terragrunt GitHub repository](https://github.com/gruntwork-io/terragrunt)
 
-## Azure Backend Configuration
-
-This document explains how to configure Terragrunt to use the Azure storage backend for remote state management.
-
-## Table of Contents
-
-- [Configuration Options](#configuration-options)
-  - [Required Configuration](#required-configuration)
-  - [Optional Configuration](#optional-configuration)
-  - [Storage Account Creation Options](#storage-account-creation-options)
-- [Authentication Methods](#authentication-methods)
-- [Advanced Features](#advanced-features)
-- [Cloud Environments](#cloud-environments)
-- [Best Practices](#best-practices)
-- [Environment Variables](#environment-variables)
-- [Troubleshooting](#troubleshooting)
-- [Migration Guide](#migration-guide)
-- [References](#references)
-
-## Key Features
-
-The Azure backend offers several important features:
-
-- **Blob Versioning**: Built-in support for state file versioning
-- **Enhanced Error Handling**: Better error classification and retry logic
-- **Improved Authentication**: Multiple robust authentication methods
-- **Automatic Bootstrapping**: Can create and configure storage accounts automatically
-
-## Configuration Options
-
-### Required Configuration
-
-These settings are required for any Azure backend configuration:
-
-```hcl
-remote_state {
-  backend = "azurerm"
-  config = {
-    storage_account_name = "mystorageaccount"  # 3-24 chars, lowercase alphanumeric
-    container_name      = "terraform-state"     # 3-63 chars, lowercase with hyphens
-    resource_group_name = "terraform-rg"        # Resource group containing storage
-    subscription_id     = "your-sub-id"         # Azure subscription ID
-    key                = "path/to/state.tfstate" # State file path in container
-  }
-}
-```
-
-### Recommended Security Settings
-
-Enable these settings for production environments:
-
-```hcl
-remote_state {
-  backend = "azurerm"
-  config = {
-    # ... required settings ...
-
-    # Security settings
-    enable_versioning          = true    # Enable blob versioning
-    use_azuread_auth          = true    # Use Azure AD auth
-    allow_blob_public_access  = false   # Disable public access
-    
-    # Optional: Configure managed identity
-    use_msi                   = true    # Use managed identity if available
-  }
-}
-```
-
-### Automatic Storage Account Creation
-
-The backend can automatically create and configure the storage account:
-
-```hcl
-remote_state {
-  backend = "azurerm"
-  config = {
-    # ... required settings ...
-
-    # Bootstrap settings
-    create_storage_account_if_not_exists = true   # Create if missing
-    location                             = "eastus" # Azure region
-    account_kind                         = "StorageV2"
-    account_tier                         = "Standard"
-    access_tier                          = "Hot"
-    replication_type                     = "LRS"
-    
-    # Optional: Add tags
-    storage_account_tags = {
-      Environment = "production"
-      Terraform   = "true"
-    }
-  }
-}
-```
-
-#### Example Configuration
-
-```hcl
-remote_state {
-  backend = "azurerm"
-  config = {
-    # Remote state configuration
-    storage_account_name = "mystorageaccount"
-    container_name       = "terraform-state"
-    resource_group_name  = "terraform-rg"
-    subscription_id      = "12345678-1234-1234-1234-123456789abc"
-    key                  = "prod/terraform.tfstate"
-    use_azuread_auth     = true
-    
-    # Storage account bootstrapping
-    location                         = "eastus"
-    account_kind                     = "StorageV2"
-    account_tier                     = "Standard"
-    access_tier                      = "Hot"
-    replication_type                 = "LRS"
-    enable_versioning                = true
-    allow_blob_public_access         = false
-    create_storage_account_if_not_exists = true
-    skip_storage_account_update      = false
-    disable_blob_public_access       = true
-    
-    storage_account_tags = {
-      Environment = "production"
-      Team        = "platform"
-      CostCenter  = "engineering"
-    }
-  }
-}
-```
-
 ## Cloud Environments
 
 Terragrunt supports multiple Azure cloud environments:
@@ -437,37 +315,24 @@ config = {
 }
 ```
 
-## Best Practices
+## RBAC Permissions
 
-### Security
+### Bootstrap Permissions
 
-1. **Use Azure AD authentication** as the default method
-2. **Disable public blob access** for state storage
-3. **Enable blob versioning** for state file protection
-4. **Use SAS tokens** for time-limited access
-5. **Store secrets securely** using Azure Key Vault or environment variables
-6. **Enable storage account encryption** with customer-managed keys when required
+When using `create_storage_account_if_not_exists = true`, the authenticated principal requires:
 
-### Performance
+- **`Contributor`** role on the resource group (to create storage accounts, containers, and manage properties)
 
-1. **Choose appropriate storage tier** based on access patterns
-2. **Select optimal replication strategy** for your durability requirements
-3. **Configure retry policies** for transient error handling
-4. **Use regional storage** close to your compute resources
+### Data Plane Operations with Azure AD
 
-### Cost Optimization
+When using `use_azuread_auth = true`, the authenticated principal requires one of:
 
-1. **Use Standard tier** for most use cases
-2. **Choose LRS replication** for development environments
-3. **Implement lifecycle policies** for old state file versions
-4. **Monitor storage costs** with appropriate tagging
+- **`Storage Blob Data Contributor`** on the storage account (read, write, delete blobs)
+- **`Storage Blob Data Owner`** on the storage account (full control including RBAC management)
 
-### Operational
+### Access Without Azure AD
 
-1. **Use consistent naming conventions** for storage accounts and containers
-2. **Implement proper tagging** for resource organization
-3. **Set up monitoring** for storage account access and errors
-4. **Document authentication methods** used in different environments
+When using access keys or SAS tokens (`sas_token` or `access_key`), no Azure RBAC role assignments are needed. Authentication is handled via the storage account's shared key or the SAS token's embedded permissions.
 
 ## Environment Variables
 
@@ -489,64 +354,10 @@ The following environment variables are supported:
 - `MSI_ENDPOINT`: Custom MSI endpoint URL
 - `MSI_RESOURCE_ID`: User-assigned managed identity resource ID
 
-## Troubleshooting
-
-### Common Issues
-
-#### Authentication Failures
-
-1. **Check credential precedence**: Ensure the correct authentication method is being used
-2. **Verify environment variables**: Confirm that required variables are set correctly
-3. **Check permissions**: Ensure the principal has necessary permissions on the storage account
-4. **Validate subscription ID**: Confirm the subscription ID is correct and accessible
-
-#### Storage Account Issues
-
-1. **Check account name uniqueness**: Storage account names must be globally unique
-2. **Verify resource group**: Ensure the resource group exists and is accessible
-3. **Check permissions**: Ensure proper Storage Blob Data Contributor permissions
-4. **Validate container name**: Container names must follow Azure naming conventions
-
-#### Network Issues
-
-1. **Check firewall rules**: Ensure storage account firewall allows access
-2. **Verify private endpoints**: Confirm private endpoint configuration if used
-3. **Check DNS resolution**: Ensure storage account endpoint is resolvable
-4. **Validate proxy settings**: Check if proxy configuration is interfering
-
-### Debug Configuration
-
-Enable detailed logging to troubleshoot configuration issues:
-
-```bash
-export TF_LOG=DEBUG
-export TERRAGRUNT_LOG_LEVEL=debug
-```
-
-## Migration Guide
-
-### From Legacy Configuration
-
-If you're migrating from older Terragrunt versions:
-
-1. **Update authentication method**: Switch to Azure AD authentication
-2. **Review security settings**: Ensure public access is disabled
-3. **Enable versioning**: Turn on blob versioning for state protection
-4. **Update retry configuration**: Use new retry settings for better reliability
-
-### From Other Backends
-
-When migrating from other backends:
-
-1. **Plan the migration**: Use `terraform state pull` and `terraform state push`
-2. **Test thoroughly**: Validate state file integrity after migration
-3. **Update team documentation**: Ensure all team members understand new configuration
-4. **Monitor usage**: Watch for any access pattern changes
-
 ## References
 
-- [Azure Storage Account Documentation](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview)
-- [Azure AD Authentication](https://docs.microsoft.com/en-us/azure/active-directory/authentication/)
-- [Managed Service Identity](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/)
-- [Azure Cloud Environments](https://docs.microsoft.com/en-us/azure/azure-government/documentation-government-developer-guide)
+- [Azure Storage Account Documentation](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview)
+- [Azure AD Authentication](https://learn.microsoft.com/en-us/azure/active-directory/authentication/)
+- [Managed Service Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/)
+- [Azure Cloud Environments](https://learn.microsoft.com/en-us/azure/azure-government/documentation-government-developer-guide)
 - [Terragrunt Documentation](https://terragrunt.gruntwork.io/docs/)

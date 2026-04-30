@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/require"
 )
 
@@ -160,9 +159,6 @@ func CleanupAzureContainer(t *testing.T, config *AzureTestConfig, maxRetries ...
 func createAzureBlobClient(t *testing.T, config *AzureTestConfig) *azurehelper.BlobServiceClient {
 	t.Helper()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
 	ctx := t.Context()
 	logger := log.Default()
 
@@ -177,7 +173,7 @@ func createAzureBlobClient(t *testing.T, config *AzureTestConfig) *azurehelper.B
 		azureConfig["access_key"] = config.AccessKey
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, azureConfig)
 	require.NoError(t, err)
 
 	return client
@@ -248,9 +244,6 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 		return
 	}
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
 	ctx := t.Context()
 	logger := log.Default()
 
@@ -265,7 +258,7 @@ func AssertContainerExists(t *testing.T, config *AzureTestConfig) {
 		azureConfig["access_key"] = config.AccessKey
 	}
 
-	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, opts, azureConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, logger, azureConfig)
 	require.NoError(t, err)
 
 	// Check if container exists with retries

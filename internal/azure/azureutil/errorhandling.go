@@ -10,13 +10,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureauth"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	tgerrors "github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // TelemetryCollector defines the interface for telemetry collection
 type TelemetryCollector interface {
-	LogError(ctx context.Context, err error, operation OperationType, metrics ErrorMetrics)
+	LogError(ctx context.Context, err error, operation OperationType, metrics *ErrorMetrics)
 	LogOperation(ctx context.Context, operation OperationType, duration time.Duration, attrs map[string]interface{})
 }
 
@@ -58,7 +59,7 @@ func (h *OperationHandler) WithErrorHandling(
 		// Create error metrics
 		metrics := ErrorMetrics{
 			ErrorType:      h.determineErrorType(err),
-			Classification: ClassifyError(err),
+			Classification: errorutil.ClassifyError(err),
 			Operation:      operation,
 			ResourceType:   resourceType,
 			ResourceName:   resourceName,
@@ -67,7 +68,7 @@ func (h *OperationHandler) WithErrorHandling(
 		}
 
 		// Log the error with telemetry
-		h.telemetry.LogError(ctx, err, operation, metrics)
+		h.telemetry.LogError(ctx, err, operation, &metrics)
 
 		// Wrap the error with context
 		return h.wrapError(err, operation, resourceType, resourceName)
@@ -129,7 +130,7 @@ func (h *OperationHandler) WithAuthErrorHandling(
 		// Create error metrics with authentication-specific fields
 		metrics := ErrorMetrics{
 			ErrorType:      h.determineErrorType(err),
-			Classification: ErrorClassAuthorization, // Always authorization for this function
+			Classification: errorutil.ErrorClassAuthorization, // Always authorization for this function
 			Operation:      OperationAuthentication,
 			ResourceType:   "authentication",
 			ResourceName:   string(authConfig.Method),
@@ -144,7 +145,7 @@ func (h *OperationHandler) WithAuthErrorHandling(
 		}
 
 		// Log the error with telemetry
-		h.telemetry.LogError(ctx, err, OperationAuthentication, metrics)
+		h.telemetry.LogError(ctx, err, OperationAuthentication, &metrics)
 
 		// Wrap the error with authentication context
 		return h.wrapAuthError(err, authConfig)

@@ -45,7 +45,7 @@ func NewTelemetryAdapter(collector *AzureTelemetryCollector, l log.Logger) *Tele
 }
 
 // LogError implements azureutil.TelemetryCollector
-func (a *TelemetryAdapter) LogError(ctx context.Context, err error, opType azureutil.OperationType, metrics azureutil.ErrorMetrics) {
+func (a *TelemetryAdapter) LogError(ctx context.Context, err error, opType azureutil.OperationType, metrics *azureutil.ErrorMetrics) {
 	if a.collector != nil {
 		// Convert azureutil types to our internal types
 		azureMetrics := AzureErrorMetrics{
@@ -63,7 +63,7 @@ func (a *TelemetryAdapter) LogError(ctx context.Context, err error, opType azure
 		}
 
 		// Log through our collector
-		a.collector.LogError(ctx, err, OperationType(opType), azureMetrics)
+		a.collector.LogError(ctx, err, OperationType(opType), &azureMetrics)
 	}
 }
 
@@ -97,9 +97,7 @@ func NewAzureTelemetryCollectorWithSettings(l log.Logger, settings *TelemetryCol
 
 	// Apply settings to collector if provided
 	if settings != nil {
-		// For now, we store the settings for future use
-		// In a full implementation, these would configure internal behavior
-		_ = settings
+		l.Debugf("Telemetry settings provided but not yet implemented: buffer_size=%d, detailed_metrics=%t", settings.BufferSize, settings.EnableDetailedMetrics)
 	}
 
 	return collector
@@ -340,6 +338,8 @@ func classifyFromErrorUtil(err error, errStr string) ErrorClassification {
 	switch classification {
 	case errorutil.ErrorClassAuthentication:
 		return ErrorClassAuthentication
+	case errorutil.ErrorClassAuthorization:
+		return ErrorClassPermissions
 	case errorutil.ErrorClassPermission:
 		return ErrorClassPermissions
 	case errorutil.ErrorClassNotFound:
@@ -352,6 +352,8 @@ func classifyFromErrorUtil(err error, errStr string) ErrorClassification {
 		return ErrorClassTransient
 	case errorutil.ErrorClassConfiguration:
 		return ErrorClassConfiguration
+	case errorutil.ErrorClassSystem:
+		return ErrorClassTransient
 	case errorutil.ErrorClassResource:
 		if strings.Contains(errStr, "storage account") {
 			return ErrorClassStorage
@@ -417,7 +419,7 @@ func ClassifyError(err error) ErrorClassification {
 }
 
 // LogError provides structured logging for Azure errors with telemetry collection
-func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, operation OperationType, metrics AzureErrorMetrics) {
+func (atc *AzureTelemetryCollector) LogError(ctx context.Context, err error, operation OperationType, metrics *AzureErrorMetrics) {
 	if err == nil {
 		return
 	}
@@ -534,7 +536,7 @@ func (atc *AzureTelemetryCollector) LogOperation(ctx context.Context, operation 
 }
 
 // collectErrorTelemetry sends error metrics to the telemetry system
-func (atc *AzureTelemetryCollector) collectErrorTelemetry(ctx context.Context, metrics AzureErrorMetrics) {
+func (atc *AzureTelemetryCollector) collectErrorTelemetry(ctx context.Context, metrics *AzureErrorMetrics) {
 	telemetryAttrs := map[string]any{
 		"error_classification": string(metrics.Classification),
 		"operation_type":       string(metrics.Operation),
@@ -604,7 +606,7 @@ func MaskSubscriptionID(subscriptionID string) string {
 }
 
 // FormatLogMessage creates a human-readable log message with structured data
-func FormatLogMessage(metrics AzureErrorMetrics, fields map[string]interface{}) string {
+func FormatLogMessage(metrics *AzureErrorMetrics, fields map[string]interface{}) string {
 	var parts []string
 
 	if metrics.Operation != "" {
@@ -665,7 +667,7 @@ func IsSensitiveAttribute(key string) bool {
 }
 
 // LogErrorWithMetrics records an error with context for telemetry
-func (atc *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err error, opType OperationType, metrics AzureErrorMetrics) {
+func (atc *AzureTelemetryCollector) LogErrorWithMetrics(ctx context.Context, err error, opType OperationType, metrics *AzureErrorMetrics) {
 	if atc == nil {
 		return
 	}

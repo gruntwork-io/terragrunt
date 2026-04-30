@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/interfaces"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +84,7 @@ func TestBackendFromRemoteStateConfig(t *testing.T) {
 		"subscription_id":      "test-subscription-id",
 	}
 
-	opts := &options.TerragruntOptions{}
+	opts := &backend.Options{}
 
 	backend, err := NewBackendFromRemoteStateConfig(config, opts)
 	require.NoError(t, err)

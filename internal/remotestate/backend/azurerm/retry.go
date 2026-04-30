@@ -4,25 +4,15 @@ package azurerm
 import (
 	"context"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
-
-var (
-	jitterRand *rand.Rand
-	jitterMu   sync.Mutex
-)
-
-func init() {
-	jitterRand = rand.New(rand.NewSource(time.Now().UnixNano()))
-}
 
 // Constants for retry configuration defaults
 const (
@@ -128,7 +118,7 @@ type RetryConfig struct {
 	BackoffMultiple float64
 
 	// Jitter indicates whether to add random jitter to delay calculations.
-	// When true, adds up to 20% random variation to delays to prevent
+	// When true, adds 0-25% positive jitter to delays to prevent
 	// thundering herd problems when multiple operations retry simultaneously.
 	// Recommended: true for most operations, especially in concurrent scenarios.
 	// Set to false only for predictable delay requirements in testing.
@@ -249,14 +239,9 @@ func CalculateDelay(attempt int, config RetryConfig) time.Duration {
 	// Add jitter to avoid thundering herd
 	if config.Jitter {
 		jitterRange := duration / JitterDivisor // 25% jitter
-		// Generate random jitter between 0 and jitterRange using proper random number generator
-		jitterMu.Lock()
-
-		jitterMultiplier := jitterRand.Float64() // 0.0 to 1.0
-
-		jitterMu.Unlock()
-
-		jitter := time.Duration(float64(jitterRange) * jitterMultiplier)
+		// Generate random jitter between 0 and jitterRange
+		// rand.Float64() is safe for concurrent use since Go 1.22+
+		jitter := time.Duration(float64(jitterRange) * rand.Float64())
 		duration += jitter
 	}
 

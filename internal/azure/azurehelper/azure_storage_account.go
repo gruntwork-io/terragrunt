@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -27,32 +28,30 @@ import (
 
 // StorageAccountClient wraps Azure's armstorage client to provide a simpler interface
 type StorageAccountClient struct {
-	// Management plane clients
-	client               *armstorage.AccountsClient
-	blobClient           *armstorage.BlobServicesClient
-	roleAssignmentClient *armauthorization.RoleAssignmentsClient
-
-	// Data plane client for blob operations
-	dataPlaneBlobClient *azblob.Client
-
-	// Configuration
-	subscriptionID     string
-	resourceGroupName  string
-	storageAccountName string
-	location           string
-	config             map[string]interface{}
-	credential         azcore.TokenCredential // Store credential for lazy data plane client creation
-
-	defaultAccountKind     string
-	defaultAccountTier     string
-	defaultAccountSKU      string
-	defaultReplicationType string
+	credential              azcore.TokenCredential
+	dataPlaneBlobClientErr  error
+	client                  *armstorage.AccountsClient
+	blobClient              *armstorage.BlobServicesClient
+	roleAssignmentClient    *armauthorization.RoleAssignmentsClient
+	dataPlaneBlobClient     *azblob.Client
+	config                  map[string]interface{}
+	storageAccountName      string
+	resourceGroupName       string
+	location                string
+	defaultAccountKind      string
+	defaultAccountTier      string
+	defaultAccountSKU       string
+	defaultReplicationType  string
+	subscriptionID          string
+	dataPlaneBlobClientOnce sync.Once
 }
 
 const (
 	defaultSASExpiryHours = 24
 	// tagKeyCreatedBy is the tag key used to identify resources created by terragrunt.
 	tagKeyCreatedBy = "created-by"
+	// backoffMultiplier is the exponential backoff factor for retry delays.
+	backoffMultiplier = 1.5
 )
 
 // StorageAccountConfig represents the configuration for an Azure Storage Account.
@@ -491,11 +490,11 @@ func (c *StorageAccountClient) CreateStorageAccountIfNecessary(ctx context.Conte
 
 	if !exists {
 		// Create storage account
-		return c.createStorageAccount(ctx, l, config)
+		return c.createStorageAccount(ctx, l, &config)
 	}
 
 	// If the account exists, check if settings match and update if needed
-	return c.updateStorageAccountIfNeeded(ctx, l, config, account)
+	return c.updateStorageAccountIfNeeded(ctx, l, &config, account)
 }
 
 // mapReplicationType maps a replication type string to the ARM storage SKU.
@@ -618,7 +617,7 @@ func (c *StorageAccountClient) resolveLocation(configLocation string, l log.Logg
 }
 
 // buildStorageAccountParameters builds the parameters for storage account creation.
-func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccountConfig, l log.Logger) armstorage.AccountCreateParameters {
+func (c *StorageAccountClient) buildStorageAccountParameters(config *StorageAccountConfig, l log.Logger) armstorage.AccountCreateParameters {
 	sku := mapReplicationType(config.AccountTier, config.ReplicationType, l)
 	kind := mapAccountKind(config.AccountKind, l)
 	accessTierStr := validateAccessTier(config.AccessTier, l)
@@ -644,7 +643,7 @@ func (c *StorageAccountClient) buildStorageAccountParameters(config StorageAccou
 }
 
 // createStorageAccount creates a new storage account
-func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config StorageAccountConfig) error {
+func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.Logger, config *StorageAccountConfig) error {
 	logInfo(l, "Creating Azure Storage account %s in resource group %s", c.storageAccountName, c.resourceGroupName)
 
 	parameters := c.buildStorageAccountParameters(config, l)
@@ -678,7 +677,7 @@ func (c *StorageAccountClient) createStorageAccount(ctx context.Context, l log.L
 }
 
 // checkBlobPublicAccessUpdate checks and prepares AllowBlobPublicAccess update if needed.
-func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config *StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
 	if account == nil || account.Properties == nil || account.Properties.AllowBlobPublicAccess == nil {
 		return false
 	}
@@ -695,7 +694,7 @@ func (c *StorageAccountClient) checkBlobPublicAccessUpdate(l log.Logger, config 
 }
 
 // checkAccessTierUpdate checks and prepares AccessTier update if needed.
-func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+func (c *StorageAccountClient) checkAccessTierUpdate(l log.Logger, config *StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
 	if account == nil || account.Properties == nil ||
 		config.AccessTier == "" || CompareAccessTier(account.Properties.AccessTier, config.AccessTier) {
 		return false
@@ -735,7 +734,7 @@ func convertAccessTierToARM(tier string) *armstorage.AccessTier {
 }
 
 // checkTagsUpdate checks and prepares Tags update if needed.
-func (c *StorageAccountClient) checkTagsUpdate(l log.Logger, config StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
+func (c *StorageAccountClient) checkTagsUpdate(l log.Logger, config *StorageAccountConfig, account *armstorage.Account, updateParams *armstorage.AccountUpdateParameters) bool {
 	if len(config.Tags) == 0 || CompareStringMaps(account.Tags, config.Tags) {
 		return false
 	}
@@ -748,14 +747,14 @@ func (c *StorageAccountClient) checkTagsUpdate(l log.Logger, config StorageAccou
 }
 
 // warnReadOnlyPropertyDiffs logs warnings for immutable properties that differ from desired configuration.
-func (c *StorageAccountClient) warnReadOnlyPropertyDiffs(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+func (c *StorageAccountClient) warnReadOnlyPropertyDiffs(l log.Logger, config *StorageAccountConfig, account *armstorage.Account) {
 	c.warnSKUDiff(l, config, account)
 	c.warnAccountKindDiff(l, config, account)
 	c.warnLocationDiff(l, config, account)
 }
 
 // warnSKUDiff logs a warning if SKU/ReplicationType differs from desired configuration.
-func (c *StorageAccountClient) warnSKUDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+func (c *StorageAccountClient) warnSKUDiff(l log.Logger, config *StorageAccountConfig, account *armstorage.Account) {
 	if account.SKU == nil || config.ReplicationType == "" {
 		return
 	}
@@ -776,7 +775,7 @@ func (c *StorageAccountClient) warnSKUDiff(l log.Logger, config StorageAccountCo
 }
 
 // warnAccountKindDiff logs a warning if AccountKind differs from desired configuration.
-func (c *StorageAccountClient) warnAccountKindDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+func (c *StorageAccountClient) warnAccountKindDiff(l log.Logger, config *StorageAccountConfig, account *armstorage.Account) {
 	if account.Kind == nil || config.AccountKind == "" {
 		return
 	}
@@ -789,7 +788,7 @@ func (c *StorageAccountClient) warnAccountKindDiff(l log.Logger, config StorageA
 }
 
 // warnLocationDiff logs a warning if Location differs from desired configuration.
-func (c *StorageAccountClient) warnLocationDiff(l log.Logger, config StorageAccountConfig, account *armstorage.Account) {
+func (c *StorageAccountClient) warnLocationDiff(l log.Logger, config *StorageAccountConfig, account *armstorage.Account) {
 	if account.Location == nil || config.Location == "" {
 		return
 	}
@@ -823,7 +822,7 @@ func (c *StorageAccountClient) syncVersioningState(ctx context.Context, l log.Lo
 }
 
 // updateStorageAccountIfNeeded updates a storage account if settings don't match
-func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context, l log.Logger, config StorageAccountConfig, account *armstorage.Account) error {
+func (c *StorageAccountClient) updateStorageAccountIfNeeded(ctx context.Context, l log.Logger, config *StorageAccountConfig, account *armstorage.Account) error {
 	var updateParams armstorage.AccountUpdateParameters
 
 	updateParams.Properties = &armstorage.AccountPropertiesUpdateParameters{}
@@ -906,7 +905,7 @@ func (c *StorageAccountClient) DeleteStorageAccount(ctx context.Context, l log.L
 		}
 
 		// Exponential backoff with cap
-		delay = time.Duration(float64(delay) * 1.5)
+		delay = time.Duration(float64(delay) * backoffMultiplier)
 		if delay > maxDelay {
 			delay = maxDelay
 		}
@@ -960,17 +959,41 @@ func (c *StorageAccountClient) getCurrentUserObjectID(ctx context.Context) (stri
 	return "", errors.Errorf("could not determine current user object ID. Please set AZURE_CLIENT_OBJECT_ID or ARM_CLIENT_OBJECT_ID environment variable with your user/service principal object ID. Graph API error: %w", err)
 }
 
+// getGraphEndpoint returns the Microsoft Graph API endpoint based on the cloud environment
+// configured for this client. Sovereign clouds use different Graph endpoints.
+func (c *StorageAccountClient) getGraphEndpoint() string {
+	cloudEnv, _ := c.config["cloud_environment"].(string)
+
+	switch strings.ToLower(cloudEnv) {
+	case "government", "usgovernment", "usgov", "azureusgovernment", "azureusgovernmentcloud":
+		return "https://graph.microsoft.us"
+	case "china", "azurechina", "azurechinacloud":
+		return "https://microsoftgraph.chinacloudapi.cn"
+	default:
+		return "https://graph.microsoft.com"
+	}
+}
+
 // getUserObjectIDFromGraphAPI gets the current user's object ID from Microsoft Graph API
 func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) (string, error) {
-	// Get credentials for Microsoft Graph API
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
-	if err != nil {
-		return "", errors.Errorf("error getting default azure credential: %w", err)
+	// Use the stored credential if available; fall back to DefaultAzureCredential
+	var cred azcore.TokenCredential
+	if c.credential != nil {
+		cred = c.credential
+	} else {
+		defaultCred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{})
+		if err != nil {
+			return "", errors.Errorf("error getting default azure credential: %w", err)
+		}
+
+		cred = defaultCred
 	}
+
+	graphEndpoint := c.getGraphEndpoint()
 
 	// Get an access token for Microsoft Graph API
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://graph.microsoft.com/.default"},
+		Scopes: []string{graphEndpoint + "/.default"},
 	})
 	if err != nil {
 		return "", errors.Errorf("error getting token for Microsoft Graph API: %w", err)
@@ -982,7 +1005,7 @@ func (c *StorageAccountClient) getUserObjectIDFromGraphAPI(ctx context.Context) 
 	}
 
 	// Create request for Microsoft Graph API to get current user
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://graph.microsoft.com/v1.0/me", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", graphEndpoint+"/v1.0/me", nil)
 	if err != nil {
 		return "", errors.Errorf("error creating request: %w", err)
 	}
@@ -1183,37 +1206,38 @@ func (c *StorageAccountClient) testManagementPlanePermissions(ctx context.Contex
 	return err
 }
 
-// getOrCreateDataPlaneBlobClient lazily creates the data plane blob client if needed
+// getOrCreateDataPlaneBlobClient lazily creates the data plane blob client if needed.
+// Uses sync.Once to ensure thread-safe initialization.
 func (c *StorageAccountClient) getOrCreateDataPlaneBlobClient() (*azblob.Client, error) {
-	if c.dataPlaneBlobClient != nil {
-		return c.dataPlaneBlobClient, nil
-	}
-
-	if c.credential == nil {
-		return nil, errors.Errorf("no credential available for data plane client creation")
-	}
-
-	// Get endpoint suffix from config or use default
-	endpointSuffix := "blob.core.windows.net"
-	if suffix, ok := c.config["endpoint_suffix"].(string); ok && suffix != "" {
-		endpointSuffix = "blob." + suffix
-	} else if cloudEnv, ok := c.config["cloud_environment"].(string); ok && cloudEnv != "" {
-		suffix := azureauth.GetEndpointSuffix(cloudEnv)
-		if suffix != "" {
-			endpointSuffix = "blob." + suffix
+	c.dataPlaneBlobClientOnce.Do(func() {
+		if c.credential == nil {
+			c.dataPlaneBlobClientErr = errors.Errorf("no credential available for data plane client creation")
+			return
 		}
-	}
 
-	blobURL := fmt.Sprintf("https://%s.%s", c.storageAccountName, endpointSuffix)
+		// Get endpoint suffix from config or use default
+		endpointSuffix := "blob.core.windows.net"
+		if suffix, ok := c.config["endpoint_suffix"].(string); ok && suffix != "" {
+			endpointSuffix = "blob." + suffix
+		} else if cloudEnv, ok := c.config["cloud_environment"].(string); ok && cloudEnv != "" {
+			suffix := azureauth.GetEndpointSuffix(cloudEnv)
+			if suffix != "" {
+				endpointSuffix = "blob." + suffix
+			}
+		}
 
-	client, err := azblob.NewClient(blobURL, c.credential, nil)
-	if err != nil {
-		return nil, errors.Errorf("error creating data plane blob client: %w", err)
-	}
+		blobURL := fmt.Sprintf("https://%s.%s", c.storageAccountName, endpointSuffix)
 
-	c.dataPlaneBlobClient = client
+		client, err := azblob.NewClient(blobURL, c.credential, nil)
+		if err != nil {
+			c.dataPlaneBlobClientErr = errors.Errorf("error creating data plane blob client: %w", err)
+			return
+		}
 
-	return client, nil
+		c.dataPlaneBlobClient = client
+	})
+
+	return c.dataPlaneBlobClient, c.dataPlaneBlobClientErr
 }
 
 // testDataPlanePermissions tests if data plane RBAC permissions are available
@@ -1450,7 +1474,7 @@ func GetStorageAccountSKU(accountTier, replicationType string) (string, bool) {
 }
 
 // Validate checks if all required fields are set
-func (cfg StorageAccountConfig) Validate() error {
+func (cfg *StorageAccountConfig) Validate() error {
 	if cfg.SubscriptionID == "" {
 		return errors.Errorf("subscription_id is required")
 	}

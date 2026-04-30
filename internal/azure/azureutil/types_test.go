@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/azure/azureutil"
+	"github.com/gruntwork-io/terragrunt/internal/azure/errorutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,20 +81,22 @@ func TestOperationType(t *testing.T) {
 	}
 }
 
-// TestErrorClassConstants tests the ErrorClass constants
+// TestErrorClassConstants tests the ErrorClass constants from errorutil
 func TestErrorClassConstants(t *testing.T) {
 	t.Parallel()
 
-	// Test that constants exist and have expected values
-	assert.Equal(t, "authorization", string(azureutil.ErrorClassAuthorization))
-	assert.Equal(t, "permission", string(azureutil.ErrorClassPermission))
-	assert.Equal(t, "invalid_request", string(azureutil.ErrorClassInvalidRequest))
-	assert.Equal(t, "resource", string(azureutil.ErrorClassResource))
-	assert.Equal(t, "networking", string(azureutil.ErrorClassNetworking))
-	assert.Equal(t, "not_found", string(azureutil.ErrorClassNotFound))
-	assert.Equal(t, "throttling", string(azureutil.ErrorClassThrottling))
-	assert.Equal(t, "system", string(azureutil.ErrorClassSystem))
-	assert.Equal(t, "unknown", string(azureutil.ErrorClassUnknown))
+	assert.Equal(t, "authentication", string(errorutil.ErrorClassAuthentication))
+	assert.Equal(t, "authorization", string(errorutil.ErrorClassAuthorization))
+	assert.Equal(t, "permission", string(errorutil.ErrorClassPermission))
+	assert.Equal(t, "invalid_request", string(errorutil.ErrorClassInvalidRequest))
+	assert.Equal(t, "resource", string(errorutil.ErrorClassResource))
+	assert.Equal(t, "networking", string(errorutil.ErrorClassNetworking))
+	assert.Equal(t, "not_found", string(errorutil.ErrorClassNotFound))
+	assert.Equal(t, "throttling", string(errorutil.ErrorClassThrottling))
+	assert.Equal(t, "transient", string(errorutil.ErrorClassTransient))
+	assert.Equal(t, "configuration", string(errorutil.ErrorClassConfiguration))
+	assert.Equal(t, "system", string(errorutil.ErrorClassSystem))
+	assert.Equal(t, "unknown", string(errorutil.ErrorClassUnknown))
 }
 
 // TestClassifyError tests the error classification function
@@ -103,137 +106,137 @@ func TestClassifyError(t *testing.T) {
 	tests := []struct {
 		name     string
 		err      error
-		expected azureutil.ErrorClass
+		expected errorutil.ErrorClass
 	}{
 		{
 			name:     "nil error",
 			err:      nil,
-			expected: azureutil.ErrorClassUnknown,
+			expected: errorutil.ErrorClassUnknown,
 		},
 		{
 			name:     "authentication error - unauthorized",
 			err:      errors.New("unauthorized access"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "authentication error - auth failed",
 			err:      errors.New("authentication failed"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "authentication error - permission denied",
 			err:      errors.New("permission denied"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "authentication error - access denied",
 			err:      errors.New("access denied"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "permission error - rbac",
 			err:      errors.New("RBAC permission required"),
-			expected: azureutil.ErrorClassPermission,
+			expected: errorutil.ErrorClassPermission,
 		},
 		{
 			name:     "permission error - role assignment",
 			err:      errors.New("role assignment failed"),
-			expected: azureutil.ErrorClassPermission,
+			expected: errorutil.ErrorClassPermission,
 		},
 		{
 			name:     "invalid request - config error",
 			err:      errors.New("invalid config parameter"),
-			expected: azureutil.ErrorClassInvalidRequest,
+			expected: errorutil.ErrorClassInvalidRequest,
 		},
 		{
 			name:     "invalid request - argument error",
 			err:      errors.New("missing required argument"),
-			expected: azureutil.ErrorClassInvalidRequest,
+			expected: errorutil.ErrorClassInvalidRequest,
 		},
 		{
 			name:     "resource error - container",
 			err:      errors.New("container does not exist"),
-			expected: azureutil.ErrorClassResource,
+			expected: errorutil.ErrorClassResource,
 		},
 		{
 			name:     "resource error - storage account",
 			err:      errors.New("storage account not found"),
-			expected: azureutil.ErrorClassResource,
+			expected: errorutil.ErrorClassResource,
 		},
 		{
 			name:     "resource error - blob",
 			err:      errors.New("blob operation failed"),
-			expected: azureutil.ErrorClassResource,
+			expected: errorutil.ErrorClassResource,
 		},
 		{
 			name:     "networking error - connection",
 			err:      errors.New("connection failed"),
-			expected: azureutil.ErrorClassNetworking,
+			expected: errorutil.ErrorClassNetworking,
 		},
 		{
 			name:     "networking error - tcp",
 			err:      errors.New("TCP connection timeout"),
-			expected: azureutil.ErrorClassNetworking,
+			expected: errorutil.ErrorClassNetworking,
 		},
 		{
 			name:     "networking error - http",
 			err:      errors.New("HTTP request failed"),
-			expected: azureutil.ErrorClassNetworking,
+			expected: errorutil.ErrorClassNetworking,
 		},
 		{
 			name:     "not found error - 404",
 			err:      errors.New("404 not found"),
-			expected: azureutil.ErrorClassNotFound,
+			expected: errorutil.ErrorClassNotFound,
 		},
 		{
 			name:     "not found error - does not exist",
 			err:      errors.New("resource does not exist"),
-			expected: azureutil.ErrorClassNotFound,
+			expected: errorutil.ErrorClassNotFound,
 		},
 		{
 			name:     "throttling error - quota exceeded",
 			err:      errors.New("quota exceeded"),
-			expected: azureutil.ErrorClassThrottling,
+			expected: errorutil.ErrorClassThrottling,
 		},
 		{
 			name:     "throttling error - rate limit",
 			err:      errors.New("rate limit exceeded"),
-			expected: azureutil.ErrorClassThrottling,
+			expected: errorutil.ErrorClassThrottling,
 		},
 		{
 			name:     "throttling error - 429",
 			err:      errors.New("429 too many requests"),
-			expected: azureutil.ErrorClassThrottling,
+			expected: errorutil.ErrorClassThrottling,
 		},
 		{
 			name:     "throttling error - throttled",
 			err:      errors.New("request throttled"),
-			expected: azureutil.ErrorClassThrottling,
+			expected: errorutil.ErrorClassThrottling,
 		},
 		{
-			name:     "system error - internal server error",
+			name:     "transient error - internal server error",
 			err:      errors.New("internal server error"),
-			expected: azureutil.ErrorClassSystem,
+			expected: errorutil.ErrorClassTransient,
 		},
 		{
-			name:     "system error - system failure",
+			name:     "transient error - system failure",
 			err:      errors.New("system failure"),
-			expected: azureutil.ErrorClassSystem,
+			expected: errorutil.ErrorClassTransient,
 		},
 		{
 			name:     "unknown error",
 			err:      errors.New("some random error message"),
-			expected: azureutil.ErrorClassUnknown,
+			expected: errorutil.ErrorClassUnknown,
 		},
 		{
 			name:     "case insensitive matching",
 			err:      errors.New("AUTHENTICATION FAILED"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "multiple keywords - first match wins",
 			err:      errors.New("authentication failed during container operation"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 	}
 
@@ -242,7 +245,7 @@ func TestClassifyError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := azureutil.ClassifyError(tc.err)
+			result := errorutil.ClassifyError(tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -254,7 +257,7 @@ func TestErrorMetrics(t *testing.T) {
 
 	metrics := azureutil.ErrorMetrics{
 		ErrorType:      "AuthenticationError",
-		Classification: azureutil.ErrorClassAuthorization,
+		Classification: errorutil.ErrorClassAuthorization,
 		Operation:      azureutil.OperationAuthentication,
 		ResourceType:   "StorageAccount",
 		ResourceName:   "teststorage",
@@ -269,7 +272,7 @@ func TestErrorMetrics(t *testing.T) {
 	}
 
 	assert.Equal(t, "AuthenticationError", metrics.ErrorType)
-	assert.Equal(t, azureutil.ErrorClassAuthorization, metrics.Classification)
+	assert.Equal(t, errorutil.ErrorClassAuthorization, metrics.Classification)
 	assert.Equal(t, azureutil.OperationAuthentication, metrics.Operation)
 	assert.Equal(t, "StorageAccount", metrics.ResourceType)
 	assert.Equal(t, "teststorage", metrics.ResourceName)
@@ -293,7 +296,7 @@ func TestStructDefaults(t *testing.T) {
 		metrics := azureutil.ErrorMetrics{}
 
 		assert.Empty(t, metrics.ErrorType)
-		assert.Equal(t, azureutil.ErrorClass(""), metrics.Classification)
+		assert.Equal(t, errorutil.ErrorClass(""), metrics.Classification)
 		assert.Equal(t, azureutil.OperationType(""), metrics.Operation)
 		assert.Empty(t, metrics.ResourceType)
 		assert.Empty(t, metrics.ResourceName)
@@ -317,9 +320,8 @@ func TestStructFieldAssignment(t *testing.T) {
 
 		metrics := &azureutil.ErrorMetrics{}
 
-		// Test field assignment
 		metrics.ErrorType = "TestError"
-		metrics.Classification = azureutil.ErrorClassNetworking
+		metrics.Classification = errorutil.ErrorClassNetworking
 		metrics.Operation = azureutil.OperationStorageOp
 		metrics.ResourceType = "BlobContainer"
 		metrics.ResourceName = "testcontainer"
@@ -332,9 +334,8 @@ func TestStructFieldAssignment(t *testing.T) {
 		metrics.RetryAttempts = 3
 		metrics.Additional = map[string]interface{}{"context": "test"}
 
-		// Verify assignments
 		assert.Equal(t, "TestError", metrics.ErrorType)
-		assert.Equal(t, azureutil.ErrorClassNetworking, metrics.Classification)
+		assert.Equal(t, errorutil.ErrorClassNetworking, metrics.Classification)
 		assert.Equal(t, azureutil.OperationStorageOp, metrics.Operation)
 		assert.Equal(t, "BlobContainer", metrics.ResourceType)
 		assert.Equal(t, "testcontainer", metrics.ResourceName)
@@ -356,37 +357,37 @@ func TestErrorClassClassification(t *testing.T) {
 	tests := []struct {
 		name     string
 		err      error
-		expected azureutil.ErrorClass
+		expected errorutil.ErrorClass
 	}{
 		{
 			name:     "empty error message",
 			err:      errors.New(""),
-			expected: azureutil.ErrorClassUnknown,
+			expected: errorutil.ErrorClassUnknown,
 		},
 		{
 			name:     "whitespace only error",
 			err:      errors.New("   "),
-			expected: azureutil.ErrorClassUnknown,
+			expected: errorutil.ErrorClassUnknown,
 		},
 		{
 			name:     "mixed case keywords",
 			err:      errors.New("Authentication Error occurred"),
-			expected: azureutil.ErrorClassAuthorization,
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "partial keyword match",
 			err:      errors.New("authorize the request"),
-			expected: azureutil.ErrorClassAuthorization, // "auth" is found in "authorize"
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "keyword in middle of word",
 			err:      errors.New("unauthenticated user"),
-			expected: azureutil.ErrorClassAuthorization, // "auth" is found in "unauthenticated"
+			expected: errorutil.ErrorClassAuthentication,
 		},
 		{
 			name:     "multiple error classes - priority test",
 			err:      errors.New("unauthorized container access"),
-			expected: azureutil.ErrorClassAuthorization, // First match should win
+			expected: errorutil.ErrorClassAuthentication,
 		},
 	}
 
@@ -395,7 +396,7 @@ func TestErrorClassClassification(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := azureutil.ClassifyError(tc.err)
+			result := errorutil.ClassifyError(tc.err)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

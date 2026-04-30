@@ -178,7 +178,14 @@ func (c *ResourceGroupClient) EnsureResourceGroup(ctx context.Context, l log.Log
 		return nil
 	}
 
-	// If it doesn't exist, create it
+	// Only proceed with creation if the error is a 404 (not found).
+	// Any other error should be returned immediately.
+	var respErr *azcore.ResponseError
+	if !errors.As(err, &respErr) || respErr.StatusCode != httpStatusNotFound {
+		return errors.Errorf("error checking resource group existence: %w", err)
+	}
+
+	// Resource group was not found, create it
 	logInfo(l, "Creating resource group %s in %s", resourceGroupName, location)
 
 	// Convert tags to Azure SDK format

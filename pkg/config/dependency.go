@@ -1005,7 +1005,8 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.NoDependencyFetchOutputFromState &&
-		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
+		(remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName ||
+			remoteStateTGConfig.RemoteState.BackendName == azurerm.BackendName)
 
 	if shouldFetchFromState {
 		return getTerragruntOutputJSONFromRemoteState(
@@ -1225,22 +1226,20 @@ func getTerragruntOutputJSONFromRemoteState(
 			return jsonBytes, nil
 
 		case azurerm.BackendName:
-			l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", targetTGOptions.TerragruntConfigPath)
+			l.Debugf("Fetching dependency outputs directly from Azure Storage backend for %s", pctx.TerragruntConfigPath)
+
 			jsonBytes, err := getTerragruntOutputJSONFromRemoteStateAzurerm(
 				ctx,
 				l,
-				targetTGOptions,
 				remoteState,
 			)
-
 			if err != nil {
 				return nil, err
 			}
 
-			l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", targetTGOptions.TerragruntConfigPath)
+			l.Debugf("Successfully retrieved outputs from Azure Storage state for %s", pctx.TerragruntConfigPath)
 
 			return jsonBytes, nil
-
 		default:
 			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
@@ -1349,28 +1348,28 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 }
 
 // getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from an Azure storage without calling Terraform
-func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, remoteState *remotestate.RemoteState) (outputsJSON []byte, err error) {
-	// Validation should be done immediately after each type assertion
+func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, remoteState *remotestate.RemoteState) ([]byte, error) {
+	// Validate required backend config keys
 	storageAccount, okStorage := remoteState.BackendConfig["storage_account_name"].(string)
 	if !okStorage {
-		return
+		return nil, errors.Errorf("azurerm backend config missing or invalid 'storage_account_name'")
 	}
 
 	containerName, okContainer := remoteState.BackendConfig["container_name"].(string)
 	if !okContainer {
-		return
+		return nil, errors.Errorf("azurerm backend config missing or invalid 'container_name'")
 	}
 
 	key, okKey := remoteState.BackendConfig["key"].(string)
 	if !okKey {
-		return
+		return nil, errors.Errorf("azurerm backend config missing or invalid 'key'")
 	}
 
 	l.Debugf("Attempting to fetch outputs directly from Azure Storage account %s, container %s, blob %s", storageAccount, containerName, key)
 
-	client, err := azurehelper.CreateBlobServiceClient(ctx, l, opts, remoteState.BackendConfig)
+	client, err := azurehelper.CreateBlobServiceClient(ctx, l, remoteState.BackendConfig)
 	if err != nil {
-		return
+		return nil, errors.Errorf("error creating Azure blob service client: %w", err)
 	}
 
 	resp, err := client.GetObject(ctx, &azurehelper.GetObjectInput{
@@ -1381,10 +1380,9 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 		return nil, errors.Errorf("error downloading state file: %w", err)
 	}
 
-	// Ensure response body is closed after we're done
 	defer func() {
-		if cerr := resp.Body.Close(); cerr != nil && err == nil {
-			err = errors.Errorf("error closing response body: %w", cerr)
+		if cerr := resp.Body.Close(); cerr != nil {
+			l.Warnf("error closing response body: %v", cerr)
 		}
 	}()
 
@@ -1401,14 +1399,14 @@ func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Lo
 		return nil, errors.Errorf("error parsing state file JSON: %w", err)
 	}
 
-	outputsJSON, err = json.Marshal(state.Outputs)
+	outputsJSON, err := json.Marshal(state.Outputs)
 	if err != nil {
 		return nil, errors.Errorf("error encoding outputs as JSON: %w", err)
 	}
 
 	l.Debugf("Successfully parsed outputs from Azure Storage state file")
 
-	return
+	return outputsJSON, nil
 }
 
 // setupTFRunOptsForBareTerraform builds a *tf.RunOptions that can be used to run terraform

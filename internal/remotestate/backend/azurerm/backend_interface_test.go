@@ -11,7 +11,6 @@ import (
 	azurerm "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -118,8 +117,7 @@ func TestBackendBootstrapValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -174,8 +172,7 @@ func TestBackendNeedsBootstrapValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -352,8 +349,7 @@ func TestBackendIsVersionControlEnabled(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -434,8 +430,7 @@ func TestBackendDeleteValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -490,8 +485,7 @@ func TestBackendDeleteContainerValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -537,8 +531,7 @@ func TestBackendMigrateValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 
@@ -707,8 +700,7 @@ func TestBackendDeleteStorageAccountValidation(t *testing.T) {
 
 	l := createBackendTestLogger()
 	azureBackend := azurerm.NewBackend(nil)
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	opts := &backend.Options{}
 
 	opts.NonInteractive = true
 

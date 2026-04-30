@@ -75,9 +75,6 @@ type RBACService interface {
 	GetCurrentPrincipal(ctx context.Context) (*Principal, error)
 	GetPrincipal(ctx context.Context, principalID string) (*Principal, error)
 	GetPrincipalID(ctx context.Context) (string, error)
-
-	// Utility
-	IsPermissionError(err error) bool
 }
 
 // RBACConfig represents configuration for RBAC operations.

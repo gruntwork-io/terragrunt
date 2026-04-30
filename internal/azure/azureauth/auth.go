@@ -532,13 +532,19 @@ func GetTokenCredential(
 		return nil, errors.Errorf("failed to create token credential: %w", err)
 	}
 
-	return &AuthResult{
+	result := &AuthResult{
 		Credential:     credential,
-		SasToken:       config.SasToken, // May be empty for most auth methods
 		Config:         config,
 		Method:         config.Method,
 		SubscriptionID: config.SubscriptionID,
-	}, nil
+	}
+
+	// Only populate SasToken when the resolved method is SAS token authentication
+	if config.Method == AuthMethodSasToken {
+		result.SasToken = config.SasToken
+	}
+
+	return result, nil
 }
 
 // cloudConfigForEnvironment returns the Azure cloud configuration for the given environment name.
@@ -590,9 +596,9 @@ func ValidateAuthConfig(config *AuthConfig) error {
 		errs = append(errs, errors.Errorf("unsupported authentication method: %s", config.Method))
 	}
 
-	// Validate subscription_id is set for all authentication methods (including AuthMethodSasToken)
-	// per documentation requirements
-	if config.SubscriptionID == "" {
+	// Validate subscription_id is set for all authentication methods except SAS token.
+	// SAS tokens are data-plane-only and do not require a subscription ID.
+	if config.SubscriptionID == "" && config.Method != AuthMethodSasToken && config.SasToken == "" {
 		errs = append(errs, errors.Errorf("subscription_id is required"))
 	}
 
