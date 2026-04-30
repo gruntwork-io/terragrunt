@@ -408,6 +408,8 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 		return err
 	}
 
+	removed := 0
+
 	for _, assignment := range assignments {
 		if !matchesRoleAssignment(assignment, principalID, roleDefinitionID) {
 			continue
@@ -426,10 +428,12 @@ func (r *RBACServiceImpl) RemoveRole(ctx context.Context, l log.Logger, roleName
 
 		l.Debugf("Successfully removed role assignment %s", *assignment.Name)
 
-		return nil
+		removed++
 	}
 
-	l.Debugf("No role assignment found for principal %s at scope %s", principalID, scope)
+	if removed == 0 {
+		l.Debugf("No role assignment found for principal %s at scope %s", principalID, scope)
+	}
 
 	return nil
 }

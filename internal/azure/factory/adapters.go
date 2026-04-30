@@ -27,6 +27,7 @@ func safeString(s *string) string {
 // storageAccountServiceAdapter implements interfaces.StorageAccountService
 type storageAccountServiceAdapter struct {
 	client *azurehelper.StorageAccountClient
+	logger log.Logger
 }
 
 // Configuration accessors
@@ -63,10 +64,7 @@ func (s *storageAccountServiceAdapter) CreateStorageAccount(ctx context.Context,
 		Tags:                  cfg.Tags,
 	}
 
-	// Use CreateStorageAccountIfNecessary since there's no direct Create method
-	logger := log.Default()
-
-	return s.client.CreateStorageAccountIfNecessary(ctx, logger, azureConfig)
+	return s.client.CreateStorageAccountIfNecessary(ctx, s.logger, azureConfig)
 }
 
 // DeleteStorageAccount deletes the configured storage account
@@ -119,6 +117,14 @@ func (s *storageAccountServiceAdapter) GetStorageAccount(ctx context.Context) (*
 		}
 
 		result.Properties = props
+	}
+
+	if account.Kind != nil {
+		if result.Properties == nil {
+			result.Properties = &types.StorageAccountProperties{}
+		}
+
+		result.Properties.Kind = types.AccountKind(string(*account.Kind))
 	}
 
 	return result, nil

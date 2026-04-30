@@ -316,6 +316,7 @@ func (f *AzureServiceFactory) GetStorageAccountService(ctx context.Context, l lo
 	// Create the adapter service implementation
 	service := &storageAccountServiceAdapter{
 		client: storageAccountClient,
+		logger: l,
 	}
 
 	// Cache the service if caching is enabled

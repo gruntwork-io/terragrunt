@@ -539,11 +539,6 @@ func GetTokenCredential(
 		SubscriptionID: config.SubscriptionID,
 	}
 
-	// Only populate SasToken when the resolved method is SAS token authentication
-	if config.Method == AuthMethodSasToken {
-		result.SasToken = config.SasToken
-	}
-
 	return result, nil
 }
 
@@ -598,7 +593,7 @@ func ValidateAuthConfig(config *AuthConfig) error {
 
 	// Validate subscription_id is set for all authentication methods except SAS token.
 	// SAS tokens are data-plane-only and do not require a subscription ID.
-	if config.SubscriptionID == "" && config.Method != AuthMethodSasToken && config.SasToken == "" {
+	if config.SubscriptionID == "" && config.Method != AuthMethodSasToken {
 		errs = append(errs, errors.Errorf("subscription_id is required"))
 	}
 

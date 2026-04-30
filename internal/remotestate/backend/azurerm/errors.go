@@ -241,7 +241,7 @@ func (err TransientAzureError) IsRetryable() bool {
 
 // MaxRetriesExceededError represents an error when the maximum number of retries is exceeded.
 type MaxRetriesExceededError struct {
-	Underlying   error         // 8 bytes (interface)
+	Underlying   error         // 16 bytes (interface)
 	Operation    string        // 16 bytes (string)
 	MaxRetries   int           // 8 bytes (int)
 	TotalElapsed time.Duration // 8 bytes (time.Duration)
