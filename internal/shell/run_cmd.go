@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -219,7 +220,7 @@ func RunCommandWithOutput(
 			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
-				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
+				cmdOutput, err := engine.Run(ctx, l, vexec.NewOSExec(), &engine.ExecutionOptions{
 					Writers: writer.Writers{
 						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
 						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
