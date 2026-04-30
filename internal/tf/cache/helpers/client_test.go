@@ -1,12 +1,13 @@
-package helpers
+package helpers_test
 
 import (
+	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/tf/cache/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,13 +17,15 @@ import (
 func TestDecodeResponse_429ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+	require.NoError(t, err)
+
 	resp := &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Request:    req,
 	}
 
-	data, err := decodeResponse(resp)
+	data, err := helpers.DecodeResponse(resp)
 	require.Error(t, err)
 	assert.Nil(t, data)
 	assert.Contains(t, err.Error(), "429")
@@ -35,13 +38,15 @@ func TestDecodeResponse_429ReturnsError(t *testing.T) {
 func TestDecodeResponse_NonOKReturnsError(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+	require.NoError(t, err)
+
 	resp := &http.Response{
 		StatusCode: http.StatusInternalServerError,
 		Request:    req,
 	}
 
-	data, err := decodeResponse(resp)
+	data, err := helpers.DecodeResponse(resp)
 	require.Error(t, err)
 	assert.Nil(t, data)
 	assert.Contains(t, err.Error(), "500")
@@ -54,14 +59,17 @@ func TestDecodeResponse_OKReturnsBody(t *testing.T) {
 	t.Parallel()
 
 	body := `{"versions":["1.0.0"]}`
-	req := httptest.NewRequest(http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://registry.terraform.io/v1/providers/hashicorp/aws/versions", nil)
+	require.NoError(t, err)
+
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    req,
 	}
 
-	data, err := decodeResponse(resp)
+	data, err := helpers.DecodeResponse(resp)
 	require.NoError(t, err)
 	assert.Equal(t, body, string(data))
 }
