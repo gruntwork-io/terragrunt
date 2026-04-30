@@ -1,0 +1,35 @@
+---
+title: Prerequisites
+description: Prerequisites for the Continuous Integration with Terragrunt guide
+slug: guides/ci-with-terragrunt/prerequisites
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This guide assumes familiarity with Terragrunt units, stacks, and HCL configuration. If you're new to Terragrunt, the [Quick Start](/getting-started/quick-start), [Overview](/getting-started/overview/) and [Terralith to Terragrunt](/guides/terralith-to-terragrunt/) guide are good places to start.
+
+You will need:
+
+- An AWS account with permissions to create IAM roles, S3 buckets, Lambda functions, DynamoDB tables, and an OIDC provider.
+- A GitHub account.
+- Git installed locally.
+
+If you don't have these prerequisites, you can sign-up or install them for free at the following links:
+
+- [AWS account sign-up](https://signin.aws.amazon.com/signup?request_type=register)
+- [GitHub account sign-up](https://github.com/signup)
+- [Git installation](https://git-scm.com/downloads)
+
+<Aside type="caution">
+When you first create an AWS account, you will be logged in as the root user of the AWS account. Never use this account for provisioning workloads. Create a separate administrator account using it, then log into that one to follow this guide.
+
+Read the [documentation on root users from Amazon](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html) for more information.
+</Aside>
+
+## Getting help
+
+If you feel lost, confused, or need extra help while going through this guide, ask in the [Terragrunt Discord Server](/community/invite). There are hundreds of Terragrunt practitioners in there, and they'd be happy to help.
+
+You can also reference the [Terminology](/getting-started/terminology/) page in the docs, which contains a glossary that can help you understand any unfamiliar terms you encounter.
