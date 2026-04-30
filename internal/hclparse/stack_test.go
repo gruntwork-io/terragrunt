@@ -356,7 +356,10 @@ func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 
 	var readErr hclparse.FileReadError
 	require.ErrorAs(t, err, &readErr)
-	assert.Equal(t, filepath.Join(filePath, "terragrunt.stack.hcl"), readErr.FilePath)
+	// ParseStackFileFromPath calls util.ResolvePath, which on macOS resolves /tmp -> /private/tmp; resolve our side too before comparing.
+	resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
+	require.NoError(t, evalErr)
+	assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
 }
 
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
