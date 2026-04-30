@@ -628,7 +628,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 		return err
 	}
 
-	entries, err := readDirEntries(fsys, path)
+	entries, err := ReadDirEntries(fsys, path)
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
@@ -654,9 +654,12 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	return nil
 }
 
-// readDirEntries reads the directory named by dirname and returns
-// a sorted list of directory entries.
-func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
+// ReadDirEntries reads the directory named by dirname and returns a sorted
+// list of directory entries. It prefers the fs.ReadDirFile fast path when the
+// backing file supports it, and otherwise falls back to Readdir wrapped in
+// FileInfoDirEntry so backings that only expose the legacy os.File API still
+// work.
+func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 	f, err := fsys.Open(dirname)
 	if err != nil {
 		return nil, err

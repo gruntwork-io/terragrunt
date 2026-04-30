@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
@@ -51,6 +52,7 @@ type Model struct {
 	delegateKeys        *tui.DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
 	componentCh         chan *ComponentEntry
+	mdRenderer          *glamour.TermRenderer
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
@@ -61,9 +63,12 @@ type Model struct {
 	activeTab           tabKind
 	height              int
 	width               int
+	mdRendererWidth     int
 	ready               bool
 	loading             bool
 	userNavigated       bool
+	hasDarkBG           bool
+	mdRendererDark      bool
 }
 
 // NewModelStreaming creates a Model with a single initial entry and a channel
@@ -98,7 +103,12 @@ func (m Model) ExitMessage() string {
 
 // Init implements bubbletea.Model.Init
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.buttonBar.Init()}
+	cmds := []tea.Cmd{
+		m.buttonBar.Init(),
+		// Reply arrives as tea.BackgroundColorMsg; cached so the README
+		// renderer doesn't have to issue an OSC 11 round-trip per click.
+		tea.RequestBackgroundColor,
+	}
 
 	if m.componentCh != nil {
 		cmds = append(cmds, m.listenForComponent())
@@ -292,5 +302,8 @@ func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []li
 		terragruntOptions: opts,
 		logger:            l,
 		componentCh:       componentCh,
+		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
+		// first tea.BackgroundColorMsg.
+		hasDarkBG: true,
 	}
 }

@@ -910,6 +910,81 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
+func TestReadDirEntries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns sorted entries from MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/charlie.txt", []byte("c"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/alpha.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/bravo.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub/nested.txt", []byte("n"), 0644))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/dir")
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"alpha.txt", "bravo.txt", "charlie.txt", "sub"}, names)
+
+		var subEntry fs.DirEntry
+
+		for _, e := range entries {
+			if e.Name() == "sub" {
+				subEntry = e
+				break
+			}
+		}
+
+		require.NotNil(t, subEntry)
+		assert.True(t, subEntry.IsDir())
+	})
+
+	t.Run("returns sorted entries from OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "z.txt"), []byte("z"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644))
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "m"), 0755))
+
+		entries, err := vfs.ReadDirEntries(vfs.NewOSFS(), dir)
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"a.txt", "m", "z.txt"}, names)
+	})
+
+	t.Run("returns empty slice for empty directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, fsys.Mkdir("/empty", 0755))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/empty")
+		require.NoError(t, err)
+		assert.Empty(t, entries)
+	})
+
+	t.Run("returns error for missing directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		_, err := vfs.ReadDirEntries(fsys, "/does-not-exist")
+		require.Error(t, err)
+	})
+}
+
 func TestLock(t *testing.T) {
 	t.Parallel()
 
