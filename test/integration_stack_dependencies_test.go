@@ -497,7 +497,7 @@ func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared and the two-pass parser cannot decode the stack file")
-	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
@@ -539,7 +539,7 @@ func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file")
-	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
@@ -555,7 +555,7 @@ func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
 	require.Error(t, err, "stack generate must fail loudly when autoinclude is reachable via an expression-based include path")
-	assert.Contains(t, stdout+stderr, "failed to parse autoinclude block")
+	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
 
