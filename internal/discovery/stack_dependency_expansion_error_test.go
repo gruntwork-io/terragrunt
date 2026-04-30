@@ -1,6 +1,7 @@
 package discovery_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/discovery"
@@ -35,4 +36,26 @@ func TestStackDependencyExpansionError_Unwrap(t *testing.T) {
 
 	// errors.Is must reach the leaf via Unwrap chain.
 	require.ErrorIs(t, wrapped, innerErr)
+}
+
+// Locks the full unwrap chain: discovery wrapper -> MalformedDependencyError -> underlying sentinel.
+func TestStackDependencyExpansionError_UnwrapNestedSentinel(t *testing.T) {
+	t.Parallel()
+
+	sentinel := errors.New("hcl diag root cause")
+
+	innerErr := hclparse.MalformedDependencyError{
+		Err:      sentinel,
+		FilePath: "/some/path/terragrunt.autoinclude.hcl",
+		Name:     "vpc",
+		Reason:   "config_path: <hcl diag>",
+	}
+
+	wrapped := discovery.NewStackDependencyExpansionError("/path/to/dep", innerErr)
+
+	require.ErrorIs(t, wrapped, sentinel)
+
+	var malformed hclparse.MalformedDependencyError
+	require.ErrorAs(t, wrapped, &malformed)
+	require.ErrorIs(t, malformed, sentinel)
 }

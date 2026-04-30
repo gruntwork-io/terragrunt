@@ -37,7 +37,7 @@ func TestStackConfigHasAutoInclude(t *testing.T) {
 	}
 }
 
-// JSON-format remain bodies aren't *hclsyntax.Body and must return false: autoinclude blocks are only supported in native HCL.
+// Non-*hclsyntax.Body remain bodies (e.g. hcl.EmptyBody, JSON-format bodies) must return false: autoinclude blocks are only inspected in native HCL syntax.
 func TestHasAutoIncludeInBody_NonSyntaxBodyReturnsFalse(t *testing.T) {
 	t.Parallel()
 

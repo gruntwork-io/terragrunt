@@ -353,6 +353,10 @@ func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
 	require.Error(t, err)
 	assert.Nil(t, result)
+
+	var readErr hclparse.FileReadError
+	require.ErrorAs(t, err, &readErr)
+	assert.Equal(t, filepath.Join(filePath, "terragrunt.stack.hcl"), readErr.FilePath)
 }
 
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
@@ -403,7 +407,7 @@ unit "vpc" {
 	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	// Path should resolve to the real directory, not the symlink target.
+	// Path should resolve to the real directory, not the symlink path.
 	assert.Contains(t, paths[0], "real-stack")
 	assert.NotContains(t, paths[0], "symlinked-stack")
 }

@@ -1,7 +1,6 @@
 package hclparse_test
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -418,12 +417,11 @@ func TestAutoIncludeDependencyPaths_FileParseErrorOnSyntaxError(t *testing.T) {
 	require.ErrorAs(t, err, &fpe)
 }
 
-func TestAutoIncludeDependencyPaths_UnexpectedBodyTypeOnJSON(t *testing.T) {
+func TestAutoIncludeDependencyPaths_FileParseErrorOnJSON(t *testing.T) {
 	t.Parallel()
 
 	fs := vfs.NewMemMapFS()
 	jsonBody := `{"dependency": {"vpc": {"config_path": "../vpc"}}}`
-	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile+".json"), []byte(jsonBody), 0644))
 	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(jsonBody), 0644))
 
 	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
@@ -431,10 +429,7 @@ func TestAutoIncludeDependencyPaths_UnexpectedBodyTypeOnJSON(t *testing.T) {
 	assert.Nil(t, paths)
 
 	var fpe hclparse.FileParseError
-
-	var ube hclparse.UnexpectedBodyTypeError
-
-	assert.True(t, errors.As(err, &fpe) || errors.As(err, &ube), "expected FileParseError or UnexpectedBodyTypeError, got %T: %v", err, err)
+	require.ErrorAs(t, err, &fpe)
 }
 
 // parseHCLBody is a test helper that parses an HCL string and returns the body.

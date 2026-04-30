@@ -496,7 +496,7 @@ func TestStackDepsAutoIncludeLoudFailOnParserLimit(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared and the two-pass parser cannot decode the stack file")
+	require.Error(t, err, "stack generate must return an error when autoinclude is declared and the two-pass parser cannot decode the stack file")
 	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
@@ -538,7 +538,7 @@ func TestStackDepsAutoIncludeLoudFailViaInclude(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must fail loudly when autoinclude is declared in an included stack file")
+	require.Error(t, err, "stack generate must return an error when autoinclude is declared in an included stack file")
 	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }
@@ -554,7 +554,7 @@ func TestStackDepsAutoIncludeLoudFailViaDynamicInclude(t *testing.T) {
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t,
 		"terragrunt stack generate --experiment stack-dependencies --working-dir "+rootPath)
 
-	require.Error(t, err, "stack generate must fail loudly when autoinclude is reachable via an expression-based include path")
+	require.Error(t, err, "stack generate must return an error when autoinclude is reachable via an expression-based include path")
 	assert.Contains(t, err.Error()+"\n"+stdout+stderr, "failed to parse autoinclude block")
 	require.NoFileExists(t, filepath.Join(rootPath, inthclparse.StackDir, "subnet", inthclparse.AutoIncludeFile))
 }

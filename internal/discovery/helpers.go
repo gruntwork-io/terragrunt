@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -290,8 +291,14 @@ func stackDependencyPaths(fs vfs.FS, depPaths []string, c component.Component) (
 	expanded := make([]string, 0, len(depPaths))
 
 	for _, depPath := range depPaths {
-		// Only expand directories: dependency paths can also point at non-default-named config files (e.g. another-name.hcl), which the stack-file parser would otherwise reject as "not a directory".
-		if info, statErr := fs.Stat(depPath); statErr != nil || !info.IsDir() {
+		info, statErr := fs.Stat(depPath)
+		// Real I/O errors (permission denied, etc.) must surface so a malformed DAG isn't silently produced; only ENOENT is treated as "keep the raw path".
+		if statErr != nil && !errors.Is(statErr, iofs.ErrNotExist) {
+			return nil, NewStackDependencyExpansionError(depPath, statErr)
+		}
+
+		// Dependency paths can also point at non-default-named config files (e.g. another-name.hcl), which the stack-file parser would otherwise reject as "not a directory".
+		if statErr != nil || !info.IsDir() {
 			expanded = append(expanded, depPath)
 			continue
 		}
