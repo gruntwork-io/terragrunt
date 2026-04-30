@@ -45,8 +45,8 @@ const (
 	engineCookieKey   = "engine"
 	engineCookieValue = "terragrunt"
 
-	defaultCacheDir                             = ".cache"
-	defaultEngineCachePath                      = "terragrunt/plugins/iac-engine"
+	enginePluginsDir                            = "plugins"
+	engineIACDir                                = "iac-engine"
 	prefixTrim                                  = "terragrunt-"
 	fileNameFormat                              = "terragrunt-iac-%s_%s_%s_%s_%s"
 	checksumFileNameFormat                      = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
@@ -354,20 +354,36 @@ func engineDir(opts *ExecutionOptions) (string, error) {
 		return filepath.Dir(engine.Source), nil
 	}
 
-	cacheDir := opts.EngineOptions.CachePath
-	if len(cacheDir) == 0 {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", errors.New(err)
-		}
-
-		cacheDir = filepath.Join(homeDir, defaultCacheDir)
-	}
-
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 
-	return filepath.Join(cacheDir, defaultEngineCachePath, engine.Type, engine.Version, platform, arch), nil
+	if cacheDir := opts.EngineOptions.CachePath; len(cacheDir) != 0 {
+		return filepath.Join(
+			cacheDir,
+			"terragrunt",
+			enginePluginsDir,
+			engineIACDir,
+			engine.Type,
+			engine.Version,
+			platform,
+			arch,
+		), nil
+	}
+
+	cacheDir, err := util.EnsureCacheDir()
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	return filepath.Join(
+		cacheDir,
+		enginePluginsDir,
+		engineIACDir,
+		engine.Type,
+		engine.Version,
+		platform,
+		arch,
+	), nil
 }
 
 // engineFileName returns the file name for the engine.
