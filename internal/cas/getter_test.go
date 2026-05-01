@@ -191,13 +191,15 @@ func TestCASGetterLocalDir(t *testing.T) {
 	err = g.Get(t.Context(), req)
 	require.NoError(t, err)
 
+	// Default-path materialization clears the write bit so the destination
+	// cannot poison the shared CAS store via shared inodes.
 	stat, err := os.Stat(filepath.Join(fakeDest, "main.tf"))
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), stat.Mode())
+	assert.Equal(t, os.FileMode(0o444), stat.Mode())
 
 	stat, err = os.Stat(filepath.Join(fakeDest, "subdir", "subfile.tf"))
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), stat.Mode())
+	assert.Equal(t, os.FileMode(0o444), stat.Mode())
 }
 
 // newTestCASGetter constructs a CASGetter wired to a fresh on-disk CAS

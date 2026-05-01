@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"runtime"
 
@@ -47,6 +48,11 @@ type CloneOptions struct {
 	// If zero, CAS falls back to its configured clone depth (default shallow depth 1).
 	// Set to -1 for full history (Terragrunt omits --depth; git rejects --depth 0).
 	Depth int
+
+	// Mutable, when true, copies blobs into the target directory instead of
+	// hardlinking them from the CAS store. The destination tree becomes safe
+	// to mutate without corrupting the shared store.
+	Mutable bool
 }
 
 // CAS clones a git repository using content-addressable storage.
@@ -198,7 +204,12 @@ func (c *CAS) Clone(ctx context.Context, l log.Logger, opts *CloneOptions, url s
 			return err
 		}
 
-		return LinkTree(childCtx, c.blobStore, c.treeStore, tree, targetDir)
+		var linkOpts []LinkTreeOption
+		if opts.Mutable {
+			linkOpts = append(linkOpts, WithForceCopy())
+		}
+
+		return LinkTree(childCtx, c.blobStore, c.treeStore, tree, targetDir, linkOpts...)
 	})
 }
 
@@ -610,7 +621,7 @@ func (c *CAS) storeBlobs(ctx context.Context, runner *git.GitRunner, entries []g
 			continue
 		}
 
-		if err := c.ensureBlob(ctx, runner, entry.Hash); err != nil {
+		if err := c.ensureBlob(ctx, runner, entry.Hash, gitFilePerm(entry.Mode)); err != nil {
 			return err
 		}
 	}
@@ -621,8 +632,11 @@ func (c *CAS) storeBlobs(ctx context.Context, runner *git.GitRunner, entries []g
 // ensureBlob ensures that a blob exists in the CAS.
 // It doesn't use the standard content.Store method because
 // we want to take advantage of the ability to write to the
-// entry using `git cat-file`.
-func (c *CAS) ensureBlob(ctx context.Context, runner *git.GitRunner, hash string) error {
+// entry using `git cat-file`. gitPerm is the git tree mode for
+// this blob; the stored blob is chmodded to gitPerm with the
+// write bits cleared so the default-link path can hardlink the
+// blob directly without altering its executable-ness.
+func (c *CAS) ensureBlob(ctx context.Context, runner *git.GitRunner, hash string, gitPerm os.FileMode) error {
 	needsWrite, lock, err := c.blobStore.EnsureWithWait(hash)
 	if err != nil {
 		return err
@@ -677,7 +691,7 @@ func (c *CAS) ensureBlob(ctx context.Context, runner *git.GitRunner, hash string
 		return err
 	}
 
-	if err = c.fs.Chmod(content.getPath(hash), StoredFilePerms); err != nil {
+	if err = c.fs.Chmod(content.getPath(hash), gitPerm.Perm()&^WriteBitMask); err != nil {
 		return err
 	}
 

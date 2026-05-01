@@ -25,7 +25,12 @@ type CASGetter struct {
 }
 
 // NewCASGetter constructs a CASGetter wired with the standard detector chain.
+// A nil opts is treated as a zero-value CloneOptions so Get can rely on g.Opts.
 func NewCASGetter(l log.Logger, c *cas.CAS, opts *cas.CloneOptions) *CASGetter {
+	if opts == nil {
+		opts = &cas.CloneOptions{}
+	}
+
 	return &CASGetter{
 		Detectors: []Detector{
 			new(GitHubDetector),
@@ -45,7 +50,12 @@ func NewCASGetter(l log.Logger, c *cas.CAS, opts *cas.CloneOptions) *CASGetter {
 func (g *CASGetter) Get(ctx context.Context, req *getter.Request) error {
 	if req.Copy {
 		// Local directory: persist to CAS and link.
-		return g.CAS.StoreLocalDirectory(ctx, g.Logger, req.Src, req.Dst)
+		var linkOpts []cas.LinkTreeOption
+		if g.Opts.Mutable {
+			linkOpts = append(linkOpts, cas.WithForceCopy())
+		}
+
+		return g.CAS.StoreLocalDirectory(ctx, g.Logger, req.Src, req.Dst, linkOpts...)
 	}
 
 	ref := ""

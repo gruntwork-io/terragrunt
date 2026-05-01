@@ -21,7 +21,12 @@ const DefaultLocalHashAlgorithm = HashSHA256
 
 // StoreLocalDirectory persists all content from a local source directory into the CAS
 // and then links the persisted files to the target directory.
-func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, targetDir string) error {
+func (c *CAS) StoreLocalDirectory(
+	ctx context.Context,
+	l log.Logger,
+	sourceDir, targetDir string,
+	opts ...LinkTreeOption,
+) error {
 	hash, treeData, err := c.buildLocalTree(sourceDir, DefaultLocalHashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("failed to hash local directory %s: %w", sourceDir, err)
@@ -36,7 +41,7 @@ func (c *CAS) StoreLocalDirectory(ctx context.Context, l log.Logger, sourceDir, 
 		return fmt.Errorf("failed to parse local tree: %w", err)
 	}
 
-	return LinkTree(ctx, c.blobStore, c.treeStore, tree, targetDir)
+	return LinkTree(ctx, c.blobStore, c.treeStore, tree, targetDir, opts...)
 }
 
 // ComputeLocalRootHash walks dir in deterministic (lexical) order and produces a
