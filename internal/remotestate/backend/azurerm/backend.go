@@ -1,11 +1,9 @@
-// Package azurerm represents the Azure Storage (azurerm) backend for interacting
-// with remote state.
-//
-// This is a stub registration: it makes Terragrunt recognize backend = "azurerm"
-// and routes configuration through the common backend abstraction. Bootstrap,
-// delete, migrate and other lifecycle operations currently fall through to
-// CommonBackend defaults (no-op). Experiment gating and functional lifecycle
-// behavior for the Azure backend will be added in follow-up PRs.
+// Package azurerm implements the Azure Storage (azurerm) remote-state
+// backend. Bootstrap, migration and teardown lifecycle operations are
+// gated behind the azure-backend experiment; when the experiment is
+// disabled only Name() and GetTFInitArgs() are functional so that
+// terragrunt init can still pass an azurerm backend block through to
+// terraform unchanged.
 package azurerm
 
 import (
@@ -24,4 +22,10 @@ func NewBackend() *Backend {
 	return &Backend{
 		CommonBackend: backend.NewCommonBackend(BackendName),
 	}
+}
+
+// GetTFInitArgs returns the config filtered to the keys the terraform
+// azurerm backend understands (terragrunt-only keys removed).
+func (b *Backend) GetTFInitArgs(config backend.Config) map[string]any {
+	return Config(config).GetTFInitArgs()
 }
