@@ -254,15 +254,19 @@ func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, e
 
 // EnableSoftDelete configures container and blob soft-delete with the
 // supplied retention. retentionDays must be 1-365; values outside that
-// range are clamped to defaultSoftDeleteDays.
+// range are clamped to defaultSoftDeleteDays and the clamping is logged
+// at WARN so the caller can spot a typo.
 func (c *StorageAccountClient) EnableSoftDelete(ctx context.Context, l log.Logger, retentionDays int) error {
 	if retentionDays < 1 || retentionDays > 365 {
+		l.Warnf("azurehelper: soft-delete retention %d out of range [1,365] for %q; clamping to %d",
+			retentionDays, c.accountName, defaultSoftDeleteDays)
+
 		retentionDays = defaultSoftDeleteDays
 	}
 
 	l.Debugf("azurehelper: enabling soft delete on %q (retention=%d days)", c.accountName, retentionDays)
 
-	days := int32(retentionDays) //nolint:gosec // bounded above
+	days := int32(retentionDays) // bounded to [1,365] above
 
 	props := armstorage.BlobServiceProperties{
 		BlobServiceProperties: &armstorage.BlobServicePropertiesProperties{
@@ -313,7 +317,8 @@ func (c *StorageAccountClient) GetKeys(ctx context.Context) ([]string, error) {
 }
 
 // withDefaults fills empty fields with the package defaults and ensures
-// the "created-by" tag is present.
+// the "created-by" tag is present. The Tags map is replaced with a copy
+// before being mutated so the caller's input map is not modified.
 func (in *StorageAccountConfig) withDefaults() {
 	if in.AccountKind == "" {
 		in.AccountKind = defaultAccountKind
@@ -331,13 +336,16 @@ func (in *StorageAccountConfig) withDefaults() {
 		in.AccessTier = defaultAccessTier
 	}
 
-	if in.Tags == nil {
-		in.Tags = map[string]string{}
+	tags := make(map[string]string, len(in.Tags)+1)
+	for k, v := range in.Tags {
+		tags[k] = v
 	}
 
-	if _, ok := in.Tags["created-by"]; !ok {
-		in.Tags["created-by"] = "terragrunt"
+	if _, ok := tags["created-by"]; !ok {
+		tags["created-by"] = "terragrunt"
 	}
+
+	in.Tags = tags
 }
 
 // accessTierValue maps a string to the SDK's AccessTier enum.
