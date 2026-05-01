@@ -30,15 +30,15 @@ type AzureSessionConfig struct {
 	ResourceGroupName  string
 	ContainerName      string
 	Location           string
-	UseAzureADAuth     bool
-	UseMSI             bool
-	UseOIDC            bool
 	MSIResourceID      string
 	SasToken           string
 	AccessKey          string
 	// CloudEnvironment selects a sovereign cloud. Accepted values:
 	// "" / "public" (default), "government" / "usgovernment", "china".
 	CloudEnvironment string
+	UseAzureADAuth   bool
+	UseMSI           bool
+	UseOIDC          bool
 }
 
 // AzureConfigBuilder builds an AzureConfig using the builder pattern.
@@ -67,6 +67,7 @@ func (b *AzureConfigBuilder) WithEnv(env map[string]string) *AzureConfigBuilder 
 	if env != nil {
 		b.env = env
 	}
+
 	return b
 }
 
@@ -153,13 +154,17 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 	case resolved.SasToken != "":
 		out.Method = AuthMethodSasToken
 		out.SasToken = resolved.SasToken
+
 		l.Debugf("azurehelper: using SAS token authentication")
+
 		return out, validate(out, &resolved)
 
 	case resolved.AccessKey != "":
 		out.Method = AuthMethodAccessKey
 		out.AccessKey = resolved.AccessKey
+
 		l.Debugf("azurehelper: using storage account access key authentication")
+
 		return out, validate(out, &resolved)
 
 	case resolved.ClientID != "" && resolved.ClientSecret != "" && resolved.TenantID != "":
@@ -170,9 +175,12 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		if err != nil {
 			return nil, errors.Errorf("creating service principal credential: %w", err)
 		}
+
 		out.Method = AuthMethodServicePrincipal
 		out.Credential = cred
+
 		l.Debugf("azurehelper: using service principal authentication")
+
 		return out, validate(out, &resolved)
 
 	case resolved.UseOIDC:
@@ -182,9 +190,12 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		if err != nil {
 			return nil, errors.Errorf("creating OIDC credential: %w", err)
 		}
+
 		out.Method = AuthMethodOIDC
 		out.Credential = cred
+
 		l.Debugf("azurehelper: using OIDC / workload identity authentication")
+
 		return out, validate(out, &resolved)
 
 	case resolved.UseMSI:
@@ -192,13 +203,17 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		if resolved.MSIResourceID != "" {
 			opts.ID = azidentity.ResourceID(resolved.MSIResourceID)
 		}
+
 		cred, err := azidentity.NewManagedIdentityCredential(opts)
 		if err != nil {
 			return nil, errors.Errorf("creating managed identity credential: %w", err)
 		}
+
 		out.Method = AuthMethodMSI
 		out.Credential = cred
+
 		l.Debugf("azurehelper: using managed identity authentication")
+
 		return out, validate(out, &resolved)
 
 	default:
@@ -209,9 +224,12 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		if err != nil {
 			return nil, errors.Errorf("creating default Azure credential: %w", err)
 		}
+
 		out.Method = AuthMethodAzureAD
 		out.Credential = cred
+
 		l.Debugf("azurehelper: using Azure AD default credential chain")
+
 		return out, validate(out, &resolved)
 	}
 }
@@ -223,43 +241,60 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	if cfg.SubscriptionID == "" {
 		cfg.SubscriptionID = b.firstEnv("ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID")
 	}
+
 	if cfg.TenantID == "" {
 		cfg.TenantID = b.firstEnv("ARM_TENANT_ID", "AZURE_TENANT_ID")
 	}
+
 	if cfg.ClientID == "" {
 		cfg.ClientID = b.firstEnv("ARM_CLIENT_ID", "AZURE_CLIENT_ID")
 	}
+
 	if cfg.ClientSecret == "" {
 		cfg.ClientSecret = b.firstEnv("ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
 	}
+
 	if cfg.SasToken == "" {
 		cfg.SasToken = b.firstEnv("ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN")
 	}
+
 	if cfg.AccessKey == "" {
 		cfg.AccessKey = b.firstEnv("ARM_ACCESS_KEY", "AZURE_STORAGE_KEY")
 	}
+
 	if cfg.CloudEnvironment == "" {
 		cfg.CloudEnvironment = b.firstEnv("ARM_ENVIRONMENT", "AZURE_ENVIRONMENT")
 	}
+
 	if !cfg.UseMSI && parseBool(b.firstEnv("ARM_USE_MSI")) {
 		cfg.UseMSI = true
 	}
+
 	if !cfg.UseOIDC && parseBool(b.firstEnv("ARM_USE_OIDC")) {
 		cfg.UseOIDC = true
 	}
 }
 
 // firstEnv returns the first non-empty value found by looking up keys in the
-// builder's env map and falling back to os.Getenv.
+// builder's env map and falling back to os.Getenv. If a key is present in the
+// builder's env map (even with an empty value), that map value is returned
+// without consulting os.Getenv — this lets tests shield resolution from the
+// developer's shell environment by passing an explicit empty value.
 func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	for _, k := range keys {
-		if v, ok := b.env[k]; ok && v != "" {
-			return v
+		if v, ok := b.env[k]; ok {
+			if v != "" {
+				return v
+			}
+
+			continue
 		}
+
 		if v := os.Getenv(k); v != "" {
 			return v
 		}
 	}
+
 	return ""
 }
 
@@ -268,6 +303,7 @@ func parseBool(s string) bool {
 	case "1", "true", "yes":
 		return true
 	}
+
 	return false
 }
 
@@ -291,15 +327,19 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 		if cfg.StorageAccountName == "" {
 			return errors.Errorf("storage_account_name is required for SAS token authentication")
 		}
+
 		return nil
 	}
+
 	if out.SubscriptionID == "" {
 		return errors.Errorf("subscription_id is required (set via config, ARM_SUBSCRIPTION_ID, or AZURE_SUBSCRIPTION_ID)")
 	}
+
 	if out.Method == AuthMethodServicePrincipal {
 		if cfg.TenantID == "" || cfg.ClientID == "" || cfg.ClientSecret == "" {
 			return errors.Errorf("service principal authentication requires tenant_id, client_id, and client_secret")
 		}
 	}
+
 	return nil
 }

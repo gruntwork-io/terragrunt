@@ -33,10 +33,12 @@ func ClassifyError(err error) ErrorClass {
 	if err == nil {
 		return ErrorClassUnknown
 	}
+
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
 		return ErrorClassUnknown
 	}
+
 	switch respErr.StatusCode {
 	case http.StatusUnauthorized:
 		return ErrorClassAuthentication
@@ -51,9 +53,11 @@ func ClassifyError(err error) ErrorClass {
 	case http.StatusBadRequest:
 		return ErrorClassInvalidRequest
 	}
-	if respErr.StatusCode >= 500 && respErr.StatusCode < 600 {
+
+	if respErr.StatusCode >= http.StatusInternalServerError {
 		return ErrorClassTransient
 	}
+
 	return ErrorClassUnknown
 }
 
@@ -64,15 +68,25 @@ func IsRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	var respErr *azcore.ResponseError
 	if !errors.As(err, &respErr) {
 		// No HTTP response - likely a network or DNS error.
 		return true
 	}
+
 	switch ClassifyError(err) {
 	case ErrorClassThrottling, ErrorClassTransient:
 		return true
+	case ErrorClassUnknown,
+		ErrorClassAuthentication,
+		ErrorClassPermission,
+		ErrorClassNotFound,
+		ErrorClassConflict,
+		ErrorClassInvalidRequest:
+		return false
 	}
+
 	return false
 }
 
@@ -82,17 +96,20 @@ func IsNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
 		if respErr.StatusCode == http.StatusNotFound {
 			return true
 		}
+
 		if strings.EqualFold(respErr.ErrorCode, "ResourceNotFound") ||
 			strings.EqualFold(respErr.ErrorCode, "ContainerNotFound") ||
 			strings.EqualFold(respErr.ErrorCode, "BlobNotFound") {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -103,8 +120,10 @@ func WrapError(err error, op string) error {
 	if err == nil {
 		return nil
 	}
+
 	if op == "" {
 		return tgerrors.New(err)
 	}
+
 	return tgerrors.Errorf("%s: %w", op, err)
 }
