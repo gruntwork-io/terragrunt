@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/env"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/filter"
 	"github.com/gruntwork-io/terragrunt/internal/providercache"
@@ -274,8 +275,10 @@ func runAction(
 		l.Formatter().SetDisabledColors(true)
 	}
 
-	// actionCtx is the context passed to the action, which may be wrapped with hooks
-	actionCtx := ctx
+	// Install run-scoped caches on actionCtx so memoized helpers like
+	// [github.com/gruntwork-io/terragrunt/internal/shell.GitTopLevelDir] share
+	// state across the whole action.
+	actionCtx := cache.ContextWithCache(ctx)
 
 	// Run provider cache server
 	if opts.ProviderCacheOptions.Enabled {
@@ -290,7 +293,7 @@ func runAction(
 		}
 		defer ln.Close() //nolint:errcheck
 
-		actionCtx = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
 			return server.Run(ctx, ln)
