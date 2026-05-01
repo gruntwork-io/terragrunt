@@ -1448,8 +1448,13 @@ func ParseConfig(
 		// - Locals are deliberately not merged in so that they remain local in scope. Here, we directly set it to the
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
+		// - Exclude, in contrast, is inherited from included configs. Only override the merged value when the current
+		//   config defines its own exclude block, otherwise the parent's exclude would be clobbered with nil.
 		mergedConfig.Locals = config.Locals
-		mergedConfig.Exclude = config.Exclude
+
+		if config.Exclude != nil {
+			mergedConfig.Exclude = config.Exclude
+		}
 
 		return mergedConfig, errs.ErrorOrNil()
 	}
