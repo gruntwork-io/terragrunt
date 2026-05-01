@@ -156,6 +156,87 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 	return false, nil
 }
 
+// AssignRoleIfMissing is the idempotent convenience wrapper most callers
+// want: it first checks whether (scope, principalID, roleDefinitionID) is
+// already assigned and only issues AssignRole when it is not. This avoids
+// the cost (and audit-log noise) of redundant Create calls on bootstrap
+// reruns.
+func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in AssignRoleInput) error {
+	if in.Scope == "" || in.PrincipalID == "" || in.RoleDefinitionID == "" {
+		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+	}
+
+	has, err := c.HasRoleAssignment(ctx, in.Scope, in.PrincipalID, in.RoleDefinitionID)
+	if err != nil {
+		return err
+	}
+
+	if has {
+		l.Debugf("azurehelper: role %s already assigned to %s on %s; skipping create",
+			in.RoleDefinitionID, in.PrincipalID, in.Scope)
+
+		return nil
+	}
+
+	return c.AssignRole(ctx, l, in)
+}
+
+// RemoveRole removes the assignment of roleDefinitionID for principalID at
+// scope. If no such assignment exists this is a no-op (returns nil).
+//
+// When multiple matching assignments exist (uncommon but possible), all of
+// them are deleted; the first delete error encountered is returned.
+func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
+	if scope == "" || principalID == "" || roleDefinitionID == "" {
+		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+	}
+
+	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
+
+	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
+		Filter: to.Ptr("principalId eq '" + principalID + "'"),
+	})
+
+	var firstErr error
+
+	removed := 0
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return WrapError(err, "listing role assignments for removal")
+		}
+
+		for _, ra := range page.Value {
+			if ra == nil || ra.Properties == nil || ra.Properties.RoleDefinitionID == nil || ra.ID == nil {
+				continue
+			}
+
+			if !strings.HasSuffix(*ra.Properties.RoleDefinitionID, roleDefSuffix) {
+				continue
+			}
+
+			if _, err := c.client.DeleteByID(ctx, *ra.ID, nil); err != nil {
+				if firstErr == nil {
+					firstErr = WrapError(err, "deleting role assignment "+*ra.ID)
+				}
+
+				continue
+			}
+
+			removed++
+		}
+	}
+
+	if firstErr != nil {
+		return firstErr
+	}
+
+	l.Debugf("azurehelper: removed %d role assignment(s) for principal %s on %s", removed, principalID, scope)
+
+	return nil
+}
+
 // isAlreadyAssigned returns true for the Azure "RoleAssignmentExists" error,
 // which is a 409 with that error code.
 func isAlreadyAssigned(err error) bool {
