@@ -234,6 +234,32 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 	}
 }
 
+// BuildBlobClient is a convenience that calls Build and then constructs a
+// BlobClient from the resulting AzureConfig. Most callers — including the
+// PR 3 backend wiring — only need a BlobClient and benefit from a single
+// entry point.
+func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) (*BlobClient, error) {
+	cfg, err := b.Build(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewBlobClient(ctx, cfg, "")
+}
+
+// BuildStorageAccountClient is a convenience that calls Build and then
+// constructs a StorageAccountClient. Returns an error if the resolved
+// config lacks the ARM-plane fields (subscription, resource group, account
+// name, token credential) required for storage account management.
+func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l log.Logger) (*StorageAccountClient, error) {
+	cfg, err := b.Build(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewStorageAccountClient(cfg)
+}
+
 // applyEnvFallbacks fills empty fields on cfg from environment variables
 // (the builder's env map first, then the process environment). Mirrors the
 // ARM_* and AZURE_* names used by Terraform's azurerm backend.
