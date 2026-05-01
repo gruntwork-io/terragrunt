@@ -56,7 +56,7 @@ type AutoIncludeResolved struct {
 }
 
 // AutoIncludeDependency represents a resolved dependency block from autoinclude.
-// config_path has been evaluated (e.g. unit.vpc.path → "/abs/path/to/.terragrunt-stack/vpc").
+// config_path has been evaluated (e.g. unit.vpc.path -> "/abs/path/to/.terragrunt-stack/vpc").
 // The original HCL block is preserved for writing all attributes (mock_outputs, etc.)
 // into the generated file.
 type AutoIncludeDependency struct {

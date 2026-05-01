@@ -3,12 +3,12 @@ version: "v1.0.4"
 category: "experiments-updated"
 ---
 
-#### `stack-dependencies` — Separate filenames for unit vs stack autoincludes
+#### `stack-dependencies` - Separate filenames for unit vs stack autoincludes
 
 Generated autoinclude files now use distinct filenames depending on the component kind, so tooling (LSP, `read_terragrunt_config()`, indexers) can identify a file's purpose from its name alone:
 
 - **Unit-level autoincludes** continue to be written as `terragrunt.autoinclude.hcl`.
-- **Stack-level autoincludes** (autoinclude blocks declared inside a `stack { … }`) are now written as `terragrunt.autoinclude.stack.hcl`. The `.stack.hcl` suffix mirrors `terragrunt.stack.hcl`, matching the convention used elsewhere for stack files.
+- **Stack-level autoincludes** (autoinclude blocks declared inside a `stack { ... }`) are now written as `terragrunt.autoinclude.stack.hcl`. The `.stack.hcl` suffix mirrors `terragrunt.stack.hcl`, matching the convention used elsewhere for stack files.
 
 ```hcl
 # terragrunt.stack.hcl

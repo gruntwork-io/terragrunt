@@ -13,13 +13,13 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level; the type prevents typos in callers.
+// AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level. The values intentionally match internal/component.{UnitKind,StackKind} but are defined here because internal/component -> pkg/config -> internal/hclparse is the established import direction; reusing the component constants would create a cycle.
 type AutoIncludeKind string
 
 const (
-	// KindUnit selects the unit-level filename (terragrunt.autoinclude.hcl).
+	// KindUnit selects the unit-level filename (terragrunt.autoinclude.hcl). Value matches component.UnitKind.
 	KindUnit AutoIncludeKind = "unit"
-	// KindStack selects the stack-level filename (terragrunt.autoinclude.stack.hcl).
+	// KindStack selects the stack-level filename (terragrunt.autoinclude.stack.hcl). Value matches component.StackKind.
 	KindStack AutoIncludeKind = "stack"
 )
 

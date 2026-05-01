@@ -41,7 +41,7 @@ type ParseStackFileInput struct {
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
 type ParseResult struct {
-	// AutoIncludes maps component name → resolved autoinclude (only for units/stacks
+	// AutoIncludes maps component name -> resolved autoinclude (only for units/stacks
 	// that had an autoinclude block). Dependencies have config_path resolved.
 	AutoIncludes map[string]*AutoIncludeResolved
 	// Units from the first-pass parse (name, source, path, values decoded).
