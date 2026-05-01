@@ -8,22 +8,35 @@ Experimental support for the Azure Storage (`azurerm`) remote state backend.
 
 ### `azure-backend` - What it does
 
-Terragrunt already recognizes `backend = "azurerm"` in `remote_state` blocks regardless
-of whether this experiment is enabled, and currently falls through to the native
-OpenTofu/Terraform `azurerm` backend. This experiment reserves the flag for the
-long-term goal of having Terragrunt manage Azure Storage accounts, blob containers,
-and state blobs in the same way it already manages S3 buckets and GCS buckets:
-automatic bootstrap, delete, migrate, and direct state reads for
-[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state).
+With the experiment **enabled**, Terragrunt manages Azure Storage accounts,
+blob containers and state blobs in the same way it already manages S3 and GCS
+buckets: automatic bootstrap on `init`, `terragrunt backend delete`,
+`terragrunt backend delete --bucket`, and `terragrunt backend migrate`.
+With the experiment **disabled** Terragrunt still recognizes
+`backend = "azurerm"` and passes the configuration through to the native
+OpenTofu/Terraform `azurerm` backend, but does not create or modify any Azure
+resources.
 
-In its current form (initial registration) the experiment only:
+Current functional surface (with the experiment on):
 
-- Reserves the `azure-backend` experiment name.
-- Reserves the `azurerm` backend slot in Terragrunt's remote state layer.
+- Resolves credentials via SAS token, access key, service principal, OIDC /
+  workload identity, MSI, or `DefaultAzureCredential`. ARM\_\*/AZURE\_\*
+  environment variable fallbacks are honoured.
+- Bootstrap creates the resource group, storage account (with blob versioning
+  and optional soft-delete) and container, honouring the full set of
+  `skip_*_creation` toggles.
+- Optional `assign_storage_blob_data_owner = true` assigns the
+  `Storage Blob Data Owner` role at the storage-account scope.
+- `backend delete` removes the state blob; `backend delete --bucket` removes
+  the container and (unless `skip_storage_account_creation` is set) the
+  storage account.
+- `backend migrate` server-side copies the state blob between containers
+  within the same storage account; cross-account migration is not yet
+  supported.
 
-The flag itself currently has no behavioral effect: there is no Azure SDK code,
-authentication logic, or storage account management yet, and the backend is not
-gated on the flag. Functional behavior will land in subsequent releases.
+See the [Azure Storage backend section of the State Backend
+docs](/features/units/state-backend#azure-storage-azurerm-backend) for the
+full list of configuration keys and authentication methods.
 
 ### `azure-backend` - How to enable it
 
@@ -47,10 +60,10 @@ When reporting issues or providing feedback, please include:
 ### `azure-backend` - Criteria for stabilization
 To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
 
-- [ ] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
-- [ ] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
-- [ ] Delete and migrate operations for state blobs and containers with confirmation prompts.
+- [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
+- [x] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
+- [x] Delete and migrate operations for state blobs and containers with confirmation prompts.
 - [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
-- [ ] Documentation covering authentication methods, configuration keys, and troubleshooting.
+- [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
 - [ ] Integration test coverage gated behind a build tag.
 - [ ] Community feedback on real-world usage.
