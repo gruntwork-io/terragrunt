@@ -612,7 +612,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		return errors.New(err)
 	}
 
-	tempDir, err := util.GetTempDir()
+	tempDir, err := util.EnsureTempDir()
 	if err != nil {
 		return err
 	}

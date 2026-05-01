@@ -92,6 +92,8 @@ terraform {
 
 During stack generation, Terragrunt rewrites these relative sources to `cas::` references that point to content stored in the CAS. The repository is cloned once, and subsequent stack generations resolve content from the local store without network access. Generated `.terragrunt-stack` files contain deterministic CAS references instead of version variables, so they do not produce diffs on regeneration.
 
+The catalog source can be either a remote Git URL or a local filesystem path (absolute, or relative to the current working directory). Local sources are copied into a temporary directory before rewriting, so the original catalog directory is never modified. This makes the same catalog layout usable against a published Git ref or a local checkout, which is useful when iterating on a catalog before tagging a release.
+
 For more details on using this with stacks, see [Explicit Stacks: CAS Integration](/features/stacks/explicit#cas-integration).
 
 <Aside type="caution">

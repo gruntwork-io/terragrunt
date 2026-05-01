@@ -1,12 +1,12 @@
 package redesign
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
 
 // Note: this file is a redesign-owned fork of internal/services/catalog/module/doc.go.
@@ -113,16 +113,16 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 	return doc
 }
 
-// FindComponentDoc reads the first README-like file in dir and returns a
-// populated ComponentDoc. Returns a zero-value *ComponentDoc (non-nil) when
-// no README is present.
-func FindComponentDoc(dir string) (*ComponentDoc, error) {
-	var filePath, fileExt string
-
-	files, err := os.ReadDir(dir)
+// FindComponentDoc reads the first README-like file in dir from fsys and
+// returns a populated ComponentDoc. Returns a zero-value *ComponentDoc
+// (non-nil) when no README is present.
+func FindComponentDoc(fsys vfs.FS, dir string) (*ComponentDoc, error) {
+	files, err := vfs.ReadDirEntries(fsys, dir)
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
+	var filePath, fileExt string
 
 	for _, file := range files {
 		if file.IsDir() {
@@ -147,7 +147,7 @@ func FindComponentDoc(dir string) (*ComponentDoc, error) {
 		return &ComponentDoc{}, nil
 	}
 
-	contentByte, err := os.ReadFile(filePath)
+	contentByte, err := vfs.ReadFile(fsys, filePath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

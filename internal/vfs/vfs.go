@@ -127,6 +127,18 @@ func Symlink(fs FS, oldname, newname string) error {
 	return linker.SymlinkIfPossible(oldname, newname)
 }
 
+// Readlink reads the target of a symbolic link. It uses afero's
+// ReadlinkIfPossible which is supported by OsFs and any FS implementing
+// afero.Symlinker.
+func Readlink(fs FS, name string) (string, error) {
+	reader, ok := fs.(afero.Symlinker)
+	if !ok {
+		return "", &os.PathError{Op: "readlink", Path: name, Err: afero.ErrNoSymlink}
+	}
+
+	return reader.ReadlinkIfPossible(name)
+}
+
 // Lock acquires a blocking lock for the given name on the filesystem.
 func Lock(fs FS, name string) (Unlocker, error) {
 	locker, ok := fs.(Locker)
@@ -616,7 +628,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 		return err
 	}
 
-	entries, err := readDirEntries(fsys, path)
+	entries, err := ReadDirEntries(fsys, path)
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
@@ -642,9 +654,12 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	return nil
 }
 
-// readDirEntries reads the directory named by dirname and returns
-// a sorted list of directory entries.
-func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
+// ReadDirEntries reads the directory named by dirname and returns a sorted
+// list of directory entries. It prefers the fs.ReadDirFile fast path when the
+// backing file supports it, and otherwise falls back to Readdir wrapped in
+// FileInfoDirEntry so backings that only expose the legacy os.File API still
+// work.
+func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 	f, err := fsys.Open(dirname)
 	if err != nil {
 		return nil, err

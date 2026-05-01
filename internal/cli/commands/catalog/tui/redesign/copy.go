@@ -1,12 +1,14 @@
 package redesign
 
 import (
+	stderrors "errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
@@ -19,6 +21,7 @@ type CopyCmd struct {
 	component *Component
 	opts      *options.TerragruntOptions
 	logger    log.Logger
+	fsys      vfs.FS
 	result    copyResult
 }
 
@@ -35,7 +38,19 @@ func NewCopyCmd(logger log.Logger, opts *options.TerragruntOptions, c *Component
 	return &CopyCmd{component: c, opts: opts, logger: logger}
 }
 
+// WithFS overrides the filesystem used for source reads and destination writes.
+// When unset, Run uses vfs.NewOSFS().
+func (c *CopyCmd) WithFS(fsys vfs.FS) *CopyCmd {
+	c.fsys = fsys
+	return c
+}
+
 func (c *CopyCmd) Run() error {
+	fsys := c.fsys
+	if fsys == nil {
+		fsys = vfs.NewOSFS()
+	}
+
 	src, dst, err := c.resolvePaths()
 	if err != nil {
 		return err
@@ -47,7 +62,7 @@ func (c *CopyCmd) Run() error {
 	// collide with something already in the working directory. Without this,
 	// a mid-walk collision could leave the working tree in a half-copied
 	// state.
-	if err := preflightCopy(src, dst); err != nil {
+	if err := preflightCopy(fsys, src, dst); err != nil {
 		return err
 	}
 
@@ -59,7 +74,7 @@ func (c *CopyCmd) Run() error {
 	)
 
 	if configName != "" {
-		refs, err = CollectValuesReferences(filepath.Join(src, configName))
+		refs, err = CollectValuesReferences(fsys, filepath.Join(src, configName))
 		if err != nil {
 			return err
 		}
@@ -70,13 +85,13 @@ func (c *CopyCmd) Run() error {
 		// copying when a stub would be written but the destination has an
 		// unrelated obstruction (e.g. it exists as a directory).
 		if hasRefs {
-			if err := preflightValuesStub(dst); err != nil {
+			if err := preflightValuesStub(fsys, dst); err != nil {
 				return err
 			}
 		}
 	}
 
-	if err := copyDir(src, dst); err != nil {
+	if err := copyDir(fsys, src, dst); err != nil {
 		return err
 	}
 
@@ -85,7 +100,7 @@ func (c *CopyCmd) Run() error {
 	if hasRefs {
 		result.references = refs
 
-		written, err := WriteValuesStub(dst, refs)
+		written, err := WriteValuesStub(fsys, dst, refs)
 		if err != nil {
 			return err
 		}
@@ -149,10 +164,10 @@ func skipDuringCopy(name string) bool {
 	return name == ".terragrunt-cache" || name == ".terragrunt-stack"
 }
 
-// copyDir recursively copies src to dst, preserving file modes and skipping
-// regenerated artifact directories.
-func copyDir(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+// copyDir recursively copies src to dst on fsys, preserving file modes and
+// skipping regenerated artifact directories.
+func copyDir(fsys vfs.FS, src, dst string) error {
+	return vfs.WalkDir(fsys, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -174,7 +189,7 @@ func copyDir(src, dst string) error {
 				return errors.New(err)
 			}
 
-			return os.MkdirAll(target, info.Mode().Perm())
+			return fsys.MkdirAll(target, info.Mode().Perm())
 		}
 
 		// Skip symlinks and irregular files; copy only regular files.
@@ -182,7 +197,7 @@ func copyDir(src, dst string) error {
 			return nil
 		}
 
-		return copyFile(path, target)
+		return copyFile(fsys, path, target)
 	})
 }
 
@@ -190,8 +205,8 @@ func copyDir(src, dst string) error {
 // file would land on a path that already exists in dst. This makes the copy
 // step all-or-nothing for the common collision case, so a half-populated
 // working directory cannot result from a mid-walk conflict.
-func preflightCopy(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+func preflightCopy(fsys vfs.FS, src, dst string) error {
+	return vfs.WalkDir(fsys, src, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -214,9 +229,9 @@ func preflightCopy(src, dst string) error {
 		}
 
 		target := filepath.Join(dst, rel)
-		if _, err := os.Lstat(target); err == nil {
+		if _, err := fsys.Stat(target); err == nil {
 			return errors.Errorf("destination %q already exists; refusing to overwrite", target)
-		} else if !os.IsNotExist(err) {
+		} else if !stderrors.Is(err, fs.ErrNotExist) {
 			return errors.New(err)
 		}
 
@@ -227,12 +242,12 @@ func preflightCopy(src, dst string) error {
 // preflightValuesStub returns an error if WriteValuesStub would fail at the
 // stub destination for any reason other than a pre-existing values file
 // (which it intentionally leaves alone).
-func preflightValuesStub(dst string) error {
+func preflightValuesStub(fsys vfs.FS, dst string) error {
 	stub := filepath.Join(dst, valuesFileName)
 
-	info, err := os.Lstat(stub)
+	info, err := fsys.Stat(stub)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
 
@@ -248,8 +263,8 @@ func preflightValuesStub(dst string) error {
 	return errors.Errorf("destination %q is not a regular file; refusing to overwrite", stub)
 }
 
-func copyFile(src, dst string) (err error) {
-	in, err := os.Open(src)
+func copyFile(fsys vfs.FS, src, dst string) (err error) {
+	in, err := fsys.Open(src)
 	if err != nil {
 		return errors.New(err)
 	}
@@ -267,9 +282,9 @@ func copyFile(src, dst string) (err error) {
 
 	// O_EXCL ensures we refuse to overwrite existing files in the working
 	// directory, so copying a unit or stack can't silently clobber user edits.
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
+	out, err := fsys.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode().Perm())
 	if err != nil {
-		if os.IsExist(err) {
+		if stderrors.Is(err, fs.ErrExist) {
 			return errors.Errorf("destination %q already exists; refusing to overwrite", dst)
 		}
 

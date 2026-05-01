@@ -474,6 +474,23 @@ Requirements:
 - The `--no-cas` flag must not be set.
 - Sources using `update_source_with_cas` must be relative paths within the same repository.
 
+### Local catalog sources
+
+The consumer stack's `source` can be a local filesystem path in addition to a remote Git URL. Both go through the same CAS-backed rewrite pipeline:
+
+```hcl
+# live/terragrunt.stack.hcl
+stack "service" {
+  source = "../catalog//stacks/service"
+
+  path = "service"
+}
+```
+
+Terragrunt copies the referenced directory into a temporary directory, computes a content-addressed root hash over `(relative path, mode, file-content hash)` triples using SHA-256, and rewrites nested `source` attributes against that copy. The original directory is never modified, so the catalog on disk stays clean even though the rewritten `source` values need somewhere to live.
+
+This is useful when iterating on a catalog before tagging a release: the same `update_source_with_cas = true` attributes in the catalog's `terragrunt.stack.hcl` and `terragrunt.hcl` files apply unchanged, whether consumers pull the catalog over Git or point at a local checkout.
+
 </Since>
 
 ## Known Limitations of Explicit Stacks
