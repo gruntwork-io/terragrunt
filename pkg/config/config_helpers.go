@@ -1032,6 +1032,16 @@ func ParseTerragruntConfig(ctx context.Context, pctx *ParsingContext, l log.Logg
 	// Track that this file was read during parsing
 	trackFileRead(pctx.FilesRead, path)
 
+	l.Debugf("read_terragrunt_config target=%s caller=%s original=%s workingDir=%s skipOutput=%t skipOutputsResolution=%t decodedDeps=%t",
+		targetConfig,
+		pctx.TerragruntConfigPath,
+		pctx.OriginalTerragruntConfigPath,
+		pctx.WorkingDir,
+		pctx.SkipOutput,
+		pctx.SkipOutputsResolution,
+		pctx.DecodedDependencies != nil,
+	)
+
 	// We update the ctx of terragruntOptions to the config being read in.
 	l, pctx, err := pctx.WithConfigPath(l, targetConfig)
 	if err != nil {
