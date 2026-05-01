@@ -33,10 +33,10 @@ func TestConfig_FilterOutTerragruntKeys(t *testing.T) {
 		keyContainer:                     testContainer,
 		keyKey:                           testKey,
 		keyResourceGroup:                 testRG,
-		"use_azuread_auth":               true,
-		"location":                       "westeurope",
+		keyUseAzureADAuth:                true,
+		keyLocation:                      testLocation,
 		"skip_resource_group_creation":   false,
-		"skip_storage_account_creation":  true,
+		keySkipSACreation:                true,
 		"skip_container_creation":        false,
 		"skip_versioning":                true,
 		"enable_soft_delete":             true,
@@ -52,11 +52,11 @@ func TestConfig_FilterOutTerragruntKeys(t *testing.T) {
 	got := in.FilterOutTerragruntKeys()
 
 	want := azurerm.Config{
-		keyStorageAccount:  testStorageAccount,
-		keyContainer:       testContainer,
-		keyKey:             testKey,
-		keyResourceGroup:   testRG,
-		"use_azuread_auth": true,
+		keyStorageAccount: testStorageAccount,
+		keyContainer:      testContainer,
+		keyKey:            testKey,
+		keyResourceGroup:  testRG,
+		keyUseAzureADAuth: true,
 	}
 
 	assert.Equal(t, want, got)
@@ -66,20 +66,20 @@ func TestConfig_ParseExtendedAzureRMConfig(t *testing.T) {
 	t.Parallel()
 
 	in := azurerm.Config{
-		keyStorageAccount:               testStorageAccount,
-		keyContainer:                    testContainer,
-		keyKey:                          testKey,
-		keyResourceGroup:                testRG,
-		"subscription_id":               "00000000-0000-0000-0000-000000000000",
-		"tenant_id":                     "11111111-1111-1111-1111-111111111111",
-		"use_azuread_auth":              true,
-		"environment":                   "public",
-		"location":                      "westeurope",
-		"enable_soft_delete":            true,
-		"soft_delete_retention_days":    14,
-		"tags":                          map[string]string{"env": "prod"},
-		"skip_resource_group_creation":  true,
-		"skip_storage_account_creation": false,
+		keyStorageAccount:              testStorageAccount,
+		keyContainer:                   testContainer,
+		keyKey:                         testKey,
+		keyResourceGroup:               testRG,
+		"subscription_id":              "00000000-0000-0000-0000-000000000000",
+		"tenant_id":                    "11111111-1111-1111-1111-111111111111",
+		keyUseAzureADAuth:              true,
+		"environment":                  "public",
+		keyLocation:                    testLocation,
+		"enable_soft_delete":           true,
+		"soft_delete_retention_days":   14,
+		"tags":                         map[string]string{"env": "prod"},
+		"skip_resource_group_creation": true,
+		keySkipSACreation:              false,
 	}
 
 	cfg, err := in.ExtendedAzureRMConfig()
@@ -91,7 +91,7 @@ func TestConfig_ParseExtendedAzureRMConfig(t *testing.T) {
 	assert.Equal(t, testRG, cfg.RemoteStateConfigAzureRM.ResourceGroupName)
 	assert.True(t, cfg.RemoteStateConfigAzureRM.UseAzureADAuth)
 	assert.Equal(t, "public", cfg.RemoteStateConfigAzureRM.Environment)
-	assert.Equal(t, "westeurope", cfg.Location)
+	assert.Equal(t, testLocation, cfg.Location)
 	assert.True(t, cfg.EnableSoftDelete)
 	assert.Equal(t, 14, cfg.SoftDeleteRetentionDays)
 	assert.Equal(t, map[string]string{"env": "prod"}, cfg.Tags)
@@ -154,11 +154,11 @@ func TestExtendedRemoteStateConfigAzureRM_Validate(t *testing.T) {
 		{
 			name: "resource_group_optional_when_all_skips_set",
 			cfg: azurerm.Config{
-				keyStorageAccount:               testSAShort,
-				keyContainer:                    testContShort,
-				keyKey:                          testKeyShort,
-				"skip_resource_group_creation":  true,
-				"skip_storage_account_creation": true,
+				keyStorageAccount:              testSAShort,
+				keyContainer:                   testContShort,
+				keyKey:                         testKeyShort,
+				"skip_resource_group_creation": true,
+				keySkipSACreation:              true,
 			},
 		},
 	}
@@ -193,8 +193,8 @@ func TestConfig_IsEqual(t *testing.T) {
 		{
 			name: "terragrunt_keys_ignored",
 			a: azurerm.Config{
-				keyKey:     "x",
-				"location": "westeurope",
+				keyKey:      "x",
+				keyLocation: testLocation,
 			},
 			b:    azurerm.Config{keyKey: "x"},
 			want: true,
@@ -226,7 +226,7 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 		keyContainer:      testContShort,
 		keyKey:            testKeyShort,
 		keyResourceGroup:  testRG,
-		"location":        "westeurope",
+		keyLocation:       testLocation,
 		"tags":            map[string]string{"env": "prod"},
 	})
 
