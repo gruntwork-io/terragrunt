@@ -960,10 +960,10 @@ func TestDownloadWithCASEnabled(t *testing.T) {
 func TestCASStorageDirectory(t *testing.T) {
 	t.Parallel()
 
-	homeDir, err := os.UserHomeDir()
+	cacheDir, err := os.UserCacheDir()
 	require.NoError(t, err)
 
-	expectedCASDir := filepath.Join(homeDir, ".cache", "terragrunt", "cas")
+	expectedCASDir := filepath.Join(cacheDir, "terragrunt", "cas")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/download")
 	testPath := filepath.Join(tmpEnvPath, "fixtures/download/local")

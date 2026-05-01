@@ -9,6 +9,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -31,7 +32,7 @@ type Module struct {
 }
 
 // NewModule returns a module instance if the given `moduleDir` path contains an OpenTofu/Terraform module, otherwise returns nil.
-func NewModule(repo *Repo, moduleDir string) (*Module, error) {
+func NewModule(l log.Logger, repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
 		Repo:      repo,
 		cloneURL:  repo.cloneURL,
@@ -43,11 +44,11 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 		return nil, err
 	}
 
-	repo.Logger.Debugf("Found module in directory %q", moduleDir)
+	l.Debugf("Found module in directory %q", moduleDir)
 
 	module.url = repo.ModuleURL(moduleDir)
 
-	repo.Logger.Debugf("Module URL: %s", module.url)
+	l.Debugf("Module URL: %s", module.url)
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
 

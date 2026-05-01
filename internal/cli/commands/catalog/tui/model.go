@@ -119,6 +119,6 @@ func NewModel(l log.Logger, opts *options.TerragruntOptions, svc catalog.Catalog
 }
 
 // Init implements bubbletea.Model.Init
-func (m Model) Init() tea.Cmd { //nolint:gocritic
+func (m Model) Init() tea.Cmd {
 	return m.buttonBar.Init()
 }

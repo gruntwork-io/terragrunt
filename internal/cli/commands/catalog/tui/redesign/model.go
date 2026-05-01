@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui"
@@ -43,13 +44,6 @@ var (
 	availableButtons = []button{scaffoldBtn, viewSourceBtn}
 )
 
-func (b button) String() string {
-	return []string{
-		"Scaffold",
-		"View Source in Browser",
-	}[b]
-}
-
 type Model struct {
 	lists               [numTabs]list.Model
 	logger              log.Logger
@@ -58,29 +52,23 @@ type Model struct {
 	delegateKeys        *tui.DelegateKeyMap
 	buttonBar           *buttonbar.ButtonBar
 	componentCh         chan *ComponentEntry
+	mdRenderer          *glamour.TermRenderer
 	pagerKeys           tui.PagerKeyMap
 	listKeys            list.KeyMap
 	currentPagerButtons []button
+	exitMessage         string
 	viewport            viewport.Model
 	activeButton        button
 	State               sessionState
 	activeTab           tabKind
 	height              int
 	width               int
+	mdRendererWidth     int
 	ready               bool
 	loading             bool
 	userNavigated       bool
-}
-
-// List returns the currently active list — the one filtered by the active
-// tab. Exposed for tests and view code that need to inspect items.
-func (m Model) List() list.Model { //nolint:gocritic
-	return m.lists[m.activeTab]
-}
-
-// ActiveTab returns which of the All/Modules/Templates tabs is focused.
-func (m Model) ActiveTab() tabKind { //nolint:gocritic
-	return m.activeTab
+	hasDarkBG           bool
+	mdRendererDark      bool
 }
 
 // NewModelStreaming creates a Model with a single initial entry and a channel
@@ -94,79 +82,52 @@ func NewModelStreaming(l log.Logger, opts *options.TerragruntOptions, initial *C
 	return m
 }
 
-func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
-	listKeys := tui.NewListKeyMap()
-	delegateKeys := tui.NewDelegateKeyMap()
-	pagerKeys := tui.NewPagerKeyMap()
-
-	delegate := newCatalogDelegate(delegateKeys)
-
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(titleForegroundColor)).
-		Background(lipgloss.Color(titleBackgroundColor)).
-		Padding(0, 1)
-
-	var lists [numTabs]list.Model
-
-	for i := range int(numTabs) {
-		t := tabKind(i)
-
-		tabItems := filterItemsByTab(items, t)
-
-		lst := list.New(tabItems, delegate, 0, 0)
-		lst.KeyMap = listKeys
-		lst.SetFilteringEnabled(true)
-		// The visible tab strip is rendered in the view; a per-list Title
-		// is redundant, so clear it to keep the tab bar the only label.
-		lst.Title = ""
-		lst.SetShowTitle(false)
-		lst.Styles.Title = titleStyle
-		lists[i] = lst
-	}
-
-	vp := viewport.New(viewport.WithWidth(0), viewport.WithHeight(0))
-
-	bs := make([]string, len(availableButtons))
-	for i, b := range availableButtons {
-		bs[i] = b.String()
-	}
-
-	bb := buttonbar.New(bs)
-
-	return Model{
-		lists:             lists,
-		listKeys:          listKeys,
-		delegateKeys:      delegateKeys,
-		viewport:          vp,
-		buttonBar:         bb,
-		pagerKeys:         pagerKeys,
-		terragruntOptions: opts,
-		logger:            l,
-		componentCh:       componentCh,
-	}
+// NewModelWithExitMessageForTest returns a Model whose only populated field
+// is the exit message, for tests that exercise post-exit message emission.
+func NewModelWithExitMessageForTest(msg string) Model {
+	return Model{exitMessage: msg}
 }
 
-// filterItemsByTab returns the subset of items whose Kind belongs in tab t.
-// TabAll returns everything unchanged.
-func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
-	if t == TabAll {
-		return items
+// ActiveTab returns which of the All/Modules/Templates tabs is focused.
+func (m Model) ActiveTab() tabKind {
+	return m.activeTab
+}
+
+// ExitMessage returns the styled post-exit message the model set while
+// handling its final action (e.g., a successful copy that generated a
+// terragrunt.values.hcl file). The caller is responsible for printing it
+// after the tea.Program returns, once the alt screen has been torn down.
+func (m Model) ExitMessage() string {
+	return m.exitMessage
+}
+
+// Init implements bubbletea.Model.Init
+func (m Model) Init() tea.Cmd {
+	cmds := []tea.Cmd{
+		m.buttonBar.Init(),
+		// Reply arrives as tea.BackgroundColorMsg; cached so the README
+		// renderer doesn't have to issue an OSC 11 round-trip per click.
+		tea.RequestBackgroundColor,
 	}
 
-	out := make([]list.Item, 0, len(items))
-
-	for _, it := range items {
-		entry, ok := it.(*ComponentEntry)
-		if !ok {
-			continue
-		}
-
-		if t.matches(entry.Kind()) {
-			out = append(out, entry)
-		}
+	if m.componentCh != nil {
+		cmds = append(cmds, m.listenForComponent())
 	}
 
-	return out
+	return tea.Batch(cmds...)
+}
+
+// List returns the currently active list, the one filtered by the active
+// tab. Exposed for tests and view code that need to inspect items.
+func (m Model) List() list.Model {
+	return m.lists[m.activeTab]
+}
+
+func (b button) String() string {
+	return []string{
+		"Scaffold",
+		"View Source in Browser",
+	}[b]
 }
 
 // insertComponentSorted inserts a component into every tab whose filter
@@ -230,11 +191,50 @@ func (m *Model) insertIntoList(idx int, entry *ComponentEntry) tea.Cmd {
 			m.lists[idx].Select(currentIdx + 1)
 		}
 	} else {
-		// User hasn't navigated yet — keep cursor at the top.
+		// User hasn't navigated yet, so keep the cursor at the top.
 		m.lists[idx].Select(0)
 	}
 
 	return cmd
+}
+
+func (m Model) listenForComponent() tea.Cmd {
+	ch := m.componentCh
+	if ch == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		c, ok := <-ch
+		if !ok {
+			return nil
+		}
+
+		return componentMsg{entry: c}
+	}
+}
+
+// filterItemsByTab returns the subset of items whose Kind belongs in tab t.
+// TabAll returns everything unchanged.
+func filterItemsByTab(items []list.Item, t tabKind) []list.Item {
+	if t == TabAll {
+		return items
+	}
+
+	out := make([]list.Item, 0, len(items))
+
+	for _, it := range items {
+		entry, ok := it.(*ComponentEntry)
+		if !ok {
+			continue
+		}
+
+		if t.matches(entry.Kind()) {
+			out = append(out, entry)
+		}
+	}
+
+	return out
 }
 
 // isDuplicate reports whether any item in the list has the same source path
@@ -253,29 +253,57 @@ func isDuplicate(items []list.Item, sourcePath string) bool {
 	return false
 }
 
-func (m Model) listenForComponent() tea.Cmd { //nolint:gocritic
-	ch := m.componentCh
-	if ch == nil {
-		return nil
+func newModelWithItems(l log.Logger, opts *options.TerragruntOptions, items []list.Item, componentCh chan *ComponentEntry) Model {
+	listKeys := tui.NewListKeyMap()
+	delegateKeys := tui.NewDelegateKeyMap()
+	pagerKeys := tui.NewPagerKeyMap()
+
+	delegate := newCatalogDelegate(delegateKeys)
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(titleForegroundColor)).
+		Background(lipgloss.Color(titleBackgroundColor)).
+		Padding(0, 1)
+
+	var lists [numTabs]list.Model
+
+	for i := range int(numTabs) {
+		t := tabKind(i)
+
+		tabItems := filterItemsByTab(items, t)
+
+		lst := list.New(tabItems, delegate, 0, 0)
+		lst.KeyMap = listKeys
+		lst.SetFilteringEnabled(true)
+		// The visible tab strip is rendered in the view; a per-list Title
+		// is redundant, so clear it to keep the tab bar the only label.
+		lst.Title = ""
+		lst.SetShowTitle(false)
+		lst.Styles.Title = titleStyle
+		lists[i] = lst
 	}
 
-	return func() tea.Msg {
-		c, ok := <-ch
-		if !ok {
-			return nil
-		}
+	vp := viewport.New(viewport.WithWidth(0), viewport.WithHeight(0))
 
-		return componentMsg{entry: c}
-	}
-}
-
-// Init implements bubbletea.Model.Init
-func (m Model) Init() tea.Cmd { //nolint:gocritic
-	cmds := []tea.Cmd{m.buttonBar.Init()}
-
-	if m.componentCh != nil {
-		cmds = append(cmds, m.listenForComponent())
+	bs := make([]string, len(availableButtons))
+	for i, b := range availableButtons {
+		bs[i] = b.String()
 	}
 
-	return tea.Batch(cmds...)
+	bb := buttonbar.New(bs)
+
+	return Model{
+		lists:             lists,
+		listKeys:          listKeys,
+		delegateKeys:      delegateKeys,
+		viewport:          vp,
+		buttonBar:         bb,
+		pagerKeys:         pagerKeys,
+		terragruntOptions: opts,
+		logger:            l,
+		componentCh:       componentCh,
+		// Matches lipgloss.HasDarkBackground's fallback. Corrected on the
+		// first tea.BackgroundColorMsg.
+		hasDarkBG: true,
+	}
 }

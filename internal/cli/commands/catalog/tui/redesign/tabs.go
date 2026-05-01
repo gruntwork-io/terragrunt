@@ -12,8 +12,10 @@ type tabKind int
 
 const (
 	TabAll tabKind = iota
-	TabModules
 	TabTemplates
+	TabStacks
+	TabUnits
+	TabModules
 	numTabs
 )
 
@@ -24,6 +26,10 @@ func (t tabKind) String() string {
 		return "Modules"
 	case TabTemplates:
 		return "Templates"
+	case TabUnits:
+		return "Units"
+	case TabStacks:
+		return "Stacks"
 	case TabAll, numTabs:
 		return "All"
 	default:
@@ -39,6 +45,10 @@ func (t tabKind) matches(kind ComponentKind) bool {
 		return kind == ComponentKindModule
 	case TabTemplates:
 		return kind == ComponentKindTemplate
+	case TabUnits:
+		return kind == ComponentKindUnit
+	case TabStacks:
+		return kind == ComponentKindStack
 	case TabAll, numTabs:
 		return true
 	default:

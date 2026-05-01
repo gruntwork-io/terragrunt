@@ -14,6 +14,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// urlChannelBufferSize is the buffer size for the discovery URL channel. It
+// absorbs short producer bursts from the two concurrent URL discoverers
+// without blocking them on a slow consumer.
+const urlChannelBufferSize = 10
+
 // runRedesign is the entry point for the redesigned catalog experience.
 // It is invoked when the catalog-redesign experiment is enabled.
 //
@@ -27,11 +32,11 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	return redesign.RunRedesign(
-		ctx, l, opts,
+		ctx, l, opts, opts.Writers.ErrWriter,
 		func(
 			ctx context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry,
 		) error {
-			urlCh := make(chan string, 10) //nolint:mnd
+			urlCh := make(chan string, urlChannelBufferSize)
 
 			g, gctx := errgroup.WithContext(ctx)
 

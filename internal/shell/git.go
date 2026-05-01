@@ -128,8 +128,13 @@ func hasNestedGit(path, root string) (bool, error) {
 			return false, nil
 		}
 
-		if _, err := os.Stat(filepath.Join(current, ".git")); err == nil {
+		_, err := os.Stat(filepath.Join(current, ".git"))
+		if err == nil {
 			return true, nil
+		}
+
+		if !os.IsNotExist(err) {
+			return false, err
 		}
 
 		parent := filepath.Dir(current)

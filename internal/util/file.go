@@ -1112,8 +1112,8 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	return true, nil
 }
 
-// GetCacheDir returns the global terragrunt cache directory for the current user.
-func GetCacheDir() (string, error) {
+// EnsureCacheDir returns the global terragrunt cache directory for the current user.
+func EnsureCacheDir() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return "", errors.New(err)
@@ -1121,23 +1121,19 @@ func GetCacheDir() (string, error) {
 
 	cacheDir = filepath.Join(cacheDir, "terragrunt")
 
-	if !FileExists(cacheDir) {
-		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
-			return "", errors.New(err)
-		}
+	if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+		return "", errors.New(err)
 	}
 
 	return cacheDir, nil
 }
 
-// GetTempDir returns the global terragrunt temp directory.
-func GetTempDir() (string, error) {
+// EnsureTempDir returns the global terragrunt temp directory.
+func EnsureTempDir() (string, error) {
 	tempDir := filepath.Join(os.TempDir(), "terragrunt")
 
-	if !FileExists(tempDir) {
-		if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
-			return "", errors.New(err)
-		}
+	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
+		return "", errors.New(err)
 	}
 
 	return tempDir, nil
@@ -1404,12 +1400,12 @@ func WalkDirWithSymlinks(root string, externalWalkFn fs.WalkDirFunc) error {
 
 // SanitizePath resolves a file path within a base directory, returning the sanitized path or an error if it attempts
 // to access anything outside the base directory.
-func SanitizePath(baseDir string, file string) (string, error) {
+func SanitizePath(baseDir string, file string) (sanitized string, err error) {
 	if baseDir == "" || file == "" {
 		return "", errors.New("baseDir and file must be provided")
 	}
 
-	file, err := url.QueryUnescape(file)
+	file, err = url.QueryUnescape(file)
 	if err != nil {
 		return "", err
 	}
@@ -1423,16 +1419,25 @@ func SanitizePath(baseDir string, file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer root.Close() //nolint:errcheck
 
-	fileInfo, err := root.Stat(file)
-	if err != nil {
+	defer func() {
+		if cerr := root.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	if _, err := root.Stat(file); err != nil {
 		return "", err
 	}
 
-	fullPath := baseDir + string(os.PathSeparator) + fileInfo.Name()
+	// Preserve nested directories from the validated input. Using
+	// fileInfo.Name() would flatten "a/b/c.txt" to "<baseDir>/c.txt".
+	// root.Stat already rejects paths that escape baseDir, so we only need
+	// to clean the input and join it back onto baseDir.
+	cleanedRelative := filepath.Clean(file)
+	cleanedRelative = strings.TrimLeft(cleanedRelative, string(os.PathSeparator))
 
-	return fullPath, nil
+	return filepath.Join(baseDir, cleanedRelative), nil
 }
 
 // RelPathForLog returns a relative path suitable for logging.
