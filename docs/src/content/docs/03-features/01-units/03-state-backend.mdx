@@ -167,6 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental — requires the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -347,6 +348,35 @@ The following config options are only valid for the `gcs` backend and are used b
 - `gcs_bucket_labels`
 - `skip_bucket_versioning`
 - `enable_bucket_policy_only`
+
+### Azure Storage (azurerm) Backend
+
+<Aside type="caution" title="Experimental">
+Azure backend support is delivered through the [`azure-backend`](/reference/experiments/active#azure-backend) experiment.
+Until that experiment lands functional behavior, Terragrunt does not bootstrap, delete, or migrate Azure resources;
+OpenTofu/Terraform's native `azurerm` backend is used as-is.
+</Aside>
+
+Example configuration:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "myterragruntstate"
+    container_name       = "tfstate"
+    key                  = "${path_relative_to_include()}/terraform.tfstate"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "00000000-0000-0000-0000-000000000000"
+    use_azuread_auth     = true
+  }
+}
+```
+
+State locking is handled by Azure blob leases automatically; no separate lock resource (such as a DynamoDB table for S3) is required.
+
+Further configuration keys, authentication methods, and Terragrunt-side bootstrap behavior will be documented as the experiment matures.
 
 ### Disabling automatic remote state bootstrapping
 

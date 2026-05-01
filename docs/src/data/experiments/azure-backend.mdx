@@ -1,0 +1,53 @@
+---
+name: azure-backend
+status: active
+---
+
+Experimental support for the Azure Storage (`azurerm`) remote state backend.
+
+### `azure-backend` - What it does
+When enabled, Terragrunt recognizes `backend = "azurerm"` in `remote_state` blocks and
+will manage Azure Storage accounts, blob containers, and state blobs in the same way it
+already manages S3 buckets and GCS buckets. The goal is feature parity with the existing
+S3 and GCS backend experience: automatic bootstrap, delete, migrate, and direct state
+reads for [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state).
+
+In its current form (initial registration) the experiment only:
+
+- Reserves the `azure-backend` experiment name.
+- Reserves the `azurerm` backend slot in Terragrunt's remote state layer.
+
+The flag itself is currently a no-op: there is no Azure SDK code, authentication
+logic, or storage account management yet. With or without the flag, an `azurerm`
+`remote_state` block falls through to the native OpenTofu/Terraform `azurerm`
+backend. Functional behavior will land in subsequent releases.
+
+### `azure-backend` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment azure-backend run -- plan
+
+# Via environment variable
+export TG_EXPERIMENT=azure-backend
+terragrunt run -- plan
+```
+
+### `azure-backend` - How to provide feedback
+Track and discuss this experiment in [gruntwork-io/terragrunt#4307](https://github.com/gruntwork-io/terragrunt/issues/4307).
+When reporting issues or providing feedback, please include:
+
+- The Azure authentication method you are using (Azure AD, MSI, service principal, SAS, access key).
+- The cloud environment (public, government, china).
+- Any errors encountered during `init`, `plan`, or backend bootstrap.
+
+### `azure-backend` - Criteria for stabilization
+To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
+
+- [ ] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
+- [ ] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
+- [ ] Delete and migrate operations for state blobs and containers with confirmation prompts.
+- [ ] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
+- [ ] Documentation covering authentication methods, configuration keys, and troubleshooting.
+- [ ] Integration test coverage gated behind a build tag.
+- [ ] Community feedback on real-world usage.
