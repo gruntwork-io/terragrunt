@@ -257,6 +257,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 		}
 
 		if resolved != nil {
+			resolved.Kind = "unit"
 			autoIncludes[AutoIncludeKey("unit", unit.Name)] = resolved
 		}
 	}
@@ -272,6 +273,7 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 		}
 
 		if resolved != nil {
+			resolved.Kind = "stack"
 			autoIncludes[AutoIncludeKey("stack", stack.Name)] = resolved
 		}
 	}

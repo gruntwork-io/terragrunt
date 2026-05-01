@@ -14,13 +14,24 @@ import (
 )
 
 const (
-	// AutoIncludeFile is the filename for generated autoinclude files.
+	// AutoIncludeFile is the filename for generated unit-level autoinclude files.
 	AutoIncludeFile = "terragrunt.autoinclude.hcl"
+	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files; the .stack.hcl suffix mirrors terragrunt.stack.hcl so tooling can distinguish unit vs stack autoincludes (LSP, read_terragrunt_config, etc.).
+	AutoIncludeStackFile = "terragrunt.autoinclude.stack.hcl"
 	// autoIncludeFilePerm is the file permission for generated autoinclude files.
 	autoIncludeFilePerm = 0644
 	// autoIncludeDirPerm is the directory permission for generated autoinclude dirs.
 	autoIncludeDirPerm = 0755
 )
+
+// AutoIncludeFileNameForKind returns the autoinclude filename to generate for the given component kind: "unit" → terragrunt.autoinclude.hcl, "stack" → terragrunt.autoinclude.stack.hcl.
+func AutoIncludeFileNameForKind(kind string) string {
+	if kind == "stack" {
+		return AutoIncludeStackFile
+	}
+
+	return AutoIncludeFile
+}
 
 // GenerateAutoIncludeFile writes a terragrunt.autoinclude.hcl file in the
 // given directory from a resolved autoinclude.
@@ -72,7 +83,7 @@ func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir
 	// Write non-dependency content with binary per-attribute evaluation.
 	writeNonDependencyContent(outBody, body, srcBytes, evalCtx)
 
-	filePath := filepath.Join(targetDir, AutoIncludeFile)
+	filePath := filepath.Join(targetDir, AutoIncludeFileNameForKind(resolved.Kind))
 
 	if err := fs.MkdirAll(targetDir, autoIncludeDirPerm); err != nil {
 		return DirCreateError{DirPath: targetDir, Err: err}

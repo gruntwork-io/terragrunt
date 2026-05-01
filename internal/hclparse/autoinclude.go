@@ -49,7 +49,9 @@ type AutoIncludeResolved struct {
 	// RawBody is the original autoinclude HCL body, preserved so
 	// the generator can write non-dependency content (inputs, etc.)
 	// directly from the AST without evaluating dependency.* references.
-	RawBody      hcl.Body
+	RawBody hcl.Body
+	// Kind is "unit" or "stack" — drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
+	Kind         string
 	Dependencies []AutoIncludeDependency
 }
 

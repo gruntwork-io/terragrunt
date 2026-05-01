@@ -394,7 +394,7 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return nil
 	}
 
-	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFile, kindStr, cmp.name)
+	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFileNameForKind(kindStr), kindStr, cmp.name)
 
 	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
 		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
