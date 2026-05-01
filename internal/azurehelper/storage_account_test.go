@@ -252,3 +252,63 @@ func TestStorageAccount_Create_NilConfig(t *testing.T) {
 		t.Fatal("expected error for nil config")
 	}
 }
+
+func TestStorageAccount_EnableVersioning(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"isVersioningEnabled": true},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := sc.EnableVersioning(context.Background(), log.New()); err != nil {
+		t.Fatalf("EnableVersioning: %v", err)
+	}
+}
+
+func TestStorageAccount_IsVersioningEnabled(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{"isVersioningEnabled": true},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	on, err := sc.IsVersioningEnabled(context.Background())
+	if err != nil {
+		t.Fatalf("IsVersioningEnabled: %v", err)
+	}
+
+	if !on {
+		t.Errorf("IsVersioningEnabled = false, want true")
+	}
+}
+
+func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	// Out-of-range value is clamped, not rejected.
+	if err := sc.EnableSoftDelete(context.Background(), log.New(), 99999); err != nil {
+		t.Fatalf("EnableSoftDelete: %v", err)
+	}
+
+	// In-range value also accepted.
+	if err := sc.EnableSoftDelete(context.Background(), log.New(), 30); err != nil {
+		t.Fatalf("EnableSoftDelete in-range: %v", err)
+	}
+}

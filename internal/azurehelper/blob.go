@@ -1,3 +1,10 @@
+// Package azurehelper -- blob and container data-plane operations.
+//
+// BlobClient wraps azblob.Client and exposes the small data-plane surface
+// the remote-state backend needs (containers, blobs, listing, copy). It
+// also remembers an optional bound container so callers fetching state
+// files by key (e.g. PR 3's dependency-fetch path) do not have to repeat
+// the container on every call.
 package azurehelper
 
 import (
@@ -21,11 +28,17 @@ import (
 // BindContainer. Methods like GetObject and ListBlobsBound use that bound
 // container so callers (e.g. the dependency-fetch path that asks for a
 // state file by key) do not need to repeat the container on every call.
+//
+// BlobClient is not safe for concurrent use when callers invoke
+// BindContainer: the bound container is stored on the receiver. Construct
+// one client per goroutine, or call BindContainer once during setup before
+// fanning out.
 type BlobClient struct {
-	client      *azblob.Client
-	config      *AzureConfig
-	accountName string
-	container   string
+	client         *azblob.Client
+	config         *AzureConfig
+	accountName    string
+	endpointSuffix string
+	container      string
 }
 
 // NewBlobClient builds an *azblob.Client from an AzureConfig and returns it
@@ -72,7 +85,7 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 		}
 
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, clientOpts)
-	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD, AuthMethodDefault:
+	case AuthMethodServicePrincipal, AuthMethodOIDC, AuthMethodMSI, AuthMethodAzureAD:
 		if cfg.Credential == nil {
 			return nil, errors.Errorf("azure config has no credential for method %q", cfg.Method)
 		}
@@ -87,9 +100,10 @@ func NewBlobClient(_ context.Context, cfg *AzureConfig, endpointSuffix string) (
 	}
 
 	return &BlobClient{
-		client:      client,
-		accountName: cfg.AccountName,
-		config:      cfg,
+		client:         client,
+		accountName:    cfg.AccountName,
+		endpointSuffix: suffix,
+		config:         cfg,
 	}, nil
 }
 
@@ -101,8 +115,11 @@ func (c *BlobClient) AccountName() string { return c.accountName }
 // without us having to wrap every method.
 func (c *BlobClient) AzClient() *azblob.Client { return c.client }
 
-// BindContainer associates a default container with the client. Returns the
-// receiver to allow fluent chaining: NewBlobClient(...).BindContainer("state").
+// BindContainer associates a default container with the client. The bound
+// container is stored on the receiver, so callers must not invoke
+// BindContainer concurrently from multiple goroutines on the same client.
+// Returns the receiver to allow fluent chaining:
+// NewBlobClient(...).BindContainer("state").
 func (c *BlobClient) BindContainer(name string) *BlobClient {
 	c.container = name
 	return c
@@ -301,7 +318,7 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 	}
 
 	srcURL := fmt.Sprintf("https://%s.blob.%s/%s/%s",
-		c.accountName, endpointSuffixForCloud(c.config), srcContainer, srcKey)
+		c.accountName, c.endpointSuffix, srcContainer, srcKey)
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
 	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
@@ -313,10 +330,13 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud
 // configured on cfg. Defaults to the public-cloud suffix.
+//
+// azcore exposes the storage *audience* but not the endpoint *host*, so
+// this derives the suffix from the AAD authority host, which is unique
+// per sovereign cloud. NOTE: adding a new sovereign cloud (e.g. a future
+// Azure region) requires extending this switch — otherwise new clouds
+// silently fall through to the public-cloud suffix.
 func endpointSuffixForCloud(cfg *AzureConfig) string {
-	// azcore exposes the storage audience but not the endpoint host, so we
-	// derive the suffix from the AAD authority host, which is unique per
-	// sovereign cloud.
 	switch {
 	case strings.Contains(cfg.CloudConfig.ActiveDirectoryAuthorityHost, "microsoftonline.us"):
 		return "core.usgovcloudapi.net"
