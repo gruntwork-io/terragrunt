@@ -3,9 +3,9 @@
 //
 // This is a stub registration: it makes Terragrunt recognize backend = "azurerm"
 // and routes configuration through the common backend abstraction. Bootstrap,
-// delete, migrate and other lifecycle operations fall through to CommonBackend
-// defaults (no-op) and are gated behind the `azure-backend` experiment, which
-// will deliver functional behavior in subsequent PRs.
+// delete, migrate and other lifecycle operations currently fall through to
+// CommonBackend defaults (no-op). Experiment gating and functional lifecycle
+// behavior for the Azure backend will be added in follow-up PRs.
 package azurerm
 
 import (
