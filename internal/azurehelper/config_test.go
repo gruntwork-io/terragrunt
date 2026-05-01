@@ -1,3 +1,5 @@
+//go:build azure
+
 package azurehelper_test
 
 import (
@@ -10,51 +12,65 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// envForTest returns an env map containing only the keys the test wants to set,
-// shielding the resolution logic from values present in the developer's shell.
-// (We can't unset os.Getenv via this map; tests that need *exclusion* of an
-// env var must use t.Setenv with an empty string instead.)
-func envForTest(pairs ...string) map[string]string {
-	m := make(map[string]string, len(pairs)/2)
+// Common test fixtures used across azurehelper unit tests.
+const (
+	testAccount  = "acct"
+	testSub      = "sub"
+	testSASToken = "sv=x"
+)
+
+// isolatedEnv returns an env map that shields the resolver from any ARM_*
+// or AZURE_* values present in the developer's shell. Tests opt back in to
+// specific values by passing additional pairs.
+//
+// Empty values are intentional: AzureConfigBuilder.firstEnv treats "key
+// present with empty value" as "do not fall back to os.Getenv for this key".
+func isolatedEnv(pairs ...string) map[string]string {
+	m := map[string]string{
+		"ARM_SUBSCRIPTION_ID":     "",
+		"AZURE_SUBSCRIPTION_ID":   "",
+		"ARM_TENANT_ID":           "",
+		"AZURE_TENANT_ID":         "",
+		"ARM_CLIENT_ID":           "",
+		"AZURE_CLIENT_ID":         "",
+		"ARM_CLIENT_SECRET":       "",
+		"AZURE_CLIENT_SECRET":     "",
+		"ARM_SAS_TOKEN":           "",
+		"AZURE_STORAGE_SAS_TOKEN": "",
+		"ARM_ACCESS_KEY":          "",
+		"AZURE_STORAGE_KEY":       "",
+		"ARM_ENVIRONMENT":         "",
+		"AZURE_ENVIRONMENT":       "",
+		"ARM_USE_MSI":             "",
+		"ARM_USE_OIDC":            "",
+	}
+
 	for i := 0; i+1 < len(pairs); i += 2 {
 		m[pairs[i]] = pairs[i+1]
 	}
+
 	return m
 }
 
-func clearAzureEnv(t *testing.T) {
-	t.Helper()
-	for _, k := range []string{
-		"ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID",
-		"ARM_TENANT_ID", "AZURE_TENANT_ID",
-		"ARM_CLIENT_ID", "AZURE_CLIENT_ID",
-		"ARM_CLIENT_SECRET", "AZURE_CLIENT_SECRET",
-		"ARM_SAS_TOKEN", "AZURE_STORAGE_SAS_TOKEN",
-		"ARM_ACCESS_KEY", "AZURE_STORAGE_KEY",
-		"ARM_ENVIRONMENT", "AZURE_ENVIRONMENT",
-		"ARM_USE_MSI", "ARM_USE_OIDC",
-	} {
-		t.Setenv(k, "")
-	}
-}
-
 func TestBuild_AuthMethodPrecedence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
-		cfg     azurehelper.AzureSessionConfig
 		want    azurehelper.AuthMethod
+		cfg     azurehelper.AzureSessionConfig
 		hasCred bool
 	}{
 		{
 			name: "sas token wins over everything",
 			cfg: azurehelper.AzureSessionConfig{
-				StorageAccountName: "acct",
+				StorageAccountName: testAccount,
 				SasToken:           "sv=2023-01-01&sig=x",
 				AccessKey:          "ignored",
 				ClientID:           "ignored",
 				ClientSecret:       "ignored",
 				TenantID:           "ignored",
-				SubscriptionID:     "sub",
+				SubscriptionID:     testSub,
 			},
 			want:    azurehelper.AuthMethodSasToken,
 			hasCred: false,
@@ -62,7 +78,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 		{
 			name: "access key wins over service principal",
 			cfg: azurehelper.AzureSessionConfig{
-				SubscriptionID: "sub",
+				SubscriptionID: testSub,
 				AccessKey:      "key",
 				ClientID:       "cid",
 				ClientSecret:   "sec",
@@ -74,7 +90,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 		{
 			name: "service principal when all three set",
 			cfg: azurehelper.AzureSessionConfig{
-				SubscriptionID: "sub",
+				SubscriptionID: testSub,
 				ClientID:       "cid",
 				ClientSecret:   "sec",
 				TenantID:       "tid",
@@ -85,7 +101,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 		{
 			name: "msi when use_msi true",
 			cfg: azurehelper.AzureSessionConfig{
-				SubscriptionID: "sub",
+				SubscriptionID: testSub,
 				UseMSI:         true,
 			},
 			want:    azurehelper.AuthMethodMSI,
@@ -94,7 +110,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 		{
 			name: "oidc beats msi",
 			cfg: azurehelper.AzureSessionConfig{
-				SubscriptionID: "sub",
+				SubscriptionID: testSub,
 				UseOIDC:        true,
 				UseMSI:         true,
 			},
@@ -104,7 +120,7 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 		{
 			name: "azuread default fallback",
 			cfg: azurehelper.AzureSessionConfig{
-				SubscriptionID: "sub",
+				SubscriptionID: testSub,
 				UseAzureADAuth: true,
 			},
 			want:    azurehelper.AuthMethodAzureAD,
@@ -114,20 +130,24 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			clearAzureEnv(t)
+			t.Parallel()
 
 			got, err := azurehelper.NewAzureConfigBuilder().
 				WithSessionConfig(&tc.cfg).
+				WithEnv(isolatedEnv()).
 				Build(context.Background(), log.New())
 			if err != nil {
 				t.Fatalf("Build() error = %v", err)
 			}
+
 			if got.Method != tc.want {
 				t.Errorf("Method = %q, want %q", got.Method, tc.want)
 			}
+
 			if tc.hasCred && got.Credential == nil {
 				t.Errorf("expected non-nil Credential for method %q", tc.want)
 			}
+
 			if !tc.hasCred && got.Credential != nil {
 				t.Errorf("expected nil Credential for method %q", tc.want)
 			}
@@ -136,13 +156,13 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 }
 
 func TestBuild_EnvFallbacks(t *testing.T) {
-	clearAzureEnv(t)
+	t.Parallel()
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
-			StorageAccountName: "acct",
+			StorageAccountName: testAccount,
 		}).
-		WithEnv(envForTest(
+		WithEnv(isolatedEnv(
 			"ARM_SAS_TOKEN", "sv=test",
 			"ARM_SUBSCRIPTION_ID", "sub-from-env",
 		)).
@@ -150,21 +170,24 @@ func TestBuild_EnvFallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
+
 	if cfg.Method != azurehelper.AuthMethodSasToken {
 		t.Errorf("Method = %q, want sas-token", cfg.Method)
 	}
+
 	if cfg.SasToken != "sv=test" {
 		t.Errorf("SasToken = %q, want %q", cfg.SasToken, "sv=test")
 	}
 }
 
 func TestBuild_SubscriptionRequired(t *testing.T) {
-	clearAzureEnv(t)
+	t.Parallel()
 
 	_, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			UseMSI: true,
 		}).
+		WithEnv(isolatedEnv()).
 		Build(context.Background(), log.New())
 	if err == nil {
 		t.Fatal("expected error when subscription_id missing for MSI auth")
@@ -172,12 +195,13 @@ func TestBuild_SubscriptionRequired(t *testing.T) {
 }
 
 func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
-	clearAzureEnv(t)
+	t.Parallel()
 
 	_, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(&azurehelper.AzureSessionConfig{
 			SasToken: "sv=test",
 		}).
+		WithEnv(isolatedEnv()).
 		Build(context.Background(), log.New())
 	if err == nil {
 		t.Fatal("expected error when storage_account_name missing for SAS auth")
@@ -185,32 +209,37 @@ func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
 }
 
 func TestBuild_CloudEnvironmentMapping(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		env  string
 		want cloud.Configuration
+		env  string
 	}{
-		{"", cloud.AzurePublic},
-		{"public", cloud.AzurePublic},
-		{"government", cloud.AzureGovernment},
-		{"USGOVERNMENT", cloud.AzureGovernment},
-		{"china", cloud.AzureChina},
-		{"AzureChinaCloud", cloud.AzureChina},
-		{"unknown", cloud.AzurePublic},
+		{env: "", want: cloud.AzurePublic},
+		{env: "public", want: cloud.AzurePublic},
+		{env: "government", want: cloud.AzureGovernment},
+		{env: "USGOVERNMENT", want: cloud.AzureGovernment},
+		{env: "china", want: cloud.AzureChina},
+		{env: "AzureChinaCloud", want: cloud.AzureChina},
+		{env: "unknown", want: cloud.AzurePublic},
 	}
+
 	for _, tc := range tests {
 		t.Run("env="+tc.env, func(t *testing.T) {
-			clearAzureEnv(t)
+			t.Parallel()
 
 			cfg, err := azurehelper.NewAzureConfigBuilder().
 				WithSessionConfig(&azurehelper.AzureSessionConfig{
-					StorageAccountName: "acct",
-					SasToken:           "sv=x",
+					StorageAccountName: testAccount,
+					SasToken:           testSASToken,
 					CloudEnvironment:   tc.env,
 				}).
+				WithEnv(isolatedEnv()).
 				Build(context.Background(), log.New())
 			if err != nil {
 				t.Fatalf("Build() error = %v", err)
 			}
+
 			if cfg.CloudConfig.ActiveDirectoryAuthorityHost != tc.want.ActiveDirectoryAuthorityHost {
 				t.Errorf("ActiveDirectoryAuthorityHost = %q, want %q",
 					cfg.CloudConfig.ActiveDirectoryAuthorityHost, tc.want.ActiveDirectoryAuthorityHost)
@@ -220,17 +249,19 @@ func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 }
 
 func TestBuild_NilSessionConfig(t *testing.T) {
-	clearAzureEnv(t)
+	t.Parallel()
 
 	cfg, err := azurehelper.NewAzureConfigBuilder().
-		WithEnv(envForTest("ARM_SUBSCRIPTION_ID", "sub")).
+		WithEnv(isolatedEnv("ARM_SUBSCRIPTION_ID", "sub")).
 		Build(context.Background(), log.New())
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
+
 	if cfg.SubscriptionID != "sub" {
 		t.Errorf("SubscriptionID = %q, want %q", cfg.SubscriptionID, "sub")
 	}
+
 	if cfg.Method != azurehelper.AuthMethodAzureAD {
 		t.Errorf("Method = %q, want azuread", cfg.Method)
 	}
