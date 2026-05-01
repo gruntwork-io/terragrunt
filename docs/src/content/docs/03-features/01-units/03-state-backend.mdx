@@ -167,7 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
-- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental — requires the [`azure-backend`](/reference/experiments/active#azure-backend) experiment)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (experimental; see the [`azure-backend`](/reference/experiments/active#azure-backend) experiment, which currently does not change behavior)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -373,8 +373,6 @@ remote_state {
   }
 }
 ```
-
-State locking is handled by Azure blob leases automatically; no separate lock resource (such as a DynamoDB table for S3) is required.
 
 Further configuration keys, authentication methods, and Terragrunt-side bootstrap behavior will be documented as the experiment matures.
 

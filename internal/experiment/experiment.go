@@ -56,9 +56,10 @@ const (
 	// (so reading-based filter expressions detect changes to the module) and
 	// the mark_glob_as_read HCL function.
 	MarkManyAsRead = "mark-many-as-read"
-	// AzureBackend is the experiment that enables native Azure Storage (azurerm)
-	// support for Terragrunt's remote state management, including bootstrap,
-	// delete, migrate and dependency output fetching from Azure blobs.
+	// AzureBackend reserves the experiment flag for native Azure Storage (azurerm)
+	// remote state support. The backend is stubbed out for now; full Azure helper
+	// and state-management behavior (bootstrap, delete, migrate, dependency output
+	// fetching) will land in follow-up PRs.
 	AzureBackend = "azure-backend"
 )
 

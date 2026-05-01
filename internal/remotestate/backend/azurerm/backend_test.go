@@ -1,11 +1,15 @@
-package azurerm
+package azurerm_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
+)
 
 func TestBackendName(t *testing.T) {
 	t.Parallel()
 
-	if got := NewBackend().Name(); got != BackendName {
-		t.Fatalf("Name() = %q, want %q", got, BackendName)
+	if got := azurerm.NewBackend().Name(); got != azurerm.BackendName {
+		t.Fatalf("Name() = %q, want %q", got, azurerm.BackendName)
 	}
 }

@@ -1,26 +1,29 @@
 ---
 name: azure-backend
 status: active
+since: "1.0.5"
 ---
 
 Experimental support for the Azure Storage (`azurerm`) remote state backend.
 
 ### `azure-backend` - What it does
-When enabled, Terragrunt recognizes `backend = "azurerm"` in `remote_state` blocks and
-will manage Azure Storage accounts, blob containers, and state blobs in the same way it
-already manages S3 buckets and GCS buckets. The goal is feature parity with the existing
-S3 and GCS backend experience: automatic bootstrap, delete, migrate, and direct state
-reads for [`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state).
+
+Terragrunt already recognizes `backend = "azurerm"` in `remote_state` blocks regardless
+of whether this experiment is enabled, and currently falls through to the native
+OpenTofu/Terraform `azurerm` backend. This experiment reserves the flag for the
+long-term goal of having Terragrunt manage Azure Storage accounts, blob containers,
+and state blobs in the same way it already manages S3 buckets and GCS buckets:
+automatic bootstrap, delete, migrate, and direct state reads for
+[`dependency-fetch-output-from-state`](/reference/experiments/active#dependency-fetch-output-from-state).
 
 In its current form (initial registration) the experiment only:
 
 - Reserves the `azure-backend` experiment name.
 - Reserves the `azurerm` backend slot in Terragrunt's remote state layer.
 
-The flag itself is currently a no-op: there is no Azure SDK code, authentication
-logic, or storage account management yet. With or without the flag, an `azurerm`
-`remote_state` block falls through to the native OpenTofu/Terraform `azurerm`
-backend. Functional behavior will land in subsequent releases.
+The flag itself currently has no behavioral effect: there is no Azure SDK code,
+authentication logic, or storage account management yet, and the backend is not
+gated on the flag. Functional behavior will land in subsequent releases.
 
 ### `azure-backend` - How to enable it
 
