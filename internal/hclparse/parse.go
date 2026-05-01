@@ -235,14 +235,12 @@ func canEvalLocal(attr *hclsyntax.Attribute, evaluated map[string]cty.Value) boo
 	return true
 }
 
-// AutoIncludeKey returns the map key for an autoinclude entry, namespaced
-// by component kind to prevent collisions between same-name units and stacks.
-func AutoIncludeKey(kind, name string) string {
-	return kind + ":" + name
+// AutoIncludeKey returns the map key for an autoinclude entry, namespaced by component kind to prevent collisions between same-name units and stacks.
+func AutoIncludeKey(kind AutoIncludeKind, name string) string {
+	return string(kind) + ":" + name
 }
 
-// resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
-// Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions.
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file. Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions.
 func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -251,14 +249,13 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit)
 		if err != nil {
 			return nil, err
 		}
 
 		if resolved != nil {
-			resolved.Kind = "unit"
-			autoIncludes[AutoIncludeKey("unit", unit.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindUnit, unit.Name)] = resolved
 		}
 	}
 
@@ -267,22 +264,21 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext) (map
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx)
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack)
 		if err != nil {
 			return nil, err
 		}
 
 		if resolved != nil {
-			resolved.Kind = "stack"
-			autoIncludes[AutoIncludeKey("stack", stack.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindStack, stack.Name)] = resolved
 		}
 	}
 
 	return autoIncludes, nil
 }
 
-// resolveAutoInclude resolves a single autoinclude block and attaches the eval context.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (*AutoIncludeResolved, error) {
+// resolveAutoInclude resolves a single autoinclude block, attaches the eval context, and tags it with the component kind so the generator picks the right filename.
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags
@@ -290,6 +286,7 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext) (
 
 	if resolved != nil {
 		resolved.EvalCtx = evalCtx
+		resolved.Kind = kind
 	}
 
 	return resolved, nil

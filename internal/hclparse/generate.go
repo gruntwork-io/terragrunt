@@ -13,10 +13,20 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+// AutoIncludeKind identifies whether a generated autoinclude file is unit-level or stack-level; the type prevents typos in callers.
+type AutoIncludeKind string
+
+const (
+	// KindUnit selects the unit-level filename (terragrunt.autoinclude.hcl).
+	KindUnit AutoIncludeKind = "unit"
+	// KindStack selects the stack-level filename (terragrunt.autoinclude.stack.hcl).
+	KindStack AutoIncludeKind = "stack"
+)
+
 const (
 	// AutoIncludeFile is the filename for generated unit-level autoinclude files.
 	AutoIncludeFile = "terragrunt.autoinclude.hcl"
-	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files; the .stack.hcl suffix mirrors terragrunt.stack.hcl so tooling can distinguish unit vs stack autoincludes (LSP, read_terragrunt_config, etc.).
+	// AutoIncludeStackFile is the filename for generated stack-level autoinclude files; the .stack.hcl suffix mirrors terragrunt.stack.hcl so tooling (LSP, read_terragrunt_config) can distinguish unit vs stack autoincludes by name.
 	AutoIncludeStackFile = "terragrunt.autoinclude.stack.hcl"
 	// autoIncludeFilePerm is the file permission for generated autoinclude files.
 	autoIncludeFilePerm = 0644
@@ -24,13 +34,16 @@ const (
 	autoIncludeDirPerm = 0755
 )
 
-// AutoIncludeFileNameForKind returns the autoinclude filename to generate for the given component kind: "unit" → terragrunt.autoinclude.hcl, "stack" → terragrunt.autoinclude.stack.hcl.
-func AutoIncludeFileNameForKind(kind string) string {
-	if kind == "stack" {
+// AutoIncludeFileNameForKind returns the autoinclude filename to generate for the given kind. Panics on unknown kinds (programmer error) so a misspelled or missing kind cannot silently produce the wrong filename.
+func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
+	switch kind {
+	case KindUnit:
+		return AutoIncludeFile
+	case KindStack:
 		return AutoIncludeStackFile
+	default:
+		panic(fmt.Sprintf("hclparse.AutoIncludeFileNameForKind: unknown kind %q (expected %q or %q)", kind, KindUnit, KindStack))
 	}
-
-	return AutoIncludeFile
 }
 
 // GenerateAutoIncludeFile writes a terragrunt.autoinclude.hcl file in the

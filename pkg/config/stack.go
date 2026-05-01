@@ -384,20 +384,20 @@ func generateAutoInclude(l log.Logger, opts *generateOpts, cmp *componentToGener
 		return nil
 	}
 
-	kindStr := "unit"
+	kind := inthclparse.KindUnit
 	if cmp.kind == stackKind {
-		kindStr = "stack"
+		kind = inthclparse.KindStack
 	}
 
-	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kindStr, cmp.name)]
+	resolved, ok := opts.autoIncludes[inthclparse.AutoIncludeKey(kind, cmp.name)]
 	if !ok {
 		return nil
 	}
 
-	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFileNameForKind(kindStr), kindStr, cmp.name)
+	l.Infof("Generating %s for %s %s", inthclparse.AutoIncludeFileNameForKind(kind), kind, cmp.name)
 
 	if err := inthclparse.GenerateAutoIncludeFile(vfs.NewOSFS(), resolved, dest, opts.stackSrcBytes, resolved.EvalCtx); err != nil {
-		return errors.Errorf("failed to write autoinclude for %s %s: %w", kindStr, cmp.name, err)
+		return errors.Errorf("failed to write autoinclude for %s %s: %w", kind, cmp.name, err)
 	}
 
 	return nil

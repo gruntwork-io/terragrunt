@@ -50,8 +50,8 @@ type AutoIncludeResolved struct {
 	// the generator can write non-dependency content (inputs, etc.)
 	// directly from the AST without evaluating dependency.* references.
 	RawBody hcl.Body
-	// Kind is "unit" or "stack" — drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
-	Kind         string
+	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
+	Kind         AutoIncludeKind
 	Dependencies []AutoIncludeDependency
 }
 

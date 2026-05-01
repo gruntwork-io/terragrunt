@@ -758,7 +758,7 @@ stack "networking" {
 	require.True(t, ok, "stack networking should have autoinclude")
 	require.Len(t, resolved.Dependencies, 1)
 	assert.Equal(t, "vpc", resolved.Dependencies[0].Name)
-	assert.Equal(t, "stack", resolved.Kind, "Kind must be set to 'stack' so the generator picks terragrunt.autoinclude.stack.hcl")
+	assert.Equal(t, hclparse.KindStack, resolved.Kind, "Kind must be KindStack so the generator picks terragrunt.autoinclude.stack.hcl")
 }
 
 // Pins the kind-to-filename mapping: unit autoincludes write terragrunt.autoinclude.hcl, stack autoincludes write terragrunt.autoinclude.stack.hcl.
@@ -831,11 +831,19 @@ unit "app" {
 func TestAutoIncludeFileNameForKind(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind("unit"))
-	assert.Equal(t, "terragrunt.autoinclude.stack.hcl", hclparse.AutoIncludeFileNameForKind("stack"))
-	// Empty/unknown kind defaults to the unit filename.
-	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind(""))
-	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind("unknown"))
+	assert.Equal(t, "terragrunt.autoinclude.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindUnit))
+	assert.Equal(t, "terragrunt.autoinclude.stack.hcl", hclparse.AutoIncludeFileNameForKind(hclparse.KindStack))
+}
+
+func TestAutoIncludeFileNameForKind_PanicsOnUnknownKind(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "" (expected "unit" or "stack")`, func() {
+		hclparse.AutoIncludeFileNameForKind("")
+	})
+	assert.PanicsWithValue(t, `hclparse.AutoIncludeFileNameForKind: unknown kind "unknown" (expected "unit" or "stack")`, func() {
+		hclparse.AutoIncludeFileNameForKind("unknown")
+	})
 }
 
 func TestParseStackFile_DuplicateUnits(t *testing.T) {
