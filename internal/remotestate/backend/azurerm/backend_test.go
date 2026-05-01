@@ -13,10 +13,10 @@ import (
 
 func validBackendConfig() backend.Config {
 	return backend.Config{
-		"storage_account_name": testStorageAccount,
-		"container_name":       testContainer,
-		"key":                  testKey,
-		"resource_group_name":  testRG,
+		keyStorageAccount: testStorageAccount,
+		keyContainer:      testContainer,
+		keyKey:            testKey,
+		keyResourceGroup:  testRG,
 	}
 }
 
@@ -135,7 +135,7 @@ func TestBackend_GetTFInitArgsAvailableWithoutExperiment(t *testing.T) {
 
 	args := azurerm.NewBackend().GetTFInitArgs(validBackendConfig())
 
-	if got := args["storage_account_name"]; got != testStorageAccount {
+	if got := args[keyStorageAccount]; got != testStorageAccount {
 		t.Errorf("storage_account_name = %v, want %s", got, testStorageAccount)
 	}
 
