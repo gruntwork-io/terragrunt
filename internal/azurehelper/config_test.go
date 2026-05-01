@@ -266,3 +266,53 @@ func TestBuild_NilSessionConfig(t *testing.T) {
 		t.Errorf("Method = %q, want azuread", cfg.Method)
 	}
 }
+
+func TestBuildBlobClient_SasToken(t *testing.T) {
+	t.Parallel()
+
+	bc, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			SasToken:           testSASToken,
+		}).
+		WithEnv(isolatedEnv()).
+		BuildBlobClient(context.Background(), log.New())
+	if err != nil {
+		t.Fatalf("BuildBlobClient: %v", err)
+	}
+
+	if bc == nil {
+		t.Fatal("BuildBlobClient returned nil client")
+	}
+
+	if bc.AccountName() != testAccount {
+		t.Errorf("AccountName() = %q, want %q", bc.AccountName(), testAccount)
+	}
+}
+
+func TestBuildBlobClient_PropagatesBuildError(t *testing.T) {
+	t.Parallel()
+	// No StorageAccountName set anywhere → Build's validate() rejects.
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{SasToken: testSASToken}).
+		WithEnv(isolatedEnv()).
+		BuildBlobClient(context.Background(), log.New())
+	if err == nil {
+		t.Fatal("expected error when storage account name missing")
+	}
+}
+
+func TestBuildStorageAccountClient_RequiresArmFields(t *testing.T) {
+	t.Parallel()
+	// SAS-token auth has no token credential → NewStorageAccountClient errors.
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			StorageAccountName: testAccount,
+			SasToken:           testSASToken,
+		}).
+		WithEnv(isolatedEnv()).
+		BuildStorageAccountClient(context.Background(), log.New())
+	if err == nil {
+		t.Fatal("expected error when ARM-plane fields missing for storage account client")
+	}
+}
