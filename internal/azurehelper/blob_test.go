@@ -205,6 +205,80 @@ func TestNewBlobClient_ChinaCloud(t *testing.T) {
 	}
 }
 
+func TestBlobClient_BindAndGetObject(t *testing.T) {
+	t.Parallel()
+
+	c, err := azurehelper.NewBlobClient(context.Background(), &azurehelper.AzureConfig{
+		Method:        azurehelper.AuthMethodSasToken,
+		SasToken:      testSASToken,
+		AccountName:   testAccount,
+		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	}, "")
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if c.Container() != "" {
+		t.Errorf("Container() before bind = %q, want empty", c.Container())
+	}
+
+	// GetObject without bound container errors.
+	if _, err := c.GetObject(context.Background(), "k"); err == nil {
+		t.Error("GetObject without BindContainer should error")
+	}
+
+	c.BindContainer("state")
+
+	if c.Container() != "state" {
+		t.Errorf("Container() after bind = %q, want %q", c.Container(), "state")
+	}
+}
+
+func TestBlobClient_ListBlobs_RequiresContainer(t *testing.T) {
+	t.Parallel()
+
+	c, err := azurehelper.NewBlobClient(context.Background(), &azurehelper.AzureConfig{
+		Method:        azurehelper.AuthMethodSasToken,
+		SasToken:      testSASToken,
+		AccountName:   testAccount,
+		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	}, "")
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if _, err := c.ListBlobs(context.Background(), "", ""); err == nil {
+		t.Error("ListBlobs with empty container should error")
+	}
+}
+
+func TestBlobClient_CopyBlob_RequiresArgs(t *testing.T) {
+	t.Parallel()
+
+	c, err := azurehelper.NewBlobClient(context.Background(), &azurehelper.AzureConfig{
+		Method:        azurehelper.AuthMethodSasToken,
+		SasToken:      testSASToken,
+		AccountName:   testAccount,
+		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	}, "")
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	cases := [][4]string{
+		{"", "k", "dst", "k2"},
+		{"src", "", "dst", "k2"},
+		{"src", "k", "", "k2"},
+		{"src", "k", "dst", ""},
+	}
+
+	for _, tc := range cases {
+		if err := c.CopyBlob(context.Background(), tc[0], tc[1], tc[2], tc[3]); err == nil {
+			t.Errorf("CopyBlob%v should error", tc)
+		}
+	}
+}
+
 // TestBlob_LiveRoundTrip exercises BlobClient against a real Azure storage
 // account. Skipped unless TG_AZURE_TEST_STORAGE_ACCOUNT and
 // TG_AZURE_TEST_SUBSCRIPTION_ID are set. Auth uses the Azure AD default
@@ -277,6 +351,49 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 
 	if !bytes.Equal(got, payload) {
 		t.Errorf("payload mismatch: got %q want %q", got, payload)
+	}
+
+	// Exercise GetObject via bound container.
+	bc.BindContainer(container)
+
+	body2, err := bc.GetObject(ctx, key)
+	if err != nil {
+		t.Fatalf("GetObject: %v", err)
+	}
+
+	got2, _ := io.ReadAll(body2)
+	_ = body2.Close()
+
+	if !bytes.Equal(got2, payload) {
+		t.Errorf("GetObject payload mismatch: got %q want %q", got2, payload)
+	}
+
+	// Exercise ListBlobs and CopyBlob.
+	names, err := bc.ListBlobs(ctx, container, "")
+	if err != nil {
+		t.Errorf("ListBlobs: %v", err)
+	}
+
+	found := false
+
+	for _, n := range names {
+		if n == key {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("ListBlobs did not include %q; got %v", key, names)
+	}
+
+	copyKey := "roundtrip-copy.txt"
+	if err := bc.CopyBlob(ctx, container, key, container, copyKey); err != nil {
+		t.Errorf("CopyBlob: %v", err)
+	}
+
+	if err := bc.DeleteBlob(ctx, container, copyKey); err != nil {
+		t.Logf("cleanup DeleteBlob(copy): %v", err)
 	}
 
 	if err := bc.DeleteBlob(ctx, container, key); err != nil {
