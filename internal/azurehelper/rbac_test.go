@@ -4,6 +4,7 @@ package azurehelper_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -124,5 +125,51 @@ func TestRBAC_RemoveRole_RequiresArgs(t *testing.T) {
 
 	if err := c.RemoveRole(context.Background(), log.New(), "s", "p", ""); err == nil {
 		t.Error("RemoveRole with empty role should error")
+	}
+}
+
+func TestRBAC_AssignRole_RejectsNonUUIDPrincipal(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	err := c.AssignRole(context.Background(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            "/subscriptions/x",
+		PrincipalID:      "not-a-uuid",
+		RoleDefinitionID: "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+	})
+	if err == nil {
+		t.Fatal("expected error for non-UUID principal_id")
+	}
+}
+
+func TestRBAC_RemoveRole_RejectsNonUUIDPrincipal(t *testing.T) {
+	t.Parallel()
+
+	c := newTestRBACClient(t)
+
+	if err := c.RemoveRole(context.Background(), log.New(), "/subscriptions/x", "not-a-uuid", "rdid"); err == nil {
+		t.Fatal("expected error for non-UUID principal_id")
+	}
+}
+
+func TestRBAC_RemoveRole_NoMatchIsNoop(t *testing.T) {
+	t.Parallel()
+	// Empty list → no role assignments to delete.
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"value": []any{},
+	})}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	if err := c.RemoveRole(context.Background(), log.New(),
+		"/subscriptions/sub",
+		"11111111-1111-1111-1111-111111111111",
+		"ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+	); err != nil {
+		t.Errorf("RemoveRole on empty list: %v", err)
 	}
 }

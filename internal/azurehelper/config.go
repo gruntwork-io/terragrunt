@@ -81,7 +81,6 @@ const (
 	AuthMethodOIDC             AuthMethod = "oidc"
 	AuthMethodMSI              AuthMethod = "msi"
 	AuthMethodAzureAD          AuthMethod = "azuread"
-	AuthMethodDefault          AuthMethod = "default"
 )
 
 // AzureConfig holds the resolved credential and session metadata used to
@@ -251,7 +250,20 @@ func (b *AzureConfigBuilder) BuildBlobClient(ctx context.Context, l log.Logger) 
 // constructs a StorageAccountClient. Returns an error if the resolved
 // config lacks the ARM-plane fields (subscription, resource group, account
 // name, token credential) required for storage account management.
+//
+// SAS-token and access-key auth methods are rejected up-front because they
+// cannot reach the ARM control plane; the rejection happens before Build
+// emits any auth-resolution debug logs, keeping the failure mode obvious.
 func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l log.Logger) (*StorageAccountClient, error) {
+	if b.sessionConfig != nil {
+		switch {
+		case b.sessionConfig.SasToken != "":
+			return nil, errors.Errorf("storage account management requires a token credential, not a SAS token")
+		case b.sessionConfig.AccessKey != "":
+			return nil, errors.Errorf("storage account management requires a token credential, not an access key")
+		}
+	}
+
 	cfg, err := b.Build(ctx, l)
 	if err != nil {
 		return nil, err
@@ -266,6 +278,10 @@ func (b *AzureConfigBuilder) BuildStorageAccountClient(ctx context.Context, l lo
 func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	if cfg.SubscriptionID == "" {
 		cfg.SubscriptionID = b.firstEnv("ARM_SUBSCRIPTION_ID", "AZURE_SUBSCRIPTION_ID")
+	}
+
+	if cfg.ResourceGroupName == "" {
+		cfg.ResourceGroupName = b.firstEnv("ARM_RESOURCE_GROUP_NAME", "AZURE_RESOURCE_GROUP_NAME")
 	}
 
 	if cfg.TenantID == "" {
@@ -352,6 +368,15 @@ func validate(out *AzureConfig, cfg *AzureSessionConfig) error {
 	if out.Method == AuthMethodSasToken {
 		if cfg.StorageAccountName == "" {
 			return errors.Errorf("storage_account_name is required for SAS token authentication")
+		}
+
+		return nil
+	}
+
+	// Access key is data-plane only and is bound to a specific account; subscription not required.
+	if out.Method == AuthMethodAccessKey {
+		if cfg.StorageAccountName == "" {
+			return errors.Errorf("storage_account_name is required for access key authentication")
 		}
 
 		return nil

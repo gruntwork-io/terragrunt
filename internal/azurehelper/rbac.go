@@ -1,10 +1,17 @@
+// Package azurehelper -- role-assignment helpers.
+//
+// RBACClient wraps Azure's armauthorization RoleAssignmentsClient and
+// exposes the small surface needed to bootstrap data-plane access for
+// the remote-state backend (assign idempotently, list, and remove).
 package azurehelper
 
 import (
 	"context"
+	stderrors "errors"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
@@ -91,6 +98,10 @@ func (c *RBACClient) AssignRole(ctx context.Context, l log.Logger, in AssignRole
 		return errors.Errorf("scope, principal_id, and role_definition_id are required")
 	}
 
+	if _, err := uuid.Parse(in.PrincipalID); err != nil {
+		return errors.Errorf("principal_id must be a UUID, got %q", in.PrincipalID)
+	}
+
 	principalType := in.PrincipalType
 	if principalType == "" {
 		principalType = "ServicePrincipal"
@@ -131,6 +142,10 @@ func (c *RBACClient) HasRoleAssignment(ctx context.Context, scope, principalID, 
 		return false, errors.Errorf("scope, principal_id, and role_definition_id are required")
 	}
 
+	if _, err := uuid.Parse(principalID); err != nil {
+		return false, errors.Errorf("principal_id must be a UUID, got %q", principalID)
+	}
+
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
 
 	pager := c.client.NewListForScopePager(scope, &armauthorization.RoleAssignmentsClientListForScopeOptions{
@@ -166,6 +181,10 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 		return errors.Errorf("scope, principal_id, and role_definition_id are required")
 	}
 
+	if _, err := uuid.Parse(in.PrincipalID); err != nil {
+		return errors.Errorf("principal_id must be a UUID, got %q", in.PrincipalID)
+	}
+
 	has, err := c.HasRoleAssignment(ctx, in.Scope, in.PrincipalID, in.RoleDefinitionID)
 	if err != nil {
 		return err
@@ -189,6 +208,10 @@ func (c *RBACClient) AssignRoleIfMissing(ctx context.Context, l log.Logger, in A
 func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, principalID, roleDefinitionID string) error {
 	if scope == "" || principalID == "" || roleDefinitionID == "" {
 		return errors.Errorf("scope, principal_id, and role_definition_id are required")
+	}
+
+	if _, err := uuid.Parse(principalID); err != nil {
+		return errors.Errorf("principal_id must be a UUID, got %q", principalID)
 	}
 
 	roleDefSuffix := "/providers/Microsoft.Authorization/roleDefinitions/" + roleDefinitionID
@@ -237,12 +260,19 @@ func (c *RBACClient) RemoveRole(ctx context.Context, l log.Logger, scope, princi
 	return nil
 }
 
-// isAlreadyAssigned returns true for the Azure "RoleAssignmentExists" error,
-// which is a 409 with that error code.
+// isAlreadyAssigned returns true for the Azure "RoleAssignmentExists"
+// error, which is a 409 with that error code. Matches by typed error code
+// rather than substring on err.Error() so wrapping or SDK message changes
+// do not break the check.
 func isAlreadyAssigned(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Match by error code (most reliable across SDK versions).
-	return strings.Contains(err.Error(), "RoleAssignmentExists")
+
+	var respErr *azcore.ResponseError
+	if !stderrors.As(err, &respErr) {
+		return false
+	}
+
+	return strings.EqualFold(respErr.ErrorCode, "RoleAssignmentExists")
 }

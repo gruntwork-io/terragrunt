@@ -1,3 +1,8 @@
+// Package azurehelper -- resource group management.
+//
+// ResourceGroupClient wraps Azure's armresources ResourceGroupsClient and
+// exposes existence checks and the small CRUD surface the remote-state
+// bootstrap needs (create-if-missing, delete).
 package azurehelper
 
 import (
@@ -62,7 +67,9 @@ func (c *ResourceGroupClient) Exists(ctx context.Context, name string) (bool, er
 }
 
 // CreateIfNecessary creates a resource group at location if it does not
-// already exist. If location is empty, "westeurope" is used.
+// already exist. location is required when the resource group does not
+// yet exist; an empty location yields an error rather than a silent
+// geographic default, mirroring StorageAccountClient.Create.
 func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logger, name, location string) error {
 	if name == "" {
 		return errors.Errorf("resource group name is required")
@@ -79,7 +86,7 @@ func (c *ResourceGroupClient) CreateIfNecessary(ctx context.Context, l log.Logge
 	}
 
 	if location == "" {
-		location = "westeurope"
+		return errors.Errorf("location is required to create resource group %q", name)
 	}
 
 	_, err = c.client.CreateOrUpdate(ctx, name, armresources.ResourceGroup{
