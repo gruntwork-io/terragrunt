@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
@@ -15,10 +16,16 @@ import (
 // BlobClient is a thin wrapper around azblob.Client that records the storage
 // account name and the AzureConfig that produced it. Construct with
 // NewBlobClient.
+//
+// A BlobClient may optionally be bound to a default container via
+// BindContainer. Methods like GetObject and ListBlobsBound use that bound
+// container so callers (e.g. the dependency-fetch path that asks for a
+// state file by key) do not need to repeat the container on every call.
 type BlobClient struct {
 	client      *azblob.Client
 	config      *AzureConfig
 	accountName string
+	container   string
 }
 
 // NewBlobClient builds an *azblob.Client from an AzureConfig and returns it
@@ -93,6 +100,17 @@ func (c *BlobClient) AccountName() string { return c.accountName }
 // SDK-specific operations (block staging, batch APIs, etc.) can reach in
 // without us having to wrap every method.
 func (c *BlobClient) AzClient() *azblob.Client { return c.client }
+
+// BindContainer associates a default container with the client. Returns the
+// receiver to allow fluent chaining: NewBlobClient(...).BindContainer("state").
+func (c *BlobClient) BindContainer(name string) *BlobClient {
+	c.container = name
+	return c
+}
+
+// Container returns the bound container name, or empty string if no
+// container has been bound.
+func (c *BlobClient) Container() string { return c.container }
 
 // ContainerExists reports whether the named container exists in the account.
 // Returns (false, nil) for ContainerNotFound / ResourceNotFound; other errors
@@ -220,6 +238,77 @@ func (c *BlobClient) DeleteBlob(ctx context.Context, container, key string) erro
 	}
 
 	return WrapError(err, "deleting blob "+container+"/"+key)
+}
+
+// GetObject downloads a blob from the bound container by key. Convenience
+// wrapper for callers that have already bound a container via
+// BindContainer (e.g. PR 3's dependency-fetch path).
+func (c *BlobClient) GetObject(ctx context.Context, key string) (io.ReadCloser, error) {
+	if c.container == "" {
+		return nil, errors.Errorf("BlobClient has no container bound; call BindContainer first or use GetBlob")
+	}
+
+	return c.GetBlob(ctx, c.container, key)
+}
+
+// ListBlobs returns the keys of all blobs in container whose names start
+// with prefix. Pass an empty prefix to enumerate the entire container.
+// Pages through ListBlobsFlat results; the full set is materialised in
+// memory, so callers should expect O(N) memory in the number of blobs.
+func (c *BlobClient) ListBlobs(ctx context.Context, container, prefix string) ([]string, error) {
+	if container == "" {
+		return nil, errors.Errorf("container name is required")
+	}
+
+	cc := c.client.ServiceClient().NewContainerClient(container)
+
+	opts := &azblobcontainer.ListBlobsFlatOptions{}
+	if prefix != "" {
+		opts.Prefix = &prefix
+	}
+
+	pager := cc.NewListBlobsFlatPager(opts)
+
+	var out []string
+
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, WrapError(err, "listing blobs in "+container)
+		}
+
+		for _, item := range page.Segment.BlobItems {
+			if item != nil && item.Name != nil {
+				out = append(out, *item.Name)
+			}
+		}
+	}
+
+	return out, nil
+}
+
+// CopyBlob copies srcKey from srcContainer to dstKey in dstContainer using
+// the server-side StartCopyFromURL API. Both blobs must live in the same
+// storage account that this client is bound to.
+//
+// The copy is initiated synchronously (StartCopyFromURL returns once Azure
+// accepts the request) but Azure may complete the copy asynchronously for
+// large blobs; this method does not poll for completion. Callers needing
+// to block on completion should poll the destination blob's CopyStatus.
+func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
+	if srcContainer == "" || srcKey == "" || dstContainer == "" || dstKey == "" {
+		return errors.Errorf("source and destination container/key are required")
+	}
+
+	srcURL := fmt.Sprintf("https://%s.blob.%s/%s/%s",
+		c.accountName, endpointSuffixForCloud(c.config), srcContainer, srcKey)
+
+	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
+	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
+		return WrapError(err, fmt.Sprintf("copying blob %s/%s to %s/%s", srcContainer, srcKey, dstContainer, dstKey))
+	}
+
+	return nil
 }
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud
