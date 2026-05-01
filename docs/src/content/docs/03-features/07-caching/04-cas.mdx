@@ -48,6 +48,20 @@ terraform {
 }
 ```
 
+<Since version="1.0.4">
+
+`ref=` also accepts commit SHAs (full or abbreviated), not only branch and tag names.
+
+```hcl
+terraform {
+  source = "git@github.com:acme/infrastructure-modules.git//vpc?ref=a1b2c3d4e5f67890abcdef1234567890deadbeef"
+}
+```
+
+The first cold clone of a repository pinned to a commit SHA fetches the full history of every branch. Shallow fetches require a ref name, and fetching a commit SHA at limited depth depends on a server option (`uploadpack.allowAnySHA1InWant`) that is not universally enabled, so CAS fetches all branches at full depth and resolves the SHA locally. Subsequent clones reuse the cached repository and never touch the network for the same commit.
+
+</Since>
+
 ### Stack Usage
 
 <Before version="1.0.3">
@@ -207,9 +221,9 @@ When Terragrunt needs to clone a repository using the CAS it does the following,
 
 For cold clones, where the content is not already in the CAS:
 
-1. Terragrunt resolves the Git reference (branch/tag) to a commit hash
+1. Terragrunt resolves the Git reference to a commit hash. Branch and tag refs resolve via `git ls-remote`. `ls-remote` lists named refs and does not resolve commit SHAs, so for SHA refs Terragrunt fetches the full history of every branch into the central Git store and resolves the SHA locally.
 2. The tree related to the commit hash is not found in the CAS
-3. Terragrunt opens the bare repository for the remote URL under `cas/store/git/` (initializing it on first use), takes a per-URL lock, and fetches the requested ref. Subsequent misses against the same URL reuse the existing pack files and only transfer new objects.
+3. Terragrunt opens the bare repository for the remote URL under `cas/store/git/` (initializing it on first use), takes a per-URL lock, and fetches the requested ref (shallow for branch/tag refs, full history for commit SHAs). Subsequent misses against the same URL reuse the existing pack files and only transfer new objects.
 4. All blobs and trees required to reproduce the repository are extracted from the bare repository
 5. Content is stored in the CAS, partitioned by hash prefix
 6. The tree structure is read from the CAS and hard links are created to the target directory
@@ -220,7 +234,7 @@ Concurrent units that target the same remote URL share one fetch instead of clon
 
 For warm clones, where the content is already in the CAS:
 
-1. Terragrunt resolves the Git reference to a commit hash
+1. Terragrunt resolves the Git reference to a commit hash. For commit-SHA refs the local central Git store answers without contacting the remote when the SHA is already cached.
 2. CAS checks if the content exists
 3. The tree structure is read directly from the CAS
 4. Hard links are created from CAS to the target directory

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cas"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
@@ -123,4 +124,15 @@ func TestCAS_FallbackWhenGitStoreFails(t *testing.T) {
 	info, err := os.Stat(entry)
 	require.NoError(t, err)
 	assert.False(t, info.IsDir(), "fallback should not have replaced the blocking file")
+}
+
+// TestCASRejectsNonOSFilesystem pins the early OS-filesystem gate
+// in [cas.New]: a non-OS backing must fail at construction.
+func TestCASRejectsNonOSFilesystem(t *testing.T) {
+	t.Parallel()
+
+	storePath := filepath.Join(helpers.TmpDirWOSymlinks(t), "store")
+
+	_, err := cas.New(cas.WithFS(vfs.NewMemMapFS()), cas.WithStorePath(storePath))
+	require.ErrorIs(t, err, cas.ErrGitStoreFSNotOS)
 }
