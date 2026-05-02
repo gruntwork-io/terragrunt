@@ -835,7 +835,7 @@ This caching behavior can be modified using the special parameters described in 
 
 `deep_merge(map1, map2, ...)` deeply merges maps/objects. For overlapping keys, values from later arguments override earlier ones. Nested maps are merged recursively, and lists are appended. This function takes positional arguments.
 
-`deep_merge` requires the [`deep-merge`](/reference/experiments) experiment. Calling it without the experiment enabled returns an error.
+`deep_merge` requires the [`deep-merge`](/reference/experiments/active#deep-merge) experiment. Calling it without the experiment enabled returns an error.
 
 Any `null` arguments are ignored.
 
