@@ -347,11 +347,19 @@ func (b *AzureConfigBuilder) applyEnvFallbacks(cfg *AzureSessionConfig) {
 	}
 }
 
-// firstEnv returns the first non-empty value found by looking up keys in the
-// builder's env map and falling back to os.Getenv. If a key is present in the
-// builder's env map (even with an empty value), that map value is returned
-// without consulting os.Getenv — this lets tests shield resolution from the
-// developer's shell environment by passing an explicit empty value.
+// firstEnv returns the first non-empty value found while iterating keys in
+// order. For each key:
+//
+//   - If the key is present in the builder's env map with a non-empty value,
+//     that value is returned.
+//   - If the key is present in the env map with an empty value, resolution
+//     skips to the next key without consulting os.Getenv. This lets tests
+//     shield resolution from the developer's shell environment by passing an
+//     explicit empty value.
+//   - If the key is not present in the env map, os.Getenv is consulted and a
+//     non-empty result is returned.
+//
+// If no key yields a non-empty value, an empty string is returned.
 func (b *AzureConfigBuilder) firstEnv(keys ...string) string {
 	for _, k := range keys {
 		if v, ok := b.env[k]; ok {
