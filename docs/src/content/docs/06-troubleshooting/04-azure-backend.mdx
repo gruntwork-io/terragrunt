@@ -23,8 +23,8 @@ Terragrunt resolves Azure credentials in this order, first match wins:
 1. `sas_token` (data plane only)
 2. `access_key` (data plane only)
 3. Service principal (`client_id` + `client_secret` + `tenant_id`)
-4. OIDC / workload identity federation (`use_oidc = true`)
-5. Managed Service Identity (`use_msi = true`)
+4. Managed Service Identity (`use_msi = true`)
+5. OIDC / workload identity federation (`use_oidc = true`)
 6. `DefaultAzureCredential` (`use_azuread_auth = true`, or fallback)
 
 The corresponding `ARM_*` and `AZURE_*` environment variables are honoured as fallbacks for any field left empty in the `remote_state` block.
@@ -35,8 +35,8 @@ Subscription-level `Owner` does **not** grant blob data-plane access. The data-p
 
 Either:
 
-- assign the calling principal `Storage Blob Data Owner` (or `Contributor`) on the storage account or container, **or**
-- set `use_azuread_auth = true` in the `remote_state` block so Terragrunt's `bootstrap` step assigns the role for you, **or**
+- assign the calling principal `Storage Blob Data Owner` on the storage account or container (subscription-scope `Contributor` is **not** sufficient — it grants control-plane access only), **or**
+- set `use_azuread_auth = true` together with `assign_storage_blob_data_owner = true` in the `remote_state` block so Terragrunt's `bootstrap` step assigns the role for you, **or**
 - temporarily switch to access-key auth by setting `ARM_ACCESS_KEY` (or `AZURE_STORAGE_KEY`).
 
 RBAC propagation can take several minutes. Terragrunt retries data-plane calls during bootstrap, but ad-hoc `backend delete` / `migrate` runs may need a one-off retry after a fresh role assignment.

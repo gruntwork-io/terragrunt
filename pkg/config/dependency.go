@@ -701,7 +701,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) && !isAzureBlobNotFound(err) {
 			return nil, true, err
 		}
 
@@ -850,6 +850,15 @@ func isAwsS3NoSuchKey(err error) bool {
 	}
 
 	return false
+}
+
+// isAzureBlobNotFound reports whether err originated from the Azure
+// dependency-fetch fast path and represents a missing blob/container
+// (i.e. the remote state has not been written yet). The dependency
+// resolver maps this to the mock_outputs fallback, mirroring the S3
+// NoSuchKey handling above.
+func isAzureBlobNotFound(err error) bool {
+	return azurehelper.IsNotFound(err)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
@@ -1319,7 +1328,7 @@ func getTerragruntOutputJSONFromRemoteState(
 				return nil, azGetErr
 			}
 
-			l.Debugf("Retrieved output from %s as json: %s using azure blob", pctx.TerragruntConfigPath, jsonBytes)
+			l.Debugf("Retrieved output from %s using azure blob (%d bytes)", pctx.TerragruntConfigPath, len(jsonBytes))
 
 			return jsonBytes, nil
 		default:
