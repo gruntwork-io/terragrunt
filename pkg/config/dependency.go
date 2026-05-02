@@ -325,7 +325,13 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
-		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
+		// Only use the dependency's local default download dir when the caller is also on
+		// its own default (i.e., user didn't set a custom dir). This mirrors the pattern
+		// used in runnerpool and prepare for in-scope modules.
+		_, callerDefaultDownloadDir := util.DefaultWorkingAndDownloadDirs(pctx.TerragruntConfigPath)
+		if pctx.DownloadDir == callerDefaultDownloadDir {
+			depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
+		}
 
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
@@ -897,6 +903,12 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 // by directly pulling down the state file. Otherwise, terragrunt will fallback to running `terragrunt output` on the
 // target module.
 func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Logger, targetConfig string) ([]byte, error) {
+	// Compute the calling module's default download dir before switching context to the
+	// dependency. This lets us detect whether the user set a custom dir: if DownloadDir still
+	// equals the caller's default after the clone, no custom dir was set and we should use the
+	// dependency's own default. Otherwise we preserve the user-specified path.
+	_, callerDefaultDownloadDir := util.DefaultWorkingAndDownloadDirs(pctx.TerragruntConfigPath)
+
 	l, pctx, err := pctx.WithDependencyConfigPath(l, targetConfig)
 	if err != nil {
 		return nil, err
@@ -908,10 +920,12 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 	pctx.TerraformCommand = "output"
 	pctx.TerraformCliArgs = iacargs.New().SetCommand("output").AppendFlag("-json")
 
-	// DownloadDir needs to be the dependency's default download directory
-	_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
-
-	pctx.DownloadDir = downloadDir
+	// Only override DownloadDir with the dependency's local default when the caller is also
+	// on its own default (i.e., user didn't set a custom dir).
+	if pctx.DownloadDir == callerDefaultDownloadDir {
+		_, downloadDir := util.DefaultWorkingAndDownloadDirs(targetConfig)
+		pctx.DownloadDir = downloadDir
+	}
 
 	// Clear IAM if changed from original
 	if pctx.IAMRoleOptions != pctx.OriginalIAMRoleOptions {
