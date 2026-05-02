@@ -241,10 +241,13 @@ func azureBackendConfig(env azureTestEnv, res azureTestResources, extra map[stri
 	return cfg
 }
 
-// newAzureBlobClient constructs a data-plane blob client targeting the
-// reserved storage account (used by tests for direct fixture upload /
-// inspection).
-func newAzureBlobClient(t *testing.T, env azureTestEnv, res azureTestResources) *azurehelper.BlobClient {
+// fetchAzureAccessKey returns the primary access key of the reserved
+// storage account. The signed-in identity needs Microsoft.Storage/
+// storageAccounts/listKeys (granted by subscription Owner) — it does NOT
+// need any Storage Blob Data role. Used by data-plane lifecycle tests
+// (Delete, Migrate) so they can run for principals that have control
+// plane Owner but no data role.
+func fetchAzureAccessKey(t *testing.T, env azureTestEnv, res azureTestResources) string {
 	t.Helper()
 
 	ctx := context.Background()
@@ -257,6 +260,62 @@ func newAzureBlobClient(t *testing.T, env azureTestEnv, res azureTestResources) 
 			UseAzureADAuth:     true,
 		}).
 		Build(ctx, logger.CreateLogger())
+	require.NoError(t, err)
+
+	saClient, err := azurehelper.NewStorageAccountClient(azCfg)
+	require.NoError(t, err)
+
+	keys, err := saClient.GetKeys(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, keys)
+
+	return keys[0]
+}
+
+// newAzureBlobClient constructs a data-plane blob client targeting the
+// reserved storage account (used by tests for direct fixture upload /
+// inspection).
+//
+// The client authenticates with the storage account's primary access
+// key rather than the AAD identity that runs the test, because Azure
+// RBAC for blob data plane requires a Storage Blob Data Contributor /
+// Owner role on the storage account scope — subscription-level Owner
+// alone is not sufficient. Test runners (and CI) typically have control
+// plane Owner but no data role; fetching the access key via the
+// management API (which Owner can do) sidesteps this entirely.
+func newAzureBlobClient(t *testing.T, env azureTestEnv, res azureTestResources) *azurehelper.BlobClient {
+	t.Helper()
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+
+	keyCfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     env.SubscriptionID,
+			ResourceGroupName:  res.ResourceGroup,
+			StorageAccountName: res.StorageAccount,
+			Location:           env.Location,
+			UseAzureADAuth:     true,
+		}).
+		Build(ctx, l)
+	require.NoError(t, err)
+
+	saClient, err := azurehelper.NewStorageAccountClient(keyCfg)
+	require.NoError(t, err)
+
+	keys, err := saClient.GetKeys(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, keys, "storage account returned no access keys")
+
+	azCfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     env.SubscriptionID,
+			ResourceGroupName:  res.ResourceGroup,
+			StorageAccountName: res.StorageAccount,
+			Location:           env.Location,
+			AccessKey:          keys[0],
+		}).
+		Build(ctx, l)
 	require.NoError(t, err)
 
 	bc, err := azurehelper.NewBlobClient(ctx, azCfg, "")
@@ -329,9 +388,8 @@ func TestAzureBackendBootstrap(t *testing.T) {
 }
 
 // TestAzureBackendBootstrapSoftDelete confirms enable_soft_delete is
-// honoured during Bootstrap. We cannot read the property back via the
-// Backend API, so the assertion is simply that the call succeeds — the
-// path through StorageAccountClient.EnableSoftDelete must not error.
+// honoured during Bootstrap and that the configured retention lands on
+// both the blob and container delete-retention policies.
 func TestAzureBackendBootstrapSoftDelete(t *testing.T) {
 	t.Parallel()
 
@@ -341,12 +399,71 @@ func TestAzureBackendBootstrapSoftDelete(t *testing.T) {
 	ctx := context.Background()
 	l := logger.CreateLogger()
 	b := azurermbackend.NewBackend()
+
+	const retentionDays = 14
+
 	cfg := azureBackendConfig(env, res, map[string]any{
 		"enable_soft_delete":         true,
-		"soft_delete_retention_days": 7,
+		"soft_delete_retention_days": retentionDays,
 	})
 
 	require.NoError(t, b.Bootstrap(ctx, l, cfg, azureBackendOpts(t)))
+
+	// Read back the soft-delete policy via the management API to prove
+	// the configured retention actually landed on the storage account.
+	azCfg, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			SubscriptionID:     env.SubscriptionID,
+			ResourceGroupName:  res.ResourceGroup,
+			StorageAccountName: res.StorageAccount,
+			Location:           env.Location,
+			UseAzureADAuth:     true,
+		}).
+		Build(ctx, l)
+	require.NoError(t, err)
+
+	saClient, err := azurehelper.NewStorageAccountClient(azCfg)
+	require.NoError(t, err)
+
+	policy, err := saClient.GetSoftDeletePolicy(ctx)
+	require.NoError(t, err)
+	assert.True(t, policy.BlobEnabled, "blob soft-delete should be enabled")
+	assert.True(t, policy.ContainerEnabled, "container soft-delete should be enabled")
+	assert.Equal(t, int32(retentionDays), policy.BlobRetentionDays, "blob retention days should match config")
+	assert.Equal(t, int32(retentionDays), policy.ContainerRetentionDays, "container retention days should match config")
+}
+
+// TestAzureBackendBootstrapIdempotent confirms that a second Bootstrap
+// call against an already-bootstrapped account is a successful no-op:
+// the in-memory IsConfigInited cache short-circuits before any Azure
+// API call, and a fresh Backend instance (cold cache) re-detects the
+// existing resources and exits cleanly without trying to recreate them.
+func TestAzureBackendBootstrapIdempotent(t *testing.T) {
+	t.Parallel()
+
+	env := loadAzureTestEnv(t)
+	res := reserveAzureResources(t, env)
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+	b := azurermbackend.NewBackend()
+	cfg := azureBackendConfig(env, res, nil)
+	opts := azureBackendOpts(t)
+
+	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+
+	// Same Backend instance: hits the IsConfigInited cache.
+	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts), "second Bootstrap on same instance must be a no-op")
+
+	// Fresh Backend instance: cache is cold, so this exercises the
+	// real "resource already exists" branches in
+	// CreateStorageAccountIfNecessary / CreateContainerIfNecessary.
+	b2 := azurermbackend.NewBackend()
+	require.NoError(t, b2.Bootstrap(ctx, l, cfg, opts), "third Bootstrap on a fresh Backend must detect existing resources and succeed")
+
+	needs, err := b2.NeedsBootstrap(ctx, l, cfg, opts)
+	require.NoError(t, err)
+	assert.False(t, needs, "NeedsBootstrap must be false after a successful re-bootstrap on a fresh Backend")
 }
 
 // TestAzureBackendBootstrapAssignRBAC exercises the
@@ -437,9 +554,15 @@ func TestAzureBackendMigrate(t *testing.T) {
 	opts := azureBackendOpts(t)
 
 	srcCfg := azureBackendConfig(env, res, map[string]any{"key": "src/terraform.tfstate"})
-	dstCfg := azureBackendConfig(env, res, map[string]any{"key": "dst/terraform.tfstate"})
 
 	require.NoError(t, b.Bootstrap(ctx, l, srcCfg, opts))
+
+	// Backend bootstrap is done with AAD (control plane); switch the
+	// data-plane lifecycle ops to access-key auth so the test runner
+	// does not need a Storage Blob Data role on the storage account.
+	key := fetchAzureAccessKey(t, env, res)
+	srcCfg = azureBackendConfig(env, res, map[string]any{"key": "src/terraform.tfstate", "access_key": key, "use_azuread_auth": false})
+	dstCfg := azureBackendConfig(env, res, map[string]any{"key": "dst/terraform.tfstate", "access_key": key, "use_azuread_auth": false})
 
 	// Seed a fake state blob at the source key directly via the data plane.
 	bc := newAzureBlobClient(t, env, res)
@@ -500,6 +623,10 @@ func TestAzureBackendDelete(t *testing.T) {
 	cfg := azureBackendConfig(env, res, nil)
 
 	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+
+	// Switch to access-key for the data-plane Delete so the test runner
+	// does not need a Storage Blob Data role on the storage account.
+	cfg = azureBackendConfig(env, res, map[string]any{"access_key": fetchAzureAccessKey(t, env, res), "use_azuread_auth": false})
 
 	bc := newAzureBlobClient(t, env, res)
 	require.NoError(t, bc.PutBlob(ctx, res.Container, azureTestStateBlobKey, []byte("{}")))

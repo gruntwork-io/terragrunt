@@ -252,6 +252,54 @@ func (c *StorageAccountClient) IsVersioningEnabled(ctx context.Context) (bool, e
 	return v != nil && *v, nil
 }
 
+// SoftDeletePolicy describes the configured blob/container soft-delete
+// retention. Both Blob and Container fields are zero when soft-delete
+// is not enabled for that scope.
+type SoftDeletePolicy struct {
+	BlobEnabled            bool
+	ContainerEnabled       bool
+	BlobRetentionDays      int32
+	ContainerRetentionDays int32
+}
+
+// GetSoftDeletePolicy returns the storage account's current soft-delete
+// configuration for blobs and containers.
+func (c *StorageAccountClient) GetSoftDeletePolicy(ctx context.Context) (SoftDeletePolicy, error) {
+	resp, err := c.blobServices.GetServiceProperties(ctx, c.resourceGroup, c.accountName, nil)
+	if err != nil {
+		return SoftDeletePolicy{}, WrapError(err, fmt.Sprintf("get blob service properties for %q", c.accountName))
+	}
+
+	out := SoftDeletePolicy{}
+
+	props := resp.BlobServiceProperties.BlobServiceProperties
+	if props == nil {
+		return out, nil
+	}
+
+	if p := props.DeleteRetentionPolicy; p != nil {
+		if p.Enabled != nil {
+			out.BlobEnabled = *p.Enabled
+		}
+
+		if p.Days != nil {
+			out.BlobRetentionDays = *p.Days
+		}
+	}
+
+	if p := props.ContainerDeleteRetentionPolicy; p != nil {
+		if p.Enabled != nil {
+			out.ContainerEnabled = *p.Enabled
+		}
+
+		if p.Days != nil {
+			out.ContainerRetentionDays = *p.Days
+		}
+	}
+
+	return out, nil
+}
+
 // EnableSoftDelete configures container and blob soft-delete with the
 // supplied retention. retentionDays must be 1-365; values outside that
 // range are clamped to defaultSoftDeleteDays and the clamping is logged
