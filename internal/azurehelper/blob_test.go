@@ -53,6 +53,21 @@ func TestNewBlobClient_NoCredentialForTokenMethod(t *testing.T) {
 	}
 }
 
+func TestNewBlobClient_OIDCMissingTokenSource(t *testing.T) {
+	t.Parallel()
+	// A user that asks for OIDC auth but never wired a token source through
+	// the builder lands here with Method=OIDC and a nil Credential. The
+	// blob constructor must reject this rather than panic dereferencing.
+	_, err := azurehelper.NewBlobClient(context.Background(), &azurehelper.AzureConfig{
+		Method:        azurehelper.AuthMethodOIDC,
+		AccountName:   testAccount,
+		ClientOptions: azcore.ClientOptions{Cloud: cloud.AzurePublic},
+	}, "")
+	if err == nil {
+		t.Fatal("expected error when OIDC config has no credential")
+	}
+}
+
 func TestNewBlobClient_SasToken(t *testing.T) {
 	t.Parallel()
 
