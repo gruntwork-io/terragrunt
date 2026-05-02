@@ -31,6 +31,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -704,4 +705,107 @@ func TestAzureSASTokenAuthIsDataPlaneOnly(t *testing.T) {
 	err := b.Bootstrap(ctx, l, cfg, opts)
 	require.Error(t, err)
 	assert.Contains(t, strings.ToLower(err.Error()), "data-plane")
+}
+
+// TestAzureBackendBootstrapExistingAccount verifies that a Bootstrap
+// call against a storage account that already exists (created by an
+// earlier Bootstrap) succeeds without recreating the account, and
+// correctly creates a new container alongside the existing one.
+//
+// This exercises the "account exists, container does not" branch of
+// CreateContainerIfNecessary, which is the hot path for shared
+// storage accounts hosting many units' state files.
+func TestAzureBackendBootstrapExistingAccount(t *testing.T) {
+	t.Parallel()
+
+	env := loadAzureTestEnv(t)
+	res := reserveAzureResources(t, env)
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+	opts := azureBackendOpts(t)
+
+	// First Bootstrap: creates RG, storage account, and container A.
+	b := azurermbackend.NewBackend()
+	require.NoError(t, b.Bootstrap(ctx, l, azureBackendConfig(env, res, nil), opts))
+
+	// Second Bootstrap on a fresh Backend instance (cold cache) using the
+	// same storage account but a different container name. The account
+	// must be reused; only the new container should be created.
+	b2 := azurermbackend.NewBackend()
+	secondContainer := res.Container + "-b"
+	cfg2 := azureBackendConfig(env, res, map[string]any{
+		"container_name": secondContainer,
+	})
+
+	needs, err := b2.NeedsBootstrap(ctx, l, cfg2, opts)
+	require.NoError(t, err)
+	assert.True(t, needs, "new container in existing account must report needs-bootstrap")
+
+	require.NoError(t, b2.Bootstrap(ctx, l, cfg2, opts), "Bootstrap against existing storage account with new container must succeed")
+
+	needs, err = b2.NeedsBootstrap(ctx, l, cfg2, opts)
+	require.NoError(t, err)
+	assert.False(t, needs, "new container should be considered bootstrapped after second Bootstrap")
+
+	// Original container must still be intact.
+	bOrig := azurermbackend.NewBackend()
+	needs, err = bOrig.NeedsBootstrap(ctx, l, azureBackendConfig(env, res, nil), opts)
+	require.NoError(t, err)
+	assert.False(t, needs, "original container must remain bootstrapped after second Bootstrap on the same account")
+}
+
+// TestAzureParallelStateInit launches several concurrent Bootstrap
+// calls against the same (account, container) pair using a single
+// shared Backend instance. The per-bucket mutex inside the azurerm
+// backend must serialise them so only the first call performs the
+// create work and the rest detect existing resources without errors.
+//
+// This mirrors how Terragrunt drives many units in parallel from a
+// single process: one Backend instance per backend type, with the
+// bucket mutex preventing concurrent ARM writes against the same
+// (storage account, container) pair.
+//
+// Regression guard: without the bucket mutex, racing goroutines call
+// CreateStorageAccountIfNecessary concurrently, which produces
+// 409 Conflict / "operation already in progress" errors from ARM.
+func TestAzureParallelStateInit(t *testing.T) {
+	t.Parallel()
+
+	env := loadAzureTestEnv(t)
+	res := reserveAzureResources(t, env)
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+	opts := azureBackendOpts(t)
+	cfg := azureBackendConfig(env, res, nil)
+
+	const parallelism = 5
+
+	b := azurermbackend.NewBackend()
+
+	var (
+		wg   sync.WaitGroup
+		errs = make([]error, parallelism)
+	)
+
+	for i := range parallelism {
+		wg.Add(1)
+
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = b.Bootstrap(ctx, l, cfg, opts)
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i, err := range errs {
+		assert.NoErrorf(t, err, "concurrent Bootstrap #%d failed", i)
+	}
+
+	// All replicas should now agree the backend is bootstrapped.
+	needs, err := azurermbackend.NewBackend().NeedsBootstrap(ctx, l, cfg, opts)
+	require.NoError(t, err)
+	assert.False(t, needs, "after concurrent Bootstrap calls the backend must be reported as bootstrapped")
 }
