@@ -95,9 +95,15 @@ remote_state {
 
     # Terragrunt-only fields (filtered out before terraform init)
     location                            = "westeurope"
-    create_storage_account_if_not_exists = true
-    enable_versioning                   = true
     use_azuread_auth                    = true
+    # Optional bootstrap toggles (defaults shown):
+    # skip_resource_group_creation     = false
+    # skip_storage_account_creation    = false
+    # skip_container_creation          = false
+    # skip_versioning                  = false   # blob versioning is on by default
+    # enable_soft_delete               = false
+    # soft_delete_retention_days       = 0       # honoured when enable_soft_delete = true
+    # assign_storage_blob_data_owner   = false   # set true to assign Storage Blob Data Owner to the caller
   }
 }
 ```
@@ -110,10 +116,10 @@ terragrunt --experiment azure-backend backend bootstrap
 
 ensures the availability of:
 
-- A resource group named `my-rg` in the `westeurope` region (created when `create_storage_account_if_not_exists = true` and the group is missing).
-- A storage account named `mystateacct` with blob versioning and a 7-day blob soft-delete window enabled.
+- A resource group named `my-rg` in the `westeurope` region (created unless `skip_resource_group_creation = true`).
+- A storage account named `mystateacct` with blob versioning enabled (suppressed by `skip_versioning = true`). Blob and container soft-delete are off by default — set `enable_soft_delete = true` (and optionally `soft_delete_retention_days`) to turn them on.
 - A blob container named `tfstate`.
-- When `use_azuread_auth = true`, the calling principal is granted the `Storage Blob Data Owner` role on the container.
+- When `assign_storage_blob_data_owner = true`, the calling principal is granted the `Storage Blob Data Owner` role on the storage account so subsequent data-plane state IO works under AAD auth.
 
 State locking on Azure is handled by the native `azurerm` backend via blob leases — Terragrunt does not provision a separate lock resource (no Azure equivalent to S3's DynamoDB table is required).
 

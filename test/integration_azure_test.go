@@ -794,6 +794,7 @@ func TestAzureParallelStateInit(t *testing.T) {
 
 		go func(idx int) {
 			defer wg.Done()
+
 			errs[idx] = b.Bootstrap(ctx, l, cfg, opts)
 		}(i)
 	}
@@ -801,11 +802,88 @@ func TestAzureParallelStateInit(t *testing.T) {
 	wg.Wait()
 
 	for i, err := range errs {
-		assert.NoErrorf(t, err, "concurrent Bootstrap #%d failed", i)
+		require.NoErrorf(t, err, "concurrent Bootstrap #%d failed", i)
 	}
 
 	// All replicas should now agree the backend is bootstrapped.
 	needs, err := azurermbackend.NewBackend().NeedsBootstrap(ctx, l, cfg, opts)
 	require.NoError(t, err)
 	assert.False(t, needs, "after concurrent Bootstrap calls the backend must be reported as bootstrapped")
+}
+
+// TestAzureBackendBootstrapVersioningDisabled verifies that
+// skip_versioning = true suppresses the call that turns on blob
+// versioning during Bootstrap, leaving the storage account with
+// versioning off. This is the negative half of the versioning-on
+// assertion already covered by TestAzureBackendBootstrap.
+func TestAzureBackendBootstrapVersioningDisabled(t *testing.T) {
+	t.Parallel()
+
+	env := loadAzureTestEnv(t)
+	res := reserveAzureResources(t, env)
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+	b := azurermbackend.NewBackend()
+	opts := azureBackendOpts(t)
+
+	cfg := azureBackendConfig(env, res, map[string]any{
+		"skip_versioning": true,
+	})
+
+	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+
+	versioning, err := b.IsVersionControlEnabled(ctx, l, cfg, opts)
+	require.NoError(t, err)
+	assert.False(t, versioning, "Bootstrap with skip_versioning=true must leave blob versioning disabled")
+}
+
+// TestAzureBlobOperations exercises the data-plane CRUD surface of
+// azurehelper.BlobClient (PutBlob, GetBlob, ListBlobs, DeleteBlob)
+// against a real container created by Bootstrap. This is the smoke
+// test for the blob client used by every higher-level operation
+// (state read, dependency-fetch-output-from-state, migrate copy).
+func TestAzureBlobOperations(t *testing.T) {
+	t.Parallel()
+
+	env := loadAzureTestEnv(t)
+	res := reserveAzureResources(t, env)
+
+	ctx := context.Background()
+	l := logger.CreateLogger()
+	b := azurermbackend.NewBackend()
+	opts := azureBackendOpts(t)
+	cfg := azureBackendConfig(env, res, nil)
+
+	require.NoError(t, b.Bootstrap(ctx, l, cfg, opts))
+
+	blob := newAzureBlobClient(t, env, res)
+
+	const blobKey = "integration/blob-ops.bin"
+
+	payload := []byte("hello azure blob " + uuid.NewString())
+
+	// Put.
+	require.NoError(t, blob.PutBlob(ctx, res.Container, blobKey, payload))
+
+	// List should see it.
+	names, err := blob.ListBlobs(ctx, res.Container, "integration/")
+	require.NoError(t, err)
+	assert.Contains(t, names, blobKey, "ListBlobs must return the blob just put")
+
+	// Get round-trips.
+	rc, err := blob.GetBlob(ctx, res.Container, blobKey)
+	require.NoError(t, err)
+
+	got, err := io.ReadAll(rc)
+	require.NoError(t, rc.Close())
+	require.NoError(t, err)
+	assert.Equal(t, payload, got, "GetBlob must return exactly what PutBlob wrote")
+
+	// Delete is observable.
+	require.NoError(t, blob.DeleteBlob(ctx, res.Container, blobKey))
+
+	names, err = blob.ListBlobs(ctx, res.Container, "integration/")
+	require.NoError(t, err)
+	assert.NotContains(t, names, blobKey, "ListBlobs must not return the blob after DeleteBlob")
 }
