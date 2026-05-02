@@ -209,6 +209,21 @@ func TestBuild_SasTokenWithoutAccountFails(t *testing.T) {
 	}
 }
 
+func TestBuild_AccessKeyWithoutAccountFails(t *testing.T) {
+	t.Parallel()
+	// Mirror of the SAS-token case: access-key auth is data-plane only and
+	// is meaningless without a target storage account.
+	_, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(&azurehelper.AzureSessionConfig{
+			AccessKey: "a2V5", // base64("key")
+		}).
+		WithEnv(isolatedEnv()).
+		Build(context.Background(), log.New())
+	if err == nil {
+		t.Fatal("expected error when storage_account_name missing for access-key auth")
+	}
+}
+
 func TestBuild_CloudEnvironmentMapping(t *testing.T) {
 	t.Parallel()
 

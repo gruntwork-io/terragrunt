@@ -4,7 +4,9 @@ package azurehelper_test
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -171,5 +173,86 @@ func TestRBAC_RemoveRole_NoMatchIsNoop(t *testing.T) {
 		"ba92f5b4-2d11-453d-a403-e96b0029c9fe",
 	); err != nil {
 		t.Errorf("RemoveRole on empty list: %v", err)
+	}
+}
+
+// methodCountingTransport returns one body for GET and a different body
+// for PUT, while counting calls per method. Used to assert that an
+// idempotent helper short-circuits before issuing a write.
+type methodCountingTransport struct {
+	getBody []byte
+	putBody []byte
+	gets    int
+	puts    int
+}
+
+func (m *methodCountingTransport) Do(req *http.Request) (*http.Response, error) {
+	body := m.getBody
+	if req.Method == http.MethodPut {
+		m.puts++
+		body = m.putBody
+	} else {
+		m.gets++
+	}
+
+	return &http.Response{
+		Request:    req,
+		StatusCode: http.StatusOK,
+		Status:     http.StatusText(http.StatusOK),
+		Body:       io.NopCloser(strings.NewReader(string(body))),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}, nil
+}
+
+func TestRBAC_AssignRoleIfMissing_AlreadyPresentNoOp(t *testing.T) {
+	t.Parallel()
+
+	const (
+		principal = "11111111-1111-1111-1111-111111111111"
+		roleGUID  = "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+	)
+
+	scope := "/subscriptions/" + testSub
+	roleDefID := scope + "/providers/Microsoft.Authorization/roleDefinitions/" + roleGUID
+
+	tr := &methodCountingTransport{
+		getBody: jsonBody(map[string]any{
+			"value": []any{
+				map[string]any{
+					"id":   scope + "/providers/Microsoft.Authorization/roleAssignments/existing",
+					"name": "existing",
+					"properties": map[string]any{
+						"principalId":      principal,
+						"roleDefinitionId": roleDefID,
+					},
+				},
+			},
+		}),
+		// PUT body should never be consumed; provide something parseable
+		// so a regression that does call Create fails the count assertion
+		// rather than the JSON decoder.
+		putBody: jsonBody(map[string]any{}),
+	}
+
+	c, err := azurehelper.NewRBACClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	err = c.AssignRoleIfMissing(context.Background(), log.New(), azurehelper.AssignRoleInput{
+		Scope:            scope,
+		PrincipalID:      principal,
+		RoleDefinitionID: roleGUID,
+	})
+	if err != nil {
+		t.Fatalf("AssignRoleIfMissing: %v", err)
+	}
+
+	if tr.puts != 0 {
+		t.Errorf("expected 0 PUT calls (idempotent skip), got %d", tr.puts)
+	}
+
+	if tr.gets == 0 {
+		t.Error("expected at least one GET to list existing assignments")
 	}
 }
