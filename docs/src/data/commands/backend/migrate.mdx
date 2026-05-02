@@ -23,6 +23,7 @@ flags:
 ---
 
 import FileTree from '@components/vendored/starlight/FileTree.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 This command will migrate the OpenTofu/Terraform state backend from one unit to another.
 
@@ -79,5 +80,15 @@ This will migrate the backend state from the `old-unit-name` unit to the `new-un
 
 Terragrunt performs migrations in one of two ways, depending on the level of support for the backends being migrated, and the state of configuration between the two units.
 
-1. If the backend source for both the source and destination units are the same (both are S3 or GCS), Terragrunt will use the AWS/GCP SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
+1. If the backend source for both the source and destination units are the same (both are S3, GCS, or `azurerm`), Terragrunt will use the AWS/GCP/Azure SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
 2. If either backend source isn't supported by Terragrunt, or the state of configuration between the two units is different, Terragrunt will instead use the OpenTofu/Terraform CLI to move the state between the two units. This is the fallback method, and will generally be slower. Terragrunt also won't be able to delete the existing state from the source unit in this case, so you'll need to handle that yourself.
+
+## Azure Backend
+
+<Aside type="caution" title="Experimental">
+
+Migration of `azurerm` state is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Without the experiment the command returns an error.
+
+</Aside>
+
+When both source and destination units use the `azurerm` backend with the **same storage account**, Terragrunt copies the state blob server-side via the Azure Blob Storage `Copy Blob` API, then deletes the source blob. Cross-storage-account migrations are rejected up-front: re-issue the command from a unit configured against the destination account, or use `terraform state mv` directly.

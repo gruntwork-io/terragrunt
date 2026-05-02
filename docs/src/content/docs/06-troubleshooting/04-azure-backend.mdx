@@ -1,0 +1,88 @@
+---
+title: Azure Backend
+description: Troubleshoot the experimental azurerm remote-state backend in Terragrunt.
+slug: troubleshooting/azure-backend
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Experimental">
+
+The `azurerm` backend lifecycle (bootstrap, delete, migrate) is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Without `--experiment azure-backend` Terragrunt still recognises `backend = "azurerm"` for `terraform init` (`GetTFInitArgs` is not gated), but it will not create, delete, or migrate any Azure resources.
+
+</Aside>
+
+This page covers the failure modes most commonly hit while using the `azurerm` backend with Terragrunt. For end-to-end configuration, see the [Azure Storage section of the state-backend reference](/features/units/state-backend#azure-storage-azurerm-backend).
+
+## Authentication errors
+
+Terragrunt resolves Azure credentials in this order, first match wins:
+
+1. `sas_token` (data plane only)
+2. `access_key` (data plane only)
+3. Service principal (`client_id` + `client_secret` + `tenant_id`)
+4. OIDC / workload identity federation (`use_oidc = true`)
+5. Managed Service Identity (`use_msi = true`)
+6. `DefaultAzureCredential` (`use_azuread_auth = true`, or fallback)
+
+The corresponding `ARM_*` and `AZURE_*` environment variables are honoured as fallbacks for any field left empty in the `remote_state` block.
+
+### `AuthorizationPermissionMismatch` on blob operations
+
+Subscription-level `Owner` does **not** grant blob data-plane access. The data-plane is a separate RBAC surface.
+
+Either:
+
+- assign the calling principal `Storage Blob Data Owner` (or `Contributor`) on the storage account or container, **or**
+- set `use_azuread_auth = true` in the `remote_state` block so Terragrunt's `bootstrap` step assigns the role for you, **or**
+- temporarily switch to access-key auth by setting `ARM_ACCESS_KEY` (or `AZURE_STORAGE_KEY`).
+
+RBAC propagation can take several minutes. Terragrunt retries data-plane calls during bootstrap, but ad-hoc `backend delete` / `migrate` runs may need a one-off retry after a fresh role assignment.
+
+### `storage account management requires a token credential, not a SAS token`
+
+You configured `sas_token` (or `access_key`) in `remote_state`, but the operation needs the ARM control plane (e.g. creating the storage account, enabling versioning, assigning RBAC). SAS tokens and access keys are data-plane only.
+
+Provide AAD credentials (`use_azuread_auth = true`, a service principal, MSI, or OIDC) in addition to — or instead of — the SAS / access key, or run `bootstrap` once with AAD and switch back to SAS / access key for day-to-day reads.
+
+## Missing required configuration
+
+`MissingRequiredAzureRMRemoteStateConfig` errors name the missing field. The required keys are `storage_account_name`, `container_name`, `key`, and `resource_group_name`. `subscription_id` is required for any operation that touches the ARM control plane (everything except pure SAS-token / access-key blob reads).
+
+## Storage account name collisions
+
+Azure storage account names are globally unique across all of Azure. A `409 StorageAccountAlreadyTaken` from `bootstrap` means the chosen `storage_account_name` is in use somewhere else and is not available to your tenant. Pick a different name; this is not the same as "an account already exists in your subscription" (that case is the no-op idempotent path).
+
+## Cross-account migration is rejected
+
+`backend migrate` only supports moves within a single storage account. Terragrunt rejects cross-account moves up-front because the two backends are independent control planes; a cross-account migration would have to bootstrap the destination separately.
+
+Workarounds:
+
+- Run `bootstrap` against the destination unit, then `terraform state pull` / `push` manually.
+- Use `terraform state mv` from inside the destination unit's working directory.
+
+## State locking
+
+Azure uses native blob leases for state locking. Terragrunt does not provision or manage a separate lock resource (there is no DynamoDB equivalent on Azure). If you see `state blob is leased`, another Terragrunt or OpenTofu/Terraform run is holding the lease — wait for it to release, or break the lease via the Azure portal / CLI if the previous run crashed.
+
+## Soft-delete retention surprises
+
+When `bootstrap` runs against a freshly created account, Terragrunt enables blob and container soft delete with a 7-day retention window. To verify the configured policy, run:
+
+```bash
+az storage blob service-properties show \
+  --account-name "$ARM_STORAGE_ACCOUNT" \
+  --query "deleteRetentionPolicy"
+```
+
+Re-running `backend delete` against a blob that is currently soft-deleted is a no-op; the soft-deleted version still counts against your retention window.
+
+## Debugging tips
+
+- `--log-level debug` prints the resolved auth method and ARM/data-plane URLs Terragrunt is talking to.
+- Set `AZURE_HTTP_USER_AGENT=terragrunt-debug` to make the calls easy to find in Storage diagnostic logs.
+- `az account show` confirms which subscription / tenant / principal the Azure CLI (and `DefaultAzureCredential`) will pick up.
+- Run `terragrunt --experiment azure-backend backend bootstrap --log-level debug` first; downstream `init`, `plan`, and `apply` failures are usually rooted in a bootstrap step that silently failed on a missing role.

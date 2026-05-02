@@ -27,6 +27,8 @@ flags:
   - backend-delete-force
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 ## Delete State
 
 Using this command deletes the backend state file for the current Terragrunt unit.
@@ -51,3 +53,35 @@ remote_state {
 ```
 
 Running `terragrunt backend delete` will delete the backend state file located at `path/to/my/key` in the `mybucket` bucket.
+
+## Azure Backend
+
+<Aside type="caution" title="Experimental">
+
+`backend delete` for the `azurerm` backend is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Without the experiment the command returns an error rather than silently skipping, since delete is an explicit destructive action.
+
+</Aside>
+
+Given the following `remote_state` block:
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "mystateacct"
+    container_name       = "tfstate"
+    key                  = "path/to/my/key.tfstate"
+    resource_group_name  = "my-rg"
+    subscription_id      = "00000000-0000-0000-0000-000000000000"
+  }
+}
+```
+
+Running:
+
+```bash
+terragrunt --experiment azure-backend backend delete
+```
+
+deletes the state blob at `path/to/my/key.tfstate` in the `tfstate` container of the `mystateacct` storage account. The container, storage account, and resource group are left in place. Use `terragrunt backend delete --force` to bypass the confirmation prompt and the versioning safety check.

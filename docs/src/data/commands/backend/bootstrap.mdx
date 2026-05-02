@@ -70,3 +70,51 @@ The flag `--backend-bootstrap` is equivalent to explicitly running the `bootstra
 Using it in conjunction with any `run` command will result in any required bootstrapping to be performed prior to initiating the run.
 
 </Aside>
+
+## Azure Backend
+
+<Aside type="caution" title="Experimental">
+
+Bootstrap support for the `azurerm` backend is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Enable it with `--experiment azure-backend` (or `experiments = ["azure-backend"]` in the unit config). Without the experiment, `terragrunt backend bootstrap` is a no-op for `azurerm` units.
+
+</Aside>
+
+Given the following `remote_state` block:
+
+```hcl
+# terragrunt.hcl
+
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "mystateacct"
+    container_name       = "tfstate"
+    key                  = "path/to/my/key.tfstate"
+    resource_group_name  = "my-rg"
+    subscription_id      = "00000000-0000-0000-0000-000000000000"
+
+    # Terragrunt-only fields (filtered out before terraform init)
+    location                            = "westeurope"
+    create_storage_account_if_not_exists = true
+    enable_versioning                   = true
+    use_azuread_auth                    = true
+  }
+}
+```
+
+Then running:
+
+```bash
+terragrunt --experiment azure-backend backend bootstrap
+```
+
+ensures the availability of:
+
+- A resource group named `my-rg` in the `westeurope` region (created when `create_storage_account_if_not_exists = true` and the group is missing).
+- A storage account named `mystateacct` with blob versioning and a 7-day blob soft-delete window enabled.
+- A blob container named `tfstate`.
+- When `use_azuread_auth = true`, the calling principal is granted the `Storage Blob Data Owner` role on the container.
+
+State locking on Azure is handled by the native `azurerm` backend via blob leases — Terragrunt does not provision a separate lock resource (no Azure equivalent to S3's DynamoDB table is required).
+
+The `bootstrap` command is idempotent: re-running it against a fully provisioned account is a no-op.
