@@ -75,7 +75,7 @@ Using it in conjunction with any `run` command will result in any required boots
 
 <Aside type="caution" title="Experimental">
 
-Bootstrap support for the `azurerm` backend is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Enable it with `--experiment azure-backend` (or `experiments = ["azure-backend"]` in the unit config). Without the experiment, `terragrunt backend bootstrap` is a no-op for `azurerm` units.
+Bootstrap support for the `azurerm` backend is gated behind the [`azure-backend`](/reference/experiments/active#azure-backend) experiment. Enable it with `--experiment azure-backend` (or `experiments = ["azure-backend"]` in the unit config). Without the experiment, `terragrunt backend bootstrap` returns an `azure-backend experiment is not enabled` error for `azurerm` units rather than silently skipping, so missing-experiment misconfigurations fail loudly.
 
 </Aside>
 

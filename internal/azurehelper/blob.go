@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -317,8 +318,16 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 		return errors.Errorf("source and destination container/key are required")
 	}
 
-	srcURL := fmt.Sprintf("https://%s.blob.%s/%s/%s",
-		c.accountName, c.endpointSuffix, srcContainer, srcKey)
+	// Build the source URL via net/url so blob names containing
+	// characters that need percent-encoding (spaces, '#', '?',
+	// non-ASCII, etc.) produce a valid URL. The blob path is the
+	// virtual key including any '/' separators; net/url's URL.String
+	// encodes each path segment without escaping the slashes.
+	srcURL := (&url.URL{
+		Scheme: "https",
+		Host:   c.accountName + ".blob." + c.endpointSuffix,
+		Path:   "/" + srcContainer + "/" + srcKey,
+	}).String()
 
 	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
 	if _, err := dst.StartCopyFromURL(ctx, srcURL, nil); err != nil {
