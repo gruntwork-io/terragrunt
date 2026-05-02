@@ -239,3 +239,112 @@ func TestBackend_GetTFInitArgs(t *testing.T) {
 
 	assert.Equal(t, want, got)
 }
+
+// TestExtendedRemoteStateConfigAzureRM_Validate_TypedError confirms that a
+// missing required field yields the typed MissingRequiredAzureRMRemoteStateConfig
+// sentinel (not a generic error), and that the field name carried by the
+// sentinel matches the missing key. Callers may want to switch on the
+// type to provide friendlier UX, so the contract is worth locking in.
+func TestExtendedRemoteStateConfigAzureRM_Validate_TypedError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		cfg       azurerm.Config
+		name      string
+		wantField azurerm.MissingRequiredAzureRMRemoteStateConfig
+	}{
+		{
+			name: "missing_storage_account",
+			cfg: azurerm.Config{
+				keyContainer:     testContShort,
+				keyKey:           testKeyShort,
+				keyResourceGroup: testRG,
+			},
+			wantField: "storage_account_name",
+		},
+		{
+			name: "missing_container",
+			cfg: azurerm.Config{
+				keyStorageAccount: testSAShort,
+				keyKey:            testKeyShort,
+				keyResourceGroup:  testRG,
+			},
+			wantField: "container_name",
+		},
+		{
+			name: "missing_key",
+			cfg: azurerm.Config{
+				keyStorageAccount: testSAShort,
+				keyContainer:      testContShort,
+				keyResourceGroup:  testRG,
+			},
+			wantField: "key",
+		},
+		{
+			name: "missing_resource_group_when_arm_required",
+			cfg: azurerm.Config{
+				keyStorageAccount: testSAShort,
+				keyContainer:      testContShort,
+				keyKey:            testKeyShort,
+			},
+			wantField: "resource_group_name",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tc.cfg.ExtendedAzureRMConfig()
+			require.Error(t, err)
+
+			var sentinel azurerm.MissingRequiredAzureRMRemoteStateConfig
+			require.ErrorAs(t, err, &sentinel)
+			assert.Equal(t, tc.wantField, sentinel)
+		})
+	}
+}
+
+// TestConfig_ParseExtendedAzureRMConfig_RejectsBadType verifies that
+// non-coercible values for typed fields surface as a parse error rather
+// than silently zeroing the field. mapstructure.WeakDecode is used, so
+// most string<->bool/int conversions succeed; this test pins the cases
+// that should still fail.
+func TestConfig_ParseExtendedAzureRMConfig_RejectsBadType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		cfg  azurerm.Config
+		name string
+	}{
+		{
+			name: "retention_days_not_a_number",
+			cfg: azurerm.Config{
+				keyStorageAccount:            testStorageAccount,
+				keyContainer:                 testContainer,
+				keyKey:                       testKey,
+				keyResourceGroup:             testRG,
+				"soft_delete_retention_days": "not-a-number",
+			},
+		},
+		{
+			name: "tags_wrong_shape",
+			cfg: azurerm.Config{
+				keyStorageAccount: testStorageAccount,
+				keyContainer:      testContainer,
+				keyKey:            testKey,
+				keyResourceGroup:  testRG,
+				"tags":            "should-be-a-map",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tc.cfg.ParseExtendedAzureRMConfig()
+			require.Error(t, err)
+		})
+	}
+}
