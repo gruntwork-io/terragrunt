@@ -405,7 +405,7 @@ wins:
 2. `access_key` (data plane only).
 3. Service principal (`client_id` + `client_secret` + `tenant_id`).
 4. OIDC / workload identity federation (`use_oidc = true`).
-5. Managed Service Identity (`use_msi = true`, optional `msi_resource_id`).
+5. Managed Service Identity (`use_msi = true`, optional `msi_endpoint`).
 6. `DefaultAzureCredential` (`use_azuread_auth = true` or default fallback).
 
 The usual `ARM_*` / `AZURE_*` environment variables are honoured as fallbacks
@@ -438,7 +438,7 @@ to OpenTofu/Terraform:
 All other keys (`storage_account_name`, `container_name`, `key`,
 `resource_group_name`, `subscription_id`, `tenant_id`, `client_id`,
 `client_secret`, `access_key`, `sas_token`, `endpoint`, `endpoint_suffix`,
-`environment`, `msi_endpoint`, `oidc_token`, `oidc_token_path`, `snapshot`,
+`environment`, `msi_endpoint`, `oidc_token`, `oidc_token_file_path`, `snapshot`,
 `use_msi`, `use_oidc`, `use_azuread_auth`) are passed through to the
 OpenTofu/Terraform `azurerm` backend as `-backend-config` arguments.
 

@@ -98,7 +98,7 @@ func (c *Client) Close() error { return nil }
 // that manage storage accounts, resource groups, or RBAC.
 func (c *Client) requireControlPlane(op string) error {
 	if c.storageAccount == nil {
-		return fmt.Errorf("%s requires a token credential; auth method %q is data-plane only", op, c.azCfg.Method)
+		return errors.Errorf("%s requires a token credential; auth method %q is data-plane only", op, c.azCfg.Method)
 	}
 
 	return nil
