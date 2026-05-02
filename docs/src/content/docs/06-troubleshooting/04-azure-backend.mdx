@@ -70,7 +70,7 @@ Azure uses native blob leases for state locking. Terragrunt does not provision o
 
 ## Soft-delete retention surprises
 
-When `bootstrap` runs against a freshly created account, Terragrunt enables blob and container soft delete with a 7-day retention window. To verify the configured policy, run:
+Soft delete is off by default. Enable it with `enable_soft_delete = true` (and optionally `soft_delete_retention_days = N`) on the `remote_state` block, then re-run `bootstrap` so the policy is applied. To verify the configured policy, run:
 
 ```bash
 az storage blob service-properties show \
