@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -205,13 +207,13 @@ func TestWindowsConsoleSubprocessSaveRestore(t *testing.T) {
 
 	before := getMode(t, conout)
 
-	cmd := exec.Command(t.Context(), "cmd.exe", "/C", "echo hello")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd := exec.Command(t.Context(), vexec.NewOSExec(), "cmd.exe", "/C", "echo hello")
+	cmd.SetStdout(nil)
+	cmd.SetStderr(nil)
 
 	saved := exec.SaveConsoleState()
 
-	require.NoError(t, cmd.Run())
+	require.NoError(t, cmd.Run(logger.CreateLogger()))
 
 	saved.Restore()
 
