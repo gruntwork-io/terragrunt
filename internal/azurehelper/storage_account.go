@@ -61,9 +61,6 @@ type StorageAccountConfig struct {
 	// AccessTier is "Hot" or "Cool". Default: Hot.
 	AccessTier string
 
-	// EnableVersioning configures blob versioning after the account exists.
-	EnableVersioning bool
-
 	// AllowBlobPublicAccess controls whether containers may permit anonymous access.
 	AllowBlobPublicAccess bool
 }

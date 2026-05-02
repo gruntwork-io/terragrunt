@@ -175,7 +175,6 @@ func (c *Client) CreateStorageAccountIfNecessary(ctx context.Context, l log.Logg
 		ReplicationType:   c.AccountReplicationType,
 		AccessTier:        c.AccessTier,
 		Tags:              c.Tags,
-		EnableVersioning:  !c.SkipVersioning,
 	}
 
 	if err := c.storageAccount.Create(ctx, l, createCfg); err != nil {
