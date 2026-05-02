@@ -312,3 +312,29 @@ func TestStorageAccount_EnableSoftDelete_ClampsOutOfRange(t *testing.T) {
 		t.Fatalf("EnableSoftDelete in-range: %v", err)
 	}
 }
+
+func TestStorageAccount_GetSoftDeletePolicy_AbsentReturnsZero(t *testing.T) {
+	t.Parallel()
+	// Service properties body without deleteRetentionPolicy or
+	// containerDeleteRetentionPolicy fields. The helper must return a
+	// zero-valued SoftDeletePolicy and not panic on the nil pointers.
+	tr := &stubTransport{status: http.StatusOK, body: jsonBody(map[string]any{
+		"properties": map[string]any{
+			"isVersioningEnabled": false,
+		},
+	})}
+
+	sc, err := azurehelper.NewStorageAccountClient(cfgWithTransport(tr))
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	pol, err := sc.GetSoftDeletePolicy(context.Background())
+	if err != nil {
+		t.Fatalf("GetSoftDeletePolicy: %v", err)
+	}
+
+	if pol.BlobEnabled || pol.ContainerEnabled || pol.BlobRetentionDays != 0 || pol.ContainerRetentionDays != 0 {
+		t.Errorf("expected zero SoftDeletePolicy, got %+v", pol)
+	}
+}
