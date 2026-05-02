@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charlievieth/fastwalk"
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/spf13/afero"
@@ -126,6 +127,18 @@ func Symlink(fs FS, oldname, newname string) error {
 	return linker.SymlinkIfPossible(oldname, newname)
 }
 
+// Readlink reads the target of a symbolic link. It uses afero's
+// ReadlinkIfPossible which is supported by OsFs and any FS implementing
+// afero.Symlinker.
+func Readlink(fs FS, name string) (string, error) {
+	reader, ok := fs.(afero.Symlinker)
+	if !ok {
+		return "", &os.PathError{Op: "readlink", Path: name, Err: afero.ErrNoSymlink}
+	}
+
+	return reader.ReadlinkIfPossible(name)
+}
+
 // Lock acquires a blocking lock for the given name on the filesystem.
 func Lock(fs FS, name string) (Unlocker, error) {
 	locker, ok := fs.(Locker)
@@ -144,6 +157,60 @@ func TryLock(fs FS, name string) (Unlocker, bool, error) {
 	}
 
 	return locker.TryLock(name)
+}
+
+// WalkDirParallelOption configures a [WalkDirParallel] call.
+type WalkDirParallelOption func(*walkDirParallelConfig)
+
+type walkDirParallelConfig struct {
+	followSymlinks bool
+}
+
+// WithFollowSymlinks makes [WalkDirParallel] descend into directories
+// reached through symbolic links. The DirEntry passed to fn for a
+// followed symlink reports the target's type, so `d.IsDir()` is true
+// for a symlink that resolves to a directory. Infinite loops are
+// guarded by fastwalk's ancestor-cycle detection.
+//
+// Without this option, symlinked directories are visited as single
+// entries with `d.IsDir() == false`, matching stdlib [fs.WalkDir].
+func WithFollowSymlinks() WalkDirParallelOption {
+	return func(c *walkDirParallelConfig) {
+		c.followSymlinks = true
+	}
+}
+
+// WalkDirParallel walks the file tree rooted at root like [WalkDir]
+// does. On a [NewOSFS] filesystem it reads directories in parallel via
+// [fastwalk.Walk]. On any other FS, including [NewMemMapFS], it falls
+// back to the sequential [WalkDir].
+//
+// The parallel walk calls fn concurrently from multiple goroutines and
+// gives no ordering guarantee across directories. Callers that depend
+// on deterministic order, or that write to shared state from fn, must
+// use [WalkDir] or serialize access themselves.
+func WalkDirParallel(fsys FS, root string, fn fs.WalkDirFunc, opts ...WalkDirParallelOption) error {
+	if _, ok := fsys.(*osFS); !ok {
+		return WalkDir(fsys, root, fn)
+	}
+
+	var cfg walkDirParallelConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var fwCfg *fastwalk.Config
+	if cfg.followSymlinks {
+		fwCfg = &fastwalk.Config{Follow: true}
+	}
+
+	err := fastwalk.Walk(fwCfg, root, fn)
+
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
+		return nil
+	}
+
+	return err
 }
 
 // WalkDir walks the file tree rooted at root, calling fn for each file or
@@ -418,7 +485,9 @@ func (z *ZipDecompressor) Unzip(l log.Logger, fs FS, dst, src string, umask os.F
 }
 
 // extractZipFile extracts a single file from a zip archive.
-func (z *ZipDecompressor) extractZipFile(l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64) error {
+func (z *ZipDecompressor) extractZipFile(
+	l log.Logger, fs FS, dst string, zipFile *zip.File, umask os.FileMode, totalSize *int64,
+) error {
 	destPath, err := sanitizeZipPath(dst, zipFile.Name)
 	if err != nil {
 		return err
@@ -559,7 +628,7 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 		return err
 	}
 
-	entries, err := readDirEntries(fsys, path)
+	entries, err := ReadDirEntries(fsys, path)
 	if err != nil {
 		err = walkDirFn(path, d, err)
 		if err != nil {
@@ -585,9 +654,12 @@ func walkDir(fsys FS, path string, d fs.DirEntry, walkDirFn fs.WalkDirFunc) erro
 	return nil
 }
 
-// readDirEntries reads the directory named by dirname and returns
-// a sorted list of directory entries.
-func readDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
+// ReadDirEntries reads the directory named by dirname and returns a sorted
+// list of directory entries. It prefers the fs.ReadDirFile fast path when the
+// backing file supports it, and otherwise falls back to Readdir wrapped in
+// FileInfoDirEntry so backings that only expose the legacy os.File API still
+// work.
+func ReadDirEntries(fsys FS, dirname string) ([]fs.DirEntry, error) {
 	f, err := fsys.Open(dirname)
 	if err != nil {
 		return nil, err

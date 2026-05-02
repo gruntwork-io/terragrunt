@@ -133,3 +133,13 @@ type LocalsMaxIterError struct {
 func (e LocalsMaxIterError) Error() string {
 	return fmt.Sprintf("locals evaluation exceeded %d iterations with %d unresolved locals", e.MaxIterations, e.Remaining)
 }
+
+// EmptyArgError indicates that a required string argument was empty.
+type EmptyArgError struct {
+	Func string
+	Arg  string
+}
+
+func (e EmptyArgError) Error() string {
+	return fmt.Sprintf("hclparse.%s: %s is empty", e.Func, e.Arg)
+}

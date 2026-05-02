@@ -85,6 +85,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10
 	github.com/aws/smithy-go v1.24.3
+	github.com/charlievieth/fastwalk v1.0.14
 	github.com/charmbracelet/colorprofile v0.4.2
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/charmbracelet/x/term v0.2.2
@@ -94,6 +95,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mattn/go-shellwords v1.0.12
+	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/afero v1.15.0
 	github.com/testcontainers/testcontainers-go v0.41.0
 	github.com/wI2L/jsondiff v0.7.1

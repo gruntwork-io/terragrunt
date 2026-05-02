@@ -259,7 +259,7 @@ func TestLinkTree(t *testing.T) {
 			require.NoError(t, memFs.MkdirAll(targetDir, 0755))
 
 			// Link the tree
-			err = cas.LinkTree(t.Context(), store, tree, targetDir)
+			err = cas.LinkTree(t.Context(), store, store, tree, targetDir)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

@@ -72,6 +72,43 @@ func TestBuildComponentRefMap_WithChildRefs(t *testing.T) {
 	assert.Equal(t, "/project/.terragrunt-stack/networking/.terragrunt-stack/subnets", subnetsVal.GetAttr("path").AsString())
 }
 
+func TestBuildComponentRefMap_MultiLevelChildRefs(t *testing.T) {
+	t.Parallel()
+
+	// 3 levels: infra -> deep -> db (stack.infra.deep.db.path)
+	refs := []hclparse.ComponentRef{
+		{
+			Name: "infra",
+			Path: "/gen/infra",
+			ChildRefs: []hclparse.ComponentRef{
+				{Name: "vpc", Path: "/gen/infra/.terragrunt-stack/vpc"},
+				{
+					Name: "deep",
+					Path: "/gen/infra/.terragrunt-stack/deep",
+					ChildRefs: []hclparse.ComponentRef{
+						{Name: "db", Path: "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db"},
+					},
+				},
+			},
+		},
+	}
+
+	result := hclparse.BuildComponentRefMap(refs)
+
+	// Level 1: infra
+	infraVal := result.GetAttr("infra")
+	assert.Equal(t, "/gen/infra", infraVal.GetAttr("path").AsString())
+
+	// Level 2: infra.deep
+	deepVal := infraVal.GetAttr("deep")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep", deepVal.GetAttr("path").AsString())
+
+	// Level 3: infra.deep.db
+	dbVal := deepVal.GetAttr("db")
+	assert.Equal(t, "/gen/infra/.terragrunt-stack/deep/.terragrunt-stack/db", dbVal.GetAttr("path").AsString())
+	assert.Equal(t, "db", dbVal.GetAttr("name").AsString())
+}
+
 func TestExtractUnitRefs(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +273,8 @@ unit "db" {
 }
 `), 0644))
 
-	paths := hclparse.UnitPathsFromStackDir(fs, "/test")
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
 	require.Len(t, paths, 2)
 	assert.Contains(t, paths[0], ".terragrunt-stack")
 	assert.Contains(t, paths[1], ".terragrunt-stack")
@@ -248,7 +286,9 @@ func TestUnitPathsFromStackDir_NotAStack(t *testing.T) {
 	fs := vfs.NewMemMapFS()
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/test"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
@@ -256,7 +296,9 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 
 	fs := vfs.NewMemMapFS()
 
-	assert.Nil(t, hclparse.UnitPathsFromStackDir(fs, "/nonexistent"))
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/nonexistent")
+	require.NoError(t, err)
+	assert.Nil(t, paths)
 }
 
 func TestParseStackFileFromPath(t *testing.T) {
@@ -285,6 +327,23 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 	require.NoError(t, fs.MkdirAll("/test", 0755))
 
 	result, err := hclparse.ParseStackFileFromPath(fs, "/test")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// TestParseStackFileFromPath_StackDirIsFile asserts that when stackDir
+// resolves to a regular file (e.g. discovery passes a non-default-named
+// terragrunt config like "another-name.hcl"), we treat it the same as a
+// missing stack file rather than surfacing the ENOTDIR open error. Uses
+// OSFS because in-memory FS implementations may not propagate ENOTDIR.
+func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "another-name.hcl")
+	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
+
+	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -334,7 +393,8 @@ unit "vpc" {
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
 	// UnitPathsFromStackDir via symlink should return paths based on resolved real dir
-	paths := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
+	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	// Path should be based on the REAL directory, not the symlink
 	assert.Contains(t, paths[0], "real-stack")

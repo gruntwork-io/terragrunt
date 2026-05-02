@@ -707,7 +707,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureProviderCacheDirect)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureProviderCacheDirect)
 
-	cacheDir, err := util.GetCacheDir()
+	cacheDir, err := util.EnsureCacheDir()
 	require.NoError(t, err)
 
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")

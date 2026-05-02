@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/report"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -722,7 +723,7 @@ func TestFilterFlagWithFindGitFilter(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -891,7 +892,7 @@ func TestFilterFlagWithFindGitFilterRelativeInclude(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1035,7 +1036,7 @@ func TestFilterFlagWithRunAllGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1221,7 +1222,7 @@ func TestFilterFlagWithRunAllGitFilterRemovedUnitDestroyFlag(t *testing.T) {
 
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -1383,7 +1384,7 @@ func TestFilterFlagWithRunAllGitFilterLocalStateWarning(t *testing.T) {
 			tmpDir, err := filepath.EvalSymlinks(tmpDir)
 			require.NoError(t, err)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -1516,7 +1517,7 @@ func TestFilterFlagWithExplicitStacksGitFilter(t *testing.T) {
 
 			tmpDir := helpers.TmpDirWOSymlinks(t)
 
-			runner, err := git.NewGitRunner()
+			runner, err := git.NewGitRunner(vexec.NewOSExec())
 			require.NoError(t, err)
 
 			runner = runner.WithWorkDir(tmpDir)
@@ -2230,7 +2231,7 @@ func TestOutDirWithGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)
@@ -2345,7 +2346,7 @@ func TestDestroyWithOutDirGitFilter(t *testing.T) {
 	tmpDir := helpers.TmpDirWOSymlinks(t)
 	outDir := helpers.TmpDirWOSymlinks(t)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpDir)

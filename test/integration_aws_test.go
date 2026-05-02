@@ -30,6 +30,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/git"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -1351,7 +1352,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	// fill in branch so we can test against updates to the test case file
 	mainContents, err := util.ReadFileAsString(mainTFFile)
 	require.NoError(t, err)
-	gitRunner, err := git.NewGitRunner()
+	gitRunner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 	branchName := gitRunner.WithWorkDir(modulePath).GetCurrentBranch(t.Context())
 	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
@@ -1788,7 +1789,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 
 	tmpEnvPath := helpers.TmpDirWOSymlinks(t)
 	for i := range 20 {
-		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
+		err := util.CopyFolderContents(logger.CreateLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test")
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),

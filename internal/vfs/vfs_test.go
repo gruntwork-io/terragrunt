@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
@@ -707,7 +708,9 @@ func TestUnzipSymlinkEscape(t *testing.T) {
 		dstPath := filepath.Join(tempDir, "dst")
 
 		// Create symlink pointing outside destination with ..
-		zipData := createZipArchiveWithSymlink(t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd")
+		zipData := createZipArchiveWithSymlink(
+			t, "target.txt", []byte("target content"), "evil_link.txt", "../../../etc/passwd",
+		)
 		require.NoError(t, vfs.WriteFile(fs, zipPath, zipData, 0644))
 
 		err := vfs.NewZipDecompressor().Unzip(l, fs, dstPath, zipPath, 0)
@@ -907,6 +910,81 @@ func TestWalkDir_OSFS(t *testing.T) {
 	assert.Equal(t, []string{".", "a.txt", "sub", filepath.Join("sub", "b.txt")}, paths)
 }
 
+func TestReadDirEntries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns sorted entries from MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/charlie.txt", []byte("c"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/alpha.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/bravo.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(fsys, "/dir/sub/nested.txt", []byte("n"), 0644))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/dir")
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"alpha.txt", "bravo.txt", "charlie.txt", "sub"}, names)
+
+		var subEntry fs.DirEntry
+
+		for _, e := range entries {
+			if e.Name() == "sub" {
+				subEntry = e
+				break
+			}
+		}
+
+		require.NotNil(t, subEntry)
+		assert.True(t, subEntry.IsDir())
+	})
+
+	t.Run("returns sorted entries from OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "z.txt"), []byte("z"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0644))
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "m"), 0755))
+
+		entries, err := vfs.ReadDirEntries(vfs.NewOSFS(), dir)
+		require.NoError(t, err)
+
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+
+		assert.Equal(t, []string{"a.txt", "m", "z.txt"}, names)
+	})
+
+	t.Run("returns empty slice for empty directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+		require.NoError(t, fsys.Mkdir("/empty", 0755))
+
+		entries, err := vfs.ReadDirEntries(fsys, "/empty")
+		require.NoError(t, err)
+		assert.Empty(t, entries)
+	})
+
+	t.Run("returns error for missing directory", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := vfs.NewMemMapFS()
+
+		_, err := vfs.ReadDirEntries(fsys, "/does-not-exist")
+		require.Error(t, err)
+	})
+}
+
 func TestLock(t *testing.T) {
 	t.Parallel()
 
@@ -1059,7 +1137,9 @@ func createZipArchiveWithMode(t *testing.T, name string, content []byte, mode os
 }
 
 // createZipArchiveWithSymlink creates a zip archive with a regular file and a symlink to it.
-func createZipArchiveWithSymlink(t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string) []byte {
+func createZipArchiveWithSymlink(
+	t *testing.T, targetName string, targetContent []byte, linkName, linkTarget string,
+) []byte {
 	t.Helper()
 
 	var buf bytes.Buffer
@@ -1132,4 +1212,106 @@ func createZipArchiveWithNestedSymlink(t *testing.T) []byte {
 	require.NoError(t, w.Close())
 
 	return buf.Bytes()
+}
+
+func TestWalkDirParallel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("degrades to sequential WalkDir on MemMapFS", func(t *testing.T) {
+		t.Parallel()
+
+		memFs := vfs.NewMemMapFS()
+		require.NoError(t, vfs.WriteFile(memFs, "/root/a.txt", []byte("a"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/b.txt", []byte("b"), 0644))
+		require.NoError(t, vfs.WriteFile(memFs, "/root/c.txt", []byte("c"), 0644))
+
+		var names []string
+
+		err := vfs.WalkDirParallel(memFs, "/root", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			names = append(names, d.Name())
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		// Non-OS FS keeps the deterministic lexical ordering from WalkDir.
+		assert.Equal(t, []string{"root", "a.txt", "b.txt", "c.txt"}, names)
+	})
+
+	t.Run("walks every entry on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "dir"), 0o755))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "a.txt"), []byte("a"), 0o644))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "dir", "nested.txt"), []byte("n"), 0o644))
+
+		var mu sync.Mutex
+
+		seen := map[string]struct{}{}
+
+		err := vfs.WalkDirParallel(osFs, root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			mu.Lock()
+			seen[path] = struct{}{}
+			mu.Unlock()
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		// Parallel walk gives no ordering guarantee, but it must visit every
+		// entry exactly once.
+		assert.Equal(t, map[string]struct{}{
+			root:                                     {},
+			filepath.Join(root, "a.txt"):             {},
+			filepath.Join(root, "dir"):               {},
+			filepath.Join(root, "dir", "nested.txt"): {},
+		}, seen)
+	})
+
+	t.Run("SkipDir prunes a subtree on OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		osFs := vfs.NewOSFS()
+
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "keep"), 0o755))
+		require.NoError(t, osFs.MkdirAll(filepath.Join(root, "skip"), 0o755))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "keep", "a.txt"), []byte("a"), 0o644))
+		require.NoError(t, vfs.WriteFile(osFs, filepath.Join(root, "skip", "b.txt"), []byte("b"), 0o644))
+
+		var mu sync.Mutex
+
+		seen := map[string]struct{}{}
+
+		err := vfs.WalkDirParallel(osFs, root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if d.IsDir() && d.Name() == "skip" {
+				return filepath.SkipDir
+			}
+
+			mu.Lock()
+			seen[path] = struct{}{}
+			mu.Unlock()
+
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Contains(t, seen, filepath.Join(root, "keep", "a.txt"))
+		assert.NotContains(t, seen, filepath.Join(root, "skip", "b.txt"))
+	})
 }

@@ -1,8 +1,10 @@
 package hclparse
 
 import (
+	"fmt"
 	iofs "io/fs"
 	"path/filepath"
+	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/util"
@@ -97,28 +99,31 @@ func BuildComponentRefMap(refs []ComponentRef) cty.Value {
 	refMap := make(map[string]cty.Value, len(refs))
 
 	for _, ref := range refs {
-		attrs := map[string]cty.Value{
-			"path": cty.StringVal(ref.Path),
-			"name": cty.StringVal(ref.Name),
-		}
-
-		// Add child unit refs for stacks (enables stack.stack_name.unit_name.path).
-		// Skip children whose names collide with reserved attributes.
-		for _, child := range ref.ChildRefs {
-			if child.Name == "path" || child.Name == "name" {
-				continue
-			}
-
-			attrs[child.Name] = cty.ObjectVal(map[string]cty.Value{
-				"path": cty.StringVal(child.Path),
-				"name": cty.StringVal(child.Name),
-			})
-		}
-
-		refMap[ref.Name] = cty.ObjectVal(attrs)
+		refMap[ref.Name] = buildRefAttrs(ref)
 	}
 
 	return cty.ObjectVal(refMap)
+}
+
+// buildRefAttrs builds the cty.Value for a single ComponentRef, recursively
+// expanding ChildRefs so that stack.A.B.C.path works at any nesting depth.
+// Recursion is bounded by maxDiscoverDepth in discoverStackChildUnitsWithDepth
+// which limits the depth of ChildRefs trees at construction time.
+func buildRefAttrs(ref ComponentRef) cty.Value {
+	attrs := map[string]cty.Value{
+		"path": cty.StringVal(ref.Path),
+		"name": cty.StringVal(ref.Name),
+	}
+
+	for _, child := range ref.ChildRefs {
+		if child.Name == "path" || child.Name == "name" {
+			continue
+		}
+
+		attrs[child.Name] = buildRefAttrs(child)
+	}
+
+	return cty.ObjectVal(attrs)
 }
 
 // ExtractUnitRefs extracts ComponentRef values from parsed UnitBlockHCL slices.
@@ -150,14 +155,25 @@ func ExtractStackRefs(stacks []*StackBlockHCL) []ComponentRef {
 }
 
 // ParseStackFileFromPath reads stackDir/terragrunt.stack.hcl from disk
-// and performs a two-pass parse. Returns nil, nil if the file does not exist.
+// and performs a two-pass parse. Returns (nil, nil) when no stack file is
+// reachable at stackDir: this includes the file not existing and the path
+// itself not being a directory (e.g. callers in discovery may pass an
+// arbitrary dependency path that turns out to be a regular file).
 func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.ParseStackFileFromPath: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.ParseStackFileFromPath: stackDir is empty")
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 	stackFile := filepath.Join(stackDir, "terragrunt.stack.hcl")
 
 	data, err := vfs.ReadFile(fs, stackFile)
 	if err != nil {
-		if errors.Is(err, iofs.ErrNotExist) {
+		if errors.Is(err, iofs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 			return nil, nil
 		}
 
@@ -173,13 +189,27 @@ func ParseStackFileFromPath(fs vfs.FS, stackDir string) (*ParseResult, error) {
 
 // UnitPathsFromStackDir parses the stack file in stackDir and returns
 // absolute paths to each unit's generated directory under .terragrunt-stack/.
-// Returns nil if the file does not exist or cannot be parsed.
-func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
+// Returns (nil, nil) when the stack file does not exist; returns (nil, err)
+// on parse errors so callers can distinguish "not a stack dir" from "malformed
+// stack file" instead of silently treating the latter as a plain unit.
+func UnitPathsFromStackDir(fs vfs.FS, stackDir string) ([]string, error) {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.UnitPathsFromStackDir: fs is nil (stackDir=%q)", stackDir))
+	}
+
+	if stackDir == "" {
+		panic("hclparse.UnitPathsFromStackDir: stackDir is empty")
+	}
+
 	stackDir = util.ResolvePath(stackDir)
 
 	result, err := ParseStackFileFromPath(fs, stackDir)
-	if err != nil || result == nil {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+
+	if result == nil {
+		return nil, nil
 	}
 
 	paths := make([]string, 0, len(result.Units))
@@ -193,7 +223,7 @@ func UnitPathsFromStackDir(fs vfs.FS, stackDir string) []string {
 		paths = append(paths, unitPath)
 	}
 
-	return paths
+	return paths, nil
 }
 
 // maxDiscoverDepth is the maximum recursion depth for DiscoverStackChildUnits
@@ -208,6 +238,18 @@ const maxDiscoverDepth = 1000
 // (or will be generated). stackGenDir is the absolute path where this
 // stack's units will be generated (.terragrunt-stack/stack_path/).
 func DiscoverStackChildUnits(fs vfs.FS, stackSourceDir, stackGenDir string) []ComponentRef {
+	if fs == nil {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: fs is nil (stackSourceDir=%q, stackGenDir=%q)", stackSourceDir, stackGenDir))
+	}
+
+	if stackSourceDir == "" {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackSourceDir is empty (stackGenDir=%q)", stackGenDir))
+	}
+
+	if stackGenDir == "" {
+		panic(fmt.Sprintf("hclparse.DiscoverStackChildUnits: stackGenDir is empty (stackSourceDir=%q)", stackSourceDir))
+	}
+
 	return discoverStackChildUnitsWithDepth(fs, stackSourceDir, stackGenDir, 0)
 }
 
@@ -222,7 +264,7 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 	}
 
 	childTargetDir := filepath.Join(stackGenDir, StackDir)
-	refs := make([]ComponentRef, 0, len(result.Units))
+	refs := make([]ComponentRef, 0, len(result.Units)+len(result.Stacks))
 
 	for _, u := range result.Units {
 		unitPath := filepath.Join(childTargetDir, u.Path)
@@ -235,6 +277,28 @@ func discoverStackChildUnitsWithDepth(fs vfs.FS, stackSourceDir, stackGenDir str
 			Name: u.Name,
 			Path: unitPath,
 		})
+	}
+
+	// Also discover nested stacks so stack.<name>.<nested_stack>.path works.
+	for _, s := range result.Stacks {
+		nestedGenPath := filepath.Join(childTargetDir, s.Path)
+
+		if s.NoStack != nil && *s.NoStack {
+			nestedGenPath = filepath.Join(stackGenDir, s.Path)
+		}
+
+		nestedSourceDir := s.Source
+		if !filepath.IsAbs(nestedSourceDir) {
+			nestedSourceDir = filepath.Join(stackSourceDir, nestedSourceDir)
+		}
+
+		ref := ComponentRef{
+			Name:      s.Name,
+			Path:      nestedGenPath,
+			ChildRefs: discoverStackChildUnitsWithDepth(fs, nestedSourceDir, nestedGenPath, depth+1),
+		}
+
+		refs = append(refs, ref)
 	}
 
 	return refs

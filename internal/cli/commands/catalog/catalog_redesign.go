@@ -9,19 +9,22 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
+// urlChannelBufferSize is the buffer size for the discovery URL channel. It
+// absorbs short producer bursts from the two concurrent URL discoverers
+// without blocking them on a slow consumer.
+const urlChannelBufferSize = 10
+
 // runRedesign is the entry point for the redesigned catalog experience.
 // It is invoked when the catalog-redesign experiment is enabled.
 //
 // It launches the TUI immediately with a loading screen, then runs source
-// discovery and module loading in the background. When loading completes,
-// the TUI transitions to the module list or shows a welcome screen.
+// discovery and component loading in the background. When loading completes,
+// the TUI transitions to the component list or shows a welcome screen.
 func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOptions, repoURL string) error {
 	// If an explicit URL was passed via CLI, use the default path
 	if repoURL != "" {
@@ -29,13 +32,11 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 	}
 
 	return redesign.RunRedesign(
-		ctx, l, opts,
+		ctx, l, opts, opts.Writers.ErrWriter,
 		func(
-			ctx context.Context, status redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry,
-		) (catalog.CatalogService, error) {
-			svc := catalog.NewCatalogService(opts)
-
-			urlCh := make(chan string, 10) //nolint:mnd
+			ctx context.Context, status redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry,
+		) error {
+			urlCh := make(chan string, urlChannelBufferSize)
 
 			g, gctx := errgroup.WithContext(ctx)
 
@@ -72,39 +73,10 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 				seen[repoURL] = struct{}{}
 
 				loaders.Go(func() error {
-					var collected []*module.Module
-
-					onModule := func(mod *module.Module) {
-						collected = append(collected, mod)
-					}
-
-					if err := svc.LoadStreamingURL(loadCtx, l, repoURL, onModule); err != nil {
+					if err := redesign.LoadURL(loadCtx, l, opts, repoURL, componentCh); err != nil {
 						// Suppress errors from context cancellation (user quit the TUI).
 						if loadCtx.Err() == nil {
 							l.Warnf("Error loading %s: %v", repoURL, err)
-						}
-
-						return nil
-					}
-
-					// All modules from the same repo share a *Repo. Resolve the
-					// latest tag once using the cloned repo on disk.
-					if len(collected) > 0 {
-						collected[0].Repo.ResolveLatestTag(loadCtx)
-					}
-
-					for _, mod := range collected {
-						source := redesign.ExtractRepoURL(mod.TerraformSourcePath())
-						entry := redesign.NewModuleEntry(mod).WithSource(source)
-
-						if mod.Repo.LatestTag != "" {
-							entry = entry.WithVersion(mod.Repo.LatestTag)
-						}
-
-						select {
-						case moduleCh <- entry:
-						case <-loadCtx.Done():
-							return nil
 						}
 					}
 
@@ -113,18 +85,14 @@ func runRedesign(ctx context.Context, l log.Logger, opts *options.TerragruntOpti
 			}
 
 			if err := loaders.Wait(); err != nil {
-				return nil, fmt.Errorf("loading modules: %w", err)
+				return fmt.Errorf("loading components: %w", err)
 			}
 
 			if err := g.Wait(); err != nil {
-				return nil, fmt.Errorf("discovering sources: %w", err)
+				return fmt.Errorf("discovering sources: %w", err)
 			}
 
-			if len(svc.Modules()) == 0 {
-				return nil, nil
-			}
-
-			return svc, nil
+			return nil
 		})
 }
 

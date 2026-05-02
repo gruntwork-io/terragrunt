@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cas"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	inthclparse "github.com/gruntwork-io/terragrunt/internal/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
@@ -62,24 +63,26 @@ type StackConfig struct {
 
 // Unit represents unit from a stack file.
 type Unit struct {
-	Remain       hcl.Body   `hcl:",remain"`
-	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool      `hcl:"no_validation,attr"`
-	Values       *cty.Value `hcl:"values,attr"`
-	Name         string     `hcl:",label"`
-	Source       string     `hcl:"source,attr"`
-	Path         string     `hcl:"path,attr"`
+	Remain              hcl.Body   `hcl:",remain"`
+	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation        *bool      `hcl:"no_validation,attr"`
+	Values              *cty.Value `hcl:"values,attr"`
+	Name                string     `hcl:",label"`
+	Source              string     `hcl:"source,attr"`
+	Path                string     `hcl:"path,attr"`
 }
 
 // Stack represents the stack block in the configuration.
 type Stack struct {
-	Remain       hcl.Body   `hcl:",remain"`
-	NoStack      *bool      `hcl:"no_dot_terragrunt_stack,attr"`
-	NoValidation *bool      `hcl:"no_validation,attr"`
-	Values       *cty.Value `hcl:"values,attr"`
-	Name         string     `hcl:",label"`
-	Source       string     `hcl:"source,attr"`
-	Path         string     `hcl:"path,attr"`
+	Remain              hcl.Body   `hcl:",remain"`
+	UpdateSourceWithCAS *bool      `hcl:"update_source_with_cas,attr"`
+	NoStack             *bool      `hcl:"no_dot_terragrunt_stack,attr"`
+	NoValidation        *bool      `hcl:"no_validation,attr"`
+	Values              *cty.Value `hcl:"values,attr"`
+	Name                string     `hcl:",label"`
+	Source              string     `hcl:"source,attr"`
+	Path                string     `hcl:"path,attr"`
 }
 
 // GenerateStackFile generates the Terragrunt stack configuration from the given stackFilePath,
@@ -128,6 +131,29 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		}
 	}
 
+	casEnabled := pctx.Experiments.Evaluate(experiment.CAS) && !pctx.NoCAS
+
+	if err := validateUpdateSourceWithCAS(stackFile, stackFilePath, casEnabled); err != nil {
+		return err
+	}
+
+	var casInstance *cas.CAS
+
+	if casEnabled {
+		if err := cas.ValidateCASCloneDepth(pctx.CASCloneDepth); err != nil {
+			return err
+		}
+
+		c, casErr := cas.New(cas.WithCloneDepth(pctx.CASCloneDepth))
+		if casErr != nil {
+			l.Warnf("Failed to initialize CAS for stack generation: %v. CAS features disabled.", casErr)
+
+			casEnabled = false
+		} else {
+			casInstance = c
+		}
+	}
+
 	genOpts := generateOpts{
 		rootWorkingDir:  pctx.RootWorkingDir,
 		logShowAbsPaths: pctx.Writers.LogShowAbsPaths,
@@ -139,6 +165,8 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 		targetDir:       stackTargetDir,
 		autoIncludes:    autoIncludes,
 		stackSrcBytes:   stackSrcBytes,
+		casEnabled:      casEnabled,
+		casInstance:     casInstance,
 	}
 
 	if err := generateUnits(ctx, l, &genOpts, pool, stackFile.Units); err != nil {
@@ -152,9 +180,42 @@ func GenerateStackFile(ctx context.Context, l log.Logger, pctx *ParsingContext, 
 	return nil
 }
 
+// validateUpdateSourceWithCAS rejects stack files that declare update_source_with_cas = true
+// on any unit or stack when CAS is not available. The attribute is meaningless without CAS
+// and would otherwise silently fall through to the standard getter, producing confusing
+// "source not found" failures downstream.
+func validateUpdateSourceWithCAS(stackFile *StackConfig, stackFilePath string, casEnabled bool) error {
+	if casEnabled {
+		return nil
+	}
+
+	for _, unit := range stackFile.Units {
+		if unit.UpdateSourceWithCAS != nil && *unit.UpdateSourceWithCAS {
+			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+				BlockType: "unit",
+				Name:      unit.Name,
+				Path:      stackFilePath,
+			})
+		}
+	}
+
+	for _, stack := range stackFile.Stacks {
+		if stack.UpdateSourceWithCAS != nil && *stack.UpdateSourceWithCAS {
+			return errors.New(&cas.UpdateSourceWithCASRequiresCASError{
+				BlockType: "stack",
+				Name:      stack.Name,
+				Path:      stackFilePath,
+			})
+		}
+	}
+
+	return nil
+}
+
 // generateOpts holds the subset of options needed for stack/unit generation.
 type generateOpts struct {
 	autoIncludes    map[string]*inthclparse.AutoIncludeResolved
+	casInstance     *cas.CAS
 	sourceMap       map[string]string
 	rootWorkingDir  string
 	stackConfigPath string
@@ -164,6 +225,7 @@ type generateOpts struct {
 	stackSrcBytes   []byte
 	logShowAbsPaths bool
 	noStackValidate bool
+	casEnabled      bool
 }
 
 // generateUnits iterates through a slice of Unit objects, generating each one by copying
@@ -362,6 +424,75 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 
 	l.Debugf("Generating: %s (%s) to %s", cmp.name, source, dest)
 
+	if err := fetchComponentSource(ctx, l, opts, cmp, kindStr, source, dest); err != nil {
+		return err
+	}
+
+	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+		return err
+	}
+
+	// generate values file
+	if err := writeValues(l, cmp.values, dest); err != nil {
+		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+	}
+
+	return generateAutoInclude(l, opts, cmp, dest)
+}
+
+// fetchComponentSource handles the paths for fetching a component's source:
+//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the CAS-backed
+//     branch so nested components already rewritten to cas:: are not re-fetched.
+//  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
+//     temp overlay) and copy from its content dir. This fires automatically whenever the cas
+//     experiment is on, so catalog authors don't need consumers to opt in per-block. On any CAS
+//     failure (for example, CAS can't handle a go-getter query param like depth=1), we fall
+//     through to the standard getter.
+//  3. Standard: local copy or remote getter.
+//
+// The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
+// matters inside catalog files, where the CAS walk uses it to decide which nested sources to
+// rewrite to cas:: references.
+func fetchComponentSource(
+	ctx context.Context,
+	l log.Logger,
+	opts *generateOpts,
+	cmp *componentToGenerate,
+	kindStr, source, dest string,
+) error {
+	if isCASProtocol(source) {
+		if !opts.casEnabled {
+			return errors.Errorf("cas:: source on %s %q requires the 'cas' experiment to be enabled", kindStr, cmp.name)
+		}
+
+		if err := os.MkdirAll(dest, os.ModePerm); err != nil {
+			return errors.Errorf("Failed to create directory %s for %s %w", dest, cmp.name, err)
+		}
+
+		// Strip the cas:: prefix and parse the hash
+		casRef := strings.TrimPrefix(source, cas.CASProtocolPrefix)
+
+		hash, err := cas.ParseCASRef(casRef)
+		if err != nil {
+			return errors.Errorf("Failed to parse CAS reference for %s %s: %w", kindStr, cmp.name, err)
+		}
+
+		if err := opts.casInstance.MaterializeTree(ctx, l, hash, dest); err != nil {
+			return errors.Errorf("Failed to materialize CAS tree for %s %s: %w", kindStr, cmp.name, err)
+		}
+
+		return nil
+	}
+
+	if opts.casEnabled {
+		casErr := fetchViaCAS(ctx, l, opts, cmp.sourceDir, kindStr, source, dest)
+		if casErr == nil {
+			return nil
+		}
+
+		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
+	}
+
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
 		return errors.Errorf(
 			"Failed to fetch %s %s\n"+
@@ -380,16 +511,73 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 		)
 	}
 
-	if err := validateGeneratedComponent(l, cmp, opts, dest); err != nil {
+	return nil
+}
+
+// fetchViaCAS performs the CAS-backed fetch, rewrite, and copy for a stack component.
+// For remote sources the fetch is a CAS-backed git clone; for local sources it is a
+// copy into a temp overlay so rewrites do not mutate the caller's working tree.
+func fetchViaCAS(
+	ctx context.Context,
+	l log.Logger,
+	opts *generateOpts,
+	sourceDir, kindStr, source, dest string,
+) error {
+	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
+
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, resolvedSource, kindStr)
+	if err != nil {
 		return err
 	}
 
-	// generate values file
-	if err := writeValues(l, cmp.values, dest); err != nil {
-		return errors.Errorf("failed to write values %v %w", cmp.name, err)
+	defer result.Cleanup()
+
+	// A copy failure can leave partial content in dest, so reset it before
+	// falling through to the standard getter. ProcessStackComponent writes only
+	// to its own temp dir, so failures before this point never touch dest.
+	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+		return true
+	}); copyErr != nil {
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
+		}
+
+		return copyErr
 	}
 
-	return generateAutoInclude(l, opts, cmp, dest)
+	return nil
+}
+
+// resolveLocalCASSource normalizes a relative local source against sourceDir so
+// ProcessStackComponent's filepath.Abs/Stat resolve against the stack file
+// rather than the process CWD. Remote sources, absolute paths, and any source
+// that doesn't look like a local path are returned unchanged. The "//" subdir
+// suffix used by go-getter is preserved.
+func resolveLocalCASSource(l log.Logger, sourceDir, source string) string {
+	if source == "" || sourceDir == "" {
+		return source
+	}
+
+	basePath, subdir := getter.SourceDirSubdir(source)
+	if filepath.IsAbs(basePath) || !isLocal(l, sourceDir, basePath) {
+		return source
+	}
+
+	abs, err := filepath.Abs(filepath.Join(sourceDir, basePath))
+	if err != nil {
+		return source
+	}
+
+	if subdir != "" {
+		return abs + "//" + subdir
+	}
+
+	return abs
+}
+
+// isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).
+func isCASProtocol(source string) bool {
+	return strings.HasPrefix(source, cas.CASProtocolPrefix)
 }
 
 // copyFiles copies files or directories from a source to a destination path.

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/run"
 	"github.com/gruntwork-io/terragrunt/internal/stacks/generate"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/pkg/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -152,7 +155,7 @@ func TestNestedStacksGenerate(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -182,7 +185,7 @@ func TestStacksGenerateErrorOnCoexistingHclAndStackFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCoexistHclAndStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCoexistHclAndStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -208,7 +211,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(tmpEnvPath)
@@ -403,7 +406,7 @@ func TestStackCleanRecursively(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureNestedStacks)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -717,7 +720,7 @@ func TestNestedStackOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -770,7 +773,7 @@ func TestNestedStacksApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNestedStacks)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -798,7 +801,7 @@ func TestStackValuesGeneration(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -824,7 +827,7 @@ func TestStackValuesApply(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -861,7 +864,7 @@ func TestStackValuesOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValues)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValues)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1166,7 +1169,7 @@ func TestStacksGenerateAbsolutePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackAbsolutePath)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackAbsolutePath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1189,7 +1192,7 @@ func TestStacksGenerateIncorrectSource(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackIncorrectSource)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackIncorrectSource, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1213,7 +1216,7 @@ func TestStacksGenerateRelativePathError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackRelativePathOutsideOfStack)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackRelativePathOutsideOfStack, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1239,7 +1242,7 @@ func TestStacksGenerateNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1261,7 +1264,7 @@ func TestStacksApplyNoStack(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNoStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureNoStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1283,7 +1286,7 @@ func TestStacksCyclesErrors(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackCycles)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackCycles)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1363,7 +1366,7 @@ func TestStacksReadFiles(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadStack)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureReadStack)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1483,7 +1486,7 @@ func TestStackUnitValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationUnitPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationUnitPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1515,7 +1518,7 @@ func TestStackValidation(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackValidationStackPath)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackValidationStackPath)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1591,7 +1594,7 @@ func TestStackNestedOutputs(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackNestedOutputs)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackNestedOutputs)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1678,7 +1681,7 @@ func TestStackTerragruntDir(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTerragruntDir)
 	gitPath := filepath.Join(tmpEnvPath, testFixtureStackTerragruntDir)
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(gitPath)
@@ -1744,12 +1747,12 @@ func TestStackOriginalTerragruntDir(t *testing.T) {
 		content, readErr := os.ReadFile(valuesPath)
 		require.NoError(t, readErr)
 
-		idx := strings.Index(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
-		if idx == -1 {
+		before, _, ok := strings.Cut(valuesPath, string(os.PathSeparator)+dotStackDirName+string(os.PathSeparator))
+		if !ok {
 			continue
 		}
 
-		expected := valuesPath[:idx]
+		expected := before
 
 		isNoLocals := strings.Contains(valuesPath, "no-locals")
 		isNestedReadConfig := strings.Contains(valuesPath, "read-config-nested")
@@ -1858,7 +1861,7 @@ func TestStackGenerateWithFilter(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, testFixtureNestedStacks)
 	liveDir := filepath.Join(rootPath, "live")
 
-	runner, err := git.NewGitRunner()
+	runner, err := git.NewGitRunner(vexec.NewOSExec())
 	require.NoError(t, err)
 
 	runner = runner.WithWorkDir(rootPath)
@@ -1911,6 +1914,24 @@ func TestStackGenerateWithFilter(t *testing.T) {
 
 	prodDir = filepath.Join(stackDir, "prod", ".terragrunt-stack")
 	require.DirExists(t, prodDir)
+}
+
+// TestStackGenerateDedupAtDiscoveryWithRacing guards intra-invocation duplicate-dispatch under -race.
+func TestStackGenerateDedupAtDiscoveryWithRacing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := helpers.TmpDirWOSymlinks(t)
+	setupNestedStackFixture(t, tmpDir)
+
+	liveDir := filepath.Join(tmpDir, "live")
+
+	for range 2 {
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t,
+			"terragrunt stack generate --working-dir "+liveDir)
+		require.NoError(t, err)
+	}
+
+	verifyGeneratedUnits(t, filepath.Join(liveDir, ".terragrunt-stack"))
 }
 
 func TestStackGenerationWithNestedTopologyWithRacing(t *testing.T) {
@@ -2164,4 +2185,305 @@ func TestStackOutputWithExclude(t *testing.T) {
 		assert.True(t, util.FileNotExists(tfDir),
 			"excluded unit %s should not have .terraform directory", excluded)
 	}
+}
+
+// TestCASInStacks verifies that CAS works when integrated with stacks.
+func TestCASInStacks(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	bazModule := ``
+	require.NoError(t, srv.CommitFile("modules/baz/main.tf", []byte(bazModule), "commit"))
+
+	require.NoError(t, srv.CommitFile("units/bar/terragrunt.hcl", []byte(`terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`), "commit"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	remoteStack := `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`
+	require.NoError(t, srv.CommitFile("stacks/foo/terragrunt.stack.hcl", []byte(remoteStack), "commit"))
+
+	tmp := helpers.TmpDirWOSymlinks(t)
+
+	liveStackPath := filepath.Join(tmp, "live", "terragrunt.stack.hcl")
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "live"), 0755))
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = "git::%s//stacks/foo"
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, url)
+	require.NoError(t, os.WriteFile(liveStackPath, []byte(liveStack), 0644))
+
+	_, _, err = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --cas-clone-depth=-1 --working-dir "+tmp,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	// Generated tree lives next to the stack file: <tmp>/live/.terragrunt-stack/...
+	stackDir := filepath.Join(tmp, "live", ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	unitDir := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar")
+	assert.DirExists(t, unitDir)
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(unitDir, "terragrunt.hcl")
+
+	require.FileExists(t, stackConfig)
+	require.FileExists(t, unitConfig)
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// CAS digests depend on the resolved git ref and repo paths; assert exact file shape using the emitted hashes.
+	casSHA1Quoted := regexp.MustCompile(`"cas::sha1:([a-f0-9]{40})"`)
+	stackMatch := casSHA1Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	unitMatch := casSHA1Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha1 reference in a quoted source attribute")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha1:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha1:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
+}
+
+// TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS verifies that stack generation
+// errors when a unit or stack block declares update_source_with_cas = true while
+// --no-cas is set. The "experiment off" branch is covered by the unit tests in
+// internal/runner/run/download_source_test.go; integration-mode here always has the
+// cas experiment enabled via TG_EXPERIMENT_MODE, so --no-cas is the only way to
+// disable CAS for this scenario.
+func TestCASInStacksRejectsUpdateSourceWithCASWithNoCAS(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	testCases := []struct {
+		name        string
+		stackConfig string
+		wantName    string
+	}{
+		{
+			name: "unit block",
+			stackConfig: `unit "bar" {
+  source = "../units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"bar"`,
+		},
+		{
+			name: "stack block",
+			stackConfig: `stack "nested" {
+  source = "../nested"
+  path   = "nested"
+
+  update_source_with_cas = true
+}
+`,
+			wantName: `"nested"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmp := helpers.TmpDirWOSymlinks(t)
+			liveDir := filepath.Join(tmp, "live")
+			require.NoError(t, os.MkdirAll(liveDir, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(tc.stackConfig), 0644))
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(
+				t,
+				"terragrunt stack generate --no-cas --non-interactive --working-dir "+liveDir,
+			)
+			require.Error(t, err)
+
+			combined := stderr + err.Error()
+			assert.Contains(t, combined, "update_source_with_cas")
+			assert.Contains(t, combined, tc.wantName)
+		})
+	}
+}
+
+// TestCASInStacksLocalSource verifies that CAS processing works end-to-end
+// when the top-level stack source is a local filesystem path rather than a
+// remote git URL. The catalog-like tree lives on disk, the live stack points
+// at it directly, and update_source_with_cas on nested blocks must be
+// rewritten to cas::sha256 references that materialize correctly at run time.
+func TestCASInStacksLocalSource(t *testing.T) {
+	t.Parallel()
+
+	if !helpers.IsExperimentMode(t) {
+		t.Skip("Experiment mode is not enabled")
+	}
+
+	// Keep the catalog on a sibling path outside the live working directory so
+	// terragrunt stack generate doesn't discover the catalog's stack file as a
+	// top-level entry and recurse into it alongside the live stack.
+	catalog := helpers.TmpDirWOSymlinks(t)
+	liveDir := helpers.TmpDirWOSymlinks(t)
+
+	writeFile := func(rel, body string) {
+		full := filepath.Join(catalog, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0644))
+	}
+
+	writeFile("modules/baz/main.tf", ``)
+
+	writeFile("units/bar/terragrunt.hcl", `terraform {
+  source = "../..//modules/baz"
+
+  update_source_with_cas = true
+}
+`)
+
+	writeFile("stacks/foo/terragrunt.stack.hcl", `unit "bar" {
+  source = "../..//units/bar"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`)
+
+	liveStack := fmt.Sprintf(`stack "foo" {
+  source = %s
+  path   = "foo"
+
+  update_source_with_cas = true
+}
+`, strconv.Quote(filepath.ToSlash(catalog)+"//stacks/foo"))
+	require.NoError(t, os.WriteFile(filepath.Join(liveDir, "terragrunt.stack.hcl"), []byte(liveStack), 0644))
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack generate --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt stack run plan --non-interactive --working-dir "+liveDir,
+	)
+	require.NoError(t, err)
+
+	runLog := stdout + stderr
+	assert.Contains(t, runLog, ".terragrunt-stack/foo")
+
+	stackDir := filepath.Join(liveDir, ".terragrunt-stack")
+	assert.DirExists(t, stackDir)
+
+	expectedFiles := []string{
+		"foo/terragrunt.stack.hcl",
+		"foo/.terragrunt-stack/bar/terragrunt.hcl",
+	}
+
+	for _, expectedFile := range expectedFiles {
+		assert.FileExists(t, filepath.Join(stackDir, expectedFile))
+	}
+
+	stackConfig := filepath.Join(stackDir, "foo", "terragrunt.stack.hcl")
+	unitConfig := filepath.Join(stackDir, "foo", ".terragrunt-stack", "bar", "terragrunt.hcl")
+
+	stackConfigContent, err := os.ReadFile(stackConfig)
+	require.NoError(t, err)
+	unitConfigContent, err := os.ReadFile(unitConfig)
+	require.NoError(t, err)
+
+	stackStr := string(stackConfigContent)
+	unitStr := string(unitConfigContent)
+
+	// Local sources are content-addressed with SHA-256.
+	casSHA256Quoted := regexp.MustCompile(`"cas::sha256:([a-f0-9]{64})"`)
+
+	stackMatch := casSHA256Quoted.FindStringSubmatch(stackStr)
+	require.Len(t, stackMatch, 2, "generated stack should contain exactly one cas::sha256 reference")
+
+	unitMatch := casSHA256Quoted.FindStringSubmatch(unitStr)
+	require.Len(t, unitMatch, 2, "generated unit terragrunt should contain exactly one cas::sha256 reference")
+
+	wantStack := fmt.Sprintf(`unit "bar" {
+  source = "cas::sha256:%s"
+  path   = "bar"
+
+  update_source_with_cas = true
+}
+`, stackMatch[1])
+
+	wantUnit := fmt.Sprintf(`terraform {
+  source = "cas::sha256:%s"
+
+  update_source_with_cas = true
+}
+`, unitMatch[1])
+
+	assert.Equal(t, wantStack, stackStr)
+	assert.Equal(t, wantUnit, unitStr)
 }

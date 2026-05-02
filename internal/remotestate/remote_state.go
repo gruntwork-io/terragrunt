@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/gcs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -33,8 +34,18 @@ type RemoteState struct {
 	backend backend.Backend
 }
 
-// New creates a new `RemoteState` instance.
+// New creates a new `RemoteState` instance. config may be nil when the
+// caller (config.convertToTerragruntConfig) doesn't parse a remote_state
+// block, e.g. a root.hcl that only declares locals — callers used to hit
+// a nil pointer dereference at config.BackendName here and crash.
 func New(config *Config) *RemoteState {
+	if config == nil {
+		return &RemoteState{
+			Config:  &Config{},
+			backend: backend.NewCommonBackend(""),
+		}
+	}
+
 	remote := &RemoteState{
 		Config:  config,
 		backend: backend.NewCommonBackend(config.BackendName),
@@ -94,7 +105,9 @@ func (remote *RemoteState) Migrate(ctx context.Context, l log.Logger, opts, dstO
 	}
 
 	defer func() {
-		os.Remove(stateFile) // nolint: errcheck
+		if err := os.Remove(stateFile); err != nil && !os.IsNotExist(err) {
+			l.Warnf("Failed to remove temporary state file %s: %v", stateFile, err)
+		}
 	}()
 
 	return dstRemote.pushState(ctx, l, dstOpts.TFRunOpts, stateFile)
@@ -166,7 +179,7 @@ func (remote *RemoteState) pullState(ctx context.Context, l log.Logger, tfOpts *
 
 	args := []string{tf.CommandNameState, tf.CommandNamePull}
 
-	output, err := tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
+	output, err := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
 	if err != nil {
 		return "", err
 	}
@@ -194,5 +207,5 @@ func (remote *RemoteState) pushState(ctx context.Context, l log.Logger, tfOpts *
 
 	args := []string{tf.CommandNameState, tf.CommandNamePush, stateFile}
 
-	return tf.RunCommand(ctx, l, tfOpts, args...)
+	return tf.RunCommand(ctx, l, vexec.NewOSExec(), tfOpts, args...)
 }

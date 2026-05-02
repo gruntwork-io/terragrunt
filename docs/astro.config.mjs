@@ -48,41 +48,6 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:title',
-            content: 'Terragrunt',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:type',
-            content: 'website',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
-            property: 'og:url',
-            content: 'https://docs.terragrunt.com',
-          },
-        },
-        {
-          tag: 'meta',
-          attrs: {
             name: 'twitter:card',
             content: 'summary_large_image',
           },
@@ -90,15 +55,26 @@ export default defineConfig({
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:title',
-            content: 'Terragrunt',
+            property: 'og:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-og-image-1200x630.png',
           },
         },
         {
           tag: 'meta',
           attrs: {
-            name: 'twitter:description',
-            content: 'Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.',
+            name: 'twitter:image',
+            content: 'https://docs.terragrunt.com/images/terragrunt-twitter-image.png',
+          },
+        },
+        {
+          tag: 'script',
+          attrs: {
+            async: true,
+            src: 'https://widget.kapa.ai/kapa-widget.bundle.js',
+            'data-website-id': '925274e5-086f-446e-9108-64761bc7c4b4',
+            'data-project-name': 'Terragrunt',
+            'data-project-color': '#7B5AFF',
+            'data-project-logo': 'https://docs.terragrunt.com/favicon.svg',
           },
         },
       ],

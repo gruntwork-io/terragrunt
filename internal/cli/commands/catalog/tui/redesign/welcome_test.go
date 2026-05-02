@@ -3,128 +3,174 @@ package redesign_test
 import (
 	"bytes"
 	"context"
-	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/colorprofile"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
-	"github.com/gruntwork-io/terragrunt/internal/services/catalog"
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// unrelatedModel is a tea.Model that is not a redesign.Model, used to verify
+// EmitExitMessage is a no-op for unrelated model types.
+type unrelatedModel struct{}
+
+func (unrelatedModel) Init() tea.Cmd                           { return nil }
+func (m unrelatedModel) Update(_ tea.Msg) (tea.Model, tea.Cmd) { return m, nil }
+func (unrelatedModel) View() tea.View                          { return tea.NewView("") }
+
+func TestEmitExitMessage_WritesMessageToErrWriter(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	m := redesign.NewModelWithExitMessageForTest("values stub written to foo")
+
+	redesign.EmitExitMessage(m, &buf, logger.CreateLogger())
+
+	assert.Equal(t, "values stub written to foo\n", buf.String())
+}
+
+func TestEmitExitMessage_NoMessageWritesNothing(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	redesign.EmitExitMessage(redesign.NewModelWithExitMessageForTest(""), &buf, logger.CreateLogger())
+
+	assert.Empty(t, buf.String())
+}
+
+func TestEmitExitMessage_UnrelatedModelIsNoop(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+
+	redesign.EmitExitMessage(unrelatedModel{}, &buf, logger.CreateLogger())
+
+	assert.Empty(t, buf.String())
+}
+
+// TestEmitExitMessage_WriteFailureIsLogged verifies that a writer error is
+// logged rather than propagated or causing a panic.
+func TestEmitExitMessage_WriteFailureIsLogged(t *testing.T) {
+	t.Parallel()
+
+	m := redesign.NewModelWithExitMessageForTest("anything")
+
+	assert.NotPanics(t, func() {
+		redesign.EmitExitMessage(m, failingWriter{}, logger.CreateLogger())
+	})
+}
+
 // TestWelcomeLoadingScreen_NoSources verifies that when discovery finds no
-// module sources, the welcome model stays on the no-sources help screen.
+// component sources, the welcome model stays on the no-sources help screen.
 func TestWelcomeLoadingScreen_NoSources(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	l := logger.CreateLogger()
+		l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		return nil, nil
-	}
-
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
-
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for discovery to complete and settle into no-sources view
-		time.Sleep(200 * time.Millisecond)
-
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-	})
-
-	// Should still be a WelcomeModel (no transition to module list)
-	_, isWelcome := finalModel.(redesign.WelcomeModel)
-	assert.True(t, isWelcome, "should remain on welcome screen when no sources found")
-}
-
-// TestWelcomeLoadingScreen_TransitionsToModuleList verifies that when
-// discovery finds modules, the welcome model transitions to the full
-// module list TUI.
-func TestWelcomeLoadingScreen_TransitionsToModuleList(t *testing.T) {
-	t.Parallel()
-
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	l := logger.CreateLogger()
-	svc := createMockCatalogService(t, opts)
-
-	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		for _, mod := range svc.Modules() {
-			moduleCh <- redesign.NewModuleEntry(mod)
+		noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			return nil
 		}
 
-		return svc, nil
-	}
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, withModulesLoad)
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for discovery and transition to module list
-		time.Sleep(200 * time.Millisecond)
+		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		// Quit from the module list
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		_, isWelcome := finalModel.(redesign.WelcomeModel)
+		assert.True(t, isWelcome, "should remain on welcome screen when no sources found")
 	})
-
-	listModel, isList := finalModel.(redesign.Model)
-	require.True(t, isList, "should transition to module list when modules found")
-	assert.Equal(t, redesign.ListState, listModel.State)
-	assert.Len(t, listModel.List.Items(), 2, "should have 2 modules in the list")
-	require.NotNil(t, listModel.SVC, "SVC should be set after discovery completes")
-	assert.Len(t, listModel.SVC.Modules(), 2, "should have 2 test modules")
 }
 
-// TestWelcomeLoadingScreen_ModuleListNavigation verifies the full flow:
-// loading → module list → select module details → back to list → quit.
-func TestWelcomeLoadingScreen_ModuleListNavigation(t *testing.T) {
+// TestWelcomeLoadingScreen_TransitionsToComponentList verifies that when
+// discovery finds components, the welcome model transitions to the full
+// component list TUI.
+func TestWelcomeLoadingScreen_TransitionsToComponentList(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	l := logger.CreateLogger()
-	svc := createMockCatalogService(t, opts)
+		l := logger.CreateLogger()
+		components := makeComponents(t)
 
-	withModulesLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		for _, mod := range svc.Modules() {
-			moduleCh <- redesign.NewModuleEntry(mod)
+		withComponentsLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
+			for _, c := range components {
+				componentCh <- c
+			}
+
+			return nil
 		}
 
-		return svc, nil
-	}
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, withModulesLoad)
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for discovery and transition to module list
-		time.Sleep(200 * time.Millisecond)
+		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		// Press Enter to select the first module (navigate to details)
-		p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
-		time.Sleep(50 * time.Millisecond)
-
-		// Press q to go back to list
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-		time.Sleep(50 * time.Millisecond)
-
-		// Press q again to quit
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		listModel, isList := finalModel.(redesign.Model)
+		require.True(t, isList, "should transition to component list when components found")
+		assert.Equal(t, redesign.ListState, listModel.State)
+		assert.Len(t, listModel.List().Items(), len(components), "should have all streamed components in list")
 	})
+}
 
-	listModel, isList := finalModel.(redesign.Model)
-	require.True(t, isList, "should be on module list after navigating back")
-	assert.Equal(t, redesign.ListState, listModel.State)
+// TestWelcomeLoadingScreen_ComponentListNavigation verifies the full flow:
+// loading → component list → select component details → back to list → quit.
+func TestWelcomeLoadingScreen_ComponentListNavigation(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
+
+		l := logger.CreateLogger()
+		components := makeComponents(t)
+
+		withComponentsLoad := func(
+			_ context.Context,
+			_ redesign.StatusFunc,
+			componentCh chan<- *redesign.ComponentEntry,
+		) error {
+			for _, c := range components {
+				componentCh <- c
+			}
+
+			return nil
+		}
+
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, withComponentsLoad)
+
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: tea.KeyEnter},
+			tea.KeyPressMsg{Code: 'q', Text: "q"},
+			tea.KeyPressMsg{Code: 'q', Text: "q"},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		listModel, isList := finalModel.(redesign.Model)
+		require.True(t, isList, "should be on component list after navigating back")
+		assert.Equal(t, redesign.ListState, listModel.State)
+	})
 }
 
 // TestWelcomeLoadingScreen_QuitDuringLoading verifies that pressing q
@@ -132,31 +178,30 @@ func TestWelcomeLoadingScreen_ModuleListNavigation(t *testing.T) {
 func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	l := logger.CreateLogger()
+		l := logger.CreateLogger()
 
-	slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		// Simulate slow discovery
-		select {
-		case <-time.After(5 * time.Second):
-		case <-ctx.Done():
+		slowLoad := func(ctx context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			select {
+			case <-time.After(5 * time.Second):
+			case <-ctx.Done():
+			}
+
+			return nil
 		}
 
-		return nil, nil
-	}
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, slowLoad)
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Quit immediately while still loading
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		_, isWelcome := finalModel.(redesign.WelcomeModel)
+		assert.True(t, isWelcome, "should exit as WelcomeModel when quit during loading")
 	})
-
-	// Should still be a WelcomeModel (loading was interrupted)
-	_, isWelcome := finalModel.(redesign.WelcomeModel)
-	assert.True(t, isWelcome, "should exit as WelcomeModel when quit during loading")
 }
 
 // TestWelcomeNoSourcesScreen_HelpKeyOpensDocs verifies that pressing h on
@@ -164,38 +209,35 @@ func TestWelcomeLoadingScreen_QuitDuringLoading(t *testing.T) {
 func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	l := logger.CreateLogger()
+		l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		return nil, nil
-	}
-
-	var openedURL string
-
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad).
-		WithOpenURL(func(url string) error {
-			openedURL = url
+		noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
 			return nil
-		})
+		}
 
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for discovery to complete
-		time.Sleep(200 * time.Millisecond)
+		var openedURL string
 
-		// Press h to open docs
-		p.Send(tea.KeyPressMsg{Code: 'h', Text: "h"})
-		time.Sleep(50 * time.Millisecond)
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad).
+			WithOpenURL(func(url string) error {
+				openedURL = url
+				return nil
+			})
 
-		// Quit
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: 'h', Text: "h"},
+			tea.KeyPressMsg{Code: 'q', Text: "q"},
+		}
+
+		finalModel := driveModel(t, m, 120, 40, msgs)
+
+		_, isWelcome := finalModel.(redesign.WelcomeModel)
+		assert.True(t, isWelcome, "should remain on welcome screen after pressing h")
+		assert.Equal(t, "https://docs.terragrunt.com/features/catalog/", openedURL, "should have opened docs URL")
 	})
-
-	_, isWelcome := finalModel.(redesign.WelcomeModel)
-	assert.True(t, isWelcome, "should remain on welcome screen after pressing h")
-	assert.Equal(t, "https://docs.terragrunt.com/features/catalog/", openedURL, "should have opened docs URL")
 }
 
 // TestWelcomeNoSourcesScreen_UnhandledKey verifies that pressing an
@@ -203,125 +245,67 @@ func TestWelcomeNoSourcesScreen_HelpKeyOpensDocs(t *testing.T) {
 func TestWelcomeNoSourcesScreen_UnhandledKey(t *testing.T) {
 	t.Parallel()
 
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	l := logger.CreateLogger()
+		l := logger.CreateLogger()
 
-	noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		return nil, nil
-	}
-
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
-
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for discovery to complete
-		time.Sleep(200 * time.Millisecond)
-
-		// Press an unhandled key — should be ignored
-		p.Send(tea.KeyPressMsg{Code: 'x', Text: "x"})
-		time.Sleep(50 * time.Millisecond)
-
-		// Quit
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-	})
-
-	_, isWelcome := finalModel.(redesign.WelcomeModel)
-	assert.True(t, isWelcome, "should remain on welcome screen after pressing unhandled key")
-}
-
-// TestWelcomeStreamingModules verifies that modules stream into the list
-// one at a time, ending up in sorted order.
-func TestWelcomeStreamingModules(t *testing.T) {
-	t.Parallel()
-
-	opts, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	l := logger.CreateLogger()
-	svc := createMockCatalogService(t, opts)
-
-	modules := svc.Modules()
-	require.GreaterOrEqual(t, len(modules), 2, "need at least 2 modules for streaming test")
-
-	streamingLoad := func(_ context.Context, _ redesign.StatusFunc, moduleCh chan<- *redesign.ModuleEntry) (catalog.CatalogService, error) {
-		// Stream modules one at a time with a small delay to simulate real discovery
-		for _, mod := range modules {
-			moduleCh <- redesign.NewModuleEntry(mod)
-
-			time.Sleep(20 * time.Millisecond)
+		noSourcesLoad := func(_ context.Context, _ redesign.StatusFunc, _ chan<- *redesign.ComponentEntry) error {
+			return nil
 		}
 
-		return svc, nil
-	}
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, noSourcesLoad)
 
-	m := redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
+		msgs := []tea.Msg{
+			tea.KeyPressMsg{Code: 'x', Text: "x"},
+			tea.KeyPressMsg{Code: 'q', Text: "q"},
+		}
 
-	finalModel := runTeaModel(t, m, 120, 40, func(p *tea.Program) {
-		// Wait for all modules to stream in
-		time.Sleep(500 * time.Millisecond)
+		finalModel := driveModel(t, m, 120, 40, msgs)
 
-		// Quit
-		p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+		_, isWelcome := finalModel.(redesign.WelcomeModel)
+		assert.True(t, isWelcome, "should remain on welcome screen after pressing unhandled key")
 	})
-
-	listModel, isList := finalModel.(redesign.Model)
-	require.True(t, isList, "should transition to module list")
-	assert.Equal(t, redesign.ListState, listModel.State)
-	assert.Len(t, listModel.List.Items(), len(modules), "all streamed modules should appear in list")
-
-	// Verify alphabetical order (case-insensitive, matching the sort in model.go)
-	items := listModel.List.Items()
-	for i := 1; i < len(items); i++ {
-		prev := strings.ToLower(items[i-1].(*redesign.ModuleEntry).Title())
-		curr := strings.ToLower(items[i].(*redesign.ModuleEntry).Title())
-		assert.LessOrEqual(t, prev, curr, "modules should be in alphabetical order")
-	}
 }
 
-// runTeaModel starts a tea.Program with any tea.Model, sends messages via
-// the interact callback, and returns the final tea.Model once the program
-// exits. Unlike runModel, this accepts and returns the tea.Model interface
-// so it works with both WelcomeModel and Model.
-func runTeaModel(t *testing.T, m tea.Model, width, height int, interact func(p *tea.Program)) tea.Model {
-	t.Helper()
+// TestWelcomeStreamingComponents verifies that components stream into the list
+// one at a time, ending up in sorted order.
+func TestWelcomeStreamingComponents(t *testing.T) {
+	t.Parallel()
 
-	var out bytes.Buffer
+	synctest.Test(t, func(t *testing.T) {
+		opts, err := options.NewTerragruntOptionsForTest("")
+		require.NoError(t, err)
 
-	pr, pw, err := os.Pipe()
-	require.NoError(t, err)
+		l := logger.CreateLogger()
+		components := makeComponents(t)
+		require.GreaterOrEqual(t, len(components), 2, "need at least 2 components for streaming test")
 
-	defer pr.Close()
-	defer pw.Close()
+		streamingLoad := func(_ context.Context, _ redesign.StatusFunc, componentCh chan<- *redesign.ComponentEntry) error {
+			for _, c := range components {
+				componentCh <- c
+			}
 
-	p := tea.NewProgram(m,
-		tea.WithInput(pr),
-		tea.WithOutput(&out),
-		tea.WithWindowSize(width, height),
-		tea.WithColorProfile(colorprofile.TrueColor),
-	)
+			return nil
+		}
 
-	done := make(chan tea.Model, 1)
+		m := redesign.NewWelcomeModel(t.Context(), l, opts, streamingLoad)
 
-	go func() {
-		finalModel, err := p.Run()
-		assert.NoError(t, err)
+		msgs := []tea.Msg{tea.KeyPressMsg{Code: 'q', Text: "q"}}
 
-		done <- finalModel
-	}()
+		finalModel := driveModel(t, m, 120, 40, msgs)
 
-	// Give the program a moment to start and process the initial WindowSizeMsg.
-	time.Sleep(50 * time.Millisecond)
+		listModel, isList := finalModel.(redesign.Model)
+		require.True(t, isList, "should transition to component list")
+		assert.Equal(t, redesign.ListState, listModel.State)
+		assert.Len(t, listModel.List().Items(), len(components), "all streamed components should appear in list")
 
-	interact(p)
-
-	select {
-	case fm := <-done:
-		return fm
-	case <-time.After(10 * time.Second):
-		p.Kill()
-		t.Fatal("program did not exit within timeout")
-
-		return nil
-	}
+		items := listModel.List().Items()
+		for i := 1; i < len(items); i++ {
+			prev := strings.ToLower(items[i-1].(*redesign.ComponentEntry).Title())
+			curr := strings.ToLower(items[i].(*redesign.ComponentEntry).Title())
+			assert.LessOrEqual(t, prev, curr, "components should be in alphabetical order")
+		}
+	})
 }

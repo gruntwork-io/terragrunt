@@ -152,6 +152,38 @@ func wrapVoidToStringSliceAsFuncImpl(
 	})
 }
 
+// Create a cty Function that takes a string slice as input parameters and returns a string slice as output.
+// The implementation of the function calls the given toWrap function.
+func wrapStringSliceToStringSliceAsFuncImpl(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	toWrap func(ctx context.Context, pctx *ParsingContext, l log.Logger, params []string) ([]string, error),
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.List(cty.String)),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.ListValEmpty(cty.String), err
+			}
+
+			outVals, err := toWrap(ctx, pctx, l, params)
+			if err != nil || len(outVals) == 0 {
+				return cty.ListValEmpty(cty.String), err
+			}
+
+			outCtyVals := make([]cty.Value, 0, len(outVals))
+			for _, val := range outVals {
+				outCtyVals = append(outCtyVals, cty.StringVal(val))
+			}
+
+			return cty.ListVal(outCtyVals), nil
+		},
+	})
+}
+
 // Create a cty Function that takes no input parameters and returns as output a string slice. The implementation of the
 // function returns the given string slice.
 func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {

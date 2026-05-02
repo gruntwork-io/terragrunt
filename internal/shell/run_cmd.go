@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/engine"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -159,14 +160,17 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
-// RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
+// RunCommand runs the given shell command using the provided vexec.Exec.
+// Pass vexec.NewMemExec from tests and fuzzers to intercept subprocess
+// invocations so external binaries like tofu/terraform are never forked.
+func RunCommand(ctx context.Context, l log.Logger, e vexec.Exec, runOpts *ShellOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, l, e, runOpts, "", false, false, command, args...)
 
 	return err
 }
 
-// RunCommandWithOutput runs the specified shell command with the specified arguments.
+// RunCommandWithOutput runs the specified shell command using the provided
+// vexec.Exec and captures stdout/stderr in addition to streaming.
 //
 // Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
@@ -174,6 +178,7 @@ func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, comman
 func RunCommandWithOutput(
 	ctx context.Context,
 	l log.Logger,
+	e vexec.Exec,
 	runOpts *ShellOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -219,7 +224,7 @@ func RunCommandWithOutput(
 			if runOpts.EngineConfig != nil && runOpts.Experiments.Evaluate(experiment.IacEngine) && !runOpts.NoEngine() {
 				l.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
-				cmdOutput, err := engine.Run(ctx, l, &engine.ExecutionOptions{
+				cmdOutput, err := engine.Run(ctx, l, e, &engine.ExecutionOptions{
 					Writers: writer.Writers{
 						Writer:                 writer.NewWrappedWriter(cmdStdout, runOpts.Writers.Writer),
 						ErrWriter:              writer.NewWrappedWriter(cmdStderr, runOpts.Writers.ErrWriter),
@@ -248,12 +253,11 @@ func RunCommandWithOutput(
 			}
 		}
 
-		cmd := exec.Command(ctx, command, args...)
-		cmd.Dir = commandDir
-		cmd.Stdout = cmdStdout
-		cmd.Stderr = cmdStderr
+		cmd := exec.Command(ctx, e, command, args...)
+		cmd.SetDir(commandDir)
+		cmd.SetStdout(cmdStdout)
+		cmd.SetStderr(cmdStderr)
 		cmd.Configure(
-			exec.WithLogger(l),
 			exec.WithUsePTY(needsPTY),
 			exec.WithEnv(runOpts.Env),
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
@@ -263,12 +267,12 @@ func RunCommandWithOutput(
 		savedConsole := exec.SaveConsoleState()
 		defer savedConsole.Restore()
 
-		if err := cmd.Start(); err != nil { //nolint:contextcheck // context already passed to exec.Command
+		if err := cmd.Start(l); err != nil { //nolint:contextcheck // context already passed to exec.Command
 			err = util.ProcessExecutionError{
 				Err:             err,
 				Args:            args,
 				Command:         command,
-				WorkingDir:      cmd.Dir,
+				WorkingDir:      cmd.Dir(),
 				RootWorkingDir:  runOpts.RootWorkingDir,
 				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
 				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,
@@ -277,7 +281,7 @@ func RunCommandWithOutput(
 			return errors.New(err)
 		}
 
-		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx)
+		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx, l)
 		defer cancelShutdown()
 
 		if err := cmd.Wait(); err != nil {
@@ -286,7 +290,7 @@ func RunCommandWithOutput(
 				Args:            args,
 				Command:         command,
 				Output:          output,
-				WorkingDir:      cmd.Dir,
+				WorkingDir:      cmd.Dir(),
 				RootWorkingDir:  runOpts.RootWorkingDir,
 				LogShowAbsPaths: runOpts.Writers.LogShowAbsPaths,
 				DisableSummary:  runOpts.Writers.LogDisableErrorSummary,

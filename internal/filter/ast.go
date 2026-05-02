@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/gobwas/glob"
 	"github.com/gruntwork-io/terragrunt/internal/component"
+	"github.com/gruntwork-io/terragrunt/internal/glob"
 )
 
 // Expression is the interface that all AST nodes must implement.
@@ -31,7 +31,7 @@ type Expressions []Expression
 
 // PathExpression represents a path or glob filter (e.g., "./path/**/*" or "/absolute/path").
 type PathExpression struct {
-	compiledGlob glob.Glob
+	compiledGlob glob.Matcher
 	Value        string
 }
 
@@ -39,7 +39,7 @@ type PathExpression struct {
 func NewPathFilter(value string) (*PathExpression, error) {
 	pattern := filepath.Clean(filepath.ToSlash(value))
 
-	compiled, err := glob.Compile(pattern, '/')
+	compiled, err := glob.Compile(pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func NewPathFilter(value string) (*PathExpression, error) {
 }
 
 // Glob returns the pre-compiled glob pattern.
-func (p *PathExpression) Glob() glob.Glob {
+func (p *PathExpression) Glob() glob.Matcher {
 	return p.compiledGlob
 }
 
@@ -61,7 +61,7 @@ func (p *PathExpression) Negated() Expression                   { return NewPref
 
 // AttributeExpression represents a key-value attribute filter (e.g., "name=my-app").
 type AttributeExpression struct {
-	compiledGlob glob.Glob
+	compiledGlob glob.Matcher
 	Key          string
 	Value        string
 }
@@ -78,7 +78,7 @@ func NewAttributeExpression(key string, value string) (*AttributeExpression, err
 			pattern = filepath.Clean(filepath.ToSlash(pattern))
 		}
 
-		compiled, err := glob.Compile(pattern, '/')
+		compiled, err := glob.Compile(pattern)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func NewTypeExpression(kind component.Kind) *AttributeExpression {
 }
 
 // Glob returns the pre-compiled glob pattern.
-func (a *AttributeExpression) Glob() glob.Glob {
+func (a *AttributeExpression) Glob() glob.Matcher {
 	return a.compiledGlob
 }
 

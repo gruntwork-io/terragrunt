@@ -513,6 +513,153 @@ unit "app" {
 	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
 }
 
+// TestParseStackFile_NestedStackPath verifies that stack.<name>.<nested_stack>.path
+// resolves correctly: a parent stack contains a child stack which itself contains
+// a nested stack. The reference stack.parent.child.path resolves to the nested
+// stack's generated directory.
+func TestParseStackFile_NestedStackPath(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/deep", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/deep/terragrunt.stack.hcl", []byte(`
+unit "db" {
+  source = "../../units/db"
+  path   = "db"
+}
+`), 0644))
+
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/infra", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/infra/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source = "../../units/vpc"
+  path   = "vpc"
+}
+
+stack "deep" {
+  source = "../deep"
+  path   = "deep"
+}
+`), 0644))
+
+	parentStackDir := "/project/live"
+
+	require.NoError(t, fs.MkdirAll(parentStackDir, 0755))
+
+	parentSrc := `
+stack "infra" {
+  source = "../catalog/stacks/infra"
+  path   = "infra"
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "deep" {
+      config_path = stack.infra.deep.path
+    }
+  }
+}
+`
+	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
+	require.NoError(t, vfs.WriteFile(fs, parentStackFile, []byte(parentSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(parentSrc),
+		Filename: parentStackFile,
+		StackDir: parentStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 1)
+	assert.Equal(t, "deep", resolved.Dependencies[0].Name)
+
+	// stack.infra.deep.path should resolve to:
+	// .terragrunt-stack/infra/.terragrunt-stack/deep
+	expectedPath := filepath.Join(parentStackDir, ".terragrunt-stack", "infra", ".terragrunt-stack", "deep")
+	assert.Equal(t, expectedPath, resolved.Dependencies[0].ConfigPath)
+}
+
+// TestParseStackFile_TopLevelStackNoDotTerragruntStack verifies that a top-level
+// stack block with no_dot_terragrunt_stack = true resolves stack.<name>.path to
+// <stackDir>/<s.Path> (not <stackDir>/.terragrunt-stack/<s.Path>), matching the
+// behavior of resolveDestPath in pkg/config/stack.go. Also asserts the
+// second-order behavior: when the recursion into the stack's children runs from
+// the repositioned path, a child unit that also sets no_dot_terragrunt_stack
+// materializes under the stack's own directory with no .terragrunt-stack/
+// wrapping at any level.
+func TestParseStackFile_TopLevelStackNoDotTerragruntStack(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	require.NoError(t, fs.MkdirAll("/project/catalog/stacks/networking", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/project/catalog/stacks/networking/terragrunt.stack.hcl", []byte(`
+unit "vpc" {
+  source                  = "../../units/vpc"
+  path                    = "vpc"
+  no_dot_terragrunt_stack = true
+}
+`), 0644))
+
+	parentStackDir := "/project/live"
+
+	require.NoError(t, fs.MkdirAll(parentStackDir, 0755))
+
+	parentSrc := `
+stack "networking" {
+  source                  = "../catalog/stacks/networking"
+  path                    = "networking"
+  no_dot_terragrunt_stack = true
+}
+
+unit "app" {
+  source = "../catalog/units/app"
+  path   = "app"
+
+  autoinclude {
+    dependency "net" {
+      config_path = stack.networking.path
+    }
+
+    dependency "vpc" {
+      config_path = stack.networking.vpc.path
+    }
+  }
+}
+`
+	parentStackFile := filepath.Join(parentStackDir, "terragrunt.stack.hcl")
+	require.NoError(t, vfs.WriteFile(fs, parentStackFile, []byte(parentSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{
+		Src:      []byte(parentSrc),
+		Filename: parentStackFile,
+		StackDir: parentStackDir,
+	})
+	require.NoError(t, err)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "app")]
+	require.True(t, ok)
+	require.Len(t, resolved.Dependencies, 2)
+
+	depPathsByName := make(map[string]string, len(resolved.Dependencies))
+	for _, dep := range resolved.Dependencies {
+		depPathsByName[dep.Name] = dep.ConfigPath
+	}
+
+	// stack.networking.path resolves under parentStackDir, bypassing .terragrunt-stack/.
+	assert.Equal(t, filepath.Join(parentStackDir, "networking"), depPathsByName["net"])
+
+	// stack.networking.vpc.path: the child unit also sets no_dot_terragrunt_stack,
+	// so recursion into the repositioned stack dir places vpc directly under it.
+	assert.Equal(t, filepath.Join(parentStackDir, "networking", "vpc"), depPathsByName["vpc"])
+}
+
 func TestParseStackFile_LocalsCycle(t *testing.T) {
 	t.Parallel()
 
