@@ -40,6 +40,14 @@ func NewClient(
 	cfg *ExtendedRemoteStateConfigAzureRM,
 	opts *backend.Options,
 ) (*Client, error) {
+	if cfg == nil {
+		return nil, errors.Errorf("azurerm: ExtendedRemoteStateConfigAzureRM is required")
+	}
+
+	if opts == nil {
+		return nil, errors.Errorf("azurerm: backend.Options is required")
+	}
+
 	azCfg, err := azurehelper.NewAzureConfigBuilder().
 		WithSessionConfig(cfg.GetAzureSessionConfig()).
 		WithEnv(opts.Env).
@@ -275,17 +283,21 @@ func (c *Client) CreateContainerIfNecessary(ctx context.Context, l log.Logger, o
 	return c.blob.CreateContainerIfNecessary(ctx, c.RemoteStateConfigAzureRM.ContainerName)
 }
 
-// MoveBlob copies srcKey within the bound container to dstContainer/dstKey
-// and then deletes the source blob. CopyBlob is server-side and may be
-// asynchronous for very large blobs; the source delete may briefly race in
-// that case. State files are small in practice so this is acceptable for
-// the migration use case.
+// MoveBlob copies srcKey within the bound container to dstContainer/dstKey,
+// waits for the server-side copy to complete, and then deletes the source
+// blob. CopyBlob is server-side and may be asynchronous for large blobs;
+// the wait avoids a race where the source is deleted before the copy is
+// fully committed.
 func (c *Client) MoveBlob(ctx context.Context, srcContainer, srcKey, dstContainer, dstKey string) error {
 	if srcContainer == dstContainer && srcKey == dstKey {
 		return nil
 	}
 
 	if err := c.blob.CopyBlob(ctx, srcContainer, srcKey, dstContainer, dstKey); err != nil {
+		return err
+	}
+
+	if err := c.blob.WaitForCopy(ctx, dstContainer, dstKey); err != nil {
 		return err
 	}
 

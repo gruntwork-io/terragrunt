@@ -13,9 +13,11 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	azblobcontainer "github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -335,6 +337,48 @@ func (c *BlobClient) CopyBlob(ctx context.Context, srcContainer, srcKey, dstCont
 	}
 
 	return nil
+}
+
+// WaitForCopy polls the destination blob until its copy operation reaches
+// a terminal state (success, aborted or failed) or the context is
+// cancelled. Returns nil on success, an error on aborted/failed, or the
+// context error on timeout. Suitable for callers that need to ensure a
+// CopyBlob has completed before, e.g., deleting the source blob.
+func (c *BlobClient) WaitForCopy(ctx context.Context, dstContainer, dstKey string) error {
+	const pollInterval = 200 * time.Millisecond
+
+	dst := c.client.ServiceClient().NewContainerClient(dstContainer).NewBlobClient(dstKey)
+
+	for {
+		props, err := dst.GetProperties(ctx, nil)
+		if err != nil {
+			return WrapError(err, fmt.Sprintf("polling copy status of %s/%s", dstContainer, dstKey))
+		}
+
+		if props.CopyStatus == nil {
+			return nil
+		}
+
+		switch *props.CopyStatus {
+		case blob.CopyStatusTypeSuccess:
+			return nil
+		case blob.CopyStatusTypeAborted, blob.CopyStatusTypeFailed:
+			desc := ""
+			if props.CopyStatusDescription != nil {
+				desc = *props.CopyStatusDescription
+			}
+
+			return errors.Errorf("copy of %s/%s ended in state %s: %s", dstContainer, dstKey, *props.CopyStatus, desc)
+		case blob.CopyStatusTypePending:
+			// keep polling
+		}
+
+		select {
+		case <-ctx.Done():
+			return errors.Errorf("context cancelled while waiting for copy of %s/%s: %w", dstContainer, dstKey, ctx.Err())
+		case <-time.After(pollInterval):
+		}
+	}
 }
 
 // endpointSuffixForCloud returns the blob endpoint host suffix for the cloud

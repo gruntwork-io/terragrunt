@@ -355,7 +355,9 @@ func TestAzureBackendLifecycleGatedByExperiment(t *testing.T) {
 func assertExperimentDisabled(t *testing.T, err error) {
 	t.Helper()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "experimental")
+
+	var notEnabled azurermbackend.ExperimentNotEnabledError
+	require.ErrorAs(t, err, &notEnabled)
 }
 
 // TestAzureBackendBootstrap exercises Bootstrap end to end: resource group

@@ -182,21 +182,6 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 
 		return out, validate(out, &resolved)
 
-	case resolved.UseOIDC:
-		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-			ClientOptions: clientOpts,
-		})
-		if err != nil {
-			return nil, errors.Errorf("creating OIDC credential: %w", err)
-		}
-
-		out.Method = AuthMethodOIDC
-		out.Credential = cred
-
-		l.Debugf("azurehelper: using OIDC / workload identity authentication")
-
-		return out, validate(out, &resolved)
-
 	case resolved.UseMSI:
 		opts := &azidentity.ManagedIdentityCredentialOptions{ClientOptions: clientOpts}
 		if resolved.MSIResourceID != "" {
@@ -212,6 +197,21 @@ func (b *AzureConfigBuilder) Build(_ context.Context, l log.Logger) (*AzureConfi
 		out.Credential = cred
 
 		l.Debugf("azurehelper: using managed identity authentication")
+
+		return out, validate(out, &resolved)
+
+	case resolved.UseOIDC:
+		cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: clientOpts,
+		})
+		if err != nil {
+			return nil, errors.Errorf("creating OIDC credential: %w", err)
+		}
+
+		out.Method = AuthMethodOIDC
+		out.Credential = cred
+
+		l.Debugf("azurehelper: using OIDC / workload identity authentication")
 
 		return out, validate(out, &resolved)
 

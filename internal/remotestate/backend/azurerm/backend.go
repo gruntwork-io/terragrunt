@@ -55,6 +55,13 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 		return false, err
 	}
 
+	// Pure passthrough configs (all skip_*_creation flags set) must not
+	// resolve Azure credentials — there is nothing to check on the
+	// control plane.
+	if extCfg.SkipStorageAccountCreation && extCfg.SkipResourceGroupCreation && extCfg.SkipContainerCreation {
+		return false, nil
+	}
+
 	client, err := NewClient(ctx, l, extCfg, opts)
 	if err != nil {
 		return false, err
@@ -65,10 +72,6 @@ func (b *Backend) NeedsBootstrap(ctx context.Context, l log.Logger, backendConfi
 			l.Warnf("Error closing Azure client: %v", err)
 		}
 	}()
-
-	if extCfg.SkipStorageAccountCreation && extCfg.SkipResourceGroupCreation && extCfg.SkipContainerCreation {
-		return false, nil
-	}
 
 	if !extCfg.SkipStorageAccountCreation {
 		exists, err := client.DoesStorageAccountExist(ctx)
@@ -108,6 +111,20 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 		return err
 	}
 
+	mu := b.GetBucketMutex(extCfg.RemoteStateConfigAzureRM.StorageAccountName + "/" + extCfg.RemoteStateConfigAzureRM.ContainerName)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Cache check first so a repeat Bootstrap on an already-initialised
+	// container does not resolve Azure credentials or build any client.
+	if b.IsConfigInited(&extCfg.RemoteStateConfigAzureRM) {
+		l.Debugf("%s container %s/%s has already been confirmed to be initialized, skipping initialization checks",
+			b.Name(), extCfg.RemoteStateConfigAzureRM.StorageAccountName, extCfg.RemoteStateConfigAzureRM.ContainerName)
+
+		return nil
+	}
+
 	client, err := NewClient(ctx, l, extCfg, opts)
 	if err != nil {
 		return err
@@ -118,18 +135,6 @@ func (b *Backend) Bootstrap(ctx context.Context, l log.Logger, backendConfig bac
 			l.Warnf("Error closing Azure client: %v", err)
 		}
 	}()
-
-	mu := b.GetBucketMutex(extCfg.RemoteStateConfigAzureRM.StorageAccountName + "/" + extCfg.RemoteStateConfigAzureRM.ContainerName)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if b.IsConfigInited(&extCfg.RemoteStateConfigAzureRM) {
-		l.Debugf("%s container %s/%s has already been confirmed to be initialized, skipping initialization checks",
-			b.Name(), extCfg.RemoteStateConfigAzureRM.StorageAccountName, extCfg.RemoteStateConfigAzureRM.ContainerName)
-
-		return nil
-	}
 
 	if err := client.CreateStorageAccountIfNecessary(ctx, l, opts); err != nil {
 		return err
@@ -275,8 +280,12 @@ func (b *Backend) DeleteBucket(ctx context.Context, l log.Logger, backendConfig 
 		}
 	}()
 
-	prompt := fmt.Sprintf("Azure container %s/%s will be completely deleted. Do you want to continue?",
-		extCfg.RemoteStateConfigAzureRM.StorageAccountName, extCfg.RemoteStateConfigAzureRM.ContainerName)
+	prompt := "Azure container " + extCfg.RemoteStateConfigAzureRM.StorageAccountName + "/" + extCfg.RemoteStateConfigAzureRM.ContainerName + " will be deleted"
+	if !extCfg.SkipStorageAccountCreation {
+		prompt += " and storage account " + extCfg.RemoteStateConfigAzureRM.StorageAccountName + " will also be deleted"
+	}
+
+	prompt += ". Do you want to continue?"
 
 	yes, err := shell.PromptUserForYesNo(ctx, l, prompt, opts.NonInteractive, opts.Writers.ErrWriter)
 	if err != nil {

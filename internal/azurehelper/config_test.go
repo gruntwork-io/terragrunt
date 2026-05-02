@@ -109,13 +109,15 @@ func TestBuild_AuthMethodPrecedence(t *testing.T) {
 			hasCred: true,
 		},
 		{
-			name: "oidc beats msi",
+			// Documented backend precedence puts MSI ahead of OIDC,
+			// so when both flags are set MSI must win.
+			name: "msi beats oidc",
 			cfg: azurehelper.AzureSessionConfig{
 				SubscriptionID: testSub,
 				UseOIDC:        true,
 				UseMSI:         true,
 			},
-			want:    azurehelper.AuthMethodOIDC,
+			want:    azurehelper.AuthMethodMSI,
 			hasCred: true,
 		},
 		{

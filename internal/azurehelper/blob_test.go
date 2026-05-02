@@ -314,7 +314,9 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 	}
 
 	suffix := make([]byte, 4)
-	_, _ = rand.Read(suffix)
+	if _, err := rand.Read(suffix); err != nil {
+		t.Fatalf("rand.Read: %v", err)
+	}
 
 	container := "tg-test-" + hex.EncodeToString(suffix)
 	key := "roundtrip.txt"
@@ -361,8 +363,12 @@ func TestBlob_LiveRoundTrip(t *testing.T) {
 		t.Fatalf("GetObject: %v", err)
 	}
 
-	got2, _ := io.ReadAll(body2)
+	got2, err := io.ReadAll(body2)
 	_ = body2.Close()
+
+	if err != nil {
+		t.Fatalf("read body2: %v", err)
+	}
 
 	if !bytes.Equal(got2, payload) {
 		t.Errorf("GetObject payload mismatch: got %q want %q", got2, payload)

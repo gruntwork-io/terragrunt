@@ -89,6 +89,7 @@ func TestIsNotFound(t *testing.T) {
 		{errors.New("nope"), "non-azure", false},
 		{respErr(http.StatusNotFound, ""), "404", true},
 		{respErr(http.StatusInternalServerError, "ResourceNotFound"), "ResourceNotFound code", true},
+		{respErr(http.StatusOK, "resourcenotfound"), "lower-case ResourceNotFound code", true},
 		{respErr(http.StatusOK, "BlobNotFound"), "BlobNotFound code", true},
 		{respErr(http.StatusOK, "ContainerNotFound"), "ContainerNotFound code", true},
 		{respErr(http.StatusForbidden, ""), "403", false},
