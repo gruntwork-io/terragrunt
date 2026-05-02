@@ -1,0 +1,30 @@
+---
+name: deep-merge
+status: active
+---
+
+Support for the `deep_merge` HCL function.
+
+### `deep-merge` - What it does
+
+When enabled, Terragrunt exposes a `deep_merge(map1, map2, ...)` HCL function for combining map or object values.
+
+For overlapping keys, values from later arguments override earlier arguments. Nested maps are merged recursively, lists are appended, and `null` arguments are ignored.
+
+This is useful when building `inputs` from multiple JSON, YAML, or HCL-derived maps without having to rely on include block merge behavior.
+
+```bash
+terragrunt run --all --experiment deep-merge -- plan
+```
+
+### `deep-merge` - How to provide feedback
+
+Provide your feedback on the [GitHub Discussions](https://github.com/gruntwork-io/terragrunt/discussions) page.
+
+### `deep-merge` - Criteria for stabilization
+
+To transition the `deep-merge` feature to a stable release, the following must be addressed:
+
+- [ ] Confirm the merge semantics are useful for common configuration layering workflows.
+- [ ] Confirm type handling for decoded JSON/YAML and native HCL objects matches user expectations.
+- [ ] Positive feedback from users relying on the function in production pipelines.

@@ -56,6 +56,8 @@ const (
 	// (so reading-based filter expressions detect changes to the module) and
 	// the mark_glob_as_read HCL function.
 	MarkManyAsRead = "mark-many-as-read"
+	// DeepMerge enables the deep_merge HCL function.
+	DeepMerge = "deep-merge"
 )
 
 const (
@@ -122,6 +124,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MarkManyAsRead,
+		},
+		{
+			Name: DeepMerge,
 		},
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 )
 
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
@@ -248,7 +249,7 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 
 // Create a cty Function that deeply merges map/object values.
 // Later args override earlier args for overlapping keys.
-func deepMergeMapValuesAsFuncImpl() function.Function {
+func deepMergeMapValuesAsFuncImpl(pctx *ParsingContext) function.Function {
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{
 			Type:             cty.DynamicPseudoType,
@@ -257,6 +258,10 @@ func deepMergeMapValuesAsFuncImpl() function.Function {
 		},
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			if !pctx.Experiments.Evaluate(experiment.DeepMerge) {
+				return cty.NilVal, errors.New(DeepMergeRequiresExperimentError{ConfigPath: pctx.TerragruntConfigPath})
+			}
+
 			outVal := cty.EmptyObjectVal
 
 			for _, arg := range args {

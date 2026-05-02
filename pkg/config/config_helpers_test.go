@@ -916,7 +916,7 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 			)`,
 			expected: map[string]any{
 				"service": map[string]any{
-					"retries": 3.,
+					"retries": json.Number("3"),
 					"mode":    "safe",
 				},
 			},
@@ -949,7 +949,7 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 						"app":   "api",
 					},
 				},
-				"allow": []any{1., 2.},
+				"allow": []any{json.Number("1"), json.Number("2")},
 			},
 		},
 		{
@@ -964,8 +964,8 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 			)`,
 			expected: map[string]any{
 				"config": map[string]any{
-					"retries": 1.,
-					"timeout": 30.,
+					"retries": json.Number("1"),
+					"timeout": json.Number("30"),
 					"flags": map[string]any{
 						"enabled": true,
 						"debug":   false,
@@ -1002,7 +1002,7 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 						"app":   "api",
 					},
 				},
-				"allow": []any{1., 2.},
+				"allow": []any{json.Number("1"), json.Number("2")},
 			},
 		},
 	}
@@ -1011,11 +1011,12 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 
-			terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+			cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 			configString := fmt.Sprintf("inputs = { test = %s }", tc.input)
 			l := logger.CreateLogger()
-			ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
-			actual, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
+			ctx, pctx := newTestParsingContext(t, cfgPath)
+			require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+			actual, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 			require.NoError(t, err)
 			require.NotNil(t, actual)
 
@@ -1027,14 +1028,28 @@ func TestTerragruntDeepMergeFunction(t *testing.T) {
 	}
 }
 
+func TestTerragruntDeepMergeFunctionRequiresExperiment(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
+	configString := `inputs = { test = deep_merge({ a = 1 }, { b = 2 }) }`
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "deep-merge")
+}
+
 func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := terragruntOptionsForTest(t, "../../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+	cfgPath := "../../test/fixtures/config-terraform-functions/" + config.DefaultTerragruntConfigPath
 	configString := `inputs = { test = deep_merge({ a = 1 }, "invalid") }`
 	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
-	_, err := config.ParseConfigString(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, configString, nil)
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+	_, err := config.ParseConfigString(ctx, pctx, l, cfgPath, configString, nil)
 
 	var multiErr *errors.MultiError
 	require.ErrorAs(t, err, &multiErr)
@@ -1044,14 +1059,14 @@ func TestTerragruntDeepMergeFunctionInvalidType(t *testing.T) {
 func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 	t.Parallel()
 
-	terragruntOptions := terragruntOptionsForTest(
-		t,
-		"../../test/fixtures/deep-merge-fileset/"+config.DefaultTerragruntConfigPath,
-	)
-	l := logger.CreateLogger()
-	ctx, pctx := config.NewParsingContext(t.Context(), l, terragruntOptions)
+	cfgPath, err := filepath.Abs("../../test/fixtures/deep-merge-fileset/" + config.DefaultTerragruntConfigPath)
+	require.NoError(t, err)
 
-	cfg, err := config.ParseConfigFile(ctx, pctx, l, terragruntOptions.TerragruntConfigPath, nil)
+	l := logger.CreateLogger()
+	ctx, pctx := newTestParsingContext(t, cfgPath)
+	require.NoError(t, pctx.Experiments.EnableExperiment(experiment.DeepMerge))
+
+	cfg, err := config.ParseConfigFile(ctx, pctx, l, cfgPath, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.NotNil(t, cfg.Inputs)
@@ -1060,15 +1075,15 @@ func TestTerragruntDeepMergeFunctionFilesetJSONEndToEnd(t *testing.T) {
 		"app": map[string]any{
 			"name": "svc-prod",
 			"settings": map[string]any{
-				"retries": 2.,
-				"timeout": 30.,
+				"retries": json.Number("2"),
+				"timeout": json.Number("30"),
 				"tags": map[string]any{
 					"owner": "platform",
 					"team":  "core",
 				},
 			},
 		},
-		"ports": []any{80., 443.},
+		"ports": []any{json.Number("80"), json.Number("443")},
 		"env":   "prod",
 		"extra": map[string]any{
 			"enabled": true,
