@@ -155,7 +155,7 @@ func WrapWithTelemetry(
 				return err
 			}
 
-			if err := runAction(childCtx, cliCtx, l, opts, action); err != nil {
+			if err := RunAction(childCtx, cliCtx, l, opts, action); err != nil {
 				opts.Tips.Find(tips.DebuggingDocs).Evaluate(l)
 				return err
 			}
@@ -239,7 +239,9 @@ func GiveWindowsSymlinksTip(
 	tip.Evaluate(l)
 }
 
-func runAction(
+// RunAction wires up cancellation, run-scoped caches, and (when enabled)
+// the provider cache server, then invokes action with the resulting context.
+func RunAction(
 	ctx context.Context,
 	cliCtx *clihelper.Context,
 	l log.Logger,
@@ -287,7 +289,7 @@ func runAction(
 			return err
 		}
 
-		ln, err := server.Listen(ctx)
+		ln, err := server.Listen(actionCtx)
 		if err != nil {
 			return err
 		}
@@ -296,7 +298,7 @@ func runAction(
 		actionCtx = tf.ContextWithTerraformCommandHook(actionCtx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx, ln)
+			return server.Run(actionCtx, ln)
 		})
 	}
 
