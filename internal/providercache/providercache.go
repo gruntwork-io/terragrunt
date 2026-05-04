@@ -153,10 +153,10 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	providerService := services.NewProviderService(pcOpts.Dir, userProviderDir, cliCfg.CredentialsSource(), l, services.WithFS(pc.FS()))
 	proxyProviderHandler := handlers.NewProxyProviderHandler(l, cliCfg.CredentialsSource())
 
-	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — filterRegistriesByImplementation
+	// Custom hosts need handlers, but must not pollute pcOpts.RegistryNames — FilterRegistriesByImplementation
 	// relies on that slice containing only the standard registries to detect impl-based filtering.
 	// See: https://github.com/gruntwork-io/terragrunt/issues/5916
-	registryNamesForHandlers := appendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
+	registryNamesForHandlers := AppendCustomHostRegistries(cliCfg.Hosts, pcOpts.RegistryNames)
 
 	providerHandlers, err := handlers.NewProviderHandlers(cliCfg, l, registryNamesForHandlers)
 	if err != nil {
@@ -390,8 +390,8 @@ func (pc *ProviderCache) createLocalCLIConfig(ctx context.Context, implementatio
 	cfg := pc.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	filteredRegistryNames := filterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
-	filteredRegistryNames = appendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+	filteredRegistryNames := FilterRegistriesByImplementation(pc.opts.RegistryNames, implementation)
+	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
 
 	providerInstallationIncludes, err := pc.configureRegistryHosts(ctx, cfg, filteredRegistryNames, cacheRequestID)
 	if err != nil {
@@ -572,13 +572,13 @@ func (pc *ProviderCache) providerCacheEnvironment(env map[string]string, impleme
 	maps.Copy(envs, env)
 
 	// Filter registries based on OpenTofu or Terraform implementation to avoid setting env vars for unnecessary registries
-	filteredRegistryNames := filterRegistriesByImplementation(
+	filteredRegistryNames := FilterRegistriesByImplementation(
 		pc.opts.RegistryNames,
 		implementation,
 	)
 
 	// Include custom host blocks so auth tokens are set for them too.
-	filteredRegistryNames = appendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
+	filteredRegistryNames = AppendCustomHostRegistries(pc.cliCfg.Hosts, filteredRegistryNames)
 
 	for _, registryName := range filteredRegistryNames {
 		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
@@ -642,10 +642,10 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	return commandsArgs
 }
 
-// appendCustomHostRegistries adds custom host names from user config to the registry list
+// AppendCustomHostRegistries adds custom host names from user config to the registry list
 // if they are not already present. This ensures the cache server handles them.
 // See: https://github.com/gruntwork-io/terragrunt/issues/5916
-func appendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []string) []string {
+func AppendCustomHostRegistries(hosts []cliconfig.ConfigHost, registryNames []string) []string {
 	for _, host := range hosts {
 		if !slices.Contains(registryNames, host.Name) {
 			registryNames = append(registryNames, host.Name)
@@ -674,7 +674,7 @@ func populateCustomHostDiscoveryCache(hosts []cliconfig.ConfigHost, providerHand
 	}
 }
 
-// filterRegistriesByImplementation filters registry names based on the Terraform implementation being used.
+// FilterRegistriesByImplementation filters registry names based on the Terraform implementation being used.
 // If the registry names match the default registries (both registry.terraform.io and registry.opentofu.org),
 // it filters them based on the implementation:
 //   - OpenTofuImpl: returns only registry.opentofu.org
@@ -682,7 +682,7 @@ func populateCustomHostDiscoveryCache(hosts []cliconfig.ConfigHost, providerHand
 //   - UnknownImpl: returns both (backward compatibility)
 //
 // If the user has explicitly set registry names (don't match defaults), returns them as-is.
-func filterRegistriesByImplementation(registryNames []string, implementation tfimpl.Type) []string {
+func FilterRegistriesByImplementation(registryNames []string, implementation tfimpl.Type) []string {
 	// Default registries in the same order as defined in options/options.go
 	defaultRegistries := []string{
 		"registry.terraform.io",

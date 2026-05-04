@@ -1,5 +1,0 @@
-package providercache
-
-var FilterRegistriesByImplementation = filterRegistriesByImplementation
-
-var AppendCustomHostRegistries = appendCustomHostRegistries
