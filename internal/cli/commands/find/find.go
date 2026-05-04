@@ -3,11 +3,11 @@ package find
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/component"
@@ -166,14 +166,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			err     error
 		)
 
+		base := opts.WorkingDir
 		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-			relPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, c.Path())
-		} else {
-			relPath, err = filepath.Rel(opts.WorkingDir, c.Path())
+			base = c.DiscoveryContext().WorkingDir
 		}
 
+		relPath, err = filepath.Rel(base, c.Path())
 		if err != nil {
-			errs = append(errs, errors.New(err))
+			errs = append(errs, fmt.Errorf("relativize component path %q against base %q: %w", c.Path(), base, err))
 
 			continue
 		}
@@ -196,10 +196,17 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
-						foundComponent.Include[v.Name], err = util.GetPathRelativeTo(v.Path, opts.RootWorkingDir)
-						if err != nil {
-							errs = append(errs, errors.New(err))
+						relIncludePath, relErr := filepath.Rel(opts.RootWorkingDir, v.Path)
+						if relErr != nil {
+							errs = append(errs, fmt.Errorf(
+								"relativize include %q (path %q) for unit %q against root %q: %w",
+								v.Name, v.Path, unit.Path(), opts.RootWorkingDir, relErr,
+							))
+
+							continue
 						}
+
+						foundComponent.Include[v.Name] = relIncludePath
 					}
 				}
 			}
@@ -208,17 +215,18 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 		if opts.Reading && len(c.Reading()) > 0 {
 			foundComponent.Reading = make([]string, len(c.Reading()))
 
+			readingBase := opts.WorkingDir
+			if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
+				readingBase = c.DiscoveryContext().WorkingDir
+			}
+
 			for i, reading := range c.Reading() {
-				var relReadingPath string
-
-				if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
-					relReadingPath, err = filepath.Rel(c.DiscoveryContext().WorkingDir, reading)
-				} else {
-					relReadingPath, err = filepath.Rel(opts.WorkingDir, reading)
-				}
-
-				if err != nil {
-					errs = append(errs, errors.New(err))
+				relReadingPath, relErr := filepath.Rel(readingBase, reading)
+				if relErr != nil {
+					errs = append(errs, fmt.Errorf(
+						"relativize reading path %q for unit %q against base %q: %w",
+						reading, c.Path(), readingBase, relErr,
+					))
 
 					continue
 				}
@@ -231,16 +239,17 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
 			for i, dep := range c.Dependencies() {
-				var relDepPath string
-
+				depBase := opts.WorkingDir
 				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
-					relDepPath, err = filepath.Rel(dep.DiscoveryContext().WorkingDir, dep.Path())
-				} else {
-					relDepPath, err = filepath.Rel(opts.WorkingDir, dep.Path())
+					depBase = dep.DiscoveryContext().WorkingDir
 				}
 
-				if err != nil {
-					errs = append(errs, errors.New(err))
+				relDepPath, relErr := filepath.Rel(depBase, dep.Path())
+				if relErr != nil {
+					errs = append(errs, fmt.Errorf(
+						"relativize dependency path %q (of unit %q) against base %q: %w",
+						dep.Path(), c.Path(), depBase, relErr,
+					))
 
 					continue
 				}

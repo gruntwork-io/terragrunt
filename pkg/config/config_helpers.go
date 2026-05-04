@@ -809,15 +809,14 @@ func PathRelativeToInclude(ctx context.Context, pctx *ParsingContext, l log.Logg
 		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 		includePath := filepath.Dir(included.Path)
 
-		if !filepath.IsAbs(includePath) {
-			includePath = filepath.Join(currentPath, includePath)
-		}
-
 		var innerErr error
 
-		result, innerErr = util.GetPathRelativeTo(currentPath, includePath)
+		result, innerErr = filepath.Rel(includePath, currentPath)
+		if innerErr != nil {
+			return fmt.Errorf("relativize current path %q against include path %q: %w", currentPath, includePath, innerErr)
+		}
 
-		return innerErr
+		return nil
 	})
 
 	return result, err
@@ -852,13 +851,12 @@ func PathRelativeFromInclude(ctx context.Context, pctx *ParsingContext, l log.Lo
 		includePath := filepath.Dir(included.Path)
 		currentPath := filepath.Dir(pctx.TerragruntConfigPath)
 
-		if !filepath.IsAbs(includePath) {
-			includePath = filepath.Join(currentPath, includePath)
+		result, innerErr = filepath.Rel(currentPath, includePath)
+		if innerErr != nil {
+			return fmt.Errorf("relativize include path %q against current path %q: %w", includePath, currentPath, innerErr)
 		}
 
-		result, innerErr = util.GetPathRelativeTo(includePath, currentPath)
-
-		return innerErr
+		return nil
 	})
 
 	return result, err

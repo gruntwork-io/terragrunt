@@ -34,10 +34,6 @@ func parseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 	includePath := includedConfig.Path
 
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
-
 	// These condition are here to specifically handle the `run --all` command. During any `run --all` call, terragrunt
 	// needs to first build up the dependency graph to know what order to process the modules in. We want to limit users
 	// from creating a dependency between the dependency path for graph generation, and a module output. This is because
@@ -143,12 +139,7 @@ func handleInclude(ctx context.Context, pctx *ParsingContext, l log.Logger, conf
 			logPrefix           string
 		)
 
-		trackedIncludePath := includeConfig.Path
-		if !filepath.IsAbs(trackedIncludePath) {
-			trackedIncludePath = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), trackedIncludePath))
-		}
-
-		trackFileRead(pctx.FilesRead, trackedIncludePath)
+		trackFileRead(pctx.FilesRead, includeConfig.Path)
 
 		if isPartial {
 			parsedIncludeConfig, err = partialParseIncludedConfig(ctx, pctx, l, &includeConfig)
@@ -797,19 +788,30 @@ func mergeErrorHooks(l log.Logger, childHooks []ErrorHook, parentHooks *[]ErrorH
 // getTrackInclude converts the terragrunt include blocks into TrackInclude structs that differentiate between an
 // included config in the current parsing ctx, and an included config that was passed through from a previous
 // parsing ctx.
+//
+// Each include's Path is normalized to an absolute path here, resolved against the directory of the current config
+// file. Downstream consumers can rely on IncludeConfig.Path being absolute and need not redo this resolution.
 func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, includeFromChild *IncludeConfig) (*TrackInclude, error) {
+	configDir := filepath.Dir(ctx.TerragruntConfigPath)
+
+	normalizedList := make(IncludeConfigs, len(terragruntIncludeList))
 	includedPaths := make([]string, 0, len(terragruntIncludeList))
 	terragruntIncludeMap := make(map[string]IncludeConfig, len(terragruntIncludeList))
 
-	for _, tgInc := range terragruntIncludeList {
+	for i, tgInc := range terragruntIncludeList {
+		if tgInc.Path != "" && !filepath.IsAbs(tgInc.Path) {
+			tgInc.Path = filepath.Clean(filepath.Join(configDir, tgInc.Path))
+		}
+
+		normalizedList[i] = tgInc
 		includedPaths = append(includedPaths, tgInc.Path)
 		terragruntIncludeMap[tgInc.Name] = tgInc
 	}
 
-	hasInclude := len(terragruntIncludeList) > 0
+	hasInclude := len(normalizedList) > 0
 
 	trackInc := TrackInclude{
-		CurrentList: terragruntIncludeList,
+		CurrentList: normalizedList,
 		CurrentMap:  terragruntIncludeMap,
 	}
 
@@ -827,7 +829,14 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 	case hasInclude && includeFromChild == nil:
 		// Current parsing ctx where there is no included config already loaded.
 	case !hasInclude:
-		// Parsing ctx where there is an included config already loaded.
+		// Parsing ctx where there is an included config already loaded. Normalize the inherited include's Path so
+		// downstream consumers see the same absolute-path invariant as entries in CurrentList/CurrentMap.
+		if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+			normalized := *includeFromChild
+			normalized.Path = filepath.Clean(filepath.Join(configDir, includeFromChild.Path))
+			includeFromChild = &normalized
+		}
+
 		trackInc.Original = includeFromChild
 	}
 

@@ -682,10 +682,6 @@ func partialParseIncludedConfig(ctx context.Context, pctx *ParsingContext, l log
 
 	includePath := includedConfig.Path
 
-	if !filepath.IsAbs(includePath) {
-		includePath = filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includePath)
-	}
-
 	config, err := PartialParseConfigFile(
 		ctx,
 		pctx,
