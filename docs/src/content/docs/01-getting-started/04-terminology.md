@@ -162,7 +162,7 @@ The Run Queue is the queue of all units that Terragrunt will do work on over one
 
 Certain commands like [run --all](/reference/cli/commands/run#all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--include-dir](/reference/cli/commands/run#include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--exclude-dir](/reference/cli/commands/run#exclude-dir) that can be used to adjust the Run Queue to exclude units.
+The [`--filter`](/features/filter) flag can be used to adjust the Run Queue, including or excluding units based on filter expressions. For example, `--filter './networking'` includes a specific path, while `--filter '!./legacy'` excludes one.
 
 Terragrunt will always attempt to run until the Run Queue is empty.
 
@@ -213,7 +213,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--fetch-dependency-output-from-state](/reference/cli/commands/run#fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--dependency-fetch-output-from-state](/reference/cli/commands/run#dependency-fetch-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 

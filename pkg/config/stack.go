@@ -441,12 +441,13 @@ func generateComponent(ctx context.Context, l log.Logger, opts *generateOpts, cm
 }
 
 // fetchComponentSource handles the paths for fetching a component's source:
-//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the remote-CAS
-//     branch so nested components already rewritten to cas:: are not passed to git clone.
-//  2. Remote source with CAS enabled: attempt a CAS-backed clone and copy from a temp dir. This
-//     fires automatically when the cas experiment is on and the source isn't local, so catalog
-//     authors don't need consumers to opt in per-block. On any CAS failure (for example, CAS
-//     can't handle a go-getter query param like depth=1), we fall through to the standard getter.
+//  1. cas:: protocol source: materialize the CAS tree directly. Must run before the CAS-backed
+//     branch so nested components already rewritten to cas:: are not re-fetched.
+//  2. Source with CAS enabled: attempt a CAS-backed fetch (remote clone or local copy into a
+//     temp overlay) and copy from its content dir. This fires automatically whenever the cas
+//     experiment is on, so catalog authors don't need consumers to opt in per-block. On any CAS
+//     failure (for example, CAS can't handle a go-getter query param like depth=1), we fall
+//     through to the standard getter.
 //  3. Standard: local copy or remote getter.
 //
 // The update_source_with_cas attribute on a consumer block is a no-op under path 2. It only
@@ -483,17 +484,13 @@ func fetchComponentSource(
 		return nil
 	}
 
-	if opts.casEnabled && !isLocal(l, cmp.sourceDir, source) {
-		casErr := fetchViaCAS(ctx, l, opts, kindStr, source, dest)
+	if opts.casEnabled {
+		casErr := fetchViaCAS(ctx, l, opts, cmp.sourceDir, kindStr, source, dest)
 		if casErr == nil {
 			return nil
 		}
 
 		l.Warnf("CAS processing failed for %s %q: %v. Falling back to standard getter.", kindStr, cmp.name, casErr)
-
-		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
-			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
-		}
 	}
 
 	if err := copyFiles(ctx, l, cmp.name, cmp.sourceDir, source, dest); err != nil {
@@ -517,23 +514,65 @@ func fetchComponentSource(
 	return nil
 }
 
-// fetchViaCAS performs the CAS-backed clone, rewrite, and copy for a remote stack component.
+// fetchViaCAS performs the CAS-backed fetch, rewrite, and copy for a stack component.
+// For remote sources the fetch is a CAS-backed git clone; for local sources it is a
+// copy into a temp overlay so rewrites do not mutate the caller's working tree.
 func fetchViaCAS(
 	ctx context.Context,
 	l log.Logger,
 	opts *generateOpts,
-	kindStr, source, dest string,
+	sourceDir, kindStr, source, dest string,
 ) error {
-	result, err := opts.casInstance.ProcessStackComponent(ctx, l, source, kindStr)
+	resolvedSource := resolveLocalCASSource(l, sourceDir, source)
+
+	result, err := opts.casInstance.ProcessStackComponent(ctx, l, resolvedSource, kindStr)
 	if err != nil {
 		return err
 	}
 
 	defer result.Cleanup()
 
-	return util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
+	// A copy failure can leave partial content in dest, so reset it before
+	// falling through to the standard getter. ProcessStackComponent writes only
+	// to its own temp dir, so failures before this point never touch dest.
+	if copyErr := util.CopyFolderContentsWithFilter(l, result.ContentDir, dest, manifestName, func(_ string) bool {
 		return true
-	})
+	}); copyErr != nil {
+		if cleanupErr := os.RemoveAll(dest); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			l.Debugf("Failed to clean partial CAS destination %s: %v", dest, cleanupErr)
+		}
+
+		return copyErr
+	}
+
+	return nil
+}
+
+// resolveLocalCASSource normalizes a relative local source against sourceDir so
+// ProcessStackComponent's filepath.Abs/Stat resolve against the stack file
+// rather than the process CWD. Remote sources, absolute paths, and any source
+// that doesn't look like a local path are returned unchanged. The "//" subdir
+// suffix used by go-getter is preserved.
+func resolveLocalCASSource(l log.Logger, sourceDir, source string) string {
+	if source == "" || sourceDir == "" {
+		return source
+	}
+
+	basePath, subdir := getter.SourceDirSubdir(source)
+	if filepath.IsAbs(basePath) || !isLocal(l, sourceDir, basePath) {
+		return source
+	}
+
+	abs, err := filepath.Abs(filepath.Join(sourceDir, basePath))
+	if err != nil {
+		return source
+	}
+
+	if subdir != "" {
+		return abs + "//" + subdir
+	}
+
+	return abs
 }
 
 // isCASProtocol checks if a source string uses the CAS protocol (cas::sha1:<hash>).

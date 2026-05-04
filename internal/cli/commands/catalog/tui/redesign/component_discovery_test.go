@@ -1,37 +1,66 @@
 package redesign_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli/commands/catalog/tui/redesign"
 
 	"github.com/gruntwork-io/terragrunt/internal/services/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// newFakeRepo creates a bare-minimum cloned repo on disk that module.NewRepo
-// can successfully consume (requires .git/config and .git/HEAD). The returned
-// *module.Repo has the walk-relevant Path() / CloneURL() pointing at repoDir.
-func newFakeRepo(t *testing.T, repoDir string) *module.Repo {
+// testRepoDir and testWorkingDir are stable in-memory paths used across the
+// redesign test suite. Both live under root so afero's MemMapFs can host
+// the fixture trees without colliding with real OS paths.
+const (
+	testRepoDir    = "/repo"
+	testWorkingDir = "/work"
+)
+
+// TestDiscoverComponents_WithCustomFS proves discovery runs against an
+// injected vfs.FS — the same in-memory FS that materialized the fixture is
+// passed to module.NewRepo (so .git/config and .git/HEAD are read from
+// memory) and to ComponentDiscovery (so the walk runs against memory).
+func TestDiscoverComponents_WithCustomFS(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# module")
+
+	repo := newFakeRepo(t, fsys, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	assert.Equal(t, "foo", components[0].Dir)
+	assert.Equal(t, redesign.ComponentKindModule, components[0].Kind)
+}
+
+// newFakeRepo creates a bare-minimum cloned repo on the given fsys that
+// module.NewRepo can successfully consume (requires .git/config and
+// .git/HEAD). The returned *module.Repo is wired to read through fsys, and
+// its Path() / CloneURL() point at repoDir.
+func newFakeRepo(t *testing.T, fsys vfs.FS, repoDir string) *module.Repo {
 	t.Helper()
 
 	gitDir := filepath.Join(repoDir, ".git")
-	require.NoError(t, os.MkdirAll(gitDir, 0755))
+	require.NoError(t, fsys.MkdirAll(gitDir, 0o755))
 
-	require.NoError(t, os.WriteFile(filepath.Join(gitDir, "config"), []byte(`[core]
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(gitDir, "config"), []byte(`[core]
 	repositoryformatversion = 0
 [remote "origin"]
 	url = github.com/gruntwork-io/fake-repo
-`), 0644))
+`), 0o644))
 
-	require.NoError(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
 
-	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), module.RepoOpts{
+	repo, err := module.NewRepo(t.Context(), logger.CreateLogger(), fsys, &module.RepoOpts{
 		CloneURL:       repoDir,
 		Path:           repoDir,
 		RootWorkingDir: repoDir,
@@ -41,12 +70,12 @@ func newFakeRepo(t *testing.T, repoDir string) *module.Repo {
 	return repo
 }
 
-// writeFile is a shorthand that ensures parent directories exist.
-func writeFile(t *testing.T, path, content string) {
+// writeFileFS is a shorthand that writes content to an in-memory fsys,
+// creating any missing parent directories.
+func writeFileFS(t *testing.T, fsys vfs.FS, path, content string) {
 	t.Helper()
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+	require.NoError(t, vfs.WriteFile(fsys, path, []byte(content), 0o644))
 }
 
 // TestDiscoverComponents_ClassifiesFixtureTree asserts that the walker
@@ -54,36 +83,37 @@ func writeFile(t *testing.T, path, content string) {
 func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
 	// foo/ is a plain module (has main.tf, no boilerplate).
-	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# vpc terraform")
 
 	// bar/ has a .boilerplate/ subdir. Template at bar/.
-	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "README.md"), "# bar template boilerplate dir")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "README.md"), "# bar template boilerplate dir")
 
 	// baz/ has a top-level boilerplate.yml. Template at baz/.
-	writeFile(t, filepath.Join(repoDir, "baz", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "baz", "boilerplate.yml"), "variables: []\n")
 
 	// qux/ has both main.tf AND a .boilerplate/. Template wins.
-	writeFile(t, filepath.Join(repoDir, "qux", "main.tf"), "# mixed")
-	writeFile(t, filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "qux", "main.tf"), "# mixed")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "qux", ".boilerplate", "boilerplate.yml"), "variables: []\n")
 
 	// Nested boilerplate.yml inside bar/.boilerplate/ must NOT surface as
 	// a separate template (bar/ already SkipDir'd the subtree).
-	writeFile(t, filepath.Join(repoDir, "bar", ".boilerplate", "nested", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "bar", ".boilerplate", "nested", "boilerplate.yml"), "variables: []\n")
 
 	// Hidden dirs at top level must be skipped entirely.
-	writeFile(t, filepath.Join(repoDir, ".terraform", "main.tf"), "# should be skipped")
+	writeFileFS(t, fsys, filepath.Join(repoDir, ".terraform", "main.tf"), "# should be skipped")
 
 	// A nested module (modules/foo/main.tf) to ensure we still walk into
 	// non-boilerplate subdirs of modules that contain tf files.
-	writeFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# nested module")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# nested module")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -113,43 +143,44 @@ func TestDiscoverComponents_ClassifiesFixtureTree(t *testing.T) {
 func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
 	// unit-a/ is a plain unit.
-	writeFile(t, filepath.Join(repoDir, "unit-a", "terragrunt.hcl"), "# unit a")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "unit-a", "terragrunt.hcl"), "# unit a")
 
 	// stack-a/ is a plain stack.
-	writeFile(t, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack a")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "stack-a", "terragrunt.stack.hcl"), "# stack a")
 
 	// mixed-unit/ has both terragrunt.hcl and main.tf → unit wins over module.
-	writeFile(t, filepath.Join(repoDir, "mixed-unit", "terragrunt.hcl"), "# mixed unit")
-	writeFile(t, filepath.Join(repoDir, "mixed-unit", "main.tf"), "# ignored")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "mixed-unit", "terragrunt.hcl"), "# mixed unit")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "mixed-unit", "main.tf"), "# ignored")
 
 	// mixed-stack/ has both terragrunt.stack.hcl and terragrunt.hcl → stack wins.
-	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.stack.hcl"), "# stack")
-	writeFile(t, filepath.Join(repoDir, "mixed-stack", "terragrunt.hcl"), "# also present")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "mixed-stack", "terragrunt.stack.hcl"), "# stack")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "mixed-stack", "terragrunt.hcl"), "# also present")
 
 	// templated-stack/ has a .boilerplate/ alongside a terragrunt.stack.hcl →
 	// template wins.
-	writeFile(t, filepath.Join(repoDir, "templated-stack", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFile(t, filepath.Join(repoDir, "templated-stack", "terragrunt.stack.hcl"), "# stack")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-stack", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-stack", "terragrunt.stack.hcl"), "# stack")
 
 	// templated-unit/ has a .boilerplate/ alongside a terragrunt.hcl →
 	// template wins.
-	writeFile(t, filepath.Join(repoDir, "templated-unit", ".boilerplate", "boilerplate.yml"), "variables: []\n")
-	writeFile(t, filepath.Join(repoDir, "templated-unit", "terragrunt.hcl"), "# unit")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-unit", ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "templated-unit", "terragrunt.hcl"), "# unit")
 
 	// A nested .tf file under a unit must NOT surface as a second module.
 	// The unit's subtree is SkipDir'd.
-	writeFile(t, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "unit-a", "nested", "main.tf"), "# should not surface")
 
 	// A nested unit under a stack must NOT surface. The stack's subtree is
 	// SkipDir'd.
-	writeFile(t, filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"), "# should not surface")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "stack-a", "generated", "terragrunt.hcl"), "# should not surface")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -174,18 +205,19 @@ func TestDiscoverComponents_UnitsAndStacks(t *testing.T) {
 func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
 	// Repo root has a .boilerplate dir → root is a template.
-	writeFile(t, filepath.Join(repoDir, ".boilerplate", "boilerplate.yml"), "variables: []\n")
+	writeFileFS(t, fsys, filepath.Join(repoDir, ".boilerplate", "boilerplate.yml"), "variables: []\n")
 
 	// A child module that must NOT surface: once the root is classified as
 	// a template, the walker SkipDirs the whole tree.
-	writeFile(t, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# should be skipped")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "modules", "vpc", "main.tf"), "# should be skipped")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 
 	require.Len(t, components, 1, "only the root template should surface")
@@ -200,19 +232,20 @@ func TestDiscoverComponents_RepoRootAsComponent(t *testing.T) {
 func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
-	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# module")
-	writeFile(t, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# example, should be ignored")
-	writeFile(t, filepath.Join(repoDir, "test", "drop", "main.tf"), "# should be ignored")
-	writeFile(t, filepath.Join(repoDir, "test", "keep", "main.tf"), "# re-included via negation")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# module")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# example, should be ignored")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "test", "drop", "main.tf"), "# should be ignored")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "test", "keep", "main.tf"), "# re-included via negation")
 
-	writeFile(t, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
+	writeFileFS(t, fsys, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
 		"# skip examples and everything under it\nexamples\nexamples/**\ntest/**\n!test/keep\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -234,23 +267,23 @@ func TestDiscoverComponents_HonorsIgnoreFile(t *testing.T) {
 func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
 
-	writeFile(t, filepath.Join(repoDir, "foo", "main.tf"), "# kept")
-	writeFile(t, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# repo-ignored")
-	writeFile(t, filepath.Join(repoDir, "integration", "vpc", "main.tf"), "# extra-ignored")
-	writeFile(t, filepath.Join(repoDir, "stash", "keep", "main.tf"), "# re-included")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "foo", "main.tf"), "# kept")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "examples", "foo", "main.tf"), "# repo-ignored")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "integration", "vpc", "main.tf"), "# extra-ignored")
+	writeFileFS(t, fsys, filepath.Join(repoDir, "stash", "keep", "main.tf"), "# re-included")
 
-	writeFile(t, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
+	writeFileFS(t, fsys, filepath.Join(repoDir, ".terragrunt-catalog-ignore"),
 		"examples\nexamples/**\nstash/**\n")
 
-	extraDir := t.TempDir()
-	extraPath := filepath.Join(extraDir, "extra-ignore")
-	writeFile(t, extraPath, "integration/**\n!stash/keep\n")
+	extraPath := "/extra/extra-ignore"
+	writeFileFS(t, fsys, extraPath, "integration/**\n!stash/keep\n")
 
-	repo := newFakeRepo(t, repoDir)
+	repo := newFakeRepo(t, fsys, repoDir)
 
-	components, err := redesign.NewComponentDiscovery().WithExtraIgnoreFile(extraPath).Discover(repo)
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).WithExtraIgnoreFile(extraPath).Discover(repo)
 	require.NoError(t, err)
 
 	got := map[string]redesign.ComponentKind{}
@@ -270,10 +303,13 @@ func TestDiscoverComponents_ExtraIgnoreFile(t *testing.T) {
 func TestDiscoverComponents_EmptyRepo(t *testing.T) {
 	t.Parallel()
 
-	repoDir := helpers.TmpDirWOSymlinks(t)
-	repo := newFakeRepo(t, repoDir)
+	fsys := vfs.NewMemMapFS()
+	repoDir := testRepoDir
+	require.NoError(t, fsys.MkdirAll(repoDir, 0o755))
 
-	components, err := redesign.NewComponentDiscovery().Discover(repo)
+	repo := newFakeRepo(t, fsys, repoDir)
+
+	components, err := redesign.NewComponentDiscovery().WithFS(fsys).Discover(repo)
 	require.NoError(t, err)
 	assert.Empty(t, components)
 }
@@ -316,4 +352,49 @@ func TestComponent_TerraformSourcePath(t *testing.T) {
 			assert.Equal(t, tc.want, c.TerraformSourcePath())
 		})
 	}
+}
+
+// TestComponentDiscovery_WithWalkWithSymlinksIsChainable verifies the
+// opt-in symlink-follow builder returns the same pointer for chaining, and
+// that a discovery run with the flag enabled still classifies a plain
+// module correctly. This case stays on the OS filesystem because the
+// symlink-following walker (util.WalkDirWithSymlinks) is OS-only.
+func TestComponentDiscovery_WithWalkWithSymlinksIsChainable(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewOSFS()
+	repoDir := helpers.TmpDirWOSymlinks(t)
+	writeFileFS(t, fsys, filepath.Join(repoDir, "vpc", "main.tf"), "# module\n")
+
+	repo := newFakeRepo(t, fsys, repoDir)
+
+	cd := redesign.NewComponentDiscovery()
+	chained := cd.WithWalkWithSymlinks()
+	assert.Same(t, cd, chained, "WithWalkWithSymlinks should return the same builder for chaining")
+
+	components, err := cd.Discover(repo)
+	require.NoError(t, err)
+	require.Len(t, components, 1)
+	assert.Equal(t, redesign.ComponentKindModule, components[0].Kind)
+}
+
+// TestComponentFilterValueReturnsTitle exercises Component.FilterValue and
+// ComponentEntry.FilterValue (which delegates), asserting both return the
+// component's display title for the list's fuzzy-match filter.
+func TestComponentFilterValueReturnsTitle(t *testing.T) {
+	t.Parallel()
+
+	c := redesign.NewComponentForTest(
+		redesign.ComponentKindModule,
+		"github.com/gruntwork-io/repo",
+		"modules/vpc",
+		"",
+	)
+
+	assert.Equal(t, c.Title(), c.FilterValue(),
+		"Component.FilterValue should equal Title for list filtering")
+
+	entry := redesign.NewComponentEntry(c)
+	assert.Equal(t, c.Title(), entry.FilterValue(),
+		"ComponentEntry.FilterValue should delegate to the inner Component")
 }

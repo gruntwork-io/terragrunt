@@ -29,6 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
@@ -116,7 +117,7 @@ func (pc *ProviderCache) Init(l log.Logger, pcOpts *pcoptions.ProviderCacheOptio
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if pcOpts.Dir == "" {
-		cacheDir, err := util.GetCacheDir()
+		cacheDir, err := util.EnsureCacheDir()
 		if err != nil {
 			return fmt.Errorf("failed to get cache directory: %w", err)
 		}
@@ -231,7 +232,7 @@ func (pc *ProviderCache) TerraformCommandHook(
 		}
 	default:
 		// skip cache creation for all other commands
-		return tf.RunCommandWithOutput(ctx, l, tfOpts, args...)
+		return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), tfOpts, args...)
 	}
 
 	env := pc.providerCacheEnvironment(tfOpts.ShellOptions.Env, tfOpts.TofuImplementation, cliConfigFilename)
@@ -353,7 +354,7 @@ func (pc *ProviderCache) runTerraformWithCache(
 		ShellOptions:                 &shellOpts,
 	}
 
-	return tf.RunCommandWithOutput(ctx, l, newTFOpts, args...)
+	return tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -522,7 +523,7 @@ func (pc *ProviderCache) runTerraformCommand(ctx context.Context, l log.Logger, 
 			errWriter := util.NewTrapWriter(tfOpts.ShellOptions.Writers.ErrWriter)
 			shellOpts.Writers.ErrWriter = errWriter
 
-			output, cmdErr := tf.RunCommandWithOutput(ctx, l, newTFOpts, newCliArgs.Slice()...)
+			output, cmdErr := tf.RunCommandWithOutput(ctx, l, vexec.NewOSExec(), newTFOpts, newCliArgs.Slice()...)
 			finalOutput = output
 
 			// If the OpenTofu/Terraform error matches `httpStatusCacheProviderReg` (423 Locked),
