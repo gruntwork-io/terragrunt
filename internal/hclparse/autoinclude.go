@@ -52,12 +52,14 @@ type AutoIncludeResolved struct {
 	// directly from the AST without evaluating dependency.* references.
 	RawBody hcl.Body
 	// SourceBytes are the bytes of the file RawBody was parsed from. Generation slices expressions by HCL byte ranges and must use these bytes, not the root stack file's bytes, when the autoinclude originated in an included file.
-	SourceBytes  []byte
+	SourceBytes []byte
+	// Kind is KindUnit or KindStack and drives the generated filename (terragrunt.autoinclude.hcl vs terragrunt.autoinclude.stack.hcl).
+	Kind         AutoIncludeKind
 	Dependencies []AutoIncludeDependency
 }
 
 // AutoIncludeDependency represents a resolved dependency block from autoinclude.
-// config_path has been evaluated (e.g. unit.vpc.path → "/abs/path/to/.terragrunt-stack/vpc").
+// config_path has been evaluated (e.g. unit.vpc.path -> "/abs/path/to/.terragrunt-stack/vpc").
 // The original HCL block is preserved for writing all attributes (mock_outputs, etc.)
 // into the generated file.
 type AutoIncludeDependency struct {

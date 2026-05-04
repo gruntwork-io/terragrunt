@@ -41,7 +41,7 @@ type ParseStackFileInput struct {
 
 // ParseResult holds the output of a two-pass parse of a terragrunt.stack.hcl file.
 type ParseResult struct {
-	// AutoIncludes maps component name → resolved autoinclude (only for units/stacks
+	// AutoIncludes maps component name -> resolved autoinclude (only for units/stacks
 	// that had an autoinclude block). Dependencies have config_path resolved.
 	AutoIncludes map[string]*AutoIncludeResolved
 	// Units from the first-pass parse (name, source, path, values decoded).
@@ -239,14 +239,12 @@ func canEvalLocal(attr *hclsyntax.Attribute, evaluated map[string]cty.Value) boo
 	return true
 }
 
-// AutoIncludeKey returns the map key for an autoinclude entry, namespaced
-// by component kind to prevent collisions between same-name units and stacks.
-func AutoIncludeKey(kind, name string) string {
-	return kind + ":" + name
+// AutoIncludeKey returns the map key for an autoinclude entry, namespaced by component kind to prevent collisions between same-name units and stacks.
+func AutoIncludeKey(kind AutoIncludeKind, name string) string {
+	return string(kind) + ":" + name
 }
 
-// resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file.
-// Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions. srcByAutoInclude maps each AutoInclude pointer to the source bytes of the file it was parsed from so generation can slice expressions from the correct file after include merging.
+// resolveAutoIncludes resolves autoinclude blocks for all units and stacks in the stack file. Keys are namespaced as "unit:name" and "stack:name" to prevent same-name collisions. srcByAutoInclude maps each AutoInclude pointer to the source bytes of the file it was parsed from so generation can slice expressions from the correct file after include merging.
 func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext, srcByAutoInclude map[*AutoIncludeHCL][]byte) (map[string]*AutoIncludeResolved, error) {
 	autoIncludes := make(map[string]*AutoIncludeResolved)
 
@@ -255,13 +253,13 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext, srcB
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, srcByAutoInclude[unit.AutoInclude])
+		resolved, err := resolveAutoInclude(unit.AutoInclude, evalCtx, KindUnit, srcByAutoInclude[unit.AutoInclude])
 		if err != nil {
 			return nil, err
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey("unit", unit.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindUnit, unit.Name)] = resolved
 		}
 	}
 
@@ -270,21 +268,21 @@ func resolveAutoIncludes(stackFile *StackFileHCL, evalCtx *hcl.EvalContext, srcB
 			continue
 		}
 
-		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, srcByAutoInclude[stack.AutoInclude])
+		resolved, err := resolveAutoInclude(stack.AutoInclude, evalCtx, KindStack, srcByAutoInclude[stack.AutoInclude])
 		if err != nil {
 			return nil, err
 		}
 
 		if resolved != nil {
-			autoIncludes[AutoIncludeKey("stack", stack.Name)] = resolved
+			autoIncludes[AutoIncludeKey(KindStack, stack.Name)] = resolved
 		}
 	}
 
 	return autoIncludes, nil
 }
 
-// resolveAutoInclude resolves a single autoinclude block and attaches the eval context plus the originating file's bytes.
-func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, sourceBytes []byte) (*AutoIncludeResolved, error) {
+// resolveAutoInclude resolves a single autoinclude block, attaches the eval context, tags it with the component kind so the generator picks the right filename, and records the originating file's bytes for include-aware expression slicing.
+func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, kind AutoIncludeKind, sourceBytes []byte) (*AutoIncludeResolved, error) {
 	resolved, diags := autoInclude.Resolve(evalCtx)
 	if diags.HasErrors() {
 		return nil, diags
@@ -292,6 +290,7 @@ func resolveAutoInclude(autoInclude *AutoIncludeHCL, evalCtx *hcl.EvalContext, s
 
 	if resolved != nil {
 		resolved.EvalCtx = evalCtx
+		resolved.Kind = kind
 		resolved.SourceBytes = sourceBytes
 	}
 

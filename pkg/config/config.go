@@ -51,6 +51,7 @@ const (
 	DefaultStackFile                = "terragrunt.stack.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
 	DefaultAutoIncludeFile          = inthclparse.AutoIncludeFile
+	DefaultAutoIncludeStackFile     = inthclparse.AutoIncludeStackFile
 	RecommendedParentConfigName     = "root.hcl"
 
 	FoundInFile = "found_in_file"
@@ -1396,9 +1397,10 @@ func ParseConfig(
 		errs = errs.Append(err)
 	}
 
-	// Auto-merge terragrunt.autoinclude.hcl if present in the same directory.
-	// Gated by the stack-dependencies experiment and skipped for autoinclude files themselves.
-	if filepath.Base(file.ConfigPath) != DefaultAutoIncludeFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
+	// Auto-merge the unit-level terragrunt.autoinclude.hcl if present in the same directory; stack-level terragrunt.autoinclude.stack.hcl is handled by the stack parser path.
+	// Gated by the stack-dependencies experiment and skipped for either autoinclude file itself.
+	configBase := filepath.Base(file.ConfigPath)
+	if configBase != DefaultAutoIncludeFile && configBase != DefaultAutoIncludeStackFile && pctx.Experiments.Evaluate(experiment.StackDependencies) {
 		autoMerged, mergeErr := mergeAutoIncludeIfPresent(ctx, pctx, l, config, file.ConfigPath)
 		if mergeErr != nil {
 			errs = errs.Append(mergeErr)
@@ -1462,8 +1464,7 @@ func ParseConfig(
 	return config, errs.ErrorOrNil()
 }
 
-// mergeAutoIncludeIfPresent checks for terragrunt.autoinclude.hcl in the same directory
-// as the config file and merges it into the config. The autoinclude takes precedence.
+// mergeAutoIncludeIfPresent checks for the unit-level terragrunt.autoinclude.hcl in the same directory as the config file and merges it into the config. The autoinclude takes precedence.
 func mergeAutoIncludeIfPresent(
 	ctx context.Context,
 	pctx *ParsingContext,
