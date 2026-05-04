@@ -325,8 +325,6 @@ func decodeDependencies(ctx context.Context, pctx *ParsingContext, l log.Logger,
 			return nil, err
 		}
 
-		depCtx.DownloadDir = filepath.Join(filepath.Dir(depPath), util.TerragruntCacheDir)
-
 		if depCtx.IAMRoleOptions != depCtx.OriginalIAMRoleOptions {
 			depCtx.IAMRoleOptions = iam.RoleOptions{}
 		}
