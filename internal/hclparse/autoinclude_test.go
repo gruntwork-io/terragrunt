@@ -3,6 +3,7 @@ package hclparse_test
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/hclparse"
@@ -58,6 +59,42 @@ dependency "vpc" {
 	assert.Equal(t, "../vpc", result.Dependencies[0].ConfigPath)
 	assert.NotNil(t, result.Dependencies[0].Block)
 	assert.NotNil(t, result.RawBody)
+}
+
+// dependency block with zero labels must be reported as a diagnostic (not silently skipped) so users learn the labelling convention.
+func TestAutoIncludeHCL_Resolve_RejectsZeroLabels(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+dependency {
+  config_path = "../vpc"
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	assert.Nil(t, result)
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags.Error(), "exactly one label, got 0")
+}
+
+// dependency block with two or more labels likewise produces a diagnostic instead of silently using only the first label.
+func TestAutoIncludeHCL_Resolve_RejectsTwoLabels(t *testing.T) {
+	t.Parallel()
+
+	body := parseHCLBody(t, `
+dependency "vpc" "extra" {
+  config_path = "../vpc"
+}
+`)
+
+	autoInclude := &hclparse.AutoIncludeHCL{Remain: body}
+
+	result, diags := autoInclude.Resolve(&hcl.EvalContext{Variables: map[string]cty.Value{}})
+	assert.Nil(t, result)
+	require.True(t, diags.HasErrors())
+	assert.Contains(t, diags.Error(), "exactly one label, got 2")
 }
 
 func TestAutoIncludeHCL_Resolve_MultipleDependencies(t *testing.T) {
@@ -280,6 +317,119 @@ dependency "vpc" {
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
 	assert.Equal(t, "/absolute/path/to/vpc", paths[0])
+}
+
+// Each malformed dependency block surfaces as a typed MalformedDependencyError naming the dependency: the contract is loud-fail, not silent skip.
+func TestAutoIncludeDependencyPaths_MalformedReturnsTypedError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		content        string
+		wantDepName    string
+		wantReasonPart string
+	}{
+		{
+			name:           "missing config_path",
+			content:        `dependency "x" {}`,
+			wantDepName:    "x",
+			wantReasonPart: "missing config_path",
+		},
+		{
+			name:           "non-string config_path",
+			content:        `dependency "x" { config_path = 42 }`,
+			wantDepName:    "x",
+			wantReasonPart: "config_path must be a string, got number",
+		},
+		{
+			name:           "unevaluable config_path",
+			content:        `dependency "x" { config_path = unit.vpc.path }`,
+			wantDepName:    "x",
+			wantReasonPart: "config_path",
+		},
+		{
+			name:           "no labels",
+			content:        `dependency { config_path = "../vpc" }`,
+			wantDepName:    "(unlabeled)",
+			wantReasonPart: "exactly one label, got 0",
+		},
+		{
+			name:           "two labels",
+			content:        `dependency "vpc" "extra" { config_path = "../vpc" }`,
+			wantDepName:    "vpc extra",
+			wantReasonPart: "exactly one label, got 2",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := vfs.NewMemMapFS()
+			require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(tc.content), 0644))
+
+			paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+			require.Error(t, err)
+			assert.Nil(t, paths)
+
+			var malformedErr hclparse.MalformedDependencyError
+			require.ErrorAs(t, err, &malformedErr)
+			assert.Equal(t, tc.wantDepName, malformedErr.Name)
+			assert.Contains(t, malformedErr.Reason, tc.wantReasonPart)
+			assert.Contains(t, err.Error(), "malformed dependency "+strconv.Quote(tc.wantDepName))
+		})
+	}
+}
+
+// Mixed-case fixture: one valid dependency + one malformed. Strict contract: producer returns (nil, err) on any malformed block — no partial paths.
+func TestAutoIncludeDependencyPaths_MixedValidAndMalformed(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`
+dependency "vpc" {
+  config_path = "../vpc"
+}
+
+dependency "broken" {}
+`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths, "strict fail-fast: no partial paths when any block is malformed")
+
+	var malformedErr hclparse.MalformedDependencyError
+	require.ErrorAs(t, err, &malformedErr)
+	assert.Equal(t, "broken", malformedErr.Name)
+}
+
+func TestAutoIncludeDependencyPaths_FileParseErrorOnSyntaxError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(`dependency "x" { config_path = "`), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+	require.ErrorAs(t, err, &fpe)
+}
+
+func TestAutoIncludeDependencyPaths_FileParseErrorOnJSON(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	jsonBody := `{"dependency": {"vpc": {"config_path": "../vpc"}}}`
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join("/test", hclparse.AutoIncludeFile), []byte(jsonBody), 0644))
+
+	paths, err := hclparse.AutoIncludeDependencyPaths(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+	require.ErrorAs(t, err, &fpe)
 }
 
 // parseHCLBody is a test helper that parses an HCL string and returns the body.
