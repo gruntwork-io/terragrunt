@@ -679,7 +679,7 @@ func ParseStackConfig(ctx context.Context, l log.Logger, parser *ParsingContext,
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, parser, l, parser.Exec(), file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -862,7 +862,7 @@ func ReadValues(ctx context.Context, pctx *ParsingContext, l log.Logger, directo
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

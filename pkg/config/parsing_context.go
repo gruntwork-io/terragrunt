@@ -53,7 +53,11 @@ type ParsingContext struct {
 	Features            *cty.Value
 	Locals              *cty.Value
 
-	Exec vexec.Exec
+	// exec is the subprocess execution backend used by the run_cmd HCL helper.
+	// It is set only via WithExec at construction time and never mutated after.
+	// Read it through the Exec() accessor, which returns a fresh OS-backed
+	// backend when no override was supplied.
+	exec vexec.Exec
 
 	Env                 map[string]string
 	SourceMap           map[string]string
@@ -104,6 +108,19 @@ type ParsingContext struct {
 	SkipOutputsResolution            bool
 	NoStackValidate                  bool
 	NoCAS                            bool
+}
+
+// Exec returns the vexec.Exec backend that should be used when this
+// ParsingContext spawns subprocesses (e.g. for the run_cmd HCL helper).
+// It returns the override supplied via WithExec when present, or a fresh
+// OS-backed backend otherwise. The returned value is suitable to pass as
+// an explicit parameter to RunCommand and shell.RunCommandWithOutput.
+func (ctx *ParsingContext) Exec() vexec.Exec {
+	if ctx.exec != nil {
+		return ctx.exec
+	}
+
+	return vexec.NewOSExec()
 }
 
 func NewParsingContext(ctx context.Context, l log.Logger, opts ...Option) (context.Context, *ParsingContext) {

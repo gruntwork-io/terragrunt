@@ -31,6 +31,10 @@ var (
 	ErrStderrAlreadySet = errors.New("vexec: Stderr already set")
 	// ErrProcessNotStarted is returned from Signal before Start.
 	ErrProcessNotStarted = errors.New("vexec: process not started")
+	// ErrNotOSBacked reports that a Cmd does not satisfy OSCmder. Callers that
+	// need a concrete *exec.Cmd (e.g. to interoperate with libraries that do
+	// not accept the Cmd interface) can match this with errors.Is.
+	ErrNotOSBacked = errors.New("vexec: Cmd is not OS-backed")
 )
 
 // Exec is the process-execution interface used throughout the codebase.
@@ -83,6 +87,24 @@ type ExitCoder interface {
 	ExitCode() int
 }
 
+// OSCmder exposes the underlying *exec.Cmd of an OS-backed Cmd. Use it as an
+// escape hatch when a Cmd must be passed to a library that does not accept
+// the Cmd interface, or when a feature is only available on the OS backend
+// (PTY, signal forwarding). The in-memory backend does NOT implement this.
+type OSCmder interface {
+	OSCmd() *exec.Cmd
+}
+
+// OSExeccer is implemented by Exec values whose Command method returns
+// OSCmder Cmd values (i.e. wrappers around the real os/exec package).
+// Callers that need PTY, signal forwarding, or console-state save/restore
+// can type-assert an Exec to OSExeccer to detect whether the full os/exec
+// feature set is available; the in-memory backend does NOT implement this.
+type OSExeccer interface {
+	Exec
+	OSBacked()
+}
+
 // ExitCode extracts an exit code from err. It returns 0 if err is nil, or -1
 // if err does not carry an exit code.
 func ExitCode(err error) int {
@@ -128,6 +150,9 @@ func (osExec) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
+// OSBacked is the marker that satisfies OSExeccer.
+func (osExec) OSBacked() {}
+
 type osCmd struct {
 	cmd *exec.Cmd
 }
@@ -154,6 +179,7 @@ func (c *osCmd) Wait() error                     { return c.cmd.Wait() }
 func (c *osCmd) Output() ([]byte, error)         { return c.cmd.Output() }
 func (c *osCmd) CombinedOutput() ([]byte, error) { return c.cmd.CombinedOutput() }
 func (c *osCmd) ProcessState() *os.ProcessState  { return c.cmd.ProcessState }
+func (c *osCmd) OSCmd() *exec.Cmd                { return c.cmd }
 
 // Invocation describes a single command dispatched through the in-memory
 // backend. Handlers inspect it to decide how to respond.

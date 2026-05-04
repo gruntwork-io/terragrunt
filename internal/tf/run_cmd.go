@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -60,7 +61,9 @@ func RunCommand(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...s
 }
 
 // RunCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
-// method's caller
+// method's caller. The subprocess backend is the OS-backed vexec.Exec; tests
+// that need to intercept subprocess execution should call shell.RunCommandWithOutput
+// directly with a vexec.NewMemExec.
 func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions, args ...string) (*util.CmdOutput, error) {
 	args = clihelper.Args(args).Normalize(clihelper.SingleDashFlag)
 
@@ -84,7 +87,7 @@ func RunCommandWithOutput(ctx context.Context, l log.Logger, runOpts *TFOptions,
 		shellOpts.Writers.ErrWriter = errWriter
 	}
 
-	output, err := shell.RunCommandWithOutput(ctx, l, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
+	output, err := shell.RunCommandWithOutput(ctx, vexec.NewOSExec(), l, shellOpts, "", false, needsPTY, runOpts.ShellOptions.TFPath, args...)
 
 	hasDetailedExitCode := slices.Contains(args, FlagNameDetailedExitCode)
 	if hasDetailedExitCode {

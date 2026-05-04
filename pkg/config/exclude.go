@@ -76,7 +76,7 @@ func evaluateExcludeBlocks(ctx context.Context, pctx *ParsingContext, l log.Logg
 		return nil, err
 	}
 
-	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalCtx, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		l.Errorf("Failed to create eval context %s", file.ConfigPath)
 		return nil, err

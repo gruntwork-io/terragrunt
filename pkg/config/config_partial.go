@@ -124,7 +124,7 @@ type terragruntEngine struct {
 func DecodeBaseBlocks(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
 	errs := &errors.MultiError{}
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 
 	output.IsPartial = true
 
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}

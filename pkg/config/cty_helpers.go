@@ -13,6 +13,7 @@ import (
 	"maps"
 
 	"github.com/gruntwork-io/terragrunt/internal/ctyhelper"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -37,6 +38,36 @@ func wrapStringSliceToStringAsFuncImpl(
 			}
 
 			out, err := toWrap(ctx, pctx, l, params)
+			if err != nil {
+				return cty.StringVal(""), err
+			}
+
+			return cty.StringVal(out), nil
+		},
+	})
+}
+
+// wrapRunCommandAsFuncImpl is a specialized wrapper for the run_cmd HCL
+// function that captures a vexec.Exec backend in its closure. RunCommand is
+// the only HCL function that spawns subprocesses, so it is the only function
+// that needs an Exec parameter; the generic wrapStringSliceToStringAsFuncImpl
+// above remains in use for everything else.
+func wrapRunCommandAsFuncImpl(
+	ctx context.Context,
+	pctx *ParsingContext,
+	l log.Logger,
+	e vexec.Exec,
+) function.Function {
+	return function.New(&function.Spec{
+		VarParam: &function.Parameter{Type: cty.String},
+		Type:     function.StaticReturnType(cty.String),
+		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+			params, err := ctySliceToStringSlice(args)
+			if err != nil {
+				return cty.StringVal(""), err
+			}
+
+			out, err := RunCommand(ctx, pctx, l, e, params)
 			if err != nil {
 				return cty.StringVal(""), err
 			}

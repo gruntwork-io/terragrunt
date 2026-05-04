@@ -38,7 +38,6 @@ type ShellOptions struct {
 	EngineConfig  *engine.EngineConfig
 	Telemetry     *telemetry.Options
 	Env           map[string]string
-	Exec          vexec.Exec
 
 	RootWorkingDir  string
 	WorkingDir      string
@@ -154,14 +153,6 @@ func (o *ShellOptions) WithForwardTFStdout(f bool) *ShellOptions {
 	return o
 }
 
-// WithExec installs a vexec.Exec backend that replaces the default os/exec
-// path used by RunCommandWithOutput. Pass nil to clear it. Intended for tests.
-func (o *ShellOptions) WithExec(e vexec.Exec) *ShellOptions {
-	o.Exec = e
-
-	return o
-}
-
 // NoEngine returns true if the user explicitly disabled the engine via --no-engine.
 // Returns false when EngineOptions is nil (default: don't disable), letting the
 // other guards (EngineConfig != nil, experiment enabled) decide whether to run.
@@ -169,20 +160,27 @@ func (o *ShellOptions) NoEngine() bool {
 	return o.EngineOptions != nil && o.EngineOptions.NoEngine
 }
 
-// RunCommand runs the given shell command.
-func RunCommand(ctx context.Context, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
-	_, err := RunCommandWithOutput(ctx, l, runOpts, "", false, false, command, args...)
+// RunCommand runs the given shell command using the supplied vexec.Exec backend.
+// Production callers pass vexec.NewOSExec(); tests can pass an in-memory mock.
+func RunCommand(ctx context.Context, e vexec.Exec, l log.Logger, runOpts *ShellOptions, command string, args ...string) error {
+	_, err := RunCommandWithOutput(ctx, e, l, runOpts, "", false, false, command, args...)
 
 	return err
 }
 
 // RunCommandWithOutput runs the specified shell command with the specified arguments.
 //
+// The vexec.Exec parameter selects the subprocess backend: production code passes
+// vexec.NewOSExec() for real os/exec; tests can pass a vexec.NewMemExec mock to
+// avoid spawning real processes. PTY mode requires an OS-backed backend; calls
+// with needsPTY=true and a non-OS-backed Exec return vexec.ErrNotOSBacked.
+//
 // Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunCommandWithOutput(
 	ctx context.Context,
+	e vexec.Exec,
 	l log.Logger,
 	runOpts *ShellOptions,
 	workingDir string,
@@ -258,14 +256,23 @@ func RunCommandWithOutput(
 			}
 		}
 
-		if runOpts.Exec != nil {
+		// Production callers pass an OS-backed Exec (vexec.NewOSExec); they
+		// flow into the os/exec path below for full feature parity (PTY,
+		// signal forwarding with delay, graceful shutdown, console state
+		// save/restore on Windows).
+		//
+		// Tests can pass a vexec.NewMemExec to intercept subprocess execution
+		// without spawning real processes. The mock path is minimal: no PTY,
+		// no signal handling, no console state. Requesting PTY with a non-OS
+		// backend returns vexec.ErrNotOSBacked rather than silently degrading.
+		if _, isOSBacked := e.(vexec.OSExeccer); !isOSBacked {
 			if needsPTY {
-				return errors.New("shell: vexec backend does not support PTY mode")
+				return errors.New(vexec.ErrNotOSBacked)
 			}
 
-			injectedCmd := runOpts.Exec.Command(ctx, command, args...)
+			injectedCmd := e.Command(ctx, command, args...)
 			injectedCmd.SetDir(commandDir)
-			injectedCmd.SetEnv(util.EnvSliceFromMap(runOpts.Env))
+			injectedCmd.SetEnv(exec.EnvSliceFromMap(runOpts.Env))
 			injectedCmd.SetStdout(cmdStdout)
 			injectedCmd.SetStderr(cmdStderr)
 

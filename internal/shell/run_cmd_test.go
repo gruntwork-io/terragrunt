@@ -17,18 +17,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/options"
 )
 
-func TestShellOptionsWithExecRoundTrip(t *testing.T) {
+// TestRunCommandPTYRequiresOSBackedExec verifies the OSCmder unwrap pattern:
+// requesting PTY mode with an in-memory backend returns vexec.ErrNotOSBacked
+// rather than attempting to spawn a real subprocess through the mock.
+func TestRunCommandPTYRequiresOSBackedExec(t *testing.T) {
 	t.Parallel()
 
 	memExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
 		return vexec.Result{}
 	})
 
-	opts := shell.NewShellOptions().WithExec(memExec)
-	assert.Same(t, memExec, opts.Exec, "WithExec must store the executor")
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
 
-	opts.WithExec(nil)
-	assert.Nil(t, opts.Exec, "WithExec(nil) must clear the executor")
+	l := logger.CreateLogger()
+	_, runErr := shell.RunCommandWithOutput(
+		t.Context(), memExec, l, configbridge.ShellRunOptsFromOpts(terragruntOptions),
+		"", false, true, "echo", "hi",
+	)
+	require.Error(t, runErr)
+	assert.ErrorIs(t, runErr, vexec.ErrNotOSBacked)
 }
 
 func TestRunShellCommand(t *testing.T) {
@@ -39,10 +47,10 @@ func TestRunShellCommand(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
+	cmd = shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -61,7 +69,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 
 	l := logger.CreateLogger()
 
-	cmd := shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd := shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "OpenTofu", "Output directed to stdout")
@@ -74,7 +82,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writers.Writer = stderr
 	terragruntOptions.Writers.ErrWriter = stderr
 
-	cmd = shell.RunCommand(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
+	cmd = shell.RunCommand(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "tofu", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "OpenTofu", "Output directed to stderr")

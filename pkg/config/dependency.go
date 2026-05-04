@@ -202,7 +202,7 @@ func outputLocksFromContext(ctx context.Context) *util.KeyLocks {
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
 func decodeAndRetrieveOutputs(ctx context.Context, pctx *ParsingContext, l log.Logger, file *hclparse.File) (*cty.Value, error) {
-	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1459,8 +1459,7 @@ func shellRunOptsFromPctx(pctx *ParsingContext) *shell.ShellOptions {
 		WithRootWorkingDir(pctx.RootWorkingDir).
 		WithExperiments(pctx.Experiments).
 		WithHeadless(pctx.Headless).
-		WithForwardTFStdout(pctx.ForwardTFStdout).
-		WithExec(pctx.Exec)
+		WithForwardTFStdout(pctx.ForwardTFStdout)
 }
 
 // tfRunOptsFromPctx builds a *tf.RunOptions from ParsingContext flat fields.

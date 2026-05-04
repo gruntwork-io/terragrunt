@@ -1367,7 +1367,7 @@ func ParseConfig(
 		pctx.DecodedDependencies = retrievedOutputs
 	}
 
-	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, file.ConfigPath)
+	evalContext, err := createTerragruntEvalContext(ctx, pctx, l, pctx.Exec(), file.ConfigPath)
 	if err != nil {
 		errs = errs.Append(err)
 	}

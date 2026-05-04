@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tfimpl"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
@@ -273,7 +274,7 @@ func TestRunCommand(t *testing.T) {
 			l := logger.CreateLogger()
 			ctx, pctx := newTestParsingContext(t, tc.configPath)
 
-			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, tc.params)
+			actualOutput, actualErr := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
 			if tc.expectedErr != nil {
 				if assert.Error(t, actualErr) {
 					assertErrorType(t, tc.expectedErr, actualErr)
@@ -1522,7 +1523,7 @@ func TestRunCommandOptionsOnlyArityRegression(t *testing.T) {
 			ctx, pctx := newTestParsingContext(t, "")
 
 			require.NotPanics(t, func() {
-				_, err := config.RunCommand(ctx, pctx, l, tc.params)
+				_, err := config.RunCommand(ctx, pctx, l, vexec.NewOSExec(), tc.params)
 				require.Error(t, err, "must return error when only option flags are supplied (%v)", tc.params)
 				requireErrorAs[config.EmptyStringNotAllowedError](t, err)
 			}, "run_cmd with options-only %v must not panic", tc.params)

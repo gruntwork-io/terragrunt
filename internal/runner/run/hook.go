@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tflint"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-multierror"
 )
@@ -106,6 +107,7 @@ func processErrorHooks(
 
 				_, possibleError := shell.RunCommandWithOutput(
 					ctx,
+					vexec.NewOSExec(),
 					l,
 					hookOpts.shellRunOptions(),
 					curHook.WorkingDir,
@@ -210,6 +212,7 @@ func runHook(
 
 	_, possibleError := shell.RunCommandWithOutput(
 		ctx,
+		vexec.NewOSExec(),
 		l,
 		hookOpts.shellRunOptions(),
 		workingDir,

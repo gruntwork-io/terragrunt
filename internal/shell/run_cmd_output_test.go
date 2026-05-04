@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/configbridge"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vexec"
 	"github.com/gruntwork-io/terragrunt/test/helpers/logger"
 
 	"github.com/stretchr/testify/assert"
@@ -68,7 +69,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	l := logger.CreateLogger()
 
-	out, err := shell.RunCommandWithOutput(t.Context(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := shell.RunCommandWithOutput(t.Context(), vexec.NewOSExec(), l, configbridge.ShellRunOptsFromOpts(terragruntOptions), "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

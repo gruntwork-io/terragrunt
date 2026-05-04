@@ -3,7 +3,6 @@ package exec
 import (
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -27,7 +26,7 @@ func WithUsePTY(state bool) Option {
 // WithEnv sets envs to the Cmd.
 func WithEnv(env map[string]string) Option {
 	return func(cmd *Cmd) {
-		cmd.Env = util.EnvSliceFromMap(env)
+		cmd.Env = EnvSliceFromMap(env)
 	}
 }
 

@@ -289,3 +289,31 @@ func TestMemExec_SignalIsNoop(t *testing.T) {
 	cmd := e.Command(t.Context(), "whatever")
 	require.NoError(t, cmd.Signal(syscall.SIGTERM))
 }
+
+// TestOSCmder verifies the unwrap escape hatches:
+//   - OS-backed Cmds expose the underlying *exec.Cmd via OSCmder.
+//   - OS-backed Execs are detectable up-front via OSExeccer (no need to
+//     allocate a Cmd just to type-assert).
+//   - In-memory Cmds and Execs implement neither.
+func TestOSCmder(t *testing.T) {
+	t.Parallel()
+
+	osExec := vexec.NewOSExec()
+	_, ok := osExec.(vexec.OSExeccer)
+	require.True(t, ok, "OS-backed Exec must implement OSExeccer")
+
+	osCmd := osExec.Command(t.Context(), "true")
+	osBacked, ok := osCmd.(vexec.OSCmder)
+	require.True(t, ok, "OS-backed Cmd must implement OSCmder")
+	assert.NotNil(t, osBacked.OSCmd(), "OSCmd() must return a non-nil *exec.Cmd")
+
+	memExec := vexec.NewMemExec(func(_ context.Context, _ vexec.Invocation) vexec.Result {
+		return vexec.Result{}
+	})
+	_, ok = memExec.(vexec.OSExeccer)
+	assert.False(t, ok, "in-memory Exec must NOT implement OSExeccer")
+
+	memCmd := memExec.Command(t.Context(), "whatever")
+	_, ok = memCmd.(vexec.OSCmder)
+	assert.False(t, ok, "in-memory Cmd must NOT implement OSCmder")
+}

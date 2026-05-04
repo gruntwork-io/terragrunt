@@ -127,13 +127,12 @@ func FuzzHCLRunCommand(f *testing.F) {
 		baseCtx, pctx := newTestParsingContext(t, "")
 		pctx.Writers.Writer = io.Discard
 		pctx.Writers.ErrWriter = io.Discard
-		pctx.Exec = memExec
 
 		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Second)
 		defer cancel()
 
 		l := logger.CreateLogger()
-		out, err := config.RunCommand(ctx, pctx, l, argsForCall)
+		out, err := config.RunCommand(ctx, pctx, l, memExec, argsForCall)
 
 		stripped, conflict := strippedRunCmdArgs(original)
 
