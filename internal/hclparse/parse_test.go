@@ -964,6 +964,46 @@ unit "vpc" {
 	assert.Contains(t, err.Error(), "must not define nested includes")
 }
 
+// Locks the per-file SourceBytes invariant: when a unit's autoinclude block lives in an included stack file, GenerateAutoIncludeFile must use the included file's bytes (not the root's) to slice expression text.
+func TestParseStackFile_AutoIncludeInsideIncludedFile(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+
+	rootSrc := `
+include "shared" {
+  path = "shared.hcl"
+}
+`
+	includedSrc := `
+unit "vpc" {
+  source = "../catalog/units/vpc"
+  path   = "vpc"
+
+  autoinclude {
+    dependency "db" {
+      config_path = "../db"
+    }
+  }
+}
+`
+
+	require.NoError(t, fs.MkdirAll(testStackDir, 0755))
+	require.NoError(t, vfs.WriteFile(fs, filepath.Join(testStackDir, "shared.hcl"), []byte(includedSrc), 0644))
+
+	result, err := hclparse.ParseStackFile(fs, &hclparse.ParseStackFileInput{Src: []byte(rootSrc), Filename: filepath.Join(testStackDir, "terragrunt.stack.hcl"), StackDir: testStackDir})
+	require.NoError(t, err)
+	require.Len(t, result.AutoIncludes, 1)
+
+	resolved, ok := result.AutoIncludes[hclparse.AutoIncludeKey("unit", "vpc")]
+	require.True(t, ok, "expected resolved autoinclude for unit 'vpc'")
+	require.NotNil(t, resolved)
+
+	// SourceBytes must point at the included file's bytes, not the root's, so the generator can slice expression byte ranges correctly.
+	assert.Equal(t, []byte(includedSrc), resolved.SourceBytes, "SourceBytes must equal the included file's bytes")
+	assert.NotEqual(t, []byte(rootSrc), resolved.SourceBytes, "SourceBytes must not be the root file's bytes")
+}
+
 // Benchmarks
 
 func BenchmarkParseStackFile_Simple(b *testing.B) {

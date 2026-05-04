@@ -57,8 +57,7 @@ func AutoIncludeFileNameForKind(kind AutoIncludeKind) string {
 //     from the original AST source bytes: dependency.*.outputs.* references
 //     are preserved without evaluation.
 //
-// srcBytes is the original terragrunt.stack.hcl file content, used to extract
-// source text for expressions via byte ranges.
+// Requires non-nil fs and non-empty targetDir (panics otherwise). resolved may be nil (no-op). srcBytes must be the bytes of the file resolved.RawBody was parsed from; for includes pass resolved.SourceBytes. evalCtx may be nil.
 func GenerateAutoIncludeFile(fs vfs.FS, resolved *AutoIncludeResolved, targetDir string, srcBytes []byte, evalCtx *hcl.EvalContext) error {
 	if fs == nil {
 		panic(fmt.Sprintf("hclparse.GenerateAutoIncludeFile: fs is nil (targetDir=%q, sourceFile=%q)", targetDir, resolvedSourceFile(resolved)))

@@ -50,7 +50,7 @@ func NewListKeyMap() list.KeyMap {
 			key.WithHelp("esc", "cancel"),
 		),
 		AcceptWhileFiltering: key.NewBinding(
-			key.WithKeys("enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"),
+			key.WithKeys("enter", "tab", "shift+tab", "ctrl+k", "up", "down"),
 			key.WithHelp("enter", "apply filter"),
 		),
 
@@ -102,8 +102,8 @@ func (d DelegateKeyMap) FullHelp() [][]key.Binding {
 func NewDelegateKeyMap() *DelegateKeyMap {
 	return &DelegateKeyMap{
 		Choose: key.NewBinding(
-			key.WithKeys("enter", "ctrl-j"),
-			key.WithHelp("enter/ctrl-j", "choose"),
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "choose"),
 		),
 		Scaffold: key.NewBinding(
 			key.WithKeys("S", "s"),
@@ -205,8 +205,8 @@ func NewPagerKeyMap() PagerKeyMap {
 			key.WithHelp("shift+tab", "navigation"),
 		),
 		Choose: key.NewBinding(
-			key.WithKeys("enter", "ctrl-j"),
-			key.WithHelp("enter/ctrl-j", "choose"),
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "choose"),
 		),
 		Scaffold: key.NewBinding(
 			key.WithKeys("S", "s"),

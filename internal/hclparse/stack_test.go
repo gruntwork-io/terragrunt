@@ -184,7 +184,6 @@ unit "db" {
 `), 0644))
 
 	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-
 	require.Len(t, refs, 2)
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "vpc"), refs[0].Path)
@@ -211,12 +210,9 @@ unit "db" {
 `), 0644))
 
 	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen/networking")
-
 	require.Len(t, refs, 2)
-	// vpc has no_dot_terragrunt_stack=true, goes directly under stackGenDir
 	assert.Equal(t, "vpc", refs[0].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", "vpc"), refs[0].Path)
-	// db is normal, goes under .terragrunt-stack/
 	assert.Equal(t, "db", refs[1].Name)
 	assert.Equal(t, filepath.Join("/gen/networking", ".terragrunt-stack", "db"), refs[1].Path)
 }
@@ -301,6 +297,21 @@ func TestUnitPathsFromStackDir_Nonexistent(t *testing.T) {
 	assert.Nil(t, paths)
 }
 
+func TestUnitPathsFromStackDir_MalformedReturnsError(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/terragrunt.stack.hcl", []byte(`unit "x" { source = "." `), 0644))
+
+	paths, err := hclparse.UnitPathsFromStackDir(fs, "/test")
+	require.Error(t, err)
+	assert.Nil(t, paths)
+
+	var fpe hclparse.FileParseError
+	require.ErrorAs(t, err, &fpe)
+}
+
 func TestParseStackFileFromPath(t *testing.T) {
 	t.Parallel()
 
@@ -331,12 +342,8 @@ func TestParseStackFileFromPath_NoFile(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestParseStackFileFromPath_StackDirIsFile asserts that when stackDir
-// resolves to a regular file (e.g. discovery passes a non-default-named
-// terragrunt config like "another-name.hcl"), we treat it the same as a
-// missing stack file rather than surfacing the ENOTDIR open error. Uses
-// OSFS because in-memory FS implementations may not propagate ENOTDIR.
-func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
+// ParseStackFileFromPath is strict: passing a regular file produces an error. Callers that may receive non-directory paths (e.g. discovery) must filter them upstream.
+func TestParseStackFileFromPath_StackDirIsFileReturnsError(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -344,8 +351,15 @@ func TestParseStackFileFromPath_StackDirIsFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(filePath, []byte(`# regular file, not a directory`), 0644))
 
 	result, err := hclparse.ParseStackFileFromPath(vfs.NewOSFS(), filePath)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
+
+	var readErr hclparse.FileReadError
+	require.ErrorAs(t, err, &readErr)
+	// On macOS, t.TempDir() returns paths under /var/folders/... where /var is a symlink to /private/var; util.ResolvePath follows it, so resolve our side too before comparing.
+	resolvedFilePath, evalErr := filepath.EvalSymlinks(filePath)
+	require.NoError(t, evalErr)
+	assert.Equal(t, filepath.Join(resolvedFilePath, "terragrunt.stack.hcl"), readErr.FilePath)
 }
 
 func TestParseStackFileFromPath_Symlink(t *testing.T) {
@@ -375,6 +389,7 @@ unit "app" {
 	assert.Equal(t, "app", result.Units[0].Name)
 }
 
+// Uses OSFS because MemMapFS does not faithfully reproduce os.Symlink semantics that util.ResolvePath relies on.
 func TestUnitPathsFromStackDir_Symlink(t *testing.T) {
 	t.Parallel()
 
@@ -392,11 +407,10 @@ unit "vpc" {
 	symlinkDir := filepath.Join(tmpDir, "symlinked-stack")
 	require.NoError(t, os.Symlink(realDir, symlinkDir))
 
-	// UnitPathsFromStackDir via symlink should return paths based on resolved real dir
 	paths, err := hclparse.UnitPathsFromStackDir(vfs.NewOSFS(), symlinkDir)
 	require.NoError(t, err)
 	require.Len(t, paths, 1)
-	// Path should be based on the REAL directory, not the symlink
+	// Path should resolve to the real directory, not the symlink path.
 	assert.Contains(t, paths[0], "real-stack")
 	assert.NotContains(t, paths[0], "symlinked-stack")
 }
@@ -420,10 +434,21 @@ unit "db" {
 	symlinkSrcDir := filepath.Join(tmpDir, "symlinked-source")
 	require.NoError(t, os.Symlink(realSrcDir, symlinkSrcDir))
 
-	// DiscoverStackChildUnits via symlink should work
 	refs := hclparse.DiscoverStackChildUnits(vfs.NewOSFS(), symlinkSrcDir, "/gen/stack")
 	require.Len(t, refs, 1)
 	assert.Equal(t, "db", refs[0].Name)
+}
+
+// Best-effort discovery: a malformed nested stack file yields empty refs without an error so the parent stack still parses.
+func TestDiscoverStackChildUnits_MalformedReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	fs := vfs.NewMemMapFS()
+	require.NoError(t, fs.MkdirAll("/test/stack-src", 0755))
+	require.NoError(t, vfs.WriteFile(fs, "/test/stack-src/terragrunt.stack.hcl", []byte(`unit "x" { source = "."`), 0644))
+
+	refs := hclparse.DiscoverStackChildUnits(fs, "/test/stack-src", "/gen")
+	assert.Nil(t, refs)
 }
 
 func TestParseStackFile_WithInclude(t *testing.T) {
