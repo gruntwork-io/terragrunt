@@ -111,9 +111,12 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			l.Debugf("Runner Pool Controller: found %d readyEntries tasks", len(readyEntries))
 
 			for _, e := range readyEntries {
-				// log debug which entry is running
+				if !dr.q.ClaimForRunning(e) {
+					l.Debugf("Runner Pool Controller: skipping %s; fail-fast cancelled before dispatch", e.Component.Path())
+					continue
+				}
+
 				l.Debugf("Runner Pool Controller: running %s", e.Component.Path())
-				dr.q.SetEntryStatus(e, queue.StatusRunning)
 
 				sem <- struct{}{}
 

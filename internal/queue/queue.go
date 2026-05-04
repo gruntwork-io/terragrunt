@@ -415,6 +415,33 @@ func (q *Queue) SetEntryStatus(e *Entry, status Status) {
 	e.Status = status
 }
 
+// ClaimForRunning atomically transitions the entry to StatusRunning under the
+// queue lock and returns true. It returns false without dispatching when:
+//   - the entry is already in a terminal state, or
+//   - FailFast is enabled and another entry has Status StatusFailed, in which
+//     case this entry is set to StatusEarlyExit.
+func (q *Queue) ClaimForRunning(e *Entry) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if isTerminal(e.Status) {
+		return false
+	}
+
+	if q.FailFast {
+		for _, n := range q.Entries {
+			if n.Status == StatusFailed {
+				e.Status = StatusEarlyExit
+				return false
+			}
+		}
+	}
+
+	e.Status = StatusRunning
+
+	return true
+}
+
 // FailEntry marks the entry as failed and updates related entries if needed.
 // For up commands, this marks entries that come after this one as early exit.
 // For destroy/down commands, this marks entries that come before this one as early exit.
