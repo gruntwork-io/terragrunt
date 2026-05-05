@@ -39,6 +39,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/retry"
 	"github.com/gruntwork-io/terragrunt/internal/shell"
 	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
+	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vexec"
@@ -713,7 +714,20 @@ func getAWSField(ctx context.Context, pctx *ParsingContext, l log.Logger, fetchF
 		return "", err
 	}
 
-	return fetchFn(ctx, &awsConfig)
+	var result string
+
+	err = telemetry.TelemeterFromContext(ctx).Collect(ctx, "config_get_aws_field", map[string]any{
+		"config_path": pctx.TerragruntConfigPath,
+		"role_arn":    pctx.IAMRoleOptions.RoleARN,
+	}, func(ctx context.Context) error {
+		var fetchErr error
+
+		result, fetchErr = fetchFn(ctx, &awsConfig)
+
+		return fetchErr
+	})
+
+	return result, err
 }
 
 func getAWSAccountAlias(ctx context.Context, pctx *ParsingContext, l log.Logger) (string, error) {
@@ -1023,7 +1037,18 @@ func sopsDecryptFileImpl(ctx context.Context, pctx *ParsingContext, l log.Logger
 
 	l.Debugf("sops decrypt: decrypting %s", path)
 
-	rawData, err := decryptFn(path, format)
+	var rawData []byte
+
+	err := telemetry.TelemeterFromContext(ctx).Collect(ctx, "config_sops_decrypt", map[string]any{
+		"path":   path,
+		"format": format,
+	}, func(ctx context.Context) error {
+		var decryptErr error
+
+		rawData, decryptErr = decryptFn(path, format)
+
+		return decryptErr
+	})
 	if err != nil {
 		return "", errors.New(extractSopsErrors(err))
 	}
