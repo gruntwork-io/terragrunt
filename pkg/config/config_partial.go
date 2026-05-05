@@ -389,6 +389,10 @@ func PartialParseConfig(ctx context.Context, pctx *ParsingContext, l log.Logger,
 		return nil, err
 	}
 
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
+	}
+
 	pctx = pctx.WithTrackInclude(nil)
 
 	// read unit files and add to context

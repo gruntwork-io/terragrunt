@@ -1310,6 +1310,10 @@ func ParseConfig(
 		return nil, err
 	}
 
+	if includeFromChild != nil && includeFromChild.Path != "" && !filepath.IsAbs(includeFromChild.Path) {
+		includeFromChild.Path = filepath.Clean(filepath.Join(filepath.Dir(pctx.TerragruntConfigPath), includeFromChild.Path))
+	}
+
 	pctx = pctx.WithTrackInclude(nil)
 
 	// Initial evaluation of configuration to load flags like IamRole which will be used for final parsing
