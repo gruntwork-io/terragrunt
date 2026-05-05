@@ -56,6 +56,13 @@ const (
 	// (so reading-based filter expressions detect changes to the module) and
 	// the mark_glob_as_read HCL function.
 	MarkManyAsRead = "mark-many-as-read"
+	// AzureBackend gates Terragrunt's native Azure Storage (azurerm)
+	// remote-state lifecycle: bootstrap, delete, migrate, and direct
+	// state reads via --dependency-fetch-output-from-state. With the
+	// experiment off, Terragrunt still recognises `backend = "azurerm"`
+	// and passes it through to `terraform init`, but does not create or
+	// modify any Azure resources.
+	AzureBackend = "azure-backend"
 )
 
 const (
@@ -122,6 +129,9 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: MarkManyAsRead,
+		},
+		{
+			Name: AzureBackend,
 		},
 	}
 }

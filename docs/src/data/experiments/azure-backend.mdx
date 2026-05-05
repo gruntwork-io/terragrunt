@@ -1,0 +1,69 @@
+---
+name: azure-backend
+status: active
+since: "1.0.5"
+---
+
+Experimental support for the Azure Storage (`azurerm`) remote state backend.
+
+### `azure-backend` - What it does
+
+With the experiment **enabled**, Terragrunt manages Azure Storage accounts,
+blob containers and state blobs in the same way it already manages S3 and GCS
+buckets: automatic bootstrap on `init`, `terragrunt backend delete`,
+`terragrunt backend delete --bucket`, and `terragrunt backend migrate`.
+With the experiment **disabled** Terragrunt still recognizes
+`backend = "azurerm"` and passes the configuration through to the native
+OpenTofu/Terraform `azurerm` backend, but does not create or modify any Azure
+resources.
+
+Current functional surface (with the experiment on):
+
+- Resolves credentials via SAS token, access key, service principal, OIDC /
+  workload identity, MSI, or `DefaultAzureCredential`. ARM\_\*/AZURE\_\*
+  environment variable fallbacks are honoured.
+- Bootstrap creates the resource group, storage account (with blob versioning
+  and optional soft-delete) and container, honouring the full set of
+  `skip_*_creation` toggles.
+- Optional `assign_storage_blob_data_owner = true` assigns the
+  `Storage Blob Data Owner` role at the storage-account scope.
+- `backend delete` removes the state blob; `backend delete --bucket` removes
+  the container and (unless `skip_storage_account_creation` is set) the
+  storage account.
+- `backend migrate` server-side copies the state blob between containers
+  within the same storage account; cross-account migration is not yet
+  supported.
+
+See the [Azure Storage backend section of the State Backend
+docs](/features/units/state-backend#azure-storage-azurerm-backend) for the
+full list of configuration keys and authentication methods.
+
+### `azure-backend` - How to enable it
+
+```bash
+# Via CLI flag
+terragrunt --experiment azure-backend run -- plan
+
+# Via environment variable
+export TG_EXPERIMENT=azure-backend
+terragrunt run -- plan
+```
+
+### `azure-backend` - How to provide feedback
+Track and discuss this experiment in [gruntwork-io/terragrunt#4307](https://github.com/gruntwork-io/terragrunt/issues/4307).
+When reporting issues or providing feedback, please include:
+
+- The Azure authentication method you are using (Azure AD, MSI, service principal, SAS, access key).
+- The cloud environment (public, government, china).
+- Any errors encountered during `init`, `plan`, or backend bootstrap.
+
+### `azure-backend` - Criteria for stabilization
+To transition the `azure-backend` feature to a stable release, the following must be addressed, at a minimum:
+
+- [x] `internal/azurehelper` package wrapping the Azure SDK with a builder pattern matching `awshelper`/`gcphelper`.
+- [x] Bootstrap of storage accounts and blob containers, including versioning and optional RBAC role assignment for `use_azuread_auth`.
+- [x] Delete and migrate operations for state blobs and containers with confirmation prompts.
+- [x] Direct state file reads from Azure blobs for `--dependency-fetch-output-from-state`.
+- [x] Documentation covering authentication methods, configuration keys, and troubleshooting.
+- [x] Integration test coverage gated behind a build tag.
+- [ ] Community feedback on real-world usage.

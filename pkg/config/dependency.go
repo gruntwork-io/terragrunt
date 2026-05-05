@@ -16,12 +16,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gruntwork-io/terragrunt/internal/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/azurehelper"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iacargs"
 	"github.com/gruntwork-io/terragrunt/internal/remotestate"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
+	azurermbackend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/azurerm"
 	s3backend "github.com/gruntwork-io/terragrunt/internal/remotestate/backend/s3"
 
 	"github.com/hashicorp/go-getter"
@@ -702,7 +704,7 @@ func getTerragruntOutput(
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, pctx, l, targetConfigPath)
 	if err != nil {
-		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) {
+		if !isRenderJSONCommand(pctx) && !isRenderCommand(pctx) && !isAwsS3NoSuchKey(err) && !isAzureBlobNotFound(err) {
 			return nil, true, err
 		}
 
@@ -837,6 +839,15 @@ func isAwsS3NoSuchKey(err error) bool {
 	}
 
 	return false
+}
+
+// isAzureBlobNotFound reports whether err originated from the Azure
+// dependency-fetch fast path and represents a missing blob/container
+// (i.e. the remote state has not been written yet). The dependency
+// resolver maps this to the mock_outputs fallback, mirroring the S3
+// NoSuchKey handling above.
+func isAzureBlobNotFound(err error) bool {
+	return azurehelper.IsNotFound(err)
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json
@@ -1004,7 +1015,8 @@ func getTerragruntOutputJSON(ctx context.Context, pctx *ParsingContext, l log.Lo
 
 	shouldFetchFromState := pctx.Experiments.Evaluate(experiment.DependencyFetchOutputFromState) &&
 		!pctx.NoDependencyFetchOutputFromState &&
-		remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName
+		(remoteStateTGConfig.RemoteState.BackendName == s3backend.BackendName ||
+			remoteStateTGConfig.RemoteState.BackendName == azurermbackend.BackendName)
 
 	if shouldFetchFromState {
 		return getTerragruntOutputJSONFromRemoteState(
@@ -1222,6 +1234,20 @@ func getTerragruntOutputJSONFromRemoteState(
 			l.Debugf("Retrieved output from %s as json: %s using s3 bucket", pctx.TerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
+		case azurermbackend.BackendName:
+			jsonBytes, azGetErr := getTerragruntOutputJSONFromRemoteStateAzurerm(
+				ctx,
+				l,
+				pctx,
+				remoteState,
+			)
+			if azGetErr != nil {
+				return nil, azGetErr
+			}
+
+			l.Debugf("Retrieved output from %s using azure blob (%d bytes)", pctx.TerragruntConfigPath, len(jsonBytes))
+
+			return jsonBytes, nil
 		default:
 			l.Debugf("dependency-fetch-output-from-state experiment is not supported for backend %s, falling back to default output retrieval", backend)
 		}
@@ -1317,6 +1343,56 @@ func getTerragruntOutputJSONFromRemoteStateS3(ctx context.Context, l log.Logger,
 
 	err = json.Unmarshal([]byte(jsonState), &jsonMap)
 	if err != nil {
+		return nil, err
+	}
+
+	jsonOutputs, err := json.Marshal(jsonMap["outputs"])
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonOutputs, nil
+}
+
+// getTerragruntOutputJSONFromRemoteStateAzurerm pulls the output directly from
+// an Azure blob without calling Terraform. Mirrors the S3 fast path.
+func getTerragruntOutputJSONFromRemoteStateAzurerm(ctx context.Context, l log.Logger, pctx *ParsingContext, remoteState *remotestate.RemoteState) ([]byte, error) {
+	l.Debugf("Fetching outputs directly from azurerm://%s/%s/%s",
+		remoteState.BackendConfig["storage_account_name"],
+		remoteState.BackendConfig["container_name"],
+		remoteState.BackendConfig["key"])
+
+	extCfg, err := azurermbackend.Config(remoteState.BackendConfig).ParseExtendedAzureRMConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	blobClient, err := azurehelper.NewAzureConfigBuilder().
+		WithSessionConfig(extCfg.GetAzureSessionConfig()).
+		WithEnv(pctx.Env).
+		BuildBlobClient(ctx, l)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	body, err := blobClient.GetBlob(ctx, extCfg.RemoteStateConfigAzureRM.ContainerName, extCfg.RemoteStateConfigAzureRM.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func(Body io.ReadCloser) {
+		if err := Body.Close(); err != nil {
+			l.Warnf("Failed to close remote state response %v", err)
+		}
+	}(body)
+
+	stateBody, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonMap := make(map[string]any)
+	if err := json.Unmarshal(stateBody, &jsonMap); err != nil {
 		return nil, err
 	}
 

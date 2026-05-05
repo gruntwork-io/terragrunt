@@ -1,0 +1,43 @@
+---
+version: "v1.0.5"
+category: "experiments-updated"
+---
+
+#### `azure-backend` — Functional Azure Storage backend bootstrap and lifecycle
+
+The `azure-backend` experiment, previously a stub registration, now manages
+the Azure Storage (`azurerm`) remote state backend on par with the existing
+S3 and GCS backends.
+
+With `--experiment azure-backend` enabled, Terragrunt will, on `init`:
+
+- Create the configured `resource_group_name` if missing (skip with
+  `skip_resource_group_creation = true`).
+- Create the configured `storage_account_name` if missing, with blob
+  versioning and optional soft-delete (skip with
+  `skip_storage_account_creation = true`, `skip_versioning = true`,
+  `enable_soft_delete = true` / `soft_delete_retention_days = N`).
+- Create the configured `container_name` if missing (skip with
+  `skip_container_creation = true`).
+- Optionally assign the `Storage Blob Data Owner` role at the
+  storage-account scope when `assign_storage_blob_data_owner = true`.
+
+`terragrunt backend delete` removes the state blob; `terragrunt backend
+delete --bucket` removes the container and (unless
+`skip_storage_account_creation` is set) the storage account itself.
+`terragrunt backend migrate` server-side copies the state blob between
+containers within the same storage account; cross-account migration is
+not supported.
+
+Authentication resolves in the following order: SAS token, storage
+account access key, service principal, OIDC / workload identity, MSI,
+`DefaultAzureCredential`. SAS-token and access-key configurations are
+data-plane only and cannot bootstrap or delete the storage account.
+
+With the experiment **disabled**, behaviour is unchanged: an `azurerm`
+backend block is still passed through to OpenTofu/Terraform unmodified
+and Terragrunt does not touch any Azure resources.
+
+See the
+[Azure Storage backend section of the State Backend docs](/features/units/state-backend#azure-storage-azurerm-backend)
+for the full configuration reference.
