@@ -38,7 +38,14 @@ const (
 	fileURIScheme = "file://"
 )
 
-// DownloadTerraformSource downloads the given source URL into a temporary folder, copies opts.WorkingDir on top, and points opts.WorkingDir at that cache. NewTerraformSource determines the cache layout so we can reuse it across runs.
+// DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
+// into a temporary folder, then:
+// 1. Check if module directory exists in temporary folder
+// 2. Copy the contents of opts.WorkingDir into the temporary folder.
+// 3. Set opts.WorkingDir to the temporary folder.
+//
+// See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
+// runs of Terragrunt to avoid downloading everything from scratch every time.
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
@@ -54,7 +61,9 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	// Serialize concurrent downloads to the same cache directory. Without this, manifest.Clean() in one goroutine can delete files while another goroutine is checking for them (e.g. during CheckFolderContainsTerraformCode).
+	// Serialize concurrent downloads to the same cache directory. Without this,
+	// manifest.Clean() in one goroutine can delete files while another goroutine
+	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
 	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
 	dirLock := rawLock.(*sync.Mutex)
 	dirLock.Lock()
@@ -71,6 +80,16 @@ func DownloadTerraformSource(
 		}
 	}
 
+	// When no download was needed (AlreadyHaveLatestCode=true) and the source
+	// directory IS the working directory (source="."), skip the module copy: the
+	// version hash incorporates all file mod times, so no files have changed and
+	// the cache already has the correct content from a previous run. Skipping
+	// avoids manifest.Clean() deleting files that a concurrent goroutine expects
+	// to exist.
+	//
+	// When the source is a different directory (local or remote), the module copy
+	// overlays working-dir files on top of the downloaded source. These files may
+	// change independently of the source version hash, so the copy must always run.
 	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
 		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
 	needsModuleCopy := downloaded || !sourceIsWorkingDir
@@ -82,6 +101,7 @@ func DownloadTerraformSource(
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 		)
 
+		// Always include the .tflint.hcl file, if it exists
 		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
 		copyOpts := []util.CopyOption{
@@ -92,18 +112,28 @@ func DownloadTerraformSource(
 			copyOpts = append(copyOpts, util.WithFastCopy())
 		}
 
-		if err := util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...); err != nil {
+		err = util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
+		if err != nil {
 			return nil, err
 		}
 	}
 
+	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	l.Debugf(
 		"Setting working directory to %s",
-		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
+		util.RelPathForLog(
+			opts.RootWorkingDir,
+			terraformSource.WorkingDir,
+			opts.Writers.LogShowAbsPaths,
+		),
 	)
-	opts.WorkingDir = terraformSource.WorkingDir
+	updatedOpts.WorkingDir = terraformSource.WorkingDir
 
-	return opts, nil
+	return updatedOpts, nil
 }
 
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
