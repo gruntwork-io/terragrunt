@@ -489,7 +489,7 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 
 // setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it strips any .terragrunt-module-manifest files so a manifest shipped from the module is never copied into the cache. fsys is injected so tests can use vfs.NewMemMapFS.
 func setupWorkingDir(fsys vfs.FS, root string) error {
-	walkErr := vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+	return vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil
@@ -503,14 +503,9 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 		}
 
 		if err := fsys.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
+			return err
 		}
 
 		return nil
 	})
-	if walkErr != nil {
-		return errors.New(walkErr)
-	}
-
-	return nil
 }
