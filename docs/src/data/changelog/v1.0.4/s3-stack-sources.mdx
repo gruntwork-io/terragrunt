@@ -1,0 +1,10 @@
+---
+version: "v1.0.4"
+category: "bug-fixes"
+---
+
+#### `s3::` and `gcs::` stack sources now download
+
+Stack file `source` URLs starting with `s3::https://` or `gcs::https://` previously failed with a credentials error even when valid credentials were available. They now download. Existing stack files need no change.
+
+Plain `https://www.googleapis.com/storage/...` URLs are now intended to download anonymously without GCP credentials, but Terragrunt continues to use GCS credentials to download them for backward compatibility, emitting a deprecation warning the first time it does so. To opt into the new behavior, enable the `legacy-gcs-public-prefix` strict control. To pull from a private GCS bucket explicitly, prefix the URL with `gcs::` yourself.

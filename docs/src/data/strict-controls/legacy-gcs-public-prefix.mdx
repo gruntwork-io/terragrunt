@@ -1,0 +1,19 @@
+---
+name: legacy-gcs-public-prefix
+status: active
+since: "1.0.4"
+---
+
+Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.4 Terragrunt routed those URLs through the credentialed GCS getter; v1.0.4+ routes them through the HTTP getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.
+
+### `legacy-gcs-public-prefix` - Reason
+
+The legacy auto-prefixing made it impossible to download a public Cloud Storage object without GCP credentials, since every plain `https://www.googleapis.com/storage/...` URL was rewritten to use the credentialed getter. The new behavior leaves the URL alone so it resolves through the HTTP getter and downloads anonymously.
+
+To keep using GCS credentials for a specific URL, prefix it with `gcs::` yourself:
+
+```hcl
+terraform {
+  source = "gcs::https://www.googleapis.com/storage/v1/my-private-bucket/module.zip"
+}
+```

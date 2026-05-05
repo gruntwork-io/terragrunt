@@ -83,7 +83,28 @@ const (
 	// FastCopy is the control that switches `include_in_copy` and
 	// `exclude_from_copy` pattern matching from zglob to gobwas.
 	FastCopy = "fast-copy"
+
+	// LegacyGCSPublicPrefix preserves the pre-v1.0.4 behavior of auto-prefixing
+	// plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`
+	// so they route through the credentialed gcs getter. Default behavior keeps
+	// the rewrite (with a deprecation warning); enabling the control disables
+	// the rewrite and routes the URL through the http getter for anonymous
+	// access.
+	LegacyGCSPublicPrefix = "legacy-gcs-public-prefix"
 )
+
+// LegacyGCSDeprecationWarning is the warning text emitted when a plain
+// https://www.googleapis.com/storage/... source URL is rewritten to use the
+// credentialed gcs getter.
+const LegacyGCSDeprecationWarning = "Plain `https://www.googleapis.com/storage/...` source URLs are downloaded using GCS " +
+	"credentials for backward compatibility. Add the `gcs::` prefix explicitly to keep using GCS credentials and " +
+	"silence this warning, or enable the `legacy-gcs-public-prefix` strict control to download anonymously instead." +
+	" This will be the default behavior of Terragrunt in the future."
+
+// IsFastCopyEnabled reports whether the `fast-copy` strict control is enabled.
+func IsFastCopyEnabled(strictControls strict.Controls) bool {
+	return len(strictControls.FilterByNames(FastCopy).FilterByEnabled()) > 0
+}
 
 //nolint:lll
 func New() strict.Controls {
@@ -297,6 +318,12 @@ func New() strict.Controls {
 		&Control{
 			Name:        FastCopy,
 			Description: "Switches `include_in_copy` and `exclude_from_copy` pattern matching from zglob to gobwas. `**` no longer collapses when adjacent to a wildcard, so `a/**/*.tf` will not match `a/foo.tf`. Use brace alternation like `{*.tf,**/*.tf}` to cover both depths.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        LegacyGCSPublicPrefix,
+			Description: "Stops auto-prefixing plain `https://www.googleapis.com/storage/...` source URLs with `gcs::`. Pre-v1.0.4 Terragrunt routed those URLs through the credentialed gcs getter; v1.0.4+ routes them through the http getter for anonymous access. The legacy prefix-rewrite is restored by default with a deprecation warning. Enable this control to opt into the new behavior and silence the warning.",
+			Warning:     LegacyGCSDeprecationWarning,
 			Category:    stageCategory,
 		},
 	}
