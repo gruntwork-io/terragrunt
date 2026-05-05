@@ -3,8 +3,6 @@ version: "v1.0.4"
 category: "bug-fixes"
 ---
 
-#### Hardened module manifest cleanup
+#### Hardened module cache cleanup
 
-Terragrunt tracks files copied into a module's working directory using `.terragrunt-module-manifest` so subsequent runs can clean up files that have been removed from the source. The cleanup pass now anchors all reads and removals against the manifest folder via `os.Root`, and any decoded entry that resolves outside that folder is dropped with a warning instead of acted on.
-
-Any pre-existing `.terragrunt-module-manifest` files inside a fresh source download are also cleared before cleanup runs, so a manifest shipped with downloaded module content cannot influence what cleanup deletes.
+Terragrunt's module cache cleanup is now strictly confined to the cache directory. Files outside the cache cannot be affected, regardless of what a downloaded module contains. The hardening applies to every supported module source.
