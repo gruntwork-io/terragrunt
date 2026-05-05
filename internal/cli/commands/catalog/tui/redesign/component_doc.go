@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 )
@@ -27,11 +29,6 @@ const (
 
 var (
 	docFiles = []string{"README.md", "README.adoc"}
-
-	frontmatterKeys = map[string]docDataKey{
-		"name":        docTitle,
-		"description": docDescription,
-	}
 )
 
 type docDataKey byte
@@ -49,13 +46,17 @@ func (regs docRegs) Replace(str string) string {
 
 // ComponentDoc is the parsed README (Markdown or AsciiDoc) for a Component.
 type ComponentDoc struct {
-	tagCache         map[docDataKey]string
-	tagRegs          map[docTagName]*regexp.Regexp
-	frontmatterCache map[docDataKey]string
-	frontmatterReg   *regexp.Regexp
-	rawContent       string
-	fileExt          string
-	tagStripRegs     docRegs
+	tagCache           map[docDataKey]string
+	tagRegs            map[docTagName]*regexp.Regexp
+	frontmatterCache   map[docDataKey]string
+	frontmatterTags    []string
+	frontmatterReg     *regexp.Regexp
+	frontmatterDashReg *regexp.Regexp
+	frontmatterBody    string
+	rawContent         string
+	fileExt            string
+	tagStripRegs       docRegs
+	frontmatterDone    bool
 }
 
 // NewComponentDoc builds a ComponentDoc from raw README content.
@@ -64,9 +65,12 @@ func NewComponentDoc(rawContent, fileExt string) *ComponentDoc {
 		rawContent: rawContent,
 		fileExt:    fileExt,
 
-		tagRegs:        make(map[docTagName]*regexp.Regexp),
-		frontmatterReg: regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
+		tagRegs:            make(map[docTagName]*regexp.Regexp),
+		frontmatterReg:     regexp.MustCompile(`(?i)^[\s\n]*<!-- frontmatter[\s\n]*([\S\s]*?)[\s\n]*-->`),
+		frontmatterDashReg: regexp.MustCompile(`(?m)\A[\s\n]*---[\s\n]+([\S\s]*?)[\s\n]+---(?:[\s\n]|$)`),
 	}
+
+	doc.extractFrontmatter()
 
 	switch fileExt {
 	case mdExt:
@@ -164,6 +168,22 @@ func (doc *ComponentDoc) Title() string {
 	return doc.parseTag(docTitle)
 }
 
+// Tags returns the list of tags declared in the README front-matter, in
+// authoring order. Returns nil when no tags are defined or no front-matter
+// is present.
+func (doc *ComponentDoc) Tags() []string {
+	doc.ensureFrontmatter()
+
+	if len(doc.frontmatterTags) == 0 {
+		return nil
+	}
+
+	out := make([]string, len(doc.frontmatterTags))
+	copy(out, doc.frontmatterTags)
+
+	return out
+}
+
 // Description returns a short description, optionally capped at maxLength.
 func (doc *ComponentDoc) Description(maxLength int) string {
 	desc := doc.parseFrontmatter(docDescription)
@@ -215,36 +235,104 @@ func (doc *ComponentDoc) IsMarkDown() bool {
 }
 
 func (doc *ComponentDoc) parseFrontmatter(key docDataKey) string {
-	if doc.frontmatterReg == nil {
-		return ""
+	doc.ensureFrontmatter()
+
+	return doc.frontmatterCache[key]
+}
+
+// ensureFrontmatter parses the README front-matter block as YAML on first
+// use, populating frontmatterCache (name/description) and frontmatterTags.
+//
+// Unknown keys and parse errors are silently ignored.
+func (doc *ComponentDoc) ensureFrontmatter() {
+	if doc.frontmatterDone {
+		return
 	}
 
-	if doc.frontmatterCache == nil {
-		doc.frontmatterCache = make(map[docDataKey]string)
+	doc.frontmatterDone = true
+	doc.frontmatterCache = make(map[docDataKey]string)
 
-		match := doc.frontmatterReg.FindStringSubmatch(doc.rawContent)
-		if len(match) == 0 {
-			return ""
+	if doc.frontmatterBody == "" {
+		return
+	}
+
+	var raw map[string]any
+	if err := yaml.Unmarshal([]byte(doc.frontmatterBody), &raw); err != nil || raw == nil {
+		return
+	}
+
+	for k, v := range raw {
+		switch strings.ToLower(strings.TrimSpace(k)) {
+		case "name":
+			if s, ok := v.(string); ok {
+				doc.frontmatterCache[docTitle] = strings.TrimSpace(s)
+			}
+		case "description":
+			if s, ok := v.(string); ok {
+				doc.frontmatterCache[docDescription] = strings.TrimSpace(s)
+			}
+		case "tags":
+			doc.frontmatterTags = coerceTags(v)
+		}
+	}
+}
+
+// extractFrontmatter captures the YAML body of the README's front-matter
+// block (if any) and removes the matched block from rawContent so downstream
+// rendering (glamour, tag-stripping) does not treat the front-matter as part
+// of the README body. Either the dash-separated form (`---\n...\n---`) or
+// the HTML-comment-wrapped form (`<!-- Frontmatter ... -->`) is accepted.
+func (doc *ComponentDoc) extractFrontmatter() {
+	for _, reg := range []*regexp.Regexp{doc.frontmatterDashReg, doc.frontmatterReg} {
+		if reg == nil {
+			continue
 		}
 
-		lines := strings.SplitSeq(match[1], "\n")
+		loc := reg.FindStringSubmatchIndex(doc.rawContent)
+		if len(loc) == 0 {
+			continue
+		}
 
-		for line := range lines {
-			rawKey, rawVal, ok := strings.Cut(line, ":")
+		doc.frontmatterBody = doc.rawContent[loc[2]:loc[3]]
+		doc.rawContent = strings.TrimLeft(doc.rawContent[loc[1]:], "\r\n")
+
+		return
+	}
+}
+
+// coerceTags accepts the YAML-decoded value of the `tags` key and returns a
+// trimmed, non-empty slice of strings. It accepts either a sequence
+// (`["a","b"]` or a `- a` block) or a single string.
+func coerceTags(v any) []string {
+	switch val := v.(type) {
+	case []any:
+		out := make([]string, 0, len(val))
+
+		for _, item := range val {
+			s, ok := item.(string)
 			if !ok {
 				continue
 			}
 
-			key := strings.ToLower(strings.TrimSpace(rawKey))
-			val := strings.TrimSpace(rawVal)
-
-			if key, ok := frontmatterKeys[key]; ok {
-				doc.frontmatterCache[key] = val
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
 			}
+
+			out = append(out, s)
 		}
+
+		return out
+	case string:
+		s := strings.TrimSpace(val)
+		if s == "" {
+			return nil
+		}
+
+		return []string{s}
 	}
 
-	return doc.frontmatterCache[key]
+	return nil
 }
 
 func (doc *ComponentDoc) parseTag(key docDataKey) string {

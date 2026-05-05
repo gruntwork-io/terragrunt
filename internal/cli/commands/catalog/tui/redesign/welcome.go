@@ -84,6 +84,7 @@ type WelcomeModel struct {
 	openURL          OpenURLFunc
 	statusCh         chan string
 	componentCh      chan *ComponentEntry
+	errCh            chan error
 	statusText       string
 	spinner          spinner.Model
 	state            welcomeState
@@ -126,6 +127,7 @@ func NewWelcomeModel(ctx context.Context, l log.Logger, opts *options.Terragrunt
 		openURL:     browser.OpenURL,
 		statusCh:    make(chan string, statusChannelSize),
 		componentCh: make(chan *ComponentEntry, statusChannelSize),
+		errCh:       make(chan error, 1),
 		spinner:     s,
 		statusText:  "Discovering components from your infrastructure...",
 		state:       welcomeLoading,
@@ -258,7 +260,7 @@ func (m WelcomeModel) discoveryErrorView() string {
 
 func (m WelcomeModel) handleComponentMsg(msg componentMsg) (tea.Model, tea.Cmd) {
 	// First component: transition to the catalog list immediately
-	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.componentCh)
+	newModel := NewModelStreaming(m.logger, m.opts, msg.entry, m.componentCh, m.errCh)
 	width, height := m.width, m.height
 
 	initCmds := []tea.Cmd{newModel.Init()}
@@ -286,13 +288,26 @@ func (m WelcomeModel) handleDiscoveryComplete(msg DiscoveryCompleteMsg) (tea.Mod
 	return m, nil
 }
 
+// listenForComponent returns a Cmd that delivers the next component on
+// componentCh as a componentMsg. When componentCh is closed, it drains
+// errCh for the loadFunc result and emits DiscoveryCompleteMsg.
+//
+// Routing completion through the same Cmd as the component stream keeps
+// message ordering deterministic: every component is observed before
+// DiscoveryCompleteMsg regardless of goroutine scheduling. A sibling Cmd
+// emitting DiscoveryCompleteMsg directly would race this one, and the
+// welcome to streaming swap could drop completion and leave the streaming
+// Model's loading flag stuck on.
 func (m WelcomeModel) listenForComponent() tea.Cmd {
 	ch := m.componentCh
+	errCh := m.errCh
 
 	return func() tea.Msg {
 		c, ok := <-ch
 		if !ok {
-			return nil
+			err := <-errCh
+
+			return DiscoveryCompleteMsg{Err: err}
 		}
 
 		return componentMsg{entry: c}
@@ -352,9 +367,11 @@ func (m WelcomeModel) startDiscovery() tea.Cmd {
 	loadFunc := m.loadFunc
 	statusCh := m.statusCh
 	componentCh := m.componentCh
+	errCh := m.errCh
 
 	return func() tea.Msg {
 		defer close(statusCh)
+		defer close(errCh)
 		defer close(componentCh)
 
 		err := loadFunc(ctx, func(msg string) {
@@ -364,6 +381,13 @@ func (m WelcomeModel) startDiscovery() tea.Cmd {
 			}
 		}, componentCh)
 
-		return DiscoveryCompleteMsg{Err: err}
+		// Stash the loadFunc error on errCh; the listener reads it after
+		// componentCh closes, so DiscoveryCompleteMsg arrives strictly
+		// after every component regardless of goroutine scheduling.
+		if err != nil {
+			errCh <- err
+		}
+
+		return nil
 	}
 }
