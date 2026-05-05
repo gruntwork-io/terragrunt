@@ -484,14 +484,7 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
-// setupWorkingDir prepares a freshly-downloaded module source tree
-// before util.CopyFolderContents copies the caller's working directory
-// on top of it. Today the only step is removing any pre-existing
-// .terragrunt-module-manifest files so a forged manifest shipped inside
-// downloaded module content cannot influence the cleanup pass that runs
-// next. This is the natural place to add any further sanitization that
-// should happen on the freshly-downloaded tree; the entry-point name
-// intentionally does not lock the function to a single concern.
+// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it only removes pre-existing .terragrunt-module-manifest files.
 func setupWorkingDir(root string) error {
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

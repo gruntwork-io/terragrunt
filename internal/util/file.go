@@ -940,16 +940,7 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean recursively removes every file recorded in the manifest. The
-// manifest is treated as untrusted input - a downloaded module can ship
-// a forged .terragrunt-module-manifest - so reads and removals all flow
-// through a single rooted descriptor (os.Root) anchored at
-// ManifestFolder. Decoded entries that resolve outside that root are
-// dropped with a warning. Per-entry removal failures (permission,
-// corrupted gob stream, individual unlink errors) are also logged and
-// skipped, leaving the rest of the manifest to clean up best-effort.
-// Only structural failures - inability to open the manifest folder
-// itself for reasons other than ErrNotExist - propagate to the caller.
+// Clean removes every file recorded in the manifest, gating reads and unlinks through a single os.Root anchored at ManifestFolder.
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir, err := filepath.Abs(manifest.ManifestFolder)
 	if err != nil {
@@ -974,11 +965,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 	return manifest.clean(l, rootDir, root, manifest.ManifestFile)
 }
 
-// clean walks one manifest file and removes its entries through root.
-// rootDir is kept only so log messages can name an absolute path; the
-// security boundary is root itself - both the read of the manifest and
-// any unlink go through it, so symlink components anywhere along a path
-// cannot redirect outside rootDir.
+// clean walks one manifest file under root and removes its entries; rootDir is kept only for log messages.
 func (manifest *fileManifest) clean(l log.Logger, rootDir string, root *os.Root, relManifestPath string) error {
 	file, err := root.Open(relManifestPath)
 	if err != nil {
@@ -1528,27 +1515,13 @@ func SkipDirIfIgnorable(dir string) error {
 	return nil
 }
 
-// relPathInsideRoot returns the path of target relative to rootDir, or
-// ok=false when target resolves outside rootDir. Both inputs are made
-// absolute and cleaned before comparison so attacks using "..", absolute
-// escape paths, or unclean inputs are rejected. rel == "." (target is
-// rootDir itself) is also rejected; callers do not address the root.
-//
-// rootDir and target must already share canonical form - this function
-// does not call filepath.EvalSymlinks. In current callers the
-// destination passed to NewFileManifest is the same value that flows
-// into AddFile, so the assumption holds.
+// relPathInsideRoot returns target relative to rootDir; ok=false when target escapes, equals rootDir, or either input is not absolute.
 func relPathInsideRoot(rootDir, target string) (string, bool) {
-	if target == "" {
+	if !filepath.IsAbs(rootDir) || !filepath.IsAbs(target) {
 		return "", false
 	}
 
-	targetAbs, err := filepath.Abs(target)
-	if err != nil {
-		return "", false
-	}
-
-	rel, err := filepath.Rel(rootDir, targetAbs)
+	rel, err := filepath.Rel(filepath.Clean(rootDir), filepath.Clean(target))
 	if err != nil {
 		return "", false
 	}

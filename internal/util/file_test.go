@@ -163,12 +163,7 @@ func TestFileManifest(t *testing.T) {
 	}
 }
 
-// TestFileManifestCleanRejectsAbsolutePathOutsideRoot verifies a forged
-// manifest entry pointing at an absolute path outside the manifest folder
-// cannot delete that file.
-//
-// Uses a real filesystem (not vfs.MemMapFS) because the fix relies on
-// os.OpenRoot semantics that are only meaningful against the real FS.
+// TestFileManifestCleanRejectsAbsolutePathOutsideRoot rejects a forged absolute path outside the manifest folder.
 func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
 	t.Parallel()
 
@@ -186,8 +181,7 @@ func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
 	assert.FileExists(t, sentinel, "absolute outside-root entry must not be removed")
 }
 
-// TestFileManifestCleanRejectsRelativeTraversal verifies that a forged
-// manifest entry using ".." to escape the manifest folder is refused.
+// TestFileManifestCleanRejectsRelativeTraversal rejects a forged ".." entry that escapes the manifest folder.
 func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
 	t.Parallel()
 
@@ -211,9 +205,7 @@ func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
 	assert.FileExists(t, sentinel, "relative ../ traversal must not escape the manifest folder")
 }
 
-// TestFileManifestCleanRejectsRecursiveDirectoryEscape verifies an IsDir
-// manifest entry pointing outside the manifest folder cannot pull in a
-// nested kill list.
+// TestFileManifestCleanRejectsRecursiveDirectoryEscape rejects an IsDir entry pointing outside the manifest folder.
 func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
 	t.Parallel()
 
@@ -237,12 +229,7 @@ func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
 	assert.FileExists(t, filepath.Join(outsideDir, ".terragrunt-test-manifest"), "outside manifest must remain untouched")
 }
 
-// TestFileManifestCleanRejectsSymlinkEscape verifies a symlink within the
-// manifest folder pointing at an outside file does not cause the target to
-// be deleted.
-//
-// Uses a real filesystem (not vfs.MemMapFS) because the test exercises real
-// symlink semantics that the in-memory FS does not model.
+// TestFileManifestCleanRejectsSymlinkEscape rejects deletion of a symlink target outside the manifest folder.
 func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	t.Parallel()
 
@@ -261,6 +248,24 @@ func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	require.NoError(t, manifest.Clean(l))
 
 	assert.FileExists(t, sentinel, "symlink target outside the manifest folder must survive cleanup")
+}
+
+// TestFileManifestCleanRejectsRelativeManifestEntry rejects forged relative entries; they must not be re-anchored against CWD.
+func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+	_, sentinel := planSentinel(t)
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile("../"+filepath.Base(filepath.Dir(sentinel))+"/sentinel.txt"))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "relative manifest entry must not be re-anchored against CWD")
 }
 
 func TestContainsPath(t *testing.T) {
@@ -930,9 +935,7 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
 
-// planSentinel creates a temp directory outside any manifest root and
-// writes a sentinel file inside it that the test will assert survives
-// the Clean() call. Returns the directory path and the sentinel path.
+// planSentinel writes a sentinel file outside any manifest root and returns its directory and full path.
 func planSentinel(t *testing.T) (string, string) {
 	t.Helper()
 
