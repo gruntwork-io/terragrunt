@@ -20,6 +20,10 @@ examples:
       Delete backend state for the current unit, even if it doesn't have versioning enabled.
     code: |
       terragrunt backend delete --force
+  - description: |
+      Delete Azure backend state (requires experiment flag).
+    code: |
+      terragrunt --experiment azure-backend backend delete
 flags:
   - backend-delete-all
   - backend-delete-config
@@ -51,3 +55,26 @@ remote_state {
 ```
 
 Running `terragrunt backend delete` will delete the backend state file located at `path/to/my/key` in the `mybucket` bucket.
+
+### Azure Backend
+
+For the `azurerm` backend, `delete` removes the state blob from the Azure Storage container. Terragrunt will prompt for confirmation before deleting.
+
+```hcl
+# terragrunt.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "myterragruntstate"
+    container_name       = "tfstate"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "12345678-1234-1234-1234-123456789abc"
+    key                  = "app/terraform.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+Running `terragrunt --experiment azure-backend backend delete` will delete the state blob at `app/terraform.tfstate` in the `tfstate` container.
+
+Use `--non-interactive` to skip the confirmation prompt, or `--force` to delete even when blob versioning is not enabled on the storage account.

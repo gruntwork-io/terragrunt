@@ -17,7 +17,7 @@ This flag is equivalent to enabling the `dependency-fetch-output-from-state` exp
 
 The main benefit this flag provides is performance. Reading directly from state is typically faster than executing the OpenTofu/Terraform binary to get the same outputs.
 
-The limitation of this approach is that it is only supported by the S3 backend, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
+The limitation of this approach is that it is only supported by the S3 and Azure Storage backends, and OpenTofu/Terraform may change the schema of the state file in the future, breaking this functionality.
 
 <Aside type="caution">
 This flag is **not compatible with OpenTofu state encryption**. When OpenTofu's client-side state encryption is enabled, the state file stored in S3 is encrypted before upload. Since this flag causes Terragrunt to read the raw state file directly from S3 via the AWS SDK, it cannot decrypt the state and will fail with a JSON parsing error. If you are using OpenTofu state encryption, disable this flag with `--no-dependency-fetch-output-from-state`.

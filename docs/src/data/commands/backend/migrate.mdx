@@ -16,6 +16,10 @@ examples:
       Force state migration, even if the bucket doesn't have versioning enabled.
     code: |
       backend migrate --force old-unit-name new-unit-name
+  - description: |
+      Migrate Azure backend state between units (requires experiment flag).
+    code: |
+      terragrunt --experiment azure-backend backend migrate old-unit new-unit
 flags:
   - backend-migrate-config
   - backend-migrate-download-dir
@@ -79,5 +83,17 @@ This will migrate the backend state from the `old-unit-name` unit to the `new-un
 
 Terragrunt performs migrations in one of two ways, depending on the level of support for the backends being migrated, and the state of configuration between the two units.
 
-1. If the backend source for both the source and destination units are the same (both are S3 or GCS), Terragrunt will use the AWS/GCP SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
+1. If the backend source for both the source and destination units are the same (both are S3, GCS, or Azure), Terragrunt will use the cloud SDK to move state between the two units transparently without interacting with OpenTofu/Terraform. This is the preferred method, when possible.
 2. If either backend source isn't supported by Terragrunt, or the state of configuration between the two units is different, Terragrunt will instead use the OpenTofu/Terraform CLI to move the state between the two units. This is the fallback method, and will generally be slower. Terragrunt also won't be able to delete the existing state from the source unit in this case, so you'll need to handle that yourself.
+
+### Azure Backend
+
+For the `azurerm` backend, migration works the same way. When both source and destination use the Azure backend, Terragrunt uses the Azure SDK to copy the state blob directly between containers without invoking OpenTofu/Terraform. The source blob is deleted after the copy is verified.
+
+```bash
+cp -R old-unit-name new-unit-name
+terragrunt --experiment azure-backend backend migrate old-unit-name new-unit-name
+rm -rf old-unit-name
+```
+
+For cross-backend migrations (e.g., S3 to Azure), Terragrunt falls back to using `tofu state pull` and `tofu state push` to transfer the state.

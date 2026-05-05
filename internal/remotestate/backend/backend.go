@@ -4,6 +4,7 @@ package backend
 import (
 	"context"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/iam"
 	"github.com/gruntwork-io/terragrunt/internal/writer"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -14,8 +15,10 @@ type Options struct {
 	Writers                      writer.Writers
 	Env                          map[string]string
 	IAMRoleOptions               iam.RoleOptions
+	Experiments                  experiment.Experiments
 	NonInteractive               bool
 	FailIfBucketCreationRequired bool
+	ForceBackendMigrate          bool
 }
 
 type Backends []Backend
@@ -52,6 +55,9 @@ type Backend interface {
 
 	// DeleteBucket deletes the entire bucket.
 	DeleteBucket(ctx context.Context, l log.Logger, config Config, opts *Options) error
+
+	// DeleteStorageAccount deletes the storage account.
+	DeleteStorageAccount(ctx context.Context, l log.Logger, config Config, opts *Options) error
 
 	// GetTFInitArgs returns the config that should be passed on to `tofu -backend-config` cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user.

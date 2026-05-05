@@ -167,6 +167,7 @@ The following backends are currently supported by `remote_state`:
 
 - [s3 backend](https://opentofu.org/docs/language/settings/backends/s3)
 - [gcs backend](https://opentofu.org/docs/language/settings/backends/gcs)
+- [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) (requires `--experiment azure-backend`)
 
 For all other backends, the `remote_state` block operates in the same manner as `generate`, currently. If you are not intending for Terragrunt to automatically perform
 automated bootstrapping of remote state resources, you are advised to use `generate` blocks to configure the OpenTofu/Terraform backend instead.
@@ -348,9 +349,151 @@ The following config options are only valid for the `gcs` backend and are used b
 - `skip_bucket_versioning`
 - `enable_bucket_policy_only`
 
+### Azure Backend
+
+<Aside type="caution" title="Experimental">
+The Azure backend requires the `azure-backend` experiment flag. Enable it with `--experiment azure-backend` or `TG_EXPERIMENT=azure-backend`.
+</Aside>
+
+- **Storage account and container**: If you are using the [azurerm backend](https://opentofu.org/docs/language/settings/backends/azurerm) for remote state storage and the storage account or container you specify in `remote_state.config` doesn't already exist, Terragrunt will create them automatically when `create_storage_account_if_not_exists` is set to `true`, with [blob versioning](https://learn.microsoft.com/en-us/azure/storage/blobs/versioning-overview) enabled by default.
+
+#### Quickstart
+
+To get started with the Azure backend, ensure you are authenticated with Azure CLI (`az login`) and have a resource group ready. Then add the following to your `root.hcl`:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite"
+  }
+  config = {
+    # Required
+    storage_account_name = "myterragruntstate"
+    container_name       = "tfstate"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "12345678-1234-1234-1234-123456789abc"
+    key                  = "${path_relative_to_include()}/terraform.tfstate"
+
+    # Authentication (Azure AD recommended)
+    use_azuread_auth     = true
+
+    # Bootstrap: create the storage account and container if they don't exist
+    create_storage_account_if_not_exists = true
+    location             = "westeurope"
+  }
+}
+```
+
+Then run Terragrunt with the experiment flag:
+
+```bash
+terragrunt --experiment azure-backend plan
+```
+
+On first run, Terragrunt will:
+
+1. Create the storage account `myterragruntstate` in `westeurope` (if it doesn't exist).
+2. Create the blob container `tfstate` inside that storage account.
+3. Enable blob versioning for state file protection.
+4. Generate a `backend.tf` file and initialize the backend.
+
+Each unit inherits this configuration via `include` and gets its own state key based on `path_relative_to_include()`.
+
+#### State locking
+
+The Azure backend uses [blob leases](https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob) for state locking, handled automatically by OpenTofu/Terraform. Unlike the S3 backend, which requires a separate DynamoDB table, no additional lock resources need to be created or configured. Concurrent `terragrunt` runs against the same state file are safe out of the box.
+
+#### Required configuration
+
+| Option | Description |
+|--------|-------------|
+| `storage_account_name` | Name of the Azure Storage Account (3-24 chars, lowercase alphanumeric) |
+| `container_name` | Name of the blob container (3-63 chars, lowercase with hyphens) |
+| `key` | Path to the state file within the container |
+| `resource_group_name` | Name of the Resource Group containing the Storage Account. Required for bootstrap and storage account deletion. |
+| `subscription_id` | Azure Subscription ID. Required for bootstrap, service principal auth, and storage account deletion. |
+
+#### Bootstrap configuration
+
+When `create_storage_account_if_not_exists` is set to `true`, Terragrunt will create the storage account and container automatically. The following additional options control bootstrapping:
+
+```hcl
+# root.hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "mystorageaccount"
+    container_name       = "terraform-state"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "12345678-1234-1234-1234-123456789abc"
+    key                  = "${path_relative_to_include()}/terraform.tfstate"
+    use_azuread_auth     = true
+
+    # Bootstrap settings
+    create_storage_account_if_not_exists = true
+    location           = "eastus"
+    account_kind       = "StorageV2"
+    account_tier       = "Standard"
+    replication_type   = "LRS"
+    access_tier        = "Hot"
+    enable_versioning  = true
+
+    storage_account_tags = {
+      Environment = "production"
+      ManagedBy   = "terragrunt"
+    }
+  }
+}
+```
+
+- `create_storage_account_if_not_exists` -- Create the storage account and container if they don't exist.
+- `location` -- Azure region for the storage account (required for bootstrap).
+- `account_kind` -- Storage account kind. Defaults to `StorageV2`.
+- `account_tier` -- Performance tier (`Standard` or `Premium`). Defaults to `Standard`.
+- `replication_type` -- Replication strategy (`LRS`, `GRS`, `RAGRS`, `ZRS`, `GZRS`, `RAGZRS`). Defaults to `LRS`.
+- `access_tier` -- Blob access tier (`Hot` or `Cool`). Defaults to `Hot`.
+- `enable_versioning` -- Enable blob versioning for state file protection. Defaults to `true`.
+- `allow_blob_public_access` -- Allow public access to blobs. Defaults to `false`.
+- `skip_storage_account_update` -- Skip updating existing storage account properties. Defaults to `false`.
+- `storage_account_tags` -- Custom tags to apply to the storage account.
+
+#### Authentication
+
+The Azure backend supports multiple authentication methods:
+
+- **Azure AD authentication** (recommended): Set `use_azuread_auth = true`. Uses the [DefaultAzureCredential](https://learn.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication) chain (environment variables, workload identity, managed identity, Azure CLI, Azure Developer CLI).
+- **Managed Service Identity**: Set `use_msi = true`. Uses the system-assigned or user-assigned managed identity when running on Azure resources.
+- **Service Principal**: Provide `client_id`, `client_secret`, and `tenant_id` in the config or via `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, and `ARM_TENANT_ID` environment variables.
+- **SAS token**: Provide `sas_token` in the config for time-limited, scope-limited access.
+- **Access key**: Provide `access_key` in the config (passed through to OpenTofu/Terraform).
+
+#### RBAC permissions
+
+- For bootstrap with `create_storage_account_if_not_exists`: assign **Contributor** on the resource group.
+- For data plane operations with `use_azuread_auth`: assign **Storage Blob Data Contributor** or **Storage Blob Data Owner** on the storage account.
+- When using access keys or SAS tokens, no RBAC role assignments are needed.
+
+The following config options are only valid for the `azurerm` backend and are used by Terragrunt -- they are **not** passed on to OpenTofu/Terraform:
+
+- `create_storage_account_if_not_exists`
+- `skip_storage_account_update`
+- `location`
+- `account_kind`
+- `account_tier`
+- `replication_type`
+- `account_replication_type`
+- `access_tier`
+- `enable_versioning`
+- `allow_blob_public_access`
+- `disable_blob_public_access`
+- `storage_account_tags`
+
 ### Disabling automatic remote state bootstrapping
 
-You can disable automatic remote state bootstrapping by setting `remote_state.disable_init` (it's called this for legacy reasons). This will skip the automatic creation of remote state resources (S3 buckets, DynamoDB tables, GCS buckets) by Terragrunt, while still allowing OpenTofu/Terraform to initialize already provisioned backends normally. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want Terragrunt to create or modify remote state resources.
+You can disable automatic remote state bootstrapping by setting `remote_state.disable_init` (it's called this for legacy reasons). This will skip the automatic creation of remote state resources (S3 buckets, DynamoDB tables, GCS buckets, Azure Storage accounts and containers) by Terragrunt, while still allowing OpenTofu/Terraform to initialize already provisioned backends normally. This can be handy when running commands such as `run --all validate` as part of a CI process where you do not want Terragrunt to create or modify remote state resources.
 
 <Aside type="caution">
 When `disable_init` is `true`, backend resources must already exist, and valid credentials to access the backend are still required by OpenTofu/Terraform.

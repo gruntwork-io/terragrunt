@@ -1,0 +1,54 @@
+---
+name: azure-backend
+status: active
+---
+
+Native Azure Storage (`azurerm`) backend support for Terragrunt remote state management.
+
+### `azure-backend` - What it does
+
+Enables native Azure Storage as a remote state backend with automatic bootstrapping support. When this experiment is enabled, Terragrunt can:
+
+- Automatically create and configure Azure Storage accounts and blob containers for state storage
+- Authenticate using Azure AD (DefaultAzureCredential), Managed Identity, Service Principal, or SAS tokens
+- Manage blob versioning for state file protection
+- Handle state migration between containers
+
+To enable the experiment, use the `--experiment` flag or the `TG_EXPERIMENT` environment variable:
+
+```bash
+terragrunt plan --experiment azure-backend
+```
+
+```bash
+TG_EXPERIMENT='azure-backend' terragrunt plan
+```
+
+Then configure the backend in your `terragrunt.hcl`:
+
+```hcl
+remote_state {
+  backend = "azurerm"
+  config = {
+    storage_account_name = "mystorageaccount"
+    container_name       = "terraform-state"
+    resource_group_name  = "terraform-rg"
+    subscription_id      = "12345678-1234-1234-1234-123456789abc"
+    key                  = "prod/terraform.tfstate"
+    use_azuread_auth     = true
+  }
+}
+```
+
+### `azure-backend` - How to provide feedback
+
+Provide your feedback on the [Azure Backend](https://github.com/gruntwork-io/terragrunt/issues) issues page.
+
+### `azure-backend` - Criteria for stabilization
+
+To stabilize this feature, the following need to be resolved, at a minimum:
+
+- [ ] Integration testing across all supported authentication methods (Azure AD, MSI, Service Principal, SAS token)
+- [ ] Validation of bootstrap behavior (storage account and container auto-creation) in CI
+- [ ] Confirmation that state migration between containers works reliably
+- [ ] Community feedback on configuration ergonomics and error messages
