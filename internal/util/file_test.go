@@ -181,19 +181,24 @@ func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
 	assert.FileExists(t, sentinel, "absolute outside-root entry must not be removed")
 }
 
-// TestFileManifestCleanRejectsRelativeTraversal rejects a forged ".." entry that escapes the manifest folder.
+// TestFileManifestCleanRejectsRelativeTraversal rejects an absolute entry containing a literal ".." segment that escapes the manifest folder.
 func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	_, sentinel := planSentinel(t)
 
-	root := helpers.TmpDirWOSymlinks(t)
+	parent := helpers.TmpDirWOSymlinks(t)
+	root := filepath.Join(parent, "root")
+	require.NoError(t, os.Mkdir(root, 0o700))
 
-	relEscape, err := filepath.Rel(root, sentinel)
-	require.NoError(t, err)
+	outside := filepath.Join(parent, "outside")
+	require.NoError(t, os.Mkdir(outside, 0o700))
 
-	traversalEntry := filepath.Join(root, relEscape)
+	sentinel := filepath.Join(outside, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	sep := string(filepath.Separator)
+	traversalEntry := root + sep + ".." + sep + "outside" + sep + "sentinel.txt"
 
 	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
@@ -202,7 +207,7 @@ func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
 
 	require.NoError(t, manifest.Clean(l))
 
-	assert.FileExists(t, sentinel, "relative ../ traversal must not escape the manifest folder")
+	assert.FileExists(t, sentinel, "absolute path with literal ../ segments must not escape the manifest folder")
 }
 
 // TestFileManifestCleanRejectsRecursiveDirectoryEscape rejects an IsDir entry pointing outside the manifest folder.
@@ -229,43 +234,93 @@ func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
 	assert.FileExists(t, filepath.Join(outsideDir, ".terragrunt-test-manifest"), "outside manifest must remain untouched")
 }
 
-// TestFileManifestCleanRejectsSymlinkEscape rejects deletion of a symlink target outside the manifest folder.
+// TestFileManifestCleanRejectsSymlinkEscape rejects an entry whose path traverses a symlinked directory pointing outside the manifest root; the unlink must be blocked and reported as an error.
 func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	_, sentinel := planSentinel(t)
+
+	outsideDir, sentinel := planSentinel(t)
 
 	root := helpers.TmpDirWOSymlinks(t)
-	link := filepath.Join(root, "link.txt")
-	require.NoError(t, os.Symlink(sentinel, link))
+	linkDir := filepath.Join(root, "link-dir")
+	require.NoError(t, os.Symlink(outsideDir, linkDir))
 
 	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile(link))
+	require.NoError(t, manifest.AddFile(filepath.Join(linkDir, "sentinel.txt")))
+	require.NoError(t, manifest.Close())
+
+	err := manifest.Clean(l)
+	require.Error(t, err, "symlinked-directory escape must surface as an error")
+	assert.FileExists(t, sentinel, "symlinked-directory component must not escape the manifest root")
+}
+
+// TestFileManifestCleanRejectsRelativeManifestEntry verifies a relative entry is rejected even when the process CWD would resolve it onto a real victim file. Cannot run with t.Parallel because t.Chdir is process-global.
+//
+//nolint:paralleltest
+func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
+	parent := helpers.TmpDirWOSymlinks(t)
+
+	root := filepath.Join(parent, "root")
+	require.NoError(t, os.Mkdir(root, 0o700))
+
+	outside := filepath.Join(parent, "outside")
+	require.NoError(t, os.Mkdir(outside, 0o700))
+
+	sentinel := filepath.Join(outside, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	t.Chdir(root)
+
+	l := logger.CreateLogger()
+
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile("../outside/sentinel.txt"))
 	require.NoError(t, manifest.Close())
 
 	require.NoError(t, manifest.Clean(l))
 
-	assert.FileExists(t, sentinel, "symlink target outside the manifest folder must survive cleanup")
+	assert.FileExists(t, sentinel, "relative manifest entry must not be re-anchored against CWD even when CWD makes it resolve onto a real file")
 }
 
-// TestFileManifestCleanRejectsRelativeManifestEntry rejects forged relative entries; they must not be re-anchored against CWD.
-func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
+// TestFileManifestCleanCorruptManifestReturnsError verifies that a manifest containing non-gob bytes causes Clean() to return a decode error rather than silently treating it as success.
+func TestFileManifestCleanCorruptManifestReturnsError(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-	_, sentinel := planSentinel(t)
 
 	root := helpers.TmpDirWOSymlinks(t)
+	manifestPath := filepath.Join(root, ".terragrunt-test-manifest")
+	require.NoError(t, os.WriteFile(manifestPath, []byte("not a valid gob stream"), 0o600))
+
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+
+	err := manifest.Clean(l)
+	require.Error(t, err, "corrupt manifest must surface a decode error, not be silently treated as empty")
+}
+
+// TestFileManifestCleanInRootRemoveFailureReturnsError verifies that a failed in-root unlink (e.g. trying to remove a non-empty directory) is returned as an error so the caller does not lose retry data.
+func TestFileManifestCleanInRootRemoveFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	// A non-empty directory recorded as a file entry forces root.Remove to fail with non-ErrNotExist.
+	stubborn := filepath.Join(root, "stubborn")
+	require.NoError(t, os.Mkdir(stubborn, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(stubborn, "child.txt"), []byte("blocker"), 0o600))
+
 	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile("../"+filepath.Base(filepath.Dir(sentinel))+"/sentinel.txt"))
+	require.NoError(t, manifest.AddFile(stubborn))
 	require.NoError(t, manifest.Close())
 
-	require.NoError(t, manifest.Clean(l))
-
-	assert.FileExists(t, sentinel, "relative manifest entry must not be re-anchored against CWD")
+	err := manifest.Clean(l)
+	require.Error(t, err, "in-root removal failure must be returned, not silently swallowed")
 }
 
 func TestContainsPath(t *testing.T) {

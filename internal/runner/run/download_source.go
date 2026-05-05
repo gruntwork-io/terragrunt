@@ -22,6 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/runner/runcfg"
 	"github.com/gruntwork-io/terragrunt/internal/tf"
 	"github.com/gruntwork-io/terragrunt/internal/util"
+	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -94,8 +95,10 @@ func DownloadTerraformSource(
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 		)
 
-		if err := setupWorkingDir(terraformSource.WorkingDir); err != nil {
-			return nil, err
+		if downloaded {
+			if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
+				return nil, err
+			}
 		}
 
 		// Always include the .tflint.hcl file, if it exists
@@ -484,9 +487,9 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
-// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it only removes pre-existing .terragrunt-module-manifest files.
-func setupWorkingDir(root string) error {
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it only removes pre-existing .terragrunt-module-manifest files. fsys is injected so tests can use vfs.NewMemMapFS.
+func setupWorkingDir(fsys vfs.FS, root string) error {
+	walkErr := vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil
@@ -503,7 +506,7 @@ func setupWorkingDir(root string) error {
 			return nil
 		}
 
-		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := fsys.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return errors.New(err)
 		}
 

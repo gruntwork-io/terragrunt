@@ -940,7 +940,7 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean removes every file recorded in the manifest, gating reads and unlinks through a single os.Root anchored at ManifestFolder.
+// Clean removes every file recorded in the manifest, iteratively walking nested manifests via a queue, gated through a single os.Root.
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir, err := filepath.Abs(manifest.ManifestFolder)
 	if err != nil {
@@ -962,18 +962,31 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 		}
 	}()
 
-	return manifest.clean(l, rootDir, root, manifest.ManifestFile)
+	var errs []error
+
+	queue := []string{manifest.ManifestFile}
+
+	for len(queue) > 0 {
+		relManifestPath := queue[0]
+		queue = queue[1:]
+
+		nested, manifestErrs := manifest.processManifestFile(l, rootDir, root, relManifestPath)
+		errs = append(errs, manifestErrs...)
+		queue = append(queue, nested...)
+	}
+
+	return errors.Join(errs...)
 }
 
-// clean walks one manifest file under root and removes its entries; rootDir is kept only for log messages.
-func (manifest *fileManifest) clean(l log.Logger, rootDir string, root *os.Root, relManifestPath string) error {
+// processManifestFile reads one manifest file and acts on its entries. Outside-root entries are skipped with a warning. Decode and in-root removal failures are returned as errors. IsDir entries enqueue nested manifest paths instead of recursing.
+func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, root *os.Root, relManifestPath string) ([]string, []error) {
 	file, err := root.Open(relManifestPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+			return nil, nil
 		}
 
-		return errors.New(err)
+		return nil, []error{errors.New(err)}
 	}
 
 	defer func() {
@@ -986,15 +999,22 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir string, root *os.Root,
 		}
 	}()
 
+	var (
+		nested []string
+		errs   []error
+	)
+
 	decoder := gob.NewDecoder(file)
 
 	for {
 		var entry fileManifestEntry
 
 		if err := decoder.Decode(&entry); err != nil {
-			if !errors.Is(err, io.EOF) {
-				l.Warnf("Error decoding manifest %s: %v", relManifestPath, err)
+			if errors.Is(err, io.EOF) {
+				break
 			}
+
+			errs = append(errs, errors.Errorf("decode entry from %s: %w", relManifestPath, err))
 
 			break
 		}
@@ -1006,20 +1026,16 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir string, root *os.Root,
 		}
 
 		if entry.IsDir {
-			nested := filepath.Join(rel, manifest.ManifestFile)
-			if err := manifest.clean(l, rootDir, root, nested); err != nil {
-				l.Warnf("Error cleaning nested manifest %s: %v", nested, err)
-			}
-
+			nested = append(nested, filepath.Join(rel, manifest.ManifestFile))
 			continue
 		}
 
 		if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			l.Warnf("Error removing manifest entry %s: %v", rel, err)
+			errs = append(errs, errors.Errorf("remove %s: %w", rel, err))
 		}
 	}
 
-	return nil
+	return nested, errs
 }
 
 // Create will create the manifest file

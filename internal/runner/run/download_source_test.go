@@ -1087,3 +1087,51 @@ func TestHTTPGetterNetrcAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fileContent, string(downloaded))
 }
+
+// TestDownloadTerraformSourceRemovesStaleOverlayOnWarmCache verifies that on a warm-cache invocation (downloaded == false), the previous run's manifest is preserved and consumed so that overlay files removed from the working directory are also removed from the cache. Regression for the unconditional-setupWorkingDir bug that wiped the manifest before stale-file cleanup could read it.
+func TestDownloadTerraformSourceRemovesStaleOverlayOnWarmCache(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main.tf"), []byte("# module main\n"), 0o644))
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.WriteFile(filepath.Join(workingDir, "terragrunt.hcl"), []byte("# tg\n"), 0o644))
+
+	overlayName := "overlay.tf"
+	overlayPath := filepath.Join(workingDir, overlayName)
+	require.NoError(t, os.WriteFile(overlayPath, []byte("# overlay\n"), 0o644))
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+
+	canonicalURL := "file://" + moduleDir
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workingDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = workingDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	updatedOpts1, err := run.DownloadTerraformSource(t.Context(), l, canonicalURL, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err, "first download must succeed")
+
+	cachedOverlay := filepath.Join(updatedOpts1.WorkingDir, overlayName)
+	require.FileExists(t, cachedOverlay, "overlay file must be copied to cache on first run")
+
+	manifestPath := filepath.Join(updatedOpts1.WorkingDir, run.ModuleManifestName)
+	require.FileExists(t, manifestPath, "manifest must be written after first run")
+
+	require.NoError(t, os.Remove(overlayPath), "remove overlay file from working dir to simulate user deletion")
+
+	updatedOpts2, err := run.DownloadTerraformSource(t.Context(), l, canonicalURL, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err, "second download (warm cache) must succeed")
+
+	staleOverlay := filepath.Join(updatedOpts2.WorkingDir, overlayName)
+	require.NoFileExists(t, staleOverlay, "overlay file deleted from working dir must also be removed from cache on warm-cache run")
+}
