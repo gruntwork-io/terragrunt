@@ -1,7 +1,6 @@
 package util_test
 
 import (
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -162,128 +161,6 @@ func TestFileManifest(t *testing.T) {
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
 	}
-}
-
-// TestFileManifestCleanRejectsAbsolutePathOutsideRoot rejects a forged absolute path outside the manifest folder.
-func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	_, sentinel := planSentinel(t)
-
-	root := helpers.TmpDirWOSymlinks(t)
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile(sentinel))
-	require.NoError(t, manifest.Close())
-
-	require.NoError(t, manifest.Clean(l))
-
-	assert.FileExists(t, sentinel, "absolute outside-root entry must not be removed")
-}
-
-// TestFileManifestCleanRejectsRelativeTraversal rejects an absolute entry containing a literal ".." segment that escapes the manifest folder.
-func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	parent := helpers.TmpDirWOSymlinks(t)
-	root := filepath.Join(parent, "root")
-	require.NoError(t, os.Mkdir(root, 0o700))
-
-	outside := filepath.Join(parent, "outside")
-	require.NoError(t, os.Mkdir(outside, 0o700))
-
-	sentinel := filepath.Join(outside, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
-
-	sep := string(filepath.Separator)
-	traversalEntry := root + sep + ".." + sep + "outside" + sep + "sentinel.txt"
-
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile(traversalEntry))
-	require.NoError(t, manifest.Close())
-
-	require.NoError(t, manifest.Clean(l))
-
-	assert.FileExists(t, sentinel, "absolute path with literal ../ segments must not escape the manifest folder")
-}
-
-// TestFileManifestCleanRejectsRecursiveDirectoryEscape rejects an IsDir entry pointing outside the manifest folder.
-func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-	outsideDir, sentinel := planSentinel(t)
-
-	hostileNested := util.NewFileManifest(outsideDir, ".terragrunt-test-manifest")
-	require.NoError(t, hostileNested.Create())
-	require.NoError(t, hostileNested.AddFile(sentinel))
-	require.NoError(t, hostileNested.Close())
-
-	root := helpers.TmpDirWOSymlinks(t)
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddDirectory(outsideDir))
-	require.NoError(t, manifest.Close())
-
-	require.NoError(t, manifest.Clean(l))
-
-	assert.FileExists(t, sentinel, "recursive directory entry must not escape the manifest folder")
-	assert.FileExists(t, filepath.Join(outsideDir, ".terragrunt-test-manifest"), "outside manifest must remain untouched")
-}
-
-// TestFileManifestCleanRejectsSymlinkEscape rejects an entry whose path traverses a symlinked directory pointing outside the manifest root; the unlink must be blocked and reported as an error.
-func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	outsideDir, sentinel := planSentinel(t)
-
-	root := helpers.TmpDirWOSymlinks(t)
-	linkDir := filepath.Join(root, "link-dir")
-	require.NoError(t, os.Symlink(outsideDir, linkDir))
-
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile(filepath.Join(linkDir, "sentinel.txt")))
-	require.NoError(t, manifest.Close())
-
-	err := manifest.Clean(l)
-	require.Error(t, err, "symlinked-directory escape must surface as an error")
-	assert.FileExists(t, sentinel, "symlinked-directory component must not escape the manifest root")
-}
-
-// TestFileManifestCleanRejectsRelativeManifestEntry verifies a relative entry already on disk (e.g. written by an older terragrunt or a forged manifest) is rejected even when the process CWD would resolve it onto a real victim file. Cannot run with t.Parallel because t.Chdir is process-global.
-//
-//nolint:paralleltest
-func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
-	parent := helpers.TmpDirWOSymlinks(t)
-
-	root := filepath.Join(parent, "root")
-	require.NoError(t, os.Mkdir(root, 0o700))
-
-	outside := filepath.Join(parent, "outside")
-	require.NoError(t, os.Mkdir(outside, 0o700))
-
-	sentinel := filepath.Join(outside, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
-
-	manifestName := ".terragrunt-test-manifest"
-	writeForgedManifest(t, filepath.Join(root, manifestName), "../outside/sentinel.txt", false)
-
-	t.Chdir(root)
-
-	l := logger.CreateLogger()
-
-	manifest := util.NewFileManifest(root, manifestName)
-
-	require.NoError(t, manifest.Clean(l))
-
-	assert.FileExists(t, sentinel, "relative manifest entry must not be re-anchored against CWD even when CWD makes it resolve onto a real file")
 }
 
 func TestContainsPath(t *testing.T) {
@@ -952,33 +829,3 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
-
-// planSentinel writes a sentinel file outside any manifest root and returns its directory and full path.
-func planSentinel(t *testing.T) (string, string) {
-	t.Helper()
-
-	outsideDir := helpers.TmpDirWOSymlinks(t)
-	sentinel := filepath.Join(outsideDir, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
-
-	return outsideDir, sentinel
-}
-
-// writeForgedManifest writes a gob-encoded manifest containing a single entry with the given path and IsDir flag, bypassing AddFile validation so tests can plant adversarial inputs directly on disk.
-func writeForgedManifest(t *testing.T, manifestPath, entryPath string, isDir bool) {
-	t.Helper()
-
-	type forgedEntry struct {
-		Path  string
-		IsDir bool
-	}
-
-	f, err := os.Create(manifestPath)
-	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, f.Close())
-	}()
-
-	require.NoError(t, gob.NewEncoder(f).Encode(forgedEntry{Path: entryPath, IsDir: isDir}))
-}

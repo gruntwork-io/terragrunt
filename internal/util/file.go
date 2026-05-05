@@ -940,18 +940,14 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean recursively removes every file recorded in the manifest, bounded to ManifestFolder.
+// Clean will recursively remove all files specified in the manifest
 func (manifest *fileManifest) Clean(l log.Logger) error {
-	rootDir, err := filepath.Abs(manifest.ManifestFolder)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	return manifest.clean(l, rootDir, filepath.Join(rootDir, manifest.ManifestFile))
+	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
-// clean walks one manifest file and removes its entries, recursing on directory entries; rootDir is the absolute boundary every removable path must stay inside.
-func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) error {
+// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
+func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
+	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
 		return nil
 	}
@@ -961,6 +957,7 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) 
 		return err
 	}
 
+	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
 			l.Warnf("Error closing file %s: %v", name, err)
@@ -972,34 +969,28 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) 
 	}(manifestPath)
 
 	decoder := gob.NewDecoder(file)
-
+	// decode paths one by one
 	for {
-		var entry fileManifestEntry
+		var manifestEntry fileManifestEntry
 
-		if err := decoder.Decode(&entry); err != nil {
+		err = decoder.Decode(&manifestEntry)
+		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
+			} else {
+				return err
 			}
-
-			return err
 		}
 
-		rel, ok := relPathInsideRoot(rootDir, entry.Path)
-		if !ok {
-			l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
-			continue
-		}
-
-		if entry.IsDir {
-			if err := manifest.clean(l, rootDir, filepath.Join(rootDir, rel, manifest.ManifestFile)); err != nil {
+		if manifestEntry.IsDir {
+			// join the directory entry path with the manifest file name and call clean()
+			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
-
-			continue
-		}
-
-		if err := removeInsideRoot(rootDir, rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
+		} else {
+			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return errors.New(err)
+			}
 		}
 	}
 
@@ -1497,34 +1488,4 @@ func SkipDirIfIgnorable(dir string) error {
 	}
 
 	return nil
-}
-
-// relPathInsideRoot returns target relative to rootDir; ok=false when target escapes, equals rootDir, or either input is not absolute.
-func relPathInsideRoot(rootDir, target string) (string, bool) {
-	if !filepath.IsAbs(rootDir) || !filepath.IsAbs(target) {
-		return "", false
-	}
-
-	rel, err := filepath.Rel(filepath.Clean(rootDir), filepath.Clean(target))
-	if err != nil {
-		return "", false
-	}
-
-	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", false
-	}
-
-	return rel, true
-}
-
-// removeInsideRoot unlinks rel under rootDir via os.Root so symlink components cannot redirect the unlink outside rootDir.
-func removeInsideRoot(rootDir, rel string) error {
-	root, err := os.OpenRoot(rootDir)
-	if err != nil {
-		return err
-	}
-
-	defer root.Close() //nolint:errcheck
-
-	return root.Remove(rel)
 }
