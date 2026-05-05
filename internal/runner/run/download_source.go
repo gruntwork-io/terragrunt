@@ -36,6 +36,9 @@ const (
 	tfLintConfig = ".tflint.hcl"
 
 	fileURIScheme = "file://"
+
+	// manifestRestorePerms matches the perms used by fileManifest.Create.
+	manifestRestorePerms = 0o644
 )
 
 // DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
@@ -69,6 +72,17 @@ func DownloadTerraformSource(
 	dirLock.Lock()
 	defer dirLock.Unlock()
 
+	// Snapshot the previous-run terragrunt manifest so version-change downloads preserve overlay stale-file tracking through the post-download scrub.
+	manifestPath := filepath.Join(terraformSource.WorkingDir, ModuleManifestName)
+
+	var savedManifest []byte
+	if util.FileExists(manifestPath) {
+		savedManifest, err = os.ReadFile(manifestPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
@@ -77,6 +91,12 @@ func DownloadTerraformSource(
 	if downloaded {
 		if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
 			return nil, err
+		}
+
+		if savedManifest != nil {
+			if err := os.WriteFile(manifestPath, savedManifest, manifestRestorePerms); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -487,10 +507,11 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
-// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it strips any .terragrunt-module-manifest files so a manifest shipped from the module is never copied into the cache. fsys is injected so tests can use vfs.NewMemMapFS.
-func setupWorkingDir(fsys vfs.FS, root string) error {
-	return vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+// setupWorkingDir strips any .terragrunt-module-manifest entries from cacheDir, walking via fsys without following symbolic links.
+func setupWorkingDir(fsys vfs.FS, cacheDir string) error {
+	return vfs.WalkDir(fsys, cacheDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			// fs.ErrNotExist covers both a missing cacheDir at top and a per-entry TOCTOU race; both are no-ops for the scrub.
 			if errors.Is(err, fs.ErrNotExist) {
 				return nil
 			}
@@ -498,12 +519,16 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 			return err
 		}
 
-		if d.IsDir() || d.Name() != ModuleManifestName {
+		if d.Name() != ModuleManifestName {
 			return nil
 		}
 
-		if err := fsys.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := fsys.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
+		}
+
+		if d.IsDir() {
+			return fs.SkipDir
 		}
 
 		return nil

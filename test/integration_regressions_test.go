@@ -3,9 +3,11 @@ package test_test
 import (
 	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -965,4 +967,121 @@ func TestDAGQueueDisplay(t *testing.T) {
 		assert.Contains(t, stderr, "starting with dependents and then their dependencies")
 		assert.Contains(t, stderr, expectedDownTree)
 	})
+}
+
+// TestVersionChangeDownloadPreservesOverlayCleanup pins that a version-change download preserves the previous-run terragrunt manifest so overlay files removed locally between runs are still cleaned from the cache.
+func TestVersionChangeDownloadPreservesOverlayCleanup(t *testing.T) {
+	t.Parallel()
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile("main.tf", []byte("# v1\n"), "v1"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	consumer := helpers.TmpDirWOSymlinks(t)
+	tgConfig := fmt.Sprintf("terraform {\n  source = \"git::%s\"\n}\n", url)
+	require.NoError(t, os.WriteFile(filepath.Join(consumer, "terragrunt.hcl"), []byte(tgConfig), 0o644))
+
+	overlayName := "overlay.tf"
+	overlayPath := filepath.Join(consumer, overlayName)
+	require.NoError(t, os.WriteFile(overlayPath, []byte("# overlay\n"), 0o644))
+
+	stdout1, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "first run must succeed: %s", stdout1)
+
+	cachedOverlay := findCachedFile(t, filepath.Join(consumer, ".terragrunt-cache"), overlayName)
+	require.NotEmpty(t, cachedOverlay, "overlay must be present in cache after first run")
+
+	require.NoError(t, srv.CommitFile("main.tf", []byte("# v2\n"), "v2"))
+
+	require.NoError(t, os.Remove(overlayPath))
+
+	stdout2, _, err := helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+	require.NoError(t, err, "second run must succeed: %s", stdout2)
+
+	stale := findCachedFile(t, filepath.Join(consumer, ".terragrunt-cache"), overlayName)
+	assert.Empty(t, stale, "overlay deleted locally must also be removed from cache after a version-change download")
+}
+
+// findCachedFile returns the first path under cacheRoot whose basename matches name, or "" if not found.
+func findCachedFile(t *testing.T, cacheRoot, name string) string {
+	t.Helper()
+
+	var found string
+
+	walkErr := filepath.WalkDir(cacheRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() && filepath.Base(path) == name {
+			found = path
+			return filepath.SkipAll
+		}
+
+		return nil
+	})
+	require.NoError(t, walkErr, "walking %s", cacheRoot)
+
+	return found
+}
+
+// TestForgedModuleManifestDoesNotEscapeCache pins that a .terragrunt-module-manifest shipped inside a downloaded module cannot delete files outside the module cache. A module is published from an in-process git server with a forged manifest that lists a sentinel file outside the cache; after terragrunt downloads the module, the sentinel must still exist.
+func TestForgedModuleManifestDoesNotEscapeCache(t *testing.T) {
+	t.Parallel()
+
+	sentinelDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(sentinelDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	srv, err := git.NewServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Close() })
+
+	require.NoError(t, srv.CommitFile("main.tf", []byte("# benign\n"), "module"))
+	require.NoError(t, srv.CommitFile(".terragrunt-module-manifest", encodeForgedManifest(t, sentinel), "forged manifest"))
+
+	url, err := srv.Start(t.Context())
+	require.NoError(t, err)
+
+	consumer := helpers.TmpDirWOSymlinks(t)
+	tgConfig := fmt.Sprintf("terraform {\n  source = \"git::%s\"\n}\n", url)
+	require.NoError(t, os.WriteFile(filepath.Join(consumer, "terragrunt.hcl"), []byte(tgConfig), 0o644))
+
+	_, _, _ = helpers.RunTerragruntCommandWithOutput(
+		t,
+		"terragrunt run --non-interactive --working-dir "+consumer+" -- init -backend=false",
+	)
+
+	assert.FileExists(t, sentinel, "forged manifest entry must not have deleted the sentinel outside the cache")
+}
+
+// encodeForgedManifest builds a gob-encoded .terragrunt-module-manifest with one file entry per supplied path so tests can plant adversarial inputs.
+func encodeForgedManifest(t *testing.T, paths ...string) []byte {
+	t.Helper()
+
+	type entry struct {
+		Path  string
+		IsDir bool
+	}
+
+	var buf bytes.Buffer
+
+	enc := gob.NewEncoder(&buf)
+
+	for _, p := range paths {
+		require.NoError(t, enc.Encode(entry{Path: p, IsDir: false}))
+	}
+
+	return buf.Bytes()
 }
