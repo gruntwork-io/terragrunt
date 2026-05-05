@@ -3,7 +3,6 @@ package tf
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/clihelper"
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -19,8 +18,10 @@ type ctxKey byte
 // RunShellCommandFunc is a context value for `TerraformCommandContextKey` key, used to intercept shell commands.
 type RunShellCommandFunc func(ctx context.Context, l log.Logger, tfOpts *TFOptions, args clihelper.Args) (*util.CmdOutput, error)
 
+// ContextWithTerraformCommandHook sets fn as the terraform command hook on ctx.
+// It does not touch any caches on ctx; callers that need run-scoped caches must
+// install them with [github.com/gruntwork-io/terragrunt/internal/cache.ContextWithCache].
 func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc) context.Context {
-	ctx = cache.ContextWithCache(ctx)
 	return context.WithValue(ctx, TerraformCommandContextKey, fn)
 }
 
