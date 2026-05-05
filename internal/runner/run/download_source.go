@@ -94,7 +94,7 @@ func DownloadTerraformSource(
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 		)
 
-		if err := dropDownloadedManifests(terraformSource.WorkingDir); err != nil {
+		if err := setupWorkingDir(terraformSource.WorkingDir); err != nil {
 			return nil, err
 		}
 
@@ -484,12 +484,15 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
-// dropDownloadedManifests removes any pre-existing
-// .terragrunt-module-manifest files under root, so a forged manifest
-// shipped inside downloaded module content cannot be consumed by the
-// CopyFolderContents pass that runs next. Defense-in-depth on top of
-// fileManifest.Clean, which is the primary check.
-func dropDownloadedManifests(root string) error {
+// setupWorkingDir prepares a freshly-downloaded module source tree
+// before util.CopyFolderContents copies the caller's working directory
+// on top of it. Today the only step is removing any pre-existing
+// .terragrunt-module-manifest files so a forged manifest shipped inside
+// downloaded module content cannot influence the cleanup pass that runs
+// next. This is the natural place to add any further sanitization that
+// should happen on the freshly-downloaded tree; the entry-point name
+// intentionally does not lock the function to a single concern.
+func setupWorkingDir(root string) error {
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
