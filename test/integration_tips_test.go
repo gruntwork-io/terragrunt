@@ -79,10 +79,11 @@ func TestTipStackTargetShownOnStackGenerate(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTargetTipDir)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackTargetTipDir, "live")
 
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt stack generate --non-interactive --working-dir "+rootPath+" --filter ./",
 	)
+	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "TIP (stack-target-missing-type-stack)")
 	assert.Contains(t, stderr, "type=stack")
@@ -97,10 +98,11 @@ func TestTipStackTargetSuppressedWithNoTip(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTargetTipDir)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackTargetTipDir, "live")
 
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt stack generate --non-interactive --no-tip stack-target-missing-type-stack --working-dir "+rootPath+" --filter .",
 	)
+	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "TIP (stack-target-missing-type-stack)")
 }
@@ -114,10 +116,11 @@ func TestTipStackTargetNotShownWithTypeStackSuffix(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStackTargetTipDir)
 	rootPath := filepath.Join(tmpEnvPath, testFixtureStackTargetTipDir, "live")
 
-	_, stderr, _ := helpers.RunTerragruntCommandWithOutput(
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(
 		t,
 		"terragrunt stack generate --non-interactive --working-dir "+rootPath+" --filter '. | type=stack'",
 	)
+	require.NoError(t, err)
 
 	assert.NotContains(t, stderr, "TIP (stack-target-missing-type-stack)")
 }

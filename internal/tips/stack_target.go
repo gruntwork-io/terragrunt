@@ -106,6 +106,10 @@ func SuggestStackTargetRewrite(originalQuery string) string {
 	return originalQuery + " | type=stack"
 }
 
+// containsGlobMeta reports whether s contains any glob metacharacter that can
+// appear in a parsed PathExpression.Value. The filter lexer rejects '[', '{',
+// and '}' as special characters, so the only reachable meta chars here are
+// '*', '?', and '\\'.
 func containsGlobMeta(s string) bool {
-	return strings.ContainsAny(s, "*?[")
+	return strings.ContainsAny(s, "*?\\")
 }
