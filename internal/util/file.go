@@ -940,86 +940,36 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean removes every file recorded in the manifest, iteratively walking nested manifests via a queue, gated through a single os.Root.
+// Clean recursively removes every file recorded in the manifest, bounded to ManifestFolder.
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir, err := filepath.Abs(manifest.ManifestFolder)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	root, err := os.OpenRoot(rootDir)
+	return manifest.clean(l, rootDir, filepath.Join(rootDir, manifest.ManifestFile))
+}
+
+// clean walks one manifest file and removes its entries, recursing on directory entries; rootDir is the absolute boundary every removable path must stay inside.
+func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) error {
+	if !FileExists(manifestPath) {
+		return nil
+	}
+
+	file, err := os.Open(manifestPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+		return err
+	}
+
+	defer func(name string) {
+		if err := file.Close(); err != nil {
+			l.Warnf("Error closing file %s: %v", name, err)
 		}
 
-		return errors.New(err)
-	}
-
-	defer func() {
-		if err := root.Close(); err != nil {
-			l.Warnf("Error closing manifest root %s: %v", rootDir, err)
+		if err := os.Remove(name); err != nil {
+			l.Warnf("Error removing manifest file %s: %v", name, err)
 		}
-	}()
-
-	var errs []error
-
-	queue := []string{manifest.ManifestFile}
-
-	for len(queue) > 0 {
-		relManifestPath := queue[0]
-		queue = queue[1:]
-
-		nested, manifestErrs := manifest.processManifestFile(l, rootDir, root, relManifestPath)
-		errs = append(errs, manifestErrs...)
-		queue = append(queue, nested...)
-	}
-
-	return errors.Join(errs...)
-}
-
-// processManifestFile opens one manifest file under root, defers close, dispatches to the entry decoder, and unlinks the manifest only on full success so a retry can still consume it on transient failure.
-func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, root *os.Root, relManifestPath string) ([]string, []error) {
-	file, err := root.Open(relManifestPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
-		}
-
-		return nil, []error{errors.New(err)}
-	}
-
-	defer manifest.closeManifestFile(l, file, relManifestPath)
-
-	nested, errs := manifest.decodeManifestEntries(l, rootDir, root, file, relManifestPath)
-
-	if len(errs) == 0 {
-		manifest.unlinkManifestFile(l, root, relManifestPath)
-	}
-
-	return nested, errs
-}
-
-// closeManifestFile closes the manifest file handle, logging but not propagating close errors.
-func (manifest *fileManifest) closeManifestFile(l log.Logger, file *os.File, relManifestPath string) {
-	if err := file.Close(); err != nil {
-		l.Warnf("Error closing manifest %s: %v", relManifestPath, err)
-	}
-}
-
-// unlinkManifestFile removes the manifest file from root, logging but not propagating removal errors.
-func (manifest *fileManifest) unlinkManifestFile(l log.Logger, root *os.Root, relManifestPath string) {
-	if err := root.Remove(relManifestPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		l.Warnf("Error removing manifest %s: %v", relManifestPath, err)
-	}
-}
-
-// decodeManifestEntries reads each gob-encoded entry from file and accumulates nested manifest paths and per-entry errors.
-func (manifest *fileManifest) decodeManifestEntries(l log.Logger, rootDir string, root *os.Root, file *os.File, relManifestPath string) ([]string, []error) {
-	var (
-		nested []string
-		errs   []error
-	)
+	}(manifestPath)
 
 	decoder := gob.NewDecoder(file)
 
@@ -1027,41 +977,33 @@ func (manifest *fileManifest) decodeManifestEntries(l log.Logger, rootDir string
 		var entry fileManifestEntry
 
 		if err := decoder.Decode(&entry); err != nil {
-			if !errors.Is(err, io.EOF) {
-				errs = append(errs, errors.Errorf("decode entry from %s: %w", relManifestPath, err))
+			if errors.Is(err, io.EOF) {
+				break
 			}
 
-			break
+			return err
 		}
 
-		nestedEntries, entryErr := manifest.processEntry(l, rootDir, root, entry)
-		nested = append(nested, nestedEntries...)
+		rel, ok := relPathInsideRoot(rootDir, entry.Path)
+		if !ok {
+			l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+			continue
+		}
 
-		if entryErr != nil {
-			errs = append(errs, entryErr)
+		if entry.IsDir {
+			if err := manifest.clean(l, rootDir, filepath.Join(rootDir, rel, manifest.ManifestFile)); err != nil {
+				return errors.New(err)
+			}
+
+			continue
+		}
+
+		if err := removeInsideRoot(rootDir, rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
 		}
 	}
 
-	return nested, errs
-}
-
-// processEntry validates one decoded entry and either returns a nested manifest path (for IsDir) or unlinks the file via root.
-func (manifest *fileManifest) processEntry(l log.Logger, rootDir string, root *os.Root, entry fileManifestEntry) ([]string, error) {
-	rel, ok := relPathInsideRoot(rootDir, entry.Path)
-	if !ok {
-		l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
-		return nil, nil
-	}
-
-	if entry.IsDir {
-		return []string{filepath.Join(rel, manifest.ManifestFile)}, nil
-	}
-
-	if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, errors.Errorf("remove %s: %w", rel, err)
-	}
-
-	return nil, nil
+	return nil
 }
 
 // Create will create the manifest file
@@ -1079,21 +1021,13 @@ func (manifest *fileManifest) Create() error {
 	return nil
 }
 
-// AddFile will add the file path to the manifest file. The path must be absolute so that Clean can verify containment without depending on the process working directory at recovery time. Please make sure to run Create() before using this.
+// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
 func (manifest *fileManifest) AddFile(path string) error {
-	if !filepath.IsAbs(path) {
-		return errors.Errorf("manifest entry path must be absolute, got %q", path)
-	}
-
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
 }
 
-// AddDirectory will add the directory path to the manifest file. The path must be absolute so that Clean can verify containment without depending on the process working directory at recovery time. Please make sure to run Create() before using this.
+// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
 func (manifest *fileManifest) AddDirectory(path string) error {
-	if !filepath.IsAbs(path) {
-		return errors.Errorf("manifest entry path must be absolute, got %q", path)
-	}
-
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
 }
 
@@ -1581,4 +1515,16 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	}
 
 	return rel, true
+}
+
+// removeInsideRoot unlinks rel under rootDir via os.Root so symlink components cannot redirect the unlink outside rootDir.
+func removeInsideRoot(rootDir, rel string) error {
+	root, err := os.OpenRoot(rootDir)
+	if err != nil {
+		return err
+	}
+
+	defer root.Close() //nolint:errcheck
+
+	return root.Remove(rel)
 }

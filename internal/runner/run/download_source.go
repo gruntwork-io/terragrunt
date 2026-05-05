@@ -38,14 +38,7 @@ const (
 	fileURIScheme = "file://"
 )
 
-// DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
-// into a temporary folder, then:
-// 1. Check if module directory exists in temporary folder
-// 2. Copy the contents of opts.WorkingDir into the temporary folder.
-// 3. Set opts.WorkingDir to the temporary folder.
-//
-// See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
-// runs of Terragrunt to avoid downloading everything from scratch every time.
+// DownloadTerraformSource downloads the given source URL into a temporary folder, copies opts.WorkingDir on top, and points opts.WorkingDir at that cache. NewTerraformSource determines the cache layout so we can reuse it across runs.
 func DownloadTerraformSource(
 	ctx context.Context,
 	l log.Logger,
@@ -61,40 +54,23 @@ func DownloadTerraformSource(
 		return nil, err
 	}
 
-	// Serialize concurrent downloads to the same cache directory. Without this,
-	// manifest.Clean() in one goroutine can delete files while another goroutine
-	// is checking for them (e.g. during CheckFolderContainsTerraformCode).
+	// Serialize concurrent downloads to the same cache directory. Without this, manifest.Clean() in one goroutine can delete files while another goroutine is checking for them (e.g. during CheckFolderContainsTerraformCode).
 	rawLock, _ := sourceChangeLocks.LoadOrStore(terraformSource.DownloadDir, &sync.Mutex{})
 	dirLock := rawLock.(*sync.Mutex)
 	dirLock.Lock()
 	defer dirLock.Unlock()
-
-	// Snapshot the previous-run terragrunt manifest so it survives both go-getter rewrites and the post-download manifest scrub; this preserves overlay stale-file tracking on version-change downloads.
-	manifestPath := filepath.Join(terraformSource.WorkingDir, ModuleManifestName)
-
-	var savedManifest []byte
-	if util.FileExists(manifestPath) {
-		savedManifest, err = os.ReadFile(manifestPath)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
 	}
 
-	// When no download was needed (AlreadyHaveLatestCode=true) and the source
-	// directory IS the working directory (source="."), skip the module copy: the
-	// version hash incorporates all file mod times, so no files have changed and
-	// the cache already has the correct content from a previous run. Skipping
-	// avoids manifest.Clean() deleting files that a concurrent goroutine expects
-	// to exist.
-	//
-	// When the source is a different directory (local or remote), the module copy
-	// overlays working-dir files on top of the downloaded source. These files may
-	// change independently of the source version hash, so the copy must always run.
+	if downloaded {
+		if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
+			return nil, err
+		}
+	}
+
 	sourceIsWorkingDir := tf.IsLocalSource(terraformSource.CanonicalSourceURL) &&
 		filepath.Clean(terraformSource.CanonicalSourceURL.Path) == filepath.Clean(opts.WorkingDir)
 	needsModuleCopy := downloaded || !sourceIsWorkingDir
@@ -106,17 +82,6 @@ func DownloadTerraformSource(
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 		)
 
-		if downloaded {
-			if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
-				return nil, err
-			}
-
-			if err := restoreManifest(manifestPath, savedManifest); err != nil {
-				return nil, err
-			}
-		}
-
-		// Always include the .tflint.hcl file, if it exists
 		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
 
 		copyOpts := []util.CopyOption{
@@ -127,28 +92,18 @@ func DownloadTerraformSource(
 			copyOpts = append(copyOpts, util.WithFastCopy())
 		}
 
-		err = util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...)
-		if err != nil {
+		if err := util.CopyFolderContents(l, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, copyOpts...); err != nil {
 			return nil, err
 		}
 	}
 
-	l, updatedOpts, err := opts.CloneWithConfigPath(l, opts.TerragruntConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
 	l.Debugf(
 		"Setting working directory to %s",
-		util.RelPathForLog(
-			opts.RootWorkingDir,
-			terraformSource.WorkingDir,
-			opts.Writers.LogShowAbsPaths,
-		),
+		util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 	)
-	updatedOpts.WorkingDir = terraformSource.WorkingDir
+	opts.WorkingDir = terraformSource.WorkingDir
 
-	return updatedOpts, nil
+	return opts, nil
 }
 
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been
@@ -502,21 +457,7 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
-// restoreManifest writes saved bytes back to manifestPath, used after setupWorkingDir wipes manifests so a previous-run terragrunt-written manifest is preserved across version-change downloads.
-func restoreManifest(manifestPath string, saved []byte) error {
-	if saved == nil {
-		return nil
-	}
-
-	const ownerWriteGlobalReadPerms = 0o644
-	if err := os.WriteFile(manifestPath, saved, ownerWriteGlobalReadPerms); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it only removes pre-existing .terragrunt-module-manifest files. fsys is injected so tests can use vfs.NewMemMapFS.
+// setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it strips any .terragrunt-module-manifest files so a manifest shipped from the module is never copied into the cache. fsys is injected so tests can use vfs.NewMemMapFS.
 func setupWorkingDir(fsys vfs.FS, root string) error {
 	walkErr := vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -527,16 +468,12 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 			return err
 		}
 
-		if d.Name() != ModuleManifestName {
+		if d.IsDir() || d.Name() != ModuleManifestName {
 			return nil
 		}
 
-		if err := fsys.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-
-		if d.IsDir() {
-			return fs.SkipDir
+		if err := fsys.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
 		}
 
 		return nil

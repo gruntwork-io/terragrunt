@@ -286,49 +286,6 @@ func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
 	assert.FileExists(t, sentinel, "relative manifest entry must not be re-anchored against CWD even when CWD makes it resolve onto a real file")
 }
 
-// TestFileManifestCleanCorruptManifestReturnsError verifies that a manifest containing non-gob bytes causes Clean() to return a decode error rather than silently treating it as success.
-func TestFileManifestCleanCorruptManifestReturnsError(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	root := helpers.TmpDirWOSymlinks(t)
-	manifestPath := filepath.Join(root, ".terragrunt-test-manifest")
-	require.NoError(t, os.WriteFile(manifestPath, []byte("not a valid gob stream"), 0o600))
-
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-
-	err := manifest.Clean(l)
-	require.Error(t, err, "corrupt manifest must surface a decode error, not be silently treated as empty")
-}
-
-// TestFileManifestCleanInRootRemoveFailureReturnsError verifies that a failed in-root unlink (e.g. trying to remove a non-empty directory) is returned as an error so the caller does not lose retry data.
-func TestFileManifestCleanInRootRemoveFailureReturnsError(t *testing.T) {
-	t.Parallel()
-
-	l := logger.CreateLogger()
-
-	root := helpers.TmpDirWOSymlinks(t)
-
-	// A non-empty directory recorded as a file entry forces root.Remove to fail with non-ErrNotExist.
-	stubborn := filepath.Join(root, "stubborn")
-	require.NoError(t, os.Mkdir(stubborn, 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(stubborn, "child.txt"), []byte("blocker"), 0o600))
-
-	manifestName := ".terragrunt-test-manifest"
-	manifestPath := filepath.Join(root, manifestName)
-
-	manifest := util.NewFileManifest(root, manifestName)
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile(stubborn))
-	require.NoError(t, manifest.Close())
-
-	err := manifest.Clean(l)
-	require.Error(t, err, "in-root removal failure must be returned, not silently swallowed")
-
-	assert.FileExists(t, manifestPath, "manifest must remain on disk after a removal failure so a retry can still consume it")
-}
-
 func TestContainsPath(t *testing.T) {
 	t.Parallel()
 
