@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -92,6 +93,12 @@ func DownloadTerraformSource(
 			util.RelPathForLog(opts.WorkingDir, opts.WorkingDir, opts.Writers.LogShowAbsPaths),
 			util.RelPathForLog(opts.RootWorkingDir, terraformSource.WorkingDir, opts.Writers.LogShowAbsPaths),
 		)
+
+		if downloaded {
+			if err := dropDownloadedManifests(terraformSource.WorkingDir); err != nil {
+				return nil, err
+			}
+		}
 
 		// Always include the .tflint.hcl file, if it exists
 		includeInCopy := slices.Concat(cfg.Terraform.IncludeInCopy, []string{tfLintConfig})
@@ -477,4 +484,42 @@ func (err DownloadingTerraformSourceErr) Error() string {
 
 func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
+}
+
+// dropDownloadedManifests removes every .terragrunt-module-manifest under
+// root. Manifests inside freshly downloaded module content are untrusted
+// state that an attacker could craft, so they must never be consumed by
+// the cleanup pass that runs next inside util.CopyFolderContents. The
+// containment check in fileManifest.Clean is the primary defence; this
+// walk reduces the attack surface by ensuring such manifests are never
+// even read.
+func dropDownloadedManifests(root string) error {
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
+
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if d.Name() != ModuleManifestName {
+			return nil
+		}
+
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
+		}
+
+		return nil
+	})
+	if walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist) {
+		return errors.New(walkErr)
+	}
+
+	return nil
 }

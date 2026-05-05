@@ -163,6 +163,118 @@ func TestFileManifest(t *testing.T) {
 	}
 }
 
+// TestFileManifestCleanRejectsAbsolutePathOutsideRoot verifies a forged
+// manifest entry pointing at an absolute path outside the manifest folder
+// cannot delete that file.
+//
+// Uses a real filesystem (not vfs.MemMapFS) because the fix relies on
+// os.OpenRoot semantics that are only meaningful against the real FS.
+func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile(sentinel))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "absolute outside-root entry must not be removed")
+}
+
+// TestFileManifestCleanRejectsRelativeTraversal verifies that a forged
+// manifest entry using ".." to escape the manifest folder is refused.
+func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+
+	relEscape, err := filepath.Rel(root, sentinel)
+	require.NoError(t, err)
+
+	traversalEntry := filepath.Join(root, relEscape)
+
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile(traversalEntry))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "relative ../ traversal must not escape the manifest folder")
+}
+
+// TestFileManifestCleanRejectsRecursiveDirectoryEscape verifies an IsDir
+// manifest entry pointing outside the manifest folder cannot pull in a
+// nested kill list.
+func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	hostileNested := util.NewFileManifest(outsideDir, ".terragrunt-test-manifest")
+	require.NoError(t, hostileNested.Create())
+	require.NoError(t, hostileNested.AddFile(sentinel))
+	require.NoError(t, hostileNested.Close())
+
+	root := helpers.TmpDirWOSymlinks(t)
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddDirectory(outsideDir))
+	require.NoError(t, manifest.Close())
+
+	require.NoError(t, manifest.Clean(l))
+
+	assert.FileExists(t, sentinel, "recursive directory entry must not escape the manifest folder")
+	assert.FileExists(t, filepath.Join(outsideDir, ".terragrunt-test-manifest"), "outside manifest must remain untouched")
+}
+
+// TestFileManifestCleanRejectsSymlinkEscape verifies a symlink within the
+// manifest folder pointing at an outside file does not cause the target to
+// be deleted.
+//
+// Uses a real filesystem (not vfs.MemMapFS) because the test exercises real
+// symlink semantics that the in-memory FS does not model.
+func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	root := helpers.TmpDirWOSymlinks(t)
+	link := filepath.Join(root, "link.txt")
+	require.NoError(t, os.Symlink(sentinel, link))
+
+	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
+	require.NoError(t, manifest.AddFile(link))
+	require.NoError(t, manifest.Close())
+
+	_ = manifest.Clean(l)
+
+	assert.FileExists(t, sentinel, "symlink target outside the manifest folder must survive cleanup")
+}
+
 func TestContainsPath(t *testing.T) {
 	t.Parallel()
 

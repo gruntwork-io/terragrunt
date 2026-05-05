@@ -940,14 +940,24 @@ type fileManifestEntry struct {
 	IsDir bool
 }
 
-// Clean will recursively remove all files specified in the manifest
+// Clean recursively removes every file recorded in the manifest. The
+// manifest itself is treated as untrusted input: a downloaded module can
+// ship a forged .terragrunt-module-manifest, so each decoded entry must
+// resolve to a location inside ManifestFolder before it is removed.
+// Entries pointing outside that root are skipped with a warning.
 func (manifest *fileManifest) Clean(l log.Logger) error {
-	return manifest.clean(l, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	rootDir, err := filepath.Abs(manifest.ManifestFolder)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	return manifest.clean(l, rootDir, filepath.Join(rootDir, manifest.ManifestFile))
 }
 
-// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
-func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
-	// if manifest file doesn't exist, just exit
+// clean walks one manifest file and removes its entries, enforcing that
+// every removable path remains under rootDir. Directory entries trigger a
+// recursive clean against the same rootDir.
+func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) error {
 	if !FileExists(manifestPath) {
 		return nil
 	}
@@ -957,7 +967,6 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 		return err
 	}
 
-	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
 			l.Warnf("Error closing file %s: %v", name, err)
@@ -969,28 +978,34 @@ func (manifest *fileManifest) clean(l log.Logger, manifestPath string) error {
 	}(manifestPath)
 
 	decoder := gob.NewDecoder(file)
-	// decode paths one by one
-	for {
-		var manifestEntry fileManifestEntry
 
-		err = decoder.Decode(&manifestEntry)
-		if err != nil {
+	for {
+		var entry fileManifestEntry
+
+		if err := decoder.Decode(&entry); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
-			} else {
-				return err
 			}
+
+			return err
 		}
 
-		if manifestEntry.IsDir {
-			// join the directory entry path with the manifest file name and call clean()
-			if err := manifest.clean(l, filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
+		rel, ok := relPathInsideRoot(rootDir, entry.Path)
+		if !ok {
+			l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+			continue
+		}
+
+		if entry.IsDir {
+			if err := manifest.clean(l, rootDir, filepath.Join(rootDir, rel, manifest.ManifestFile)); err != nil {
 				return errors.New(err)
 			}
-		} else {
-			if err := os.Remove(manifestEntry.Path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return errors.New(err)
-			}
+
+			continue
+		}
+
+		if err := removeInsideRoot(rootDir, rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.New(err)
 		}
 	}
 
@@ -1488,4 +1503,43 @@ func SkipDirIfIgnorable(dir string) error {
 	}
 
 	return nil
+}
+
+// relPathInsideRoot returns the path of target relative to rootDir, or
+// ok=false when target resolves outside rootDir. Both inputs are made
+// absolute and cleaned before comparison so attacks using "..", absolute
+// escape paths, or unclean inputs are rejected.
+func relPathInsideRoot(rootDir, target string) (string, bool) {
+	if target == "" {
+		return "", false
+	}
+
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", false
+	}
+
+	rel, err := filepath.Rel(rootDir, targetAbs)
+	if err != nil {
+		return "", false
+	}
+
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+
+	return rel, true
+}
+
+// removeInsideRoot removes a relative path beneath rootDir using os.Root
+// so any symlink components cannot redirect the removal outside rootDir.
+func removeInsideRoot(rootDir, rel string) error {
+	root, err := os.OpenRoot(rootDir)
+	if err != nil {
+		return err
+	}
+
+	defer root.Close() //nolint:errcheck
+
+	return root.Remove(rel)
 }
