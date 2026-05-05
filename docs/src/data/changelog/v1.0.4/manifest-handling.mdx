@@ -5,4 +5,4 @@ category: "bug-fixes"
 
 #### Stripped module-shipped manifest files from the cache
 
-Any `.terragrunt-module-manifest` files inside a freshly downloaded module are now removed before Terragrunt's cleanup pass reads them, so a manifest shipped from the module cannot drive cache cleanup. The previous run's Terragrunt-written manifest is preserved across version-change downloads so overlay files removed locally between runs are still cleaned from the cache.
+Any `.terragrunt-module-manifest` files inside a freshly downloaded module are now removed before Terragrunt's cleanup pass reads them, so a manifest shipped from the module cannot drive cache cleanup.

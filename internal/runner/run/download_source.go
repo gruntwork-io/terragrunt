@@ -36,12 +36,6 @@ const (
 	tfLintConfig = ".tflint.hcl"
 
 	fileURIScheme = "file://"
-
-	// manifestRestorePerms matches the perms used by fileManifest.Create.
-	manifestRestorePerms = 0o644
-
-	// manifestRestoreDirPerms is the perm bits MkdirAll uses when recreating manifest parent dirs during restore.
-	manifestRestoreDirPerms = 0o755
 )
 
 // DownloadTerraformSource downloads the given source URL, which should use Terraform's module source syntax,
@@ -75,15 +69,6 @@ func DownloadTerraformSource(
 	dirLock.Lock()
 	defer dirLock.Unlock()
 
-	// Snapshot trusted manifests so version-change re-downloads preserve overlay cleanup; skip on --source-update where the cache is wiped and the trust model is fresh-start.
-	var savedManifests map[string][]byte
-	if !opts.SourceUpdate {
-		savedManifests, err = snapshotTrustedModuleManifests(terraformSource.WorkingDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
@@ -91,10 +76,6 @@ func DownloadTerraformSource(
 
 	if downloaded {
 		if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
-			return nil, err
-		}
-
-		if err := restoreTrustedModuleManifests(terraformSource.WorkingDir, savedManifests); err != nil {
 			return nil, err
 		}
 	}
@@ -537,69 +518,4 @@ func setupWorkingDir(fsys vfs.FS, cacheDir string) error {
 
 		return nil
 	})
-}
-
-// snapshotTrustedModuleManifests reads every regular .terragrunt-module-manifest file under cacheDir into a map keyed by relative path.
-func snapshotTrustedModuleManifests(cacheDir string) (map[string][]byte, error) {
-	snap := map[string][]byte{}
-
-	err := filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if errors.Is(walkErr, fs.ErrNotExist) {
-				return nil
-			}
-
-			return walkErr
-		}
-
-		if d.Name() != ModuleManifestName {
-			return nil
-		}
-
-		// Only snapshot regular files; directories and symlinks are not trusted manifests.
-		info, err := os.Lstat(path)
-		if err != nil {
-			return err
-		}
-
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-
-		rel, err := filepath.Rel(cacheDir, path)
-		if err != nil {
-			return err
-		}
-
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		snap[rel] = body
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return snap, nil
-}
-
-// restoreTrustedModuleManifests writes the snapshotted manifests back under cacheDir, recreating parent directories as needed.
-func restoreTrustedModuleManifests(cacheDir string, snap map[string][]byte) error {
-	for rel, body := range snap {
-		path := filepath.Join(cacheDir, rel)
-
-		if err := os.MkdirAll(filepath.Dir(path), manifestRestoreDirPerms); err != nil {
-			return err
-		}
-
-		if err := os.WriteFile(path, body, manifestRestorePerms); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
