@@ -512,7 +512,7 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 
 		return nil
 	})
-	if walkErr != nil && !errors.Is(walkErr, fs.ErrNotExist) {
+	if walkErr != nil {
 		return errors.New(walkErr)
 	}
 

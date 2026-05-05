@@ -16,8 +16,6 @@ func TestSetupWorkingDirRemovesAllManifests(t *testing.T) {
 	fsys := vfs.NewMemMapFS()
 
 	root := "/cache"
-	require.NoError(t, fsys.MkdirAll(filepath.Join(root, "sub"), 0o755))
-	require.NoError(t, fsys.MkdirAll(filepath.Join(root, "sub", "nested"), 0o755))
 
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "main.tf"), []byte("# main"), 0o644))
 	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, ModuleManifestName), []byte("top"), 0o644))
