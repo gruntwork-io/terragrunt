@@ -978,7 +978,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 	return errors.Join(errs...)
 }
 
-// processManifestFile reads one manifest file and acts on its entries. Outside-root entries are skipped with a warning. Decode and in-root removal failures are returned as errors. IsDir entries enqueue nested manifest paths instead of recursing.
+// processManifestFile opens one manifest file under root, defers cleanup, and dispatches to the entry decoder.
 func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, root *os.Root, relManifestPath string) ([]string, []error) {
 	file, err := root.Open(relManifestPath)
 	if err != nil {
@@ -989,16 +989,24 @@ func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, 
 		return nil, []error{errors.New(err)}
 	}
 
-	defer func() {
-		if err := file.Close(); err != nil {
-			l.Warnf("Error closing manifest %s: %v", relManifestPath, err)
-		}
+	defer manifest.closeAndUnlinkManifest(l, root, file, relManifestPath)
 
-		if err := root.Remove(relManifestPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			l.Warnf("Error removing manifest %s: %v", relManifestPath, err)
-		}
-	}()
+	return manifest.decodeManifestEntries(l, rootDir, root, file, relManifestPath)
+}
 
+// closeAndUnlinkManifest closes the manifest file and removes it from root, logging but not propagating cleanup errors.
+func (manifest *fileManifest) closeAndUnlinkManifest(l log.Logger, root *os.Root, file *os.File, relManifestPath string) {
+	if err := file.Close(); err != nil {
+		l.Warnf("Error closing manifest %s: %v", relManifestPath, err)
+	}
+
+	if err := root.Remove(relManifestPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		l.Warnf("Error removing manifest %s: %v", relManifestPath, err)
+	}
+}
+
+// decodeManifestEntries reads each gob-encoded entry from file and accumulates nested manifest paths and per-entry errors.
+func (manifest *fileManifest) decodeManifestEntries(l log.Logger, rootDir string, root *os.Root, file *os.File, relManifestPath string) ([]string, []error) {
 	var (
 		nested []string
 		errs   []error
@@ -1010,32 +1018,41 @@ func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, 
 		var entry fileManifestEntry
 
 		if err := decoder.Decode(&entry); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+			if !errors.Is(err, io.EOF) {
+				errs = append(errs, errors.Errorf("decode entry from %s: %w", relManifestPath, err))
 			}
-
-			errs = append(errs, errors.Errorf("decode entry from %s: %w", relManifestPath, err))
 
 			break
 		}
 
-		rel, ok := relPathInsideRoot(rootDir, entry.Path)
-		if !ok {
-			l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
-			continue
-		}
+		nestedEntries, entryErr := manifest.processEntry(l, rootDir, root, entry)
+		nested = append(nested, nestedEntries...)
 
-		if entry.IsDir {
-			nested = append(nested, filepath.Join(rel, manifest.ManifestFile))
-			continue
-		}
-
-		if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			errs = append(errs, errors.Errorf("remove %s: %w", rel, err))
+		if entryErr != nil {
+			errs = append(errs, entryErr)
 		}
 	}
 
 	return nested, errs
+}
+
+// processEntry validates one decoded entry and either returns a nested manifest path (for IsDir) or unlinks the file via root.
+func (manifest *fileManifest) processEntry(l log.Logger, rootDir string, root *os.Root, entry fileManifestEntry) ([]string, error) {
+	rel, ok := relPathInsideRoot(rootDir, entry.Path)
+	if !ok {
+		l.Warnf("Skipping untrusted manifest entry %q: resolves outside manifest root %q", entry.Path, rootDir)
+		return nil, nil
+	}
+
+	if entry.IsDir {
+		return []string{filepath.Join(rel, manifest.ManifestFile)}, nil
+	}
+
+	if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, errors.Errorf("remove %s: %w", rel, err)
+	}
+
+	return nil, nil
 }
 
 // Create will create the manifest file
