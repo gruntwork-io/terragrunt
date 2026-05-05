@@ -651,14 +651,15 @@ include {
 }
 `, "root.hcl")
 
-	cfgPath := "../../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath
+	cfgPath, err := filepath.Abs(filepath.Join("../..", "test", "fixtures", "parent-folders", "terragrunt-in-root", "child", "sub-child", "sub-sub-child", config.DefaultTerragruntConfigPath))
+	require.NoError(t, err)
 
 	l := createLogger()
 
 	ctx, pctx := newTestParsingContext(t, cfgPath)
 
-	terragruntConfig, err := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
+	terragruntConfig, parseErr := config.ParseConfigString(ctx, pctx, l, cfgPath, cfg, nil)
+	if assert.NoError(t, parseErr, "Unexpected error: %v", errors.New(parseErr)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {

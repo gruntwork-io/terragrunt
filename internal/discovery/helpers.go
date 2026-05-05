@@ -14,6 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/util"
 	"github.com/gruntwork-io/terragrunt/internal/vfs"
 	"github.com/gruntwork-io/terragrunt/pkg/config"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -70,6 +71,20 @@ func (s *stringSet) Load(key string) bool {
 	_, ok := s.m[key]
 
 	return ok
+}
+
+// RelPathOrAbs returns target made relative to base. On filepath.Rel failure (Windows cross-volume, etc.), it warns
+// and returns target unchanged so the entry still appears in output. The desc is included parenthetically in the
+// warning to identify which path failed.
+func RelPathOrAbs(l log.Logger, base, target, desc string) string {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		l.Warnf("could not make %q relative to %q (%s): %v; emitting as-is", target, base, desc, err)
+
+		return target
+	}
+
+	return rel
 }
 
 // isExternal checks if a component path is outside the given working directory.
