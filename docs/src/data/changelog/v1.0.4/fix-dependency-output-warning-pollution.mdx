@@ -9,4 +9,4 @@ Resolving `dependency` outputs no longer fails when the underlying `tofu/terrafo
 
 Terragrunt now isolates the first JSON object in the captured stdout, so leading log lines (for example, the long-standing AWS Client Side Monitoring `Enabling CSM` line) and trailing warning blocks are both ignored when reading dependency outputs.
 
-Resolves [#6001](https://github.com/gruntwork-io/terragrunt/issues/6001).
+Resolves [#6001](https://github.com/gruntwork-io/terragrunt/issues/6001). Thanks to [@jpke](https://github.com/jpke) for contributing this fix!
