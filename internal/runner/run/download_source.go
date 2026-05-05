@@ -76,7 +76,7 @@ func DownloadTerraformSource(
 	if util.FileExists(manifestPath) {
 		savedManifest, err = os.ReadFile(manifestPath)
 		if err != nil {
-			return nil, errors.New(err)
+			return nil, err
 		}
 	}
 
@@ -510,7 +510,7 @@ func restoreManifest(manifestPath string, saved []byte) error {
 
 	const ownerWriteGlobalReadPerms = 0o644
 	if err := os.WriteFile(manifestPath, saved, ownerWriteGlobalReadPerms); err != nil {
-		return errors.New(err)
+		return err
 	}
 
 	return nil
@@ -532,7 +532,7 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 		}
 
 		if err := fsys.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
+			return err
 		}
 
 		if d.IsDir() {
