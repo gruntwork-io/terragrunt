@@ -15,6 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/telemetry"
 
 	"github.com/puzpuzpuz/xsync/v3"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // UnitRunner defines a function type that executes a Unit within a given context and returns an error.
@@ -172,7 +174,20 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 		// Collect errors from results map and check for errors
 		errCollector := &errors.MultiError{}
 
+		var succeeded, failed, earlyExit int
+
 		for _, entry := range dr.q.Entries {
+			switch entry.Status {
+			case queue.StatusSucceeded:
+				succeeded++
+			case queue.StatusFailed:
+				failed++
+			case queue.StatusEarlyExit:
+				earlyExit++
+			case queue.StatusPending, queue.StatusBlocked, queue.StatusUnsorted, queue.StatusReady, queue.StatusRunning:
+				// Non-terminal states are not counted in the summary.
+			}
+
 			if err, ok := results.Load(entry.Component.Path()); ok {
 				if err == nil {
 					continue
@@ -191,6 +206,14 @@ func (dr *Controller) Run(ctx context.Context, l log.Logger) error {
 			if entry.Status == queue.StatusFailed {
 				errCollector = errCollector.Append(NewUnitFailedError(entry.Component.Path()))
 			}
+		}
+
+		if span := trace.SpanFromContext(childCtx); span.IsRecording() {
+			span.SetAttributes(
+				attribute.Int("tasks_succeeded", succeeded),
+				attribute.Int("tasks_failed", failed),
+				attribute.Int("tasks_early_exit", earlyExit),
+			)
 		}
 
 		return errCollector.ErrorOrNil()
