@@ -1135,3 +1135,50 @@ func TestDownloadTerraformSourceRemovesStaleOverlayOnWarmCache(t *testing.T) {
 	staleOverlay := filepath.Join(updatedOpts2.WorkingDir, overlayName)
 	require.NoFileExists(t, staleOverlay, "overlay file deleted from working dir must also be removed from cache on warm-cache run")
 }
+
+// TestDownloadTerraformSourceRemovesStaleOverlayOnVersionChange verifies that the previous run's manifest survives a downloaded==true (source-version-changed) run, so a deleted overlay file is also removed from the cache. Regression for the bug where setupWorkingDir on the downloaded path wiped the legitimate manifest before stale-file cleanup could read it.
+func TestDownloadTerraformSourceRemovesStaleOverlayOnVersionChange(t *testing.T) {
+	t.Parallel()
+
+	moduleDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main.tf"), []byte("# module main v1\n"), 0o644))
+
+	workingDir := helpers.TmpDirWOSymlinks(t)
+	require.NoError(t, os.WriteFile(filepath.Join(workingDir, "terragrunt.hcl"), []byte("# tg\n"), 0o644))
+
+	overlayName := "overlay.tf"
+	overlayPath := filepath.Join(workingDir, overlayName)
+	require.NoError(t, os.WriteFile(overlayPath, []byte("# overlay\n"), 0o644))
+
+	downloadDir := helpers.TmpDirWOSymlinks(t)
+
+	canonicalURL := "file://" + moduleDir
+
+	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(workingDir, "terragrunt.hcl"))
+	require.NoError(t, err)
+
+	opts.WorkingDir = workingDir
+	opts.DownloadDir = downloadDir
+	opts.Experiments = experiment.NewExperiments()
+
+	cfg := &runcfg.RunConfig{Terraform: runcfg.TerraformConfig{}}
+
+	l := logger.CreateLogger()
+	l.SetOptions(log.WithOutput(io.Discard))
+
+	updatedOpts1, err := run.DownloadTerraformSource(t.Context(), l, canonicalURL, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err, "first download must succeed")
+
+	cachedOverlay := filepath.Join(updatedOpts1.WorkingDir, overlayName)
+	require.FileExists(t, cachedOverlay, "overlay file must be copied to cache on first run")
+
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main.tf"), []byte("# module main v2\n"), 0o644), "change source content to force a version-change download on the next run")
+
+	require.NoError(t, os.Remove(overlayPath), "remove overlay file from working dir to simulate user deletion")
+
+	updatedOpts2, err := run.DownloadTerraformSource(t.Context(), l, canonicalURL, configbridge.NewRunOptions(opts), cfg, report.NewReport())
+	require.NoError(t, err, "second download (version changed) must succeed")
+
+	staleOverlay := filepath.Join(updatedOpts2.WorkingDir, overlayName)
+	require.NoFileExists(t, staleOverlay, "overlay file deleted from working dir must also be removed from cache when source version changed")
+}

@@ -1,6 +1,7 @@
 package util_test
 
 import (
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -256,7 +257,7 @@ func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	assert.FileExists(t, sentinel, "symlinked-directory component must not escape the manifest root")
 }
 
-// TestFileManifestCleanRejectsRelativeManifestEntry verifies a relative entry is rejected even when the process CWD would resolve it onto a real victim file. Cannot run with t.Parallel because t.Chdir is process-global.
+// TestFileManifestCleanRejectsRelativeManifestEntry verifies a relative entry already on disk (e.g. written by an older terragrunt or a forged manifest) is rejected even when the process CWD would resolve it onto a real victim file. Cannot run with t.Parallel because t.Chdir is process-global.
 //
 //nolint:paralleltest
 func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
@@ -271,14 +272,14 @@ func TestFileManifestCleanRejectsRelativeManifestEntry(t *testing.T) {
 	sentinel := filepath.Join(outside, "sentinel.txt")
 	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
 
+	manifestName := ".terragrunt-test-manifest"
+	writeForgedManifest(t, filepath.Join(root, manifestName), "../outside/sentinel.txt", false)
+
 	t.Chdir(root)
 
 	l := logger.CreateLogger()
 
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
-	require.NoError(t, manifest.Create())
-	require.NoError(t, manifest.AddFile("../outside/sentinel.txt"))
-	require.NoError(t, manifest.Close())
+	manifest := util.NewFileManifest(root, manifestName)
 
 	require.NoError(t, manifest.Clean(l))
 
@@ -314,13 +315,18 @@ func TestFileManifestCleanInRootRemoveFailureReturnsError(t *testing.T) {
 	require.NoError(t, os.Mkdir(stubborn, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(stubborn, "child.txt"), []byte("blocker"), 0o600))
 
-	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
+	manifestName := ".terragrunt-test-manifest"
+	manifestPath := filepath.Join(root, manifestName)
+
+	manifest := util.NewFileManifest(root, manifestName)
 	require.NoError(t, manifest.Create())
 	require.NoError(t, manifest.AddFile(stubborn))
 	require.NoError(t, manifest.Close())
 
 	err := manifest.Clean(l)
 	require.Error(t, err, "in-root removal failure must be returned, not silently swallowed")
+
+	assert.FileExists(t, manifestPath, "manifest must remain on disk after a removal failure so a retry can still consume it")
 }
 
 func TestContainsPath(t *testing.T) {
@@ -999,4 +1005,23 @@ func planSentinel(t *testing.T) (string, string) {
 	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
 
 	return outsideDir, sentinel
+}
+
+// writeForgedManifest writes a gob-encoded manifest containing a single entry with the given path and IsDir flag, bypassing AddFile validation so tests can plant adversarial inputs directly on disk.
+func writeForgedManifest(t *testing.T, manifestPath, entryPath string, isDir bool) {
+	t.Helper()
+
+	type forgedEntry struct {
+		Path  string
+		IsDir bool
+	}
+
+	f, err := os.Create(manifestPath)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	require.NoError(t, gob.NewEncoder(f).Encode(forgedEntry{Path: entryPath, IsDir: isDir}))
 }

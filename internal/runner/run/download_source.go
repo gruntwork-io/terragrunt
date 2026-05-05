@@ -69,6 +69,17 @@ func DownloadTerraformSource(
 	dirLock.Lock()
 	defer dirLock.Unlock()
 
+	// Snapshot the previous-run terragrunt manifest so it survives both go-getter rewrites and the post-download manifest scrub; this preserves overlay stale-file tracking on version-change downloads.
+	manifestPath := filepath.Join(terraformSource.WorkingDir, ModuleManifestName)
+
+	var savedManifest []byte
+	if util.FileExists(manifestPath) {
+		savedManifest, err = os.ReadFile(manifestPath)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+	}
+
 	downloaded, err := DownloadTerraformSourceIfNecessary(ctx, l, terraformSource, opts, cfg, r)
 	if err != nil {
 		return nil, err
@@ -97,6 +108,10 @@ func DownloadTerraformSource(
 
 		if downloaded {
 			if err := setupWorkingDir(vfs.NewOSFS(), terraformSource.WorkingDir); err != nil {
+				return nil, err
+			}
+
+			if err := restoreManifest(manifestPath, savedManifest); err != nil {
 				return nil, err
 			}
 		}
@@ -487,6 +502,20 @@ func (err DownloadingTerraformSourceErr) Unwrap() error {
 	return err.ErrMsg
 }
 
+// restoreManifest writes saved bytes back to manifestPath, used after setupWorkingDir wipes manifests so a previous-run terragrunt-written manifest is preserved across version-change downloads.
+func restoreManifest(manifestPath string, saved []byte) error {
+	if saved == nil {
+		return nil
+	}
+
+	const ownerWriteGlobalReadPerms = 0o644
+	if err := os.WriteFile(manifestPath, saved, ownerWriteGlobalReadPerms); err != nil {
+		return errors.New(err)
+	}
+
+	return nil
+}
+
 // setupWorkingDir prepares a freshly-downloaded module source tree before util.CopyFolderContents reads it; today it only removes pre-existing .terragrunt-module-manifest files. fsys is injected so tests can use vfs.NewMemMapFS.
 func setupWorkingDir(fsys vfs.FS, root string) error {
 	walkErr := vfs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
@@ -498,16 +527,16 @@ func setupWorkingDir(fsys vfs.FS, root string) error {
 			return err
 		}
 
-		if d.IsDir() {
-			return nil
-		}
-
 		if d.Name() != ModuleManifestName {
 			return nil
 		}
 
-		if err := fsys.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := fsys.RemoveAll(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return errors.New(err)
+		}
+
+		if d.IsDir() {
+			return fs.SkipDir
 		}
 
 		return nil

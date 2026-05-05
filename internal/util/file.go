@@ -978,7 +978,7 @@ func (manifest *fileManifest) Clean(l log.Logger) error {
 	return errors.Join(errs...)
 }
 
-// processManifestFile opens one manifest file under root, defers cleanup, and dispatches to the entry decoder.
+// processManifestFile opens one manifest file under root, defers close, dispatches to the entry decoder, and unlinks the manifest only on full success so a retry can still consume it on transient failure.
 func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, root *os.Root, relManifestPath string) ([]string, []error) {
 	file, err := root.Open(relManifestPath)
 	if err != nil {
@@ -989,17 +989,26 @@ func (manifest *fileManifest) processManifestFile(l log.Logger, rootDir string, 
 		return nil, []error{errors.New(err)}
 	}
 
-	defer manifest.closeAndUnlinkManifest(l, root, file, relManifestPath)
+	defer manifest.closeManifestFile(l, file, relManifestPath)
 
-	return manifest.decodeManifestEntries(l, rootDir, root, file, relManifestPath)
+	nested, errs := manifest.decodeManifestEntries(l, rootDir, root, file, relManifestPath)
+
+	if len(errs) == 0 {
+		manifest.unlinkManifestFile(l, root, relManifestPath)
+	}
+
+	return nested, errs
 }
 
-// closeAndUnlinkManifest closes the manifest file and removes it from root, logging but not propagating cleanup errors.
-func (manifest *fileManifest) closeAndUnlinkManifest(l log.Logger, root *os.Root, file *os.File, relManifestPath string) {
+// closeManifestFile closes the manifest file handle, logging but not propagating close errors.
+func (manifest *fileManifest) closeManifestFile(l log.Logger, file *os.File, relManifestPath string) {
 	if err := file.Close(); err != nil {
 		l.Warnf("Error closing manifest %s: %v", relManifestPath, err)
 	}
+}
 
+// unlinkManifestFile removes the manifest file from root, logging but not propagating removal errors.
+func (manifest *fileManifest) unlinkManifestFile(l log.Logger, root *os.Root, relManifestPath string) {
 	if err := root.Remove(relManifestPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		l.Warnf("Error removing manifest %s: %v", relManifestPath, err)
 	}
@@ -1070,13 +1079,21 @@ func (manifest *fileManifest) Create() error {
 	return nil
 }
 
-// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+// AddFile will add the file path to the manifest file. The path must be absolute so that Clean can verify containment without depending on the process working directory at recovery time. Please make sure to run Create() before using this.
 func (manifest *fileManifest) AddFile(path string) error {
+	if !filepath.IsAbs(path) {
+		return errors.Errorf("manifest entry path must be absolute, got %q", path)
+	}
+
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
 }
 
-// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
+// AddDirectory will add the directory path to the manifest file. The path must be absolute so that Clean can verify containment without depending on the process working directory at recovery time. Please make sure to run Create() before using this.
 func (manifest *fileManifest) AddDirectory(path string) error {
+	if !filepath.IsAbs(path) {
+		return errors.Errorf("manifest entry path must be absolute, got %q", path)
+	}
+
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
 }
 

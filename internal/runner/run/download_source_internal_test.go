@@ -54,3 +54,26 @@ func TestSetupWorkingDirMissingRootIsNoOp(t *testing.T) {
 
 	require.NoError(t, setupWorkingDir(fsys, "/does-not-exist"))
 }
+
+// TestSetupWorkingDirRemovesManifestNamedDirectory verifies that a downloaded source containing a directory whose name matches ModuleManifestName is removed entirely so a later open-as-file does not fail.
+func TestSetupWorkingDirRemovesManifestNamedDirectory(t *testing.T) {
+	t.Parallel()
+
+	fsys := vfs.NewMemMapFS()
+
+	root := "/cache"
+	manifestDir := filepath.Join(root, ModuleManifestName)
+
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(manifestDir, "trapped.tf"), []byte("# trap"), 0o644))
+	require.NoError(t, vfs.WriteFile(fsys, filepath.Join(root, "main.tf"), []byte("# main"), 0o644))
+
+	require.NoError(t, setupWorkingDir(fsys, root))
+
+	exists, err := vfs.FileExists(fsys, manifestDir)
+	require.NoError(t, err)
+	assert.False(t, exists, "directory named ModuleManifestName must be removed entirely")
+
+	exists, err = vfs.FileExists(fsys, filepath.Join(root, "main.tf"))
+	require.NoError(t, err)
+	assert.True(t, exists, "non-manifest files must be preserved")
+}
