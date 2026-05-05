@@ -941,41 +941,63 @@ type fileManifestEntry struct {
 }
 
 // Clean recursively removes every file recorded in the manifest. The
-// manifest itself is treated as untrusted input: a downloaded module can
-// ship a forged .terragrunt-module-manifest, so each decoded entry must
-// resolve to a location inside ManifestFolder before it is removed.
-// Entries pointing outside that root are skipped with a warning.
+// manifest is treated as untrusted input - a downloaded module can ship
+// a forged .terragrunt-module-manifest - so reads and removals all flow
+// through a single rooted descriptor (os.Root) anchored at
+// ManifestFolder. Decoded entries that resolve outside that root are
+// dropped with a warning. Per-entry removal failures (permission,
+// corrupted gob stream, individual unlink errors) are also logged and
+// skipped, leaving the rest of the manifest to clean up best-effort.
+// Only structural failures - inability to open the manifest folder
+// itself for reasons other than ErrNotExist - propagate to the caller.
 func (manifest *fileManifest) Clean(l log.Logger) error {
 	rootDir, err := filepath.Abs(manifest.ManifestFolder)
 	if err != nil {
 		return errors.New(err)
 	}
 
-	return manifest.clean(l, rootDir, filepath.Join(rootDir, manifest.ManifestFile))
+	root, err := os.OpenRoot(rootDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
+		return errors.New(err)
+	}
+
+	defer func() {
+		if err := root.Close(); err != nil {
+			l.Warnf("Error closing manifest root %s: %v", rootDir, err)
+		}
+	}()
+
+	return manifest.clean(l, rootDir, root, manifest.ManifestFile)
 }
 
-// clean walks one manifest file and removes its entries, enforcing that
-// every removable path remains under rootDir. Directory entries trigger a
-// recursive clean against the same rootDir.
-func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) error {
-	if !FileExists(manifestPath) {
-		return nil
-	}
-
-	file, err := os.Open(manifestPath)
+// clean walks one manifest file and removes its entries through root.
+// rootDir is kept only so log messages can name an absolute path; the
+// security boundary is root itself - both the read of the manifest and
+// any unlink go through it, so symlink components anywhere along a path
+// cannot redirect outside rootDir.
+func (manifest *fileManifest) clean(l log.Logger, rootDir string, root *os.Root, relManifestPath string) error {
+	file, err := root.Open(relManifestPath)
 	if err != nil {
-		return err
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+
+		return errors.New(err)
 	}
 
-	defer func(name string) {
+	defer func() {
 		if err := file.Close(); err != nil {
-			l.Warnf("Error closing file %s: %v", name, err)
+			l.Warnf("Error closing manifest %s: %v", relManifestPath, err)
 		}
 
-		if err := os.Remove(name); err != nil {
-			l.Warnf("Error removing manifest file %s: %v", name, err)
+		if err := root.Remove(relManifestPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			l.Warnf("Error removing manifest %s: %v", relManifestPath, err)
 		}
-	}(manifestPath)
+	}()
 
 	decoder := gob.NewDecoder(file)
 
@@ -983,11 +1005,11 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) 
 		var entry fileManifestEntry
 
 		if err := decoder.Decode(&entry); err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+			if !errors.Is(err, io.EOF) {
+				l.Warnf("Error decoding manifest %s: %v", relManifestPath, err)
 			}
 
-			return err
+			break
 		}
 
 		rel, ok := relPathInsideRoot(rootDir, entry.Path)
@@ -997,15 +1019,16 @@ func (manifest *fileManifest) clean(l log.Logger, rootDir, manifestPath string) 
 		}
 
 		if entry.IsDir {
-			if err := manifest.clean(l, rootDir, filepath.Join(rootDir, rel, manifest.ManifestFile)); err != nil {
-				return errors.New(err)
+			nested := filepath.Join(rel, manifest.ManifestFile)
+			if err := manifest.clean(l, rootDir, root, nested); err != nil {
+				l.Warnf("Error cleaning nested manifest %s: %v", nested, err)
 			}
 
 			continue
 		}
 
-		if err := removeInsideRoot(rootDir, rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.New(err)
+		if err := root.Remove(rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			l.Warnf("Error removing manifest entry %s: %v", rel, err)
 		}
 	}
 
@@ -1508,7 +1531,13 @@ func SkipDirIfIgnorable(dir string) error {
 // relPathInsideRoot returns the path of target relative to rootDir, or
 // ok=false when target resolves outside rootDir. Both inputs are made
 // absolute and cleaned before comparison so attacks using "..", absolute
-// escape paths, or unclean inputs are rejected.
+// escape paths, or unclean inputs are rejected. rel == "." (target is
+// rootDir itself) is also rejected; callers do not address the root.
+//
+// rootDir and target must already share canonical form - this function
+// does not call filepath.EvalSymlinks. In current callers the
+// destination passed to NewFileManifest is the same value that flows
+// into AddFile, so the assumption holds.
 func relPathInsideRoot(rootDir, target string) (string, bool) {
 	if target == "" {
 		return "", false
@@ -1529,17 +1558,4 @@ func relPathInsideRoot(rootDir, target string) (string, bool) {
 	}
 
 	return rel, true
-}
-
-// removeInsideRoot removes a relative path beneath rootDir using os.Root
-// so any symlink components cannot redirect the removal outside rootDir.
-func removeInsideRoot(rootDir, rel string) error {
-	root, err := os.OpenRoot(rootDir)
-	if err != nil {
-		return err
-	}
-
-	defer root.Close() //nolint:errcheck
-
-	return root.Remove(rel)
 }

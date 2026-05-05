@@ -173,10 +173,7 @@ func TestFileManifestCleanRejectsAbsolutePathOutsideRoot(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-
-	outsideDir := helpers.TmpDirWOSymlinks(t)
-	sentinel := filepath.Join(outsideDir, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+	_, sentinel := planSentinel(t)
 
 	root := helpers.TmpDirWOSymlinks(t)
 	manifest := util.NewFileManifest(root, ".terragrunt-test-manifest")
@@ -195,10 +192,7 @@ func TestFileManifestCleanRejectsRelativeTraversal(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-
-	outsideDir := helpers.TmpDirWOSymlinks(t)
-	sentinel := filepath.Join(outsideDir, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+	_, sentinel := planSentinel(t)
 
 	root := helpers.TmpDirWOSymlinks(t)
 
@@ -224,10 +218,7 @@ func TestFileManifestCleanRejectsRecursiveDirectoryEscape(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-
-	outsideDir := helpers.TmpDirWOSymlinks(t)
-	sentinel := filepath.Join(outsideDir, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+	outsideDir, sentinel := planSentinel(t)
 
 	hostileNested := util.NewFileManifest(outsideDir, ".terragrunt-test-manifest")
 	require.NoError(t, hostileNested.Create())
@@ -256,10 +247,7 @@ func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	t.Parallel()
 
 	l := logger.CreateLogger()
-
-	outsideDir := helpers.TmpDirWOSymlinks(t)
-	sentinel := filepath.Join(outsideDir, "sentinel.txt")
-	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+	_, sentinel := planSentinel(t)
 
 	root := helpers.TmpDirWOSymlinks(t)
 	link := filepath.Join(root, "link.txt")
@@ -270,7 +258,7 @@ func TestFileManifestCleanRejectsSymlinkEscape(t *testing.T) {
 	require.NoError(t, manifest.AddFile(link))
 	require.NoError(t, manifest.Close())
 
-	_ = manifest.Clean(l)
+	require.NoError(t, manifest.Clean(l))
 
 	assert.FileExists(t, sentinel, "symlink target outside the manifest folder must survive cleanup")
 }
@@ -941,3 +929,16 @@ func benchmarkCopyFolderContents(b *testing.B, fastCopy bool) {
 
 func BenchmarkCopyFolderContents_Slow(b *testing.B) { benchmarkCopyFolderContents(b, false) }
 func BenchmarkCopyFolderContents_Fast(b *testing.B) { benchmarkCopyFolderContents(b, true) }
+
+// planSentinel creates a temp directory outside any manifest root and
+// writes a sentinel file inside it that the test will assert survives
+// the Clean() call. Returns the directory path and the sentinel path.
+func planSentinel(t *testing.T) (string, string) {
+	t.Helper()
+
+	outsideDir := helpers.TmpDirWOSymlinks(t)
+	sentinel := filepath.Join(outsideDir, "sentinel.txt")
+	require.NoError(t, os.WriteFile(sentinel, []byte("must survive"), 0o600))
+
+	return outsideDir, sentinel
+}
