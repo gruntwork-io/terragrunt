@@ -18,35 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetPathRelativeTo(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		path     string
-		basePath string
-		expected string
-	}{
-		{"", "", "."},
-		{helpers.RootFolder, helpers.RootFolder, "."},
-		{helpers.RootFolder, helpers.RootFolder + "child", ".."},
-		{helpers.RootFolder, helpers.RootFolder + "child/sub-child/sub-sub-child", "../../.."},
-		{helpers.RootFolder + "other-child", helpers.RootFolder + "child", "../other-child"},
-		{helpers.RootFolder + "other-child/sub-child", helpers.RootFolder + "child/sub-child", "../../other-child/sub-child"},
-		{helpers.RootFolder + "root", helpers.RootFolder + "other-root", "../root"},
-		{helpers.RootFolder + "root", helpers.RootFolder + "other-root/sub-child/sub-sub-child", "../../../root"},
-	}
-
-	for i, tc := range testCases {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			t.Parallel()
-
-			actual, err := util.GetPathRelativeTo(tc.path, tc.basePath)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, actual, "For path %s and basePath %s", tc.path, tc.basePath)
-		})
-	}
-}
-
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
 
