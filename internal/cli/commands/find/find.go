@@ -111,11 +111,9 @@ func Run(ctx context.Context, l log.Logger, opts *Options) error {
 		"working_dir":  opts.WorkingDir,
 		"config_count": len(components),
 	}, func(ctx context.Context) error {
-		var convErr error
+		foundComponents = discoveredToFound(l, components, opts)
 
-		foundComponents, convErr = discoveredToFound(components, opts)
-
-		return convErr
+		return nil
 	})
 	if err != nil {
 		return errors.New(err)
@@ -146,9 +144,8 @@ type FoundComponent struct {
 	Reading      []string `json:"reading,omitempty"`
 }
 
-func discoveredToFound(components component.Components, opts *Options) (FoundComponents, error) {
+func discoveredToFound(l log.Logger, components component.Components, opts *Options) FoundComponents {
 	foundComponents := make(FoundComponents, 0, len(components))
-	errs := []error{}
 
 	for _, c := range components {
 		if opts.QueueConstructAs != "" {
@@ -161,26 +158,14 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 			}
 		}
 
-		var (
-			relPath string
-			err     error
-		)
-
 		base := opts.WorkingDir
 		if c.DiscoveryContext() != nil && c.DiscoveryContext().WorkingDir != "" {
 			base = c.DiscoveryContext().WorkingDir
 		}
 
-		relPath, err = filepath.Rel(base, c.Path())
-		if err != nil {
-			errs = append(errs, fmt.Errorf("relativize component path %q against base %q: %w", c.Path(), base, err))
-
-			continue
-		}
-
 		foundComponent := &FoundComponent{
 			Type: c.Kind(),
-			Path: relPath,
+			Path: discovery.RelPathOrAbs(l, base, c.Path(), "component"),
 		}
 
 		if opts.Exclude {
@@ -196,17 +181,8 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 				if cfg := unit.Config(); cfg != nil && cfg.ProcessedIncludes != nil {
 					foundComponent.Include = make(map[string]string, len(cfg.ProcessedIncludes))
 					for _, v := range cfg.ProcessedIncludes {
-						relIncludePath, relErr := filepath.Rel(opts.RootWorkingDir, v.Path)
-						if relErr != nil {
-							errs = append(errs, fmt.Errorf(
-								"relativize include %q (path %q) for unit %q against root %q: %w",
-								v.Name, v.Path, unit.Path(), opts.RootWorkingDir, relErr,
-							))
-
-							continue
-						}
-
-						foundComponent.Include[v.Name] = relIncludePath
+						desc := fmt.Sprintf("include %q of unit %q", v.Name, unit.Path())
+						foundComponent.Include[v.Name] = discovery.RelPathOrAbs(l, opts.RootWorkingDir, v.Path, desc)
 					}
 				}
 			}
@@ -220,48 +196,30 @@ func discoveredToFound(components component.Components, opts *Options) (FoundCom
 				readingBase = c.DiscoveryContext().WorkingDir
 			}
 
+			desc := fmt.Sprintf("read path of unit %q", c.Path())
 			for i, reading := range c.Reading() {
-				relReadingPath, relErr := filepath.Rel(readingBase, reading)
-				if relErr != nil {
-					errs = append(errs, fmt.Errorf(
-						"relativize reading path %q for unit %q against base %q: %w",
-						reading, c.Path(), readingBase, relErr,
-					))
-
-					continue
-				}
-
-				foundComponent.Reading[i] = relReadingPath
+				foundComponent.Reading[i] = discovery.RelPathOrAbs(l, readingBase, reading, desc)
 			}
 		}
 
 		if opts.Dependencies && len(c.Dependencies()) > 0 {
 			foundComponent.Dependencies = make([]string, len(c.Dependencies()))
 
+			desc := fmt.Sprintf("dependency of unit %q", c.Path())
 			for i, dep := range c.Dependencies() {
 				depBase := opts.WorkingDir
 				if dep.DiscoveryContext() != nil && dep.DiscoveryContext().WorkingDir != "" {
 					depBase = dep.DiscoveryContext().WorkingDir
 				}
 
-				relDepPath, relErr := filepath.Rel(depBase, dep.Path())
-				if relErr != nil {
-					errs = append(errs, fmt.Errorf(
-						"relativize dependency path %q (of unit %q) against base %q: %w",
-						dep.Path(), c.Path(), depBase, relErr,
-					))
-
-					continue
-				}
-
-				foundComponent.Dependencies[i] = relDepPath
+				foundComponent.Dependencies[i] = discovery.RelPathOrAbs(l, depBase, dep.Path(), desc)
 			}
 		}
 
 		foundComponents = append(foundComponents, foundComponent)
 	}
 
-	return foundComponents, errors.Join(errs...)
+	return foundComponents
 }
 
 // outputJSON outputs the discovered components in JSON format.
