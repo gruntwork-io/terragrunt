@@ -884,16 +884,49 @@ func getOutputJSONWithCaching(ctx context.Context, pctx *ParsingContext, l log.L
 		return nil, err
 	}
 
-	// When AWS Client Side Monitoring (CSM) is enabled the aws-sdk-go displays log as a plaintext "Enabling CSM" to stdout, even if the `output -json` flag is specified. The final output looks like this: "2023/05/04 20:22:43 Enabling CSM{...omitted json string...}", and and prevents proper json parsing. Since there is no way to disable this log, the only way out is to filter.
-	// Related AWS code: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
-	// Related issues: https://github.com/gruntwork-io/terragrunt/issues/2233 https://github.com/hashicorp/terraform-provider-aws/issues/23620
-	if index := bytes.IndexByte(newJSONBytes, byte('{')); index > 0 {
-		newJSONBytes = newJSONBytes[index:]
+	// `tofu/terraform output -json` stdout can be polluted with non-JSON text on either side of the JSON object:
+	//   - Leading: AWS Client Side Monitoring (CSM) logs (e.g., "2023/05/04 20:22:43 Enabling CSM"),
+	//     ANSI color escape sequences from warning blocks.
+	//     Refs: https://github.com/aws/aws-sdk-go/blob/81d1cbbc6a2028023aff7bcab0fe1be320cd39f7/aws/session/session.go#L444
+	//           https://github.com/gruntwork-io/terragrunt/issues/2233
+	//   - Trailing: Terraform 1.15+ emits backend deprecation warnings (e.g., for the S3
+	//     `dynamodb_table` parameter) on stdout after the JSON has already been printed.
+	//     Refs: https://github.com/gruntwork-io/terragrunt/issues/6001
+	//
+	// To make parsing robust to either, isolate the first JSON object in the buffer.
+	trimmedJSONBytes, trimErr := extractFirstJSONObject(newJSONBytes)
+	if trimErr != nil {
+		return nil, errors.New(TerragruntOutputParsingError{Path: targetConfig, Err: trimErr})
 	}
+
+	newJSONBytes = trimmedJSONBytes
 
 	jsonCache.Put(ctx, targetConfig, newJSONBytes)
 
 	return newJSONBytes, nil
+}
+
+// extractFirstJSONObject returns the first complete JSON object found in data, ignoring any
+// non-JSON content that precedes or follows it. This is needed because `tofu/terraform output -json`
+// can intermix log lines, ANSI escape codes, or deprecation warnings with the JSON output, depending
+// on the version and backend in use.
+//
+// If data contains no `{`, the original bytes are returned so downstream JSON parsing surfaces the
+// usual "unexpected end of JSON input" error rather than a cryptic message from this helper.
+func extractFirstJSONObject(data []byte) ([]byte, error) {
+	start := bytes.IndexByte(data, '{')
+	if start < 0 {
+		return data, nil
+	}
+
+	dec := json.NewDecoder(bytes.NewReader(data[start:]))
+
+	var raw json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	return raw, nil
 }
 
 // Retrieve the outputs from the terraform state in the target configuration. This attempts to optimize the output
