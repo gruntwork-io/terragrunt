@@ -295,6 +295,45 @@ func TestFileManifestCleanRejectsSymlinkedManifestRoot(t *testing.T) {
 	assert.FileExists(t, sentinel, "manifest cleanup must reject a symlinked manifest root before removing entries")
 }
 
+func TestFileManifestCleanAllowsSymlinkedManifestRootAncestor(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	physicalParent := helpers.TmpDirWOSymlinks(t)
+	linkParent := helpers.TmpDirWOSymlinks(t)
+	rootParentLink := filepath.Join(linkParent, "cache-parent-link")
+
+	if err := os.Symlink(physicalParent, rootParentLink); err != nil {
+		t.Skipf("symlinks are not available: %v", err)
+	}
+
+	root := filepath.Join(rootParentLink, "cache-root")
+	require.NoError(t, os.MkdirAll(root, 0o700))
+
+	staleFile := filepath.Join(root, "stale.tf")
+	require.NoError(t, os.WriteFile(staleFile, []byte("stale"), 0o600))
+
+	writeManifest(t, filepath.Join(root, testManifestName), staleFile)
+
+	manifest := util.NewFileManifest(root, testManifestName)
+	require.NoError(t, manifest.Clean(l))
+
+	assert.NoFileExists(t, staleFile, "manifest cleanup must allow symlinked ancestors such as macOS /tmp")
+}
+
+func TestFileManifestCleanRejectsNonDirectoryManifestRoot(t *testing.T) {
+	t.Parallel()
+
+	l := logger.CreateLogger()
+
+	rootFile := filepath.Join(helpers.TmpDirWOSymlinks(t), "manifest-root-file")
+	require.NoError(t, os.WriteFile(rootFile, []byte("not a directory"), 0o600))
+
+	manifest := util.NewFileManifest(rootFile, testManifestName)
+	require.ErrorContains(t, manifest.Clean(l), "must be a directory")
+}
+
 func TestFileManifestCleanRemovesManifestNamedDirectory(t *testing.T) {
 	t.Parallel()
 

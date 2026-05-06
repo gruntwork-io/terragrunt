@@ -952,12 +952,7 @@ const (
 // Clean walks the manifest and any nested manifests it references, removing recorded entries.
 // All operations stay bounded to ManifestFolder.
 func (manifest *fileManifest) Clean(l log.Logger) error {
-	rootDir, err := filepath.Abs(manifest.ManifestFolder)
-	if err != nil {
-		return errors.New(err)
-	}
-
-	rootDir = filepath.Clean(rootDir)
+	rootDir := filepath.Clean(manifest.ManifestFolder)
 
 	rootExists, err := manifestRootExistsWithoutSymlinks(vfs.NewOSFS(), rootDir)
 	if err != nil {
@@ -1911,36 +1906,29 @@ func manifestRootExistsWithoutSymlinks(fsys vfs.FS, rootDir string) (bool, error
 	}
 
 	if !info.IsDir() {
-		return true, nil
-	}
-
-	evaluatedRootDir, err := vfs.EvalSymlinks(fsys, rootDir)
-	if err != nil {
-		return false, errors.New(err)
-	}
-
-	if filepath.Clean(evaluatedRootDir) != rootDir {
-		return false, errors.Errorf("manifest folder %q must not contain symlinks", rootDir)
+		return false, errors.Errorf("manifest folder %q must be a directory", rootDir)
 	}
 
 	return true, nil
 }
 
 // relPathInsideRoot returns target as a clean path relative to rootDir.
-// ok=false means rootDir is not absolute, target equals or escapes rootDir, or
-// filepath.Rel cannot compare them. Non-absolute targets are resolved against
-// rootDir so cleanup semantics do not depend on the process CWD.
+// ok=false means target equals or escapes rootDir, or filepath.Rel cannot compare them.
+// Non-absolute targets are resolved against rootDir, not process CWD.
 func relPathInsideRoot(rootDir, target string) (string, bool) {
-	if !filepath.IsAbs(rootDir) {
+	rootDir = filepath.Clean(rootDir)
+	if rootDir == "" {
 		return "", false
 	}
 
 	cleanTarget := filepath.Clean(target)
 	if !filepath.IsAbs(cleanTarget) {
-		cleanTarget = filepath.Join(filepath.Clean(rootDir), cleanTarget)
+		cleanTarget = filepath.Join(rootDir, cleanTarget)
+	} else if !filepath.IsAbs(rootDir) {
+		return "", false
 	}
 
-	rel, err := filepath.Rel(filepath.Clean(rootDir), cleanTarget)
+	rel, err := filepath.Rel(rootDir, cleanTarget)
 	if err != nil {
 		return "", false
 	}
