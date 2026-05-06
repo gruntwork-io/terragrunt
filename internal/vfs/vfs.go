@@ -51,6 +51,7 @@ type Locker interface {
 	TryLock(name string) (Unlocker, bool, error)
 }
 
+// symlinkEvaluator lets filesystem implementations provide native symlink resolution.
 type symlinkEvaluator interface {
 	EvalSymlinksIfPossible(name string) (string, bool, error)
 }

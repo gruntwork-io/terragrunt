@@ -552,6 +552,7 @@ func writeInvalidGobManifest(t *testing.T, path string) {
 	require.NoError(t, gob.NewEncoder(f).Encode("not a manifest entry"))
 }
 
+// manifestTestEntry mirrors fileManifestEntry for manifest fixture generation.
 type manifestTestEntry struct {
 	Path  string
 	IsDir bool

@@ -1079,6 +1079,7 @@ func readForgedManifestEntries(t *testing.T, path string) []forgedManifestEntry 
 	}
 }
 
+// forgedManifestEntry mirrors the gob manifest entry layout for adversarial fixtures.
 type forgedManifestEntry struct {
 	Path  string
 	IsDir bool

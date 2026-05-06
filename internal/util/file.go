@@ -1063,6 +1063,7 @@ func (manifest *fileManifest) clean(l log.Logger, fsys vfs.FS, rootDir, manifest
 	return nil
 }
 
+// fileManifestCleanContext carries shared state for one manifest cleanup walk.
 type fileManifestCleanContext struct {
 	l              log.Logger
 	fsys           vfs.FS
@@ -1071,6 +1072,7 @@ type fileManifestCleanContext struct {
 	decodedEntries int
 }
 
+// fileManifestCleanLimits bounds child manifests queued from one decoded manifest.
 type fileManifestCleanLimits struct {
 	maxPendingNextRelPaths  int
 	maxManifestNextRelPaths int
@@ -1860,6 +1862,7 @@ func cleanRootRelPath(rel string) (string, bool) {
 	return rel, true
 }
 
+// fileManifestLimitError marks cleanup errors caused by configured safety caps.
 type fileManifestLimitError struct {
 	message string
 }
@@ -1874,6 +1877,7 @@ func isFileManifestLimitError(err error) bool {
 	return errors.As(err, &limitErr)
 }
 
+// fileManifestDecodeError wraps gob decode failures so cleanup can fail soft.
 type fileManifestDecodeError struct {
 	err error
 }
